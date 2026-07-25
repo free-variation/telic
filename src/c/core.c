@@ -1665,16 +1665,11 @@ static void trace_write(Interpreter *interp, int *len, const char *text) {
 	interp->error_trace[*len] = 0;
 }
 
-static void trace_write_snippet(Interpreter *interp, int *len, int source_offset) {
-	if (source_offset == 0) {
-		trace_write(interp, len, "[:?]");
-		return;
-	}
-	char cleaned[TRACE_SNIPPET_MAX + 8];
+static void clean_snippet(char *cleaned, int cap, int source_offset) {
 	int n = 0;
 	int pending_space = 0;
 	const char *c = &vocab.source_pool[source_offset];
-	for (; *c && n < TRACE_SNIPPET_MAX - 1; c++) {
+	for (; *c && n < cap - 1; c++) {
 		if (isspace((unsigned char)*c)) {
 			pending_space = 1;
 			continue;
@@ -1693,6 +1688,15 @@ static void trace_write_snippet(Interpreter *interp, int *len, int source_offset
 		n += 6;
 	}
 	cleaned[n] = 0;
+}
+
+static void trace_write_snippet(Interpreter *interp, int *len, int source_offset) {
+	if (source_offset == 0) {
+		trace_write(interp, len, "[:?]");
+		return;
+	}
+	char cleaned[TRACE_SNIPPET_MAX + 8];
+	clean_snippet(cleaned, TRACE_SNIPPET_MAX, source_offset);
 	trace_write(interp, len, cleaned);
 }
 
@@ -3838,10 +3842,21 @@ static void see_compiled_body(FILE *out, Interpreter *interp, int body_start, in
 
 		if (handler_fn == docol || handler_fn == dovar || handler_fn == dounit) {
 			int target = (int)vocab.dict[cursor + 1];
-			if (target >= 4 && target < vocab.here)
+			const QuotationSpan *quotation = (handler_fn == docol)
+				? quotation_span_containing(target) : NULL;
+			if (quotation && quotation->start_cfa == target) {
+				if (quotation->source_offset == 0) {
+					fputs("[:?]\n", out);
+				} else {
+					char cleaned[TRACE_SNIPPET_MAX + 8];
+					clean_snippet(cleaned, TRACE_SNIPPET_MAX, quotation->source_offset);
+					fprintf(out, "%s\n", cleaned);
+				}
+			} else if (target >= 4 && target < vocab.here) {
 				fprintf(out, "%s\n", &vocab.name_pool[WORD_NAME(target)]);
-			else
+			} else {
 				fputs("?\n", out);
+			}
 			cursor += 2;
 			continue;
 		}

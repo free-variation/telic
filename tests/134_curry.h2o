@@ -41,6 +41,14 @@ clear
 
 clear
 
+\ === a curried word decompiles showing the bound value and the quotation by
+\ source — the headerless quotation renders as [: … :], not a junk name.
+\ has? is a regex match, so the parens and brackets are escaped ===
+5 [: + :] curry see-compiled>string "\(lit\) 5" has? . cr     \ 1
+5 [: + :] curry see-compiled>string "\[: \+ :\]" has? . cr    \ 1
+
+clear
+
 \ === errors ===
 [: 1 2 curry :] [: . cr :] try-catch          \ (top is not an xt)
 [: 5 curry :] [: . cr :] try-catch            \ (needs two operands)
