@@ -885,15 +885,18 @@ void p_dot(DISPATCH_ARGS) {
 
 void p_dot_all(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
-	int saved = print_truncate;
+	int saved_truncate = print_truncate;
+	int saved_precision = print_full_precision;
 	print_truncate = 0;
+	print_full_precision = 1;
 	Val value = chain_sp[-1];
 	if (!grid_if_matrix(stdout, value)) {
 		print_val(stdout, interp, value);
 		putchar(' ');
 	}
 	fflush(stdout);
-	print_truncate = saved;
+	print_truncate = saved_truncate;
+	print_full_precision = saved_precision;
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 }
@@ -1099,6 +1102,33 @@ void p_curry(DISPATCH_ARGS) {
 	chain_sp[-2] = make_xt(curried_cfa);
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+}
+
+void p_2curry(DISPATCH_ARGS) {
+	if (in_parallel) {
+		fail(interp, "cannot curry inside a parallel region");
+		return;
+	}
+
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 3);
+	Val xt_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(xt_val, T_XT, "2curry", "an execution token");
+	Val first_value = chain_sp[-3];
+	Val second_value = chain_sp[-2];
+
+	int curried_cfa = create_header(interp, "(curried)", 4);
+	if (interp->error_flag) return;
+
+	emit(interp, (cell)&docol);
+	emit_val_literal(interp, first_value);
+	emit_val_literal(interp, second_value);
+	emit_call(interp, (int)VAL_DATA(xt_val));
+	emit_call(interp, vocab.exit_cfa);
+	if (interp->error_flag) return;
+
+	chain_sp[-3] = make_xt(curried_cfa);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 2);
 }
 
 int push_prompt(Interpreter *interp, int kind) {

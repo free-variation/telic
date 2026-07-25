@@ -4,6 +4,9 @@
 4 
 [ 2 3 4 ] 
 -7 
+7 
+7 
+23 
 {
   :message expected an execution token; got a float
   :trace in curry ← [: 1 2 curry :] ← try-catch
@@ -12,5 +15,15 @@
 {
   :message stack underflow
   :trace in curry ← [: 5 curry :] ← try-catch
+}
+
+{
+  :message expected an execution token; got a float
+  :trace in 2curry ← [: 1 2 3 2curry :] ← try-catch
+}
+
+{
+  :message stack underflow
+  :trace in 2curry ← [: 1 2 2curry :] ← try-catch
 }
 

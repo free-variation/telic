@@ -402,6 +402,7 @@ These parse following tokens and/or compile code. Costs are dominated by compila
 | `lookup` | `( "name" -- xt )` | Parse the following word at run time and push its xt — the non-immediate counterpart of `'` |
 | `execute` | `( xt -- … )` | Call the word at xt |
 | `curry` | `( value xt -- xt' )` | Bind a value into a new anonymous word: xt' pushes value, then calls xt. Compiles ~10 permanent dictionary cells per call (reclaimed only by `forget`); errors inside a parallel region — curry before `pmap`, execute freely within |
+| `2curry` | `( a b xt -- xt' )` | Bind two values into a new anonymous word: xt' pushes `a`, then `b`, then calls xt. Same result as `curry curry` but one word and one call instead of two. Same parallel-region restriction as `curry` |
 | `inline` | — | Mark the most recent definition inline; future calls splice its body. A body containing a quotation is not spliced — such calls compile as plain calls, since a copied quotation header would have no recorded span |
 | `internal` | — | Mark the most recent definition internal: hidden from `words`, `apropos`, and completion (still findable by name and tick) |
 | `forget` | — | Read the following name; truncate the dictionary back to before it |
@@ -437,7 +438,7 @@ These compile-time words read a following local name and emit a single fused dep
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
 | `.` | `( a -- )` | Print value then a space; matrices print as a grid, frames pretty-print | 1 + print | none | O(size printed) |
-| `.a` | `( a -- )` | Like `.` but disables print truncation (show all elements) | 1 + print | none | O(size printed) |
+| `.a` | `( a -- )` | Like `.` but shows everything: no element truncation, and floats print at full round-trip precision (`%.17g`) instead of `.`'s 6 significant figures. Matrix/vector columns lose their fixed-width alignment when values render at full precision | 1 + print | none | O(size printed) |
 | `render` | `( a -- s )` | The text `.` would print, returned as a string instead of printed: no truncation, no trailing separator (a matrix grid's final newline is dropped). Strings render raw, symbols by name, collections/frames/matrices in their laid-out form | 1 + size | `1o` | O(size) |
 | `.s` | `( -- )` | Print every stack value, bottom to top; leaves the stack intact | print | none | O(depth) |
 | `peek` | `( a -- a )` | core.h2o: print the top value then a space without consuming it (`dup .`, inlined) — a stack probe | 1 + print | none | O(size printed) |

@@ -1,7 +1,7 @@
 #ifndef WATER_H
 #define WATER_H
 
-#define VERSION "0.23.3"
+#define VERSION "0.23.4"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -637,6 +637,7 @@ extern const char *const help_section_names[];
 extern const int help_section_count;
 
 extern int print_truncate;
+extern int print_full_precision;
 
 #define POP(name) Val name = pop(interp); if (interp->error_flag) return
 #define POP_TYPED(name, op, type) \
@@ -1065,6 +1066,7 @@ void p_see_compiled_to_string(DISPATCH_ARGS);
 void p_see_tree_to_string(DISPATCH_ARGS);
 void p_stop(DISPATCH_ARGS);
 
+void p_2curry(DISPATCH_ARGS);
 void p_abs(DISPATCH_ARGS);
 void p_acos(DISPATCH_ARGS);
 void p_add(DISPATCH_ARGS);

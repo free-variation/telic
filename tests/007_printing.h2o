@@ -107,3 +107,12 @@ clear
 "mid" , drop cr                 \ mid
 [ 1 2 ] peek size . cr          \ [ 1 2 ] 2
 depth . cr                      \ 0   nothing left behind
+
+clear
+\ --- .a shows everything: floats at full round-trip precision (%.17g) where .
+\ uses 6 significant figures; the grid path (vectors/matrices) matches ---
+1.0 3.0 / . cr                  \ 0.333333
+1.0 3.0 / .a cr                 \ 0.33333333333333331
+[ 1.0 3.0 / 2.0 3.0 / ] .a cr   \ [ 0.33333333333333331 0.66666666666666663 ]
+42.0 .a cr                      \ 42   (integer-valued floats stay integral)
+[ 1.0 3.0 / 2.0 3.0 / ] vector .a cr

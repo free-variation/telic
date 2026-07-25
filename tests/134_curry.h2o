@@ -31,6 +31,18 @@ negate-seven execute . cr            \ -7 (rebinding the variable after curry ch
 
 clear
 
+\ === 2curry ( a b xt -- xt' ): bind two values into one word — xt' pushes a,
+\ then b, then calls xt (one word and one call, versus curry curry) ===
+10 3 ' - 2curry execute . cr          \ 7   (order preserved: 10 3 -, not 3 10 -)
+10 3 ' - curry curry execute . cr     \ 7   (same result as chained curry)
+
+: weighted-sum |> a b | a 2 * b 3 * + ; internal
+4 5 ' weighted-sum 2curry execute . cr        \ 23  (both reach the target: 4*2 + 5*3)
+
+clear
+
 \ === errors ===
 [: 1 2 curry :] [: . cr :] try-catch          \ (top is not an xt)
 [: 5 curry :] [: . cr :] try-catch            \ (needs two operands)
+[: 1 2 3 2curry :] [: . cr :] try-catch       \ (top is not an xt)
+[: 1 2 2curry :] [: . cr :] try-catch         \ (needs three operands)

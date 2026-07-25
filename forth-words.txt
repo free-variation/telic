@@ -25,6 +25,7 @@
 1+
 1-
 1=
+2curry
 2drop
 2dup
 :

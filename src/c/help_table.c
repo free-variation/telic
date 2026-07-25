@@ -65,7 +65,7 @@ const HelpEntry help_entries[] = {
 	{ "--", "( -- )", "Decrement the named local by 1 in place", "1", "none", "O(1)", 10 },
 	{ "-rot", "( a b c -- c a b )", "core.h2o: reverse rotate — brings the top down under the other two (rot rot, inlined)", "12", "none", "O(1)", 0 },
 	{ ".", "( a -- )", "Print value then a space; matrices print as a grid, frames pretty-print", "1 + print", "none", "O(size printed)", 11 },
-	{ ".a", "( a -- )", "Like . but disables print truncation (show all elements)", "1 + print", "none", "O(size printed)", 11 },
+	{ ".a", "( a -- )", "Like . but shows everything: no element truncation, and floats print at full round-trip precision (%.17g) instead of .'s 6 significant figures. Matrix/vector columns lose their fixed-width alignment when values render at full precision", "1 + print", "none", "O(size printed)", 11 },
 	{ ".s", "( -- )", "Print every stack value, bottom to top; leaves the stack intact", "print", "none", "O(depth)", 11 },
 	{ "/", "( a b -- a/b )", "float: divide (errors on zero divisor). matrix÷matrix: element-wise (errors on any zero element). scalar/matrix broadcast.", "3 (float)", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 1 },
 	{ "/!", "( m a -- m )", "in-place divide", "3 + r×c", "none", "O(r×c)", 1 },
@@ -74,6 +74,7 @@ const HelpEntry help_entries[] = {
 	{ "1+", "( a -- a+1 )", "float or matrix", "2 (float)", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 1 },
 	{ "1-", "( a -- a-1 )", "float or matrix", "2 (float)", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 1 },
 	{ "1=", "( a -- bool )", "core.h2o: 1 = (inlined)", "5", "none", "O(1)", 4 },
+	{ "2curry", "( a b xt -- xt' )", "Bind two values into a new anonymous word: xt' pushes a, then b, then calls xt. Same result as curry curry but one word and one call instead of two. Same parallel-region restriction as curry", NULL, NULL, NULL, 10 },
 	{ "2drop", "( a b -- )", "core.h2o: drop drop (inlined)", "6", "none", "O(1)", 0 },
 	{ "2dup", "( a b -- a b a b )", "core.h2o: over over (inlined)", "10", "none", "O(1)", 0 },
 	{ ":", "—", "Begin a colon definition; read the following name; enter compile mode", NULL, NULL, NULL, 10 },
@@ -631,4 +632,4 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "C primitive alias of unify, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 26 },
 };
 
-const int help_entry_count = 582;
+const int help_entry_count = 583;

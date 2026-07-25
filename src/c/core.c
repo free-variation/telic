@@ -670,14 +670,15 @@ int val_cmp(Interpreter *interp, Val left, Val right) {
 }
 
 
+int print_truncate = 1;
+int print_full_precision = 0;
+
 void print_double(FILE *out, double number) {
 	if (number == (double)(int64_t)number && number > -1e15 && number < 1e15)
 		fprintf(out, "%lld", (long long)number);
 	else
-		fprintf(out, "%g", number);
+		fprintf(out, print_full_precision ? "%.17g" : "%g", number);
 }
-
-int print_truncate = 1;
 
 int stdout_is_tty(void) {
 	static int cached = -1;
@@ -743,7 +744,10 @@ void print_corners(FILE *out, Object *matrix) {
 #define MATRIX_DISP_LAST_COLS 3
 
 void print_matrix_cell(FILE *out, double value) {
-	fprintf(out, " %10.4g", value);
+	if (print_full_precision)
+		fprintf(out, " %.17g", value);
+	else
+		fprintf(out, " %10.4g", value);
 }
 
 void print_matrix_grid(FILE *out, Object *m, int unit) {
@@ -4382,6 +4386,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "remove-last!", p_remove_last, 0);
 	define_primitive(interp, "execute", p_execute, 0);
 	define_primitive(interp, "curry", p_curry, 0);
+	define_primitive(interp, "2curry", p_2curry, 0);
 	define_primitive(interp, "(execute-catching)", p_execute_catching, 4);
 	define_primitive(interp, "map", p_map, 0);
 	define_primitive(interp, "mapn", p_mapn, 0);
