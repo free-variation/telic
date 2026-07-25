@@ -138,7 +138,7 @@ variable ke
      ctr ks encrypt-block
      [> j |
         b 16 * j + to idx
-        idx nbytes lt if  out idx  in idx @i  ks j @i  bit-xor  !i drop  then
+        idx nbytes < if  out idx  in idx @i  ks j @i  bit-xor  !i drop  then
      :] 16 i-times
   :] nblk i-times ;
 

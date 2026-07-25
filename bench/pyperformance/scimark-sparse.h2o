@@ -20,7 +20,7 @@ variable row  variable col  variable val  variable x  variable y
 : rng-init ( seed -- )
   | >seed jseed k0 k1 j0 j1 |
   seed fabs to seed
-  seed m1 lt 0= if m1 to seed then
+  seed m1 < 0= if m1 to seed then
   seed 2.0 mod 0.0 = if seed 1.0 f- to seed then
   9069.0 65536.0 mod to k0
   9069.0 65536.0 f/ to k1
@@ -39,7 +39,7 @@ variable row  variable col  variable val  variable x  variable y
   | k ii jj |
   ri to ii  rj to jj
   rand-m ii @i  rand-m jj @i f- to k
-  k 0.0 lt if k m1 f+ to k then
+  k 0.0 < if k m1 f+ to k then
   rand-m jj k !i drop
   ii 0.0 = if 16.0 to ii else ii 1.0 f- to ii then  ii to ri
   jj 0.0 = if 16.0 to jj else jj 1.0 f- to jj then  jj to rj
@@ -59,7 +59,7 @@ variable row  variable col  variable val  variable x  variable y
      row r @i to rowr
      row r 1.0 f+  rowr nr f+  !i drop
      r nr / ftruncate to step
-     step 1.0 lt if 1.0 to step then
+     step 1.0 < if 1.0 to step then
      [: dup rowr f+  col swap  rot step f*  !i drop :] nr i-times
   :] n i-times ;
 

@@ -20,8 +20,8 @@ variable sols   variable done
 
 : cell-index ( code -- idx )      \ board index of a cell code, or -1
   |> code |
-  code 0.0 lt if -1.0 exit then
-  code 460.0 lt 0= if -1.0 exit then
+  code 0.0 < if -1.0 exit then
+  code 460.0 < 0= if -1.0 exit then
   cti code @i ;
 
 : set-min ( s -- v )  1.0 take 0.0 @i ;
@@ -81,7 +81,7 @@ variable sols   variable done
 \ --- footprint set: cells of `pp` placed at code `c` that land on the board -
 : foot ( c pp -- fpset )
   | >c >pp s |
-  < > to s
+  [< >] to s
   [> i |
      c pp i @i f+ cell-index
      dup -1.0 = if drop else s swap set-add! to s then
@@ -164,7 +164,7 @@ variable sols   variable done
      tmp  1.0 p lshift  bit-xor to tmp
      fp_i_cands p @i to fp_cands
      0.0 to fp_idx
-     begin fp_idx fp_cands size lt while
+     begin fp_idx fp_cands size < while
         fp_cands fp_idx @i to fp
         fp 0 @i to fp_mask
         fp_mask free bit-and fp_mask = if
@@ -182,7 +182,7 @@ variable sols   variable done
               cb cb>rstring to rs
               sols s set-add! to sols
               sols rs set-add! to sols
-              sols size nsols lt 0= if 1.0 to done exit then
+              sols size nsols < 0= if 1.0 to done exit then
            then
            [> i | cb fp_cells i @i -1.0 !i drop :] fp_cells size i-times
         then
@@ -193,7 +193,7 @@ variable sols   variable done
 
 : solve-once
   0.0 to done
-  < > to sols
+  [< >] to sols
   0.0
   1.0 50.0 lshift 1.0 f-
   -1.0 50.0 array-of

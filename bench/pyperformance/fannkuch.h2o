@@ -46,7 +46,7 @@ inline
 inline
 
 : update-max ( flips -- )
-  dup max-flips gt if to max-flips else drop then ;
+  dup max-flips > if to max-flips else drop then ;
 
 : fannkuch
   | r all-done |
@@ -56,7 +56,7 @@ inline
 
   begin
     \ Reset COUNT[r-1..0]
-    begin r 1 gt while
+    begin r 1 > while
       count r f1-  r  !i drop
       f-- r
     repeat
@@ -78,7 +78,7 @@ inline
       else
         r rotate-perm1
         count r  count r @i f1-  !i drop
-        count r @i 0 gt if
+        count r @i 0 > if
           -1
         else
           f++ r

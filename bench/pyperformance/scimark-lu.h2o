@@ -22,7 +22,7 @@ variable rm  variable ri  variable rj
 : rng-next ( -- d )
   | k |
   rm ri @i  rm rj @i  f-  to k
-  k 0 lt if  k m1 f+ to k  then
+  k 0 < if  k m1 f+ to k  then
   rm rj k !i drop
   ri 0 = if 16 to ri else ri f1- to ri then
   rj 0 = if 16 to rj else rj f1- to rj then
@@ -43,26 +43,26 @@ variable rm  variable ri  variable rj
 : lu-factor ( a n -- )
   | a n j jp t i recp ii jj aiij aj aii rowj |
   to n  to a  0 to j
-  begin j n lt while
+  begin j n < while
     j to jp
     a j @i j @i fabs to t
     j 1+ to i
-    begin i n lt while
-      a i @i j @i fabs  dup t gt if i to jp to t else drop then  i 1+ to i
+    begin i n < while
+      a i @i j @i fabs  dup t > if i to jp to t else drop then  i 1+ to i
     repeat
     j jp = 0 = if
       a j @i to rowj  a j  a jp @i  !i drop  a jp  rowj  !i drop
     then
     1.0 a j @i j @i f/ to recp
     j 1+ to i
-    begin i n lt while
+    begin i n < while
       a i @i  j  a i @i j @i recp f*  !i drop  i 1+ to i
     repeat
     j 1+ to ii
-    begin ii n lt while
+    begin ii n < while
       a ii @i j @i to aiij  a ii @i to aii  a j @i to aj
       j 1+ to jj
-      begin jj n lt while
+      begin jj n < while
         aii jj  aii jj @i aiij aj jj @i f* f-  !i drop  jj 1+ to jj
       repeat
       ii 1+ to ii

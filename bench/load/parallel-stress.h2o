@@ -23,7 +23,7 @@ variable check
 
 : stress-pfilter
   now to t0
-  [: domain workers claim [: "{0}" format size 3 gt :] pfilter-ext drop gc :] rounds times
+  [: domain workers claim [: "{0}" format size 3 > :] pfilter-ext drop gc :] rounds times
   now t0 - "pfilter      {0}s" format . cr ;
 
 : stress-pmap-reduce

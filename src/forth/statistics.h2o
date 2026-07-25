@@ -2,7 +2,7 @@
 \ as { :counts (n-bins x 1) :low :bin-width }. NaNs are dropped; the top value
 \ lands in the last bin; a constant vector takes the range value +/- 1.
 : histogram-table
-	| >data >n-bins low high bin-width counts n-values i bin tally |
+	| >data >n-bins low high bin-width counts n-values |
 	n-bins 1 < if n-bins "histogram-table: expected at least 1 bin; got {0}" format throw then
 	data as-column drop-nans to data
 	data num-elements to n-values
@@ -12,14 +12,12 @@
 	high low = if low 1 - high 1 + to high to low then
 	high low - n-bins / to bin-width
 	n-bins 1 0-matrix to counts
-	0 to i
-	begin i n-values < while
+	[| >i bin tally |
 		data i @e low - bin-width / round-down to bin
 		bin n-bins 1 - > if n-bins 1 - to bin then
 		counts bin @e 1+ to tally
 		counts bin tally !e drop
-		f++ i
-	repeat
+	:] n-values i-times
 	{ :counts counts :low low :bin-width bin-width } ;
 
 ( v -- xs ys ) \ empirical CDF: finite elements sorted ascending, cumulative fractions (i+1)/n
@@ -90,7 +88,8 @@
 		  :median v median
 		  :mean v mean
 		  :q3 v 0.75 quantile
-		  :max v max }
+		  :max v max 
+		}
 	else
 		{ }
 	then
@@ -227,7 +226,8 @@
 	  :se column std
 	  :bias column mean beta j 0 @i,j -
 	  :ci-low low
-	  :ci-high high } ; internal
+	  :ci-high high 
+	} ; internal
 
 ( dataset predictors response replications fit-augmented-xt -- [coefficient-summaries] )
 \ Shared regression pipeline: build the design matrix (with intercept) and the
@@ -308,7 +308,8 @@
 		:se replicate-estimates std
 		:bias replicate-estimates mean estimate -
 		:ci-low low
-		:ci-high high } ;
+		:ci-high high 
+	} ;
 
 ( xs ys -- corr-summary ) \ kendall correlation with 500 bootstraps
 : cor ' correlation-kendall 500 correlate-with ; inline
@@ -383,7 +384,9 @@
 	left-leaves right-leaves + to subtree-leaves
 
 	subtree-gain  alpha subtree-leaves 1 - *  > not if
-		{ :prediction node :prediction @ :n_rows node :n_rows @ }  0  1
+		{ :prediction node :prediction @ 
+		  :n_rows node :n_rows @ 
+		}  0  1
 	else
 		node :left left-node !  :right right-node !
 		subtree-gain subtree-leaves

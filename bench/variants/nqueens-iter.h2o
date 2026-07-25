@@ -13,8 +13,8 @@ variable cycles
   board b  rot         !i drop ;
 
 : valid?
-  < [> i | board i @i i + :] queens i-times > size queens =
-  < [> i | board i @i i - :] queens i-times > size queens =
+  [< [> i | board i @i i + :] queens i-times >] size queens =
+  [< [> i | board i @i i - :] queens i-times >] size queens =
   * ;
 
 : check-perm
@@ -63,7 +63,7 @@ variable cycles
         1 to yielded
       then
       yielded if 1 to inner-done then
-      i 0 lt if 1 to inner-done then
+      i 0 < if 1 to inner-done then
       inner-done
     until
     yielded 0 = if 1 to done then

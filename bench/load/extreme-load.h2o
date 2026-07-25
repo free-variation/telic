@@ -33,8 +33,8 @@ dup copy ~ cons>array size             "unified two 500k-deep lists, len = {0}" 
 
 \ ---------------- very large numbers of objects ----------------
 "=== very large numbers of objects ===" . cr
-[: < 0 > drop :] 3000000 times         "churned 3,000,000 transient sets through GC" . cr
-1 3000000 range [: drop < 0 > :] map size  "held {0} live sets at once" format . cr
+[: [< 0 >] drop :] 3000000 times         "churned 3,000,000 transient sets through GC" . cr
+1 3000000 range [: drop [< 0 >] :] map size  "held {0} live sets at once" format . cr
 gc                                     "forced gc with all of the above live: ok" . cr
 
 \ ---------------- past the declared limits (each should error gracefully) ----------------
@@ -49,7 +49,7 @@ clear
 [: "s{0}" format string>symbol drop :] 2000000 i-times
 clear
 "-- object registry full (fills the 64M object table):" . cr
-1 70000000 range [: drop < 0 > :] map drop
+1 70000000 range [: drop [< 0 >] :] map drop
 clear
 
 "=== done ===" . cr

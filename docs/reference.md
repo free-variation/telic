@@ -25,10 +25,11 @@ All `f`-prefixed words and all superwords are unsafe.
 
 Tokens are whitespace-delimited, with self-delimiting punctuation: `;`, `]`,
 and `}` always end a token and `[` and `{` always start one (the two-char
-openers `[:` `[(` `[|` `[>` and closers `:]` `)]` stay whole), so `[1 2 3]`,
-`{:a 1}`, and `dup *;` parse without inner spaces. A path literal's predicate
-brackets (`/a[x>3]`) are kept whole by bracket balance. `<` and `>` are
-ordinary word characters — set literals still need their spaces.
+openers `[:` `[(` `[|` `[>` `[<` and closers `:]` `)]` `>]` stay whole), so
+`[1 2 3]`, `{:a 1}`, and `dup *;` parse without inner spaces. A path literal's
+predicate brackets (`/a[x>3]`) are kept whole by bracket balance. `<` `>` `<=`
+`>=` are ordinary comparison words; set literals `[< … >]` still need spaces
+around their contents.
 
 Allocation note: an object slot is a pointer bump into the object table, which
 grows on demand (doubling) up to a 64M-entry ceiling; when the ceiling is
@@ -84,7 +85,7 @@ float fast path first; the heavy cases are captured by the O column.
 | `1+` | `( a -- a+1 )` | float or matrix | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `1-` | `( a -- a-1 )` | float or matrix | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `sq` | `( a -- a² )` | float or matrix | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
-| `min2` | `( a b -- smaller )` | core.h2o: the `<`-ordered lesser of two scalars (`2dup gt if swap then drop`, inlined); `min`/`max` reduce a matrix, these order a pair | 5 | none | O(1) |
+| `min2` | `( a b -- smaller )` | core.h2o: the `<`-ordered lesser of two scalars (`2dup > if swap then drop`, inlined); `min`/`max` reduce a matrix, these order a pair | 5 | none | O(1) |
 | `max2` | `( a b -- larger )` | core.h2o: the `<`-ordered greater of two scalars, `min2`'s twin | 5 | none | O(1) |
 
 ### In-place matrix arithmetic
@@ -195,7 +196,7 @@ matrix (`@i,j`, `@e`) surfaces as `null` the same way.
 
 ## Comparison and logic
 
-Result is `1.0` (true) or `0.0` (false), with a float fast path. `=` uses `val_cmp` (structural): matrices compare by shape then row-major contents, so they order for set membership. `<`/`>` are structural too, **except on matrices**, where they compare element-wise and return a 1.0/0.0 matrix (same shape, or a scalar broadcasts over the matrix). A dimensioned matrix on either side of `<`/`>`/`eq` also masks element-wise: the right operand rescales into the left's unit (`prices 10 $ lt` works whether prices are in `$` or `¢`), the mask comes back bare, and a quantity against a plain number or a different dimension errors. An array operand masks element-wise too: each element compares by `val_cmp` against the other operand (or pairwise against an equal-length array — unequal lengths error), yielding an n×1 mask, so `names "ann" eq where` filters a text column and string order is lexicographic. Directly before `if`/`while`/`until` a comparison fuses into a compare-and-branch, which stays structural — branching on a matrix result isn't meaningful.
+Result is `1.0` (true) or `0.0` (false), with a float fast path. `=` uses `val_cmp` (structural): matrices compare by shape then row-major contents, so they order for set membership. `<`/`>` are structural too, **except on matrices**, where they compare element-wise and return a 1.0/0.0 matrix (same shape, or a scalar broadcasts over the matrix). A dimensioned matrix on either side of `<`/`>`/`eq` also masks element-wise: the right operand rescales into the left's unit (`prices 10 $ <` works whether prices are in `$` or `¢`), the mask comes back bare, and a quantity against a plain number or a different dimension errors. An array operand masks element-wise too: each element compares by `val_cmp` against the other operand (or pairwise against an equal-length array — unequal lengths error), yielding an n×1 mask, so `names "ann" eq where` filters a text column and string order is lexicographic. Directly before `if`/`while`/`until` a comparison fuses into a compare-and-branch, which stays structural — branching on a matrix result isn't meaningful.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
@@ -280,7 +281,7 @@ A unit word is postfix — it attaches its unit to the number before it (`10 m`,
 - `^` — rational exponent only; raises the unit's exponents (`q 2 ^`, `q 0.5 ^`).
 - `sqrt` — halves the unit's exponents (`sqrt(m²) → m`).
 - `negate` / `abs` — keep the unit; transcendentals (`sin`, `log`, …) reject a quantity.
-- `=` `<` `>` — compare by value, normalizing scale within a dimension (`100 ¢ 1 $ = → 1`). On a dimensioned matrix, `<`/`>`/`eq` answer an element-wise bare mask with the same normalization (`prices 10 $ lt`); `=` stays structural everywhere.
+- `=` `<` `>` — compare by value, normalizing scale within a dimension (`100 ¢ 1 $ = → 1`). On a dimensioned matrix, `<`/`>`/`eq` answer an element-wise bare mask with the same normalization (`prices 10 $ <`); `=` stays structural everywhere.
 
 Printing shows magnitude then unit: a named unit prints its name (`3 newton`); an
 unnamed compound prints its dimensional form with the scale folded into the
@@ -697,7 +698,7 @@ keep NaN in place.
 | `hstack` | `( a b -- m )` | matrix.h2o: `augment` under its numpy name (inlined) | 2 + r·c | `1m(r×c)` | O(r·c) |
 | `submatrix` | `( m rs re cs ce -- m )` | Copy the half-open block rows [rs,re) × cols [cs,ce); errors out of bounds or start > end | 5 + r·c | `1m(r×c)` | O(r·c) |
 | `select-rows` | `( m/dataset/arr idx -- same )` | New matrix of the rows named by `idx` — a float index array or an index vector (nx1 or 1xn, as `where`/`argsort` return); a dimensioned matrix keeps its unit; errors on a non-float or out-of-range index. datasets.h2o extends it to a dataset (every column gathered by the same indices — matrix and dimensioned columns through the matrix path, array columns element-wise) and to a bare array (elements gathered by index) | 2 + k·c | `1m(k×c)`; dataset one column each; array `1a(k)` | O(k·c) |
-| `mesh` | `( v mask b -- v' )` | Masked substitution: element i of the result is `b`'s where `mask[i]` is a definite nonzero, `v`'s where it is 0 **or NaN** (an unknown mask cell changes nothing). `v` is a matrix, dimensioned matrix, or array; the mask a bare matrix of `v`'s shape (element count, for an array). `b` is shape-matched same-representation, or broadcasts: a float, `null` (→ NaN), a quantity, or — for an array subject — any single value. Units reconcile as `+`: `b` rescales into `v`'s unit, which the result keeps; a quantity against a bare number errors. Conditional-mutate idioms: `dup nan? 0 mesh` fills NaNs, `dup -1 eq null mesh` turns a sentinel into NaN, `dup 100 gt 100 mesh` caps | 3 + n | `1m(r×c)` / `1a(n)` | O(n) |
+| `mesh` | `( v mask b -- v' )` | Masked substitution: element i of the result is `b`'s where `mask[i]` is a definite nonzero, `v`'s where it is 0 **or NaN** (an unknown mask cell changes nothing). `v` is a matrix, dimensioned matrix, or array; the mask a bare matrix of `v`'s shape (element count, for an array). `b` is shape-matched same-representation, or broadcasts: a float, `null` (→ NaN), a quantity, or — for an array subject — any single value. Units reconcile as `+`: `b` rescales into `v`'s unit, which the result keeps; a quantity against a bare number errors. Conditional-mutate idioms: `dup nan? 0 mesh` fills NaNs, `dup -1 eq null mesh` turns a sentinel into NaN, `dup 100 > 100 mesh` caps | 3 + n | `1m(r×c)` / `1a(n)` | O(n) |
 | `argsort` | `( v -- v' )` or `( arr -- arr )` | The sorting permutation of a vector, shape preserved: element i is the source index of the i-th smallest value; ties keep index order, NaNs go last in index order; ranks are argsort twice. arrays.h2o extends it to an array: the permutation under `val_cmp` (structural, so mixed types order), ties keep index order, returned as a float-index array | 1 + n log n | `1m(n)` + `malloc(16n)`; array 3×`1a(n)` + n×`1a(2)` | O(n log n); above 8k elements O(n) radix |
 | `ranks` | `( v -- v' )` | statistics.h2o: 0-based ordinal ranks as nx1, `as-column argsort argsort` (inlined); ties ranked in index order, not midranked | 2n log n | `2m(n)` + `malloc(16n)` ×2 | O(n log n) |
 | `where` | `( m -- v )` | Flat row-major indices of the nonzero elements, as a k×1 index vector (1×k for a 1×n mask); composes with the `<`/`>` masks and `select-rows` | 1 + n | `1m(k)` | O(n) |
@@ -835,7 +836,7 @@ machinery, so there the `-local` words behave as UTC and `parse-time` lacks
 | `count` | `( arr/v/dataset -- pairs )` | datasets.h2o: occurrences of each distinct value as `[ [ value n ] … ]`, most frequent first, ties in value order (`val_cmp`); a vector counts its elements (a dimensioned one counts quantities), a dataset counts whole rows, each a frame keyed by column name | 2n log n | rows + pairs + 3×`1a` | O(n log n) |
 | `group-indices` | `( column -- pairs )` | datasets.h2o: `[ [ value [indices] ] … ]` per distinct value in `val_cmp` order — each index array holds the value's row positions, ascending (one `argsort`, the permutation cut at run boundaries); `count`'s shape with positions instead of tallies, so one pass replaces a per-value `eq where` scan | 2n log n | permutation + one pair and array per value | O(n log n) |
 | `frames>dataset` | `( rows -- dataset )` | datasets.h2o: an array of row frames (as `query`, `db-query` `:rows`, or `map` over a dataset produce) as a column-oriented dataset, keys from row 0 — differing keys throw. Each column's representation is inferred: all-float cells (`none` → NaN) become an n×1 vector, uniform-unit quantities a dimensioned vector, anything else stays an array | n·k log k | one column per key + `1o` | O(n·k log k) |
-| `replace-where` | `( dataset sym pred replacement -- )` | datasets.h2o: replace the named column's cells passing `pred` `( column -- mask )`, in place — `update-at` around `mesh`, so the replacement broadcasts and units reconcile: `pipeline :rep_touches [: -1 eq :] null replace-where` nulls a sentinel, `[: nan? :] 0` fills missing, `[: 10 $ lt :] 5 $` floors prices | pred + n | mask + one column | O(n) |
+| `replace-where` | `( dataset sym pred replacement -- )` | datasets.h2o: replace the named column's cells passing `pred` `( column -- mask )`, in place — `update-at` around `mesh`, so the replacement broadcasts and units reconcile: `pipeline :rep_touches [: -1 eq :] null replace-where` nulls a sentinel, `[: nan? :] 0` fills missing, `[: 10 $ < :] 5 $` floors prices | pred + n | mask + one column | O(n) |
 | `resample-indices` | `( n -- arr )` | datasets.h2o: n indices drawn from [0,n) with replacement (bootstrap), from the global stream | 2n | `2×1a(n)` | O(n) |
 | `resample-indices-ext` | `( n seed -- arr )` | n indices drawn from [0,n) with replacement by a private generator seeded from `seed` (splitmix64-expanded) — same draw for the same seed regardless of thread or stream position; the bootstrap words seed replicate i at run-seed + i | n | `1a(n)` | O(n)† |
 
@@ -984,7 +985,7 @@ Immediate compiler words usable only inside a definition. They detect a precedin
 
 These are normally produced by the compiler's auto-fuser rather than typed by hand; `see-compiled` reveals them. The fuser triggers only on the unsafe f-words (`f+`, `fsqrt`, `fexp`, …) — the polymorphic names (`+`, `sqrt`, `exp`) never fuse, so their tag dispatch (matrix, quantity) is never bypassed.
 
-The auto-fuser also collapses a comparison immediately before a branch — `= if`, `gt while`, `0= until` — into a single compare-and-branch instruction (shown by `see-compiled` as `(=0branch)`, `(gt0branch)`, and the like). These are internal and never typed; the source stays the plain comparison followed by the control word.
+The auto-fuser also collapses a comparison immediately before a branch — `= if`, `> while`, `0= until` — into a single compare-and-branch instruction (shown by `see-compiled` as `(=0branch)`, `(>0branch)`, and the like). These are internal and never typed; the source stays the plain comparison followed by the control word.
 
 ---
 
@@ -1131,7 +1132,7 @@ A defined FFI word pops its arguments, marshals each per the declared signature,
 | `T_DB` | inline handle into the per-interpreter registry of open SQLite connections; not GC'd (closed with `db-close`) |
 | `T_PTR` | opaque C pointer from the FFI (library handle or data pointer); a registry index, not the raw 64-bit address; not GC'd |
 | `T_CONT` | heap object; a captured return-stack slice plus a resume IP |
-| `T_MARK` | ephemeral sentinel from `<`, `[`, `{`, `reset`; not user-visible |
+| `T_MARK` | ephemeral sentinel from `[<`, `[`, `{`, `reset`; not user-visible |
 | `T_LOGIC_VAR` | index into the logic-var stack; unbound, or bound to a Val (resolve with `deref`) |
 | `T_UNBOUND` | binding sentinel for an unbound logic var; also the `_` wildcard value when on the stack |
 | `T_NONE` | uninitialized / sentinel; the empty list and `null` |

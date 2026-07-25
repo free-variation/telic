@@ -65,8 +65,8 @@ variable pixw variable pixh
 : clamp-byte ( v -- f )
   |> v |
   v 255.0 f* ftruncate to v
-  v 0.0 lt if 0.0 exit then
-  v 255.0 gt if 255.0 exit then
+  v 0.0 < if 0.0 exit then
+  v 255.0 > if 255.0 exit then
   v ;
 
 \ --- scene construction --------------------------------------------------
@@ -101,7 +101,7 @@ variable pixw variable pixh
 : light-visible? ( hx hy hz sdx sdy sdz -- flag )
   | >hx >hy >hz >sdx >sdy >sdz oi obj cx cy cz v disc |
   0.0 to oi
-  begin oi nobj lt while
+  begin oi nobj < while
      objects oi @i to obj
      obj 0 @i 0.0 = if
         obj 1 @i hx f- to cx
@@ -109,13 +109,13 @@ variable pixw variable pixh
         obj 3 @i hz f- to cz
         cx sdx f* cy sdy f* f+ cz sdz f* f+ to v
         obj 4 @i  cx cx f* cy cy f* f+ cz cz f* f+  v v f* f-  f- to disc
-        disc 0.0 lt if else
-           v disc fsqrt f- epsilon gt if 0.0 exit then
+        disc 0.0 < if else
+           v disc fsqrt f- epsilon > if 0.0 exit then
         then
      else
         sdx obj 4 @i f* sdy obj 5 @i f* f+ sdz obj 6 @i f* f+ to v
         v 0= if else
-           1.0 v fnegate f/ epsilon gt if 0.0 exit then
+           1.0 v fnegate f/ epsilon > if 0.0 exit then
         then
      then
      f++ oi
@@ -125,9 +125,9 @@ variable pixw variable pixh
 \ --- trace one ray to a colour (specular reflection recurses) -------------
 : ray-colour ( px py pz dx dy dz depth -- r g b )
   | >px >py >pz >dx >dy >dz >depth oi li found besti bestt obj cx cy cz v disc t hx hy hz nrmx nrmy nrmz br bg bb cr cg cb spec lamb amb lam lf rr rg rb rfx rfy rfz lightarr sdx sdy sdz |
-  depth 3.0 gt if 0.0 0.0 0.0 exit then
+  depth 3.0 > if 0.0 0.0 0.0 exit then
   0.0 to found  0.0 to besti  0.0 to bestt  0.0 to oi
-  begin oi nobj lt while
+  begin oi nobj < while
      objects oi @i to obj
      obj 0 @i 0.0 = if
         obj 1 @i px f- to cx
@@ -135,16 +135,16 @@ variable pixw variable pixh
         obj 3 @i pz f- to cz
         cx dx f* cy dy f* f+ cz dz f* f+ to v
         obj 4 @i  cx cx f* cy cy f* f+ cz cz f* f+  v v f* f-  f- to disc
-        disc 0.0 lt if -1.0 to t
+        disc 0.0 < if -1.0 to t
         else v disc fsqrt f- to t then
      else
         dx obj 4 @i f* dy obj 5 @i f* f+ dz obj 6 @i f* f+ to v
         v 0= if -1.0 to t
         else 1.0 v fnegate f/ to t then
      then
-     t negeps gt if
+     t negeps > if
         found 0= if t to bestt oi to besti 1.0 to found
-        else t bestt lt if t to bestt oi to besti then then
+        else t bestt < if t to bestt oi to besti then then
      then
      f++ oi
   repeat
@@ -174,7 +174,7 @@ variable pixw variable pixh
      then
      0.0 to cr 0.0 to cg 0.0 to cb
      obj 7 @i to spec
-     spec 0.0 gt if
+     spec 0.0 > if
         dx dy dz nrmx nrmy nrmz vreflect vnorm to rfz to rfy to rfx
         hx hy hz rfx rfy rfz depth 1+ ray-colour to rb to rg to rr
         spec rr f* to cr
@@ -182,9 +182,9 @@ variable pixw variable pixh
         spec rb f* to cb
      then
      obj 8 @i to lamb
-     lamb 0.0 gt if
+     lamb 0.0 > if
         0.0 to lam  0.0 to li
-        begin li nlights lt while
+        begin li nlights < while
            lights li @i to lightarr
            lightarr 0 @i hx f- to sdx
            lightarr 1 @i hy f- to sdy
@@ -192,18 +192,18 @@ variable pixw variable pixh
            sdx sdy sdz vnorm to sdz to sdy to sdx
            hx hy hz sdx sdy sdz light-visible? if
               sdx nrmx f* sdy nrmy f* f+ sdz nrmz f* f+
-              dup 0.0 gt if lam f+ to lam else drop then
+              dup 0.0 > if lam f+ to lam else drop then
            then
            f++ li
         repeat
-        lam 1.0 gt if 1.0 to lam then
+        lam 1.0 > if 1.0 to lam then
         lamb lam f* to lf
         cr lf br f* f+ to cr
         cg lf bg f* f+ to cg
         cb lf bb f* f+ to cb
      then
      obj 9 @i to amb
-     amb 0.0 gt if
+     amb 0.0 > if
         cr amb br f* f+ to cr
         cg amb bg f* f+ to cg
         cb amb bb f* f+ to cb
@@ -228,7 +228,7 @@ variable pixw variable pixh
   | >y x sx sy rdx rdy rdz pr pg pb rowbytes |
   y pixh f* halfh f- to sy
   0.0 to rowbytes  0.0 to x
-  begin x width lt while
+  begin x width < while
      x pixw f* halfw f- to sx
      rx sx f* evx f+ ux sy f* f+ to rdx
      ry sx f* evy f+ uy sy f* f+ to rdy

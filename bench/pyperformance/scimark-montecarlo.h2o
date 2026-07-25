@@ -17,7 +17,7 @@ variable rand-m  variable ri  variable rj
 : rng-init ( seed -- )
   | >seed jseed k0 k1 j0 j1 |
   seed fabs to seed
-  seed m1 lt 0= if m1 to seed then
+  seed m1 < 0= if m1 to seed then
   seed 2.0 mod 0.0 = if seed 1.0 f- to seed then
   9069.0 65536.0 mod to k0
   9069.0 65536.0 f/ to k1
@@ -36,7 +36,7 @@ variable rand-m  variable ri  variable rj
   | k ii jj |
   ri to ii  rj to jj
   rand-m ii @i  rand-m jj @i f- to k
-  k 0.0 lt if k m1 f+ to k then
+  k 0.0 < if k m1 f+ to k then
   rand-m jj k !i drop
   ii 0.0 = if 16.0 to ii else ii 1.0 f- to ii then  ii to ri
   jj 0.0 = if 16.0 to jj else jj 1.0 f- to jj then  jj to rj
@@ -46,7 +46,7 @@ variable rand-m  variable ri  variable rj
   | under |
   113.0 rng-init
   0.0 to under
-  [: next-double next-double  fsq swap fsq f+  1.0 gt 0= if f++ under then :] samples times
+  [: next-double next-double  fsq swap fsq f+  1.0 > 0= if f++ under then :] samples times
   under samples f/ 4.0 f* ;
 
 : mc-bench

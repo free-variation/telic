@@ -21,7 +21,7 @@ variable init  variable data
 : rng-init ( seed -- )
   | >seed jseed k0 k1 j0 j1 |
   seed fabs to seed
-  seed m1 lt 0= if m1 to seed then
+  seed m1 < 0= if m1 to seed then
   seed 2.0 mod 0.0 = if seed 1.0 f- to seed then
   9069.0 65536.0 mod to k0
   9069.0 65536.0 f/ to k1
@@ -40,7 +40,7 @@ variable init  variable data
   | k ii jj |
   ri to ii  rj to jj
   rand-m ii @i  rand-m jj @i f- to k
-  k 0.0 lt if k m1 f+ to k then
+  k 0.0 < if k m1 f+ to k then
   rand-m jj k !i drop
   ii 0.0 = if 16.0 to ii else ii 1.0 f- to ii then  ii to ri
   jj 0.0 = if 16.0 to jj else jj 1.0 f- to jj then  jj to rj
@@ -49,7 +49,7 @@ variable init  variable data
 : int-log2 ( n -- log )
   | >n k log |
   1.0 to k  0.0 to log
-  begin k n lt while  k 2.0 f* to k  log 1.0 f+ to log  repeat
+  begin k n < while  k 2.0 f* to k  log 1.0 f+ to log  repeat
   log ;
 
 : fft-bitreverse ( -- )            \ permute DATA into bit-reversed order
@@ -57,11 +57,11 @@ variable init  variable data
   nlen 2.0 / to n
   n 1.0 f- to nm1
   0.0 to j  0.0 to i
-  begin i nm1 lt while
+  begin i nm1 < while
      i 2.0 f* to ii
      j 2.0 f* to jj
      n 2.0 / ftruncate to k
-     i j lt if
+     i j < if
         data ii @i to tr
         data ii 1.0 f+ @i to ti
         data ii  data jj @i  !i drop
@@ -69,7 +69,7 @@ variable init  variable data
         data jj tr !i drop
         data jj 1.0 f+ ti !i drop
      then
-     begin j k lt 0= while  j k f- to j  k 2.0 / ftruncate to k  repeat
+     begin j k < 0= while  j k f- to j  k 2.0 / ftruncate to k  repeat
      j k f+ to j
      i 1.0 f+ to i
   repeat ;
@@ -81,14 +81,14 @@ variable init  variable data
   n int-log2 to logn
   fft-bitreverse
   0.0 to bit  1.0 to dual
-  begin bit logn lt while
+  begin bit logn < while
      1.0 to wr  0.0 to wi
-     2.0 direction f* pi f* 2.0 dual f* f/ to theta
+     2.0 direction f* PI f* 2.0 dual f* f/ to theta
      theta fsin to s
      theta 2.0 f/ fsin to t
      2.0 t f* t f* to s2
      0.0 to b
-     begin b n lt while
+     begin b n < while
         b 2.0 f* to ii
         b dual f+ 2.0 f* to jj
         data jj @i to wdr
@@ -100,12 +100,12 @@ variable init  variable data
         b dual 2.0 f* f+ to b
      repeat
      1.0 to a
-     begin a dual lt while
+     begin a dual < while
         wr s wi f* f-  s2 wr f* f-  to ii    \ reuse ii as tmp_real
         wi s wr f* f+  s2 wi f* f-  to jj    \ reuse jj as tmp_imag
         ii to wr  jj to wi
         0.0 to b
-        begin b n lt while
+        begin b n < while
            b a f+ 2.0 f* to ii
            b a f+ dual f+ 2.0 f* to jj
            data jj @i to z1r

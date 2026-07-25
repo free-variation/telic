@@ -50,7 +50,7 @@ variable rng-seed
   |> u cum |
   0
   begin
-    dup cum swap @i  u gt  0=
+    dup cum swap @i  u >  0=
   while
     1+
   repeat ;
@@ -72,7 +72,7 @@ variable rng-seed
 : tile ( src len -- string )
   |> src len |
   src
-  begin dup size len lt while dup + repeat
+  begin dup size len < while dup + repeat
   0 len substring ;
 
 \ break s into width-wide lines, each ending in a newline
@@ -83,7 +83,7 @@ variable rng-seed
   "" lines array-of to out
   [: to i
      out i
-       s  i width *  dup width +  dup slen gt if drop slen then  substring  nl +
+       s  i width *  dup width +  dup slen > if drop slen then  substring  nl +
      !i drop :] lines i-times
   out "" join ;
 

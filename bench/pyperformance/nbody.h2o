@@ -5,7 +5,7 @@
 \ Target arrays are pre-built so the symbol-to-XT resolution happens once.
 
 20000 to iterations
-pi pi * 4 * constant solar-mass
+PI PI * 4 * constant solar-mass
 365.24 constant days-per-year
 
 \ Body layout: 0=x 1=y 2=z 3=vx 4=vy 5=vz 6=mass
@@ -106,7 +106,7 @@ variable b2-targets
   [: bodies swap @i kinetic e + to e :] 5 i-times
   [> i |
      [> j |
-        i j lt if
+        i j < if
           bodies i @i  bodies j @i  pair-potential  e + to e
         then :]
      5 i-times
