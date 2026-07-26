@@ -377,7 +377,7 @@ toward the longer shared prefix.
 
 Unification and committed choice, on the trail and the continuation machinery:
 
-- **Logic variables** — `lvar` makes a fresh one; `lvar to x` names a persistent global, and a `?` prefix in a locals list (`| ?x |`) declares a fresh per-call variable inside a definition or quotation. Capitalizing logic-var names is convention, not syntax.
+- **Logic variables** — `lvar` makes a fresh one; `lvar to x` names a persistent global, and a `?` prefix in a locals list (`| ?x |`) declares a fresh per-call variable inside a definition or quotation.
 - **`unify`** (`~`) — unifies two terms, binding logic vars through a trail so they match: atoms by value, arrays element-wise, frames as open records (shared keys must unify, extras allowed); on a mismatch it fails. **`deref`** (`?`) follows a variable's binding chain.
 - **`amb`** / **`fail`** — committed choice: run the first branch; if it fails (a `unify` mismatch or an explicit `fail`), roll its bindings back through the trail and run the second, committing to whichever succeeds. **`choose`** generalizes it to a cons list, running a continuation with each element until one succeeds.
 - **`_`** — the anonymous wildcard: unifies with anything, binds nothing, and allocates nothing.

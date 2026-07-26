@@ -212,6 +212,38 @@ session definitions, by snapshotting a cfa watermark after each `load-library`.
 
 ---
 
+## `internal` as a per-load-unit namespace
+
+`internal` scopes name resolution, not just listing: an internal word resolves
+only within its own load unit. Units: the embedded boot library (all of
+`FORTH_SRCS`) is one unit; each `load` / `load-library` call is a unit; the REPL
+session is a unit. Non-internal words stay globally resolvable.
+
+- Reuse the existing `internal` marker.
+- `find`, `'`, and `lookup` all honor the scope; an internal word is unreachable
+  from another unit.
+- Overrides stay public: a redefinition marked internal shadows only within its
+  unit, so a lib overriding a C word leaves that word non-internal.
+- Add a per-word unit id and a current-unit counter bumped on each
+  `load`/`load-library`; the image persists the unit id.
+- Before release, publicize any current reference that reaches another unit's
+  internal word; `numeric-column?` (datasets → statistics) is the one such case.
+
+---
+
+## Definition echo at the REPL
+
+On a successful `:`, `constant`, `variable`, or `unit` definition, print
+`new word: X`, or `redefined word: X` if a word named `X` already resolved.
+Exclude anonymous words (quotations, `(curried)`, `(word.tag)` specializations).
+
+- Gate on `compiler.interactive`: silent under `-b`, printed at a prompt,
+  including from `load` / `load-library` typed there.
+- Capture the pre-existing name at definition open; emit only on successful
+  completion.
+
+---
+
 ## Basic graphing: residuals
 
 - **Chart set** — step (the ecdf as drawn) and bar charts.
@@ -226,6 +258,44 @@ session definitions, by snapshotting a cfa watermark after each `load-library`.
   viewers re-read fast.
 - Reference rows for the plot words (the loadable-library coverage item
   above).
+
+---
+
+## Debugging and profiling: `trace` and `profile`
+
+**`trace`** — call flow, in a separate `-DTRACE` binary. A hook in `docol`
+(entry) and `exit` under `#ifdef TRACE`: when a `tracing` flag is set, print the
+entered word's name (`WORD_NAME`) indented by a depth counter, `depth++`; `exit`
+does `depth--`. Only `docol` is hooked. `trace-on` / `trace-off` bound the region.
+A second `make` target compiles the sources with `-DTRACE` into `water-trace`; the
+normal `water` strips the hook. No timing.
+
+**`profile`** — sampling call tree, in the normal `water`. `profile` /
+`profile-on` / `profile-off` arm a `SIGPROF` interval timer; the handler walks the
+active return stack (via `word_containing`) and accumulates the frame chain into a
+call tree — a node per word, children its callees, a counter per node; subtree
+total is inclusive time, leaf hits are self time. Unarmed when not profiling.
+
+- Sampling rate settable, ~1 kHz default; report the sample count.
+- Native-only: wasm has no signals, so `profile` no-ops or errors there.
+
+---
+
+## Test words: `expect` and `test`
+
+An embedded test vocabulary in `src/forth/test.h2o` (after `exceptions.h2o` in
+`FORTH_SRCS`), pure forth over `catch`/`throw`. `assert` is taken (logic fact
+assertion), so the assertion word is `expect`; a passing `expect` is silent, a
+failing one throws.
+
+- `expect= ( actual expected -- )` — deep equality via `=`; on mismatch throws
+  `expected X, got Y`.
+- `expect-near ( actual expected tolerance -- )` — float comparison.
+- `expect-throws ( xt -- )` — pass iff the quotation throws.
+- `expect ( flag -- )` — bare truthiness.
+- `test ( "name" xt -- )` — run the quotation under `catch`, print `ok <name>` or
+  `FAIL <name>: <reason>`, count it, continue past a failure.
+- `test-report ( -- )` — print `N passed, M failed`; exit nonzero if any failed.
 
 ---
 
@@ -478,6 +548,53 @@ In rough priority:
 - **Numeric disjoint-write buffer / work-stealing.** Lower priority: a shared
   unboxed-`double` output buffer threaded under the matrix kernels, and
   work-stealing for skewed workloads.
+
+---
+
+## Forward declaration: `defer` and `embodies`
+
+`defer name` creates `name` as a trampoline with no target. `embodies` installs a
+body: `' impl embodies name` or `[: … :] embodies name` — take the xt off the
+stack, parse the trailing deferred name, install it. Enables mutual recursion and
+late binding.
+
+- The trampoline forwards by tail-jump (reuse the current frame).
+- `embodies` retargets repeatedly; the target is any xt (`'`-ticked word or
+  quotation).
+- Calling a deferred word before `embodies` installs a target throws
+  `unresolved deferred word: X`.
+- `defer name` is a defining word (echoes `new word: name`); `embodies` reassigns
+  an existing word and stays silent.
+- The target slot is a cfa reference: relocate it in the image like `dovar`'s
+  operand, with matching `op_cell_count` / `image_op_cells` / body-walker entries.
+
+---
+
+## `recurse` and tail-call elimination
+
+`recurse` — an immediate word compiling a call to the innermost definition being
+compiled (the enclosing colon word, or inside a quotation the quotation itself),
+so an anonymous quotation can self-call. Outside any definition it is a compile
+error.
+
+Eliminate tail calls automatically. At `;` and quotation close, scan the body for
+a call in tail position — a `call X` whose only continuation is the terminal
+`exit`, directly or through branches (both arms of `if/then/else`, `if … exit
+then …`) — and rewrite `call X; exit` into a new `tailcall` op reusing the current
+return slot. A tail call from a word or quotation with locals releases its locals
+frame (`leave_locals`) first. `tailcall` is additive to `op_cell_count`, the image
+format, and every body walker; `docol`/`exit` stay untouched. Covers self, mutual
+(with `defer`/`embodies`), and general tail calls; a tail-position `recurse`
+optimizes like any other call.
+
+Best-effort, not guaranteed: do not elide a tail call that crosses a
+`reset`/`shift` prompt, an `amb` choice mark, or a `dynamic-wind` region, nor one
+with unbalanced `>r` data. Error traces show the compressed stack.
+
+A recursive quotation that has its own locals and captures an enclosing word's
+local reads the wrong frame past the first level (the capture's `frames-up` is
+fixed, but each activation adds a locals frame). Recursive quotations carry state
+on the stack or in their own locals; bare recursion is unaffected.
 
 ---
 
