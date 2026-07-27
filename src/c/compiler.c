@@ -161,6 +161,9 @@ void p_semicolon(DISPATCH_ARGS) {
 	compiler.compiling_src_start = 0;
 	compiler.anaphor_slots = 0;
 
+	if (vocab.latest_cfa != 0)
+		echo_definition(&vocab.name_pool[WORD_NAME(vocab.latest_cfa)], compiler.definition_redefined);
+
 	DISPATCH(interp);
 }
 
@@ -517,6 +520,8 @@ void p_colon(DISPATCH_ARGS) {
 		return;
 	}
 
+	compiler.definition_redefined = find(token) != 0;
+
 	create_header(interp, token, 0);
 	emit(interp, (cell)&docol);
 	compiler.fuse_floor = vocab.here;
@@ -550,7 +555,9 @@ void p_variable(DISPATCH_ARGS) {
 		return;
 	}
 
+	int redefined = find(token) != 0;
 	create_variable(interp, token);
+	echo_definition(token, redefined);
 
 	DISPATCH(interp);
 }
@@ -562,10 +569,12 @@ void p_constant(DISPATCH_ARGS) {
 		fail(interp, "constant: expected a name");
 		return;
 	}
+	int redefined = find(token) != 0;
 	create_header(interp, token, 2);
 	emit(interp, (cell)&docol);
 	emit_val_literal(interp, value);
 	emit_call(interp, vocab.exit_cfa);
+	echo_definition(token, redefined);
 	DISPATCH(interp);
 }
 

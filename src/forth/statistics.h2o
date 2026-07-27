@@ -47,7 +47,7 @@
 		positions [: n-folds mod f = not :] filter units swap select-rows
 		positions [: n-folds mod f = :] filter units swap select-rows
 		2 array :]
-	map ; internal
+	map ;
 
 ( units n-folds fit-xt score-xt -- fold-losses ) \ k-fold CV: units deal round-robin
 \ into folds in the given order (shuffle first; one shuffle compares configurations on
@@ -150,7 +150,7 @@
 : sample-with-replacement true sample ; inline
 
 ( data -- n ) \ resampling domain size: an array's elements, else rows
-: n-observations dup array? if size else n-rows then ; internal
+: n-observations dup array? if size else n-rows then ;
 
 ( data fit-xt replications fit-mapper -- [estimates] )
 \ One serial draw sets the run seed; replicate i then draws its indices from
@@ -471,7 +471,7 @@
 		node :left @  depth 1 +  draw-node
 		depth 2 * spaces  node :feature @  "{1}{0} not in " format .  node :categories @ . cr
 		node :right @  depth 1 +  draw-node
-	then ; internal
+	then ;
 
 ( tree -- ) \ print a fit-tree tree as indented split rules with per-leaf prediction and count
 : draw-tree  0 draw-node ;

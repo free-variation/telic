@@ -550,6 +550,7 @@ typedef struct {
 	char input_buffer[INPUT_BUFFER_SIZE];
 	int input_buffer_len, input_buffer_pos, need_more;
 	int interactive;
+	int definition_redefined;
 	int compiling_src_start;
 
 	int fuse_prev_var, fuse_prev2_var;
@@ -603,8 +604,12 @@ static inline int dict_op_is(int pos, cfa_handler h) {
 #define WORD_IS_IMMEDIATE(cfa) (WORD_FLAGS(cfa) & 1)
 #define WORD_IS_INLINE(cfa) (WORD_FLAGS(cfa) & 2)
 #define WORD_IS_INTERNAL(cfa) (WORD_FLAGS(cfa) & 4)
-#define WORD_USE_COUNT(cfa) (WORD_FLAGS(cfa) >> 3)
+#define WORD_UNIT_SHIFT 40
+#define WORD_UNIT_MASK 0xFFFFFFLL
+#define WORD_USE_COUNT(cfa) ((int)((WORD_FLAGS(cfa) >> 3) & ((1LL << (WORD_UNIT_SHIFT - 3)) - 1)))
 #define WORD_USE_INCREMENT(cfa) (WORD_FLAGS(cfa) += 8)
+#define WORD_UNIT(cfa) ((int)((WORD_FLAGS(cfa) >> WORD_UNIT_SHIFT) & WORD_UNIT_MASK))
+#define WORD_SET_UNIT(cfa, u) (WORD_FLAGS(cfa) = (WORD_FLAGS(cfa) & ~(WORD_UNIT_MASK << WORD_UNIT_SHIFT)) | (((cell)(u) & WORD_UNIT_MASK) << WORD_UNIT_SHIFT))
 
 typedef struct {
 	int saved_ip;
@@ -851,6 +856,7 @@ void call_open(Interpreter *interp, int cfa, CallContext *ctx);
 int capture_render(Interpreter *interp, void (*render)(FILE *, Interpreter *, int), int target_cfa);
 int construct_vocabulary(Interpreter *interp, int load_lib);
 int create_header(Interpreter *interp, const char *name, int flags);
+void echo_definition(const char *name, int redefined);
 int define_primitive(Interpreter *interp, const char *name, cfa_handler handler, int flags);
 void dict_ensure(Interpreter *interp, int extra);
 void emit(Interpreter *interp, cell value);

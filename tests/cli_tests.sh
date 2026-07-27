@@ -53,6 +53,15 @@ exact "piped default is batch"          '2 3 + . cr'  "5 " 0
 has   "interactive (-i) shows banner"   '2 3 + . cr'  "water " 0 -i
 has   "interactive (-i) shows the hint" '2 3 + . cr'  "words lists every word; help shows a quick start; bye quits" 0 -i
 has   "interactive (-i) shows prompt"   '1 2 . cr'    "ok 1|1"        0 -i
+# definition echo: interactive-only (silent under -b), new vs redefined, and the
+# immediate-echo path (variable). Anonymous words (a curried xt) never echo.
+exact "definition echo silent (-b)"     ': zzz-echo dup * ;'  ""  0 -b
+has   "definition echo new (-i)"         ': zzz-echo dup * ;'  "new word: zzz-echo"        0 -i
+has   "definition echo redefined (-i)"   ': zzz-echo 1 ; : zzz-echo 2 ;'  "redefined word: zzz-echo"  0 -i
+has   "definition echo variable (-i)"    'variable zzz-var'    "new word: zzz-var"         0 -i
+# a loaded library's internal word is private to its load unit: unreachable from
+# the session (public words of the same lib still resolve — covered by 131_plot)
+has   "lib internal is unit-private"     '"lib/plot.h2o" load  "/tmp" next-svg-index'  "unknown word: next-svg-index"  0 -b
 # --max-objects lowers the object ceiling so the limit is reachable cheaply
 has   "--max-objects hits ceiling"      '1 200000 range [: drop [< 0 >] :] map drop'  "object registry full" 0 -b --max-objects 100000
 # --max-objects argument validation

@@ -65,4 +65,4 @@
 	then
 
 	path "^/" has? if path else cwd "/" + path + then to url
-	[ browser "--app=file://" url + ] start-process drop ; internal
+	[ browser "--app=file://" url + ] start-process drop ;

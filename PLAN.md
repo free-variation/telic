@@ -16,192 +16,81 @@ A TODO list of pending work, highest priority first.
 
 ---
 
-## Statistics: a minimal spanning set
+## Statistics
 
-Build applied statistics from a few kernels, each reused across many methods,
-with inference resampling-first (index loops over asymptotic tables). Compose
-everything in library code from four kernels — SVD, weighted least squares (the
-`fit-linear` sqrt-w idiom), the resampling loop (`bootstrap`), and a
-pairwise-distance primitive (§4, small C unless the dgemm identity suffices).
+Build in library code on four kernels: `svd`, weighted least squares (the
+`fit-linear` sqrt-w idiom), the resampling loop (`bootstrap`), and pairwise
+distances (§4).
 
-Add a built-in `svd` so the embedded (wasm-capable) library can decompose
-without the FFI: a one-sided Jacobi kernel in C, masked by the dgesvd binding.
-Pin its goldens on S and the U·S·Vᵀ reconstruction, never raw U/V entries
-(column signs are not canonical and the two implementations disagree on them).
+- Add a built-in `svd` — a one-sided Jacobi C kernel masked by the dgesvd
+  binding. Pin goldens on S and the U·S·Vᵀ reconstruction, never raw U/V entries.
 
-Where C work is and is not needed: IRLS needs none — each iteration is dgemm +
-element-wise link/variance words + a LAPACK solve, and a new family (§2) swaps
-only the element-wise words. The small C beyond the kernels:
-`erf`/normal-CDF (§2 probit, BCa intervals — a few lines alongside
-`exp`/`tanh`; `qnorm` covers the quantile inverse), the
-empirical-distribution statistics
-(§5 — `ks`, `cvm`, `ad`, `wasserstein`, each a small
-one-pass kernel), `cumulative-product` (`cumulative-sum`'s twin — survival
-curves S(t) = ∏(1−hazard) then compose at library level), and `row-argmins`
-with its argmax and column twins
-(index-returning kin of `row-mins`, one pass — k-means' assignment step
-needs the per-row index the flat `argmin` does not return). Gaussian
-mixtures (§1) add no C, only a `dpotrf`/`dpotrs` export to the lapacke
-vendoring. Rank transforms (§3) compose `iota` + `sort-by`; k-means,
-spectral methods, and the tensor step of LCA (§1) otherwise ride
-`dgemm`/`svd` at library level.
+Small C words the rest builds on:
 
-### 1. SVD exploitation (library code on `svd` / `dgemm`)
+- `cumulative-product` (`cumulative-sum`'s twin).
+- `row-argmins`, with its argmax and column twins (index-returning, one pass).
+- Empirical-distribution kernels `ks`, `wasserstein` (§5).
+- Export `dpotrf` / `dpotrs` in the lapacke vendoring (for §1 mixtures).
 
-- **PCA** — center columns, SVD: loadings V, scores U·S, component variances
-  S²/(n−1). Whitening, low-rank approximation (Eckart–Young), and
-  principal-component regression on top.
-- **k-means** — Lloyd iterations over dgemm distances, each row assigned
-  by `row-argmins` (the new small C word above); needed by spectral
-  clustering, useful alone. k-means++ initialization draws on the RNG.
-- **Gaussian mixtures** — EM: per-cluster Mahalanobis distances and
-  log-determinants from Cholesky (`dpotrf`/`dpotrs` — one more exported
-  symbol pair in the lapacke vendoring), responsibilities and the M-step
-  as dgemm + element-wise ops. k-means seeds it; LCA's
-  spectral-init-then-EM pattern applies.
-- **Spectral clustering** — affinity → normalized Laplacian → top-k embedding
-  (PSD, so dgesvd *is* its eigendecomposition) → k-means on the embedded rows.
-- **Classical MDS / kernel PCA** — double-centered squared distances /
-  centered Gram matrix, decompose. dgesvd loses eigenvalue signs on
-  indefinite matrices; Euclidean distances and PSD kernels are safe.
-  Indefinite inputs need a dsyevr binding (re-vendor lapacke with one more
-  exported symbol) — defer until wanted.
-- **Correspondence analysis / MCA** — SVD of the standardized residuals of a
-  contingency (or indicator) table; the categorical companion to PCA and the
-  descriptive cousin of LCA, sharing its one-hot plumbing.
-- **Spectral LCA** — the method-of-moments estimator (Anandkumar et al.,
-  JMLR 2014), built as spectral initialization + EM polish, not
-  spectral-only:
-  - Partition items into three groups; build cross-moment matrices between
-    groups from one-hot indicator matrices (dgemm); symmetrize the views.
-  - Whiten with the top-k SVD of M₂ (W = UₖΣₖ^(−1/2)); k read from the
-    singular-value gap, which is also the exposed diagnostic.
-  - Accumulate the whitened k×k×k third moment directly from whitened rows —
-    never materialize the p³ tensor.
-  - Tensor power iteration with deflation and random restarts (the
-    positive-random-slice PD shortcut as the cheap first cut) for the
-    orthogonal factors.
-  - Reconstruct wᵢ = 1/λᵢ² and aᵢ = λᵢ(Wᵀ)⁺ãᵢ; project onto the simplex.
-  - Finish with a few EM iterations (elementwise ops only): the spectral
-    step removes local optima and label switching, EM restores efficiency.
-    Small-n accuracy degrades with conditioning (1/w_min, σₖ(M₂)); the M₂
-    spectrum diagnostic says when to distrust the seed.
-- **Total least squares / orthogonal regression** — smallest right singular
-  vector of [X | y].
+### 1. SVD / dgemm methods (library)
 
-To settle: whether spectral clustering's affinity construction (RBF
-bandwidth, kNN graph) waits on the distance primitive (§4); how much of
-CA/MCA folds into the LCA indicator plumbing; whether clustering and LCA
-warrant their own files rather than statistics.h2o.
+- **PCA** — center columns, SVD; loadings V, scores U·S, variances S²/(n−1); add
+  whitening, low-rank (Eckart–Young), and principal-component regression.
+- **k-means** — Lloyd iterations over dgemm distances, rows assigned by
+  `row-argmins`; k-means++ init on the RNG.
+- **Gaussian mixtures** — EM with Cholesky (`dpotrf`/`dpotrs`) Mahalanobis
+  distances and log-determinants; M-step as dgemm + element-wise ops; seed from
+  k-means.
+- **Spectral clustering** — affinity → normalized Laplacian → top-k embedding →
+  k-means on the embedded rows.
 
-### 2. Weighted least squares and the GLM family
+### 2. Weighted least squares and GLM families
 
-- **fit-weighted** — name the sqrt-w row-scaling idiom inside `fit-logistic`
-  as ( X y w -- beta ).
-- **group-demean** — the within (fixed-effects) transform: subtract group
-  means, composed over `group-indices`; dataset tooling (datasets.h2o) that
-  reduces a high-cardinality-dummy regression to a small one.
-- **More GLM families** — probit (needs an element-wise `erf`/normal-CDF C
-  word; `qnorm` covers the quantile side), negative binomial (estimate the
-  dispersion), cloglog (the discrete-time hazard's canonical link; element-wise
-  words only), and ordinal logistic (cumulative-logit / proportional-odds).
-- **Ridge** — singular-value filtering σ/(σ²+λ) on the design; λ chosen by
-  cross-validation (§3).
-- **LDA** — within-class whitening + SVD of the class means.
-- **Random Fourier features** — approximate kernel classification and
-  regression through the same linear fits; RNG + dgemm, no QP solver, which
-  is why a separate SVM earns no spot.
-- **Local regression and KDE** — kernel weights by distance to each
-  evaluation point: LOESS is fit-weighted in a loop, KDE is the weights
-  alone.
+- `fit-weighted ( X y w -- beta )` — name the sqrt-w row-scaling idiom.
+- `group-demean` — the within (fixed-effects) transform over `group-indices`.
+- **More GLM families** — negative binomial, ordinal logistic (cumulative-logit).
+- **KDE** — kernel density estimation, distance weights alone.
 
-To settle: bandwidth selection (CV vs plug-in rules).
+### 2b. Correlations
 
-### 2b. Correlations: residuals
+- Give `ranks` midranks for ties, so `correlation-spearman` stops drifting on
+  tied data and returns null for a constant vector.
 
-- Give `ranks` midranks for ties — average each tied run's ranks — so
-  `correlation-spearman` stops drifting on heavily tied data and returns
-  null (not 1) for a constant vector, matching pearson's degenerate cases.
+### 3. Resampling inference
 
-### 3. The resampling loop as the inference engine
+Generalize the bootstrap shape — index sets → refit → collect:
 
-Generalize bootstrap's shape — index sets → refit → collect — into the
-library's whole inference story; parametric standard errors and asymptotic
-tables stay out.
+- `permutation-test` — shuffle one column's indices for the null.
+- `jackknife` — leave-one-out partitions, over `cross-validate`'s units shape.
+- **Model metrics** — squared/absolute error, accuracy, confusion counts, AUC
+  (argsort), ROC and calibration curves, isotonic calibration (PAVA), Brier,
+  MASE.
+- **Cluster resampling** — index-array units and the wild-cluster
+  weight-multiplier (Rademacher) variant; cluster jackknife.
+- Parallel variants via `pmap` (as `pbootstrap` does).
 
-- **permutation-test** — shuffle one column's indices for the null;
-  replaces the t-test, ANOVA, and correlation tests.
-- **jackknife** — leave-one-out index partitions; reuse `cross-validate`'s
-  units/fit-xt/score-xt shape.
-- **Model metrics** — the losses CV selects on: squared/absolute error,
-  accuracy, and confusion counts as element-wise ops; AUC as a rank
-  statistic (argsort — Mann–Whitney's twin); ROC and calibration curves
-  as cumulative counts over the argsort order; isotonic calibration
-  (PAVA) as a library pass; Brier score (element-wise); MASE against a
-  seasonal-naïve reference (rolling-origin evaluation is `cross-validate`
-  with ordered units — only the metric is new).
-- **Cluster units and weight multipliers** — the index generators must cover
-  cluster resampling (index-array units, as `bootstrap` consumers already
-  use) and the weight-multiplier variant: Rademacher weights on per-cluster
-  residuals — the wild cluster bootstrap, the standard inference when
-  clusters are few. Cluster jackknife falls out of the same units shape.
-- **Rank statistics** — build Wilcoxon / Mann–Whitney and Kruskal–Wallis as
-  rank statistics with permutation nulls, over the `ranks` word spearman
-  uses. Midranks for ties (§2b) feed directly into these.
-- Ride pmap for the parallel variants as pbootstrap does; reuse the
-  per-replicate seeding pattern (`resample-indices-ext` at run-seed + i,
-  as `bootstrap-with` does) for the permutation and jackknife index
-  generators.
+### 4. Pairwise distances
 
-To settle: one generic word ( data index-gen-xt statistic-xt n -- dist )
-with bootstrap/permutation/jackknife as instances, or a word per method.
+- `( X Y -- D )` via the dgemm identity ‖x‖² + ‖y‖² − 2XYᵀ, plus a direct kernel
+  for other metrics. Unlocks kNN, RBF affinities, hierarchical /
+  DBSCAN clustering, and distance-based tests (distance correlation, PERMANOVA,
+  MMD).
 
-### 4. Pairwise distances (small, last)
+### 5. Empirical-distribution distances
 
-( X Y -- D ) via the dgemm identity ‖x‖² + ‖y‖² − 2XYᵀ, plus a direct kernel
-for other metrics. Unlocks kNN classification/regression, MDS input, RBF
-affinities for spectral clustering, hierarchical/agglomerative clustering
-(linkage passes over the distance matrix), DBSCAN (neighborhood sets via
-`where`), and the distance-based tests — distance correlation, PERMANOVA,
-MMD — whose nulls come from the permutation loop.
+Each one pass over sorted samples, in the `ks-distance` mold:
 
-To settle: C word vs dgemm composition in library code (the identity is
-three ops but loses precision on near-duplicate rows).
-
-### 5. Empirical distributions
-
-Distances between empirical distributions, each one pass over sorted
-samples in the `ks-distance` mold:
-
-- **one-sample ks** — against a reference CDF as a quotation ( x -- p );
-  a normal reference is another consumer of the §2 `erf` word.
-- **cvm / ad** — C: Cramér–von Mises and Anderson–Darling, the ks pass
-  with accumulation; AD is CvM with 1/(F(1−F)) tail weights.
-- **wasserstein** — C: 1-D W₁; equal-n samples pair sorted elements
-  directly (mean |gap|), unequal n integrates the quantile difference over
-  the merged grid.
-- Significance by permutation of pooled labels (§3); energy distance joins
-  once §4's pairwise distances land.
-
-To settle: whether the permutation replicate loop wants a C null driver
-(in-place byte-label shuffle + statistic in one loop, skipping the
-per-replicate sort) once profiling shows the sort dominating.
+- `ks` — one-sample against a reference CDF quotation ( x -- p ).
+- `wasserstein` — 1-D W₁.
+- Significance by permutation of pooled labels; energy distance once §4 is in place.
 
 ### Test data
 
-Three layers, adopted in this order:
-
-- **Seeded synthetic, generated in-test** — the existing 104–107 pattern:
-  fixed `seed`, planted parameters recovered (plant β, fit, compare),
-  edge cases, resampling determinism.
-- **Canonical sets in `data/`** — external ground truth: every fitting or
-  inference word gets at least one test whose expected value was
-  cross-checked against R or scikit once, the reference noted in the test
-  comment, before the golden freezes it. `iris.tsv` is vendored; add
-  `mtcars` (regression), `faithful` (KDE, mixtures), and `anscombe`
-  (graphing) — a few KB each, freely redistributable.
-- **Large synthetic for benchmarks** — generated by script as needed (the
-  `logistic-sim.tsv` route), never vendored; bench material, not goldens.
+- Seeded synthetic generated in-test: plant parameters, fit, recover; edge
+  cases; resampling determinism.
+- Canonical sets in `data/`: add `mtcars`, `faithful`, `anscombe`, each with a
+  golden cross-checked once against R/scikit and the reference noted in-test.
+- Large synthetic generated by script for benchmarks, never vendored.
 
 ---
 
@@ -209,38 +98,6 @@ Three layers, adopted in this order:
 
 Give `words` a "library" group for loaded lib/*.h2o words, separate from REPL
 session definitions, by snapshotting a cfa watermark after each `load-library`.
-
----
-
-## `internal` as a per-load-unit namespace
-
-`internal` scopes name resolution, not just listing: an internal word resolves
-only within its own load unit. Units: the embedded boot library (all of
-`FORTH_SRCS`) is one unit; each `load` / `load-library` call is a unit; the REPL
-session is a unit. Non-internal words stay globally resolvable.
-
-- Reuse the existing `internal` marker.
-- `find`, `'`, and `lookup` all honor the scope; an internal word is unreachable
-  from another unit.
-- Overrides stay public: a redefinition marked internal shadows only within its
-  unit, so a lib overriding a C word leaves that word non-internal.
-- Add a per-word unit id and a current-unit counter bumped on each
-  `load`/`load-library`; the image persists the unit id.
-- Before release, publicize any current reference that reaches another unit's
-  internal word; `numeric-column?` (datasets → statistics) is the one such case.
-
----
-
-## Definition echo at the REPL
-
-On a successful `:`, `constant`, `variable`, or `unit` definition, print
-`new word: X`, or `redefined word: X` if a word named `X` already resolved.
-Exclude anonymous words (quotations, `(curried)`, `(word.tag)` specializations).
-
-- Gate on `compiler.interactive`: silent under `-b`, printed at a prompt,
-  including from `load` / `load-library` typed there.
-- Capture the pre-existing name at definition open; emit only on successful
-  completion.
 
 ---
 
@@ -256,8 +113,6 @@ Exclude anonymous words (quotations, `(curried)`, `(word.tag)` specializations).
 - **Torn frames on overwrite** — `write-file` truncates in place; either
   a `rename-file` word for temp-and-rename atomicity, or accept that
   viewers re-read fast.
-- Reference rows for the plot words (the loadable-library coverage item
-  above).
 
 ---
 
@@ -346,7 +201,7 @@ Water code written by a strong model given only this file?
 
 To settle: one pack or two tiers (lean core + full); whole example
 programs or excerpts; whether the pack embeds the executable-docs goldens
-as input/output pairs (few-shot format) once that section lands.
+as input/output pairs (few-shot format) once that section is done.
 
 ---
 
@@ -391,7 +246,7 @@ or inferred from whether interning happens during compilation.
 
 ## FastCGI service
 
-Run Water as a long-lived FastCGI application behind an off-the-shelf web
+Run Water as a long-lived FastCGI application behind a standard web
 server (nginx, Caddy, lighttpd, Apache). The web server owns everything HTTP —
 TLS termination, HTTP/1.1–3, request parsing, static files, timeouts, rate
 limiting, access logs, load balancing — and forwards each request over a Unix or
@@ -401,8 +256,8 @@ the records, runs a handler, writes the response.
 Depends on symbol collection: a long-lived worker parsing request JSON mints
 symbols from unbounded request keys, so without collection the worker leaks
 until restart. Untrusted request bodies also make fuzzing `json>frame` (and
-`load-image`, if images ever travel) a prerequisite — mutate a seed corpus
-into the ASan build and fix what falls out.
+`load-image`, if images are ever sent) a prerequisite — mutate a seed corpus
+into the ASan build and fix the crashes it triggers.
 
 **Instrumentation needed** — less than an in-process server, since the web server
 keeps the HTTP work:
@@ -474,7 +329,7 @@ the before/after thunks, recognized by both unwind cascades in the inner loop
 `before`.
 
 To settle: whether `after` firing once per failed alternative of a multi-shot
-region is the wanted semantics or a footgun; how a wind mark interleaves with
+region is intended or unwanted; how a wind mark interleaves with
 the locals-frame and trail rewind the unwind carries; whether
 `before`/`after` observe the region's data stack or run isolated.
 

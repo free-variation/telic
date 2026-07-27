@@ -136,6 +136,9 @@ to aes
 ( x y label -- ) \ text at (x,y), current font size and anchor
 : svg-text :text-anchor figure@ :pixel :pixel text-mark ;
 
+( x y label -- ) \ text at data point (x,y), current font size and anchor
+: annotate :text-anchor figure@ :data :data text-mark ;
+
 ( color -- ) \ set the current stroke color
 : stroke :stroke figure! ;
 

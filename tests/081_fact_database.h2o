@@ -103,16 +103,16 @@ r :rows @ size . cr                                    \ 1
 r2 :rows @ size . cr                                   \ 1
 r { :child :b } query size . cr                        \ 0   r2's data did not leak into r
 
-\ === index narrowing: candidates shrinks the scan set ===
+\ === query returns the rows matching a pattern (narrowed through the index) ===
 [ :child ] relation to r
 r { :id 1 :child :a } assert drop
 r { :id 2 :child :b } assert drop
 r { :id 3 :child :a } assert drop
-r { :child :a } candidates size . cr                   \ 2   narrowed to the :a bucket, not all 3 rows
-r { :child :nope } candidates size . cr                \ 0   unasserted value: empty, no scan
-r { :parent :x } candidates size . cr                  \ 3   non-indexed column: full :rows
+r { :child :a } query size . cr                        \ 2   the two :a rows
+r { :child :nope } query size . cr                     \ 0   unasserted value
+r { :parent :x } query size . cr                       \ 3   :parent absent from the rows adds no constraint, matches all
 lvar to V
-r { :child V } candidates size . cr                    \ 3   projection var: cannot narrow, full :rows
+r { :child V } query size . cr                         \ 3   projection var matches every row
 
 \ === count-matches (covering uses the bucket size; non-covering counts the query) ===
 r { :child :a } count-matches . cr                     \ 2   covering: bucket size, no scan

@@ -658,6 +658,7 @@ void p_unit(DISPATCH_ARGS) {
 	if (interp->error_flag)
 		return;
 
+	int redefined = find(name) != 0;
 	int cfa = create_header(interp, name, 0);
 	units[unit].name = WORD_NAME(cfa);
 	if (base_dimension != DIMENSION_UNNAMED)
@@ -665,6 +666,8 @@ void p_unit(DISPATCH_ARGS) {
 
 	emit(interp, (cell)dounit);
 	emit(interp, (cell)unit);
+
+	echo_definition(name, redefined);
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 }

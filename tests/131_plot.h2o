@@ -135,6 +135,12 @@ dup "<line" split size 1 - . cr                \ 6
 "x &lt;= 4.5" split size 1 - . cr              \ 1
 clear
 
+\ === annotate: text placed at a data point renders into the SVG ===
+640 480 figure [ 1 2 3 ] vector [ 1 4 9 ] vector scatter
+2 4 "peak-here" annotate
+figure>svg "peak-here" has? . cr               \ 1  (annotation text present)
+clear
+
 \ === errors (thrown; caught here to show the message) ===
 [: [ 1 2 ] vector [ 1 2 3 ] vector scatter :] [: . cr :] try-catch   \ (length mismatch)
 [: [ 1 2 ] vector [ 1 ] vector series :] [: . cr :] try-catch        \ (length mismatch)

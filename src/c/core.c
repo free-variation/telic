@@ -1142,10 +1142,14 @@ void print_frame_pretty(FILE *out, Interpreter *interp, Object *frame, int inden
 	putc('}', out);
 }
 
+int current_unit = 0;
+static int next_unit = 1;
+
 int find(const char *name) {
 	int cfa = vocab.latest_cfa;
 	while (cfa != 0) {
-		if (strcmp(&vocab.name_pool[WORD_NAME(cfa)], name) == 0)
+		if (strcmp(&vocab.name_pool[WORD_NAME(cfa)], name) == 0
+				&& !(WORD_IS_INTERNAL(cfa) && WORD_UNIT(cfa) != current_unit))
 			return cfa;
 		cfa = (int)WORD_LINK(cfa);
 	}
@@ -1601,7 +1605,15 @@ int create_header(Interpreter *interp, const char *name, int flags) {
 	vocab.dict[vocab.here++] = 0;
 
 	vocab.latest_cfa = vocab.here;
+	WORD_SET_UNIT(vocab.latest_cfa, current_unit);
 	return vocab.latest_cfa;
+}
+
+void echo_definition(const char *name, int redefined) {
+	if (!compiler.interactive)
+		return;
+	printf("%s word: %s\n", redefined ? "redefined" : "new", name);
+	fflush(stdout);
 }
 
 int define_primitive(Interpreter *interp, const char *name, cfa_handler handler, int flags) {
@@ -3170,9 +3182,12 @@ void load_file(Interpreter *interp, const char *filename) {
 	compiler.input_buffer_pos = 0;
 	compiler.need_more = 0;
 
+	int saved_unit = current_unit;
+	current_unit = next_unit++;
 	compiler.load_depth++;
 	run_outer(interp);
 	compiler.load_depth--;
+	current_unit = saved_unit;
 
 	if (!interp->error_flag && compiler.need_more) {
 		fail(interp, "unterminated string literal");
@@ -4822,6 +4837,8 @@ int main(int argc, char **argv) {
 	if (construct_vocabulary(interp, load_lib))
 		return 1;
 
+	current_unit = next_unit++;
+
 	if (show_version) {
 		execute_cfa(interp, find("water"));
 		return 0;
@@ -4831,6 +4848,8 @@ int main(int argc, char **argv) {
 		execute_cfa(interp, find("words"));
 		return 0;
 	}
+
+	compiler.interactive = interactive;
 
 	for (int i = 0; i < n_program_items; i++) {
 		if (program_item_is_code[i])
