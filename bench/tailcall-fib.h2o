@@ -1,0 +1,46 @@
+\ Tail-call elimination, measured on an accumulator Fibonacci. Both words run the
+\ identical algorithm and carry a matched two-dispatch head filler so op-count is
+\ equal: fib-helper uses the non-hazard `0 drop` (its self-call is still
+\ eliminated to a frame-reusing jump), fib-helper-blocked uses `r@ drop`, whose
+\ `r@` trips the TCE safety exclusion (its self-call stays an ordinary
+\ return-stack-growing call). So the timing gap is the eliminated frame alone, not
+\ the marker. The float result overflows to inf well before n=1000 -- irrelevant
+\ to timing, which counts iterations, not the value.
+
+1000 constant fib-n
+20000 constant reps
+
+\ Stack-only ( a b n -- fib ), no locals. Both move n-1 out of the way of the a+b
+\ step and back: fib-helper with `-rot ... rot` on the data stack (tail self-call
+\ eliminated), fib-helper-blocked with `>r ... r>` on the return stack (the `>r`
+\ trips the TCE hazard, so its self-call stays an ordinary return-stack-growing
+\ call). Not dispatch-matched: `-rot` compiles to `rot rot`, so the data version
+\ runs one extra dispatch per level. TCE's per-level speed saving is about one
+\ dispatch, so that extra `rot` is enough to make the blocked version win on raw
+\ time here -- the speed effect is marginal and op-count-sensitive. The robust,
+\ unconfounded win is constant space: fib(200000) completes under TCE and
+\ overflows the return stack without it.
+: fib-helper
+  dup 0 = if drop drop else 1 - -rot swap over + rot fib-helper then ;
+: fib  0 1 rot fib-helper ;
+
+: fib-helper-blocked
+  dup 0 = if drop drop else 1 - >r swap over + r> fib-helper-blocked then ;
+: fib-blocked  0 1 rot fib-helper-blocked ;
+
+variable t0
+variable t-tce
+variable t-blocked
+
+[: fib-n fib drop :] now to t0  reps times  now t0 - to t-tce
+[: fib-n fib-blocked drop :] now to t0  reps times  now t0 - to t-blocked
+
+t-tce "tce:     {0}s" format . cr
+t-blocked "blocked: {0}s" format . cr
+t-blocked t-tce / "blocked / tce: {0}x" format . cr
+
+\ TCE runs in constant return-stack space; the blocked form overflows the stack.
+200000 fib drop "fib(200000) tce: completed in constant space" . cr
+[: 200000 fib-blocked drop :] catch drop :message @ "fib(200000) blocked: {0}" format . cr
+
+bye
