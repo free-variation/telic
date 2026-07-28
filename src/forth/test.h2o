@@ -6,6 +6,11 @@
 variable tests-passed internal
 variable tests-failed internal
 
+( -- ) \ clears the test counters
+: new-tests
+	0 to tests-passed
+	0 to tests-failed ;
+
 ( flag -- ) \ pass silently when flag is truthy, else throw
 : expect 
 	not if "expectation was false" throw then ;
