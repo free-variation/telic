@@ -389,53 +389,6 @@ In rough priority:
 
 ---
 
-## Forward declaration: `defer` and `embodies`
-
-`defer name` creates `name` as a trampoline with no target. `embodies` installs a
-body: `' impl embodies name` or `[: … :] embodies name` — take the xt off the
-stack, parse the trailing deferred name, install it. Enables mutual recursion and
-late binding.
-
-- The trampoline forwards by tail-jump (reuse the current frame).
-- `embodies` retargets repeatedly; the target is any xt (`'`-ticked word or
-  quotation).
-- Calling a deferred word before `embodies` installs a target throws
-  `unresolved deferred word: X`.
-- `defer name` is a defining word (echoes `new word: name`); `embodies` reassigns
-  an existing word and stays silent.
-- The target slot is a cfa reference: relocate it in the image like `dovar`'s
-  operand, with matching `op_cell_count` / `image_op_cells` / body-walker entries.
-
----
-
-## `recurse` and tail-call elimination
-
-`recurse` — an immediate word compiling a call to the innermost definition being
-compiled (the enclosing colon word, or inside a quotation the quotation itself),
-so an anonymous quotation can self-call. Outside any definition it is a compile
-error.
-
-Eliminate tail calls automatically. At `;` and quotation close, scan the body for
-a call in tail position — a `call X` whose only continuation is the terminal
-`exit`, directly or through branches (both arms of `if/then/else`, `if … exit
-then …`) — and rewrite `call X; exit` into a new `tailcall` op reusing the current
-return slot. A tail call from a word or quotation with locals releases its locals
-frame (`leave_locals`) first. `tailcall` is additive to `op_cell_count`, the image
-format, and every body walker; `docol`/`exit` stay untouched. Covers self, mutual
-(with `defer`/`embodies`), and general tail calls; a tail-position `recurse`
-optimizes like any other call.
-
-Best-effort, not guaranteed: do not elide a tail call that crosses a
-`reset`/`shift` prompt, an `amb` choice mark, or a `dynamic-wind` region, nor one
-with unbalanced `>r` data. Error traces show the compressed stack.
-
-A recursive quotation that has its own locals and captures an enclosing word's
-local reads the wrong frame past the first level (the capture's `frames-up` is
-fixed, but each activation adds a locals frame). Recursive quotations carry state
-on the stack or in their own locals; bare recursion is unaffected.
-
----
-
 ## Coroutines, generators, lazy sequences
 
 Building on the generator primitives:
@@ -531,3 +484,13 @@ live here instead. File and function name each invariant's home.
   1×k against n×k), not only scalars; the reference documents only the
   scalar case — a doc gap to close (matrix.c,
   `MATRIX_ELEMENTWISE_OP`).
+- `dodefer` is a two-cell op of the `dovar` family (body walkers advance by two,
+  `image_op_cells` returns 2), and `defer` reserves four cells with zeroed pads so
+  `embodies!` overwrites the word in place as a `docol` forwarder (core.c,
+  compiler.c, image.c).
+- `(tailcall)` is a two-cell op (target cfa operand, `op_cell_count` returns 2);
+  `rewrite_tail_calls` at `;`/`:]` converts only `docol` tail calls, never when
+  `body_has_tail_hazard` holds (`>r`/`r>`/`r@`/`reset`/`shift`/`shift-with`/`fail`,
+  or locals plus a quotation), and `inline_word_body` demotes a copied
+  `(tailcall)` back to a call (compiler.c, core.c `p_tailcall`/`inline_word_body`).
+  `amb` needs no exclusion: it removes its own choice mark before returning.

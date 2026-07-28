@@ -1,0 +1,15 @@
+1 
+0 
+1 
+0 
+hi 
+bye 
+42 
+7 
+error: unresolved deferred word: unset
+error: embodies: unknown word: nope-xyz
+error: embodies: not a deferred word: plain
+error: expected an execution token; got a float
+error: embodies: target must be a colon word or quotation
+error: embodies: only at top level
+error: embodies: not a deferred word: d3

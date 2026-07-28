@@ -4,8 +4,9 @@
 : outer mid ;
 outer
 
-\ single-site recursion collapses to one frame
-: spin spin ;
+\ single-site recursion collapses to one frame (non-tail so it still overflows;
+\ a bare `: spin spin ;` is now a constant-space tail loop)
+: spin spin 0 drop ;
 spin
 
 \ top-level quotation names its snippet
@@ -19,7 +20,8 @@ spin
 : top haslocals ;
 top
 
-\ deep non-recursive chain elides the middle
+\ deep tail-call chain collapses to the innermost frame (each call is a tail
+\ call, so TCE leaves only w1 on the return stack at the fault)
 : w1 1 0 % ;
 : w2 w1 ;
 : w3 w2 ;

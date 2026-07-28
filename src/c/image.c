@@ -2,12 +2,13 @@
 #include "water.h"
 
 #define IMAGE_MAGIC "LF4I"
-#define IMAGE_VERSION ((uint32_t)6)
+#define IMAGE_VERSION ((uint32_t)7)
 
 #define HANDLER_DOCOL 1
 #define HANDLER_DOVAR 2
 #define HANDLER_DOSYM 3
 #define HANDLER_DOUNIT 4
+#define HANDLER_DODEFER 5
 
 int handler_to_id(cell value) {
 	for (int i = 0; i < compiler.n_handlers; i++)
@@ -19,7 +20,7 @@ int handler_to_id(cell value) {
 
 static int image_op_cells(int cursor) {
 	cell handler = vocab.dict[cursor];
-	if (handler == (cell)dovar || handler == (cell)dosym || handler == (cell)dounit)
+	if (handler == (cell)dovar || handler == (cell)dosym || handler == (cell)dounit || handler == (cell)dodefer)
 		return 2;
 	return op_cell_count(cursor);
 }
@@ -169,7 +170,8 @@ void p_save_image(DISPATCH_ARGS) {
 		uint8_t kind = (h == docol) ? HANDLER_DOCOL
 			: (h == dovar) ? HANDLER_DOVAR
 			: (h == dosym) ? HANDLER_DOSYM
-			: (h == dounit) ? HANDLER_DOUNIT : 0;
+			: (h == dounit) ? HANDLER_DOUNIT
+			: (h == dodefer) ? HANDLER_DODEFER : 0;
 		if (kind == 0) {
 			fail(interp, "unrecognised handler at cfa %d", c);
 			fclose(file);
@@ -425,7 +427,8 @@ void p_load_image(DISPATCH_ARGS) {
 		cfa_handler h = (kind == HANDLER_DOCOL) ? docol
 			: (kind == HANDLER_DOVAR) ? dovar
 			: (kind == HANDLER_DOSYM) ? dosym
-			: (kind == HANDLER_DOUNIT) ? dounit : NULL;
+			: (kind == HANDLER_DOUNIT) ? dounit
+			: (kind == HANDLER_DODEFER) ? dodefer : NULL;
 		if (!h) {
 			fail(interp, "%s: bad handler kind %u", filename, kind);
 			goto done;

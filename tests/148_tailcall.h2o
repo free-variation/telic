@@ -1,0 +1,29 @@
+\ Tail-call elimination: a call whose only continuation is the terminal exit
+\ (directly, or through unconditional branches and the trailing leave-locals) is
+\ compiled to (tailcall), which reuses the current return frame -- so tail
+\ recursion runs in constant return-stack space. Disabled when the body uses the
+\ return stack or a prompt (>r r> r@ reset shift fail), or has locals and builds a
+\ quotation (which could capture a local the tail-callee outlives). amb needs no
+\ exclusion -- it removes its own choice mark before returning.
+
+\ === deep self tail recursion runs in constant space (overflows without TCE) ===
+: countdown  dup 0 = if drop else 1 - recurse then ;
+1000000 countdown  42 . cr             \ 42
+
+\ === tail recursion with an accumulator local, deep ===
+: sum-to  |> n acc | n 0 = if acc else n 1 - n acc + recurse then ;
+1000000 0 sum-to . cr                  \ 500000500000
+
+\ === both arms of if/else in tail position become (tailcall) ===
+: leg1  1 + ;
+: leg2  2 + ;
+: split  dup 0 = if drop leg1 else drop leg2 then ;
+' split see-compiled
+
+\ === a return-stack word (>r) disables TCE: the self-call stays plain ===
+: guarded  dup 0 = if drop else 5 >r r> drop 1 - recurse then ;
+' guarded see-compiled
+
+\ === locals + a quotation disables TCE: the map call stays plain and correct ===
+: bump | k | to k  [ 10 20 30 ] [: k + :] map ;
+100 bump . cr                          \ [ 110 120 130 ]

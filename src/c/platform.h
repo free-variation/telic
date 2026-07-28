@@ -28,6 +28,14 @@ struct Interpreter;
 	} \
 } while (0)
 
+#define REQUIRE_RETURN_ROOM(interp, reg_ip, reg_sp) do { \
+	if (unlikely((interp)->rsp >= RETURN_STACK_DEPTH)) { \
+		SYNC_REGISTERS(interp, reg_ip, reg_sp); \
+		fail(interp, "return stack overflow"); \
+		return; \
+	} \
+} while (0)
+
 #define RETARGET_OP(handler) do { \
 	if (!in_parallel) \
 		chain_ip[-1] = (cell)(handler); \

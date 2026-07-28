@@ -389,10 +389,14 @@ These parse following tokens and/or compile code. Costs are dominated by compila
 |------|-------------|----------|
 | `:` | — | Begin a colon definition; read the following name; enter compile mode |
 | `;` | — | End a colon definition; emit `exit`; store the source text for `see`. Self-delimiting: `dup *;` parses |
+| `recurse` | — | Compile a call to the innermost definition being compiled — the enclosing quotation, else the enclosing colon word — so an anonymous quotation can self-call. An ordinary recursive call (grows the return stack); compile error outside a definition |
 | `variable` | — | Read the following name; declare a global variable initialized to `0.0` |
 | `constant` | `( val -- )` | Pop a value and read the following name; define an inline word that pushes it as a literal, so call sites fold to the literal with no run-time fetch. Fixed at definition — `to` cannot reassign it |
 | `to` | `( val -- )` | Assign to the named local (in a definition) or global. At the REPL, auto-creates the global if absent. In a definition, the variable must already exist. May trigger superword store-fusion while compiling. |
 | `symbol` | — | Read the following name; declare a word that pushes a specific interned symbol |
+| `defer` | `( "name" -- )` | Read the following name; declare a forward-referenced word with no target. Calling it before a target is installed throws `unresolved deferred word`. Enables mutual recursion and late binding; set the target with `embodies` or `embodies!` |
+| `embodies` | `( xt "name" -- )` | Pop an xt (a colon word or quotation) and read the following name; install it as the named deferred word's target. Retargetable — each later call re-reads it — so a call to the deferred word forwards through one dispatch. Top-level only |
+| `embodies!` | `( xt "name" -- )` | Like `embodies`, but finalizing: rewrite every existing call site of the deferred word to call the target directly (no forwarding cost), then turn the word into an ordinary word. Not retargetable afterward; a further `embodies`/`embodies!` reports it is no longer deferred. Top-level only |
 | `base` | `( -- q )` | Push a base quantity — a fresh dimension with its base unit, magnitude `1.0`. Paired with `unit` to declare a base dimension (`base unit m`) |
 | `unit` | `( q -- )` | Read the following name; pop a quantity whose magnitude is a positive whole number, and define a postfix word attaching that unit. The magnitude is the unit's integer scale relative to its dimension's base (`100 cent unit dollar`). A single unnamed base dimension gets named after the word |
 | `:name` | `( -- sym )` | Symbol literal; interns the name at read time |

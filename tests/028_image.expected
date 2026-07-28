@@ -19,11 +19,11 @@ V=42
  10: (leave-locals) 1
  12: exit
  13: (lit) '?
- 15: map
+ 15: (tailcall) map
  17: exit
 ;
 error: expected two floats, two strings, two sets, two matrices, scalar/matrix, or two arrays; got none and a float
-in + ← [> x | x 1 + :] ← bump-all
+in + ← [> x | x 1 + :]
 1 
 2 
 2 

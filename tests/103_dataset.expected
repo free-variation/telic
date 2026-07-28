@@ -68,9 +68,9 @@
           4          5
 
 error: array index 5 out of bounds (length 3)
-in (@i.swap.l0) ← [: column swap @i :] ← [: dataset swap @ dup numeric-column? if indice… :] ← select-rows
+in (@i.swap.l0) ← [: column swap @i :]
 error: array index 3 out of bounds (length 2)
-in (@i.swap.l0) ← [: column swap @i :] ← [: dataset swap @ dup numeric-column? if indice… :] ← select-rows
+in (@i.swap.l0) ← [: column swap @i :]
 error: expected a matrix; got a float
 4 3 
 3 4 

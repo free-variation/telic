@@ -18,7 +18,7 @@ symbol red
 ;
 : calls   \ 5 cells
  0: (vfsq) a
- 2: fused
+ 2: (tailcall) fused
  4: exit
 ;
 a: not a colon definition
@@ -81,19 +81,14 @@ a: not a colon definition
 : mid
   0: (enter-locals-to) 1
   2: (load2) 0 0
-  5: leaf:
-    0: (enter-locals-to) 2
-    2: (ll*0) 0 1
-    5: (ll+0) 0 1
-    8: (leave-locals) 2
-    10: exit
+  5: (tailcall) leaf
   7: (leave-locals) 1
   9: exit
 ;
 : rec
   0: (enter-locals-to) 1
   2: (ll.lit-0) 0 1
-  5: rec ...
+  5: (tailcall) rec
   7: (leave-locals) 1
   9: exit
 ;
@@ -109,7 +104,7 @@ v: not a colon definition
  11: 1+
  12: exit
  13: (lit) '?
- 15: map
+ 15: (tailcall) map
  17: exit
 ;
 : qmap
@@ -123,43 +118,7 @@ v: not a colon definition
   11: 1+
   12: exit
   13: (lit) '?
-  15: map:
-    0: over
-    1: type-of
-    2: (lit) :frame
-    4: =
-    5: (0branch) 5
-    7: dataset-map:
-      0: swap
-      1: dataset-rows:
-        0: (enter-locals-mixed) 3 1 0
-        4: (local@0) 0
-        6: keys
-        7: (local!0) 2
-        9: (local@0) 2
-        11: size
-        12: (local!0) 1
-        14: (local@0) 1
-        16: (0=0branch) 4
-        18: [
-        19: ]
-        20: exit
-      3: swap
-      4: (lit) 'map
-      6: execute
-      7: frames>dataset:
-        0: (enter-locals-to) 1
-        2: (local@0) 0
-        4: size
-        5: (0=0branch) 4
-        7: {
-        8: }
-        9: exit
-      9: exit
-    9: (branch) 4
-    11: (lit) 'map
-    13: execute
-    14: exit
+  15: (tailcall) map
   17: exit
 ;
 : else-call   \ 12 cells
@@ -168,7 +127,7 @@ v: not a colon definition
  4: (lit) 2
  6: .
  7: (branch) 3
- 9: helper
+ 9: (tailcall) helper
  11: exit
 ;
 : else-call
@@ -177,10 +136,7 @@ v: not a colon definition
   4: (lit) 2
   6: .
   7: (branch) 3
-  9: helper:
-    0: (lit) 1
-    2: .
-    3: exit
+  9: (tailcall) helper
   11: exit
 ;
 3 

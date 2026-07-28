@@ -3,6 +3,7 @@
 
 static void enter_compile_scope(Interpreter *interp);
 static void leave_compile_scope(Interpreter *interp);
+static void rewrite_tail_calls(int body_start, int body_end);
 
 void rollback_partial_definition(void) {
 	if (compiler.compiling_src_start <= 0 || vocab.latest_cfa == 0)
@@ -141,6 +142,7 @@ void p_semicolon(DISPATCH_ARGS) {
 		return;
 	leave_compile_scope(interp);
 	emit_call(interp, vocab.exit_cfa);
+	rewrite_tail_calls(vocab.latest_cfa + 1, vocab.here);
 	if (compiler.compiling_src_start > 0 && vocab.latest_cfa != 0) {
 		int src_end = compiler.input_buffer_pos - 1;
 		int src_len = src_end - compiler.compiling_src_start;
@@ -162,7 +164,7 @@ void p_semicolon(DISPATCH_ARGS) {
 	compiler.anaphor_slots = 0;
 
 	if (vocab.latest_cfa != 0)
-		echo_definition(&vocab.name_pool[WORD_NAME(vocab.latest_cfa)], compiler.definition_redefined);
+		echo_definition(&vocab.name_pool[WORD_NAME(vocab.latest_cfa)], compiler.definition_redefined, "word");
 
 	DISPATCH(interp);
 }
@@ -428,6 +430,7 @@ void p_qsemi(DISPATCH_ARGS) {
 	record_quotation_span(interp, anon_cfa, opener_start);
 	if (interp->error_flag)
 		return;
+	rewrite_tail_calls(anon_cfa + 1, vocab.here);
 	if (branch_slot < 0) {
 		compiler.compiling = 0;
 		push(interp, make_xt(anon_cfa));
@@ -435,6 +438,18 @@ void p_qsemi(DISPATCH_ARGS) {
 		vocab.dict[branch_slot] = (vocab.here - branch_slot);
 		emit_val_literal(interp, make_xt(anon_cfa));
 	}
+
+	DISPATCH(interp);
+}
+
+void p_recurse(DISPATCH_ARGS) {
+	if (!compiler.compiling || compiler.n_local_scopes <= 0) {
+		fail(interp, "recurse: only inside a definition or quotation");
+		return;
+	}
+
+	int definition_cfa = compiler.local_scope_dict_starts[compiler.n_local_scopes - 1] - 1;
+	emit_call(interp, definition_cfa);
 
 	DISPATCH(interp);
 }
@@ -557,7 +572,7 @@ void p_variable(DISPATCH_ARGS) {
 
 	int redefined = find(token) != 0;
 	create_variable(interp, token);
-	echo_definition(token, redefined);
+	echo_definition(token, redefined, "word");
 
 	DISPATCH(interp);
 }
@@ -574,9 +589,241 @@ void p_constant(DISPATCH_ARGS) {
 	emit(interp, (cell)&docol);
 	emit_val_literal(interp, value);
 	emit_call(interp, vocab.exit_cfa);
-	echo_definition(token, redefined);
+	echo_definition(token, redefined, "word");
 	DISPATCH(interp);
 }
+
+void p_defer(DISPATCH_ARGS) {
+	char *token = next_token();
+	if (!token) {
+		fail(interp, "defer: expected a name");
+		return;
+	}
+
+	int redefined = find(token) != 0;
+	create_header(interp, token, 0);
+	emit(interp, (cell)&dodefer);
+	emit(interp, (cell)0);
+	emit(interp, (cell)0);
+	emit(interp, (cell)0);
+	echo_definition(token, redefined, "deferred word");
+
+	DISPATCH(interp);
+}
+
+static int deferred_word(Interpreter *interp, const char *op) {
+	if (compiler.compiling) {
+		fail(interp, "%s: only at top level", op);
+		return 0;
+	}
+
+	char *token = next_token();
+	if (!token) {
+		fail(interp, "%s: expected a name", op);
+		return 0;
+	}
+
+	int deferred_cfa = find(token);
+	if (!deferred_cfa) {
+		fail(interp, "%s: unknown word: %s", op, token);
+		return 0;
+	}
+	if ((cfa_handler)vocab.dict[deferred_cfa] != dodefer) {
+		fail(interp, "%s: not a deferred word: %s", op, token);
+		return 0;
+	}
+
+	return deferred_cfa;
+}
+
+void p_embodies(DISPATCH_ARGS) {
+	int deferred_cfa = deferred_word(interp, "embodies");
+	if (!deferred_cfa)
+		return;
+
+	POP_XT(target, "embodies");
+	if ((cfa_handler)vocab.dict[target] != docol) {
+		fail(interp, "embodies: target must be a colon word or quotation");
+		return;
+	}
+
+	vocab.dict[deferred_cfa + 1] = (cell)target;
+
+	DISPATCH(interp);
+}
+
+static void rewrite_deferred_calls(int deferred_cfa, int target_cfa) {
+	cell dodefer_handler = (cell)&dodefer;
+	cell docol_handler = (cell)&docol;
+	cell exit_handler = vocab.dict[vocab.exit_cfa];
+
+	for (int cfa = vocab.latest_cfa; cfa != 0; cfa = (int)WORD_LINK(cfa)) {
+		if (vocab.dict[cfa] != docol_handler)
+			continue;
+
+		int cursor = cfa + 1;
+		int depth = 0;
+		while (1) {
+			cell handler = vocab.dict[cursor];
+
+			if (handler == exit_handler) {
+				cursor++;
+				if (depth == 0)
+					break;
+				depth--;
+				continue;
+			}
+
+			if (handler == docol_handler && quotation_starts_at(cursor)) {
+				cursor++;
+				depth++;
+				continue;
+			}
+
+			if (handler == dodefer_handler) {
+				if ((int)vocab.dict[cursor + 1] == deferred_cfa) {
+					vocab.dict[cursor] = docol_handler;
+					vocab.dict[cursor + 1] = (cell)target_cfa;
+				} 
+				cursor += 2;
+				continue;
+			}
+
+			if (handler == docol_handler || handler == (cell)&dovar
+					|| handler == (cell)&dounit || handler == (cell)&dosym) {
+				cursor += 2;
+				continue;
+			}
+
+			cursor += op_cell_count(cursor);
+		}
+	}
+}
+
+
+void p_embodies_final(DISPATCH_ARGS) {
+	int deferred_cfa = deferred_word(interp, "embodies!");
+	if (!deferred_cfa)
+		return;
+
+	POP_XT(target, "embodies!");
+	if ((cfa_handler)vocab.dict[target] != docol) {
+		fail(interp, "embodies!: target must be a colon word or quotation");
+		return;
+	}
+
+	rewrite_deferred_calls(deferred_cfa, target);
+
+	vocab.dict[deferred_cfa] = (cell)&docol;
+	vocab.dict[deferred_cfa + 1] = (cell)&docol;
+	vocab.dict[deferred_cfa + 2] = (cell)target;
+	vocab.dict[deferred_cfa + 3] = vocab.dict[vocab.exit_cfa];
+	dict_is_handler[deferred_cfa + 1] = 1;
+	dict_is_handler[deferred_cfa + 2] = 0;
+	dict_is_handler[deferred_cfa + 3] = 1;
+
+	DISPATCH(interp);
+}
+
+static int reaches_exit(int cursor, int body_end) {
+	cell exit_handler = vocab.dict[vocab.exit_cfa];
+	cell branch_handler = vocab.dict[vocab.branch_cfa];
+	cell leave_handler = vocab.dict[vocab.leave_locals_cfa];
+
+	while (cursor < body_end) {
+		cell handler = vocab.dict[cursor];
+
+		if (handler == exit_handler)
+			return 1;
+
+		if (handler == branch_handler) {
+			int target = cursor + 1 + (int)vocab.dict[cursor + 1];
+			if (target <= cursor)
+				return 0;
+			cursor = target;
+			continue;
+		}
+		
+		if (handler == leave_handler) {
+			cursor += 2;
+			continue;
+		}
+		return 0;
+	}
+	return 0;
+}
+
+static int definition_has_locals(int body_start) {
+	cell handler = vocab.dict[body_start];
+	return handler == vocab.dict[vocab.enter_locals_cfa]
+		|| handler == vocab.dict[vocab.enter_locals_to_cfa]
+		|| handler == vocab.dict[vocab.enter_locals_mixed_cfa]
+		|| handler == vocab.dict[vocab.enter_anaphors_cfa]
+		|| handler == vocab.dict[vocab.enter_anaphors_mixed_cfa];
+}
+
+static int body_has_tail_hazard(int body_start, int body_end) {
+	cell docol_handler = (cell)&docol;
+	int has_locals = definition_has_locals(body_start);
+
+	int cursor = body_start;
+	while (cursor < body_end) {
+		cell handler = vocab.dict[cursor];
+
+		if (handler == docol_handler && quotation_starts_at(cursor)) {
+			if (has_locals)
+				return 1;
+			cursor = quotation_extent_end(cursor);
+			continue;
+		}
+		if (handler == (cell)&p_tor || handler == (cell)&p_rfrom
+				|| handler == (cell)&p_rfetch || handler == (cell)&p_reset
+				|| handler == (cell)&p_shift || handler == (cell)&p_shift_with
+				|| handler == (cell)&p_fail)
+			return 1;
+		if (handler == docol_handler || handler == (cell)&dovar
+				|| handler == (cell)&dounit || handler == (cell)&dosym
+				|| handler == (cell)&dodefer)
+			cursor += 2;
+		else
+			cursor += op_cell_count(cursor);
+	}
+	return 0;
+}
+
+static void rewrite_tail_calls(int body_start, int body_end) {
+	cell docol_handler = (cell)&docol;
+	cell tailcall_handler = vocab.dict[vocab.tailcall_cfa];
+
+	if (body_has_tail_hazard(body_start, body_end))
+		return;
+
+	int cursor = body_start;
+	while (cursor < body_end) {
+		cell handler = vocab.dict[cursor];
+
+		if (handler == docol_handler && quotation_starts_at(cursor)) {
+			cursor = quotation_extent_end(cursor);
+			continue;
+		}
+
+		if (handler == docol_handler) {
+			if (reaches_exit(cursor + 2, body_end))
+				vocab.dict[cursor] = tailcall_handler;
+			cursor += 2;
+			continue;
+		}
+
+		if (handler == (cell)&dovar || handler == (cell)&dounit
+				|| handler == (cell)&dosym || handler == (cell)&dodefer) {
+			cursor += 2;
+			continue;
+		}
+
+		cursor += op_cell_count(cursor);
+	}
+}
+			
 
 static void compile_locals_decl(Interpreter *interp, const char *opener, int force_all_receive) {
 	if (!compiler.compiling || compiler.n_local_scopes <= 0) {

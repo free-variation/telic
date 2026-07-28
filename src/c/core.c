@@ -1178,11 +1178,7 @@ static inline __attribute__((always_inline)) void push_symbol(Interpreter *inter
 }
 
 void docol(DISPATCH_ARGS) {
-	if (interp->rsp >= RETURN_STACK_DEPTH) {
-		SYNC_REGISTERS(interp, chain_ip + 1, chain_sp);
-		fail(interp, "return stack overflow");
-		return;
-	}
+	REQUIRE_RETURN_ROOM(interp, chain_ip + 1, chain_sp);
 
 	interp->return_stack[interp->rsp++] = make_addr((int)(chain_ip + 1 - vocab.dict));
 
@@ -1202,6 +1198,24 @@ void dovar(DISPATCH_ARGS) {
 
 	DISPATCH_REGISTERS(interp, chain_ip + 1, chain_sp + 1);
 }
+
+void dodefer(DISPATCH_ARGS) {
+	int deferred_cfa = (int)*chain_ip;
+	int target_cfa = (int)vocab.dict[deferred_cfa + 1];
+
+	if (!target_cfa) {
+		SYNC_REGISTERS(interp, chain_ip, chain_sp);
+		fail(interp, "unresolved deferred word: %s", name_of(deferred_cfa));
+		return;
+	}
+
+	REQUIRE_RETURN_ROOM(interp, chain_ip, chain_sp);
+
+	interp->return_stack[interp->rsp++] = make_addr((int)(chain_ip + 1 - vocab.dict));
+
+	DISPATCH_REGISTERS(interp, vocab.dict + target_cfa + 1, chain_sp);
+}
+
 
 static void unwind_locals_scopes(Interpreter *interp) {
 	while (interp->local_base > interp->run_floor
@@ -1276,6 +1290,17 @@ void execute_cfa(Interpreter *interp, int cfa) {
 		return;
 	}
 
+	if (handler == dodefer) {
+		int target_cfa = (int)vocab.dict[cfa + 1];
+		if (!target_cfa) {
+			fail(interp, "unresolved deferred word: %s", name_of(cfa));
+			return;
+		}
+
+		execute_cfa(interp, target_cfa);
+		return;
+	}
+
 	int saved_ip = interp->ip;
 	int saved_running = interp->running;
 	cell saved_slot_0 = vocab.dict[interp->trampoline_base];
@@ -1309,7 +1334,7 @@ void call_open(Interpreter *interp, int cfa, CallContext *context) {
 
 	context->reuses_locals = 0;
 
-	if (handler == dovar || handler == dosym || handler == dounit) {
+	if (handler == dovar || handler == dosym || handler == dounit || handler == dodefer) {
 		context->fast = 0;
 		return;
 	}
@@ -1610,10 +1635,10 @@ int create_header(Interpreter *interp, const char *name, int flags) {
 	return vocab.latest_cfa;
 }
 
-void echo_definition(const char *name, int redefined) {
+void echo_definition(const char *name, int redefined, const char *kind) {
 	if (!compiler.interactive || compiler.load_depth > 1)
 		return;
-	printf("%s word: %s\n", redefined ? "redefined" : "new", name);
+	printf("%s %s: %s\n", redefined ? "redefined" : "new", kind, name);
 	fflush(stdout);
 }
 
@@ -1637,7 +1662,7 @@ void emit_call(Interpreter *interp, int target_cfa) {
 	emit(interp, (cell)handler);
 	dict_is_handler[vocab.here - 1] = 1;
 
-	if (handler == docol || handler == dovar || handler == dosym || handler == dounit) {
+	if (handler == docol || handler == dovar || handler == dosym || handler == dounit || handler == dodefer) {
 		emit(interp, (cell)target_cfa);
 	}
 }
@@ -1663,6 +1688,11 @@ int quotation_starts_at(int addr) {
 		if (vocab.quotation_spans[i].start_cfa == addr)
 			return 1;
 	return 0;
+}
+
+int quotation_extent_end(int start_cfa) {
+	const QuotationSpan *span = quotation_span_containing(start_cfa);
+	return (span && span->start_cfa == start_cfa) ? span->end_cfa : start_cfa + 1;
 }
 
 static int word_containing(int addr) {
@@ -1735,13 +1765,13 @@ static const char *running_op_name(int fault_cell, int body_start, int body_end)
 			cell_count = 1;
 		else if (handler_fn == docol && quotation_starts_at(cursor))
 			cell_count = 1;
-		else if (handler_fn == docol || handler_fn == dovar || handler_fn == dounit || handler_fn == dosym)
+		else if (handler_fn == docol || handler_fn == dovar || handler_fn == dounit || handler_fn == dosym || handler_fn == dodefer)
 			cell_count = 2;
 		else
 			cell_count = op_cell_count(cursor);
 
 		if (fault_cell < cursor + cell_count) {
-			if (handler_fn == docol || handler_fn == dovar || handler_fn == dounit) {
+			if (handler_fn == docol || handler_fn == dovar || handler_fn == dounit || handler_fn == dodefer) {
 				int target = (int)vocab.dict[cursor + 1];
 				if (cell_count == 2 && target >= DICT_RESERVED && target < vocab.here)
 					return &vocab.name_pool[WORD_NAME(target)];
@@ -1899,6 +1929,14 @@ void p_exit(DISPATCH_ARGS) {
 	Val saved_ip = interp->return_stack[--interp->rsp];
 
 	DISPATCH_REGISTERS(interp, vocab.dict + (int)VAL_DATA(saved_ip), chain_sp);
+}
+
+void p_tailcall(DISPATCH_ARGS) {
+	int target_cfa = (int)*chain_ip;
+
+	unwind_locals_scopes(interp);
+
+	DISPATCH_REGISTERS(interp, vocab.dict + target_cfa + 1, chain_sp);
 }
 
 void p_stop(DISPATCH_ARGS) {
@@ -3591,6 +3629,7 @@ int op_cell_count(int cursor) {
 		return 2;
 
 	if (handler == vocab.dict[vocab.dostr_cfa]
+	    || handler == vocab.dict[vocab.tailcall_cfa]
 	    || handler == vocab.dict[vocab.branch_cfa]
 	    || handler == vocab.dict[vocab.zbranch_cfa]
 	    || handler == vocab.dict[vocab.qzbranch_cfa]
@@ -3641,7 +3680,13 @@ void inline_word_body(Interpreter *interp, int target_cfa) {
 			return;
 		}
 
-		if (handler_fn == docol || handler_fn == dovar || handler_fn == dounit || handler_fn == dosym) {
+		if (handler == vocab.dict[vocab.tailcall_cfa]) {
+			emit_call(interp, (int)vocab.dict[cursor + 1]);
+			cursor += 2;
+			continue;
+		}
+
+		if (handler_fn == docol || handler_fn == dovar || handler_fn == dounit || handler_fn == dosym || handler_fn == dodefer) {
 			emit(interp, handler);
 			emit(interp, vocab.dict[cursor + 1]);
 			cursor += 2;
@@ -3681,7 +3726,7 @@ void mark_body(Interpreter *interp, int body_start, int body_end) {
 			cursor += quotation_starts_at(cursor) ? 1 : 2;
 			continue;
 		}
-		if (handler_fn == dovar || handler_fn == dounit || handler_fn == dosym) {
+		if (handler_fn == dovar || handler_fn == dounit || handler_fn == dosym || handler_fn == dodefer) {
 			cursor += 2;
 			continue;
 		}
@@ -3856,9 +3901,12 @@ static void see_compiled_body(FILE *out, Interpreter *interp, int body_start, in
 			continue;
 		}
 
-		if (handler_fn == docol || handler_fn == dovar || handler_fn == dounit) {
+		int is_tailcall = handler == vocab.dict[vocab.tailcall_cfa];
+		if (is_tailcall || handler_fn == docol || handler_fn == dovar || handler_fn == dounit || handler_fn == dodefer) {
 			int target = (int)vocab.dict[cursor + 1];
-			const QuotationSpan *quotation = (handler_fn == docol)
+			if (is_tailcall)
+				fputs("(tailcall) ", out);
+			const QuotationSpan *quotation = (handler_fn == docol || is_tailcall)
 				? quotation_span_containing(target) : NULL;
 			if (quotation && quotation->start_cfa == target) {
 				if (quotation->source_offset == 0) {
@@ -3937,12 +3985,23 @@ static void see_tree_body(FILE *out, Interpreter *interp, int body_start, int in
 			}
 			continue;
 		}
-		if (handler_fn == dovar || handler_fn == dounit) {
+		if (handler_fn == dovar || handler_fn == dounit || handler_fn == dodefer) {
 			int target = (int)vocab.dict[cursor + 1];
 			if (target >= 4 && target < vocab.here)
 				fprintf(out, "%s\n", &vocab.name_pool[WORD_NAME(target)]);
 			else
 				fputs("?\n", out);
+			cursor += 2;
+			continue;
+		}
+		if (handler == vocab.dict[vocab.tailcall_cfa]) {
+			int target = (int)vocab.dict[cursor + 1];
+			if (quotation_starts_at(target))
+				fputs("(tailcall) [:]\n", out);
+			else if (target >= 4 && target < vocab.here)
+				fprintf(out, "(tailcall) %s\n", &vocab.name_pool[WORD_NAME(target)]);
+			else
+				fputs("(tailcall) ?\n", out);
 			cursor += 2;
 			continue;
 		}
@@ -4218,6 +4277,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	compiler.handler_registry[compiler.n_handlers++] = (void *)dovar;
 	compiler.handler_registry[compiler.n_handlers++] = (void *)dosym;
 	compiler.handler_registry[compiler.n_handlers++] = (void *)dounit;
+	compiler.handler_registry[compiler.n_handlers++] = (void *)dodefer;
 	define_primitive(interp, "+", p_add, 0);
 	define_primitive(interp, "-", p_sub, 0);
 	define_primitive(interp, "*", p_mul, 0);
@@ -4446,6 +4506,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	vocab.exit_cfa = define_primitive(interp, "exit", p_exit, 0);
 	vocab.literal_cfa = define_primitive(interp, "(lit)", p_literal, 4);
 	vocab.branch_cfa = define_primitive(interp, "(branch)", p_branch, 4);
+	vocab.tailcall_cfa = define_primitive(interp, "(tailcall)", p_tailcall, 4);
 	vocab.zbranch_cfa = define_primitive(interp, "(0branch)", p_0branch, 4);
 	vocab.qzbranch_cfa = define_primitive(interp, "(?0branch)", p_qzbranch, 4);
 	vocab.eq_zbranch_cfa = define_primitive(interp, "(=0branch)", p_eq_zbranch, 4);
@@ -4522,6 +4583,9 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 
 	define_primitive(interp, ":", p_colon, 0);
 	define_primitive(interp, "variable", p_variable, 0);
+	define_primitive(interp, "defer", p_defer, 0);
+	define_primitive(interp, "embodies", p_embodies, 1);
+	define_primitive(interp, "embodies!", p_embodies_final, 1);
 	define_primitive(interp, "constant", p_constant, 0);
 	define_primitive(interp, "symbol", p_symbol, 0);
 	define_primitive(interp, "base", p_base, 0);
@@ -4534,6 +4598,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "lookup", p_lookup, 0);
 	define_primitive(interp, "to", p_to, 1);
 	define_primitive(interp, ";", p_semicolon, 1);
+	define_primitive(interp, "recurse", p_recurse, 1);
 	define_primitive(interp, "inline", p_inline, 0);
 	define_primitive(interp, "internal", p_internal, 0);
 	define_primitive(interp, "if", p_if, 1);

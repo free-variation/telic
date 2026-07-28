@@ -667,7 +667,7 @@ void p_unit(DISPATCH_ARGS) {
 	emit(interp, (cell)dounit);
 	emit(interp, (cell)unit);
 
-	echo_definition(name, redefined);
+	echo_definition(name, redefined, "word");
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 }
