@@ -97,6 +97,8 @@ assert
 atan
 augment
 axes
+barchart
+barchart-plot
 base
 basename
 begin
@@ -148,6 +150,8 @@ correlation-pearson
 correlation-spearman
 cos
 count
+count-barchart
+count-barchart-plot
 count-matches
 cr
 create-index
@@ -205,6 +209,10 @@ eq
 execute
 exit
 exp
+expect
+expect-near
+expect-throws
+expect=
 f*
 f*+
 f*-
@@ -310,6 +318,7 @@ inner-join
 int-segment
 internal
 intersection
+intervals
 iota
 iqr
 iso>time
@@ -320,6 +329,7 @@ keys
 ks-distance
 last
 leave
+legend
 linear-regression
 ln
 load
@@ -427,6 +437,7 @@ read-err
 read-file
 read-out
 read-tsv
+rect-at
 reduce
 regress-with
 reify
@@ -510,6 +521,7 @@ spaces
 split
 sq
 sqrt
+stacked-barchart
 start-generator
 start-process
 std
@@ -540,6 +552,8 @@ symbol?
 take
 tan
 tanh
+test
+test-report
 text-anchor
 that
 them
@@ -584,6 +598,7 @@ vfsq
 vfsqrt
 vftan
 vftanh
+view-figure
 vstack
 vvf*
 vvf*+
@@ -611,6 +626,7 @@ xgb-importance
 xgb-predict
 xml-escape
 xt?
+y-categories
 y-label
 yield
 {

@@ -1540,6 +1540,7 @@ void p_words(DISPATCH_ARGS) {
 	int session_group = help_section_count;
 	int undocumented_group = help_section_count + 1;
 	int units_group = help_section_count + 2;
+	int library_group = help_section_count + 3;
 	int n_collected = 0;
 	for (int cfa = vocab.latest_cfa; cfa != 0; cfa = (int)WORD_LINK(cfa)) {
 		if (WORD_IS_INTERNAL(cfa))
@@ -1550,7 +1551,8 @@ void p_words(DISPATCH_ARGS) {
 		if ((cfa_handler)vocab.dict[cfa] == dounit)
 			groups[n_collected] = units_group;
 		else if (cfa > vocab.lib_end_latest_cfa)
-			groups[n_collected] = session_group;
+			groups[n_collected] = WORD_UNIT(cfa) == session_unit
+				? session_group : library_group;
 		else
 			groups[n_collected] = entry && entry->section >= 0
 				? entry->section : undocumented_group;
@@ -1560,6 +1562,7 @@ void p_words(DISPATCH_ARGS) {
 	const char **group_names;
 	MALLOC_OR_FAIL_CLEANUP(interp, group_names, sizeof(char *) * (size_t)word_count, { free(groups); free(names); });
 	print_word_group(names, groups, n_collected, session_group, "this session", group_names);
+	print_word_group(names, groups, n_collected, library_group, "library", group_names);
 	for (int s = 0; s < help_section_count; s++)
 		print_word_group(names, groups, n_collected, s, help_section_names[s], group_names);
 	print_word_group(names, groups, n_collected, units_group, "units", group_names);

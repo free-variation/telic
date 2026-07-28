@@ -823,7 +823,7 @@ static void compile_local_unary(Interpreter *interp, const char *op,
                                 int depth0_cfa, int fallback_cfa) {
 	char *token = next_token();
 	if (!token) {
-		fail(interp, "%s: expected a local name", op);
+		fail(interp, "%s: expected a name", op);
 		return;
 	}
 	if (!compiler.compiling) {
@@ -831,23 +831,36 @@ static void compile_local_unary(Interpreter *interp, const char *op,
 		return;
 	}
 	int depth, slot;
-	if (!find_local(token, &depth, &slot)) {
-		fail(interp, "%s: %s is not a local", op, token);
+	if (find_local(token, &depth, &slot)) {
+		compiler.local_fetched[compiler.found_local_name_idx] = 1;
+		if (depth == 0) {
+			emit_call(interp, depth0_cfa);
+			emit(interp, (cell)slot);
+		} else {
+			emit_call(interp, vocab.local_fetch_cfa);
+			emit(interp, (cell)depth);
+			emit(interp, (cell)slot);
+			emit_call(interp, fallback_cfa);
+			emit_call(interp, vocab.local_store_cfa);
+			emit(interp, (cell)depth);
+			emit(interp, (cell)slot);
+		}
 		return;
 	}
-	compiler.local_fetched[compiler.found_local_name_idx] = 1;
-	if (depth == 0) {
-		emit_call(interp, depth0_cfa);
-		emit(interp, (cell)slot);
-	} else {
-		emit_call(interp, vocab.local_fetch_cfa);
-		emit(interp, (cell)depth);
-		emit(interp, (cell)slot);
-		emit_call(interp, fallback_cfa);
-		emit_call(interp, vocab.local_store_cfa);
-		emit(interp, (cell)depth);
-		emit(interp, (cell)slot);
+
+	int target_cfa = find(token);
+	if (!target_cfa) {
+		fail(interp, "%s: unknown variable: %s; declare it with variable", op, token);
+		return;
 	}
+	if ((cfa_handler)vocab.dict[target_cfa] != dovar) {
+		fail(interp, "%s: %s is not a variable", op, token);
+		return;
+	}
+	emit_call(interp, target_cfa);
+	emit_call(interp, fallback_cfa);
+	emit_call(interp, vocab.to_var_cfa);
+	emit(interp, (cell)target_cfa);
 }
 
 void p_increment(DISPATCH_ARGS) {

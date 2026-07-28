@@ -314,14 +314,24 @@
 	[ key "{0}" format ] swap concat
 	column-kind :text = not ; internal
 
-( dataset n -- ) \ print the first n rows as an aligned table, column names as the header
+( dataset leading-columns -- columns ) \ the leading columns first in the given order, then the remaining columns alphabetical by name; empty leading-columns orders all columns alphabetically
+: ordered-columns
+	| >dataset >leading-columns leading-set |
+	leading-columns array>set to leading-set
+	leading-columns
+	dataset keys [: leading-set swap member? not :] filter
+	[: "{0}" format :] sort-by
+	concat ; internal
+
+( dataset n leading-columns -- ) \ print the first n rows as an aligned table; leading columns appear first in the given order, the rest alphabetical by name; empty leading-columns orders all columns alphabetically
 : headn
-	| >dataset >n columns |
+	| >dataset >n >leading-columns columns ordered |
 	dataset keys size 0= if exit then
 	dataset n-rows n min2 to n
 	dataset n iota select-rows to dataset
+	dataset leading-columns ordered-columns to ordered
 
-	dataset keys
+	ordered
 	[| >key strings right? width |
 	   dataset key column-cells to right? to strings
 	   strings [: size :] map 0 ' max2 reduce to width
@@ -333,4 +343,4 @@
 	n 1+ i-times ;
 
 ( dataset -- ) \ print the first 10 rows as an aligned table
-: head 10 headn ;
+: head 10 [ ] headn ;

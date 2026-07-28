@@ -1,7 +1,7 @@
 #ifndef WATER_H
 #define WATER_H
 
-#define VERSION "0.23.5"
+#define VERSION "0.24.0"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -643,6 +643,7 @@ extern const int help_section_count;
 
 extern int print_truncate;
 extern int print_full_precision;
+extern int session_unit;
 
 #define POP(name) Val name = pop(interp); if (interp->error_flag) return
 #define POP_TYPED(name, op, type) \

@@ -1,12 +1,20 @@
-name  weight  note        
-fern     1.5  shade plant 
-oak      120  tall        
+name  note         weight 
+fern  shade plant     1.5 
+oak   tall            120 
 
-name  weight  note         
-fern     1.5  shade plant  
-oak      120  tall         
-moss    0.02  ground cover 
-ivy        3  climbs walls 
+weight  name  note        
+   1.5  fern  shade plant 
+   120  oak   tall        
+
+note         weight  name 
+shade plant     1.5  fern 
+tall            120  oak  
+
+name  note          weight 
+fern  shade plant      1.5 
+oak   tall             120 
+moss  ground cover    0.02 
+ivy   climbs walls       3 
 
                 when    dose  tag    
 2025-07-08T18:40:00Z  0.5 kg  first  

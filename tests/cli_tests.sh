@@ -44,6 +44,16 @@ has() {
     else bad "$name" "flags: $*" "want substring (exit $wantcode): [$sub]" "got (exit $code): [$out]"; fi
 }
 
+# hasnt NAME INPUT SUBSTRING EXPECTED_CODE FLAGS... — asserts the substring is absent
+hasnt() {
+    name=$1 input=$2 sub=$3 wantcode=$4
+    shift 4
+    run "$input" "$@"
+    case "$out" in *"$sub"*) found=1 ;; *) found=0 ;; esac
+    if [ "$found" = 0 ] && [ "$code" = "$wantcode" ]; then ok "$name"
+    else bad "$name" "flags: $*" "want ABSENT (exit $wantcode): [$sub]" "got (exit $code): [$out]"; fi
+}
+
 printf "CLI flag tests:\n"
 
 # batch mode: only the program's own output, no banner, no prompt
@@ -62,6 +72,19 @@ has   "definition echo variable (-i)"    'variable zzz-var'    "new word: zzz-va
 # a loaded library's internal word is private to its load unit: unreachable from
 # the session (public words of the same lib still resolve — covered by 131_plot)
 has   "lib internal is unit-private"     '"lib/plot.h2o" load  "/tmp" next-svg-index'  "unknown word: next-svg-index"  0 -b
+# words separates loaded-library words into their own group, apart from session
+has   "words groups loaded-library words" '"lib/plot.h2o" load  words'  "library:"  0 -b
+# a loaded file echoes only its own definitions, not those of files/libraries it loads
+lf=$(mktemp "${TMPDIR:-/tmp}/lf_nest.XXXXXX")
+printf '%s\n' '"plot" load-library' ': zzz-mine 1 ;' > "$lf"
+has   "load echoes the file's own defs"  ''  "new word: zzz-mine"  0 -i "$lf"
+hasnt "load hides nested-load defs"      ''  "new word: figure"    0 -i "$lf"
+rm -f "$lf"
+# ++ / -- increment a local or global variable in place; unknown/non-variable/top-level errors
+has   "++ increments a global"          'variable c 5 to c : b ++ c ; b b c . cr'  "7"  0 -b
+has   "++ rejects an unknown name"      ': u ++ nope ;'  "unknown variable: nope"  0 -b
+has   "++ rejects a non-variable"       ': v ++ dup ;'   "dup is not a variable"   0 -b
+has   "++ needs a colon definition"     '++ c'           "only valid inside a colon definition"  0 -b
 # --max-objects lowers the object ceiling so the limit is reachable cheaply
 has   "--max-objects hits ceiling"      '1 200000 range [: drop [< 0 >] :] map drop'  "object registry full" 0 -b --max-objects 100000
 # --max-objects argument validation

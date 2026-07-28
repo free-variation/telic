@@ -1,124 +1,187 @@
 \ Regression via the loadable statistics library (lib/statistics.h2o):
 \ LAPACKE dgelsd OLS and Firth-penalized logistic, with non-parametric
-\ bootstrap inference. Native-only (FFI); the wasm suite skips it.
+\ bootstrap inference. Native-only (FFI); the wasm suite skips it. Asserts with
+\ the built-in test vocabulary: point estimates and fitted coefficient matrices
+\ to a tolerance, bootstrap CIs by the bracketing property, near-zero sums by
+\ threshold.
 "lib/statistics.h2o" load
+
+( coef estimate tol -- ) \ the coefficient frame's estimate is near estimate and its CI brackets it
+: expect-coef
+	|> coef estimate tol |
+	coef :estimate @ estimate tol expect-near
+	coef :ci-low @ coef :estimate @ < expect
+	coef :estimate @ coef :ci-high @ < expect ;
 
 \ ===== linear regression (LAPACKE dgelsd) + non-parametric bootstrap inference =====
 
-\ fit-linear recovers an exact line y = 2x + 1: beta = [intercept; slope] = [1; 2]
-[ 1 1  1 2  1 3 ] 3 2 matrix  [ 3 5 7 ] 3 1 matrix  fit-linear . cr
+"fit-linear recovers y = 2x + 1 exactly" [:
+	[ 1 1  1 2  1 3 ] 3 2 matrix  [ 3 5 7 ] 3 1 matrix  fit-linear
+	[ 1 2 ] 2 1 matrix 1e-6 expect-near
+:] test
 
-\ regress: synthetic near-linear y ~ 2x + 1. point estimates are deterministic;
-\ the bootstrap SE/CI are deterministic too under a fixed seed.
-7 seed
-[ [ "x" "y" ]
-  [ 1 3.1 ] [ 2 4.9 ] [ 3 7.2 ] [ 4 8.8 ] [ 5 11.1 ] [ 6 12.9 ] ] 1 rows>dataset
-[ :x ] :y 300 linear-regression . cr   \ intercept ~1, slope ~2, CIs bracketing them
+"linear-regression on synthetic 2x+1: estimates near, CIs bracket" [:
+	| fit |
+	7 seed
+	[ [ "x" "y" ]
+	  [ 1 3.1 ] [ 2 4.9 ] [ 3 7.2 ] [ 4 8.8 ] [ 5 11.1 ] [ 6 12.9 ] ] 1 rows>dataset
+	[ :x ] :y 300 linear-regression to fit
+	fit 0 @i 1.08 0.05 expect-coef
+	fit 1 @i 1.97714 0.02 expect-coef
+:] test
 
-\ regress on iris: petal_width ~ petal_length reproduces the textbook OLS,
-\ slope ~0.4158, intercept ~-0.3631, with bootstrap SE/CI from resampling
-7 seed
-"data/iris.tsv" load-tsv 1 rows>dataset
-[ :petal_length ] :petal_width 500 linear-regression . cr
+"linear-regression on iris reproduces textbook OLS" [:
+	| fit |
+	7 seed
+	"data/iris.tsv" load-tsv 1 rows>dataset
+	[ :petal_length ] :petal_width 500 linear-regression to fit
+	fit 0 @i -0.364017 0.02 expect-coef
+	fit 1 @i 0.415932 0.02 expect-coef
+:] test
 
 \ ===== logistic regression (IRLS over dgelsd) =====
 
-\ fit-logistic (Firth-penalized) on non-separable data: positive slope
-[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept
-[ 0 0 1 0 1 0 1 1 ] 8 1 matrix  25 1e-8 fit-logistic . cr
+"fit-logistic gives positive slope on non-separable data" [:
+	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept
+	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix  25 1e-8 fit-logistic
+	[ -1.833 0.4074 ] 2 1 matrix 1e-3 expect-near
+:] test
 
-\ a tighter budget reaches the same fit
-[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept
-[ 0 0 1 0 1 0 1 1 ] 8 1 matrix  100 1e-10 fit-logistic . cr
+"fit-logistic reaches the same fit under a tighter budget" [:
+	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept
+	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix  100 1e-10 fit-logistic
+	[ -1.833 0.4074 ] 2 1 matrix 1e-3 expect-near
+:] test
 
-\ the Firth penalty keeps the estimate finite even under perfect separation
-\ (plain MLE would diverge to +/- infinity)
-[ 1 2 3 4 ] 4 1 matrix with-intercept
-[ 0 0 1 1 ] 4 1 matrix  25 1e-8 fit-logistic . cr
+"Firth penalty stays finite under perfect separation" [:
+	[ 1 2 3 4 ] 4 1 matrix with-intercept
+	[ 0 0 1 1 ] 4 1 matrix  25 1e-8 fit-logistic
+	[ -3.275 1.31 ] 2 1 matrix 1e-3 expect-near
+:] test
 
-\ ridge logistic: lambda 0 is the plain MLE (no Firth); a huge lambda crushes
-\ the slope toward 0 while the unpenalized intercept stays free
-[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept
-[ 0 0 1 0 1 0 1 1 ] 8 1 matrix  50 1e-8 0 fit-logistic-ridge . cr
-[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept
-[ 0 0 1 0 1 0 1 1 ] 8 1 matrix  50 1e-8 1000 fit-logistic-ridge . cr
+"ridge lambda 0 is the plain MLE" [:
+	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept
+	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix  50 1e-8 0 fit-logistic-ridge
+	[ -2.673 0.5941 ] 2 1 matrix 1e-3 expect-near
+:] test
 
-\ ridge CV over a lambda grid: same folds for every lambda; the parallel
-\ variant is result-identical by construction (deterministic cells)
-[ 1 2 3 4 5 6 7 8 ] 8 1 matrix to cv-X
-[ 0 0 1 0 1 0 1 1 ] 8 1 matrix to cv-y
-7 seed 8 iota shuffle to cv-units
-cv-X cv-y cv-units [ 1 100 ] 2 cv-logistic-ridge to cv-serial
-cv-serial . cr
-cv-serial  cv-X cv-y cv-units [ 1 100 ] 2 pcv-logistic-ridge  = . cr   \ 1
+"ridge with a huge lambda crushes the slope toward 0" [:
+	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept
+	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix  50 1e-8 1000 fit-logistic-ridge
+	[ -0.02227 0.004948 ] 2 1 matrix 1e-4 expect-near
+:] test
 
-\ dataset-level logistic-regression: iris virginica-vs-versicolor by sepal length,
-\ the classic non-separable logistic. Bootstrap gives SE/CI/bias per coefficient;
-\ Firth keeps every resample finite so the bootstrap never diverges.
-"data/iris.tsv" load-tsv 1 rows>dataset :sepal_length @ matrix>array 50 skip to sepal-lengths
-0 50 array-of  1 50 array-of  concat to species-y
-[ :sepal_length :y ]  sepal-lengths species-y 2 array  frame to iris-two
-7 seed
-iris-two [ :sepal_length ] :y 300 logistic-regression . cr   \ slope ~1.9
+"ridge CV picks the best lambda; serial and parallel agree" [:
+	| cv-X cv-y cv-units cv-serial |
+	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix to cv-X
+	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix to cv-y
+	7 seed 8 iota shuffle to cv-units
+	cv-X cv-y cv-units [ 1 100 ] 2 cv-logistic-ridge to cv-serial
+	cv-serial :best @ 100 expect=
+	cv-serial :lambdas @ [ 1 100 ] expect=
+	cv-serial :deviances @ [ 3.19978 2.21081 ] 2 1 matrix 1e-4 expect-near
+	cv-serial  cv-X cv-y cv-units [ 1 100 ] 2 pcv-logistic-ridge  = expect
+:] test
+
+"logistic-regression on iris: positive slope, CIs bracket" [:
+	| sepal-lengths species-y iris-two fit |
+	"data/iris.tsv" load-tsv 1 rows>dataset :sepal_length @ matrix>array 50 skip to sepal-lengths
+	0 50 array-of  1 50 array-of  concat to species-y
+	[ :sepal_length :y ]  sepal-lengths species-y 2 array  frame to iris-two
+	7 seed
+	iris-two [ :sepal_length ] :y 300 logistic-regression to fit
+	fit 0 @i -12.0436 0.5 expect-coef
+	fit 1 @i 1.92813 0.1 expect-coef
+:] test
 
 \ ===== generalized linear models (fit-glm and the family objects) =====
 
-\ gamma regression, log link. an intercept-only fit recovers beta0 = ln(ybar):
-\ ln(mean [2 4 6 8]) = ln 5. this discriminates the log link from the canonical
-\ inverse link, whose intercept-only fit would be 1/ybar = 0.2
-[ 1 1 1 1 ] 4 1 matrix  [ 2 4 6 8 ] 4 1 matrix  100 1e-10 fit-gamma . cr   \ 1.60944
+"gamma log-link intercept-only recovers ln(ybar)" [:
+	[ 1 1 1 1 ] 4 1 matrix  [ 2 4 6 8 ] 4 1 matrix  100 1e-10 fit-gamma
+	[ 1.60944 ] 1 1 matrix 1e-4 expect-near
+:] test
 
-\ gamma recovers known coefficients from means generated at eta = 1 + 0.6 x
-[ 1 0.5  1 1.0  1 1.5  1 2.0  1 2.5  1 3.0 ] 6 2 matrix
-[ 1 0.6 0.5 * + exp  1 0.6 1.0 * + exp  1 0.6 1.5 * + exp
-  1 0.6 2.0 * + exp  1 0.6 2.5 * + exp  1 0.6 3.0 * + exp ] 6 1 matrix
-100 1e-12 fit-gamma transpose . cr                                        \ [1 0.6]
+"gamma recovers coefficients at eta = 1 + 0.6x" [:
+	[ 1 0.5  1 1.0  1 1.5  1 2.0  1 2.5  1 3.0 ] 6 2 matrix
+	[ 1 0.6 0.5 * + exp  1 0.6 1.0 * + exp  1 0.6 1.5 * + exp
+	  1 0.6 2.0 * + exp  1 0.6 2.5 * + exp  1 0.6 3.0 * + exp ] 6 1 matrix
+	100 1e-12 fit-gamma
+	[ 1 0.6 ] 2 1 matrix 1e-4 expect-near
+:] test
 
-\ poisson regression, log link, recovers coefficients from eta = 0.5 + 0.4 x
-[ 1 0.0  1 0.5  1 1.0  1 1.5  1 2.0  1 2.5 ] 6 2 matrix
-[ 0.5 0.4 0.0 * + exp  0.5 0.4 0.5 * + exp  0.5 0.4 1.0 * + exp
-  0.5 0.4 1.5 * + exp  0.5 0.4 2.0 * + exp  0.5 0.4 2.5 * + exp ] 6 1 matrix
-100 1e-12 fit-poisson transpose . cr                                      \ [0.5 0.4]
+"poisson recovers coefficients at eta = 0.5 + 0.4x" [:
+	[ 1 0.0  1 0.5  1 1.0  1 1.5  1 2.0  1 2.5 ] 6 2 matrix
+	[ 0.5 0.4 0.0 * + exp  0.5 0.4 0.5 * + exp  0.5 0.4 1.0 * + exp
+	  0.5 0.4 1.5 * + exp  0.5 0.4 2.0 * + exp  0.5 0.4 2.5 * + exp ] 6 1 matrix
+	100 1e-12 fit-poisson
+	[ 0.5 0.4 ] 2 1 matrix 1e-4 expect-near
+:] test
 
-\ the gaussian/identity family reduces fit-glm to one-step OLS: same beta as fit-linear
-[ 1 1  1 2  1 3  1 4 ] 4 2 matrix  [ 2.1 3.9 6.2 7.8 ] 4 1 matrix to gauss-y to gauss-X
-gauss-X gauss-y gaussian-identity 50 1e-10 fit-glm transpose . cr         \ OLS beta
-gauss-X gauss-y fit-linear transpose . cr                                 \ same beta
+"gaussian-identity GLM equals fit-linear (one-step OLS)" [:
+	| gauss-X gauss-y |
+	[ 1 1  1 2  1 3  1 4 ] 4 2 matrix  [ 2.1 3.9 6.2 7.8 ] 4 1 matrix to gauss-y to gauss-X
+	gauss-X gauss-y gaussian-identity 50 1e-10 fit-glm
+	gauss-X gauss-y fit-linear 1e-9 expect-near
+:] test
 
-\ the binomial/logit family through fit-glm equals fit-logistic-ridge at lambda 0
-[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept to bin-X
-[ 0 0 1 0 1 0 1 1 ] 8 1 matrix to bin-y
-bin-X bin-y binomial-logit 100 1e-10 fit-glm transpose . cr               \ logit beta
-bin-X bin-y 100 1e-10 0 fit-logistic-ridge transpose . cr                 \ same beta
+"binomial-logit GLM equals fit-logistic-ridge at lambda 0" [:
+	| bin-X bin-y |
+	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept to bin-X
+	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix to bin-y
+	bin-X bin-y binomial-logit 100 1e-10 fit-glm
+	bin-X bin-y 100 1e-10 0 fit-logistic-ridge 1e-9 expect-near
+:] test
 
 \ ===== multinomial logistic (fit-multinomial + predict-multinomial) =====
 
-\ K=2, reference class 0, is exactly binary logistic — equals fit-logistic-ridge lambda 0
-bin-X bin-y 0 100 1e-10 fit-multinomial transpose . cr                    \ [-2.673 0.5941]
-bin-X bin-y 100 1e-10 0 fit-logistic-ridge transpose . cr                 \ same beta
+"K=2 multinomial equals binary logistic" [:
+	| bin-X bin-y |
+	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept to bin-X
+	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix to bin-y
+	bin-X bin-y 0 100 1e-10 fit-multinomial
+	[ -2.673 0.5941 ] 2 1 matrix 1e-3 expect-near
+:] test
 
-\ predict-multinomial's class-1 column equals sigmoid(Xβ)
-bin-X bin-y 0 100 1e-10 fit-multinomial bin-X 0 predict-multinomial 1 @j transpose . cr
+"predict-multinomial class-1 column equals sigmoid(Xβ)" [:
+	| bin-X bin-y |
+	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept to bin-X
+	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix to bin-y
+	bin-X bin-y 0 100 1e-10 fit-multinomial bin-X 0 predict-multinomial 1 @j
+	[ 0.1111 0.1846 0.2909 0.4263 0.5737 0.7091 0.8154 0.8889 ] 8 1 matrix 1e-3 expect-near
+:] test
 
-\ intercept-only, beta = [ln2 ln3] so weights 2 and 3, reference weight 1, total 6;
-\ moving the reference class relabels the columns, all in label order 0..K-1
-[ 0.6931471805599453 1.0986122886681098 ] 1 2 matrix to mn-beta
-mn-beta [ 1 ] 1 1 matrix 0 predict-multinomial . cr                       \ .1667 .3333 .5
-mn-beta [ 1 ] 1 1 matrix 1 predict-multinomial . cr                       \ .3333 .1667 .5
-mn-beta [ 1 ] 1 1 matrix 2 predict-multinomial . cr                       \ .3333 .5 .1667
+"intercept-only predict-multinomial relabels columns by reference class" [:
+	| mn-beta |
+	[ 0.6931471805599453 1.0986122886681098 ] 1 2 matrix to mn-beta
+	mn-beta [ 1 ] 1 1 matrix 0 predict-multinomial [ 0.1667 0.3333 0.5 ] 1 3 matrix 1e-3 expect-near
+	mn-beta [ 1 ] 1 1 matrix 1 predict-multinomial [ 0.3333 0.1667 0.5 ] 1 3 matrix 1e-3 expect-near
+	mn-beta [ 1 ] 1 1 matrix 2 predict-multinomial [ 0.3333 0.5 0.1667 ] 1 3 matrix 1e-3 expect-near
+:] test
 
-\ K=3 non-separable converges; predicted probabilities sum to 1
-[ 1 2 3 4 5 6 7 8 9 10 11 12 ] 12 1 matrix with-intercept to mn-X
-[ 0 1 2 0 1 2 0 1 2 0 1 2 ] 12 1 matrix to mn-y
-mn-X mn-y 0 100 1e-8 fit-multinomial mn-X 0 predict-multinomial row-sums 1 - dup * sum . cr  \ ~0
+"K=3 non-separable: predicted probabilities sum to 1" [:
+	| mn-X mn-y |
+	[ 1 2 3 4 5 6 7 8 9 10 11 12 ] 12 1 matrix with-intercept to mn-X
+	[ 0 1 2 0 1 2 0 1 2 0 1 2 ] 12 1 matrix to mn-y
+	mn-X mn-y 0 100 1e-8 fit-multinomial mn-X 0 predict-multinomial row-sums 1 - dup * sum 1e-8 < expect
+:] test
 
-\ ridge: lambda 0 reproduces the plain MLE
-bin-X bin-y 0 100 1e-10 0 fit-multinomial-ridge transpose . cr            \ [-2.673 0.5941], same as plain
+"ridge lambda 0 reproduces the plain multinomial MLE" [:
+	| bin-X bin-y |
+	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept to bin-X
+	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix to bin-y
+	bin-X bin-y 0 100 1e-10 0 fit-multinomial-ridge
+	[ -2.673 0.5941 ] 2 1 matrix 1e-3 expect-near
+:] test
 
-\ perfectly separable 3-class data — the plain MLE diverges, ridge stays finite and converges
-[ 1 2 3  4 5 6  7 8 9 ] 9 1 matrix with-intercept to sep-X
-[ 0 0 0  1 1 1  2 2 2 ] 9 1 matrix to sep-y
-sep-X sep-y 0 100 1e-8 1 fit-multinomial-ridge sep-X 0 predict-multinomial row-sums 1 - dup * sum . cr  \ ~0
+"separable 3-class: ridge stays finite, probabilities sum to 1" [:
+	| sep-X sep-y |
+	[ 1 2 3  4 5 6  7 8 9 ] 9 1 matrix with-intercept to sep-X
+	[ 0 0 0  1 1 1  2 2 2 ] 9 1 matrix to sep-y
+	sep-X sep-y 0 100 1e-8 1 fit-multinomial-ridge sep-X 0 predict-multinomial row-sums 1 - dup * sum 1e-8 < expect
+:] test
 
-\ a reference class absent from y is rejected
-[: bin-X bin-y 5 100 1e-10 fit-multinomial :] [: . cr :] try-catch   \ (reference class 5 has no observations in y)
+"a reference class absent from y is rejected" [:
+	[: [ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept
+	   [ 0 0 1 0 1 0 1 1 ] 8 1 matrix  5 100 1e-10 fit-multinomial :] expect-throws
+:] test
+test-report

@@ -14,14 +14,14 @@ variable current-figure
 
 10 codepoint>char constant nl
 
-{ :margin 40 :ticks 5 :font-size 11
+{ :margin 40 :ticks 5 :tick-format "{0:g}" :font-size 11 :canvas-fill "white" :ink "black"
   :stroke "black" :fill "none" :stroke-width 1 :text-anchor "start"
   :point-fill "steelblue" :point-stroke "none" :point-radius 3
   :series-stroke "steelblue" :series-width 2
   :line-stroke "crimson" :line-width 2
   :bar-fill "steelblue" :bar-stroke "white"
   :box-stroke "black" :axis-stroke "gray"
-  :panel-fill "gainsboro" :grid-stroke "white" :grid-width 1 }
+  :panel-fill "gainsboro" :grid-stroke "white" :grid-width 1 :grid-width-minor 0.5 }
 to aes
 
 : aes! aes swap merge to aes ;
@@ -36,6 +36,12 @@ to aes
 
 ( sym -- val ) \ read a property of the current figure
 : figure@ current-figure swap @ ;
+
+( -- x ) \ plot-area right edge in pixels: the canvas less the margin and any reserved legend strip
+: plot-right :width figure@ :margin figure@ - current-figure :right-pad 0 @or - ; internal
+
+( -- w ) \ plot-area width in pixels
+: plot-width plot-right :margin figure@ - ; internal
 
 ( mark -- ) \ append a mark frame to the current figure
 : add-mark :parts figure@ swap add-last! drop ; internal
@@ -139,6 +145,10 @@ to aes
 ( x y label -- ) \ text at data point (x,y), current font size and anchor
 : annotate :text-anchor figure@ :data :data text-mark ;
 
+( x1 y1 x2 y2 -- ) \ rectangle between two data-space corners, mapped through the domain;
+\ current fill, stroke, and stroke-width (the data-space analog of svg-rect)
+: rect-at :fill figure@ :stroke figure@ :stroke-width figure@ :data :data rect-mark ;
+
 ( color -- ) \ set the current stroke color
 : stroke :stroke figure! ;
 
@@ -174,6 +184,7 @@ to aes
 	{ :kind kind
 	  :ticks :ticks figure@
 	  :stroke :axis-stroke figure@
+	  :tick-format :tick-format figure@
 	  :font-size :font-size figure@ }
 	add-mark ; internal
 
@@ -195,7 +206,8 @@ to aes
 	{ :kind kind
 	  :ticks :ticks figure@
 	  :stroke :grid-stroke figure@
-	  :stroke-width :grid-width figure@ }
+	  :stroke-width :grid-width figure@
+	  :stroke-width-minor :grid-width-minor figure@ }
 	add-mark ; internal
 
 ( -- ) \ axes' themed twin: a filled ground with gridlines as negative space at
@@ -209,7 +221,7 @@ to aes
 
 ( s -- ) \ x-axis title, centered below the tick labels
 : x-label
-	:width figure@ 2 /
+	:margin figure@ plot-width 2 / +
 	:height figure@ 8 -
 	rot "middle" :pixel :pixel text-mark ;
 
@@ -218,6 +230,49 @@ to aes
 	12
 	:height figure@ 2 /
 	rot rotated-text-mark ;
+
+( labels colors -- ) \ color key in a strip reserved to the right of the plot area (the plot
+\ narrows to fit); one row per label: a filled swatch and the label in :ink; pixel-space;
+\ labels and colors are equal-length parallel arrays
+: legend
+	| >labels >colors n-rows i swatch pitch label-width strip-width legend-x top row-y |
+	labels size to n-rows
+	colors size n-rows = not if
+		colors size n-rows
+		"legend: expected one color per label; got {0} labels and {1} colors" format throw
+	then
+	n-rows 0= if "legend: no labels" throw then
+
+	:font-size figure@ to swatch
+	swatch 6 + to pitch
+	labels [: size :] map 0 ' max2 reduce swatch 0.6 * * to label-width
+	swatch 4 + label-width + to strip-width
+	strip-width 20 + :right-pad figure!
+	:width figure@ :margin figure@ - strip-width - to legend-x
+	:margin figure@ to top
+
+	0 to i
+	begin i n-rows < while
+		top i pitch * + to row-y
+		legend-x row-y legend-x swatch + row-y swatch +
+		colors i @i "none" 0 :pixel :pixel rect-mark
+		legend-x swatch + 4 + row-y swatch 0.8 * + labels i @i "start" :pixel :pixel text-mark
+		f++ i
+	repeat ;
+
+( labels -- ) \ place category names along the y axis at positions 1..n (right-anchored, just
+\ left of the axis) in place of numeric y-ticks; pins the y domain to [0.5, n+0.5]
+: y-categories
+	| >labels n-cats i pixel-x |
+	labels size to n-cats
+	0.5 :ymin figure! n-cats 0.5 + :ymax figure!
+	true :y-categorical figure!
+	:margin figure@ 8 - to pixel-x
+	0 to i
+	begin i n-cats < while
+		pixel-x i 1 + labels i @i "end" :pixel :data text-mark
+		f++ i
+	repeat ;
 
 ( xs ys -- ) \ scatter markers; aes keys :point-fill :point-stroke :point-radius
 : scatter
@@ -256,6 +311,27 @@ to aes
 	  :x-space :data
 	  :y-space :data }
 	add-mark ;
+
+( lows highs positions -- ) \ a horizontal segment from each low to its high at the y position,
+\ one 2-point series per interval; equal-length inputs; aes keys :series-stroke :series-width
+: intervals
+	| >lows >highs >positions n i |
+	lows as-column to lows
+	highs as-column to highs
+	positions as-column to positions
+	lows num-elements to n
+	highs num-elements n = positions num-elements n = and not if
+		lows num-elements highs num-elements positions num-elements
+		"intervals: expected equal-length lows, highs, positions; got {2}, {1}, {0}" format throw
+	then
+
+	0 to i
+	begin i n < while
+		lows i @e highs i @e 2 array vector
+		positions i @e dup 2 array vector
+		series
+		f++ i
+	repeat ;
 
 ( slope intercept -- ) \ the line y = slope*x + intercept, clipped to the domain
 \ at render time; aes keys :line-stroke :line-width
@@ -355,6 +431,98 @@ to aes
 		f++ i
 	repeat ;
 
+( heights labels -- ) \ vertical bars on a categorical x axis, one per height, from the
+\ y=0 baseline; labels is a parallel array of category strings; pins the domain; aes
+\ keys :bar-fill :bar-stroke
+: barchart
+	| >heights >labels n-bars i height low high half-width label-y bar-fill bar-stroke |
+	heights as-column to heights
+	heights num-elements to n-bars
+	labels size n-bars = not if
+		labels size n-bars
+		"barchart: expected one label per height; got {0} heights and {1} labels" format throw
+	then
+	n-bars 0= if "barchart: no heights" throw then
+
+	0 to low
+	0 to high
+	0 to i
+	begin i n-bars < while
+		heights i @e to height
+		height low min2 to low
+		height high max2 to high
+		f++ i
+	repeat
+
+	0.5 :xmin figure! n-bars 0.5 + :xmax figure!
+	true :x-categorical figure!
+	low :ymin figure! high high low - 0.05 * + :ymax figure!
+	0.4 to half-width
+	:bar-fill figure@ to bar-fill
+	:bar-stroke figure@ to bar-stroke
+	:height figure@ :margin figure@ - 16 + to label-y
+
+	0 to i
+	begin i n-bars < while
+		i 1 + half-width - 0 i 1 + half-width + heights i @e
+		bar-fill bar-stroke 1 :data :data rect-mark
+		i 1 + label-y labels i @i "middle" :data :pixel text-mark
+		f++ i
+	repeat ;
+
+( values -- ) \ frequency bars: one per distinct value, height = occurrences, most frequent
+\ first (count's order); labels are the values rendered as strings; aes keys :bar-fill :bar-stroke
+: count-barchart
+	| >values pairs labels heights |
+	values count to pairs
+	pairs [: 0 @i "{0}" format :] map to labels
+	pairs [: 1 @i :] map vector to heights
+	heights labels barchart ;
+
+( matrix labels colors -- ) \ stacked vertical bars: row i is category i (bar at x=i+1), column j
+\ is series j (a segment colored colors[j]), stacked from the y=0 baseline; labels names the
+\ categories under the bars, colors is the per-series palette (pass the same array to legend);
+\ pins the domain; aes key :bar-stroke
+: stacked-barchart
+	| >matrix >labels >colors n-cats n-series i j tops bottom top center-x half-width bar-stroke label-y max-total |
+	matrix dim to n-series to n-cats
+	labels size n-cats = not if
+		labels size n-cats
+		"stacked-barchart: expected one label per row; got {0} rows and {1} labels" format throw
+	then
+	colors size n-series = not if
+		colors size n-series
+		"stacked-barchart: expected one color per column; got {0} columns and {1} colors" format throw
+	then
+	n-cats 0= if "stacked-barchart: no rows" throw then
+
+	0.4 to half-width
+	:bar-stroke figure@ to bar-stroke
+	:height figure@ :margin figure@ - 16 + to label-y
+	0 to max-total
+	0.5 :xmin figure! n-cats 0.5 + :xmax figure!
+	true :x-categorical figure!
+
+	0 to i
+	begin i n-cats < while
+		i 1 + to center-x
+		matrix i @i cumulative-sum to tops
+		0 to bottom
+		0 to j
+		begin j n-series < while
+			tops j @e to top
+			center-x half-width - bottom center-x half-width + top
+			colors j @i bar-stroke 1 :data :data rect-mark
+			top to bottom
+			f++ j
+		repeat
+		bottom max-total max2 to max-total
+		center-x label-y labels i @i "middle" :data :pixel text-mark
+		f++ i
+	repeat
+
+	0 :ymin figure! max-total 1.05 * :ymax figure! ;
+
 ( mark coords-key space-key scale-key offset-key -- pixels ) \ one axis of a mark, mapped
 : mark-pixels
 	|> mark coords-key space-key scale-key offset-key |
@@ -424,7 +592,7 @@ to aes
 	x-bounds to x-high to x-low
 	y-bounds to y-high to y-low
 	:margin figure@ to margin
-	:width figure@ margin 2 * - x-high x-low - / to x-scale
+	plot-width x-high x-low - / to x-scale
 	:height figure@ margin 2 * - y-high y-low - / negate to y-scale
 	{ :x-scale x-scale
 	  :x-offset margin x-low x-scale * -
@@ -450,14 +618,16 @@ to aes
 	"<rect x='{6}' y='{5}' width='{4}' height='{3}' fill='{2}' stroke='{1}' stroke-width='{0}' />"
 	format ; internal
 
-( x y font-size anchor label -- svg ) \ one <text> element
+( x y font-size anchor label -- svg ) \ one <text> element, ink from :ink
 : text-element
-	"<text x='{4}' y='{3}' font-size='{2}' text-anchor='{1}' font-family='sans-serif' fill='black'>{0}</text>"
+	:ink figure@
+	"<text x='{5}' y='{4}' font-size='{3}' text-anchor='{2}' font-family='sans-serif' fill='{0}'>{1}</text>"
 	format ; internal
 
-( x y font-size label -- svg ) \ one <text> element rotated 90° ccw about its anchor
+( x y font-size label -- svg ) \ one <text> element rotated 90° ccw about its anchor, ink from :ink
 : rotated-text-element
-	"<text x='{3}' y='{2}' font-size='{1}' text-anchor='middle' font-family='sans-serif' fill='black' transform='rotate(-90 {3} {2})'>{0}</text>"
+	:ink figure@
+	"<text x='{4}' y='{3}' font-size='{2}' text-anchor='middle' font-family='sans-serif' fill='{0}' transform='rotate(-90 {4} {3})'>{1}</text>"
 	format ; internal
 
 ( points stroke width -- svg ) \ one <polyline> element from an "x,y x,y ..." string
@@ -601,7 +771,7 @@ to aes
 	| >mark margin |
 	:margin figure@ to margin
 	margin margin
-	:width figure@ margin 2 * -
+	plot-width
 	:height figure@ margin 2 * -
 	"none" mark :stroke @ 1 rect-element ; internal
 
@@ -610,20 +780,31 @@ to aes
 	| >mark margin |
 	:margin figure@ to margin
 	margin margin
-	:width figure@ margin 2 * -
+	plot-width
 	:height figure@ margin 2 * -
 	mark :fill @ "none" 0 rect-element ; internal
 
-( mark -- svg ) \ vertical gridlines at round x steps across the panel
+( mark -- svg ) \ vertical gridlines: thin minors at the half-step midpoints, then major lines at round x steps
 : render-x-grid
-	| >mark low high step v pixel-x top bottom elements |
+	| >mark low high step half v mv pixel-x top bottom elements |
 	:domain figure@ :xmin @ to low
 	:domain figure@ :xmax @ to high
 	high low - mark :ticks @ nice-step to step
-	low step / round-up step * 0 + to v
+	step 2 / to half
 	:margin figure@ to top
 	:height figure@ :margin figure@ - to bottom
 	[ ] to elements
+	low step / round-up step * half - to mv
+	begin mv high step 1e-9 * + > not while
+		mv low step 1e-9 * - < not if
+			mv x>pixel to pixel-x
+			elements
+			pixel-x top pixel-x bottom mark :stroke @ mark :stroke-width-minor @ line-element
+			add-last! drop
+		then
+		mv step + to mv
+	repeat
+	low step / round-up step * to v
 	begin v high step 1e-9 * + > not while
 		v x>pixel to pixel-x
 		elements
@@ -633,16 +814,27 @@ to aes
 	repeat
 	elements nl join ; internal
 
-( mark -- svg ) \ horizontal gridlines at round y steps across the panel
+( mark -- svg ) \ horizontal gridlines: thin minors at the half-step midpoints, then major lines at round y steps
 : render-y-grid
-	| >mark low high step v pixel-y left right elements |
+	| >mark low high step half v mv pixel-y left right elements |
 	:domain figure@ :ymin @ to low
 	:domain figure@ :ymax @ to high
 	high low - mark :ticks @ nice-step to step
-	low step / round-up step * 0 + to v
+	step 2 / to half
 	:margin figure@ to left
-	:width figure@ :margin figure@ - to right
+	plot-right to right
 	[ ] to elements
+	low step / round-up step * half - to mv
+	begin mv high step 1e-9 * + > not while
+		mv low step 1e-9 * - < not if
+			mv y>pixel to pixel-y
+			elements
+			left pixel-y right pixel-y mark :stroke @ mark :stroke-width-minor @ line-element
+			add-last! drop
+		then
+		mv step + to mv
+	repeat
+	low step / round-up step * to v
 	begin v high step 1e-9 * + > not while
 		v y>pixel to pixel-y
 		elements
@@ -655,6 +847,7 @@ to aes
 ( mark -- svg ) \ bottom-edge ticks at round multiples inside the resolved domain
 : render-x-ticks
 	| >mark low high step v pixel-x bottom elements |
+	current-figure :x-categorical false @or if "" exit then
 	:domain figure@ :xmin @ to low
 	:domain figure@ :xmax @ to high
 	high low - mark :ticks @ nice-step to step
@@ -667,7 +860,7 @@ to aes
 		pixel-x bottom pixel-x bottom 5 + mark :stroke @ 1 line-element
 		add-last! drop
 		elements
-		pixel-x bottom 16 + mark :font-size @ "middle" v "{0:.3g}" format text-element
+		pixel-x bottom 16 + mark :font-size @ "middle" v mark :tick-format @ format text-element
 		add-last! drop
 		v step + to v
 	repeat
@@ -676,6 +869,7 @@ to aes
 ( mark -- svg ) \ left-edge ticks at round multiples inside the resolved domain
 : render-y-ticks
 	| >mark low high step v pixel-y left elements |
+	current-figure :y-categorical false @or if "" exit then
 	:domain figure@ :ymin @ to low
 	:domain figure@ :ymax @ to high
 	high low - mark :ticks @ nice-step to step
@@ -688,7 +882,7 @@ to aes
 		left pixel-y left 5 - pixel-y mark :stroke @ 1 line-element
 		add-last! drop
 		elements
-		left 8 - pixel-y 4 + mark :font-size @ "end" v "{0:.3g}" format text-element
+		left 8 - pixel-y 4 + mark :font-size @ "end" v mark :tick-format @ format text-element
 		add-last! drop
 		v step + to v
 	repeat
@@ -718,6 +912,7 @@ to aes
 	resolve-domain
 	:width figure@ :height figure@
 	"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 {1} {0}'>{nl}" format
+	0 0 :width figure@ :height figure@ :canvas-fill figure@ "none" 0 rect-element + nl +
 	:parts figure@ [: render-mark :] map [: size 0 > :] filter nl join +
 	"{nl}</svg>{nl}" format + ;
 
@@ -781,18 +976,30 @@ probeNext();setInterval(probeNext,500);
 	[ "mkdir" "-p" dir ] run-result drop
 	figure>svg dir dir next-svg-index "{1}/{0}.svg" format write-file ;
 
-( name -- ) \ open the versioned viewer for images-<name>/ (a frameless app window when a
-\ browser is found, else a tab); saves a first version if the dir is empty, and each later
-\ save-figure appears in the < > carousel
-: show-figure
+( name -- html ) \ path to the carousel viewer page for images-<name>/, writing it if absent
+: viewer-page
 	| >name dir html |
 	"images-" name + to dir
 	dir "/index.html" + to html
-	dir next-svg-index 1 = if name save-figure then
 	html file-exists? not if
 		name carousel-page html write-file
 	then
-	html open-app-window ;
+	html ; internal
+
+( name -- ) \ save the current figure as the next version in images-<name>/ and open the
+\ versioned viewer showing it (a frameless app window when a browser is found, else a tab);
+\ the viewer auto-advances to the newest version, so re-running reflects the current figure,
+\ and further save-figure calls append versions the open viewer picks up
+: show-figure
+	| >name |
+	name save-figure
+	name viewer-page open-app-window ;
+
+( name -- ) \ open the versioned viewer on images-<name>/ without saving a new version;
+\ figures must already have been saved there by save-figure or show-figure
+: view-figure
+	| >name |
+	name viewer-page open-app-window ;
 
 \ === convenience: open, draw, render in one call ===
 
@@ -833,6 +1040,22 @@ probeNext();setInterval(probeNext,500);
 	|> arrays labels |
 	640 480 figure
 	arrays labels boxplots
+	border-mark :y-ticks ticks-mark
+	figure>svg ;
+
+( heights labels -- svg ) \ complete bar chart: border and y-ticks, no x-ticks
+: barchart-plot
+	|> heights labels |
+	640 480 figure
+	heights labels barchart
+	border-mark :y-ticks ticks-mark
+	figure>svg ;
+
+( values -- svg ) \ complete frequency bar chart from raw values
+: count-barchart-plot
+	|> values |
+	640 480 figure
+	values count-barchart
 	border-mark :y-ticks ticks-mark
 	figure>svg ;
 
@@ -897,9 +1120,7 @@ probeNext();setInterval(probeNext,500);
 	180 :leaf-spacing figure!
 	70 :level-height figure!
 	10 :font-size figure!
-	"white" fill  "none" stroke
-	0 0  n-leaves 180 *  levels 1 + 70 *  svg-rect
-	"black" stroke  "middle" text-anchor
+	"white" fill  "black" stroke  "middle" text-anchor
 	tree 0 0 tree-draw-node 2drop
 	figure>svg ;
 

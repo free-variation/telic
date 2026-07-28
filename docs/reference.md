@@ -426,8 +426,8 @@ These compile-time words read a following local name and emit a single fused dep
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `++` | `( -- )` | Increment the named local by 1 in place | 1 | none | O(1) |
-| `--` | `( -- )` | Decrement the named local by 1 in place | 1 | none | O(1) |
+| `++` | `( -- )` | Increment the named local or global variable by 1 in place; only inside a colon definition; errors on an unknown or non-variable name | 1 | none | O(1) |
+| `--` | `( -- )` | Decrement the named local or global variable by 1 in place; only inside a colon definition; errors on an unknown or non-variable name | 1 | none | O(1) |
 | `f++` | `( -- )` ⚠ | Unsafe float increment: raw `.number` mutation, no tag check, for a local known to hold a float | 1 | none | O(1) |
 | `f--` | `( -- )` ⚠ | Unsafe float decrement: raw `.number` mutation, no tag check | 1 | none | O(1) |
 
@@ -830,8 +830,8 @@ machinery, so there the `-local` words behave as UTC and `parse-time` lacks
 | `rows>dataset` | `( rows header? -- dataset )` | datasets.h2o: column-oriented frame from rows with typed columns — uniformly float-or-`none` cells become an n×1 vector (`none` → NaN), uniform-unit quantity cells a dimensioned vector, anything else stays the cell array; keys come from row 0 when header? is true, else `:col1…` are synthesized | 2·r·c | `k×1a(r)` + `1m` per numeric column + `1fr` | O(r·c) |
 | `rows>relation` | `( rows index-cols header? -- relation )` | datasets.h2o: deduped relation indexed on `index-cols` (coerced to symbols) | r·c | one frame per row + relation + index buckets | O(r·c) |
 | `dataset>rows` | `( dataset -- rows )` | datasets.h2o: the inverse of `true rows>dataset` — an array of row-arrays led by a header row of the column names as strings, columns in key order, cells through `column>array` (NaN → `null`, dimensioned cells as quantities); feeds `save-tsv` directly (`1 skip` for headerless rows) | r·c | header + one array per row + `1a(r·c)` cells | O(r·c) |
-| `headn` | `( dataset n -- )` | datasets.h2o: print the first min(n, rows) rows as an aligned table — column names as the header line, two-space gutter, numeric/quantity columns right-aligned, text left, `:datetime` columns through `time>iso`, other cells through `render`; empty dataset prints nothing | r·c | rendered cells | O(r·c) |
-| `head` | `( dataset -- )` | datasets.h2o: `10 headn` | r·c | rendered cells | O(r·c) |
+| `headn` | `( dataset n leading-columns -- )` | datasets.h2o: print the first min(n, rows) rows as an aligned table — the `leading-columns` symbols appear first in the given order, the remaining columns alphabetical by name (an empty `leading-columns` orders every column alphabetically); column names as the header line, two-space gutter, numeric/quantity columns right-aligned, text left, `:datetime` columns through `time>iso`, other cells through `render`; empty dataset prints nothing | r·c | rendered cells | O(r·c) |
+| `head` | `( dataset -- )` | datasets.h2o: `10 [ ] headn` — the first 10 rows with columns alphabetical | r·c | rendered cells | O(r·c) |
 | `dataset>matrix` | `( dataset cols -- m )` | datasets.h2o: build an n×k matrix from the named numeric columns (rows are observations) | n·k | flat `1a(n·k)` + `2m(n×k)` | O(n·k) |
 | `column-type` | `( dataset sym -- sym )` | datasets.h2o: the named column's type from its representation — matrix `:numeric`, quantity in exactly `s` `:datetime`, other quantity `:quantity`, array `:text`; a missing key errors through `@` | 5 | 1 pair | O(log c) |
 | `column>array` | `( column -- arr )` | datasets.h2o: a column in any representation as an array of its values — arrays pass through unchanged, matrix/quantity columns go through `matrix>array` (NaN → `null`, dimensioned elements become quantities) | n | `1a(n)` for matrix columns, none for arrays | O(n) |
@@ -897,6 +897,12 @@ The substrate for exceptions, coroutines, generators. See `docs/continuations.md
 | `catch` | `( xt -- result 0 \| exc 1 )` | exceptions.h2o: `reset (execute-catching) 0`; `(result 0)` on success, `(exc 1)` on a `throw` **or** an interpreter error (an error frame `{ :message :trace }` becomes the exception value) | — | cont if thrown; `1f` + `2s` on a caught interpreter error | O(xt) |
 | `try-catch` | `( normal-xt err-xt -- … )` | exceptions.h2o: run normal-xt; on a `throw` or interpreter error, run err-xt with the exception (the `{ :message :trace }` error frame, for an interpreter error) on the stack | — | cont if thrown; `1f` + `2s` on a caught interpreter error | O(normal-xt) |
 | `ensure` | `( body-xt cleanup-xt -- … )` | exceptions.h2o: run cleanup-xt (stack-neutral) whether body-xt returns normally or throws/errors, then re-raise on the throw path | — | cont if thrown | O(body-xt) |
+| `expect` | `( flag -- )` | test.h2o: pass silently when flag is truthy; else throw `expectation was false` | — | `1s` on fail | O(1) |
+| `expect=` | `( actual expected -- )` | test.h2o: pass when `actual = expected` (deep structural `=`); else throw `expected <expected>, got <actual>` | — | `1s` on fail | O(n) |
+| `expect-near` | `( actual expected tolerance -- )` | test.h2o: pass when `\|actual − expected\| <= tolerance`; else throw the expected-range message | — | `1s` on fail | O(1) |
+| `expect-throws` | `( xt -- )` | test.h2o: run xt under `catch`; pass iff it throws, else throw `expected a throw` | — | cont if thrown | O(xt) |
+| `test` | `( name xt -- )` | test.h2o: run xt under `catch`; print `ok <name>` or `FAIL <name>: <reason>` (a runtime error's `:message`, else the thrown value), tally it, restore the stack, continue past a failure | — | prints | O(xt) |
+| `test-report` | `( -- )` | test.h2o: print `<n> passed, <m> failed`; throw when any failed so a program-file run exits nonzero | — | prints | O(1) |
 | `with-db` | `( path body-xt -- … )` | exceptions.h2o: `db-open` the path, run body-xt `( db -- … )` with the handle, `db-close` on either exit | — | 1 db + cont if thrown | O(body-xt) |
 | `with-stream` | `( stream body-xt -- … )` | exceptions.h2o: run body-xt `( stream -- … )` over an already-open stream, `close` it on either exit | — | cont if thrown | O(body-xt) |
 
@@ -997,7 +1003,7 @@ The auto-fuser also collapses a comparison immediately before a branch — `= if
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `words` | `( -- )` | List all non-internal words in aligned columns, grouped by reference section, alphabetical within a group; session-defined words first | dict scan | none | O(\|dict\| log \|dict\|) |
+| `words` | `( -- )` | List all non-internal words in aligned columns, grouped by section, alphabetical within a group: words defined this session first, then words loaded from a library file, then the reference sections | dict scan | none | O(\|dict\| log \|dict\|) |
 | `variables` | `( -- arr )` | core.h2o: one `{ :name :value :type }` frame per global (`variable`-declared or `to`-auto-created), oldest first — the name symbol, the live value (shared reference for collections), and its `type-of` symbol. `variables [: :name @ :] map` is the name list; `variables frames>dataset head` a table | dict scan | `1a` + one frame per global | O(\|dict\|) |
 | `vars` | `( -- )` | repl.h2o: pretty-print every global, one `variables` frame per block (`variables ' print each`) | dict scan + print | `1a` + frames | O(\|dict\|) |
 | `water` | `( -- )` | Print the water logo and the interpreter version | print | none | O(1) |

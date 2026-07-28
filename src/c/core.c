@@ -1143,6 +1143,7 @@ void print_frame_pretty(FILE *out, Interpreter *interp, Object *frame, int inden
 }
 
 int current_unit = 0;
+int session_unit = 0;
 static int next_unit = 1;
 
 int find(const char *name) {
@@ -1610,7 +1611,7 @@ int create_header(Interpreter *interp, const char *name, int flags) {
 }
 
 void echo_definition(const char *name, int redefined) {
-	if (!compiler.interactive)
+	if (!compiler.interactive || compiler.load_depth > 1)
 		return;
 	printf("%s word: %s\n", redefined ? "redefined" : "new", name);
 	fflush(stdout);
@@ -4837,7 +4838,7 @@ int main(int argc, char **argv) {
 	if (construct_vocabulary(interp, load_lib))
 		return 1;
 
-	current_unit = next_unit++;
+	session_unit = current_unit = next_unit++;
 
 	if (show_version) {
 		execute_cfa(interp, find("water"));

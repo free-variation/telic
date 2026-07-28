@@ -4,7 +4,7 @@ A TODO list of pending work, highest priority first.
 
 ---
 
-## xgboost: residuals
+## xgboost — follow-ups
 
 - **Model persistence.** Bind `XGBoosterSaveModel`/`XGBoosterLoadModel` as
   `xgb-save ( booster path -- )` and `xgb-load-model ( path -- booster )`
@@ -94,14 +94,7 @@ Each one pass over sorted samples, in the `ks-distance` mold:
 
 ---
 
-## Loadable-library words in `words`
-
-Give `words` a "library" group for loaded lib/*.h2o words, separate from REPL
-session definitions, by snapshotting a cfa watermark after each `load-library`.
-
----
-
-## Basic graphing: residuals
+## Basic graphing — follow-ups
 
 - **Chart set** — step (the ecdf as drawn) and bar charts.
 - **Stats consumers** — QQ plots (over `sort` + `qnorm`; bring back
@@ -116,41 +109,31 @@ session definitions, by snapshotting a cfa watermark after each `load-library`.
 
 ---
 
-## Debugging and profiling: `trace` and `profile`
+## Profiling: `profile`
 
-**`trace`** — call flow, in a separate `-DTRACE` binary. A hook in `docol`
-(entry) and `exit` under `#ifdef TRACE`: when a `tracing` flag is set, print the
-entered word's name (`WORD_NAME`) indented by a depth counter, `depth++`; `exit`
-does `depth--`. Only `docol` is hooked. `trace-on` / `trace-off` bound the region.
-A second `make` target compiles the sources with `-DTRACE` into `water-trace`; the
-normal `water` strips the hook. No timing.
+A statistical sampling profiler in the normal `water`, with no `docol` or
+dispatch hook — a disarmed profiler adds nothing to execution. `profile-on` /
+`profile-off` bound a region; `profile ( xt -- )` profiles one quotation.
 
-**`profile`** — sampling call tree, in the normal `water`. `profile` /
-`profile-on` / `profile-off` arm a `SIGPROF` interval timer; the handler walks the
-active return stack (via `word_containing`) and accumulates the frame chain into a
-call tree — a node per word, children its callees, a counter per node; subtree
-total is inclusive time, leaf hits are self time. Unarmed when not profiling.
+Arm an interval timer over process CPU time (`setitimer(ITIMER_PROF)`, or
+`timer_create` with `CLOCK_PROCESS_CPUTIME_ID` for sub-millisecond rates). The
+`SIGPROF` handler is async-signal-safe: it snapshots the active return-stack ip
+chain plus the current `ip` into a preallocated buffer and does nothing more — no
+allocation, no dictionary walk.
 
-- Sampling rate settable, ~1 kHz default; report the sample count.
-- Native-only: wasm has no signals, so `profile` no-ops or errors there.
+At disarm, map each ip to its word with `word_containing`, name the deepest op
+with `running_op_name` so a hot primitive shows by name, and fold the chains into
+a call tree — a node per word along each path, leaf hits self time, subtree totals
+inclusive time. Report the tree indented with per-node self and inclusive sample
+counts, their percentages, and the total sample count.
 
----
+- Sampling rate settable; 1 kHz default.
+- Native-only: wasm has no signals, so `profile` errors there.
 
-## Test words: `expect` and `test`
-
-An embedded test vocabulary in `src/forth/test.h2o` (after `exceptions.h2o` in
-`FORTH_SRCS`), pure forth over `catch`/`throw`. `assert` is taken (logic fact
-assertion), so the assertion word is `expect`; a passing `expect` is silent, a
-failing one throws.
-
-- `expect= ( actual expected -- )` — deep equality via `=`; on mismatch throws
-  `expected X, got Y`.
-- `expect-near ( actual expected tolerance -- )` — float comparison.
-- `expect-throws ( xt -- )` — pass iff the quotation throws.
-- `expect ( flag -- )` — bare truthiness.
-- `test ( "name" xt -- )` — run the quotation under `catch`, print `ok <name>` or
-  `FAIL <name>: <reason>`, count it, continue past a failure.
-- `test-report ( -- )` — print `N passed, M failed`; exit nonzero if any failed.
+To settle: the sample-buffer overflow policy (fold early outside signal context,
+or a ring that reports dropped samples); whether parallel `pmap` workers each arm
+a timer or only the main thread is sampled; whether a long-running C primitive
+stays one opaque node or is attributed further.
 
 ---
 

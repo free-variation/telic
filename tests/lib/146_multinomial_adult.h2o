@@ -26,11 +26,12 @@ design design keys dataset>matrix with-intercept to X
 X y 0 200 1e-6 1.0 fit-multinomial-ridge to beta
 beta X 0 predict-multinomial to probs
 
-\ === checks (stable: counts and thresholds, not the raw fitted floats) ===
-K . cr                                           \ 6   relationship levels detected
-probs row-sums 1 - dup * sum 1e-8 < . cr         \ 1   every softmax row sums to 1
-
 \ mean probability the model assigns to each row's true class
 K iota [> k | probs k @j  y k eq  * :] map 0 [: + :] reduce mean to mean-true-prob
-mean-true-prob 1 K / > . cr                      \ 1   beats the 1/K uniform baseline
-mean-true-prob 0.3 > . cr                        \ 1   beats the ~0.27 base-rate model — learned from the features
+
+\ === checks (stable: counts and thresholds, not the raw fitted floats) ===
+"6 relationship levels detected"    [: K 6 expect= :] test
+"every softmax row sums to 1"       [: probs row-sums 1 - dup * sum 1e-8 < expect :] test
+"beats the 1/K uniform baseline"    [: mean-true-prob 1 K / > expect :] test
+"beats the base-rate model"         [: mean-true-prob 0.3 > expect :] test
+test-report

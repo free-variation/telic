@@ -28,7 +28,14 @@ variables size . cr                     \ 2 still (PI, E, TAU never appear)
 \ composes with the dataset machinery
 [ 1 2 3 ] to z
 :blue to hue
-variables frames>dataset 3 headn
+variables frames>dataset 3 [ ] headn
 
 \ === vars pretty-prints each frame ===
 vars
+
+\ === ++ / -- increment a global variable in place (inside a definition) ===
+variable counter
+5 to counter
+: bump  ++ counter ;
+: unbump  -- counter ;
+bump counter . bump counter . unbump counter . cr    \ 6 7 6

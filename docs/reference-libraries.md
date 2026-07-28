@@ -70,18 +70,25 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 | `fill` | `( color -- )` | Set the current fill color |
 | `stroke-width` | `( w -- )` | Set the current stroke width |
 | `text-anchor` | `( anchor -- )` | Set the current text anchor: `"start"`, `"middle"`, or `"end"` |
-| `axes` | `( -- )` | Plot-area border plus labeled x and y ticks, laid out at render time |
-| `panel` | `( -- )` | `axes`' themed twin: a filled ground (`:panel-fill`) with gridlines as negative space and labeled ticks, no border; call before the data so it draws underneath |
+| `axes` | `( -- )` | Plot-area border plus labeled x and y ticks, laid out at render time; tick labels use the aes `:tick-format` string (default `{0:g}` — whole numbers as integers, no forced scientific notation); an axis marked categorical (`:x-categorical`/`:y-categorical`, set by `barchart`/`y-categories`) shows no numeric ticks |
+| `panel` | `( -- )` | `axes`' themed twin: a filled ground (`:panel-fill`) with gridlines as negative space and labeled ticks, no border; call before the data so it draws underneath; honors the categorical flags like `axes` |
 | `x-label` | `( s -- )` | x-axis title, centered below the tick labels |
 | `y-label` | `( s -- )` | y-axis title, rotated, centered beside the tick labels |
+| `legend` | `( labels colors -- )` | Color key in a strip reserved to the right of the plot area (the plot narrows to fit); one row per label with a filled swatch, `labels`/`colors` equal-length parallel arrays; pixel-space, label text in `:ink` |
+| `y-categories` | `( labels -- )` | Place category names along the y axis at positions 1..n (right-anchored, just left of the axis) in place of numeric y-ticks; pins the y domain to `[0.5, n+0.5]` and sets `:y-categorical`, so `axes`/`panel` drop the numeric y-ticks |
 | `data-domain` | `( xs ys -- )` | Pin the domain to the padded extents of two data vectors |
 | `scatter` | `( xs ys -- )` | Scatter markers at the point pairs; aes `:point-fill` `:point-stroke` `:point-radius`; errors on unequal lengths |
 | `series` | `( xs ys -- )` | Connected line through the points in order, split at NaN gaps; aes `:series-stroke` `:series-width` |
+| `intervals` | `( lows highs positions -- )` | A horizontal segment from each `low` to its `high` at the y `position`, one 2-point series per interval; equal-length inputs; aes `:series-stroke` `:series-width` |
 | `abline` | `( slope intercept -- )` | The line y = slope·x + intercept, clipped to the domain at render; aes `:line-stroke` `:line-width` |
 | `histogram` | `( data n-bins -- )` | Equal-width bin-count bars over `data`; pins the domain; aes `:bar-fill` `:bar-stroke` |
 | `boxplot` | `( data -- )` | One Tukey boxplot centered in the figure (whiskers to 1.5·IQR, outliers as circles); pins the domain; aes `:box-stroke` |
 | `boxplots` | `( arrays labels -- )` | Side-by-side boxplots on a shared y axis, one per vector; `labels` a parallel array of category strings; pins the domain |
+| `barchart` | `( heights labels -- )` | Vertical bars on a categorical x axis, one per height from the y=0 baseline; `labels` a parallel array of category strings; pins the domain and sets `:x-categorical` so `axes`/`panel` drop the numeric x-ticks; aes `:bar-fill` `:bar-stroke` |
+| `count-barchart` | `( values -- )` | Frequency bars — one per distinct value, height its number of occurrences, most frequent first; labels the values rendered as strings; aes `:bar-fill` `:bar-stroke` |
+| `stacked-barchart` | `( matrix labels colors -- )` | Stacked vertical bars: row i is category i (a bar at x=i+1), column j is series j (a segment colored `colors[j]`), stacked from the y=0 baseline; `labels` names the categories under the bars, `colors` is the per-series palette (pass the same array to `legend`); pins the domain and sets `:x-categorical` so `axes`/`panel` drop the numeric x-ticks; aes `:bar-stroke` |
 | `annotate` | `( x y label -- )` | Text at data point `(x, y)`, current font size and `text-anchor` |
+| `rect-at` | `( x1 y1 x2 y2 -- )` | Rectangle between two data-space corners, mapped through the domain; current `:fill` `:stroke` `:stroke-width` (the data-space analog of `svg-rect`) |
 | `svg-line` | `( x1 y1 x2 y2 -- )` | Line segment in pixel coordinates, current stroke |
 | `svg-rect` | `( x y w h -- )` | Rectangle at pixel `(x, y)` of size `w`×`h`, current stroke and fill |
 | `svg-circle` | `( cx cy r -- )` | Circle of pixel radius `r`, current fill and stroke |
@@ -89,9 +96,12 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 | `figure>svg` | `( -- svg )` | Resolve the domain and render the current figure to an SVG document string |
 | `save-figure` | `( name -- )` | Render the current figure as the next version `images-<name>/N.svg` (creating the directory); native-only (`mkdir` via a subprocess) |
 | `show-figure` | `( name -- )` | Open a versioned carousel viewer for `images-<name>/` in a browser app window; saves a first version when empty, and later `save-figure`s appear in the carousel; native-only |
+| `view-figure` | `( name -- )` | Open the versioned carousel viewer for `images-<name>/` without saving a new version (writing the viewer page if absent); figures must already have been saved there; native-only |
 | `scatter-plot` | `( xs ys -- svg )` | Complete scatter plot in one call — 640×480 figure, `axes`, `scatter`, rendered |
 | `series-plot` | `( xs ys -- svg )` | Complete line plot of `ys` against `xs`, rendered |
 | `histogram-plot` | `( data n-bins -- svg )` | Complete histogram, rendered |
 | `boxplot-plot` | `( data -- svg )` | Complete single boxplot, rendered |
 | `boxplots-plot` | `( arrays labels -- svg )` | Complete side-by-side boxplots, rendered |
+| `barchart-plot` | `( heights labels -- svg )` | Complete bar chart (border and y-ticks, no x-ticks), rendered |
+| `count-barchart-plot` | `( values -- svg )` | Complete frequency bar chart from raw values, rendered |
 | `plot-tree` | `( tree -- svg )` | Render a `fit-tree` as a node-link diagram — internal nodes show the split, leaves the prediction, edges to the left (condition-true) child then the right |

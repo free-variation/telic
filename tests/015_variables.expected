@@ -2,10 +2,10 @@
 0 42 99 hello [< 1 2 3 >] 
 [ { :name :x :value 99 :type :float } { :name :y :value [< 1 2 3 >] :type :set } ] [ :x :y ] 
 2 
-name  value        type   
-:x    99           :float 
-:y    [< 1 2 3 >]  :set   
-:z    [ 1 2 3 ]    :array 
+name  type    value       
+:x    :float  99          
+:y    :set    [< 1 2 3 >] 
+:z    :array  [ 1 2 3 ]   
 {
   :name :x
   :value 99
@@ -26,3 +26,4 @@ name  value        type
   :value :blue
   :type :symbol
 }
+6 7 6 
