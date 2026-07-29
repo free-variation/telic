@@ -1,7 +1,7 @@
 #ifndef WATER_H
 #define WATER_H
 
-#define VERSION "0.24.0"
+#define VERSION "0.24.2"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,6 +52,8 @@ typedef int64_t cell;
 #define COPY_SPINE_MAX (1 << 24)
 #define PAIR_TABLE_DEPTH (1 << 20)
 #define MAX_WORKER_THREADS (1 << 6)
+#define REGION_CLAIMS_PER_WORKER (1 << 6)
+#define HANDLE_PRESSURE_SLOTS (MAX_WORKER_THREADS * SLOTS_PER_CLAIM * 2)
 #define BIND_TRAIL_DEPTH (1 << 16)
 #define LVAR_STACK_DEPTH (1 << 16)
 #define PROMPT_EXCEPTION 0
@@ -964,6 +966,7 @@ void write_i32(FILE *f, int32_t v);
 void write_i64(FILE *f, int64_t v);
 void write_val(FILE *f, Val value);
 
+int array_argsort_copy(Interpreter *interp, Object *source);
 int array_sorted_copy(Interpreter *interp, Object *source);
 int build_set_from_values(Interpreter *interp, const Val *values, int count);
 int frame_delete(Object *frame, cell key);

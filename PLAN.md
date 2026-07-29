@@ -30,7 +30,6 @@ Small C words the rest builds on:
 - `cumulative-product` (`cumulative-sum`'s twin).
 - `row-argmins`, with its argmax and column twins (index-returning, one pass).
 - Empirical-distribution kernels `ks`, `wasserstein` (§5).
-- Export `dpotrf` / `dpotrs` in the lapacke vendoring (for §1 mixtures).
 
 ### 1. SVD / dgemm methods (library)
 
@@ -496,6 +495,12 @@ live here instead. File and function name each invariant's home.
 - A pmap worker that finds its result chain too deep (possible cycle)
   conservatively keeps the whole region rather than rewinding it
   (functional.c).
+- A failed handle claim must not leave `space->n` above `cap`; readers walk
+  to `n` (core.c, `local_claim_handle`).
+- `HANDLE_PRESSURE_SLOTS` must exceed one claim per worker, or only the
+  worker that trips it collects (water.h).
+- The handle-pressure test must stay in the claim branch; per allocation it
+  contends on `space->n` (core.c, `local_claim_handle`).
 - In-progress cons chains are gc-rooted during multi-pair allocation so
   a collection triggered mid-build cannot reap the spine (collections.c,
   `array>cons`).

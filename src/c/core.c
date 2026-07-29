@@ -164,14 +164,19 @@ static void arena_free_object(Object *obj) {
 	context->freed_object_structs = obj;
 }
 
-static inline int local_claim_handle(LocalHandles *lh, HandleSpace *space) {
+static inline int local_claim_handle(Interpreter *interp, LocalHandles *lh, HandleSpace *space) {
 	if (lh->n_free > 0)
 		return lh->free[--lh->n_free];
 
 	if (lh->next >= lh->end) {
+		if (space->cap - space->n < HANDLE_PRESSURE_SLOTS)
+			interp->gc_pending = 1;
+
 		int claimed = atomic_fetch_add(&space->n, SLOTS_PER_CLAIM);
-		if (claimed + SLOTS_PER_CLAIM > space->cap)
+		if (claimed + SLOTS_PER_CLAIM > space->cap) {
+			atomic_fetch_sub(&space->n, SLOTS_PER_CLAIM);
 			return -1;
+		}
 
 		lh->next = claimed;
 		lh->end = claimed + SLOTS_PER_CLAIM;
@@ -184,7 +189,7 @@ static inline int local_claim_handle(LocalHandles *lh, HandleSpace *space) {
 
 int object_alloc_slot(Interpreter *interp) {
 	if (in_parallel) {
-		int slot = local_claim_handle(&thread_alloc.objects, &arena.object_space);
+		int slot = local_claim_handle(interp, &thread_alloc.objects, &arena.object_space);
 		if (slot < 0) {
 			fail(interp, "object table full in parallel region");
 			return -1;
@@ -258,7 +263,8 @@ static inline void heap_bytes_sub(size_t bytes) {
 void region_begin(ParallelRegion *region, int domain_len, int worker_count) {
 	CLAMP(worker_count, 1, MAX_WORKER_THREADS);
 
-	int object_headroom = arena.object_space.n + domain_len + worker_count * SLOTS_PER_CLAIM;
+	int object_headroom = arena.object_space.n + domain_len
+			+ worker_count * SLOTS_PER_CLAIM * REGION_CLAIMS_PER_WORKER;
 	object_headroom = MIN(object_headroom, arena.object_space.max);
 	if (object_headroom > arena.object_space.cap)
 		GROW_OBJECT_TABLE(object_headroom);
@@ -381,7 +387,7 @@ int object_new_pair(Interpreter *interp) {
 	int slot;
 
 	if (in_parallel) {
-		slot = local_claim_handle(&thread_alloc.pairs, &pairs.space);
+		slot = local_claim_handle(interp, &thread_alloc.pairs, &pairs.space);
 		if (slot < 0) {
 			fail(interp, "pair table full in parallel region");
 			return -1;

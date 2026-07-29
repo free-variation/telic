@@ -50,7 +50,7 @@ LAPACKE_SRCS     = $(wildcard $(LAPACKE_DIR)/src/*.c) $(wildcard $(LAPACKE_DIR)/
 LAPACKE_OBJS     = $(patsubst %.c,%.o,$(LAPACKE_SRCS))
 LAPACKE_LIB      = $(LAPACKE_DIR)/liblapacke.a
 LAPACKE_SHARED   = $(LAPACKE_DIR)/liblapacke_water.so
-LAPACKE_ROUTINES = LAPACKE_dgesvd LAPACKE_dgelsd
+LAPACKE_ROUTINES = LAPACKE_dgesvd LAPACKE_dgelsd LAPACKE_dgels LAPACKE_dpotrf LAPACKE_dpotrs
 LAPACKE_CFLAGS   = -O2 -DNDEBUG -DADD_ -I$(LAPACKE_DIR)/include
 ifneq ($(UNAME),Darwin)
 LAPACKE_CFLAGS  += -fPIC -ffunction-sections -fdata-sections

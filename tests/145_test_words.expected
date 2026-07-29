@@ -6,3 +6,5 @@ FAIL eq fails: expected 5, got 4
 FAIL truthy fails: expectation was false 
 FAIL a runtime error becomes the reason: no key :missing 
 4 passed, 3 failed 
+ok after new-tests 
+1 passed, 0 failed 

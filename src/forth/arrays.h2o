@@ -9,18 +9,6 @@
 ( n -- [0..n-1] ) \ empty when n <= 0
 : iota dup 0= if drop [ ] else 1- 0 swap range then ;
 
-' argsort constant (matrix-argsort) internal
-
-( arr -- permutation ) \ sorting permutation under val_cmp; ties keep index order
-: argsort
-	dup array? if
-		dup size iota [: 2 array :] 2 mapn
-		sort
-		[: 1 @i :] map
-	else
-		(matrix-argsort) execute
-	then ;
-
 ( items pred -- flag )  \ does any element satisfy pred?
 : any?  find-first none? not ;
 inline
@@ -38,11 +26,9 @@ inline
 
 ( items xt -- items' )  \ sorted by the key xt ( element -- key ) extracts
 : sort-by
-	>side	
-	[: dup side-peek execute swap 2 array :] map
-	side-drop
-	sort
-	[: 1 @i :] map ;
+	| >items >key-xt |
+	items key-xt map argsort
+	[> position | items position @i :] map ;
 
 ( items pred -- matches rest )  \ elements satisfying pred, and the others
 : partition  

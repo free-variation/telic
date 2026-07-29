@@ -415,6 +415,48 @@ int set_elements_copy(Interpreter *interp, Object *source) {
 	return elements_handle;
 }
 
+typedef struct {
+	Interpreter *interp;
+	const Val *items;
+} ArgsortIndexContext;
+
+static int argsort_index_qsort(void *context, const void *left, const void *right) {
+	const ArgsortIndexContext *sorting = (const ArgsortIndexContext *)context;
+	int left_index = *(const int *)left;
+	int right_index = *(const int *)right;
+
+	int order = val_cmp(sorting->interp, sorting->items[left_index], sorting->items[right_index]);
+	if (order)
+		return order;
+
+	return left_index - right_index;
+}
+
+int array_argsort_copy(Interpreter *interp, Object *source) {
+	int n_items = source->len;
+	int permutation_handle = object_new_array(interp, n_items);
+	if (interp->error_flag)
+		return -1;
+
+	int *indices;
+	MALLOC_OR_FAIL_RETURNING(interp, indices, sizeof(int) * (size_t)(n_items > 0 ? n_items : 1), -1);
+
+	for (int i = 0; i < n_items; i++)
+		indices[i] = i;
+
+	ArgsortIndexContext sorting = { .interp = interp, .items = source->items };
+	if (n_items > 0)
+		platform_qsort_r(indices, (size_t)n_items, sizeof(int), &sorting, argsort_index_qsort);
+
+	Object *permutation = OBJECT_AT(permutation_handle);
+	for (int i = 0; i < n_items; i++)
+		permutation->items[i] = make_float((double)indices[i]);
+
+	free(indices);
+
+	return permutation_handle;
+}
+
 int array_sorted_copy(Interpreter *interp, Object *source) {
 	int n_items = source->len;
 	int sorted_array_handle = object_new_array(interp, n_items);

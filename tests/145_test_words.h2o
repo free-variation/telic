@@ -1,7 +1,8 @@
 \ test.h2o: expect assertions and a test runner over catch/throw. A passing
 \ expect is silent; test prints ok <name> or FAIL <name>: <reason>, tallies it,
 \ and continues past a failure; test-report prints the count and throws on any
-\ failure (so a program-file run exits nonzero — caught here to show the line).
+\ failure (so a program-file run exits nonzero — caught here to show the line);
+\ new-tests ( -- ) zeroes both counters so a second group reports on its own.
 
 \ === passing assertions: expect=, expect-near, expect (truthy), expect-throws ===
 "eq" [: 2 3 + 5 expect= :] test
@@ -16,3 +17,8 @@
 
 \ === test-report tallies and throws on any failure ===
 [: test-report :] [: drop :] try-catch
+
+\ === new-tests zeroes the counters, so the next report covers only what follows ===
+new-tests
+"after new-tests" [: 1 1 expect= :] test
+test-report

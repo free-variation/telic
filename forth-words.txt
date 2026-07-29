@@ -377,6 +377,7 @@ n-observations
 n-rows
 nan?
 negate
+new-tests
 nip
 nip-it
 nip-other

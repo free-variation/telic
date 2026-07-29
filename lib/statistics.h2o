@@ -68,6 +68,23 @@ dup "LAPACKE_dgelsd" [
 						 :ptr :double :ptr \ s (singular values) rcond rank
 					 ] :int ffi-function (dgelsd)
 
+dup "LAPACKE_dgels" [
+						:int :int :int :int :int \ matrix_layout trans m n nrhs
+						:ptr :int \ a (design matrix, overwritten with the QR factors) lda
+						:ptr :int \ b (rhs, overwritten with the solution in its first n rows) ldb
+					] :int ffi-function (dgels)
+
+dup "LAPACKE_dpotrf" [
+						 :int :int :int \ matrix_layout uplo n
+						 :ptr :int \ a (overwritten with the cholesky factor) lda
+					 ] :int ffi-function (dpotrf)
+
+dup "LAPACKE_dpotrs" [
+						 :int :int :int :int \ matrix_layout uplo n nrhs
+						 :ptr :int \ a (the cholesky factor) lda
+						 :ptr :int \ b (rhs, overwritten with the solution) ldb
+					 ] :int ffi-function (dpotrs)
+
 : svd ( A -- U S VT )
 	| a rows cols min-dim u s vt superb info |
 	copy to a
@@ -163,12 +180,34 @@ dup "LAPACKE_dgelsd" [
 	then
 	beta ;
 
+( design target -- beta|null ) \ least squares by Householder QR (dgels), the same
+\ system fit-linear solves and the same conditioning, for several times fewer flops
+\ than dgelsd's divide-and-conquer SVD; null when dgels reports the design
+\ rank-deficient, leaving the caller the dgelsd path and its minimum-norm answer
+: solve-qr
+	| >design >target rows cols a b info |
+	design dim to cols to rows
+	design copy to a
+	target copy to b
+
+	101 78 rows cols 1   \ row-major, trans 'N', one right-hand side
+	a matrix>pointer cols
+	b matrix>pointer 1
+	(dgels) to info
+	info if null exit then
+
+	b 0 cols 0 1 submatrix ; internal
+
 ( X y max-iterations tolerance lambda -- beta ) \ L2-regularized logistic by IRLS:
 \ lambda multiplies ||beta||^2/2 in the objective, column 0 (the intercept) is
 \ unpenalized, no Firth term; lambda 0 is the plain MLE. The penalty enters each
-\ weighted least-squares step as sqrt(lambda)*I rows appended to the design.
+\ weighted least-squares step as sqrt(lambda)*I rows appended to the design, which
+\ solve-qr solves; the normal equations are deliberately not used here, since
+\ squaring the design costs about half the digits and floors the beta step near
+\ 1e-6 at small lambda, above the 1e-8 tolerance callers ask for.
 : fit-logistic-ridge
-	| >x >y >max-iterations >tolerance >lambda rows cols penalty zeros beta eta mu w sqrt-w z new-beta iterations delta converged |
+	| >x >y >max-iterations >tolerance >lambda rows cols penalty zeros
+	  beta eta mu w sqrt-w z design target new-beta iterations delta converged |
 	x dim to cols to rows
 	lambda sqrt cols diagonal-matrix 0 0 0 !i,j to penalty
 	cols 1 0-matrix to zeros
@@ -184,9 +223,12 @@ dup "LAPACKE_dgelsd" [
 		mu dup 1 swap - * to w
 		w sqrt to sqrt-w
 		eta  y mu -  w /  +  to z
-		sqrt-w x *  penalty vstack
-		sqrt-w z *  zeros vstack
-		fit-linear to new-beta
+		sqrt-w x *  penalty vstack to design
+		sqrt-w z *  zeros vstack to target
+		design target solve-qr to new-beta
+		new-beta none? if
+			design target fit-linear to new-beta
+		then
 		new-beta beta - dup * sum sqrt to delta
 		new-beta to beta
 

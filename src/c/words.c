@@ -1462,7 +1462,16 @@ void p_argsort(DISPATCH_ARGS) {
 	Val collection = quantity_unwrap(chain_sp[-1], &unit);
 	(void)unit;
 
-	REQUIRE_CHAIN_TAG(collection, T_MATRIX, "argsort", "a vector (nx1 or 1xn)");
+	if (VAL_TAG(collection) == T_ARRAY) {
+		int array_permutation_handle = array_argsort_copy(interp, OBJECT_AT(VAL_DATA(collection)));
+		if (interp->error_flag) return;
+
+		chain_sp[-1] = make_array(array_permutation_handle);
+
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+	}
+
+	REQUIRE_CHAIN_TAG(collection, T_MATRIX, "argsort", "an array or a vector (nx1 or 1xn)");
 
 	int permutation_handle = vector_argsort_copy(interp, OBJECT_AT(VAL_DATA(collection)));
 	if (interp->error_flag) return;

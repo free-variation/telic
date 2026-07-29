@@ -207,8 +207,12 @@ new inline that calls functions → the tail.
   truth: gen-help.py (help table, automatic in make) reads both and merges
   them into one name-sorted table, so a lib word answers to help/man/apropos
   once its library is loaded; gen-editors.py (make editors) reads
-  reference.md only. Never hand-edit help_table.c, repl_highlight_groups.h,
-  editors/.
+  reference.md only. Never hand-edit a generated file: help_table.c,
+  forth-words.txt, repl_highlight_groups.h,
+  editors/vim/syntax/water.vim, editors/vscode/syntaxes/water.tmLanguage.json.
+  The rest of editors/ (vim indent/, ftplugin/, ftdetect/, and vscode's
+  package.json, language-configuration.json, README.md) has no generator and
+  is edited by hand.
 - Every built-in/embedded word gets a reference.md row; a loadable-library
   word gets a reference-libraries.md row. The words canary group
   "undocumented" must stay empty (it checks built-in/embedded words only;

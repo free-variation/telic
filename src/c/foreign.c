@@ -1,5 +1,9 @@
 #include "water.h"
+#if __has_include(<ffi.h>)
+#include <ffi.h>
+#else
 #include <ffi/ffi.h>
+#endif
 #include <dlfcn.h>
 
 #define FFI_MAX_ARGS 16

@@ -1,3 +1,0 @@
-: double 2 * ;
-: square dup * ;
-[< 1 2 3 >] [: square :] map .

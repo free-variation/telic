@@ -134,7 +134,7 @@ const HelpEntry help_entries[] = {
 	{ "apropos", "( s -- )", "Print every word whose name or reference summary contains s (case-insensitive): name, stack effect, summary per line; session-defined words match by name", "table scan", "none", "O(entries)", 29 },
 	{ "argmax", "( m -- f )", "Flat row-major index of the maximum element (first on ties)", "1 + r×c", "none", "O(r×c)", 18 },
 	{ "argmin", "( m -- f )", "Flat row-major index of the minimum element (first on ties)", "1 + r×c", "none", "O(r×c)", 18 },
-	{ "argsort", "( v -- v' ) or ( arr -- arr )", "The sorting permutation of a vector, shape preserved: element i is the source index of the i-th smallest value; ties keep index order, NaNs go last in index order; ranks are argsort twice. arrays.h2o extends it to an array: the permutation under val_cmp (structural, so mixed types order), ties keep index order, returned as a float-index array", "1 + n log n", "1m(n) + malloc(16n); array 3×1a(n) + n×1a(2)", "O(n log n); above 8k elements O(n) radix", 18 },
+	{ "argsort", "( v -- v' ) or ( arr -- arr )", "The sorting permutation of a vector, shape preserved: element i is the source index of the i-th smallest value; ties keep index order, NaNs go last in index order; ranks are argsort twice. An array operand answers the permutation under val_cmp (structural, so mixed types order), ties in index order, as a float-index array", "1 + n log n", "1m(n) + malloc(16n); array 1a(n) + malloc(4n)", "O(n log n); vectors above 8k elements O(n) radix", 18 },
 	{ "array", "( v₀ … vₙ₋₁ n -- arr )", "Gather the top n values into an array", "2 + n", "1a(n)", "O(n)", 14 },
 	{ "array-of", "( val n -- arr )", "New n-element array, every slot = val", "3 + n", "1a(n)", "O(n)", 14 },
 	{ "array>cons", "( arr -- list )", "Cons chain from an array's elements (last element becomes the tail; [ ] → null)", "n", "n−1 pairs", "O(n)", 15 },
@@ -314,7 +314,7 @@ const HelpEntry help_entries[] = {
 	{ "fit-glm", "( X y family max-iterations tolerance -- beta )", "IRLS for a family object — a frame of three stack quotations :inverse-link ( eta -- mu ), :mean-derivative ( eta -- dmu/deta ), :variance ( mu -- V ). Each step solves a weighted least squares via fit-linear. Provided families: gaussian-identity, poisson-log, gamma-log, binomial-logit", NULL, NULL, NULL, 39 },
 	{ "fit-linear", "( m y -- beta )", "Ordinary least squares via LAPACKE dgelsd; m is observations×predictors (observations ≥ predictors), y the observations×1 response, beta the predictors×1 coefficients", NULL, NULL, NULL, 37 },
 	{ "fit-logistic", "( X y max-iterations tolerance -- beta )", "Binary logistic regression by Firth-penalized IRLS (estimates stay finite under separation); X includes the intercept column, y in {0,1}", NULL, NULL, NULL, 38 },
-	{ "fit-logistic-ridge", "( X y max-iterations tolerance lambda -- beta )", "L2-penalized logistic by IRLS; lambda penalizes ‖beta‖²/2 with the intercept column unpenalized, lambda 0 the plain MLE (no Firth)", NULL, NULL, NULL, 38 },
+	{ "fit-logistic-ridge", "( X y max-iterations tolerance lambda -- beta )", "L2-penalized logistic by IRLS; lambda penalizes ‖beta‖²/2 with the intercept column unpenalized, lambda 0 the plain MLE (no Firth). Each step appends sqrt(lambda)·I rows to the weighted design and solves that least-squares system by Householder QR (dgels); a design dgels reports rank-deficient falls back to dgelsd, which answers a minimum-norm solution. The normal equations are not used: squaring the design costs about half the digits, which floors the beta step near 1e-6 at small lambda and prevents convergence at a 1e-8 tolerance", NULL, NULL, NULL, 38 },
 	{ "fit-multinomial", "( X y reference-class max-iterations tolerance -- beta )", "Multinomial (softmax) logistic by Newton–Raphson, baseline-category parametrization with reference-class as the baseline; y holds integer labels 0..K−1, beta is predictors×(K−1), one coefficient column per non-reference class. As the plain MLE it diverges under separation", NULL, NULL, NULL, 39 },
 	{ "fit-multinomial-ridge", "( X y reference-class max-iterations tolerance lambda -- beta )", "fit-multinomial with an L2 penalty λ·‖β‖²/2 on every coefficient except each class's intercept; lambda 0 is the plain MLE (what fit-multinomial calls), lambda > 0 keeps the estimate finite under separation", NULL, NULL, NULL, 39 },
 	{ "fit-poisson", "( X y max-iterations tolerance -- beta )", "Poisson regression, log link — fit-glm with poisson-log", NULL, NULL, NULL, 39 },
@@ -427,6 +427,7 @@ const HelpEntry help_entries[] = {
 	{ "n-rows", "( m/dataset -- n )", "datasets.h2o: dim drop", "6", "none", "O(1)", 18 },
 	{ "nan?", "( v -- bool ) or ( m/arr -- m )", "NaN test: 1/0 mask over a matrix's elements; an array answers an n×1 mask marking none elements (a text column's missing cells), composing with where/select-rows; 1 on null itself (a scalar NaN *is* null), 0 on any float. The only mask route to NaNs — they compare false under </>/eq", "2", "1m(r×c)", "O(1); matrix/array O(n)", 4 },
 	{ "negate", "( a -- -a )", "float or matrix (element-wise)", "2 (float)", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 1 },
+	{ "new-tests", "( -- )", "test.h2o: zero the passed and failed counters test tallies into, so the next test-report covers only the tests run after it — one file's independent groups, or a re-run suite in a session", "—", "none", "O(1)", 24 },
 	{ "nip", "( a b -- b )", "core.h2o: swap drop (inlined)", "5", "none", "O(1)", 0 },
 	{ "nip-it", "( a b -- b )", "core.h2o: nip (inlined)", "5", "none", "O(1)", 0 },
 	{ "nip-other", "( a b c -- b c )", "core.h2o: rot drop (inlined)", "7", "none", "O(1)", 0 },
@@ -573,7 +574,7 @@ const HelpEntry help_entries[] = {
 	{ "sleep", "( seconds -- )", "Block for the given float seconds (sub-second supported); nanosleep", "blocks", "none", "O(1)", 29 },
 	{ "slice!", "( arr tstart src sstart sstep slen -- arr )", "Copy slen elements src[sstart], src[sstart+sstep], … into arr[tstart…] in place", "6 + slen", "self-overlap may malloc slen", "O(slen)", 14 },
 	{ "sort", "( arr/set/v -- arr/v )", "Sorted copy: an array orders by val_cmp; a set projects its already-ordered elements to an array; an nx1 or 1xn vector sorts ascending with NaNs last (other matrix shapes error)", "1 + n log n", "1a(n) / 1m(n)", "O(n log n); vectors above 8k elements O(n) radix", 14 },
-	{ "sort-by", "( items xt -- arr )", "arrays.h2o: sorted by the key xt ( element -- key ) extracts — decorate-sort-undecorate over [ key element ] pairs, so n key evaluations", "n·xt + n log n", "3×1a(n) + n×1a(2)", "O(n·xt + n log n)", 23 },
+	{ "sort-by", "( items xt -- arr )", "arrays.h2o: sorted by the key xt ( element -- key ) extracts, one evaluation per element; the keys are argsorted and the elements gathered by that permutation, so equal keys keep index order", "n·xt + n log n", "3×1a(n) + malloc(4n)", "O(n·xt + n log n)", 23 },
 	{ "spaces", "( k -- s )", "strings.h2o: a string of k spaces (\" \" swap array-of \"\" join)", "k", "1a + 1o", "O(k)", 12 },
 	{ "split", "( s pat -- [ piece… ] )", "Split s at each non-overlapping match of pat; the pieces are the gaps between matches, empty fields kept; no match → [ s ]", "n", "1a + pieces", "O(n)", 12 },
 	{ "sq", "( a -- a² )", "float or matrix", "2 (float)", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 1 },
@@ -693,4 +694,4 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "C primitive alias of unify, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 26 },
 };
 
-const int help_entry_count = 643;
+const int help_entry_count = 644;

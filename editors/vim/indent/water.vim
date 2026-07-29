@@ -6,7 +6,7 @@ endif
 let b:did_indent = 1
 
 setlocal indentexpr=GetWaterIndent()
-setlocal indentkeys=!^F,o,O,0=then,0=else,0=until,0=again,0=repeat,0=;,0=:],0=},0=],0=>,0=)]
+setlocal indentkeys=!^F,o,O,0=then,0=else,0=until,0=again,0=repeat,0=;,0=:],0=},0=],0=>],0=)]
 setlocal nolisp nosmartindent
 
 if exists("*GetWaterIndent")
@@ -57,8 +57,8 @@ endfunction
 
 " Structure literals align continuation lines to the column of the first token
 " after the opener; control-flow and definitions indent their body one level.
-let s:bopen  = {'{': 1, '[': 1, '<': 1, '[:': 1, '[(': 1, '[|': 1, '[>': 1}
-let s:bclose = {'}': 1, ']': 1, '>': 1, ':]': 1, ')]': 1}
+let s:bopen  = {'{': 1, '[': 1, '[<': 1, '[:': 1, '[(': 1, '[|': 1, '[>': 1}
+let s:bclose = {'}': 1, ']': 1, '>]': 1, ':]': 1, ')]': 1}
 let s:cfopen = {'if': 1, '?if': 1, 'begin': 1}
 let s:cfclose = {'then': 1, 'until': 1, 'again': 1, 'repeat': 1, ';': 1}
 
