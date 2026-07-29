@@ -1,0 +1,30 @@
+\ auc ( outcomes scores -- f ), brier ( outcomes probabilities -- f ),
+\ complete-cases ( xs ys -- xs' ys' ): ROC AUC = P(a random positive scores
+\ above a random negative), ties counted half and so order-independent, NaN
+\ scores dropping their row, both classes required; Brier mean squared error,
+\ NaN-skipping; and paired complete-case filtering.
+
+\ === auc: basic ordering ===
+[ 1 1 0 ] 3 1 matrix  [ 3 1 2 ] 3 1 matrix  auc . cr        \ 0.5
+[ 1 0 ] 2 1 matrix    [ 2 1 ] 2 1 matrix    auc . cr        \ 1
+[ 1 0 ] 2 1 matrix    [ 1 2 ] 2 1 matrix    auc . cr        \ 0
+[ 0 0 1 1 ] 4 1 matrix  [ 1 2 3 4 ] 4 1 matrix  auc . cr    \ 1 (perfect)
+
+\ === auc: ties counted half; equal scores give 0.5 in any row order ===
+[ 1 0 ] 2 1 matrix      [ 2 2 ] 2 1 matrix        auc . cr  \ 0.5 (one cross-class tie)
+[ 1 1 0 0 ] 4 1 matrix  [ 5 5 5 5 ] 4 1 matrix    auc . cr  \ 0.5 (all tied)
+[ 0 1 0 1 ] 4 1 matrix  [ 5 5 5 5 ] 4 1 matrix    auc . cr  \ 0.5 (same, reordered)
+
+\ === auc: a NaN score drops its row, outcomes stay aligned ===
+[ 1 1 0 ] 3 1 matrix  [ 3 nan 2 ] 3 1 matrix  auc . cr      \ 1 (row 2 dropped -> pos{3} neg{2})
+
+\ === brier: mean squared error, NaN elements skipped ===
+[ 1 1 0 ] 3 1 matrix  [ 3 1 2 ] 3 1 matrix     brier . cr   \ 2.66667
+[ 1 0 ] 2 1 matrix    [ 0.9 0.1 ] 2 1 matrix   brier . cr   \ 0.01
+[ 1 1 0 ] 3 1 matrix  [ 0.8 nan 0.2 ] 3 1 matrix brier . cr \ 0.04 (NaN skipped)
+
+\ === complete-cases: drop paired NaN rows, aligned ===
+[ 1 nan 2 ] 3 1 matrix  [ 4 5 6 ] 3 1 matrix  complete-cases . cr . cr
+
+\ === errors (reason parenthesized) ===
+[ 1 1 ] 2 1 matrix  [ 3 1 ] 2 1 matrix  auc                 \ (single class: no negative)

@@ -95,6 +95,7 @@ as-column
 asin
 assert
 atan
+auc
 augment
 axes
 barchart
@@ -114,6 +115,7 @@ boxplot
 boxplot-plot
 boxplots
 boxplots-plot
+brier
 bulk-load
 bye
 byte-size
@@ -136,6 +138,7 @@ column-type
 column>array
 column>indicators
 column>set
+complete-cases
 concat
 cons
 cons>array

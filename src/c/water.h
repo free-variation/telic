@@ -575,6 +575,7 @@ typedef struct {
 	int n_handlers;
 	char *loaded_files[MAX_LOADED_FILES];
 	int n_loaded_files, load_depth;
+	const char *current_load_dir;
 	int error_located;
 
 	int anaphor_slots;

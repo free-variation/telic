@@ -69,3 +69,5 @@ water.wasm
 # transient benchmark run reports / logs
 bench/results/
 *__pycache_*
+
+images-*

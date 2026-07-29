@@ -145,6 +145,7 @@ const HelpEntry help_entries[] = {
 	{ "asin", "( a -- asin a )", "inverse sine", "2", "matrix 1m(r×c)", "same", 3 },
 	{ "assert", "( rel row -- rel )", "Add row to :rows and to each indexed column's bucket; identical row is a no-op. Mutates rel in place, returns it", "k + n", "reallocs", "O(n)", 27 },
 	{ "atan", "( a -- atan a )", "inverse tangent", "2", "matrix 1m(r×c)", "same", 3 },
+	{ "auc", "( outcomes scores -- f )", "statistics.h2o: area under the ROC curve = P(a random positive scores above a random negative), ties counted half (Mann–Whitney). outcomes n×1 in {0,1}, scores real; a NaN score drops its row (outcomes stay aligned); throws if either class is absent. Ties are handled exactly, so the result is independent of row order", "n_pos·n_neg", "index vectors + per-positive masks", "O(n_pos·n_neg)", 18 },
 	{ "augment", "( a b -- m )", "Concatenate two matrices column-wise; errors unless row counts match", "2 + r·c", "1m(r×c)", "O(r·c)", 18 },
 	{ "axes", "( -- )", "Plot-area border plus labeled x and y ticks, laid out at render time; tick labels use the aes :tick-format string (default {0:g} — whole numbers as integers, no forced scientific notation); an axis marked categorical (:x-categorical/:y-categorical, set by barchart/y-categories) shows no numeric ticks", NULL, NULL, NULL, 41 },
 	{ "barchart", "( heights labels -- )", "Vertical bars on a categorical x axis, one per height from the y=0 baseline; labels a parallel array of category strings; pins the domain and sets :x-categorical so axes/panel drop the numeric x-ticks; aes :bar-fill :bar-stroke", NULL, NULL, NULL, 41 },
@@ -164,6 +165,7 @@ const HelpEntry help_entries[] = {
 	{ "boxplot-plot", "( data -- svg )", "Complete single boxplot, rendered", NULL, NULL, NULL, 41 },
 	{ "boxplots", "( arrays labels -- )", "Side-by-side boxplots on a shared y axis, one per vector; labels a parallel array of category strings; pins the domain", NULL, NULL, NULL, 41 },
 	{ "boxplots-plot", "( arrays labels -- svg )", "Complete side-by-side boxplots, rendered", NULL, NULL, NULL, 41 },
+	{ "brier", "( outcomes probabilities -- f )", "statistics.h2o: Brier score — mean of (probability − outcome)² over n×1 vectors; NaN elements are skipped by mean", "3n", "2m(n)", "O(n)", 18 },
 	{ "bulk-load", "( rel rows-array -- rel )", "Load all rows at once: builds :rows (a deduped set) and each declared column's index, instead of row-by-row", "—", "sets + frame", "O(n log n)", 27 },
 	{ "bye", "( -- )", "exit(0)", "—", "—", "—", 29 },
 	{ "byte-size", "( s -- n )", "Byte length of a string", "2", "none", "O(1)", 13 },
@@ -186,6 +188,7 @@ const HelpEntry help_entries[] = {
 	{ "column>array", "( column -- arr )", "datasets.h2o: a column in any representation as an array of its values — arrays pass through unchanged, matrix/quantity columns go through matrix>array (NaN → null, dimensioned elements become quantities)", "n", "1a(n) for matrix columns, none for arrays", "O(n)", 22 },
 	{ "column>indicators", "( column -- m )", "statistics.h2o: one 0/1 indicator column per distinct value above the first (the reference) — an n×(k−1) matrix from a numeric vector or text array column, levels in val_cmp order (column>set lists them); a missing cell lands in no column; errors on fewer than 2 distinct values", "n·k + n log n", "level masks + 1m per fold", "O(n·k + n log n)", 18 },
 	{ "column>set", "( column -- set )", "datasets.h2o: the set of the column's distinct values — column>array array>set", "2n log n", "1a(n) + 1o", "O(n log n)", 22 },
+	{ "complete-cases", "( xs ys -- xs' ys' )", "statistics.h2o: drop the paired rows where either vector is NaN, keeping the two aligned and returned as n×1; magnitudes are taken, so dimensioned inputs come back unitless", "4n", "index vector + 2 gathers", "O(n)", 18 },
 	{ "concat", "( arr/set arr/set -- arr )", "Concatenated copy", "2 + m + n", "1a(m+n)", "O(m+n)", 14 },
 	{ "cons", "( head tail -- pair )", "Build a cons cell", "2", "1 pair", "O(1)", 15 },
 	{ "cons>array", "( list -- arr )", "Walk a cons chain into an array, **dereferencing** the spine and each element and including the terminal (works on relational results)", "n", "1a(n)", "O(n)", 15 },
@@ -385,7 +388,7 @@ const HelpEntry help_entries[] = {
 	{ "legend", "( labels colors -- )", "Color key in a strip reserved to the right of the plot area (the plot narrows to fit); one row per label with a filled swatch, labels/colors equal-length parallel arrays; pixel-space, label text in :ink", NULL, NULL, NULL, 41 },
 	{ "linear-regression", "( dataset predictors response replications -- summaries )", "OLS with nonparametric bootstrap inference: a { :estimate :se :bias :ci-low :ci-high } frame per coefficient over replications refits", NULL, NULL, NULL, 38 },
 	{ "ln", "( a -- ln a )", "log — natural log", "2", "matrix 1m(r×c)", "same", 3 },
-	{ "load", "( s -- )", "Run a source file as if typed; record it for reload. An error raised while loading is prefixed file:line:  (the line of the failing token); a nested load locates to the innermost file", "file read + run", "input buffer", "O(file)", 30 },
+	{ "load", "( s -- )", "Run a source file as if typed; record it for reload. Resolves the path as given (relative to the current directory, or absolute); if that open fails, retries relative to the directory of the file that ran the load. An error raised while loading is prefixed file:line:  (the line of the failing token); a nested load locates to the innermost file", "file read + run", "input buffer", "O(file)", 30 },
 	{ "load-bag", "( rel rows-array -- rel )", "Like bulk-load, but :rows stays a **bag** (the array, duplicates kept) rather than a deduped set; only :index is built", "n", "frame + sets", "O(n)", 27 },
 	{ "load-image", "( s -- )", "Restore a binary snapshot, replacing current state", "deserialize all", "reallocates all objects", "O(objects)", 30 },
 	{ "load-library", "( name -- )", "core.h2o: load lib/<name> from beside the water binary (binary-dir), so \"plot\" load-library works from any cwd; a name without .h2o gains it", "file read + run", "input buffer", "O(file)", 30 },
@@ -690,4 +693,4 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "C primitive alias of unify, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 26 },
 };
 
-const int help_entry_count = 640;
+const int help_entry_count = 643;

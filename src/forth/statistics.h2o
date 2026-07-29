@@ -250,7 +250,7 @@
 	ys magnitude as-column to ys
 	xs nan? ys nan? + 0 eq where to keep
 	xs keep select-rows
-	ys keep select-rows ; internal
+	ys keep select-rows ;
 
 ( xs ys -- r ) \ Pearson correlation coefficient over the complete pairs
 : correlation-pearson
@@ -271,6 +271,25 @@
 
 ( xs ys -- rho ) \ Spearman rank correlation: pearson on the ranks of the complete pairs
 : correlation-spearman complete-cases ranks swap ranks correlation-pearson ; inline
+
+( outcomes scores -- f ) \ area under the ROC curve: P(a random positive scores above a random
+\ negative), ties counted half. outcomes n×1 in {0,1}, scores n×1 real; a NaN score drops its
+\ row (outcomes stay aligned); both classes must be present
+: auc
+	| >outcomes >scores positives negatives |
+	outcomes scores complete-cases to scores to outcomes
+	outcomes 0.5 > where scores swap select-rows to positives
+	outcomes 0.5 < where scores swap select-rows to negatives
+	positives num-elements 0 = negatives num-elements 0 = or if
+		"auc: both a positive and a negative outcome required" throw then
+	positives matrix>array [> positive-score |
+		negatives positive-score < sum  negatives positive-score <= sum + :]
+	map vector sum
+	0.5 *  positives num-elements negatives num-elements * / ;
+
+( outcomes probabilities -- f ) \ Brier score: mean squared error of probabilities against 0/1
+\ outcomes; NaN elements are skipped by mean
+: brier |> outcomes probabilities | probabilities outcomes - dup * mean ;
 
 ( tail-deviate -- z ) \ qnorm tail expansion at sqrt(-2 ln p); signed for the lower tail
 : qnorm-tail

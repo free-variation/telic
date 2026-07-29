@@ -297,24 +297,49 @@ dedicated `read` ( s -- v ) word is wanted.
 
 ## Guaranteed cleanup across every exit
 
-**`dynamic-wind`** — a `before body after` whose `after` runs on every exit
-from the region — normal, throw/interpreter error, `fail` backtrack, `shift`
-capture — and whose `before` re-runs on `resume` re-entry. No `catch`-style
-wrapper can provide this: a `fail` unwinds to the nearest *choice* prompt,
-past `catch`'s *exception* prompt, and a region re-entered by `resume` needs
-setup per entry, not a once-only handler. Without it, a `db`/stream/FFI
-handle — a registry slot with no GC finalization — leaks on a backtrack past
-its close until the process ends.
+**`dynamic-wind ( before body after -- )`** runs `before`, then `body`, then
+`after`, where `after` runs on every exit from `body` and `before` re-runs on
+every re-entry. No `catch`-style wrapper gives this: a `fail` unwinds to the
+nearest choice prompt, past `catch`'s exception prompt, and a region re-entered
+by `resume` needs its setup run per entry, not once. Without it a `db`/stream/FFI
+handle — a registry slot with no GC finalization — leaks when a backtrack or a
+resumed continuation unwinds past its close.
 
-The mechanism: a *wind mark* — a return-stack mark, kin to `reset`'s, carrying
-the before/after thunks, recognized by both unwind cascades in the inner loop
-(exception and choice prompts) and by `resume`'s splice so re-entry re-runs
-`before`.
+Semantics:
 
-To settle: whether `after` firing once per failed alternative of a multi-shot
-region is intended or unwanted; how a wind mark interleaves with
-the locals-frame and trail rewind the unwind carries; whether
-`before`/`after` observe the region's data stack or run isolated.
+- `after` runs on normal return, `throw`, an interpreter error caught by `catch`,
+  a `fail` backtrack, and a `shift` capture; when nested regions unwind together,
+  the innermost `after` runs first.
+- `before` runs on the initial call and on every `resume` re-entry, outermost
+  first. `resume` may run the pair repeatedly (multi-shot); that is intended.
+- `before` and `after` run on the region's live data stack.
+- On an unwind, `after` runs with locals and the trail already rewound to just
+  outside its region.
+
+Mechanism — a wind mark. `dynamic-wind` runs `before`, then pushes three
+return-stack cells (the `after` xt, the `before` xt, and a mark of a new wind
+kind — the mark's kind field widens from one bit to two), and increments a
+`wind_depth` counter. On a normal `body` return it runs `after`, pops the three
+cells, and decrements the counter. Abnormal exits are handled where the unwind
+happens:
+
+- `unwind_to` (used by `throw`, `fail`, `shift-with`, and the `catch` path) today
+  truncates the return stack to the target prompt in one assignment. When
+  `wind_depth` is zero it still does exactly that. When it is nonzero it walks
+  from `rsp` down to the target and, at each wind mark, rewinds locals and the
+  trail to that level and runs its `after`. Running `after` re-enters the
+  interpreter, so `unwinding` and `unwind_target` are saved and restored around
+  each call.
+- `shift` truncates directly rather than through `unwind_to`; it walks the slice
+  it is about to capture and runs each `after`, innermost first. The wind marks
+  stay in the captured slice, so both xts travel with the continuation.
+- `resume`, after splicing the captured slice back, walks it and runs each
+  `before`, outermost first, before jumping to the resume point.
+
+Performance: the per-instruction path — dispatch, calls, `exit`, `tailcall` — is
+untouched. The one unconditional addition is the `if (wind_depth == 0)` test in
+`unwind_to`; with no wind region on the stack, `throw`/`fail`/`shift` keep their
+current one-assignment cost. The frame walk runs only while a region is live.
 
 ---
 

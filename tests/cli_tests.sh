@@ -138,6 +138,16 @@ case "$out" in
 esac
 rm -f "$img" "$trunc"
 
+# `load` resolves the path as given, then falls back to the loading file's own
+# directory; an unresolved path still reports the original name.
+lfdir=$(mktemp -d "${TMPDIR:-/tmp}/lf_dir.XXXXXX")
+printf ': from-sibling 42 ;\n' > "$lfdir/sib.h2o"
+printf '"sib.h2o" load  from-sibling . cr\n' > "$lfdir/main.h2o"
+exact "load falls back to the loading file's directory"  ''  "42 "  0  "$lfdir/main.h2o"
+printf '"nope.h2o" load\n' > "$lfdir/bad.h2o"
+has   "unresolved load reports the original name"  ''  "cannot open nope.h2o"  1  "$lfdir/bad.h2o"
+rm -rf "$lfdir"
+
 # --arena overrides the reservation (gigabytes, optional g suffix)
 exact "--arena accepts a size"      '2 3 + . cr'  "5 "  0 -b --arena 2g
 has   "--arena needs a value"       ''  "needs a size"   2 --arena

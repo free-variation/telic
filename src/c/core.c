@@ -3192,7 +3192,16 @@ void record_loaded_file(Interpreter *interp, const char *filename) {
 }
 
 void load_file(Interpreter *interp, const char *filename) {
+	char resolved_path[PATH_MAX];
+	const char *resolved = filename;
+
 	FILE *file = fopen(filename, "r");
+	if (!file && filename[0] != '/' && compiler.current_load_dir) {
+		snprintf(resolved_path, sizeof resolved_path, "%s/%s", compiler.current_load_dir, filename);
+		file = fopen(resolved_path, "r");
+		if (file)
+			resolved = resolved_path;
+	}
 	if (!file) {
 		fail(interp, "cannot open %s", filename);
 		return;
@@ -3203,7 +3212,7 @@ void load_file(Interpreter *interp, const char *filename) {
 	fseek(file, 0, SEEK_SET);
 	if (file_size < 0 || file_size >= INPUT_BUFFER_SIZE) {
 		fail(interp, "%s too large or invalid (%ld bytes, max %d)",
-				filename, file_size, INPUT_BUFFER_SIZE - 1);
+				resolved, file_size, INPUT_BUFFER_SIZE - 1);
 		fclose(file);
 		return;
 	}
@@ -3221,11 +3230,25 @@ void load_file(Interpreter *interp, const char *filename) {
 	compiler.input_buffer_pos = 0;
 	compiler.need_more = 0;
 
+	char resolved_dir[PATH_MAX];
+	const char *last_slash = strrchr(resolved, '/');
+	if (last_slash) {
+		size_t dir_len = (size_t)(last_slash - resolved);
+		memcpy(resolved_dir, resolved, dir_len);
+		resolved_dir[dir_len] = 0;
+	} else {
+		resolved_dir[0] = '.';
+		resolved_dir[1] = 0;
+	}
+
 	int saved_unit = current_unit;
 	current_unit = next_unit++;
+	const char *saved_load_dir = compiler.current_load_dir;
+	compiler.current_load_dir = resolved_dir;
 	compiler.load_depth++;
 	run_outer(interp);
 	compiler.load_depth--;
+	compiler.current_load_dir = saved_load_dir;
 	current_unit = saved_unit;
 
 	if (!interp->error_flag && compiler.need_more) {
@@ -3243,7 +3266,7 @@ void load_file(Interpreter *interp, const char *filename) {
 				if (compiler.input_buffer[i] == '\n')
 					line++;
 			char located[sizeof interp->error_message];
-			snprintf(located, sizeof located, "%s:%d: %s", filename, line, interp->error_message);
+			snprintf(located, sizeof located, "%s:%d: %s", resolved, line, interp->error_message);
 			memcpy(interp->error_message, located, sizeof interp->error_message);
 			compiler.error_located = 1;
 		}
