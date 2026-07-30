@@ -1,0 +1,43 @@
+\ binary-trees — Computer Language Benchmarks Game.
+\ Allocation / GC stress: build and traverse many short-lived binary trees as
+\ cons pairs. A tree of depth d is cons(make(d-1), make(d-1)); depth 0 is a
+\ leaf (null). tree-check counts nodes: 1 + check(left) + check(right), leaf 1.
+\ The checksum aggregates the stretch tree, the long-lived tree, and every
+\ per-depth batch, matching pyperf_binary_trees.py.
+
+16 constant max-depth
+4 constant min-depth
+
+: make-tree ( depth -- tree )
+  dup 0= if drop null
+  else 1- dup recurse swap recurse cons then ;
+
+: tree-check ( tree -- n )
+  dup none? if drop 1
+  else head-tail recurse swap recurse + 1+ then ;
+
+: run-trees ( -- checksum )
+  | total d iterations sum i |
+  0 to total
+  max-depth 1+ make-tree tree-check total + to total
+  max-depth make-tree tree-check total + to total
+  min-depth to d
+  begin d max-depth <= while
+    1 max-depth d - min-depth + lshift to iterations
+    0 to sum
+    0 to i
+    begin i iterations < while
+      d make-tree tree-check sum + to sum
+      i 1+ to i
+    repeat
+    sum total + to total
+    d 2 + to d
+  repeat
+  total ;
+
+now to t0
+run-trees to checksum
+now t0 - to elapsed
+"elapsed: " . elapsed . " s" . cr
+"checksum: " . checksum . cr
+bye

@@ -1175,6 +1175,7 @@ void p_mul_f(DISPATCH_ARGS);
 void p_mul_inplace(DISPATCH_ARGS);
 void p_nan(DISPATCH_ARGS);
 void p_neg(DISPATCH_ARGS);
+void p_none(DISPATCH_ARGS);
 void p_not(DISPATCH_ARGS);
 void p_null(DISPATCH_ARGS);
 void p_or(DISPATCH_ARGS);

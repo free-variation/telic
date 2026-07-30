@@ -25,7 +25,6 @@
 : db? type-of :db = ; inline
 : ptr? type-of :ptr = ; inline
 : segment? type-of :segment = ; inline
-: none? type-of :none = ; inline
 : wildcard? type-of :wildcard = ; inline
 : lvar? type-of :lvar = ; inline
 

@@ -47,6 +47,8 @@ spectral_loops=50
 scimark_lu_cycles=100
 nqueens_n=8
 fannkuch_n=9
+binarytrees_depth=16
+mandelbrot_n=1000
 scimark_sor_loops=100
 scimark_sparse_cycles=500
 fft_loops=5
@@ -112,6 +114,9 @@ h2o_leibniz_parallel() { "$bin" < "$here/variants/leibniz-parallel.h2o"; }
 h2o_nqueens()  { "$bin" < "$here/pyperformance/nqueens.h2o"; }
 h2o_nqueens_iter() { "$bin" < "$here/variants/nqueens-iter.h2o"; }
 h2o_fannkuch() { "$bin" < "$here/pyperformance/fannkuch.h2o"; }
+h2o_binarytrees() { "$bin" < "$here/pyperformance/binary-trees.h2o"; }
+h2o_mandelbrot() { "$bin" < "$here/pyperformance/mandelbrot.h2o"; }
+h2o_mandelbrot_par() { "$bin" < "$here/variants/mandelbrot-parallel.h2o"; }
 h2o_nbody()    { "$bin" < "$here/pyperformance/nbody.h2o"; }
 h2o_raytrace() { "$bin" < "$here/pyperformance/raytrace.h2o"; }
 h2o_raytrace_par() { "$bin" < "$here/variants/raytrace-parallel.h2o"; }
@@ -139,6 +144,8 @@ h2o_json_dumps() { "$bin" < "$here/pyperformance/json-dumps.h2o"; }
 # --- python command wrappers -----------------------------------------------
 py_nqueens()  { "$python" "$here/pyperformance/pyperf_nqueens.py" "$nqueens_n"; }
 py_fannkuch() { "$python" "$here/pyperformance/pyperf_fannkuch.py" "$fannkuch_n"; }
+py_binarytrees() { "$python" "$here/pyperformance/pyperf_binary_trees.py" "$binarytrees_depth"; }
+py_mandelbrot() { "$python" "$here/pyperformance/pyperf_mandelbrot.py" "$mandelbrot_n"; }
 py_nbody()    { "$python" "$here/pyperformance/pyperf_nbody.py" "$nbody_steps"; }
 py_raytrace() { "$python" "$here/pyperformance/pyperf_raytrace.py" "$raytrace_loops"; }
 py_float()    { "$python" "$here/pyperformance/pyperf_float.py" "$float_points" "$float_repeat"; }
@@ -224,6 +231,15 @@ run_reps crypto_py py_crypto "$reps_py"
 log "== fannkuch =="
 run_reps fannkuch_h2o h2o_fannkuch "$reps"
 run_reps fannkuch_py py_fannkuch "$reps_py"
+
+log "== binary-trees =="
+run_reps binarytrees_h2o h2o_binarytrees "$reps"
+run_reps binarytrees_py py_binarytrees "$reps_py"
+
+log "== mandelbrot =="
+run_reps mandelbrot_h2o h2o_mandelbrot "$reps"
+run_reps mandelbrot_par_h2o h2o_mandelbrot_par "$reps"
+run_reps mandelbrot_py py_mandelbrot "$reps_py"
 
 log "== spectral-norm =="
 run_reps spectral_h2o h2o_spectral "$reps"
@@ -351,6 +367,9 @@ row "raytrace-parallel" "${raytrace_loops}× 100×100, pmap" raytrace_par_h2o "$
 row "float" "${float_points} pts × ${float_repeat}" float_h2o "$(median_elapsed float_py)"
 row "crypto-pyaes" "8192 B, ${crypto_loops}× enc+dec" crypto_h2o "$(median_elapsed crypto_py)"
 row "fannkuch" "N = $fannkuch_n" fannkuch_h2o "$(median_elapsed fannkuch_py)"
+row "binary-trees" "depth ${binarytrees_depth}" binarytrees_h2o "$(median_elapsed binarytrees_py)"
+row "mandelbrot" "N = ${mandelbrot_n}" mandelbrot_h2o "$(median_elapsed mandelbrot_py)"
+row "mandelbrot-parallel" "N = ${mandelbrot_n}, pmap" mandelbrot_par_h2o "$(median_elapsed mandelbrot_py)"
 row "spectral-norm" "N = 130, ${spectral_loops}×" spectral_h2o "$(median_elapsed spectral_py)"
 row "spectral-norm-matrix" "N = 130, 150×" spectral_matrix_h2o "$(median_elapsed spectral_py)"
 row "scimark-lu" "N=100, ${scimark_lu_cycles}×" scimark_lu_h2o "$(median_elapsed scimark_lu_py)"
@@ -393,6 +412,9 @@ emit "| raytrace-parallel | $(result_line raytrace_par_h2o 'checksum') | $(resul
 emit "| float | $(result_line float_h2o 'result:') | $(result_line float_py 'result:') |"
 emit "| crypto-pyaes | $(result_line crypto_h2o 'checksum:') | $(result_line crypto_py 'checksum:') |"
 emit "| fannkuch | $(result_line fannkuch_h2o 'max flips') | $(result_line fannkuch_py 'max flips') |"
+emit "| binary-trees | $(result_line binarytrees_h2o 'checksum:') | $(result_line binarytrees_py 'checksum:') |"
+emit "| mandelbrot | $(result_line mandelbrot_h2o 'checksum:') | $(result_line mandelbrot_py 'checksum:') |"
+emit "| mandelbrot-parallel | $(result_line mandelbrot_par_h2o 'checksum:') | $(result_line mandelbrot_py 'checksum:') |"
 emit "| spectral-norm | $(result_line spectral_h2o 'estimate') | $(result_line spectral_py 'estimate') |"
 emit "| scimark-lu | $(result_line scimark_lu_h2o 'checksum') | $(result_line scimark_lu_py 'checksum') |"
 emit "| scimark-sparse | $(result_line scimark_sparse_h2o 'checksum') | $(result_line scimark_sparse_py 'checksum') |"

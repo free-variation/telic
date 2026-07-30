@@ -746,6 +746,18 @@ void p_type_of(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
 
+void p_none(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+
+	Val value = chain_sp[-1];
+	if (VAL_TAG(value) == T_LOGIC_VAR)
+		value = deref(interp, value);
+
+	chain_sp[-1] = make_bool(VAL_TAG(value) == T_NONE);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
+
 void p_dup(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);

@@ -434,7 +434,7 @@ const HelpEntry help_entries[] = {
 	{ "nip-that", "( a b c -- b c )", "core.h2o: nip-other (inlined)", "7", "none", "O(1)", 0 },
 	{ "nip-them", "( a b c -- c )", "core.h2o: nip nip (inlined)", "10", "none", "O(1)", 0 },
 	{ "nip-this", "( a b -- b )", "core.h2o: nip (inlined)", "5", "none", "O(1)", 0 },
-	{ "none?", "( a -- bool )", "core.h2o: type-of :none = (inlined)", "5", "none", "O(1)", 4 },
+	{ "none?", "( a -- bool )", "True when the value is the none value (null) — a single T_NONE tag test; a bound logic var reports as its value", "2", "none", "O(1)", 4 },
 	{ "nonmissing-count", "( m -- n )", "The number of non-NaN elements — the divisor mean and se use", "1 + n", "none", "O(n)", 18 },
 	{ "norm", "( m -- f )", "Euclidean (L2) norm: √(Σ aᵢⱼ²) over all elements — a vector's length; for a matrix the Frobenius (entrywise 2-)norm, not the spectral norm", "1 + n", "none", "O(n)", 18 },
 	{ "not", "( a -- bool )", "logical not of truthiness", "2", "none", "O(1)", 4 },

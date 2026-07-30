@@ -1,0 +1,43 @@
+\ mandelbrot — Computer Language Benchmarks Game.
+\ Escape-time over an N x N grid: c = (2x/N - 1.5) + (2y/N - 1)i, iterate
+\ z = z^2 + c up to max-iter times, escaping when |z|^2 > 4. Embarrassingly
+\ parallel and branchy (data-dependent iteration count). The checksum is the
+\ count of in-set pixels (those that never escape), matching pyperf_mandelbrot.py.
+
+1000 constant n
+50 constant max-iter
+
+: in-set? ( cr ci -- flag )
+  | >cr >ci zr zi zr2 zi2 iter |
+  0.0 to zr  0.0 to zi  0 to iter
+  begin iter max-iter < while
+    zr zr f* to zr2
+    zi zi f* to zi2
+    zr2 zi2 f+ 4.0 f> if leave then
+    zr zi f* 2.0 f* ci f+ to zi
+    zr2 zi2 f- cr f+ to zr
+    iter 1+ to iter
+  repeat
+  iter max-iter >= ;
+
+: run-mandelbrot ( -- count )
+  | count x y cr ci |
+  0 to count  0 to y
+  begin y n < while
+    0 to x
+    begin x n < while
+      x 2.0 f* n f/ 1.5 f- to cr
+      y 2.0 f* n f/ 1.0 f- to ci
+      cr ci in-set? if count 1+ to count then
+      x 1+ to x
+    repeat
+    y 1+ to y
+  repeat
+  count ;
+
+now to t0
+run-mandelbrot to checksum
+now t0 - to elapsed
+"elapsed: " . elapsed . " s" . cr
+"checksum: " . checksum . cr
+bye

@@ -1,0 +1,39 @@
+\ mandelbrot, matrix — vectorized variant of pyperformance/mandelbrot.h2o.
+\ Every pixel's z is iterated at once as an N x N matrix: element-wise *, +, -,
+\ and a > mask replace the scalar per-pixel loop, so the matrix kernels' SIMD
+\ does the work. There is no per-pixel early exit — all max-iter iterations run
+\ for every pixel and `escaped` accumulates the escape mask; a pixel is in-set
+\ iff it never escaped (escaped = 0), giving the same count as the serial version.
+\ CR[y,x] = 2x/N - 1.5 and CI[y,x] = 2y/N - 1 are built as rank-1 outer products.
+
+1000 constant n
+50 constant max-iter
+
+variable cr  variable ci  variable zr  variable zi  variable escaped
+
+: setup
+  | ones-col ones-row cr-row ci-col |
+  1.0 n array-of vector to ones-col
+  1.0 n array-of 1 n matrix to ones-row
+  0.0 n 1.0 f- 1.0 matrix-range 2.0 * n / 1.5 - to cr-row
+  0.0 n 1.0 f- 1.0 matrix-range n 1 reshape 2.0 * n / 1.0 - to ci-col
+  1.0 ones-col cr-row 0.0 n n 0-matrix dgemm-nn to cr
+  1.0 ci-col ones-row 0.0 n n 0-matrix dgemm-nn to ci
+  n n 0-matrix to zr  n n 0-matrix to zi  n n 0-matrix to escaped ;
+
+: step
+  | zr2 zi2 |
+  zr zr * to zr2
+  zi zi * to zi2
+  escaped  zr2 zi2 + 4.0 >  +! drop
+  zi zr *! 2.0 *! ci +! drop
+  zr2 zi2 -! cr +! to zr ;
+
+setup
+now to t0
+[: step :] max-iter times
+escaped 0.0 eq sum to checksum
+now t0 - to elapsed
+"elapsed: " . elapsed . " s" . cr
+"checksum: " . checksum . cr
+bye

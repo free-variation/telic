@@ -227,7 +227,7 @@ Result is `1.0` (true) or `0.0` (false), with a float fast path. `=` uses `val_c
 | `db?` | `( a -- bool )` | core.h2o: `type-of :db =` (inlined) | 5 | none | O(1) |
 | `ptr?` | `( a -- bool )` | core.h2o: `type-of :ptr =` (inlined) | 5 | none | O(1) |
 | `segment?` | `( a -- bool )` | core.h2o: `type-of :segment =` (inlined) | 5 | none | O(1) |
-| `none?` | `( a -- bool )` | core.h2o: `type-of :none =` (inlined) | 5 | none | O(1) |
+| `none?` | `( a -- bool )` | True when the value is the none value (`null`) — a single `T_NONE` tag test; a bound logic var reports as its value | 2 | none | O(1) |
 | `wildcard?` | `( a -- bool )` | core.h2o: `type-of :wildcard =` (inlined) | 5 | none | O(1) |
 | `lvar?` | `( a -- bool )` | core.h2o: `type-of :lvar =` (inlined) | 5 | none | O(1) |
 | `and` | `( a b -- bool )` | logical and of truthiness | 3 | none | O(1) |

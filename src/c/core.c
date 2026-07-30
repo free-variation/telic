@@ -4385,6 +4385,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "or", p_or, 0);
 	define_primitive(interp, "not", p_not, 0);
 	define_primitive(interp, "null", p_null, 0);
+	define_primitive(interp, "none?", p_none, 0);
 	define_primitive(interp, "type-of", p_type_of, 0);
 
 	type_of_intern_names(interp);

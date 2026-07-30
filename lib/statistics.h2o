@@ -308,9 +308,31 @@ dup "LAPACKE_dpotrs" [
 : pcv-logistic-ridge  ' pmap cv-logistic-ridge-with ;
 
 
-( -- path ) \ XGBOOST_LIB if set, else the default homebrew install path
+( -- [paths] ) \ libxgboost install locations on macOS, preference order
+: mac-xgboost-libs
+	[ "/opt/homebrew/lib/libxgboost.dylib" "/usr/local/lib/libxgboost.dylib" ] ; internal
+
+( -- [paths] ) \ libxgboost install locations on Linux, preference order; the
+\ distro runtime package ships only the versioned soname (the unversioned
+\ symlink belongs to its -dev package), so both names appear
+: linux-xgboost-libs
+	[ "/usr/local/lib/libxgboost.so" "/usr/lib/libxgboost.so"
+	  "/usr/lib/x86_64-linux-gnu/libxgboost.so"
+	  "/usr/lib/x86_64-linux-gnu/libxgboost.so.0"
+	  "/usr/lib/aarch64-linux-gnu/libxgboost.so"
+	  "/usr/lib/aarch64-linux-gnu/libxgboost.so.0" ] ; internal
+
+( -- path ) \ XGBOOST_LIB if set, else the first install location present, else
+\ the bare soname, leaving the search to the loader's own path
 : xgb-lib-path
-	"XGBOOST_LIB" env dup none? if drop "/opt/homebrew/lib/libxgboost.dylib" then ; internal
+	"XGBOOST_LIB" env dup none? not if
+		exit
+	then drop
+
+	mac-xgboost-libs linux-xgboost-libs concat [: file-exists? :] find-first
+	dup none? if
+		drop "libxgboost.so"
+	then ; internal
 
 xgb-lib-path ffi-open
 dup "XGDMatrixCreateFromDense"      [ :string :string :ptr ]          :int    ffi-function (xgd-from-dense)

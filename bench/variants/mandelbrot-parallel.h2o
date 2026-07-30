@@ -1,0 +1,37 @@
+\ mandelbrot, parallel — pmap-reduce variant of pyperformance/mandelbrot.h2o.
+\ Rows are independent, so each row's in-set pixel count is computed on a worker
+\ (num-cores workers over the shared heap) and the counts are summed. The sum is
+\ order-independent, so the checksum is identical to the serial version.
+
+1000 constant n
+50 constant max-iter
+
+: in-set? ( cr ci -- flag )
+  | >cr >ci zr zi zr2 zi2 iter |
+  0.0 to zr  0.0 to zi  0 to iter
+  begin iter max-iter < while
+    zr zr f* to zr2
+    zi zi f* to zi2
+    zr2 zi2 f+ 4.0 f> if leave then
+    zr zi f* 2.0 f* ci f+ to zi
+    zr2 zi2 f- cr f+ to zr
+    iter 1+ to iter
+  repeat
+  iter max-iter >= ;
+
+: render-row ( y -- count )
+  | >y ci count x |
+  y 2.0 f* n f/ 1.0 f- to ci
+  0.0 to count  0 to x
+  begin x n < while
+    x 2.0 f* n f/ 1.5 f- ci in-set? if count 1+ to count then
+    x 1+ to x
+  repeat
+  count ;
+
+now to t0
+n iota 0.0 ' render-row [: f+ :] pmap-reduce to checksum
+now t0 - to elapsed
+"elapsed: " . elapsed . " s" . cr
+"checksum: " . checksum . cr
+bye
