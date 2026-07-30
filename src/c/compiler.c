@@ -1026,6 +1026,10 @@ void p_to(DISPATCH_ARGS) {
 			compiler.local_stored[compiler.found_local_name_idx] = 1;
 			if (try_fuse_local_acc(interp, local_depth, local_slot_idx))
 				return;
+			if (try_fuse_local_arith_store(interp, local_depth, local_slot_idx))
+				return;
+			if (try_fuse_stack_local_store(interp, local_depth, local_slot_idx))
+				return;
 			if (local_depth == 0) {
 				emit_call(interp, vocab.local_store_0depth_cfa);
 				emit(interp, (cell)local_slot_idx);

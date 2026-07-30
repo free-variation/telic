@@ -1,7 +1,7 @@
 #ifndef WATER_H
 #define WATER_H
 
-#define VERSION "0.24.2"
+#define VERSION "0.24.3"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -936,6 +936,8 @@ int try_fuse_at_i_local(Interpreter *interp);
 int try_fuse_at_i_swap_local(Interpreter *interp);
 int try_fuse_gather_local(Interpreter *interp);
 int try_fuse_local_acc(Interpreter *interp, int depth, int slot);
+int try_fuse_local_arith_store(Interpreter *interp, int depth, int slot);
+int try_fuse_stack_local_store(Interpreter *interp, int depth, int slot);
 int try_fuse_local_arith(Interpreter *interp, cfa_handler op_handler);
 int val_cmp(Interpreter *interp, Val left, Val right);
 Interpreter *worker_init(int worker_index);
