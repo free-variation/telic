@@ -248,6 +248,10 @@ void p_store_e_lll0(DISPATCH_ARGS) {
 STORE_IJ_OP(p_store_ij, 3)
 STORE_IJ_OP(p_store_ij_drop, 4)
 
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC push_options
+#pragma GCC optimize ("-fassociative-math", "-fno-signed-zeros", "-fno-trapping-math")
+#endif
 int dgemm_kernel(Interpreter *interp, int transpose_a, int transpose_b,
 		double alpha,
 		int a_handle, int b_handle,
@@ -303,7 +307,9 @@ int dgemm_kernel(Interpreter *interp, int transpose_a, int transpose_b,
 			}
 		}
 	} else if (!transpose_a && transpose_b) {
+#if defined(__clang__)
 #pragma clang fp reassociate(on)
+#endif
 		const double * restrict a_elements = A->matrix.elements;
 		const double * restrict b_elements = B->matrix.elements;
 		for (i = 0; i < m; i++) {
@@ -347,7 +353,9 @@ int dgemm_kernel(Interpreter *interp, int transpose_a, int transpose_b,
 			}
 		}
 	} else {
+#if defined(__clang__)
 #pragma clang fp reassociate(on)
+#endif
 		const double * restrict a_elements = A->matrix.elements;
 		const double * restrict b_elements = B->matrix.elements;
 		double *a_column;
@@ -370,6 +378,9 @@ int dgemm_kernel(Interpreter *interp, int transpose_a, int transpose_b,
 
 	return matmult_handle;
 }
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC pop_options
+#endif
 
 void p_dgemm_helper(Interpreter *interp, int transpose_a, int transpose_b) {
 	POP(c_val);
@@ -676,9 +687,20 @@ static inline int double_is_nan_bits(double element) {
 		return accumulator; \
 	}
 
+#if defined(__clang__)
+#define MATRIX_REDUCE_FAST_FP _Pragma("clang fp reassociate(on) contract(fast)")
+#define MATRIX_REDUCE_FAST_ATTR
+#elif defined(__GNUC__)
+#define MATRIX_REDUCE_FAST_FP
+#define MATRIX_REDUCE_FAST_ATTR __attribute__((optimize("-fassociative-math", "-fno-signed-zeros", "-fno-trapping-math", "-ffp-contract=fast")))
+#else
+#define MATRIX_REDUCE_FAST_FP
+#define MATRIX_REDUCE_FAST_ATTR
+#endif
+
 #define MATRIX_REDUCE_OVERALL_DENSE(name, init_value, combine) \
-	static double name(Object *source) { \
-		_Pragma("clang fp reassociate(on) contract(fast)") \
+	static MATRIX_REDUCE_FAST_ATTR double name(Object *source) { \
+		MATRIX_REDUCE_FAST_FP \
 		size_t num_elements = (size_t)source->matrix.rows * (size_t)source->matrix.columns; \
 		const double * restrict elements = source->matrix.elements; \
 		double accumulator_0 = init_value; \
@@ -738,7 +760,12 @@ MATRIX_REDUCE_OVERALL_OP(matrix_min_overall, INFINITY, MIN, INFINITY)
 
 MATRIX_REDUCE_OVERALL_DENSE(matrix_sum_dense, 0.0, ADD)
 
+#if defined(__clang__)
 #pragma float_control(precise, off, push)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize ("-fassociative-math", "-fno-signed-zeros", "-fno-trapping-math")
+#endif
 MATRIX_REDUCE_ROWS_OP(matrix_sum_rows, 0.0, ADD)
 MATRIX_REDUCE_ROWS_OP(matrix_max_rows, -INFINITY, MAX)
 MATRIX_REDUCE_ROWS_OP(matrix_min_rows, INFINITY, MIN)
@@ -756,7 +783,11 @@ static double matrix_nonmissing_count(Object *source) {
 	return (double)n_nonmissing;
 }
 
+#if defined(__clang__)
 #pragma float_control(pop)
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 static double matrix_frobenius_overall(Object *source) {
 	size_t n = (size_t)source->matrix.rows * (size_t)source->matrix.columns;

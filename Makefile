@@ -1,5 +1,27 @@
-CC     = clang
 UNAME  = $(shell uname -s)
+
+# Compiler selection. An explicit CC (from the environment or `make CC=...`)
+# always wins — tested via $(origin) because make predefines CC=cc with origin
+# 'default', so `?=` would never fire. When CC is not set explicitly: macOS uses
+# clang (Apple clang; gcc < 15 can't compile the musttail dispatch), and Linux
+# prefers gcc >= 15 when present (measured faster than clang here on Zen4),
+# falling back to clang. Probe order: gcc-15, the /usr/local install, then gcc.
+ifeq ($(origin CC),default)
+ifeq ($(UNAME),Darwin)
+CC := clang
+else
+CC := $(shell for c in gcc-15 /usr/local/gcc-15/bin/gcc gcc; do \
+		v=$$(command -v $$c >/dev/null 2>&1 && $$c -dumpversion 2>/dev/null | cut -d. -f1); \
+		if [ -n "$$v" ] && [ "$$v" -ge 15 ] 2>/dev/null; then echo $$c; exit 0; fi; \
+	done; echo clang)
+endif
+endif
+
+# A gcc build statically links libgcc so the binary stays runnable off a
+# /usr/local gcc install whose libgcc_s isn't on the default loader path.
+ifeq ($(findstring clang,$(CC)),)
+LDLIBS_CC = -static-libgcc
+endif
 CFLAGS = -O3 -march=native -Wall -Wextra -pthread -D_GNU_SOURCE
 ifneq ($(UNAME),Darwin)
 CFLAGS += -flto
@@ -8,6 +30,9 @@ LDLIBS = -lm -lffi
 
 SRCS = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/image.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/foreign.c src/c/platform_posix.c src/c/dimension.c src/c/time.c
 HDRS = src/c/water.h src/c/platform.h src/c/lib_embed.h src/c/logo_embed.h src/c/repl_highlight_groups.h
+
+WATER_INCS = -I$(PCRE2_SRC) -I$(SQLITE_DIR) -I$(ISOCLINE_DIR)/include
+WATER_DEPS = $(PCRE2_LIB) $(SQLITE_OBJ) $(ISOCLINE_OBJ)
 
 # Embedded library, concatenated in this order. Binding is early: a word must
 # be defined in an earlier file than every file that uses it (units before the
@@ -58,8 +83,8 @@ endif
 
 all: water $(LAPACKE_SHARED)
 
-water: $(SRCS) $(HDRS) $(PCRE2_LIB) $(SQLITE_OBJ) $(ISOCLINE_OBJ)
-	$(CC) $(CFLAGS) -I$(PCRE2_SRC) -I$(SQLITE_DIR) -I$(ISOCLINE_DIR)/include -o water $(SRCS) $(PCRE2_LIB) $(SQLITE_OBJ) $(ISOCLINE_OBJ) $(LDLIBS)
+water: $(SRCS) $(HDRS) $(WATER_DEPS)
+	$(CC) $(CFLAGS) $(WATER_INCS) -o water $(SRCS) $(WATER_DEPS) $(LDLIBS) $(LDLIBS_CC)
 
 $(PCRE2_LIB): $(PCRE2_OBJS)
 	ar rcs $@ $(PCRE2_OBJS)

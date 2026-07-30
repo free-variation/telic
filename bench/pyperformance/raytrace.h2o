@@ -194,15 +194,15 @@ variable pixw variable pixh
         repeat
         lam 1.0 > if 1.0 to lam then
         lamb lam f* to lf
-        cr lf br f* f+ to cr
-        cg lf bg f* f+ to cg
-        cb lf bb f* f+ to cb
+        lf br f* cr f+ to cr
+        lf bg f* cg f+ to cg
+        lf bb f* cb f+ to cb
      then
      obj 9 @i to amb
      amb 0.0 > if
-        cr amb br f* f+ to cr
-        cg amb bg f* f+ to cg
-        cb amb bb f* f+ to cb
+        amb br f* cr f+ to cr
+        amb bg f* cg f+ to cg
+        amb bb f* cb f+ to cb
      then
   then
   rdepth 1- to rdepth

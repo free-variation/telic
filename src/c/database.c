@@ -208,20 +208,18 @@ static int relation_consume_row(Interpreter *interp, sqlite3_stmt *statement, vo
 	sqlite3_stmt *statement = db_prepare_bound(interp, db, \
 			OBJECT_AT(VAL_DATA(query_val)), OBJECT_AT(VAL_DATA(params_val))); \
 	if (!statement) \
-		return; \
-	\
-	int n_columns = sqlite3_column_count(statement); \
-	cell keys[n_columns]; \
-	for (int j = 0; j < n_columns; j++) \
-		keys[j] = intern_symbol(interp, sqlite3_column_name(statement, j))
+		return
 
-void p_db_query(DISPATCH_ARGS) {
-	DB_QUERY_OPERANDS("db-query");
+static __attribute__((noinline)) int db_query_build(Interpreter *interp, sqlite3 *db, sqlite3_stmt *statement) {
+	int n_columns = sqlite3_column_count(statement);
+	cell keys[n_columns];
+	for (int j = 0; j < n_columns; j++)
+		keys[j] = intern_symbol(interp, sqlite3_column_name(statement, j));
 
 	int rows_handle = object_new_array(interp, 0);
 	if (interp->error_flag) {
 		sqlite3_finalize(statement);
-		return;
+		return -1;
 	}
 	gc_root_push(interp, make_array(rows_handle));
 
@@ -232,13 +230,13 @@ void p_db_query(DISPATCH_ARGS) {
 	};
 	if (db_step_rows(interp, db, statement, relation_consume_row, &rows_context) != 0) {
 		gc_root_pop(interp);
-		return;
+		return -1;
 	}
 
 	int index_handle = object_new_frame(interp);
 	if (interp->error_flag) {
 		gc_root_pop(interp);
-		return;
+		return -1;
 	}
 	gc_root_push(interp, make_frame(index_handle));
 
@@ -246,7 +244,7 @@ void p_db_query(DISPATCH_ARGS) {
 	if (interp->error_flag) {
 		gc_root_pop(interp);
 		gc_root_pop(interp);
-		return;
+		return -1;
 	}
 
 	Object *relation = OBJECT_AT(relation_handle);
@@ -255,6 +253,16 @@ void p_db_query(DISPATCH_ARGS) {
 
 	gc_root_pop(interp);
 	gc_root_pop(interp);
+	return relation_handle;
+}
+
+void p_db_query(DISPATCH_ARGS) {
+	DB_QUERY_OPERANDS("db-query");
+
+	int relation_handle = db_query_build(interp, db, statement);
+	if (interp->error_flag)
+		return;
+
 	chain_sp[-3] = make_frame(relation_handle);
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 2);
@@ -300,13 +308,16 @@ static int symbol_repeats_later(const cell *keys, int position, int n_columns) {
 	return 0;
 }
 
-void p_db_query_to_dataset(DISPATCH_ARGS) {
-	DB_QUERY_OPERANDS("(db-query>dataset)");
+static __attribute__((noinline)) int db_query_dataset_build(Interpreter *interp, sqlite3 *db, sqlite3_stmt *statement, int *types_handle_out) {
+	int n_columns = sqlite3_column_count(statement);
+	cell keys[n_columns];
+	for (int j = 0; j < n_columns; j++)
+		keys[j] = intern_symbol(interp, sqlite3_column_name(statement, j));
 
 	int dataset_handle = object_new_frame(interp);
 	if (interp->error_flag) {
 		sqlite3_finalize(statement);
-		return;
+		return -1;
 	}
 	gc_root_push(interp, make_frame(dataset_handle));
 
@@ -314,7 +325,7 @@ void p_db_query_to_dataset(DISPATCH_ARGS) {
 	if (interp->error_flag) {
 		sqlite3_finalize(statement);
 		gc_root_pop(interp);
-		return;
+		return -1;
 	}
 	gc_root_push(interp, make_frame(types_handle));
 
@@ -346,7 +357,7 @@ void p_db_query_to_dataset(DISPATCH_ARGS) {
 		sqlite3_finalize(statement);
 		gc_root_pop(interp);
 		gc_root_pop(interp);
-		return;
+		return -1;
 	}
 
 	DatasetColumnsContext columns_context = {
@@ -358,7 +369,7 @@ void p_db_query_to_dataset(DISPATCH_ARGS) {
 	if (db_step_rows(interp, db, statement, dataset_consume_row, &columns_context) != 0) {
 		gc_root_pop(interp);
 		gc_root_pop(interp);
-		return;
+		return -1;
 	}
 
 	for (int j = 0; j < n_columns; j++) {
@@ -370,7 +381,7 @@ void p_db_query_to_dataset(DISPATCH_ARGS) {
 		if (interp->error_flag) {
 			gc_root_pop(interp);
 			gc_root_pop(interp);
-			return;
+			return -1;
 		}
 
 		Object *vector = OBJECT_AT(vector_handle);
@@ -383,6 +394,18 @@ void p_db_query_to_dataset(DISPATCH_ARGS) {
 
 	gc_root_pop(interp);
 	gc_root_pop(interp);
+	*types_handle_out = types_handle;
+	return dataset_handle;
+}
+
+void p_db_query_to_dataset(DISPATCH_ARGS) {
+	DB_QUERY_OPERANDS("(db-query>dataset)");
+
+	int types_handle;
+	int dataset_handle = db_query_dataset_build(interp, db, statement, &types_handle);
+	if (interp->error_flag)
+		return;
+
 	chain_sp[-3] = make_frame(dataset_handle);
 	chain_sp[-2] = make_frame(types_handle);
 

@@ -262,17 +262,24 @@ void p_match(DISPATCH_ARGS) {
 	PEEK_STRING_AT(subject, 1, "match");
 	COMPILE_PATTERN(compiled, num_groups, pattern);
 
-	int match_offsets[num_groups * 2];
+	int *match_offsets = malloc((size_t)num_groups * 2 * sizeof(int));
+	if (!match_offsets) {
+		fail(interp, "out of memory");
+		return;
+	}
+
 	pcre2_match_data *md = pcre2_match_data_create(num_groups, NULL);
 	int resume_from = next_match(compiled, subject->bytes, subject->len, 0, num_groups, match_offsets, md);
 	pcre2_match_data_free(md);
 
 	if (resume_from < 0) {
+		free(match_offsets);
 		chain_sp[-2] = make_float(0.0);
 		DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 	}
 
 	int handle = capture_array(interp, subject, match_offsets, num_groups);
+	free(match_offsets);
 	if (interp->error_flag) return;
 
 	chain_sp[-2] = make_array(handle);
@@ -285,7 +292,12 @@ void p_split(DISPATCH_ARGS) {
 	PEEK_STRING_AT(subject, 1, "split");
 	COMPILE_PATTERN(compiled, num_groups, pattern);
 
-	int match_offsets[num_groups * 2];
+	int *match_offsets = malloc((size_t)num_groups * 2 * sizeof(int));
+	if (!match_offsets) {
+		fail(interp, "out of memory");
+		return;
+	}
+
 	pcre2_match_data *md = pcre2_match_data_create(num_groups, NULL);
 
 	int match_count = 0;
@@ -316,6 +328,7 @@ void p_split(DISPATCH_ARGS) {
 
 	gc_root_pop(interp);
 	pcre2_match_data_free(md);
+	free(match_offsets);
 	if (interp->error_flag)
 		return;
 
@@ -348,7 +361,13 @@ void p_replace(DISPATCH_ARGS) {
 	PEEK_STRING_AT(pattern, 1, "replace");
 	PEEK_STRING_AT(subject, 2, "replace");
 	COMPILE_PATTERN(compiled, num_groups, pattern);
-	int match_offsets[num_groups * 2];
+
+	int *match_offsets = malloc((size_t)num_groups * 2 * sizeof(int));
+	if (!match_offsets) {
+		fail(interp, "out of memory");
+		return;
+	}
+
 	pcre2_match_data *md = pcre2_match_data_create(num_groups, NULL);
 
 	char *out = NULL;
@@ -374,6 +393,7 @@ void p_replace(DISPATCH_ARGS) {
 					int group = escaped - '0';
 					if (group >= num_groups) {
 						free(out);
+						free(match_offsets);
 						pcre2_match_data_free(md);
 						fail(interp, "backref \\%d but pattern has %d group(s)", group, num_groups - 1);
 						return;
@@ -400,6 +420,7 @@ void p_replace(DISPATCH_ARGS) {
 		from = resume_from;
 	}
 	pcre2_match_data_free(md);
+	free(match_offsets);
 	append_bytes(interp, &out, &length, &capacity, subject->bytes + pos, subject->len - pos);
 
 	if (interp->error_flag) {
