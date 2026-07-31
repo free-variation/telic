@@ -11,6 +11,7 @@
 #   REPS          water reps per bench     (default: 5)
 #   REPS_PY       python reps per bench         (default: 3)
 #   SKIP_LEIBNIZ  set to 1 to skip leibniz      (it is the slow one: ~min)
+#   NUMPY_PYTHON  interpreter with numpy        (default: .venv, else PYTHON)
 #
 # Problem sizes match the committed pyperformance ports.
 
@@ -29,6 +30,20 @@ elif [ -x "$root/.venv/bin/python" ]; then
 	crypto_python="$root/.venv/bin/python"
 else
 	crypto_python=$python
+fi
+# The -matrix variants are vectorized, so their reference is numpy rather than
+# scalar CPython; prefer whichever interpreter has it. Override with NUMPY_PYTHON.
+if [ -n "${NUMPY_PYTHON:-}" ]; then
+	numpy_python=$NUMPY_PYTHON
+elif [ -x "$root/.venv/bin/python" ] && "$root/.venv/bin/python" -c 'import numpy' >/dev/null 2>&1; then
+	numpy_python="$root/.venv/bin/python"
+else
+	numpy_python=$python
+fi
+have_numpy=0
+if "$numpy_python" -c 'import numpy' >/dev/null 2>&1; then
+	have_numpy=1
+	numpy_version=$("$numpy_python" -c 'import numpy; print(numpy.__version__)')
 fi
 reps=${REPS:-5}
 reps_py=${REPS_PY:-3}
@@ -116,6 +131,7 @@ h2o_nqueens_iter() { "$bin" < "$here/variants/nqueens-iter.h2o"; }
 h2o_fannkuch() { "$bin" < "$here/pyperformance/fannkuch.h2o"; }
 h2o_binarytrees() { "$bin" < "$here/pyperformance/binary-trees.h2o"; }
 h2o_mandelbrot() { "$bin" < "$here/pyperformance/mandelbrot.h2o"; }
+h2o_mandelbrot_matrix() { "$bin" < "$here/variants/mandelbrot-matrix.h2o"; }
 h2o_mandelbrot_par() { "$bin" < "$here/variants/mandelbrot-parallel.h2o"; }
 h2o_nbody()    { "$bin" < "$here/pyperformance/nbody.h2o"; }
 h2o_raytrace() { "$bin" < "$here/pyperformance/raytrace.h2o"; }
@@ -166,6 +182,14 @@ py_regex_v8() { "$python" "$here/pyperformance/pyperf_regex_v8.py"; }
 py_deepcopy() { "$python" "$here/pyperformance/pyperf_deepcopy.py"; }
 py_json_loads() { "$python" "$here/pyperformance/pyperf_json_loads.py"; }
 py_json_dumps() { "$python" "$here/pyperformance/pyperf_json_dumps.py"; }
+
+# numpy references for the vectorized -matrix variants (same sizes as the .h2o).
+np_leibniz()    { "$numpy_python" "$here/variants/numpy_leibniz_matrix.py" "$leibniz_rounds"; }
+np_mandelbrot() { "$numpy_python" "$here/variants/numpy_mandelbrot_matrix.py" "$mandelbrot_n"; }
+# numpy in a process pool; its "elapsed" excludes pool creation, which the note
+# under the table records, while water's pmap-reduce spawns inside its timing.
+np_mandelbrot_par() { "$numpy_python" "$here/variants/numpy_mandelbrot_parallel.py" "$mandelbrot_n" processes; }
+np_spectral()   { "$numpy_python" "$here/variants/numpy_spectral_norm_matrix.py" 150 130; }
 
 # Run a wrapper N times, append each run's stdout (with a separator) to a log.
 run_reps() {
@@ -238,13 +262,17 @@ run_reps binarytrees_py py_binarytrees "$reps_py"
 
 log "== mandelbrot =="
 run_reps mandelbrot_h2o h2o_mandelbrot "$reps"
+run_reps mandelbrot_matrix_h2o h2o_mandelbrot_matrix "$reps"
 run_reps mandelbrot_par_h2o h2o_mandelbrot_par "$reps"
 run_reps mandelbrot_py py_mandelbrot "$reps_py"
+[ "$have_numpy" = 1 ] && run_reps mandelbrot_np np_mandelbrot "$reps_py"
+[ "$have_numpy" = 1 ] && run_reps mandelbrot_par_np np_mandelbrot_par "$reps_py"
 
 log "== spectral-norm =="
 run_reps spectral_h2o h2o_spectral "$reps"
 run_reps spectral_matrix_h2o h2o_spectral_matrix "$reps"
 run_reps spectral_py py_spectral "$reps_py"
+[ "$have_numpy" = 1 ] && run_reps spectral_np np_spectral "$reps_py"
 
 log "== scimark-lu =="
 run_reps scimark_lu_h2o h2o_scimark_lu "$reps"
@@ -314,6 +342,7 @@ if [ "$skip_leibniz" != 1 ]; then
 	run_reps leibniz_h2o h2o_leibniz "$reps"
 	run_reps leibniz_matrix_h2o h2o_leibniz_matrix "$reps"
 	run_reps leibniz_parallel_h2o h2o_leibniz_parallel "$reps"
+	[ "$have_numpy" = 1 ] && run_reps leibniz_np np_leibniz "$reps_py"
 	have_leibniz=1
 	have_leibniz_r=1
 fi
@@ -336,6 +365,9 @@ emit ""
 emit "- **Host**: $uname_s"
 emit "- **Compiler**: \`clang -O3 -march=native -Wall -Wextra\`"
 emit "- **Python**: CPython $pyver (\`$python\`)"
+if [ "$have_numpy" = 1 ]; then
+	emit "- **numpy**: $numpy_version (\`$numpy_python\`) — reference for the vectorized -matrix rows"
+fi
 emit "- **Date**: $today"
 emit ""
 
@@ -354,9 +386,28 @@ row() {
 	emit "| $label | $size | $(fmt_s "$h2o") | $(fmt_s "$py") | $(ratio "$py" "$h2o") |"
 }
 
+# The -matrix rows are vectorized, so their reference is numpy; without numpy
+# they fall back to the scalar CPython number and the size cell says so.
+if [ "$have_numpy" = 1 ]; then
+	matrix_ref_note="numpy"
+	mandelbrot_matrix_ref=$(median_elapsed mandelbrot_np)
+	mandelbrot_par_ref=$(median_elapsed mandelbrot_par_np)
+	spectral_matrix_ref=$(median_elapsed spectral_np)
+else
+	matrix_ref_note="scalar py"
+	mandelbrot_matrix_ref=$(median_elapsed mandelbrot_py)
+	mandelbrot_par_ref=$(median_elapsed mandelbrot_py)
+	spectral_matrix_ref=$(median_elapsed spectral_py)
+fi
+
 if [ "$have_leibniz" = 1 ]; then
+	if [ "$have_numpy" = 1 ]; then
+		leibniz_matrix_ref=$(median_elapsed leibniz_np)
+	else
+		leibniz_matrix_ref=$leibniz_py_elapsed
+	fi
 	row "leibniz" "${leibniz_rounds} iterations" leibniz_h2o "$leibniz_py_elapsed"
-	row "leibniz-matrix" "${leibniz_rounds}, vectorized" leibniz_matrix_h2o "$leibniz_py_elapsed"
+	row "leibniz-matrix" "${leibniz_rounds}, vectorized vs ${matrix_ref_note}" leibniz_matrix_h2o "$leibniz_matrix_ref"
 	row "leibniz-parallel" "${leibniz_rounds}, pmap" leibniz_parallel_h2o "$leibniz_py_elapsed"
 fi
 row "nqueens" "N = $nqueens_n" nqueens_h2o "$(median_elapsed nqueens_py)"
@@ -369,9 +420,10 @@ row "crypto-pyaes" "8192 B, ${crypto_loops}× enc+dec" crypto_h2o "$(median_elap
 row "fannkuch" "N = $fannkuch_n" fannkuch_h2o "$(median_elapsed fannkuch_py)"
 row "binary-trees" "depth ${binarytrees_depth}" binarytrees_h2o "$(median_elapsed binarytrees_py)"
 row "mandelbrot" "N = ${mandelbrot_n}" mandelbrot_h2o "$(median_elapsed mandelbrot_py)"
-row "mandelbrot-parallel" "N = ${mandelbrot_n}, pmap" mandelbrot_par_h2o "$(median_elapsed mandelbrot_py)"
+row "mandelbrot-matrix" "N = ${mandelbrot_n}, vectorized vs ${matrix_ref_note}" mandelbrot_matrix_h2o "$mandelbrot_matrix_ref"
+row "mandelbrot-parallel" "N = ${mandelbrot_n}, pmap vs ${matrix_ref_note} pool" mandelbrot_par_h2o "$mandelbrot_par_ref"
 row "spectral-norm" "N = 130, ${spectral_loops}×" spectral_h2o "$(median_elapsed spectral_py)"
-row "spectral-norm-matrix" "N = 130, 150×" spectral_matrix_h2o "$(median_elapsed spectral_py)"
+row "spectral-norm-matrix" "N = 130, 150× vs ${matrix_ref_note}" spectral_matrix_h2o "$spectral_matrix_ref"
 row "scimark-lu" "N=100, ${scimark_lu_cycles}×" scimark_lu_h2o "$(median_elapsed scimark_lu_py)"
 row "scimark-sparse" "N=1000, ${scimark_sparse_cycles}×" scimark_sparse_h2o "$(median_elapsed scimark_sparse_py)"
 row "scimark-fft" "N=1024, ${fft_loops}×${fft_cycles}" scimark_fft_h2o "$(median_elapsed scimark_fft_py)"
@@ -389,6 +441,19 @@ row "deepcopy" "N=20000, 60 copies/N" deepcopy_h2o "$(median_elapsed deepcopy_py
 row "json-loads" "222k parses" json_loads_h2o "$(median_elapsed json_loads_py)"
 row "json-dumps" "EMPTY/SIMPLE/NESTED/HUGE ×250" json_dumps_h2o "$(median_elapsed json_dumps_py)"
 emit ""
+
+# ---- what the parallel row's reference does and does not include ----
+if [ "$have_numpy" = 1 ]; then
+	par_setup=$(grep -h "pool setup" "$work/mandelbrot_par_np.log" | grep -oE '[0-9]+\.[0-9]+' | head -1)
+	emit "**mandelbrot-parallel reference.** numpy over row blocks in a"
+	emit "multiprocessing pool of $(nproc 2>/dev/null || sysctl -n hw.ncpu) workers. Its time is compute only:"
+	emit "creating the pool costs a further $(fmt_s "${par_setup:-0}"), where water's pmap-reduce"
+	emit "spawns its workers inside the time shown. A ThreadPool is slower than"
+	emit "either (numpy releases the GIL per call, but the Python half of each"
+	emit "call serialises), and the same per-pixel algorithm water runs, in"
+	emit "Python processes, is slower again."
+	emit ""
+fi
 
 # ---- R reference for the vectorized variant ----
 if [ "$skip_leibniz" != 1 ] && [ "$have_leibniz_r" = 1 ]; then
@@ -414,8 +479,10 @@ emit "| crypto-pyaes | $(result_line crypto_h2o 'checksum:') | $(result_line cry
 emit "| fannkuch | $(result_line fannkuch_h2o 'max flips') | $(result_line fannkuch_py 'max flips') |"
 emit "| binary-trees | $(result_line binarytrees_h2o 'checksum:') | $(result_line binarytrees_py 'checksum:') |"
 emit "| mandelbrot | $(result_line mandelbrot_h2o 'checksum:') | $(result_line mandelbrot_py 'checksum:') |"
-emit "| mandelbrot-parallel | $(result_line mandelbrot_par_h2o 'checksum:') | $(result_line mandelbrot_py 'checksum:') |"
+emit "| mandelbrot-matrix | $(result_line mandelbrot_matrix_h2o 'checksum:') | $(result_line mandelbrot_np 'checksum:') |"
+emit "| mandelbrot-parallel | $(result_line mandelbrot_par_h2o 'checksum:') | $(result_line mandelbrot_par_np 'checksum:') |"
 emit "| spectral-norm | $(result_line spectral_h2o 'estimate') | $(result_line spectral_py 'estimate') |"
+emit "| spectral-norm-matrix | $(result_line spectral_matrix_h2o 'estimate') | $(result_line spectral_np 'estimate') |"
 emit "| scimark-lu | $(result_line scimark_lu_h2o 'checksum') | $(result_line scimark_lu_py 'checksum') |"
 emit "| scimark-sparse | $(result_line scimark_sparse_h2o 'checksum') | $(result_line scimark_sparse_py 'checksum') |"
 emit "| scimark-fft | $(result_line scimark_fft_h2o 'checksum') | $(result_line scimark_fft_py 'checksum') |"

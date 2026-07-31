@@ -30,6 +30,9 @@ typedef struct {
 static void **ffi_pointers;
 static int ffi_pointers_count;
 static int ffi_pointers_cap;
+static int *ffi_pointers_free;
+static int ffi_pointers_free_count;
+static int ffi_pointers_free_cap;
 static pthread_mutex_t ffi_pointers_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static FFIBinding **ffi_bindings;
@@ -38,22 +41,72 @@ static int ffi_bindings_cap;
 
 static int ffi_call_cfa;
 
+#define FFI_POINTER_INDEX_SIZE (1 << 12)
+#define FFI_POINTER_PROBE_WINDOW 8
+
+static int ffi_pointer_index[FFI_POINTER_INDEX_SIZE];
+
+static unsigned ffi_pointer_hash(void *pointer) {
+	uint64_t bits = (uint64_t)(uintptr_t)pointer;
+	bits ^= bits >> 33;
+	bits *= 0xff51afd7ed558ccdULL;
+	bits ^= bits >> 29;
+	return (unsigned)(bits >> 32);
+}
+
 static int ffi_pointer_intern(void *pointer) {
 	pthread_mutex_lock(&ffi_pointers_lock);
-	int index = -1;
-	for (int i = 0; i < ffi_pointers_count; i++)
-		if (!ffi_pointers[i]) {
-			ffi_pointers[i] = pointer;
-			index = i;
-			break;
+
+	int base = (int)(ffi_pointer_hash(pointer) & (FFI_POINTER_INDEX_SIZE - 1));
+	int free_bucket = -1;
+	for (int probe = 0; probe < FFI_POINTER_PROBE_WINDOW; probe++) {
+		int bucket = (base + probe) & (FFI_POINTER_INDEX_SIZE - 1);
+		int recorded = ffi_pointer_index[bucket];
+		if (!recorded) {
+			if (free_bucket < 0)
+				free_bucket = bucket;
+			continue;
 		}
-	if (index < 0) {
+		if (ffi_pointers[recorded - 1] == pointer) {
+			pthread_mutex_unlock(&ffi_pointers_lock);
+			return recorded - 1;
+		}
+	}
+
+	int index;
+	if (ffi_pointers_free_count > 0) {
+		index = ffi_pointers_free[--ffi_pointers_free_count];
+		ffi_pointers[index] = pointer;
+	} else {
 		GROW_IF_FULL_SYS(ffi_pointers_count, ffi_pointers_cap, ffi_pointers);
 		ffi_pointers[ffi_pointers_count] = pointer;
 		index = ffi_pointers_count++;
 	}
+
+	if (free_bucket >= 0)
+		ffi_pointer_index[free_bucket] = index + 1;
+
 	pthread_mutex_unlock(&ffi_pointers_lock);
 	return index;
+}
+
+static void ffi_pointer_release(int index) {
+	void *pointer = ffi_pointers[index];
+	if (!pointer)
+		return;
+
+	int base = (int)(ffi_pointer_hash(pointer) & (FFI_POINTER_INDEX_SIZE - 1));
+	for (int probe = 0; probe < FFI_POINTER_PROBE_WINDOW; probe++) {
+		int bucket = (base + probe) & (FFI_POINTER_INDEX_SIZE - 1);
+		if (ffi_pointer_index[bucket] == index + 1) {
+			ffi_pointer_index[bucket] = 0;
+			break;
+		}
+	}
+
+	GROW_IF_FULL_SYS(ffi_pointers_free_count, ffi_pointers_free_cap, ffi_pointers_free);
+	ffi_pointers_free[ffi_pointers_free_count++] = index;
+	ffi_pointers[index] = NULL;
 }
 
 static int ffi_type_of(Interpreter *interp, Val symbol, FFITypeTag *tag, ffi_type **type) {
@@ -322,8 +375,10 @@ void p_ffi_free(DISPATCH_ARGS) {
 	Val pointer_val = chain_sp[-1];
 	REQUIRE_CHAIN_TAG(pointer_val, T_PTR, "ffi-free", "a pointer");
 	int index = (int)VAL_DATA(pointer_val);
+	pthread_mutex_lock(&ffi_pointers_lock);
 	free(ffi_pointers[index]);
-	ffi_pointers[index] = NULL;
+	ffi_pointer_release(index);
+	pthread_mutex_unlock(&ffi_pointers_lock);
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 }

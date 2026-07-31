@@ -9,7 +9,7 @@
 1000 constant n
 50 constant max-iter
 
-variable cr  variable ci  variable zr  variable zi  variable escaped
+variable c-real  variable c-imag  variable zr  variable zi  variable escaped
 
 : setup
   | ones-col ones-row cr-row ci-col |
@@ -17,8 +17,8 @@ variable cr  variable ci  variable zr  variable zi  variable escaped
   1.0 n array-of 1 n matrix to ones-row
   0.0 n 1.0 f- 1.0 matrix-range 2.0 * n / 1.5 - to cr-row
   0.0 n 1.0 f- 1.0 matrix-range n 1 reshape 2.0 * n / 1.0 - to ci-col
-  1.0 ones-col cr-row 0.0 n n 0-matrix dgemm-nn to cr
-  1.0 ci-col ones-row 0.0 n n 0-matrix dgemm-nn to ci
+  1.0 ones-col cr-row 0.0 n n 0-matrix dgemm-nn to c-real
+  1.0 ci-col ones-row 0.0 n n 0-matrix dgemm-nn to c-imag
   n n 0-matrix to zr  n n 0-matrix to zi  n n 0-matrix to escaped ;
 
 : step
@@ -26,8 +26,8 @@ variable cr  variable ci  variable zr  variable zi  variable escaped
   zr zr * to zr2
   zi zi * to zi2
   escaped  zr2 zi2 + 4.0 >  +! drop
-  zi zr *! 2.0 *! ci +! drop
-  zr2 zi2 -! cr +! to zr ;
+  zi zr *! 2.0 *! c-imag +! drop
+  zr2 zi2 -! c-real +! to zr ;
 
 setup
 now to t0

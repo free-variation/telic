@@ -20,7 +20,7 @@ int string_concat(Interpreter *interp, int left_handle, int right_handle) {
 	do { \
 		double scalar = VAL_NUMBER(left); \
 		Object *matrix_source = OBJECT_AT(VAL_DATA(right)); \
-		int target_handle = object_new_matrix(interp, matrix_source->matrix.rows, matrix_source->matrix.columns); \
+		int target_handle = object_new_matrix_raw(interp, matrix_source->matrix.rows, matrix_source->matrix.columns); \
 		if (interp->error_flag) return; \
 		Object *target = OBJECT_AT(target_handle); \
 		size_t num_elements = (size_t)matrix_source->matrix.rows * (size_t)matrix_source->matrix.columns; \
@@ -36,7 +36,7 @@ int string_concat(Interpreter *interp, int left_handle, int right_handle) {
 	do { \
 		double scalar = VAL_NUMBER(right); \
 		Object *matrix_source = OBJECT_AT(VAL_DATA(left)); \
-		int target_handle = object_new_matrix(interp, matrix_source->matrix.rows, matrix_source->matrix.columns); \
+		int target_handle = object_new_matrix_raw(interp, matrix_source->matrix.rows, matrix_source->matrix.columns); \
 		if (interp->error_flag) return; \
 		Object *target = OBJECT_AT(target_handle); \
 		size_t num_elements = (size_t)matrix_source->matrix.rows * (size_t)matrix_source->matrix.columns; \
@@ -558,7 +558,7 @@ static void array_comparison_mask(Interpreter *interp, Val left, Val right,
 	push(interp, make_matrix(mask_handle));
 }
 
-#define MATRIX_COMPARISON_OP(name, op, sfn, word) \
+#define MATRIX_COMPARISON_OP(name, op, sfn, word, kernel) \
 	void name(DISPATCH_ARGS) { \
 		REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2); \
 		Val right = chain_sp[-1]; \
@@ -584,9 +584,14 @@ static void array_comparison_mask(Interpreter *interp, Val left, Val right,
 		} \
 		SYNC_REGISTERS(interp, chain_ip, chain_sp - 2); \
 		if (VAL_TAG(left) == T_MATRIX || VAL_TAG(right) == T_MATRIX) { \
-			binary_op(interp, left, right, sfn, word); \
+			gc_root_push(interp, left); \
+			gc_root_push(interp, right); \
+			int mask_handle = kernel(interp, left, right, word); \
+			gc_root_pop(interp); \
+			gc_root_pop(interp); \
 			if (interp->error_flag) \
 				return; \
+			push(interp, make_matrix(mask_handle)); \
 		} else { \
 			int ordering = val_cmp(interp, left, right); \
 			if (interp->error_flag) \
@@ -595,11 +600,11 @@ static void array_comparison_mask(Interpreter *interp, Val left, Val right,
 		} \
 		DISPATCH(interp); \
 	}
-MATRIX_COMPARISON_OP(p_lt, <, scalar_lt, "lt")
-MATRIX_COMPARISON_OP(p_gt, >, scalar_gt, "gt")
-MATRIX_COMPARISON_OP(p_lte, <=, scalar_lte, "lte")
-MATRIX_COMPARISON_OP(p_gte, >=, scalar_gte, "gte")
-MATRIX_COMPARISON_OP(p_eq_elements, ==, scalar_eq, "eq")
+MATRIX_COMPARISON_OP(p_lt, <, scalar_lt, "lt", matrix_compare_lt)
+MATRIX_COMPARISON_OP(p_gt, >, scalar_gt, "gt", matrix_compare_gt)
+MATRIX_COMPARISON_OP(p_lte, <=, scalar_lte, "lte", matrix_compare_lte)
+MATRIX_COMPARISON_OP(p_gte, >=, scalar_gte, "gte", matrix_compare_gte)
+MATRIX_COMPARISON_OP(p_eq_elements, ==, scalar_eq, "eq", matrix_compare_eq)
 
 void p_nan(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
@@ -803,40 +808,66 @@ void p_depth(DISPATCH_ARGS) {
 
 }
 
-#define REQUIRE_ENTRY_VALUES(interp, needed) do { \
-	if ((interp)->entry_snapshot_depth < (needed)) { \
-		fail(interp, "%d value(s) on the stack at the start of the line (need %d)", \
-				(interp)->entry_snapshot_depth, (needed)); \
+#define CAPTURE_ON_FIRST_MENTION(interp, chain_sp, values, depth, line, needed, word) do { \
+	if ((interp)->line != compiler.input_line) { \
+		int available = (int)((chain_sp) - (interp)->data_stack); \
+		if (available < (needed)) { \
+			fail(interp, "%s: %d value(s) on the stack (need %d)", (word), available, (needed)); \
+			return; \
+		} \
+		(interp)->depth = available < 2 ? available : 2; \
+		for (int slot = 0; slot < (interp)->depth; slot++) \
+			(interp)->values[slot] = (chain_sp)[slot - (interp)->depth]; \
+		(interp)->line = compiler.input_line; \
+	} \
+	if ((interp)->depth < (needed)) { \
+		fail(interp, "%s: the line named %d value(s) (need %d)", (word), (interp)->depth, (needed)); \
 		return; \
 	} \
 } while (0)
 
 void p_it(DISPATCH_ARGS) {
 	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);
-	REQUIRE_ENTRY_VALUES(interp, 1);
-	
-	*chain_sp = interp->entry_snapshot[interp->entry_snapshot_depth - 1];
+	CAPTURE_ON_FIRST_MENTION(interp, chain_sp, discourse, discourse_depth, discourse_line, 1, "it");
+
+	*chain_sp = interp->discourse[interp->discourse_depth - 1];
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
 }
 
 void p_them(DISPATCH_ARGS) {
 	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 2);
-	REQUIRE_ENTRY_VALUES(interp, 2);
+	CAPTURE_ON_FIRST_MENTION(interp, chain_sp, discourse, discourse_depth, discourse_line, 2, "them");
 
-	Val *snapshot_top = interp->entry_snapshot + interp->entry_snapshot_depth;
-	chain_sp[0] = snapshot_top[-2];
-	chain_sp[1] = snapshot_top[-1];
+	chain_sp[0] = interp->discourse[0];
+	chain_sp[1] = interp->discourse[1];
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 2);
 }
 
 void p_other(DISPATCH_ARGS) {
 	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);
-	REQUIRE_ENTRY_VALUES(interp, 2);
+	CAPTURE_ON_FIRST_MENTION(interp, chain_sp, discourse, discourse_depth, discourse_line, 2, "other");
 
-	Val *snapshot_top = interp->entry_snapshot + interp->entry_snapshot_depth;
-	*chain_sp = snapshot_top[-2];
+	*chain_sp = interp->discourse[0];
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
+}
+
+void p_this(DISPATCH_ARGS) {
+	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);
+	CAPTURE_ON_FIRST_MENTION(interp, chain_sp, demonstrative, demonstrative_depth, demonstrative_line, 1, "this");
+
+	*chain_sp = interp->demonstrative[interp->demonstrative_depth - 1];
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
+}
+
+void p_that(DISPATCH_ARGS) {
+	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);
+	CAPTURE_ON_FIRST_MENTION(interp, chain_sp, demonstrative, demonstrative_depth, demonstrative_line, 2, "that");
+
+	*chain_sp = interp->demonstrative[0];
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
 }
@@ -2160,7 +2191,7 @@ static void binary_matrix_op(Interpreter *interp, Val left, Val right, scalar_op
 			     a->matrix.rows, a->matrix.columns, b->matrix.rows, b->matrix.columns);
 			return;
 		}
-		int target_handle = object_new_matrix(interp, a->matrix.rows, a->matrix.columns);
+		int target_handle = object_new_matrix_raw(interp, a->matrix.rows, a->matrix.columns);
 		if (interp->error_flag) return;
 		Object *target = OBJECT_AT(target_handle);
 		int num_elements = a->matrix.rows * a->matrix.columns;
@@ -2173,7 +2204,7 @@ static void binary_matrix_op(Interpreter *interp, Val left, Val right, scalar_op
 	if (VAL_TAG(left) == T_MATRIX && VAL_TAG(right) == T_FLOAT) {
 		double scalar = VAL_NUMBER(right);
 		Object *source = OBJECT_AT(VAL_DATA(left));
-		int target_handle = object_new_matrix(interp, source->matrix.rows, source->matrix.columns);
+		int target_handle = object_new_matrix_raw(interp, source->matrix.rows, source->matrix.columns);
 		if (interp->error_flag) return;
 		Object *target = OBJECT_AT(target_handle);
 		int num_elements = source->matrix.rows * source->matrix.columns;
@@ -2186,7 +2217,7 @@ static void binary_matrix_op(Interpreter *interp, Val left, Val right, scalar_op
 	if (VAL_TAG(left) == T_FLOAT && VAL_TAG(right) == T_MATRIX) {
 		double scalar = VAL_NUMBER(left);
 		Object *source = OBJECT_AT(VAL_DATA(right));
-		int target_handle = object_new_matrix(interp, source->matrix.rows, source->matrix.columns);
+		int target_handle = object_new_matrix_raw(interp, source->matrix.rows, source->matrix.columns);
 		if (interp->error_flag) return;
 		Object *target = OBJECT_AT(target_handle);
 		int num_elements = source->matrix.rows * source->matrix.columns;

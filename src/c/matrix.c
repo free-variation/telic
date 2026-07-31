@@ -15,7 +15,7 @@
 					left_rows, left_cols, right_rows, right_cols); \
 			return -1; \
 		} \
-		int target_handle = object_new_matrix(interp, rows, cols); \
+		int target_handle = object_new_matrix_raw(interp, rows, cols); \
 		if (interp->error_flag) return -1; \
 		Object *target = OBJECT_AT(target_handle); \
 		if (left_rows == right_rows && left_cols == right_cols) { \
@@ -39,6 +39,62 @@ MATRIX_ELEMENTWISE_OP(matrix_add, "+", +)
 MATRIX_ELEMENTWISE_OP(matrix_sub, "-", -)
 MATRIX_ELEMENTWISE_OP(matrix_mul, "*", *)
 MATRIX_ELEMENTWISE_OP(matrix_div, "/", /)
+
+#define MATRIX_COMPARISON_KERNEL(name, op) \
+	int name(Interpreter *interp, Val left_val, Val right_val, const char *word) { \
+		if (VAL_TAG(left_val) == T_MATRIX && VAL_TAG(right_val) == T_MATRIX) { \
+			Object *left = OBJECT_AT(VAL_DATA(left_val)); \
+			Object *right = OBJECT_AT(VAL_DATA(right_val)); \
+			int rows = left->matrix.rows, cols = left->matrix.columns; \
+			if (rows != right->matrix.rows || cols != right->matrix.columns) { \
+				fail(interp, "%s: matrix shapes differ (%dx%d vs %dx%d)", word, \
+						rows, cols, right->matrix.rows, right->matrix.columns); \
+				return -1; \
+			} \
+			int target_handle = object_new_matrix_raw(interp, rows, cols); \
+			if (interp->error_flag) return -1; \
+			size_t n = (size_t)rows * (size_t)cols; \
+			const double * restrict l = left->matrix.elements; \
+			const double * restrict r = right->matrix.elements; \
+			double * restrict t = OBJECT_AT(target_handle)->matrix.elements; \
+			for (size_t i = 0; i < n; i++) \
+				t[i] = l[i] op r[i]; \
+			return target_handle; \
+		} \
+		if (VAL_TAG(left_val) == T_MATRIX && VAL_TAG(right_val) == T_FLOAT) { \
+			Object *source = OBJECT_AT(VAL_DATA(left_val)); \
+			double scalar = VAL_NUMBER(right_val); \
+			int target_handle = object_new_matrix_raw(interp, source->matrix.rows, source->matrix.columns); \
+			if (interp->error_flag) return -1; \
+			size_t n = (size_t)source->matrix.rows * (size_t)source->matrix.columns; \
+			const double * restrict s = source->matrix.elements; \
+			double * restrict t = OBJECT_AT(target_handle)->matrix.elements; \
+			for (size_t i = 0; i < n; i++) \
+				t[i] = s[i] op scalar; \
+			return target_handle; \
+		} \
+		if (VAL_TAG(left_val) == T_FLOAT && VAL_TAG(right_val) == T_MATRIX) { \
+			Object *source = OBJECT_AT(VAL_DATA(right_val)); \
+			double scalar = VAL_NUMBER(left_val); \
+			int target_handle = object_new_matrix_raw(interp, source->matrix.rows, source->matrix.columns); \
+			if (interp->error_flag) return -1; \
+			size_t n = (size_t)source->matrix.rows * (size_t)source->matrix.columns; \
+			const double * restrict s = source->matrix.elements; \
+			double * restrict t = OBJECT_AT(target_handle)->matrix.elements; \
+			for (size_t i = 0; i < n; i++) \
+				t[i] = scalar op s[i]; \
+			return target_handle; \
+		} \
+		fail(interp, "%s: expected floats or matrices; got %s and %s", word, \
+				tag_name(VAL_TAG(left_val)), tag_name(VAL_TAG(right_val))); \
+		return -1; \
+	}
+
+MATRIX_COMPARISON_KERNEL(matrix_compare_lt, <)
+MATRIX_COMPARISON_KERNEL(matrix_compare_gt, >)
+MATRIX_COMPARISON_KERNEL(matrix_compare_lte, <=)
+MATRIX_COMPARISON_KERNEL(matrix_compare_gte, >=)
+MATRIX_COMPARISON_KERNEL(matrix_compare_eq, ==)
 
 #define REQUIRE_CHAIN_INDEX(index, limit, op, axis_phrase, limit_phrase) \
 	do { \
@@ -283,7 +339,7 @@ int dgemm_kernel(Interpreter *interp, int transpose_a, int transpose_b,
 	n = op_b_cols;
 	k = op_a_cols;
 
-	int matmult_handle = object_new_matrix(interp, m, n);
+	int matmult_handle = object_new_matrix_raw(interp, m, n);
 	if (interp->error_flag) return -1;
 	Object *matmult = OBJECT_AT(matmult_handle);
 
@@ -293,17 +349,30 @@ int dgemm_kernel(Interpreter *interp, int transpose_a, int transpose_b,
 		const double * restrict b_elements = B->matrix.elements;
 		const double * restrict c_elements = C->matrix.elements;
 
-		for (i = 0; i < m; i++)
-			for (j = 0; j < n; j++)
-				out_elements[i * n + j] = beta * c_elements[i * n + j];
-
-		for (i = 0; i < m; i++) {
-			for (p = 0; p < k; p++) {
-				double a_val = alpha * a_elements[i * k + p];
-				const double *b_row = &b_elements[p * n];
-				double *out_row = &out_elements[i * n];
+		if (n == 1) {
+#if defined(__clang__)
+#pragma clang fp reassociate(on)
+#endif
+			for (i = 0; i < m; i++) {
+				const double * restrict a_row = &a_elements[i * k];
+				double sum = 0.0;
+				for (p = 0; p < k; p++)
+					sum += a_row[p] * b_elements[p];
+				out_elements[i] = alpha * sum + beta * c_elements[i];
+			}
+		} else {
+			for (i = 0; i < m; i++)
 				for (j = 0; j < n; j++)
-					out_row[j] += a_val * b_row[j];
+					out_elements[i * n + j] = beta * c_elements[i * n + j];
+
+			for (i = 0; i < m; i++) {
+				for (p = 0; p < k; p++) {
+					double a_val = alpha * a_elements[i * k + p];
+					const double *b_row = &b_elements[p * n];
+					double *out_row = &out_elements[i * n];
+					for (j = 0; j < n; j++)
+						out_row[j] += a_val * b_row[j];
+				}
 			}
 		}
 	} else if (!transpose_a && transpose_b) {
@@ -328,7 +397,17 @@ int dgemm_kernel(Interpreter *interp, int transpose_a, int transpose_b,
 		const double * restrict b_elements = B->matrix.elements;
 		const double * restrict c_elements = C->matrix.elements;
 
-		if (n < 8) {
+		if (n == 1) {
+			for (i = 0; i < m; i++)
+				out_elements[i] = beta * c_elements[i];
+
+			for (p = 0; p < k; p++) {
+				double b_val = alpha * b_elements[p];
+				const double * restrict a_row = &a_elements[p * m];
+				for (i = 0; i < m; i++)
+					out_elements[i] += b_val * a_row[i];
+			}
+		} else if (n < 8) {
 			for (i = 0; i < m; i++) {
 				for (j = 0; j < n; j++) {
 					double sum = 0.0;
@@ -725,7 +804,7 @@ static inline int double_is_nan_bits(double element) {
 	int name(Interpreter *interp, Object *source) { \
 		int rows = source->matrix.rows; \
 		int cols = source->matrix.columns; \
-		int target_handle = object_new_matrix(interp, rows, 1); \
+		int target_handle = object_new_matrix_raw(interp, rows, 1); \
 		if (interp->error_flag) return -1; \
 		Object *target = OBJECT_AT(target_handle); \
 		for (int i = 0; i < rows; i++) { \
@@ -742,7 +821,7 @@ static inline int double_is_nan_bits(double element) {
 	int name(Interpreter *interp, Object *source) { \
 		int rows = source->matrix.rows; \
 		int cols = source->matrix.columns; \
-		int target_handle = object_new_matrix(interp, 1, cols); \
+		int target_handle = object_new_matrix_raw(interp, 1, cols); \
 		if (interp->error_flag) return -1; \
 		Object *target = OBJECT_AT(target_handle); \
 		double * restrict target_elements = target->matrix.elements; \

@@ -1,6 +1,11 @@
-\ spectral_norm — matrix-based port using lforth's dgemm.
-\ A is materialized as an NxN matrix at init; the inner mat-vec products
-\ run in compiled C code (dgemm_kernel) instead of through the interpreter.
+\ spectral_norm — matrix-based port using dgemm.
+\ A is materialized as an NxN matrix at init; the inner mat-vec products run as
+\ dgemm calls instead of through the interpreter. The statistics library is
+\ loaded first so those calls reach the platform BLAS: binding is early, so the
+\ load has to precede the definitions below for them to bind to the BLAS-backed
+\ dgemm words rather than the built-in kernels. Native-only, as the FFI is.
+
+"statistics" load-library
 
 150 to iterations
 130 constant n

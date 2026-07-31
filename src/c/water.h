@@ -1,7 +1,7 @@
 #ifndef WATER_H
 #define WATER_H
 
-#define VERSION "0.24.3"
+#define VERSION "0.24.4"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -237,6 +237,7 @@ typedef struct {
 	Val head;
 	Val tail;
 } Pair;
+
 
 typedef struct {
 	_Atomic int n;
@@ -518,6 +519,12 @@ typedef struct Interpreter {
 	Val *entry_snapshot;
 	int entry_snapshot_depth;
 	int entry_snapshot_cap;
+	Val discourse[2];
+	int discourse_depth;
+	int discourse_line;
+	Val demonstrative[2];
+	int demonstrative_depth;
+	int demonstrative_line;
 
 	struct {
 		char *pattern;
@@ -551,6 +558,7 @@ typedef struct {
 
 	char input_buffer[INPUT_BUFFER_SIZE];
 	int input_buffer_len, input_buffer_pos, need_more;
+	int input_line;
 	int interactive;
 	int definition_redefined;
 	int compiling_src_start;
@@ -581,6 +589,9 @@ typedef struct {
 	int error_located;
 
 	int anaphor_slots;
+	int demonstrative_slots;
+	int demonstrative_bound;
+	int control_depth;
 	int colon_dsp;
 
 	char token_buffer[INPUT_BUFFER_SIZE];
@@ -894,6 +905,7 @@ int object_new_continuation(Interpreter *interp, const Val *frames, int return_l
 int object_new_frame(Interpreter *interp);
 int object_new_logic_var(Interpreter *interp);
 int object_new_matrix(Interpreter *interp, int num_rows, int num_columns);
+int object_new_matrix_raw(Interpreter *interp, int num_rows, int num_columns);
 int object_new_pair(Interpreter *interp);
 int object_new_segment(Interpreter *interp, int length, SegmentType element_type);
 int object_new_set(Interpreter *interp);
@@ -959,6 +971,7 @@ int create_variable(Interpreter *interp, const char *name);
 void rollback_partial_definition(void);
 void truncate_quotation_spans(void);
 int try_anaphor(Interpreter *interp, const char *token);
+int try_demonstrative(Interpreter *interp, const char *token);
 
 int read_i32(FILE *f, int32_t *v);
 int read_i64(FILE *f, int64_t *v);
@@ -989,6 +1002,11 @@ typedef struct {
 
 int create_matrix(Interpreter *interp);
 int matrix_add(Interpreter *interp, Val left_val, Val right_val);
+int matrix_compare_eq(Interpreter *interp, Val left_val, Val right_val, const char *word);
+int matrix_compare_gt(Interpreter *interp, Val left_val, Val right_val, const char *word);
+int matrix_compare_gte(Interpreter *interp, Val left_val, Val right_val, const char *word);
+int matrix_compare_lt(Interpreter *interp, Val left_val, Val right_val, const char *word);
+int matrix_compare_lte(Interpreter *interp, Val left_val, Val right_val, const char *word);
 int matrix_div(Interpreter *interp, Val left_val, Val right_val);
 int matrix_max_columns(Interpreter *interp, Object *source);
 double matrix_max_overall(Object *source);
@@ -1221,7 +1239,9 @@ void p_sub_inplace(DISPATCH_ARGS);
 void p_swap(DISPATCH_ARGS);
 void p_tan(DISPATCH_ARGS);
 void p_tanh(DISPATCH_ARGS);
+void p_that(DISPATCH_ARGS);
 void p_them(DISPATCH_ARGS);
+void p_this(DISPATCH_ARGS);
 void p_throw(DISPATCH_ARGS);
 void p_to_side(DISPATCH_ARGS);
 void p_tor(DISPATCH_ARGS);

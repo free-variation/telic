@@ -447,6 +447,13 @@ live here instead. File and function name each invariant's home.
   to get the ascending cfa order its body-range scan needs, instead of
   sorting. A change that lets cfas be created out of order must restore a
   sort there (core.c, `gc`).
+- Every control-flow opener increments `compiler.control_depth` and every
+  closer decrements it; `try_demonstrative` reads it to reject a fixing
+  mention that a later mention would not reach (compiler.c,
+  `try_demonstrative`).
+- The `this` / `that` frame slots register names containing a space, so no
+  source token can reach them through `find_local` (compiler.c,
+  `restart_definition_body`).
 - `forget_user` frees only objects above `object_space.init`; below it
   sit literals baked into the compiled-in vocabulary (e.g. `run`'s
   `" +"`), which must survive every reset (core.c, `forget_user`).

@@ -428,7 +428,7 @@ int object_new_frame(Interpreter *interp) {
 	return slot;
 }
 
-int object_new_matrix(Interpreter *interp, int num_rows, int num_columns) {
+static int object_new_matrix_sized(Interpreter *interp, int num_rows, int num_columns, int zeroed) {
 	if (in_parallel) {
 		if (thread_alloc.heap_bytes_live > thread_alloc.heap_gc_threshold)
 			interp->gc_pending = 1;
@@ -440,13 +440,35 @@ int object_new_matrix(Interpreter *interp, int num_rows, int num_columns) {
 	obj->matrix.rows = num_rows;
 	obj->matrix.columns = num_columns;
 	size_t num_elements = (size_t)num_rows * (size_t)num_columns;
+	size_t bytes = (num_elements ? num_elements : 1) * sizeof(double);
 
-	CALLOC_OR_FAIL_RETURNING_CLEANUP(interp, obj->matrix.elements, num_elements ? num_elements : 1, sizeof(double),
-			{ arena_free_object(obj); arena.objects[slot] = NULL; }, -1);
+	if (zeroed) {
+		CALLOC_OR_FAIL_RETURNING_CLEANUP(interp, obj->matrix.elements, num_elements ? num_elements : 1, sizeof(double),
+				{ arena_free_object(obj); arena.objects[slot] = NULL; }, -1);
+	} else {
+		obj->matrix.elements = malloc(bytes);
+		if (!obj->matrix.elements) {
+			arena_free_object(obj);
+			arena.objects[slot] = NULL;
+			fail(interp, "out of memory");
+			return -1;
+		}
+#ifdef MATRIX_POISON
+		memset(obj->matrix.elements, 0xff, bytes);
+#endif
+	}
 
 	heap_bytes_add(num_elements * sizeof(double));
 
 	return slot;
+}
+
+int object_new_matrix(Interpreter *interp, int num_rows, int num_columns) {
+	return object_new_matrix_sized(interp, num_rows, num_columns, 1);
+}
+
+int object_new_matrix_raw(Interpreter *interp, int num_rows, int num_columns) {
+	return object_new_matrix_sized(interp, num_rows, num_columns, 0);
 }
 
 int object_new_segment(Interpreter *interp, int length, SegmentType element_type) {
@@ -2765,8 +2787,11 @@ int refill_input(void) {
 
 char *next_token(void) {
 	while (compiler.input_buffer_pos < compiler.input_buffer_len
-	       && isspace((unsigned char)compiler.input_buffer[compiler.input_buffer_pos]))
+	       && isspace((unsigned char)compiler.input_buffer[compiler.input_buffer_pos])) {
+		if (compiler.input_buffer[compiler.input_buffer_pos] == '\n')
+			compiler.input_line++;
 		compiler.input_buffer_pos++;
+	}
 
 	if (compiler.input_buffer_pos >= compiler.input_buffer_len)
 		return NULL;
@@ -2837,8 +2862,11 @@ int parse_float(const char *text, double *out) {
 
 static void skip_whitespace(void) {
 	while (compiler.input_buffer_pos < compiler.input_buffer_len
-			&& isspace((unsigned char)compiler.input_buffer[compiler.input_buffer_pos]))
+			&& isspace((unsigned char)compiler.input_buffer[compiler.input_buffer_pos])) {
+		if (compiler.input_buffer[compiler.input_buffer_pos] == '\n')
+			compiler.input_line++;
 		compiler.input_buffer_pos++;
+	}
 }
 
 static void skip_to_char(char delimiter) {
@@ -3160,6 +3188,8 @@ void run_outer(Interpreter *interp) {
 			return;
 
 		if (compiler.compiling) {
+			if (try_demonstrative(interp, tok))
+				continue;
 			int local_depth, local_slot_idx;
 			if (find_local(tok, &local_depth, &local_slot_idx)) {
 				compiler.local_fetched[compiler.found_local_name_idx] = 1;
@@ -3896,6 +3926,10 @@ static void mark_roots(Interpreter *interp) {
 		mark_value(interp, interp->gc_roots[i]);
 	for (i = 0; i < interp->entry_snapshot_depth; i++)
 		mark_value(interp, interp->entry_snapshot[i]);
+	for (i = 0; i < interp->discourse_depth; i++)
+		mark_value(interp, interp->discourse[i]);
+	for (i = 0; i < interp->demonstrative_depth; i++)
+		mark_value(interp, interp->demonstrative[i]);
 }
 
 void gc(Interpreter *interp) {
@@ -4376,6 +4410,8 @@ void forget_user(Interpreter *interp) {
 
 void interp_init(Interpreter *interp) {
 	interp->next_mark_id = 1;
+	interp->discourse_line = -1;
+	interp->demonstrative_line = -1;
 	interp->bind_trail = xmalloc(sizeof(int) * BIND_TRAIL_DEPTH);
 	interp->bind_trail_cap = BIND_TRAIL_DEPTH;
 	interp->lvar_stack = xmalloc(sizeof(Val) * LVAR_STACK_DEPTH);
@@ -4490,8 +4526,8 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "it", p_it, 0);
 	define_primitive(interp, "them", p_them, 0);
 	define_primitive(interp, "other", p_other, 0);
-	define_primitive(interp, "this", p_it, 0);
-	define_primitive(interp, "that", p_other, 0);
+	define_primitive(interp, "this", p_this, 0);
+	define_primitive(interp, "that", p_that, 0);
 	vocab.eq_cfa = define_primitive(interp, "=", p_eq, 0);
 	vocab.lt_cfa = define_primitive(interp, "<", p_lt, 0);
 	vocab.gt_cfa = define_primitive(interp, ">", p_gt, 0);
@@ -5108,6 +5144,7 @@ int main(int argc, char **argv) {
 			compiler.input_buffer_len += chunk;
 
 		if (fresh_entry) {
+			compiler.input_line++;
 			if (interp->dsp > interp->entry_snapshot_cap) {
 				interp->entry_snapshot = realloc(interp->entry_snapshot,
 						sizeof(Val) * (size_t)interp->dsp);
