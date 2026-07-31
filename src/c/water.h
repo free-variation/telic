@@ -453,7 +453,7 @@ typedef struct Vocabulary {
 	_Atomic int symbol_hash[SYMBOL_HASH_SIZE];
 
 	int exit_cfa, literal_cfa, branch_cfa, zbranch_cfa, dostr_cfa, stop_cfa, to_var_cfa, tailcall_cfa;
-	int enter_locals_cfa, enter_locals_to_cfa, enter_locals_mixed_cfa, enter_anaphors_cfa, enter_anaphors_mixed_cfa, leave_locals_cfa, local_fetch_cfa, local_store_cfa;
+	int enter_locals_cfa, enter_locals_to_cfa, enter_locals_mixed_cfa, leave_locals_cfa, local_fetch_cfa, local_store_cfa;
 	int local_fetch_0depth_cfa, local_store_0depth_cfa;
 	int local_fetch_1depth_cfa;
 	int local_incr_0depth_cfa, local_decr_0depth_cfa, inc_cfa, dec_cfa;
@@ -519,9 +519,6 @@ typedef struct Interpreter {
 	Val *entry_snapshot;
 	int entry_snapshot_depth;
 	int entry_snapshot_cap;
-	Val discourse[2];
-	int discourse_depth;
-	int discourse_line;
 	Val demonstrative[2];
 	int demonstrative_depth;
 	int demonstrative_line;
@@ -588,7 +585,6 @@ typedef struct {
 	const char *current_load_dir;
 	int error_located;
 
-	int anaphor_slots;
 	int demonstrative_slots;
 	int demonstrative_bound;
 	int control_depth;
@@ -970,7 +966,6 @@ void unary_op(Interpreter *interp, Val operand, double (*function)(double));
 int create_variable(Interpreter *interp, const char *name);
 void rollback_partial_definition(void);
 void truncate_quotation_spans(void);
-int try_anaphor(Interpreter *interp, const char *token);
 int try_demonstrative(Interpreter *interp, const char *token);
 
 int read_i32(FILE *f, int32_t *v);
@@ -1069,8 +1064,6 @@ void p_0branch(DISPATCH_ARGS);
 void p_branch(DISPATCH_ARGS);
 void p_copy(DISPATCH_ARGS);
 void p_dostr(DISPATCH_ARGS);
-void p_enter_anaphors(DISPATCH_ARGS);
-void p_enter_anaphors_mixed(DISPATCH_ARGS);
 void p_enter_locals(DISPATCH_ARGS);
 void p_enter_locals_mixed(DISPATCH_ARGS);
 void p_enter_locals_to(DISPATCH_ARGS);
@@ -1176,7 +1169,6 @@ void p_gte_f_zbranch(DISPATCH_ARGS);
 void p_gte_zbranch(DISPATCH_ARGS);
 void p_inc(DISPATCH_ARGS);
 void p_inc_poly(DISPATCH_ARGS);
-void p_it(DISPATCH_ARGS);
 void p_ln(DISPATCH_ARGS);
 void p_log(DISPATCH_ARGS);
 void p_lowest_bit(DISPATCH_ARGS);
@@ -1199,7 +1191,6 @@ void p_none(DISPATCH_ARGS);
 void p_not(DISPATCH_ARGS);
 void p_null(DISPATCH_ARGS);
 void p_or(DISPATCH_ARGS);
-void p_other(DISPATCH_ARGS);
 void p_over(DISPATCH_ARGS);
 void p_power(DISPATCH_ARGS);
 void p_random(DISPATCH_ARGS);
@@ -1240,7 +1231,6 @@ void p_swap(DISPATCH_ARGS);
 void p_tan(DISPATCH_ARGS);
 void p_tanh(DISPATCH_ARGS);
 void p_that(DISPATCH_ARGS);
-void p_them(DISPATCH_ARGS);
 void p_this(DISPATCH_ARGS);
 void p_throw(DISPATCH_ARGS);
 void p_to_side(DISPATCH_ARGS);

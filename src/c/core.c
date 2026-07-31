@@ -2115,31 +2115,6 @@ void p_enter_locals_mixed(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip + 2 + n_received, incoming);
 }
 
-void p_enter_anaphors(DISPATCH_ARGS) {
-	int n_locals = (int)chain_ip[0];
-
-	if (interp->rsp + n_locals + 1 > RETURN_STACK_DEPTH) {
-		SYNC_REGISTERS(interp, chain_ip + 1, chain_sp);
-		fail(interp, "return stack overflow");
-		return;
-	}
-	if (chain_sp - n_locals < interp->data_stack) {
-		SYNC_REGISTERS(interp, chain_ip + 1, chain_sp);
-		fail(interp, "%d value(s) on the stack at entry (need %d)",
-				(int)(chain_sp - interp->data_stack), n_locals);
-		return;
-	}
-
-	interp->return_stack[interp->rsp++] = make_locals_header(interp->local_base, n_locals);
-	interp->local_base = interp->rsp;
-	interp->rsp += n_locals;
-
-	for (int i = 0; i < n_locals; i++)
-		interp->return_stack[interp->local_base + i] = chain_sp[-n_locals + i];
-
-	DISPATCH_REGISTERS(interp, chain_ip + 1, chain_sp);
-}
-
 void p_leave_locals(DISPATCH_ARGS) {
 	int n_locals = (int)chain_ip[0];
 
@@ -2218,38 +2193,6 @@ void p_load3(DISPATCH_ARGS) {
 	chain_sp[2] = locals[(int)chain_ip[2]];
 
 	DISPATCH_REGISTERS(interp, chain_ip + 3, chain_sp + 3);
-}
-
-void p_enter_anaphors_mixed(DISPATCH_ARGS) {
-	int n_locals = (int)chain_ip[0];
-	int n_anaphors = (int)chain_ip[1];
-	int n_received = (int)chain_ip[2];
-	int needed = n_anaphors > n_received ? n_anaphors : n_received;
-
-	if (interp->rsp + n_locals + 1 > RETURN_STACK_DEPTH) {
-		SYNC_REGISTERS(interp, chain_ip + 3 + n_received, chain_sp);
-		fail(interp, "return stack overflow");
-		return;
-	}
-	if (chain_sp - needed < interp->data_stack) {
-		SYNC_REGISTERS(interp, chain_ip + 3 + n_received, chain_sp);
-		fail(interp, "%d value(s) on the stack at entry (need %d)",
-				(int)(chain_sp - interp->data_stack), needed);
-		return;
-	}
-
-	interp->return_stack[interp->rsp++] = make_locals_header(interp->local_base, n_locals);
-	interp->local_base = interp->rsp;
-	interp->rsp += n_locals;
-
-	for (int i = 0; i < n_anaphors; i++)
-		interp->return_stack[interp->local_base + i] = chain_sp[-n_anaphors + i];
-
-	Val *incoming = chain_sp - n_received;
-	for (int i = 0; i < n_received; i++)
-		interp->return_stack[interp->local_base + (int)chain_ip[3 + i]] = incoming[i];
-
-	DISPATCH_REGISTERS(interp, chain_ip + 3 + n_received, incoming);
 }
 
 void p_load2_1depth(DISPATCH_ARGS) {
@@ -3188,15 +3131,13 @@ void run_outer(Interpreter *interp) {
 			return;
 
 		if (compiler.compiling) {
-			if (try_demonstrative(interp, tok))
-				continue;
 			int local_depth, local_slot_idx;
 			if (find_local(tok, &local_depth, &local_slot_idx)) {
 				compiler.local_fetched[compiler.found_local_name_idx] = 1;
 				emit_local_fetch(interp, local_depth, local_slot_idx);
 				continue;
 			}
-			if (try_anaphor(interp, tok))
+			if (try_demonstrative(interp, tok))
 				continue;
 		}
 
@@ -3746,9 +3687,6 @@ int op_cell_count(int cursor) {
 	if (handler == vocab.dict[vocab.enter_locals_mixed_cfa])
 		return 3 + (int)dict[cursor + 2];
 
-	if (handler == vocab.dict[vocab.enter_anaphors_mixed_cfa])
-		return 4 + (int)dict[cursor + 3];
-
 	if (handler == (cell)p_load2)
 		return 3;
 	if (handler == (cell)p_load3)
@@ -3825,7 +3763,6 @@ int op_cell_count(int cursor) {
 	    || handler == vocab.dict[vocab.to_var_cfa]
 	    || handler == vocab.dict[vocab.enter_locals_cfa]
 	    || handler == vocab.dict[vocab.enter_locals_to_cfa]
-	    || handler == vocab.dict[vocab.enter_anaphors_cfa]
 	    || handler == vocab.dict[vocab.leave_locals_cfa]
 	    || handler == vocab.dict[vocab.local_fetch_0depth_cfa]
 	    || handler == vocab.dict[vocab.local_fetch_1depth_cfa]
@@ -3926,8 +3863,6 @@ static void mark_roots(Interpreter *interp) {
 		mark_value(interp, interp->gc_roots[i]);
 	for (i = 0; i < interp->entry_snapshot_depth; i++)
 		mark_value(interp, interp->entry_snapshot[i]);
-	for (i = 0; i < interp->discourse_depth; i++)
-		mark_value(interp, interp->discourse[i]);
 	for (i = 0; i < interp->demonstrative_depth; i++)
 		mark_value(interp, interp->demonstrative[i]);
 }
@@ -4410,7 +4345,6 @@ void forget_user(Interpreter *interp) {
 
 void interp_init(Interpreter *interp) {
 	interp->next_mark_id = 1;
-	interp->discourse_line = -1;
 	interp->demonstrative_line = -1;
 	interp->bind_trail = xmalloc(sizeof(int) * BIND_TRAIL_DEPTH);
 	interp->bind_trail_cap = BIND_TRAIL_DEPTH;
@@ -4523,9 +4457,6 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "rot", p_rot, 0);
 	define_primitive(interp, "depth", p_depth, 0);
 	define_primitive(interp, "roll", p_roll, 0);
-	define_primitive(interp, "it", p_it, 0);
-	define_primitive(interp, "them", p_them, 0);
-	define_primitive(interp, "other", p_other, 0);
 	define_primitive(interp, "this", p_this, 0);
 	define_primitive(interp, "that", p_that, 0);
 	vocab.eq_cfa = define_primitive(interp, "=", p_eq, 0);
@@ -4711,8 +4642,6 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	vocab.enter_locals_cfa = define_primitive(interp, "(enter-locals)", p_enter_locals, 4);
 	vocab.enter_locals_to_cfa = define_primitive(interp, "(enter-locals-to)", p_enter_locals_to, 4);
 	vocab.enter_locals_mixed_cfa = define_primitive(interp, "(enter-locals-mixed)", p_enter_locals_mixed, 4);
-	vocab.enter_anaphors_cfa = define_primitive(interp, "(enter-anaphors)", p_enter_anaphors, 4);
-	vocab.enter_anaphors_mixed_cfa = define_primitive(interp, "(enter-anaphors-mixed)", p_enter_anaphors_mixed, 4);
 	vocab.leave_locals_cfa = define_primitive(interp, "(leave-locals)", p_leave_locals, 4);
 	vocab.local_fetch_cfa = define_primitive(interp, "(local@)", p_local_fetch, 4);
 	vocab.local_store_cfa = define_primitive(interp, "(local!)", p_local_store, 4);

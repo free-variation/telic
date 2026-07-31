@@ -52,9 +52,9 @@ subprocesses, or threads; the loadable statistics library is native-only.
 \ Arithmetic
 3 4 + .                                 \ 7
 
-\ Anaphora: it fixes on the stack top where first mentioned, for the line
-5 it it * .                             \ 25
-1 2 it other + .                        \ 3
+\ Demonstratives: this fixes on the stack top where first mentioned
+5 this this * .                         \ 25
+1 2 this that - .                       \ 1
 
 \ Matrices: * is element-wise; matrix multiply is dgemm (αAB + βC)
 [ 1 2 3 4 ] 2 2 matrix dup transpose *  \ element-wise product of M and Mᵀ
@@ -391,8 +391,7 @@ Unification and committed choice, on the trail and the continuation machinery:
 ### Other
 
 - **`dup`**, **`drop`**, **`swap`**, **`over`**, **`rot`**, **`depth`**, **`roll`**, **`clear`** — stack-manipulation primitives.
-- **`it`** / **`other`** / **`them`** — anaphora: the top of the stack (`it`), the value under it (`other`), or both in order (`them`). The three form one group, which fixes the top two values at the first mention of any of them and holds those for the rest of the clause — the input line at top level, the activation in compiled code. `5 it * .` answers 25 and `1 2 it other + .` answers 3. Non-consuming and repeatable (`it it +`). A colon definition fixes the group at entry, into hidden entry-bound locals, so `: f 2 * it + ;` still sees the argument after consuming it.
-- **`this`** / **`that`** — a second group, fixing independently of the first: `1 2 it 3 4 this that .s` shows `1 2 2 3 4 4 3`. In a definition the pair fixes at its first mention in the body rather than at entry, so `: doubled 2 * this + ;` answers 28 for `7 doubled` where `it` in that position answers 21. The fixing mention sits at the top level of the body; mentions after it read the value from anywhere, including inside branches, loops and quotations.
+- **`this`** / **`that`** — demonstratives: the top of the stack (`this`) and the value under it (`that`), fixed at the first mention of either word and held for the rest of the clause — the input line at top level, the activation in compiled code. `5 this * .` answers 25 and `1 2 this that - .` answers 1. Non-consuming and repeatable (`this this *`). In a definition the pair fixes at its first mention in the body, which sits at the top level of the body; mentions after it read the value from anywhere, including inside branches, loops and quotations, and each activation holds its own.
 - **`copy`** / **`reify`** — deep copy of a value (strings, arrays, sets, frames, matrices); `reify` additionally renames unbound logic vars to canonical `:_0`/`:_1`/… for a ground, storable, comparable snapshot.
 - **`type-of`** — `( a -- sym )` the value's type as a symbol (`:float`, `:frame`, `:lvar`, …), with a lib predicate per type (`float?` … `lvar?`); a bound logic var answers as its value.
 - **`now`** — monotonic seconds as a float, for timing intervals (`wall-now`, under Time and dates, is the absolute clock). **`timed`** — `( xt -- … )` runs xt, prints its elapsed `now` seconds, and passes its results through.

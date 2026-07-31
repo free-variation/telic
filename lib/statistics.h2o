@@ -353,11 +353,12 @@ drop
 
 ( matrix -- json ) \ NumPy __array_interface__ (float64) over a matrix's row-major buffer
 : array-interface
-	{ :data [ it matrix>pointer pointer>address :0 ]
-	  :shape [ it dim ]
+	| >described-matrix |
+	{ :data [ described-matrix matrix>pointer pointer>address :0 ]
+	  :shape [ described-matrix dim ]
 	  :typestr "<f8"
 	  :version 3 }
-	frame>json nip-it; internal
+	frame>json ; internal
 
 ( X y fit-params -- booster ) \ train a booster on features X (nxk) and response y (nx1)
 \ params are keyed by xgboost parameter name; :rounds drives the boosting loop (default 100)

@@ -826,34 +826,6 @@ void p_depth(DISPATCH_ARGS) {
 	} \
 } while (0)
 
-void p_it(DISPATCH_ARGS) {
-	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);
-	CAPTURE_ON_FIRST_MENTION(interp, chain_sp, discourse, discourse_depth, discourse_line, 1, "it");
-
-	*chain_sp = interp->discourse[interp->discourse_depth - 1];
-
-	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
-}
-
-void p_them(DISPATCH_ARGS) {
-	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 2);
-	CAPTURE_ON_FIRST_MENTION(interp, chain_sp, discourse, discourse_depth, discourse_line, 2, "them");
-
-	chain_sp[0] = interp->discourse[0];
-	chain_sp[1] = interp->discourse[1];
-
-	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 2);
-}
-
-void p_other(DISPATCH_ARGS) {
-	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);
-	CAPTURE_ON_FIRST_MENTION(interp, chain_sp, discourse, discourse_depth, discourse_line, 2, "other");
-
-	*chain_sp = interp->discourse[0];
-
-	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
-}
-
 void p_this(DISPATCH_ARGS) {
 	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);
 	CAPTURE_ON_FIRST_MENTION(interp, chain_sp, demonstrative, demonstrative_depth, demonstrative_line, 1, "this");

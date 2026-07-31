@@ -1,0 +1,119 @@
+\ this ( -- v ) / that ( -- v ): the demonstratives. The pair fixes the top two
+\ stack values at the first mention of either word in the clause and holds them
+\ for the rest of it; this pushes the first value, that the second. Both are
+\ non-consuming and repeatable. A clause is one input line at top level and one
+\ activation in compiled code, where the mention that fixes the pair must sit at
+\ the top level of the body.
+
+\ === the pair fixes at the first mention on the line ===
+5 this * . cr          \ 25
+clear
+1 2 this .s cr         \ 1 2 2
+clear
+1 2 that .s cr         \ 1 2 1
+clear
+1 2 this that - . cr   \ 1
+clear
+
+\ === the values hold for the rest of the line ===
+1 2 this 3 4 this .s cr  \ 1 2 2 3 4 2 (the second mention reads the fixed value)
+clear
+9 100 this + . cr      \ 200 (this names the 100, the top where it was mentioned)
+clear
+3 4 that this + + . cr   \ 11 (one fixing serves both words: 3 + 4, then + 4)
+clear
+
+\ === heap values alias, like dup ===
+[ 1 2 3 ] this size . cr   \ 3
+clear
+[ 1 2 3 ] this 0 @i . cr   \ 1
+clear
+
+\ === a fixed value outlives the stack cell it came from ===
+[ 4 5 ] this drop drop gc this size . cr   \ 2
+clear
+
+\ === a failed line restores the stack; the next line fixes afresh ===
+8
+1 0 %                  \ (division by zero; the line fails and the stack is restored)
+this . cr              \ 8
+clear
+
+\ === in a file, each line fixes its own ===
+": double this + ;
+7 double . cr
+5 this this * . cr
+1 2 this that - . cr
+" "/tmp/water_139_demonstratives.h2o" write-file
+"/tmp/water_139_demonstratives.h2o" load    \ 14, then 25, then 1
+clear
+
+\ === definitions: the pair fixes where it is mentioned in the body ===
+: doubled 2 * this + ;
+7 doubled . cr         \ 28 (this names the doubled value, not the entry value)
+: squared this * ;
+5 squared . cr         \ 25
+: pair-diff this that - ;
+3 4 pair-diff . cr     \ 1
+clear
+
+\ === the fixed value survives the stack moving on ===
+: kept this drop drop this 100 + ;
+7 kept . cr            \ 107 (the second mention reads the slot, the stack being empty)
+clear
+
+\ === one frame carries user locals and the pair ===
+: framed | >x | x 2 * this + ;
+6 framed . cr          \ 24
+' framed see-compiled
+clear
+
+\ === quotations read the definition's fixed values ===
+: mapped 2 * this drop [ 1 2 3 ] [: drop this :] map ;
+7 mapped . cr          \ [ 14 14 14 ]
+clear
+
+\ === mentions after the fixing one may sit inside branches ===
+: branchy this 5 > if this 2 * else this 10 + then ;
+9 branchy . cr         \ 18
+3 branchy . cr         \ 13
+clear
+
+\ === early exit unwinds the frame ===
+: early this 5 > if "big" exit then this 2 * ;
+9 early . cr           \ big
+3 early . cr           \ 6
+clear
+
+\ === recursion fixes per activation ===
+: countdown this 1 > if this 1 - countdown then this ;
+3 countdown .s cr      \ 3 2 1 1 2 3 (the trailing mentions read 1, 2, 3 — one fixing per activation)
+clear
+
+\ === inline splice fixes at the call site ===
+: sq this this * ; inline
+: user 1 + sq ;
+4 user . cr            \ 25
+clear
+
+\ === see shows the typed source; see-compiled shows the frame ===
+' squared see
+' squared see-compiled
+
+\ === a local named this shadows the demonstrative ===
+: shadowed | >this | this 100 + ;
+1 shadowed . cr        \ 101
+clear
+
+\ === a top-level quotation fixes on the line that runs it ===
+5 [: this 2 * :] execute . cr  \ 10
+clear
+
+\ === errors: too few values, or a fixing mention that reaches nothing ===
+this                   \ (nothing on the stack where this is mentioned)
+that                   \ (nothing on the stack; that needs 2)
+7
+that                   \ (one value; that needs 2)
+clear
+: fix-in-branch dup 1 > if this 2 * nip then ;   \ (not the top level of the body)
+: fix-in-quotation [: this :] execute ;          \ (same)

@@ -328,7 +328,6 @@ intervals
 iota
 iqr
 iso>time
-it
 join
 json>frame
 keys
@@ -379,11 +378,6 @@ nan?
 negate
 new-tests
 nip
-nip-it
-nip-other
-nip-that
-nip-them
-nip-this
 none?
 nonmissing-count
 norm
@@ -394,7 +388,6 @@ num-cores
 num-elements
 open-app-window
 or
-other
 over
 pad-left
 pad-right
@@ -564,7 +557,6 @@ test
 test-report
 text-anchor
 that
-them
 then
 this
 throw

@@ -378,7 +378,6 @@ const HelpEntry help_entries[] = {
 	{ "iota", "( n -- arr )", "arrays.h2o: [0…n−1], empty when n ≤ 0", "3 + n", "1a(n)", "O(n)", 14 },
 	{ "iqr", "( m -- f )", "statistics.h2o: interquartile range, Q3 − Q1", "2n log n", "malloc(n) ×2", "O(n log n)", 18 },
 	{ "iso>time", "( string -- instant )", "units.h2o: parse the Z form time>iso emits", "len", "1 pair", "O(1)", 21 },
-	{ "it", "( -- v )", "Push the first of the two values its group fixed. it, other and them are one group, this and that a second; a group fixes the top two stack values at the first mention of any of its words in the clause and holds them for the rest of it, so the two groups can name different values on the same line. A clause is one input line at top level, one activation in compiled code. Non-consuming and repeatable (it it +): 5 it * . answers 25, 1 2 it other + . answers 3, and 1 2 it 3 4 it .s shows 1 2 2 3 4 2, the second mention reading what the first fixed. In a definition the group is fixed at entry, into hidden entry-bound locals (see-compiled shows the (enter-anaphors) frame; fetches fuse like any local), so the value stays the argument after the body consumes it — : f 2 * it + ; answers 21 for 7 f — and stack depth 1 becomes an entry requirement of the word; quotations inside the definition read the same slots", "2", "none", "O(1)", 0 },
 	{ "join", "( arr sep -- s )", "Concatenate the string elements of arr separated by sep; errors on a non-string element", "2 + total", "1o", "O(total)", 12 },
 	{ "json>frame", "( s -- val )", "Parse a JSON string. Escapes and \\uXXXX (with surrogate pairs) decode to UTF-8; recursive-descent, depth-guarded; rejects trailing non-whitespace. Each object's keys are sorted after collection", "scan + build", "one object per node", "O(|s| log |s|)", 17 },
 	{ "keys", "( fr -- arr )", "Keys (symbols) in sorted order", "1 + n", "1a(n)", "O(n)", 16 },
@@ -429,11 +428,6 @@ const HelpEntry help_entries[] = {
 	{ "negate", "( a -- -a )", "float or matrix (element-wise)", "2 (float)", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 1 },
 	{ "new-tests", "( -- )", "test.h2o: zero the passed and failed counters test tallies into, so the next test-report covers only the tests run after it — one file's independent groups, or a re-run suite in a session", "—", "none", "O(1)", 24 },
 	{ "nip", "( a b -- b )", "core.h2o: swap drop (inlined)", "5", "none", "O(1)", 0 },
-	{ "nip-it", "( a b -- b )", "core.h2o: nip (inlined)", "5", "none", "O(1)", 0 },
-	{ "nip-other", "( a b c -- b c )", "core.h2o: rot drop (inlined)", "7", "none", "O(1)", 0 },
-	{ "nip-that", "( a b c -- b c )", "core.h2o: nip-other (inlined)", "7", "none", "O(1)", 0 },
-	{ "nip-them", "( a b c -- c )", "core.h2o: nip nip (inlined)", "10", "none", "O(1)", 0 },
-	{ "nip-this", "( a b -- b )", "core.h2o: nip (inlined)", "5", "none", "O(1)", 0 },
 	{ "none?", "( a -- bool )", "True when the value is the none value (null) — a single T_NONE tag test; a bound logic var reports as its value", "2", "none", "O(1)", 4 },
 	{ "nonmissing-count", "( m -- n )", "The number of non-NaN elements — the divisor mean and se use", "1 + n", "none", "O(n)", 18 },
 	{ "norm", "( m -- f )", "Euclidean (L2) norm: √(Σ aᵢⱼ²) over all elements — a vector's length; for a matrix the Frobenius (entrywise 2-)norm, not the spectral norm", "1 + n", "none", "O(n)", 18 },
@@ -444,7 +438,6 @@ const HelpEntry help_entries[] = {
 	{ "num-elements", "( m -- n )", "matrix.h2o: dim * (inlined)", "5", "none", "O(1)", 18 },
 	{ "open-app-window", "( path -- )", "browser.h2o: open path in a detached browser application window (Chromium --app), falling back to the system open / xdg-open; the mechanism behind show-figure", "fork", "none", "O(1)", 32 },
 	{ "or", "( a b -- bool )", "logical or of truthiness", "3", "none", "O(1)", 4 },
-	{ "other", "( -- v )", "Push the second of the two values its group fixed, under the one it names. Same group and same rules as it; the group must have found two values, reported at the mention that reads it", "2", "none", "O(1)", 0 },
 	{ "over", "( a b -- a b a )", "Copy second over top", "5", "none", "O(1)", 0 },
 	{ "pad-left", "( s width -- s' )", "strings.h2o: s left-padded with spaces to width (unchanged when already that wide; codepoint widths)", "n", "1a + 1o", "O(n)", 12 },
 	{ "pad-right", "( s width -- s' )", "strings.h2o: s right-padded with spaces to width (unchanged when already that wide; codepoint widths)", "n", "1a + 1o", "O(n)", 12 },
@@ -613,10 +606,9 @@ const HelpEntry help_entries[] = {
 	{ "test", "( name xt -- )", "test.h2o: run xt under catch; print ok <name> or FAIL <name>: <reason> (a runtime error's :message, else the thrown value), tally it, restore the stack, continue past a failure", "—", "prints", "O(xt)", 24 },
 	{ "test-report", "( -- )", "test.h2o: print <n> passed, <m> failed; throw when any failed so a program-file run exits nonzero", "—", "prints", "O(1)", 24 },
 	{ "text-anchor", "( anchor -- )", "Set the current text anchor: \"start\", \"middle\", or \"end\"", NULL, NULL, NULL, 41 },
-	{ "that", "( -- v )", "Push the second of the two values the this / that group fixed, under the one this names. Same group and same rules as this; two values must be present where the pair fixes, the emitted over reporting when they are not", "2", "none", "O(1)", 0 },
-	{ "them", "( -- v₁ v₀ )", "Push both of its group's values in their original order (them + adds them as they lay) — equivalent to other it. Needs the same two values as other", "3", "none", "O(1)", 0 },
+	{ "that", "( -- v )", "Push the second of the two values the demonstratives fixed, under the one this names. Same rules as this; two values must be on the stack where the pair fixes, the emitted over reporting when they are not", "2", "none", "O(1)", 0 },
 	{ "then", "—", "Close an if/if…else; patches the forward branch", NULL, NULL, NULL, 8 },
-	{ "this", "( -- v )", "Push the first of the two values the this / that group fixed. At top level the pair fixes at its own first mention on the line, independently of it / other / them: 1 2 it 3 4 this that .s shows 1 2 2 3 4 4 3. In a definition the pair fixes at its first mention in the body, compiled as a dup and a store into a hidden local (see-compiled shows the pair), read by every mention after it, once per activation — : doubled 2 * this + ; answers 28 for 7 doubled, where it in that position answers 21. The fixing mention sits at the top level of the body, not inside a branch, loop or quotation; mentions after it read the value from anywhere in the body. A quotation compiled at top level is not a definition, so this inside it reads the line's value", "2", "none", "O(1)", 0 },
+	{ "this", "( -- v )", "Push the first of the two values the demonstratives fixed. this and that fix the top two stack values at the first mention of either word in the clause and hold them for the rest of it; a clause is one input line at top level, one activation in compiled code. Non-consuming and repeatable: 5 this * . answers 25, 1 2 this that - . answers 1, and 1 2 this 3 4 this .s shows 1 2 2 3 4 2, the second mention reading what the first fixed. In a definition the pair fixes at its first mention in the body, compiled as a dup and a store into a hidden local (see-compiled shows the pair) that every later mention reads, once per activation — : doubled 2 * this + ; answers 28 for 7 doubled, and a callee that fixes its own value leaves the caller's intact. A local named this shadows the word. The fixing mention sits at the top level of the body, not inside a branch, loop or quotation; mentions after it read the value from anywhere in the body, including inside branches, loops and quotations. A quotation compiled at top level is not a definition, so this inside it reads the line's value", "2", "none", "O(1)", 0 },
 	{ "throw", "( exc -- )", "Unwind to the nearest exception prompt, leaving exc 1 (what catch consumes); with no enclosing prompt it is an interpreter error, uncaught exception: <value>, the trace captured at the throw site. The prompt search skips locals regions, so stale bytes in uninitialized local slots are never read as prompts", "L", "none", "O(L)", 24 },
 	{ "time>iso", "( instant -- string )", "units.h2o: \"%Y-%m-%dT%H:%M:%SZ\" format-time", "len", "1s", "O(1)", 21 },
 	{ "timed", "( xt -- … )", "Run xt, print its elapsed now (CLOCK_MONOTONIC) seconds, then pass through whatever it left on the stack", "2 + xt + print", "none", "O(xt)", 29 },
@@ -694,4 +686,4 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "C primitive alias of unify, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 26 },
 };
 
-const int help_entry_count = 644;
+const int help_entry_count = 636;
