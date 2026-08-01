@@ -108,34 +108,6 @@ Each one pass over sorted samples, in the `ks-distance` mold:
 
 ---
 
-## Profiling: `profile`
-
-A statistical sampling profiler in the normal `water`, with no `docol` or
-dispatch hook — a disarmed profiler adds nothing to execution. `profile-on` /
-`profile-off` bound a region; `profile ( xt -- )` profiles one quotation.
-
-Arm an interval timer over process CPU time (`setitimer(ITIMER_PROF)`, or
-`timer_create` with `CLOCK_PROCESS_CPUTIME_ID` for sub-millisecond rates). The
-`SIGPROF` handler is async-signal-safe: it snapshots the active return-stack ip
-chain plus the current `ip` into a preallocated buffer and does nothing more — no
-allocation, no dictionary walk.
-
-At disarm, map each ip to its word with `word_containing`, name the deepest op
-with `running_op_name` so a hot primitive shows by name, and fold the chains into
-a call tree — a node per word along each path, leaf hits self time, subtree totals
-inclusive time. Report the tree indented with per-node self and inclusive sample
-counts, their percentages, and the total sample count.
-
-- Sampling rate settable; 1 kHz default.
-- Native-only: wasm has no signals, so `profile` errors there.
-
-To settle: the sample-buffer overflow policy (fold early outside signal context,
-or a ring that reports dropped samples); whether parallel `pmap` workers each arm
-a timer or only the main thread is sampled; whether a long-running C primitive
-stays one opaque node or is attributed further.
-
----
-
 ## Executable documentation
 
 Every example in the docs runs, and is machine-verified to run. The
@@ -398,14 +370,6 @@ hash table) makes resolution O(1) and leaves large-file loads I/O-bound.
 ## Multi-core parallelism: threads over the shared heap
 
 In rough priority:
-
-- **Persistent worker-thread pool.** Spawning and joining OS threads per region
-  amortizes to nothing for one big region (a single `pmap` over a huge domain
-  saturates the cores), but the spawn/join dominates for many small regions —
-  system time, not compute. A pool that parks threads and dispatches per call
-  fixes it. Pooled threads keep their per-worker allocation context across
-  regions, so region teardown must reset every worker's context, not just the
-  caller's.
 
 - **Numeric disjoint-write buffer / work-stealing.** Lower priority: a shared
   unboxed-`double` output buffer threaded under the matrix kernels, and

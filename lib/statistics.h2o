@@ -250,6 +250,12 @@ dup "LAPACKE_dpotrs" [
 	aug 0 rows cols 1- cols submatrix
 	100 1e-8 fit-logistic ;
 
+( X beta -- probabilities ) \ sigmoid of the linear predictor
+: predict-logistic
+	1 -rot over dim drop 1 0-matrix 
+	0 swap dgemm-nn 
+	sigmoid ;
+
 ( dataset predictors response replications -- [coefficient-summaries] )
 : logistic-regression  ' fit-augmented-logistic regress-with ;
 
