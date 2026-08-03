@@ -1,7 +1,7 @@
 #ifndef WATER_H
 #define WATER_H
 
-#define VERSION "0.24.4"
+#define VERSION "0.25.1"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -454,6 +454,7 @@ typedef struct Vocabulary {
 
 	int exit_cfa, literal_cfa, branch_cfa, zbranch_cfa, dostr_cfa, stop_cfa, to_var_cfa, tailcall_cfa;
 	int enter_locals_cfa, enter_locals_to_cfa, enter_locals_mixed_cfa, leave_locals_cfa, local_fetch_cfa, local_store_cfa;
+	int frame_get_inline_key_cfa, frame_set_inline_key_cfa;
 	int local_fetch_0depth_cfa, local_store_0depth_cfa;
 	int local_fetch_1depth_cfa;
 	int local_incr_0depth_cfa, local_decr_0depth_cfa, inc_cfa, dec_cfa;
@@ -1169,6 +1170,7 @@ void p_gte_f_zbranch(DISPATCH_ARGS);
 void p_gte_zbranch(DISPATCH_ARGS);
 void p_inc(DISPATCH_ARGS);
 void p_inc_poly(DISPATCH_ARGS);
+void p_lgamma(DISPATCH_ARGS);
 void p_ln(DISPATCH_ARGS);
 void p_log(DISPATCH_ARGS);
 void p_lowest_bit(DISPATCH_ARGS);
@@ -1322,10 +1324,12 @@ void p_flatten_array(DISPATCH_ARGS);
 void p_frame(DISPATCH_ARGS);
 void p_frame_delete_at(DISPATCH_ARGS);
 void p_frame_get(DISPATCH_ARGS);
+void p_frame_get_inline_key(DISPATCH_ARGS);
 void p_frame_get_or(DISPATCH_ARGS);
 void p_frame_get_symbol(DISPATCH_ARGS);
 void p_frame_keys(DISPATCH_ARGS);
 void p_frame_set(DISPATCH_ARGS);
+void p_frame_set_inline_key(DISPATCH_ARGS);
 void p_frame_set_symbol(DISPATCH_ARGS);
 void p_frame_to_array(DISPATCH_ARGS);
 void p_frame_to_json(DISPATCH_ARGS);

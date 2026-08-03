@@ -90,4 +90,11 @@ null
 1 
 0 
 1 
+0 
+3.17805 
+24 
+0.572365 
+706.573 
+<matrix 1x5>
+          0          0     0.6931      1.792      3.178
 error: expected a float or a matrix; got a string

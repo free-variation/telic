@@ -2139,6 +2139,7 @@ UNARY_QUANTITY_OP(sqrt, sqrt, "sqrt", unit_pow(interp, (int)pairs.table[VAL_DATA
 UNARY_MATH_OP(exp, exp)
 UNARY_MATH_OP(log, log10)
 UNARY_MATH_OP(ln, log)
+UNARY_MATH_OP(lgamma, lgamma)
 UNARY_MATH_OP(sin, sin)
 UNARY_MATH_OP(cos, cos)
 UNARY_MATH_OP(tan, tan)

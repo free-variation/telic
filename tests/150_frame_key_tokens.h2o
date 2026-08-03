@@ -1,0 +1,70 @@
+\ name@key ( -- val ) / name!key ( val -- ): a token joining a frame reference to
+\ a key. The part left of the operator is a local, else a defined word; empty
+\ means the frame is already on the stack. @ gets, ! sets and drops the frame
+\ that ! returns. Chains left to right; only the last step may be a set. The rule
+\ applies only to tokens that are not defined words, so a word whose name
+\ contains @ or ! keeps its meaning.
+
+{ :price 42 :qty 7 :address { :city "Boston" :zip "02134" } } to row
+
+\ === get through a global ===
+row@price . cr         \ 42
+row@qty . cr           \ 7
+clear
+
+\ === chained gets walk nested frames ===
+row@address@city . cr  \ Boston
+row@address@zip . cr    \ 02134
+clear
+
+\ === the bare form takes the frame from the stack ===
+{ :a 1 :b 2 } @b . cr  \ 2
+row @price . cr        \ 42
+clear
+
+\ === set stores the stack top and leaves nothing ===
+99 row!price
+row@price . cr         \ 99
+.s cr                  \ (empty: ! dropped the frame it returns)
+clear
+
+\ === a chain may end in a set ===
+"Cambridge" row@address!city
+row@address@city . cr  \ Cambridge
+clear
+
+\ === locals are the left part inside a definition ===
+: price-of | >r | r@price ;
+row price-of . cr      \ 99
+: bump-price | >r | r@price 1 + r!price ;
+row bump-price
+row@price . cr         \ 100
+clear
+
+\ === one frame reference, several keys ===
+: describe | >r | r@qty r@price ;
+row describe . . cr    \ 100 7
+clear
+
+\ === the key is an operand, not a stack push ===
+' price-of see-compiled
+' price-of see
+
+\ === a defined word wins over the rule ===
+: row@total 77 ;
+row@total . cr         \ 77
+clear
+
+\ === words whose names contain the operators are untouched ===
+[ 1 2 3 ] 0 @i . cr    \ 1
+{ :a 1 } :b 9 @or . cr \ 9
+[< 1 2 >] 3 set-add! size . cr  \ 3
+clear
+
+\ === errors ===
+row@missing            \ (no such key)
+5 to n
+n@price                \ (the left part is not a frame)
+row@                   \ (no key after the operator; reported as an unknown word)
+nonesuch@price         \ (the left part resolves to nothing)
+row!price@qty          \ (only the last step may be a set)

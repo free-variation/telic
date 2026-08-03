@@ -122,11 +122,25 @@ function! GetWaterIndent() abort
   if in_string
     return 0
   endif
+  " Nothing is open. A definition header, and any line following one that closed a
+  " definition, belongs at column 0. Otherwise this is top-level text the script has
+  " no basis to move — a balanced one-line conditional leaves nothing open, and
+  " returning 0 there would flatten indentation the author established — so -1 keeps
+  " what is there.
+  let cur = s:Tokens(s:Blank(getline(v:lnum)))
   if empty(stack)
-    return 0
+    if !empty(cur) && cur[0][0] ==# ':'
+      return 0
+    endif
+    let prev = prevnonblank(v:lnum - 1)
+    for tok in prev > 0 ? s:Tokens(s:Blank(getline(prev))) : []
+      if tok[0] ==# ';'
+        return 0
+      endif
+    endfor
+    return -1
   endif
 
-  let cur = s:Tokens(s:Blank(getline(v:lnum)))
   let first = empty(cur) ? '' : cur[0][0]
   if first ==# ':'
     return 0

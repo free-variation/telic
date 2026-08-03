@@ -1,0 +1,29 @@
+42 
+7 
+Boston 
+02134 
+2 
+42 
+99 
+
+Cambridge 
+99 
+100 
+100 7 
+: price-of   \ 9 cells
+ 0: (enter-locals-to) 1
+ 2: (local@0) 0
+ 4: (@key) 523
+ 6: (leave-locals) 1
+ 8: exit
+;
+: price-of | >r | r@price ;
+77 
+1 
+9 
+3 
+error: no key :missing
+error: expected a frame; got a float
+error: unknown word: row@ (did you mean row?)
+error: unknown word: nonesuch@price
+error: unknown word: row!price@qty

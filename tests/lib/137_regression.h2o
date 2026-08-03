@@ -132,6 +132,86 @@
 	bin-X bin-y 100 1e-10 0 fit-logistic-ridge 1e-9 expect-near
 :] test
 
+\ ===== negative binomial (NB2: variance mu + mu^2/theta, log link) =====
+\ Shared fixtures: one design, and two count vectors over it — mild is close to
+\ Poisson (residual variance barely above the mean), heavy is strongly
+\ overdispersed. On heavy, MASS::glm.nb gives beta 2.0093621915 0.5313088104 and
+\ theta 2.990944402, which the values below match to 1e-9 and 1e-7; MASS::theta.ml
+\ on the fixed-mean sample gives 2.32264753.
+
+[ 0 0.25 0.50 0.75 1.00 1.25 1.50 1.75 2.00 2.25 2.50 2.75 ] 12 1 matrix with-intercept to nb-design
+[ 7 9 9 11 12 14 15 17 19 21 24 28 ] 12 1 matrix to nb-mild
+[ 2 15 4 20 6 25 8 30 9 35 11 40 ] 12 1 matrix to nb-heavy
+
+"negative-binomial-log carries the NB2 variance and the log link" [:
+	4 5 negative-binomial-log :variance @ execute 7.2 1e-12 expect-near
+	0 5 negative-binomial-log :inverse-link @ execute 1 1e-12 expect-near
+:] test
+
+"at a known theta, y = mu recovers the coefficients" [:
+	[ 1 0.0  1 0.5  1 1.0  1 1.5  1 2.0  1 2.5 ] 6 2 matrix
+	[ 0.5 0.4 0.0 * + exp  0.5 0.4 0.5 * + exp  0.5 0.4 1.0 * + exp
+	  0.5 0.4 1.5 * + exp  0.5 0.4 2.0 * + exp  0.5 0.4 2.5 * + exp ] 6 1 matrix
+	5 negative-binomial-log 100 1e-12 fit-glm
+	[ 0.5 0.4 ] 2 1 matrix 1e-4 expect-near
+:] test
+
+"a huge theta reproduces the Poisson fit" [:
+	nb-design nb-mild 1e6 negative-binomial-log 100 1e-12 fit-glm
+	nb-design nb-mild 100 1e-12 fit-poisson 1e-6 expect-near
+:] test
+
+"theta changes the fit: the variance function is in play" [:
+	| at-half at-huge |
+	nb-design nb-heavy 0.5 negative-binomial-log 100 1e-12 fit-glm to at-half
+	nb-design nb-heavy 1e6 negative-binomial-log 100 1e-12 fit-glm to at-huge
+	at-half at-huge - dup * sum 1e-4 > expect
+:] test
+
+"fit-negative-binomial on overdispersed counts" [:
+	| beta theta |
+	nb-design nb-heavy 100 1e-8 fit-negative-binomial to theta to beta
+	beta [ 2.009 0.5313 ] 2 1 matrix 1e-3 expect-near
+	theta 2.99094 1e-4 expect-near
+:] test
+
+"y = mu exactly reports no overdispersion: theta runs to the bracket top" [:
+	| beta theta |
+	[ 1 0.0  1 0.5  1 1.0  1 1.5  1 2.0  1 2.5 ] 6 2 matrix
+	[ 0.5 0.4 0.0 * + exp  0.5 0.4 0.5 * + exp  0.5 0.4 1.0 * + exp
+	  0.5 0.4 1.5 * + exp  0.5 0.4 2.0 * + exp  0.5 0.4 2.5 * + exp ] 6 1 matrix
+	100 1e-8 fit-negative-binomial to theta to beta
+	beta [ 0.5 0.4 ] 2 1 matrix 1e-4 expect-near
+	theta 1e5 > expect
+:] test
+
+"overdispersion lowers theta" [:
+	| mild-theta heavy-theta |
+	nb-design nb-mild 100 1e-8 fit-negative-binomial to mild-theta drop
+	nb-design nb-heavy 100 1e-8 fit-negative-binomial to heavy-theta drop
+	heavy-theta mild-theta < expect
+	mild-theta 1e5 > expect
+	heavy-theta 100 < expect
+:] test
+
+"negative-binomial-theta reads dispersion at fixed means" [:
+	[ 3 4 5 5 6 7 ] 6 1 matrix  [ 5 5 5 5 5 5 ] 6 1 matrix negative-binomial-theta
+	1e5 > expect
+	[ 1 2 5 8 12 2 ] 6 1 matrix  [ 5 5 5 5 5 5 ] 6 1 matrix negative-binomial-theta
+	2.32265 1e-4 expect-near
+:] test
+
+"the same data gives the same dispersion" [:
+	| first second |
+	nb-design nb-heavy 100 1e-8 fit-negative-binomial to first drop
+	nb-design nb-heavy 100 1e-8 fit-negative-binomial to second drop
+	first second expect=
+:] test
+
+"a budget too small to converge throws from the inner IRLS" [:
+	[: nb-design nb-heavy 1 1e-8 fit-negative-binomial :] expect-throws
+:] test
+
 \ ===== multinomial logistic (fit-multinomial + predict-multinomial) =====
 
 "K=2 multinomial equals binary logistic" [:

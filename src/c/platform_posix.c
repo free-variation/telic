@@ -109,8 +109,6 @@ static const char *lf_token_style(const char *s, long len) {
 		return "ansi-olive";
 	if (s[0] == '/' && len > 1 && ((s[1] >= 'a' && s[1] <= 'z') || (s[1] >= 'A' && s[1] <= 'Z')))
 		return "ansi-olive";
-	if (s[0] >= 'A' && s[0] <= 'Z')
-		return "ansi-purple";
 	if (lf_token_in(lf_control, s, len))
 		return "ansi-maroon";
 	if (lf_token_in(lf_defining, s, len))
@@ -125,6 +123,13 @@ static const char *lf_token_style(const char *s, long len) {
 			return "ansi-navy";
 	}
 	return NULL;
+}
+
+static long lf_frame_key_offset(const char *s, long len) {
+	for (long i = 1; i < len - 1; i++)
+		if ((s[i] == '@' || s[i] == '!') && s[i + 1] != '@' && s[i + 1] != '!')
+			return i;
+	return -1;
 }
 
 static int lf_is_ws(char c) {
@@ -207,8 +212,26 @@ static void repl_highlighter(ic_highlight_env_t *henv, const char *input, void *
 		}
 		i = lf_token_end(input, n, i);
 		const char *style = lf_token_style(input + start, i - start);
-		if (style)
+		if (style) {
 			ic_highlight(henv, start, i - start, style);
+			continue;
+		}
+
+		long key_offset = lf_frame_key_offset(input + start, i - start);
+		if (key_offset < 0)
+			continue;
+
+		for (long at = start + key_offset; at < i; at++) {
+			if (input[at] == '@' || input[at] == '!') {
+				ic_highlight(henv, at, 1, "ansi-purple");
+				continue;
+			}
+			long key_end = at;
+			while (key_end < i && input[key_end] != '@' && input[key_end] != '!')
+				key_end++;
+			ic_highlight(henv, at, key_end - at, "ansi-olive");
+			at = key_end - 1;
+		}
 	}
 }
 

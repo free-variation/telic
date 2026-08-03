@@ -3094,6 +3094,100 @@ static const char *nearest_word_name(Interpreter *interp, const char *token) {
 	return search.name;
 }
 
+#define FRAME_KEY_STEPS_MAX 8
+
+static int try_frame_key_token(Interpreter *interp, const char *token) {
+	const char *first_operator = strpbrk(token, "@!");
+	if (!first_operator || first_operator[1] == '\0')
+		return 0;
+
+	char text[INPUT_BUFFER_SIZE];
+	strncpy(text, token, sizeof(text) - 1);
+	text[sizeof(text) - 1] = '\0';
+
+	char *cursor = text + (first_operator - token);
+	char *keys[FRAME_KEY_STEPS_MAX];
+	char operators[FRAME_KEY_STEPS_MAX];
+	int n_steps = 0;
+
+	while (*cursor) {
+		if (n_steps == FRAME_KEY_STEPS_MAX)
+			return 0;
+		operators[n_steps] = *cursor;
+		*cursor++ = '\0';
+
+		char *key = cursor;
+		while (*cursor && *cursor != '@' && *cursor != '!')
+			cursor++;
+		if (key == cursor)
+			return 0;
+		keys[n_steps++] = key;
+	}
+
+	for (int step = 0; step < n_steps - 1; step++)
+		if (operators[step] == '!')
+			return 0;
+
+	int left_depth;
+	int left_slot;
+	int left_is_local = text[0] && compiler.compiling && find_local(text, &left_depth, &left_slot);
+	int left_cfa = (text[0] && !left_is_local) ? find(text) : 0;
+	if (text[0] && !left_is_local && !left_cfa)
+		return 0;
+
+	if (left_is_local) {
+		compiler.local_fetched[compiler.found_local_name_idx] = 1;
+		emit_local_fetch(interp, left_depth, left_slot);
+	} else if (left_cfa) {
+		WORD_USE_INCREMENT(left_cfa);
+		if (compiler.compiling)
+			emit_call(interp, (cell)left_cfa);
+		else
+			execute_cfa(interp, left_cfa);
+		if (interp->error_flag)
+			return 1;
+	}
+
+	for (int step = 0; step < n_steps; step++) {
+		int key = intern_symbol(interp, keys[step]);
+		if (interp->error_flag)
+			return 1;
+
+		if (compiler.compiling) {
+			emit_call(interp, operators[step] == '@'
+					? vocab.frame_get_inline_key_cfa : vocab.frame_set_inline_key_cfa);
+			emit(interp, (cell)key);
+			continue;
+		}
+
+		if (operators[step] == '@') {
+			push(interp, make_symbol(key));
+			execute_cfa(interp, find("@"));
+		} else {
+			Val target = pop(interp);
+			if (interp->error_flag)
+				return 1;
+			Val stored = pop(interp);
+			if (interp->error_flag)
+				return 1;
+			push(interp, target);
+			push(interp, make_symbol(key));
+			push(interp, stored);
+			execute_cfa(interp, find("!"));
+			if (interp->error_flag)
+				return 1;
+			pop(interp);
+		}
+		if (interp->error_flag)
+			return 1;
+	}
+
+	compiler.fuse_prev_var = 0;
+	compiler.fuse_prev2_var = 0;
+	compiler.fuse_prev_cmp = 0;
+	return 1;
+}
+
 void run_outer(Interpreter *interp) {
 	while (!interp->error_flag) {
 		skip_whitespace();
@@ -3250,6 +3344,9 @@ void run_outer(Interpreter *interp) {
 			compile_or_push(interp, make_float(parsed_number));
 			continue;
 		}
+
+		if (try_frame_key_token(interp, tok))
+			continue;
 
 		const char *nearest_name = nearest_word_name(interp, tok);
 		if (interp->error_flag)
@@ -3770,7 +3867,9 @@ int op_cell_count(int cursor) {
 	    || handler == vocab.dict[vocab.local_incr_0depth_cfa]
 	    || handler == vocab.dict[vocab.local_decr_0depth_cfa]
 	    || handler == vocab.dict[vocab.local_finc_0depth_cfa]
-	    || handler == vocab.dict[vocab.local_fdec_0depth_cfa])
+	    || handler == vocab.dict[vocab.local_fdec_0depth_cfa]
+	    || handler == vocab.dict[vocab.frame_get_inline_key_cfa]
+	    || handler == vocab.dict[vocab.frame_set_inline_key_cfa])
 		return 2;
 
 	return 1;
@@ -4672,6 +4771,8 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "(=.string)", p_eq_string, 4);
 	define_primitive(interp, "(@.symbol)", p_frame_get_symbol, 4);
 	define_primitive(interp, "(!.symbol)", p_frame_set_symbol, 4);
+	vocab.frame_get_inline_key_cfa = define_primitive(interp, "(@key)", p_frame_get_inline_key, 4);
+	vocab.frame_set_inline_key_cfa = define_primitive(interp, "(!key)", p_frame_set_inline_key, 4);
 	ll_add_0_cfa = define_primitive(interp, "(ll+0)", p_ll_add_0, 4);
 	ll_sub_0_cfa = define_primitive(interp, "(ll-0)", p_ll_sub_0, 4);
 	ll_mul_0_cfa = define_primitive(interp, "(ll*0)", p_ll_mul_0, 4);
@@ -4798,6 +4899,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "exp", p_exp, 0);
 	define_primitive(interp, "log", p_log, 0);
 	define_primitive(interp, "ln", p_ln, 0);
+	define_primitive(interp, "lgamma", p_lgamma, 0);
 	define_primitive(interp, "^", p_power, 0);
 	define_primitive(interp, "%", p_divmod, 0);
 	define_primitive(interp, "sin", p_sin, 0);

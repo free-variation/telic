@@ -118,7 +118,14 @@ def emit_vim(auto):
     L.append('syn match   waterNumber "\\<-\\=\\d\\+\\%(\\.\\d\\+\\)\\=\\%([eE][-+]\\=\\d\\+\\)\\=\\>"')
     L.append('syn match   waterSymbol  ":\\k\\+"')
     L.append('syn match   waterPath    "/\\a\\k*"')
-    L.append('syn match   waterLogicVar "\\<\\u\\k*\\>"')
+    # A key fused into a token (row@price, row!price): the operator and the key get
+    # separate groups, and the frame reference keeps its own colour. syn keyword
+    # outranks syn match in vim, so standalone @i, @j, @or and !i are unaffected.
+    # The key rule matches behind the operator rather than through it: two match
+    # items starting at the same character compete, and whichever wins consumes it,
+    # leaving the other unable to apply.
+    L.append('syn match   waterFrameOp  "[@!]\\ze\\k"')
+    L.append('syn match   waterFrameKey "[@!]\\@<=\\k\\+"')
     L.append("")
 
     def kw(group, items):
@@ -162,7 +169,8 @@ def emit_vim(auto):
     L.append("")
     for grp, link in [
         ("Comment", "Comment"), ("String", "String"), ("Number", "Number"),
-        ("Symbol", "Constant"), ("Path", "Constant"), ("LogicVar", "Identifier"),
+        ("Symbol", "Constant"), ("Path", "Constant"),
+        ("FrameOp", "Operator"), ("FrameKey", "Type"),
         ("Define", "Define"), ("DefName", "Function"), ("Conditional", "Conditional"),
         ("Repeat", "Repeat"), ("Keyword", "Keyword"), ("Logic", "Special"),
         ("Boolean", "Boolean"), ("Delimiter", "Delimiter"), ("Builtin", "Statement"),
@@ -203,8 +211,8 @@ def emit_vscode(auto):
         "_generated": "by tools/gen-editors.py from docs/reference.md — do not edit by hand",
         "patterns": [{"include": "#" + n} for n in [
             "comments", "strings", "numbers", "quotation", "control", "defining",
-            "logic", "constants", "operators", "builtins", "symbol", "path",
-            "logicvar", "delimiters",
+            "logic", "constants", "operators", "builtins", "frameop", "framekey",
+            "symbol", "path", "delimiters",
         ]],
         "repository": {
             "comments": {"patterns": [
@@ -232,8 +240,10 @@ def emit_vscode(auto):
                        "match": BOUNDARY_BEHIND + r":[^\s\[\]{};]+"},
             "path": {"name": "constant.other.path.water",
                      "match": BOUNDARY_BEHIND + r"/[A-Za-z][^\s{};]*"},
-            "logicvar": {"name": "variable.other.logicvar.water",
-                         "match": BOUNDARY_BEHIND + r"[A-Z][^\s\[\]{};]*" + BOUNDARY_AHEAD},
+            "frameop": {"name": "keyword.operator.frame.water",
+                        "match": r"[@!](?=[A-Za-z])"},
+            "framekey": {"name": "support.type.property-name.water",
+                         "match": r"(?<=[@!])[A-Za-z][^\s\[\]{};@!]*"},
             "delimiters": {"name": "punctuation.section.water",
                            "match": r"\[<|>\]|\[\(|\)\]|[\[\]{}]|" + BOUNDARY_BEHIND + r"(?:[<>]|\|>?)" + BOUNDARY_AHEAD},
         },

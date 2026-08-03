@@ -1115,6 +1115,34 @@ void p_frame_set_symbol(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 2);
 }
 
+void p_frame_get_inline_key(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val frame_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(frame_val, T_FRAME, "@", "a frame");
+
+	cell key = chain_ip[0];
+	Object *frame = OBJECT_AT(VAL_DATA(frame_val));
+	FRAME_LOOKUP(frame, key, at, present);
+	if (!present) {
+		fail(interp, "no key :%s", &vocab.symbol_pool[key]);
+		return;
+	}
+
+	chain_sp[-1] = frame->frame.values[at];
+
+	DISPATCH_REGISTERS(interp, chain_ip + 1, chain_sp);
+}
+
+void p_frame_set_inline_key(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
+	Val frame_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(frame_val, T_FRAME, "!", "a frame");
+
+	frame_put(OBJECT_AT(VAL_DATA(frame_val)), chain_ip[0], chain_sp[-2]);
+
+	DISPATCH_REGISTERS(interp, chain_ip + 1, chain_sp - 2);
+}
+
 void p_frame_get(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
 	Val frame_val = chain_sp[-2];

@@ -608,3 +608,115 @@ drop
 		then
 	:] map hstack-all ;
 
+\ ---- Negative binomial (NB2): variance mu + mu^2/theta, log link ----
+\ theta is the dispersion; as theta grows the variance approaches the mean and
+\ the model approaches Poisson. fit-glm handles beta at a fixed theta, so the
+\ fit alternates that with a maximum-likelihood step for theta.
+
+( mu theta -- variance ) \ NB2 variance function
+: negative-binomial-variance
+	|> mu theta |
+	mu mu sq theta / + ; internal
+
+( theta -- family ) \ the GLM family at a known dispersion; theta is curried in.
+: negative-binomial-log
+	|> theta |
+	{ :inverse-link ' exp
+	  :mean-derivative ' exp
+	  :variance theta ' negative-binomial-variance curry } ;
+
+( X beta -- mu ) \ fitted means under the log link
+: negative-binomial-mean
+	|> x beta |
+	1 x beta 0 
+	x dim drop 1 0-matrix
+	dgemm-nn exp ; internal
+
+( y mu -- theta ) \ moment estimate
+: negative-binomial-theta-moment
+	| >y >mu excess-variance |
+	y mu - dup * sum mu sum - to excess-variance
+	excess-variance 0 > if
+		mu dup * sum excess-variance /
+	else 0
+	then ; internal
+
+( y mu theta -- loglik ) \ NB2 log-likelihood less the constant sum of lgamma(y+1)
+: negative-binomial-loglik
+	|> y mu theta |
+	y theta + lgamma
+	theta lgamma -
+	theta theta ln * +
+	y mu ln * +
+	theta y + mu theta + ln * -
+	sum ; internal
+
+( y mu -- theta ) \ maximum-likelihood dispersion at fixed means. Golden-section on
+\ ln theta, bracketing the moment estimate a factor of bracket-factor each way; when
+\ the sample shows no overdispersion the moment estimate is unusable and the bracket
+\ centres on that factor instead, so an answer near the top means Poisson fits
+: negative-binomial-theta
+	| >y >mu log-bracket-factor log-centre section-fraction
+	  log-low log-high log-probe-low log-probe-high |
+
+	PHI 1- to section-fraction
+	1000 ln to log-bracket-factor
+	y mu negative-binomial-theta-moment 
+	dup 0 > if ln else drop log-bracket-factor then to log-centre
+
+	log-centre log-bracket-factor - to log-low
+	log-centre log-bracket-factor + to log-high
+
+	[: log-high  log-high log-low - section-fraction *  - to log-probe-low
+	   log-low   log-high log-low - section-fraction *  + to log-probe-high
+	   y mu log-probe-low exp negative-binomial-loglik
+	   y mu log-probe-high exp negative-binomial-loglik
+	   < if 
+		   log-probe-low to log-low
+	   else
+		   log-probe-high to log-high
+	   then :] 60 times
+
+	log-low log-high + 2 / exp ;
+
+
+( X y max-iterations tolerance -- beta theta ) \ NB2 regression, log link: start from
+\ the Poisson fit, then alternate a maximum-likelihood theta at the current means
+\ with an IRLS beta at that theta until theta settles. max-iterations bounds both the
+\ inner IRLS and the outer alternation, and tolerance serves both: since theta is a
+\ function of the fitted means, it cannot be pinned tighter than beta is, so the
+\ alternation also stops once a round no longer shrinks the change in theta
+: fit-negative-binomial
+	| >x >y >max-iterations >tolerance
+	  beta theta previous-theta mu rounds converged change previous-change |
+
+	x y max-iterations tolerance fit-poisson to beta
+	0 to previous-theta
+	0 to rounds
+	0 to converged
+
+	begin 
+		x beta negative-binomial-mean to mu
+		y mu negative-binomial-theta to theta
+		x y theta negative-binomial-log max-iterations tolerance fit-glm to beta
+
+		++ rounds
+		theta previous-theta - abs theta / to change
+
+		change tolerance <
+		  rounds 1 >  change previous-change < not  and
+		or to converged           \ settled, or no longer shrinking
+
+		change to previous-change
+		theta to previous-theta
+		converged rounds max-iterations > or
+	until
+
+	converged not if
+		rounds "fit-negative-binomial: theta did not settle in {0} rounds" format throw
+	then
+
+	beta theta ;
+
+
+

@@ -267,6 +267,7 @@ fit-logistic
 fit-logistic-ridge
 fit-multinomial
 fit-multinomial-ridge
+fit-negative-binomial
 fit-poisson
 fit-tree
 fit-xgb
@@ -335,6 +336,7 @@ ks-distance
 last
 leave
 legend
+lgamma
 linear-regression
 ln
 load
@@ -374,8 +376,12 @@ mod
 n-columns
 n-observations
 n-rows
+name!key
+name@key
 nan?
 negate
+negative-binomial-log
+negative-binomial-theta
 new-tests
 nip
 none?
