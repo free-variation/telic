@@ -1413,7 +1413,7 @@ void call_open(Interpreter *interp, int cfa, CallContext *context) {
 		}
 
 		if (body_start && interp->rsp + n_locals + 1 <= RETURN_STACK_DEPTH) {
-			interp->return_stack[interp->rsp++] = make_locals_header(interp->local_base, n_locals);
+			interp->return_stack[interp->rsp++] = make_locals_header(interp->local_base, n_locals, cfa + 1);
 
 			context->saved_loop_local_base = interp->loop_local_base;
 			interp->local_base = interp->rsp;
@@ -2028,7 +2028,8 @@ void p_enter_locals(DISPATCH_ARGS) {
 		fail(interp, "return stack overflow");
 		return;
 	}
-	interp->return_stack[interp->rsp++] = make_locals_header(interp->local_base, n_locals);
+	interp->return_stack[interp->rsp++] = make_locals_header(interp->local_base, n_locals,
+			(int)((chain_ip - 1) - vocab.dict));
 	interp->rsp += n_locals;
 	interp->local_base = interp->rsp - n_locals;
 
@@ -2063,7 +2064,8 @@ void p_enter_locals_to(DISPATCH_ARGS) {
 		return;
 	}
 
-	interp->return_stack[interp->rsp++] = make_locals_header(interp->local_base, n_locals);
+	interp->return_stack[interp->rsp++] = make_locals_header(interp->local_base, n_locals,
+			(int)((chain_ip - 1) - vocab.dict));
 	Val *incoming = chain_sp - n_locals;
 	for (int i = 0; i < n_locals; i++)
 		interp->return_stack[interp->rsp + i] = incoming[i];
@@ -2104,7 +2106,8 @@ void p_enter_locals_mixed(DISPATCH_ARGS) {
 		return;
 	}
 
-	interp->return_stack[interp->rsp++] = make_locals_header(interp->local_base, n_locals);
+	interp->return_stack[interp->rsp++] = make_locals_header(interp->local_base, n_locals,
+			(int)((chain_ip - 1) - vocab.dict));
 	interp->local_base = interp->rsp;
 	interp->rsp += n_locals;
 

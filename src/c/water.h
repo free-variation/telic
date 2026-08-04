@@ -35,7 +35,7 @@ typedef int64_t cell;
 #define SIDESTACK_DEPTH (1 << 10)
 #define INPUT_BUFFER_SIZE (1 << 20)
 #define LOCAL_NAMES_POOL_SIZE (1 << 13)
-#define MAX_LOCAL_NAMES (1 << 8)
+#define MAX_LOCAL_NAMES (1 << 7)
 #define MAX_LOCAL_SCOPES (1 << 6)
 #define MAX_NESTING_DEPTH (1 << 8)
 #define MAX_CALL_DEPTH (1 << 12)
@@ -121,10 +121,13 @@ static inline Val make_tagged(Tag tag, int64_t data) {
 	return value;
 }
 
-#define LOCAL_BASE_BITS 24
+#define LOCAL_BASE_BITS 16
+#define LOCAL_COUNT_BITS 8
+#define LOCAL_SCOPE_SHIFT (LOCAL_BASE_BITS + LOCAL_COUNT_BITS)
 
-static inline Val make_locals_header(int local_base, int n_locals) {
-	return make_tagged(T_ADDR, ((int64_t)n_locals << LOCAL_BASE_BITS | local_base));
+static inline Val make_locals_header(int local_base, int n_locals, int scope_address) {
+	return make_tagged(T_ADDR, ((int64_t)scope_address << LOCAL_SCOPE_SHIFT)
+			| ((int64_t)n_locals << LOCAL_BASE_BITS) | local_base);
 }
 
 static inline int saved_local_base(Val locals_header) {
@@ -132,7 +135,11 @@ static inline int saved_local_base(Val locals_header) {
 }
 
 static inline int saved_n_locals(Val locals_header) {
-	return (int)(VAL_DATA(locals_header) >> LOCAL_BASE_BITS);
+	return (int)((VAL_DATA(locals_header) >> LOCAL_BASE_BITS) & ((1 << LOCAL_COUNT_BITS) - 1));
+}
+
+static inline int saved_scope_address(Val locals_header) {
+	return (int)(VAL_DATA(locals_header) >> LOCAL_SCOPE_SHIFT);
 }
 
 static inline Val make_float(double number) {
