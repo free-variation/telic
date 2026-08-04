@@ -358,6 +358,23 @@ current one-assignment cost. The frame walk runs only while a region is live.
 
 ---
 
+## Error trace for a primitive invoked as an xt
+
+An error raised by a C primitive that was handed to `execute` as an xt carries no
+trace: `' transpose execute` on a float reports `expected a matrix; got a float`
+and nothing else, while the same failure inside a colon word or quotation reports
+`in transpose ← boom`. `interp->ip` then points into the trampoline rather than
+into any word's body, so `word_containing` matches nothing and no frame qualifies.
+
+This hits the shadowing idiom, where a forth word captures the C original and
+dispatches it — `(matrix-select-rows)`, `(matrix-dim)`, the `dgemm-*` redefinitions
+in `lib/statistics.h2o` — so an out-of-bounds `select-rows` names neither the
+primitive nor the caller. Naming the primitive requires the trace builder to
+recognise a trampoline `ip` and take the running handler's word from the dictionary
+instead of from the body range.
+
+---
+
 ## Loader dictionary lookup
 
 Token resolution in the outer interpreter is a linear dictionary walk with a
@@ -411,6 +428,13 @@ live here instead. File and function name each invariant's home.
   to get the ascending cfa order its body-range scan needs, instead of
   sorting. A change that lets cfas be created out of order must restore a
   sort there (core.c, `gc`).
+- A curried token holds its target xt in `items[0]` and its bound values in
+  `items[1..]`, so its object kind stays `OBJECT_ARRAY` and the sweep, the
+  image format and `references_region` need no case of their own (core.c,
+  `curried_new`).
+- `call_open_callable` roots the token for the whole combinator call: the
+  invocation slice holds only its handle, which GC does not scan (core.c,
+  `call_open_callable`).
 - Every control-flow opener increments `compiler.control_depth` and every
   closer decrements it; `try_demonstrative` reads it to reject a fixing
   mention that a later mention would not reach (compiler.c,

@@ -591,7 +591,7 @@ int val_cmp_depth(Interpreter *interp, Val left, Val right, int depth) {
 								 return left_unit - right_unit;
 							 return val_cmp_depth(interp, left_magnitude, right_magnitude, depth + 1);
 						 }
-		case T_SYMBOL: case T_XT: case T_ADDR: case T_LOGIC_VAR:
+		case T_SYMBOL: case T_XT: case T_CURRIED: case T_ADDR: case T_LOGIC_VAR:
 
 					  if (VAL_DATA(left) < VAL_DATA(right))
 					  	return -1;
@@ -911,6 +911,16 @@ void print_val(FILE *out, Interpreter *interp, Val value) {
 			break;
 		}
 		case T_XT: fprintf(out, "<xt %lld>", (long long)VAL_DATA(value)); break;
+	case T_CURRIED: {
+						Object *curried = OBJECT_AT(VAL_DATA(value));
+						int target_cfa = (int)VAL_DATA(curried->items[0]);
+						const char *name = name_of(target_cfa);
+						if (name)
+							fprintf(out, "<xt %s +%d bound>", name, curried->len - 1);
+						else
+							fprintf(out, "<xt %d +%d bound>", target_cfa, curried->len - 1);
+						break;
+					}
 		case T_ADDR: fprintf(out, "<addr %lld>", (long long)VAL_DATA(value)); break;
 		case T_STREAM: fprintf(out, "<stream %lld>", (long long)VAL_DATA(value)); break;
 		case T_DB: fprintf(out, "<database %lld>", (long long)VAL_DATA(value)); break;
@@ -1122,7 +1132,13 @@ void print_val_compact(FILE *out, Interpreter *interp, Val value) {
 					   }
 					   break;
 				   }
-		case T_ADDR: fprintf(out, "@%lld", (long long)VAL_DATA(value)); break;
+		case T_CURRIED: {
+						Object *curried = OBJECT_AT(VAL_DATA(value));
+						const char *name = name_of((int)VAL_DATA(curried->items[0]));
+						fprintf(out, "'%s+%d", name ? name : "?", curried->len - 1);
+						break;
+					}
+	case T_ADDR: fprintf(out, "@%lld", (long long)VAL_DATA(value)); break;
 		case T_PTR: fprintf(out, "<ptr %lld>", (long long)VAL_DATA(value)); break;
 		case T_SEGMENT: {
 							Object *segment = OBJECT_AT(VAL_DATA(value));
@@ -1357,10 +1373,110 @@ void execute_cfa(Interpreter *interp, int cfa) {
 	vocab.dict[interp->trampoline_base + 2] = saved_slot_2;
 }
 
+int callable_cfa(Val callable) {
+	if (VAL_TAG(callable) == T_CURRIED)
+		return (int)VAL_DATA(OBJECT_AT(VAL_DATA(callable))->items[0]);
+
+	return (int)VAL_DATA(callable);
+}
+
+int curried_new(Interpreter *interp, Val target, const Val *values, int n_values) {
+	Object *inherited = VAL_TAG(target) == T_CURRIED ? OBJECT_AT(VAL_DATA(target)) : NULL;
+	int n_inherited = inherited ? inherited->len - 1 : 0;
+
+	int curried_handle = object_new_array(interp, 1 + n_values + n_inherited);
+	if (interp->error_flag)
+		return -1;
+
+	Object *curried = OBJECT_AT(curried_handle);
+	curried->items[0] = inherited ? inherited->items[0] : target;
+	for (int i = 0; i < n_values; i++)
+		curried->items[1 + i] = values[i];
+	for (int i = 0; i < n_inherited; i++)
+		curried->items[1 + n_values + i] = inherited->items[1 + i];
+
+	return curried_handle;
+}
+
+int curried_materialize(Interpreter *interp, Val curried_val) {
+	Object *curried = OBJECT_AT(VAL_DATA(curried_val));
+
+	int materialized_cfa = create_header(interp, "(curried)", 4);
+	if (interp->error_flag)
+		return -1;
+
+	emit(interp, (cell)&docol);
+	for (int i = 1; i < curried->len; i++)
+		emit_val_literal(interp, curried->items[i]);
+	emit_call(interp, (int)VAL_DATA(curried->items[0]));
+	emit_call(interp, vocab.exit_cfa);
+	if (interp->error_flag)
+		return -1;
+
+	return materialized_cfa;
+}
+
+void p_enter_curried(DISPATCH_ARGS) {
+	Object *curried = OBJECT_AT((int)*chain_ip);
+	int n_bound = curried->len - 1;
+	int target_cfa = (int)VAL_DATA(curried->items[0]);
+
+	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, n_bound);
+	for (int i = 0; i < n_bound; i++)
+		chain_sp[i] = curried->items[1 + i];
+
+	if ((cfa_handler)vocab.dict[target_cfa] == docol) {
+		REQUIRE_RETURN_ROOM(interp, chain_ip, chain_sp);
+		interp->return_stack[interp->rsp++] = make_addr((int)(chain_ip + 1 - vocab.dict));
+
+		DISPATCH_REGISTERS(interp, vocab.dict + target_cfa + 1, chain_sp + n_bound);
+	}
+
+	SYNC_REGISTERS(interp, chain_ip + 1, chain_sp + n_bound);
+	execute_cfa(interp, target_cfa);
+
+	DISPATCH(interp);
+}
+
+void call_open_callable(Interpreter *interp, Val callable, CallContext *context) {
+	if (VAL_TAG(callable) != T_CURRIED) {
+		call_open(interp, (int)VAL_DATA(callable), context);
+		return;
+	}
+
+	context->rooted = 0;
+	gc_root_push(interp, callable);
+	if (interp->error_flag) {
+		context->fast = 0;
+		return;
+	}
+	context->rooted = 1;
+
+	context->reuses_locals = 0;
+	context->fast = 1;
+	context->leave_ip = 0;
+	context->saved_ip = interp->ip;
+	context->saved_running = interp->running;
+	context->saved_slot_0 = vocab.dict[interp->trampoline_base];
+	context->saved_slot_1 = vocab.dict[interp->trampoline_base + 1];
+	context->saved_slot_2 = vocab.dict[interp->trampoline_base + 2];
+
+	context->saved_loop_body_start = interp->loop_body_start;
+	context->saved_loop_n = interp->loop_n;
+	context->saved_loop_slots_ip = interp->loop_slots_ip;
+	interp->loop_body_start = 0;
+	interp->loop_slots_ip = -1;
+
+	vocab.dict[interp->trampoline_base] = (cell)&p_enter_curried;
+	vocab.dict[interp->trampoline_base + 1] = (cell)VAL_DATA(callable);
+	vocab.dict[interp->trampoline_base + 2] = vocab.dict[vocab.stop_cfa];
+}
+
 void call_open(Interpreter *interp, int cfa, CallContext *context) {
 	cfa_handler handler = (cfa_handler)vocab.dict[cfa];
 
 	context->reuses_locals = 0;
+	context->rooted = 0;
 
 	if (handler == dovar || handler == dosym || handler == dounit || handler == dodefer) {
 		context->fast = 0;
@@ -1531,6 +1647,9 @@ void call_invoke(Interpreter *interp) {
 }
 
 void call_close(Interpreter *interp, CallContext *context) {
+	if (context->rooted)
+		gc_root_pop(interp);
+
 	if (!context->fast)
 		return;
 	interp->running = context->saved_running;
@@ -1716,6 +1835,14 @@ int quotation_starts_at(int addr) {
 		if (vocab.quotation_spans[i].start_cfa == addr)
 			return 1;
 	return 0;
+}
+
+const char *quotation_source(int start_cfa) {
+	const QuotationSpan *span = quotation_span_containing(start_cfa);
+	if (!span || span->start_cfa != start_cfa || span->source_offset == 0)
+		return NULL;
+
+	return &vocab.source_pool[span->source_offset];
 }
 
 int quotation_extent_end(int start_cfa) {
@@ -1929,6 +2056,7 @@ const char *tag_name(Tag t) {
 		case T_FRAME:  return "a frame";
 		case T_MATRIX: return "a matrix";
 		case T_XT:     return "an execution token";
+		case T_CURRIED: return "an execution token";
 		case T_ADDR:   return "an address";
 		case T_STREAM: return "a stream";
 		case T_CONT:   return "a continuation";
@@ -3531,6 +3659,7 @@ static void mark_value_at(Interpreter *interp, Val value, int depth) {
 		if (VAL_TAG(value) != T_STRING &&
 				VAL_TAG(value) != T_SET &&
 				VAL_TAG(value) != T_ARRAY &&
+				VAL_TAG(value) != T_CURRIED &&
 				VAL_TAG(value) != T_PAIR &&
 				VAL_TAG(value) != T_FRAME &&
 				VAL_TAG(value) != T_MATRIX &&
@@ -4237,7 +4366,20 @@ static void see_tree_body(FILE *out, Interpreter *interp, int body_start, int in
 	}
 }
 
-int capture_render(Interpreter *interp, void (*render)(FILE *, Interpreter *, int), int target_cfa) {
+void render_curried_bindings(FILE *out, Interpreter *interp, Val target) {
+	if (VAL_TAG(target) != T_CURRIED)
+		return;
+
+	Object *curried = OBJECT_AT(VAL_DATA(target));
+	fputs("\\ curried, binds", out);
+	for (int i = 1; i < curried->len; i++) {
+		putc(' ', out);
+		print_val_compact(out, interp, curried->items[i]);
+	}
+	putc('\n', out);
+}
+
+int capture_render(Interpreter *interp, void (*render)(FILE *, Interpreter *, Val), Val target) {
 	char *buffer = NULL;
 	size_t size = 0;
 	FILE *out = open_memstream(&buffer, &size);
@@ -4246,7 +4388,7 @@ int capture_render(Interpreter *interp, void (*render)(FILE *, Interpreter *, in
 		return -1;
 	}
 
-	render(out, interp, target_cfa);
+	render(out, interp, target);
 	fclose(out);
 
 	int length = (int)size;
@@ -4258,7 +4400,10 @@ int capture_render(Interpreter *interp, void (*render)(FILE *, Interpreter *, in
 	return handle;
 }
 
-static void see_compiled_render(FILE *out, Interpreter *interp, int target_cfa) {
+static void see_compiled_render(FILE *out, Interpreter *interp, Val target) {
+	render_curried_bindings(out, interp, target);
+
+	int target_cfa = callable_cfa(target);
 	const char *name = &vocab.name_pool[WORD_NAME(target_cfa)];
 
 	if ((cfa_handler)vocab.dict[target_cfa] != docol) {
@@ -4280,16 +4425,18 @@ static void see_compiled_render(FILE *out, Interpreter *interp, int target_cfa) 
 
 #define SEE_WORD_PAIR(print_name, string_name, print_word, string_word, render) \
 	void print_name(DISPATCH_ARGS) { \
-		POP_XT(target_cfa, print_word); \
-		render(stdout, interp, target_cfa); \
+		POP_CALLABLE(target_cfa, print_word); \
+		(void)target_cfa; \
+		render(stdout, interp, target_cfa##_val); \
 		fflush(stdout); \
 		\
 		DISPATCH(interp); \
 	} \
 	\
 	void string_name(DISPATCH_ARGS) { \
-		POP_XT(target_cfa, string_word); \
-		int handle = capture_render(interp, render, target_cfa); \
+		POP_CALLABLE(target_cfa, string_word); \
+		(void)target_cfa; \
+		int handle = capture_render(interp, render, target_cfa##_val); \
 		if (interp->error_flag) \
 			return; \
 		push(interp, make_string(handle)); \
@@ -4299,7 +4446,10 @@ static void see_compiled_render(FILE *out, Interpreter *interp, int target_cfa) 
 
 SEE_WORD_PAIR(p_see_compiled, p_see_compiled_to_string, "see-compiled", "see-compiled>string", see_compiled_render)
 
-static void see_tree_render(FILE *out, Interpreter *interp, int target_cfa) {
+static void see_tree_render(FILE *out, Interpreter *interp, Val target) {
+	render_curried_bindings(out, interp, target);
+
+	int target_cfa = callable_cfa(target);
 	const char *name = &vocab.name_pool[WORD_NAME(target_cfa)];
 
 	if ((cfa_handler)vocab.dict[target_cfa] != docol) {
@@ -4558,6 +4708,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "over", p_over, 0);
 	define_primitive(interp, "rot", p_rot, 0);
 	define_primitive(interp, "depth", p_depth, 0);
+	define_primitive(interp, "pick", p_pick, 0);
 	define_primitive(interp, "roll", p_roll, 0);
 	define_primitive(interp, "this", p_this, 0);
 	define_primitive(interp, "that", p_that, 0);
@@ -4696,9 +4847,10 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "execute", p_execute, 0);
 	define_primitive(interp, "curry", p_curry, 0);
 	define_primitive(interp, "2curry", p_2curry, 0);
+	define_primitive(interp, "ncurry", p_ncurry, 0);
 	define_primitive(interp, "(execute-catching)", p_execute_catching, 4);
 	define_primitive(interp, "map", p_map, 0);
-	define_primitive(interp, "mapn", p_mapn, 0);
+	define_primitive(interp, "nmap", p_nmap, 0);
 	define_primitive(interp, "filter", p_filter, 0);
 	define_primitive(interp, "find-first", p_find_first, 0);
 	define_primitive(interp, "reduce", p_reduce, 0);
@@ -4761,6 +4913,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	at_i_l1l0_cfa = define_primitive(interp, "(@i.l1l0)", p_at_i_l1l0, 4);
 	at_i_swap_l0_cfa = define_primitive(interp, "(@i.swap.l0)", p_at_i_swap_local0, 4);
 	at_i_swap_l1_cfa = define_primitive(interp, "(@i.swap.l1)", p_at_i_swap_local1, 4);
+	define_primitive(interp, "(enter-curried)", p_enter_curried, 4);
 	define_primitive(interp, "(@i.array)", p_at_i_array, 4);
 	define_primitive(interp, "(@i.segment)", p_at_i_segment, 4);
 	at_e_lit_cfa = define_primitive(interp, "(@e.lit)", p_at_e_lit, 4);
@@ -4983,7 +5136,12 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 		compiler.input_buffer[0] = 0;
 
 		if (interp->error_flag) {
-			printf("lib.h2o load error\n");
+			if (interp->error_message[0])
+				fprintf(stderr, "water: lib.h2o load error: %s\n", interp->error_message);
+			else
+				fprintf(stderr, "water: lib.h2o load error\n");
+			if (interp->error_trace[0])
+				fprintf(stderr, "%s\n", interp->error_trace);
 			return 1;
 		}
 	}

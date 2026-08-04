@@ -1595,7 +1595,7 @@ void p_update_at(DISPATCH_ARGS) {
 	PEEK_TYPE_AT(frame_val, 2, "update-at", T_FRAME);
 	PEEK_AT(key_or_path, 1, "update-at");
 	PEEK_AT(xt, 0, "update-at");
-	if (VAL_TAG(xt) != T_XT) {
+	if (VAL_TAG(xt) != T_XT && VAL_TAG(xt) != T_CURRIED) {
 		fail(interp, "xt required on stack; got %s", tag_name(VAL_TAG(xt)));
 		return;
 	}
@@ -1608,7 +1608,9 @@ void p_update_at(DISPATCH_ARGS) {
 			return;
 			}
 			push(interp, frame->frame.values[at]);
-			execute_xt(interp, (int)VAL_DATA(xt));
+			push_curried_bindings(interp, xt);
+			if (interp->error_flag) return;
+			execute_xt(interp, callable_cfa(xt));
 			if (interp->error_flag) return;
 			frame_put(frame, VAL_DATA(key_or_path), pop(interp));
 			interp->dsp -= 2;
@@ -1629,7 +1631,9 @@ void p_update_at(DISPATCH_ARGS) {
 				return;
 			}
 			push(interp, parent_obj->frame.values[at]);
-			execute_xt(interp, (int)VAL_DATA(xt));
+			push_curried_bindings(interp, xt);
+			if (interp->error_flag) return;
+			execute_xt(interp, callable_cfa(xt));
 			if (interp->error_flag) return;
 			frame_put(parent_obj, leaf, pop(interp));
 			interp->dsp -= 2;

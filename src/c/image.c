@@ -280,6 +280,7 @@ static int loaded_handle_ok(Interpreter *interp, Val v) {
 		case T_LOGIC_VAR: return handle >= 0 && handle < interp->lvar_top;
 		case T_SYMBOL:    return handle >= 0 && handle < vocab.symbol_pool_here;
 		case T_XT:        return handle >= DICT_RESERVED && handle < vocab.here;
+		case T_CURRIED:   want = OBJECT_ARRAY; break;
 		default: return 1;
 	}
 	return handle >= 0 && handle < arena.object_space.n

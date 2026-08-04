@@ -91,7 +91,8 @@ typedef enum {
 	T_DB,
 	T_PTR,
 	T_SEGMENT,
-	T_QUANTITY
+	T_QUANTITY,
+	T_CURRIED
 } Tag;
 
 typedef union {
@@ -159,6 +160,7 @@ static inline Val make_pair(int handle) { return make_tagged(T_PAIR, handle); }
 static inline Val make_frame(int handle) { return make_tagged(T_FRAME, handle); }
 static inline Val make_matrix(int handle) { return make_tagged(T_MATRIX, handle); }
 static inline Val make_xt(int cfa) { return make_tagged(T_XT, cfa); }
+static inline Val make_curried(int handle) { return make_tagged(T_CURRIED, handle); }
 static inline Val make_addr(int cell_index) { return make_tagged(T_ADDR, cell_index); }
 static inline Val make_stream(int file_descriptor) {return make_tagged(T_STREAM, file_descriptor); }
 static inline Val make_db(int handle) { return make_tagged(T_DB, handle); }
@@ -635,6 +637,7 @@ typedef struct {
 	cell saved_slot_0, saved_slot_1, saved_slot_2;
 	int fast;
 	int reuses_locals;
+	int rooted;
 	int saved_loop_local_base;
 
 	int saved_loop_body_start;
@@ -688,6 +691,15 @@ extern int session_unit;
 	double name = VAL_NUMBER(name##_val)
 
 #define POP_XT(name, op)      POP_TYPED(name, op, T_XT);      int name = (int)VAL_DATA(name##_val)
+
+#define POP_CALLABLE(name, op) \
+	POP(name##_val); \
+	if (VAL_TAG(name##_val) != T_XT && VAL_TAG(name##_val) != T_CURRIED) { \
+		fail(interp, "expected an execution token; got %s", tag_name(VAL_TAG(name##_val))); \
+		return; \
+	} \
+	int name = callable_cfa(name##_val)
+
 #define POP_MATRIX(name, op)  POP_TYPED(name, op, T_MATRIX);  Object *name = OBJECT_AT(VAL_DATA(name##_val))
 #define POP_SEGMENT(name, op) POP_TYPED(name, op, T_SEGMENT); Object *name = OBJECT_AT(VAL_DATA(name##_val))
 #define POP_STRING(name, op)  POP_TYPED(name, op, T_STRING);  Object *name = OBJECT_AT(VAL_DATA(name##_val))
@@ -872,9 +884,13 @@ void *arena_realloc(void *payload, size_t bytes);
 void call_close(Interpreter *interp, CallContext *ctx);
 void call_invoke(Interpreter *interp);
 void call_open(Interpreter *interp, int cfa, CallContext *ctx);
-int capture_render(Interpreter *interp, void (*render)(FILE *, Interpreter *, int), int target_cfa);
+void call_open_callable(Interpreter *interp, Val callable, CallContext *ctx);
+int callable_cfa(Val callable);
+int capture_render(Interpreter *interp, void (*render)(FILE *, Interpreter *, Val), Val target);
 int construct_vocabulary(Interpreter *interp, int load_lib);
 int create_header(Interpreter *interp, const char *name, int flags);
+int curried_materialize(Interpreter *interp, Val curried);
+int curried_new(Interpreter *interp, Val target, const Val *values, int n_values);
 void echo_definition(const char *name, int redefined, const char *kind);
 int define_primitive(Interpreter *interp, const char *name, cfa_handler handler, int flags);
 void dict_ensure(Interpreter *interp, int extra);
@@ -929,9 +945,11 @@ void print_val_compact(FILE *out, Interpreter *interp, Val value);
 void print_val_inspect(FILE *out, Interpreter *interp, Val value);
 int quotation_starts_at(int addr);
 int quotation_extent_end(int start_cfa);
+const char *quotation_source(int start_cfa);
 void rebuild_symbol_hash(void);
 void record_loaded_file(Interpreter *interp, const char *filename);
 int refill_input(void);
+void render_curried_bindings(FILE *out, Interpreter *interp, Val target);
 void region_abort(ParallelRegion *region);
 void region_begin(ParallelRegion *region, int domain_len, int worker_count);
 void region_commit(ParallelRegion *region);
@@ -1055,7 +1073,7 @@ void push_quantity(Interpreter *interp, Val magnitude, int unit);
 Val quantity_of(Interpreter *interp, Val magnitude, int unit);
 int quantity_truthy(Val quantity);
 void render_unit(FILE *out, int unit);
-void render_unit_description(FILE *out, Interpreter *interp, int word_cfa);
+void render_unit_description(FILE *out, Interpreter *interp, Val target);
 int unit_conversion(int from, int to, double *factor);
 int unit_divide(Interpreter *interp, int left, int right, double *collapse_factor);
 int unit_id_valid(int unit);
@@ -1072,6 +1090,7 @@ void p_0branch(DISPATCH_ARGS);
 void p_branch(DISPATCH_ARGS);
 void p_copy(DISPATCH_ARGS);
 void p_dostr(DISPATCH_ARGS);
+void p_enter_curried(DISPATCH_ARGS);
 void p_enter_locals(DISPATCH_ARGS);
 void p_enter_locals_mixed(DISPATCH_ARGS);
 void p_enter_locals_to(DISPATCH_ARGS);
@@ -1195,12 +1214,14 @@ void p_mul(DISPATCH_ARGS);
 void p_mul_f(DISPATCH_ARGS);
 void p_mul_inplace(DISPATCH_ARGS);
 void p_nan(DISPATCH_ARGS);
+void p_ncurry(DISPATCH_ARGS);
 void p_neg(DISPATCH_ARGS);
 void p_none(DISPATCH_ARGS);
 void p_not(DISPATCH_ARGS);
 void p_null(DISPATCH_ARGS);
 void p_or(DISPATCH_ARGS);
 void p_over(DISPATCH_ARGS);
+void p_pick(DISPATCH_ARGS);
 void p_power(DISPATCH_ARGS);
 void p_random(DISPATCH_ARGS);
 void p_random_int(DISPATCH_ARGS);
@@ -1452,7 +1473,7 @@ void p_filter(DISPATCH_ARGS);
 void p_find_first(DISPATCH_ARGS);
 void p_i_times(DISPATCH_ARGS);
 void p_map(DISPATCH_ARGS);
-void p_mapn(DISPATCH_ARGS);
+void p_nmap(DISPATCH_ARGS);
 void p_num_cores(DISPATCH_ARGS);
 void p_pfilter(DISPATCH_ARGS);
 void p_pmap(DISPATCH_ARGS);
@@ -1589,6 +1610,15 @@ static inline Val rpop(Interpreter *interp) {
 	fail(interp, "return stack underflow");
 	Val none = make_tagged(T_NONE, 0);
 	return none;
+}
+
+static inline void push_curried_bindings(Interpreter *interp, Val callable) {
+	if (VAL_TAG(callable) != T_CURRIED)
+		return;
+
+	Object *curried = OBJECT_AT(VAL_DATA(callable));
+	for (int i = 1; i < curried->len; i++)
+		push(interp, curried->items[i]);
 }
 
 static inline void call_step(Interpreter *interp, CallContext *context, int cfa) {

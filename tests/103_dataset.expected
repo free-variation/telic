@@ -68,9 +68,7 @@
           4          5
 
 error: array index 5 out of bounds (length 3)
-in (@i.swap.l0) ← [: column swap @i :]
 error: array index 3 out of bounds (length 2)
-in (@i.swap.l0) ← [: column swap @i :]
 error: expected a matrix; got a float
 4 3 
 3 4 
@@ -106,7 +104,7 @@ in (@.symbol) ← column-type
 
 1 3 
 error: no key :nope
-in (@.symbol) ← [: dataset swap @ :]
+in (@.symbol) ← [: 3 pick swap @ :]
 [ [ "b" 3 ]
   [ "a" 2 ]
   [ "c" 1 ] ] 
@@ -238,4 +236,4 @@ error: expected a mask matrix; got a float
          12          5
 
 error: no key :missing
-in update-at ← replace-where
+in (@.symbol) ← replace-where

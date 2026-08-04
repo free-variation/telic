@@ -22,7 +22,7 @@ static int call_one_result(Interpreter *interp, CallContext *context, int xt, in
 }
 
 void p_map(DISPATCH_ARGS) {
-	POP_XT(xt, "map");
+	POP_CALLABLE(xt, "map");
 	PEEK_SEQUENCE_AT(source_val, 0, "map");
 	Object *source = OBJECT_AT(VAL_DATA(source_val));
 	int source_index = interp->dsp - 1;
@@ -32,7 +32,7 @@ void p_map(DISPATCH_ARGS) {
 	gc_root_push(interp, make_array(result_handle));
 
 	CallContext context;
-	call_open(interp, xt, &context);
+	call_open_callable(interp, xt_val, &context);
 	for (int i = 0; i < source->len && !interp->error_flag; i++) {
 		int dsp_before = interp->dsp;
 		push(interp, source->items[i]);
@@ -51,13 +51,13 @@ void p_map(DISPATCH_ARGS) {
 	DISPATCH(interp);
 }
 
-void p_mapn(DISPATCH_ARGS) {
-	POP_INT(arity, "mapn", "arity");
+void p_nmap(DISPATCH_ARGS) {
+	POP_INT(arity, "nmap", "arity");
 	if (arity < 1) {
 		fail(interp, "arity must be >= 1; got %d", arity);
 		return;
 	}
-	POP_XT(xt, "mapn");
+	POP_CALLABLE(xt, "nmap");
 	if (arity > interp->dsp) {
 		fail(interp, "arity %d exceeds %d values on the stack", arity, interp->dsp);
 		return;
@@ -84,14 +84,14 @@ void p_mapn(DISPATCH_ARGS) {
 	gc_root_push(interp, make_array(result_handle));
 
 	CallContext context;
-	call_open(interp, xt, &context);
+	call_open_callable(interp, xt_val, &context);
 	for (int row = 0; row < row_count && !interp->error_flag; row++) {
 		int dsp_before = interp->dsp;
 		for (int source_index = 0; source_index < arity; source_index++) {
 			Object *source = OBJECT_AT(VAL_DATA(interp->data_stack[first_source + source_index]));
 			push(interp, source->items[row]);
 		}
-		if (!call_one_result(interp, &context, xt, dsp_before, "mapn", "quotation", "row", &result->items[row]))
+		if (!call_one_result(interp, &context, xt, dsp_before, "nmap", "quotation", "row", &result->items[row]))
 			break;
 	}
 	call_close(interp, &context);
@@ -107,7 +107,7 @@ void p_mapn(DISPATCH_ARGS) {
 }
 
 void p_filter(DISPATCH_ARGS) {
-	POP_XT(xt, "filter");
+	POP_CALLABLE(xt, "filter");
 	PEEK_SEQUENCE_AT(source_val, 0, "filter");
 	Object *source = OBJECT_AT(VAL_DATA(source_val));
 	int source_index = interp->dsp - 1;
@@ -116,7 +116,7 @@ void p_filter(DISPATCH_ARGS) {
 	MALLOC_OR_FAIL(interp, keep, (size_t)MAX(source->len, 1) * sizeof(int));
 	int n_kept = 0;
 	CallContext context;
-	call_open(interp, xt, &context);
+	call_open_callable(interp, xt_val, &context);
 	for (int i = 0; i < source->len && !interp->error_flag; i++) {
 		int dsp_before = interp->dsp;
 		push(interp, source->items[i]);
@@ -153,14 +153,14 @@ void p_filter(DISPATCH_ARGS) {
 }
 
 void p_find_first(DISPATCH_ARGS) {
-	POP_XT(pred, "find-first");
+	POP_CALLABLE(pred, "find-first");
 	PEEK_SEQUENCE_AT(source_val, 0, "find-first");
 	Object *source = OBJECT_AT(VAL_DATA(source_val));
 	int source_index = interp->dsp - 1;
 
 	Val found = make_tagged(T_NONE, 0);
 	CallContext context;
-	call_open(interp, pred, &context);
+	call_open_callable(interp, pred_val, &context);
 	for (int i = 0; i < source->len && !interp->error_flag; i++) {
 		int dsp_before = interp->dsp;
 		push(interp, source->items[i]);
@@ -184,14 +184,14 @@ void p_find_first(DISPATCH_ARGS) {
 }
 
 void p_reduce(DISPATCH_ARGS) {
-	POP_XT(combiner, "reduce");
+	POP_CALLABLE(combiner, "reduce");
 	POP(init_val);
 	PEEK_SEQUENCE_AT(source_val, 0, "reduce");
 	Object *source = OBJECT_AT(VAL_DATA(source_val));
 
 	Val result_val = init_val;
 	CallContext context;
-	call_open(interp, combiner, &context);
+	call_open_callable(interp, combiner_val, &context);
 	for (int i = 0; i < source->len && !interp->error_flag; i++) {
 		push(interp, result_val);
 		push(interp, source->items[i]);
@@ -213,13 +213,13 @@ void p_reduce(DISPATCH_ARGS) {
 #define COUNTED_LOOP(name, word_name, per_iter) \
 	void name(DISPATCH_ARGS) { \
 		POP_INT(n, word_name, "count"); \
-		POP_XT(xt, word_name); \
+		POP_CALLABLE(xt, word_name); \
 		if (n < 0) { \
 			fail(interp, "length must be non-negative; got %d", n); \
 			return; \
 		} \
 		CallContext context; \
-		call_open(interp, xt, &context); \
+		call_open_callable(interp, xt_val, &context); \
 		if (context.fast) { \
 			for (int i = 0; i < n && !interp->error_flag; i++) { \
 				per_iter; \
@@ -264,7 +264,8 @@ static Interpreter *claim_worker(void) {
 }
 
 typedef struct {
-	int function;
+	Val function;
+	int function_cfa;
 	Object *domain;
 	Object *image;
 } PmapContext;
@@ -291,7 +292,8 @@ static void pmap_kernel(int start_index, int end_index, void *context) {
 	for (int i = start_index; i < end_index; i++) {
 		int dsp_before = worker_interp->dsp;
 		push(worker_interp, mapping->domain->items[i]);
-		execute_cfa(worker_interp, mapping->function);
+		push_curried_bindings(worker_interp, mapping->function);
+		execute_cfa(worker_interp, mapping->function_cfa);
 		if (worker_interp->error_flag) {
 			parallel_error = 1;
 			return;
@@ -315,6 +317,7 @@ static int references_region_depth(Val value, ParallelRegion *snapshot, int dept
 		case T_SEGMENT:
 			return VAL_DATA(value) >= snapshot->n_objects;
 		case T_SET:
+		case T_CURRIED:
 		case T_ARRAY: {
 			int handle = (int)VAL_DATA(value);
 			if (handle >= snapshot->n_objects)
@@ -389,7 +392,8 @@ static const char *parallel_worker_error(void) {
 }
 
 typedef struct {
-	int predicate;
+	Val predicate;
+	int predicate_cfa;
 	Object *domain;
 	char *keep;
 } PfilterContext;
@@ -403,7 +407,8 @@ static void pfilter_kernel(int start_index, int end_index, void *context) {
 	for (int i = start_index; i < end_index; i++) {
 		int dsp_before = worker_interp->dsp;
 		push(worker_interp, filter->domain->items[i]);
-		execute_cfa(worker_interp, filter->predicate);
+		push_curried_bindings(worker_interp, filter->predicate);
+		execute_cfa(worker_interp, filter->predicate_cfa);
 		if (worker_interp->error_flag) {
 			parallel_error = 1;
 			return;
@@ -419,7 +424,7 @@ static void pfilter_kernel(int start_index, int end_index, void *context) {
 }
 
 void p_pfilter(DISPATCH_ARGS) {
-	POP_XT(predicate, "pfilter-ext");
+	POP_CALLABLE(predicate, "pfilter-ext");
 	POP_INT(items_per_claim, "pfilter-ext", "items per claim");
 	POP_INT(worker_count, "pfilter", "worker count");
 	PEEK_SEQUENCE_AT(domain_val, 0, "pfilter-ext");
@@ -430,7 +435,8 @@ void p_pfilter(DISPATCH_ARGS) {
 	char *keep;
 	CALLOC_OR_FAIL(interp, keep, (size_t)MAX(domain->len, 1), 1);
 
-	PfilterContext filter = { .predicate = predicate, .domain = domain, .keep = keep };
+	PfilterContext filter = { .predicate = predicate_val, .predicate_cfa = predicate,
+		.domain = domain, .keep = keep };
 	ParallelRegion region;
 	if (parallel_apply(domain, worker_count, items_per_claim, pfilter_kernel, &filter, &region)) {
 		free(keep);
@@ -465,7 +471,7 @@ static int val_refs_young(Val v, int object_base, int pair_base) {
 	Tag t = VAL_TAG(v);
 	if (t == T_PAIR)
 		return (int)VAL_DATA(v) >= pair_base;
-	if (t == T_STRING || t == T_SET || t == T_ARRAY || t == T_FRAME ||
+	if (t == T_STRING || t == T_SET || t == T_ARRAY || t == T_CURRIED || t == T_FRAME ||
 			t == T_MATRIX || t == T_SEGMENT || t == T_CONT)
 		return (int)VAL_DATA(v) >= object_base;
 	return 0;
@@ -508,7 +514,7 @@ static void debug_check_no_old_to_young(int object_base, int pair_base, int imag
 #endif
 
 void p_pmap(DISPATCH_ARGS) {
-	POP_XT(function, "pmap-ext");
+	POP_CALLABLE(function, "pmap-ext");
 	POP_INT(items_per_claim, "pmap-ext", "items per claim");
 	POP_INT(worker_count, "pmap", "worker count");
 	PEEK_SEQUENCE_AT(domain_val, 0, "pmap-ext");
@@ -520,7 +526,8 @@ void p_pmap(DISPATCH_ARGS) {
 	memset(image->items, 0, sizeof(Val) * (size_t)MAX(domain->len, 1));
 	gc_root_push(interp, make_array(image_handle));
 
-	PmapContext mapping = { .function = function, .domain = domain, .image = image };
+	PmapContext mapping = { .function = function_val, .function_cfa = function,
+		.domain = domain, .image = image };
 	ParallelRegion region;
 	int failed = parallel_apply(domain, worker_count, items_per_claim, pmap_kernel, &mapping, &region);
 
@@ -557,8 +564,10 @@ void p_pmap(DISPATCH_ARGS) {
 }
 
 typedef struct {
-	int map_function;
-	int combine_function;
+	Val map_function;
+	Val combine_function;
+	int map_function_cfa;
+	int combine_function_cfa;
 	Object *domain;
 	Object *partials;
 } PmapReduceContext;
@@ -575,8 +584,10 @@ static void pmap_reduce_kernel(int start_index, int end_index, void *context) {
 		push(worker_interp, accumulator);
 		push(worker_interp, reduction->domain->items[i]);
 
-		execute_cfa(worker_interp, reduction->map_function);
-		execute_cfa(worker_interp, reduction->combine_function);
+		push_curried_bindings(worker_interp, reduction->map_function);
+		execute_cfa(worker_interp, reduction->map_function_cfa);
+		push_curried_bindings(worker_interp, reduction->combine_function);
+		execute_cfa(worker_interp, reduction->combine_function_cfa);
 		if (worker_interp->error_flag) {
 			parallel_error = 1;
 			return;
@@ -595,8 +606,8 @@ static void pmap_reduce_kernel(int start_index, int end_index, void *context) {
 }
 
 void p_pmap_reduce(DISPATCH_ARGS) {
-	POP_XT(combine_function, "pmap-reduce-ext");
-	POP_XT(map_function, "pmap-reduce-ext");
+	POP_CALLABLE(combine_function, "pmap-reduce-ext");
+	POP_CALLABLE(map_function, "pmap-reduce-ext");
 	POP(identity);
 	POP_INT(items_per_claim, "pmap-reduce-ext", "items per claim");
 	POP_INT(worker_count, "pmap-reduce-ext", "worker count");
@@ -615,8 +626,10 @@ void p_pmap_reduce(DISPATCH_ARGS) {
 	gc_root_push(interp, make_array(partials_handle));
 
 	PmapReduceContext reduction = {
-		.map_function = map_function,
-		.combine_function = combine_function,
+		.map_function = map_function_val,
+		.combine_function = combine_function_val,
+		.map_function_cfa = map_function,
+		.combine_function_cfa = combine_function,
 		.domain = domain,
 		.partials = partials,
 	};
@@ -632,11 +645,16 @@ void p_pmap_reduce(DISPATCH_ARGS) {
 		return;
 	}
 
+	gc_root_push(interp, combine_function_val);
+
 	push(interp, identity);
 	for (int i = 0; i < worker_count; i++) {
 		push(interp, partials->items[i]);
-		execute_xt(interp, combine_function);
+		push_curried_bindings(interp, combine_function_val);
+		if (!interp->error_flag)
+			execute_xt(interp, combine_function);
 		if (interp->error_flag) {
+			gc_root_pop(interp);
 			gc_root_pop(interp);
 			gc_root_pop(interp);
 			return;
@@ -645,6 +663,7 @@ void p_pmap_reduce(DISPATCH_ARGS) {
 
 	Val result = pop(interp);
 
+	gc_root_pop(interp);
 	gc_root_pop(interp);
 	gc_root_pop(interp);
 

@@ -29,22 +29,23 @@
 : db-query>dataset
 	| dataset types |
 	(db-query>dataset) to types to dataset
-	types keys [> column-name |
-		types column-name @ declared-instant? if
-			dataset column-name  dataset column-name @ column>instants  ! drop
+
+	dataset keys
+	dataset values types values
+	[> column declaration |
+		declaration declared-instant? if column column>instants exit then
+
+		column array? column size 0= and declaration declared-numeric? and if
+			[ ] vector
 		else
-			dataset column-name @ dup array? swap size 0= and
-			types column-name @ declared-numeric? and if
-				dataset column-name  [ ] vector  ! drop
-			then
-		then
-		0 :] map drop
-	dataset ;
+			column
+		then :] 2 nmap
+	frame ;
 
 ( names types table -- statement ) 
 : create-table-statement
 	>r
-	[> name type | name sql-identifier type :real = if " REAL" else " TEXT" then + :] 2 mapn
+	[> name type | name sql-identifier type :real = if " REAL" else " TEXT" then + :] 2 nmap
 	", " join
 
 	r> sql-identifier "CREATE TABLE {0} ({1})" format ; internal
@@ -62,37 +63,47 @@
 	"SELECT COUNT(DISTINCT {1}) AS ""distinct-count"" FROM {0}" format
 	[ ] db-query>dataset :distinct-count @ 0 @e ; internal
 
+( row db statement -- n ) \ the row's cells as the statement's parameters
+: insert-row  rot db-exec ; internal
+
+( name type dataset db table -- info ) \ one column's entry in the import report
+\ the context trails the mapped values, so ncurry can bind it
+: column-info
+	|> name type dataset db table |
+	type :real = if
+		{ :name name string>symbol
+		  :type type
+		  :summary dataset name string>symbol @ summary }
+		exit
+	then
+
+	{ :name name string>symbol
+	  :type type
+	  :distinct db table name column-distinct-count } ; internal
+
 ( tsv-path db table -- info ) \ imports a tsv. header row names the columns, types inferred by column
+\ the dataset, connection and table name are parked below the combinators' sources
 : tsv>db
-	| >tsv-path >db >table rows names n-columns dataset types statement |
+	| >tsv-path >db >table rows names dataset types statement columns |
 	tsv-path load-tsv to rows
 	rows size 0= if tsv-path "tsv>db: {0} has no header row" format throw then
 
 	rows 0 @i to names
-	names size to n-columns
-	rows [: size n-columns = not :] filter size 0= not if
+	rows ' size map array>set size 1= not if
 		tsv-path "tsv>db: ragged rows in {0}" format throw
 	then
 
 	rows true rows>dataset to dataset
-	names [: string>symbol dataset swap @ column-sql-type :] map to types
+	dataset names [: string>symbol 2 pick swap @ column-sql-type :] map nip to types
 	db names types table create-table-statement [ ] db-exec drop
 
 	names size table insert-statement to statement
 	db "BEGIN" [ ] db-exec drop
-	[: 1 + >r db statement rows r> @i db-exec drop :] rows size 1- i-times
+	rows 1 skip  db statement ' insert-row 2 ncurry  map drop
 	db "COMMIT" [ ] db-exec drop
 
+	names types  dataset db table ' column-info 3 ncurry  2 nmap to columns
+
 	{ :n-rows rows size 1-
-	  :columns names types
-	  	[> name type |
-	  		type :real = if
-	  			{ :name name string>symbol
-				  :type type
-				  :summary dataset name string>symbol @ summary }
-			else
-				{ :name name string>symbol
-				  :type type
-				  :distinct db table name column-distinct-count }
-			then :] 2 mapn } ;
+	  :columns columns } ;
 	

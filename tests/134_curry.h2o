@@ -41,11 +41,82 @@ clear
 
 clear
 
-\ === a curried word decompiles showing the bound value and the quotation by
-\ source — the headerless quotation renders as [: … :], not a junk name.
+\ === a curried token reports its bound values, then the target renders as
+\ itself: the values are data in the token, not literals compiled into a body.
 \ has? is a regex match, so the parens and brackets are escaped ===
-5 [: + :] curry see-compiled>string "\(lit\) 5" has? . cr     \ 1
-5 [: + :] curry see-compiled>string "\[: \+ :\]" has? . cr    \ 1
+5 [: + :] curry see-compiled>string "curried, binds 5" has? . cr   \ 1
+5 [: + :] curry see-compiled>string "0: \+" has? . cr              \ 1
+5 ' negate curry see>string "curried, binds 5" has? . cr           \ 1
+5 ' negate curry see>string "negate is a primitive" has? . cr      \ 1
+
+clear
+
+\ === a token is a value: it prints as the target plus its bound count, and
+\ type-of calls it an xt, the same as a plain one ===
+5 ' + curry .                        \ <xt + +1 bound>
+cr
+5 ' + curry type-of .                \ :xt
+' + type-of .                        \ :xt
+cr
+
+clear
+
+\ === every combinator takes one ===
+[ 1 2 3 ] 10 ' + curry map .a cr                     \ [ 11 12 13 ]
+[ 1 2 3 4 ] 2 ' > curry filter .a cr                 \ [ 3 4 ] — element > the bound 2
+[ 1 2 3 ] 0 2 [: * + :] curry reduce . cr            \ 12 — accumulator + element * the bound 2
+[ 5 6 7 ] 6 ' eq curry find-first . cr               \ 6
+[ 1 2 ] [ 10 20 ] 100 [: + + :] curry 2 nmap .a cr   \ [ 111 122 ] — the bound value lands above both rows
+7 ' + curry constant add-seven
+0 [: add-seven execute :] 3 times . cr               \ 21
+[ 3 1 2 ] -1 ' * curry sort-by .a cr                 \ [ 3 2 1 ] — keyed by element * -1
+
+clear
+
+\ === a token works inside a parallel region, and may be built in one ===
+[ 1 2 3 4 ] 10 ' + curry pmap .a cr                  \ [ 11 12 13 14 ]
+[ 1 2 3 4 ] [: 100 ' + curry execute :] pmap .a cr   \ [ 101 102 103 104 ]
+[ 1 2 3 4 ] 1 ' > curry pfilter .a cr                \ [ 2 3 4 ] — element > the bound 1
+
+clear
+
+\ === tokens are collected: currying per call has no ceiling ===
+: bind-once  1 ' + curry drop ;
+[: bind-once :] 50000 times  gc  "50k curries" . cr  \ 50k curries
+
+\ === a token survives collection while held in a global and in an array ===
+3 ' + curry constant add-three
+[ 4 ' * curry ] constant held
+gc
+10 add-three execute . cr            \ 13
+5 held 0 @i execute . cr             \ 20
+
+clear
+
+\ === update-at accepts one ===
+{ :n 5 } dup :n 10 ' + curry update-at :n @ . cr     \ 15
+
+clear
+
+\ === the token is rooted for the whole combinator call: collecting inside the
+\ body cannot free it, and currying a token flattens — the outer binding
+\ pushes first, so order matches curry curry ===
+[ 1 2 3 ] 10 [: gc + :] curry map .a cr              \ [ 11 12 13 ]
+1 [: + :] curry 2 swap curry execute . cr            \ 3 — pushes 2, then 1, then +
+5 ' + curry 0 ncurry constant zero-bound
+10 zero-bound execute . cr                           \ 15 — binding nothing keeps the target's own bindings
+
+clear
+
+\ === a token survives a binary image round trip, held in a global and in an
+\ array; the reloaded token still executes ===
+6 ' + curry constant add-six
+[ 3 ' * curry ] constant held-in-array
+"/tmp/lf_curried.img" save-image
+"/tmp/lf_curried.img" load-image
+gc
+4 add-six execute . cr                               \ 10
+5 held-in-array 0 @i execute . cr                    \ 15
 
 clear
 

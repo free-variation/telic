@@ -8,7 +8,8 @@ symbol red
 ' counter see
 ' red see
 ' + see
-[: 99 :] see
+[: 99 :] see                    \ the recorded span text, not a placeholder
+5 [: 99 + :] curry see          \ bound values, then the target's text
 
 clear
 \ see-compiled shows the compiled body, with fused superwords and their

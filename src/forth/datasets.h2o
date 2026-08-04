@@ -38,20 +38,21 @@
 ( rows header? -- dataset) \ column frame, each column typed by column-from-cells:
 \ uniformly numeric cells become an nx1 vector (none -> NaN), else the cell array
 : rows>dataset
-	| >rows >header? keys start n-rows row-indices columns |
+	| >rows >header? keys start n-rows |
 
 	rows size 0= if { } exit then
 
 	rows header? tsv-keys to start to keys
 	rows size start - to n-rows
 
-	n-rows 0= if [ ] else start rows size 1- range then to row-indices
-	keys size iota
-	[> j |
-	   row-indices [: rows swap @i j @i :] map column-from-cells :]
-	map to columns
-
-	keys columns frame ;
+	keys
+	n-rows 0= if
+		keys size iota [: drop [ ] :] map
+	else
+		rows  start rows size 1- range select-rows  transpose
+		' column-from-cells map
+	then
+	frame ;
 
 ( path -- dataset ) \ a TSV file with a header row as a dataset (typed columns)
 : read-tsv load-tsv true rows>dataset ; inline
@@ -66,17 +67,17 @@
 	rows size start - to n-rows
 	n-rows 0= if [ ] else start rows size 1- range then to row-indices
 
-	row-indices [: rows swap @i keys swap frame :] map to row-frames
-	row-frames [: index-cols swap [: [: string>symbol :] update-at :] reduce :] map to row-frames
+	keys  rows row-indices select-rows  [: 2 pick swap frame :] map  nip to row-frames
+	index-cols  row-frames
+	[: 2 pick swap [: [: string>symbol :] update-at :] reduce :] map  nip to row-frames
 
 	index-cols relation row-frames bulk-load ;
 
 ( dataset cols -- matrix ) \ K numeric columns -> NxK matrix, observations are rows;
 \ a column may be an array, an n x 1 vector, or a dimensioned vector (magnitude taken)
+\ the dataset arrives below cols, so the quotation reaches it at depth 2 under map
 : dataset>matrix
-	| >dataset >cols |
-
-	cols [> col | dataset col @ magnitude dup matrix? if as-column else vector then :] map
+	[: 2 pick swap @ magnitude dup matrix? if as-column else vector then :] map  nip
 	dup 0 @i swap 1 skip swap
 	' augment reduce ;
 
@@ -106,49 +107,36 @@
 ( dataset -- rows ) \ the inverse of true rows>dataset: row-arrays led by a header
 \ row of the column names, columns in key order, cells through column>array
 : dataset>rows
-	| >dataset column-names n-columns |
-	dataset keys to column-names
-	column-names size to n-columns
-	n-columns 0= if [ ] exit then
+	| >dataset |
+	dataset keys dup size 0= if drop [ ] exit then
 
-	column-names [: "{0}" format :] map 1 array
-	dataset values ' column>array map destruct
-	[: n-columns array :] n-columns mapn
+	[: "{0}" format :] map 1 array
+	dataset values ' column>array map transpose
 	concat ;
 
 ( dataset path -- ) \ write a dataset as a TSV with a header row; read-tsv's inverse
 : write-tsv swap dataset>rows swap save-tsv ; inline
 
-( column indices -- column' ) \ gather array elements by an index vector
-: gather-elements
-	| column | swap to column
-	[: column swap @i :] map ; internal
-
+\ The C select-rows gathers rows of a matrix and elements of an array, by an index
+\ array or an index vector; only the dataset case is added here.
 ' select-rows constant (matrix-select-rows) internal
 
 ( dataset indices -- dataset ) \ every column gathered by the same row indices
+\ dataset and indices are parked below the key array the map peeks, so the
+\ quotation reaches them at depths 3 and 2
 : dataset-select-rows
-	|> dataset indices |
-	indices matrix? if
-		indices matrix>array to indices
-	then
+	| >dataset >indices column-names |
+	dataset keys to column-names
 
-	dataset keys dup
-	[: dataset swap @
-	   dup numeric-column? if
-		   indices (matrix-select-rows) execute
-	   else
-		   indices gather-elements
-	   then :] map
-	frame ; internal
+	dataset indices column-names
+	[: 3 pick swap @  2 pick (matrix-select-rows) execute :] map
+	nip nip
+
+	column-names swap frame ; internal
 
 ( dataset/matrix/arr indices -- same )
 : select-rows
 	over frame? if dataset-select-rows exit then
-	over array? if
-		dup matrix? if matrix>array then
-		gather-elements exit
-	then
 	(matrix-select-rows) execute ;
 
 ' dim constant (matrix-dim) internal 
@@ -185,53 +173,70 @@
 	then ;
 
 ( dataset columns -- dataset ) \ the named columns as a new dataset
+\ the dataset arrives below the column array, so the quotation reaches it at depth 3
+\ under map, with the array present twice — once as the map source, once as the keys
 : select-columns
-	| dataset | swap to dataset
-	dup [: dataset swap @ :] map 
-	frame ;
+	dup [: 3 pick swap @ :] map
+	rot drop frame ;
+
+( pairs value -- pairs ) \ extend the last run when the value repeats, else start one
+: extend-run
+	| >pairs >value last |
+	pairs pairs size 1- @i to last
+	last 0 @i value = if
+		last 1  last 1 @i 1+  !i drop
+	else
+		pairs [ value 1 ] add-last! drop
+	then
+	pairs ; internal
 
 ( sorted -- pairs ) \ [ value n-values ] runs over a val_cmp-sorted array
+\ the run being counted is the last pair, so the fold needs no state of its own
 : value-runs
-	| >sorted pairs run-value n |
-	[ ] to pairs
-	sorted size 0= if pairs exit then
+	| >sorted |
+	sorted size 0= if [ ] exit then
 
-	sorted 0 @i to run-value
-	1 to n
-	[: 1+ sorted swap @i dup run-value = if
-		drop n 1+ to n
-	else
-		pairs [ run-value n ] add-last! drop
-		to run-value
-		1 to n
-	then :] sorted size 1- i-times
-	
-	pairs [ run-value n ] add-last! ; internal
+	sorted 1 skip
+	[ sorted 0 @i 1 ] 1 array
+	' extend-run reduce ; internal
 
 ( column -- arr ) \ [ value [indices] ] per distinct value, in value order
+( state run -- state ) \ state is [ pairs offset permutation ]: the run's indices are
+\ the next run-length of the permutation, and the offset advances past them
+: take-run
+	| >state >run pairs offset permutation length indices |
+	state 0 @i to pairs
+	state 1 @i to offset
+	state 2 @i to permutation
+	run 1 @i to length
+
+	null length array-of to indices
+	indices 0  permutation offset 1 length  slice! drop
+	pairs [ run 0 @i indices ] add-last! drop
+
+	[ pairs  offset length +  permutation ] ; internal
+
 : group-indices
-	| >column permutation offset |
+	| >column permutation |
 	column column>array to column
 	column argsort to permutation
 
-	0 to offset
-	column permutation gather-elements value-runs
-	[| >value-run run-length |
-	   value-run 1 @i to run-length
-	   value-run 0 @i
-	   null run-length array-of 0 permutation offset 1 run-length slice!
-	   offset run-length + to offset
-	   2 array :] map ;
+	column permutation (matrix-select-rows) execute value-runs
+	[ [ ] 0 permutation ] ' take-run reduce
+	0 @i ;
 
 ( dataset -- rows ) \ each row as a frame keyed by column name
+\ the column names are parked below the transposed rows, so the quotation keying
+\ each row reaches them at depth 2 under map
 : dataset-rows
-	| >dataset n-columns column-names |
+	| >dataset column-names |
 	dataset keys to column-names
-	column-names size to n-columns
-	n-columns 0= if [ ] exit then
+	column-names size 0= if [ ] exit then
 
-	dataset values ' column>array map destruct
-	[: n-columns array column-names swap frame :] n-columns mapn ; internal
+	column-names
+	dataset values ' column>array map transpose
+	[: 2 pick swap frame :] map
+	nip ; internal
 
 ( array/vector/dataset -- pairs ) \ occurrences of distinct values (dataset: whole rows), most frequent first
 : count
@@ -271,8 +276,9 @@
 		"rows have differing keys" throw
 	then
 
+	\ keys and values agree in order, so the columns are the transpose of the rows
 	rows 0 @i keys
-	dup [> key | rows [: key @ :] map column-from-cells :] map
+	rows ' values map transpose ' column-from-cells map
 	frame ;
 
 ' map constant (array-map) internal
@@ -298,11 +304,12 @@
 : n-columns dim nip ;
 
 ( dataset sym pred replacement -- ) \ replaces the column's cells passing pred, in place
+\ read, mesh, store back — what update-at did, without a quotation reaching outward
 : replace-where
 	|> dataset column-name predicate replacement |
-	dataset column-name [: dup predicate execute replacement mesh :]
-	update-at 
-	drop ;
+	dataset column-name
+	dataset column-name @  dup predicate execute  replacement mesh
+	! drop ;
 
 
 ( dataset key -- strings right? ) \ header + rendered cells; numeric columns align right
@@ -316,14 +323,25 @@
 
 ( dataset leading-columns -- columns ) \ the leading columns first in the given order, then the remaining columns alphabetical by name; empty leading-columns orders all columns alphabetically
 : ordered-columns
-	| >dataset >leading-columns leading-set |
-	leading-columns array>set to leading-set
+	| >dataset >leading-columns |
 	leading-columns
-	dataset keys [: leading-set swap member? not :] filter
+	dataset keys array>set  leading-columns array>set  difference  set>array
 	[: "{0}" format :] sort-by
 	concat ; internal
 
+( dataset key -- strings ) \ header and cells of one column, each padded to the widest
+\ the width and the alignment flag are parked below the string array the map peeks
+: padded-column
+	| >dataset >key strings right? width |
+	dataset key column-cells to right? to strings
+	strings [: size :] map 0 ' max2 reduce to width
+
+	width right? strings
+	[: 3 pick 3 pick if pad-left else pad-right then :] map
+	nip nip ; internal
+
 ( dataset n leading-columns -- ) \ print the first n rows as an aligned table; leading columns appear first in the given order, the rest alphabetical by name; empty leading-columns orders all columns alphabetically
+\ the dataset is parked below the key array, and the padded columns below the row loop
 : headn
 	| >dataset >n >leading-columns columns ordered |
 	dataset keys size 0= if exit then
@@ -331,16 +349,12 @@
 	dataset n iota select-rows to dataset
 	dataset leading-columns ordered-columns to ordered
 
-	ordered
-	[| >key strings right? width |
-	   dataset key column-cells to right? to strings
-	   strings [: size :] map 0 ' max2 reduce to width
-	   strings [: width right? if pad-left else pad-right then :] map :]
-	map to columns
+	dataset ordered [: 2 pick swap padded-column :] map nip to columns
 
-	[> row-index |
-	   columns [: row-index @i :] map "  " join . cr :]
-	n 1+ i-times ;
+	columns
+	[: over [: 2 pick @i :] map "  " join . cr drop :]
+	n 1+ i-times
+	drop ;
 
 ( dataset -- ) \ print the first 10 rows as an aligned table
 : head 10 [ ] headn ;

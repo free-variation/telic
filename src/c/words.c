@@ -723,19 +723,20 @@ void p_null(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
 }
 
-int type_of_symbols[T_QUANTITY + 1];
+int type_of_symbols[T_CURRIED + 1];
 
 void type_of_intern_names(Interpreter *interp) {
-	static const char *names[T_QUANTITY + 1] = {
+	static const char *names[T_CURRIED + 1] = {
 		[T_NONE] = "none",        [T_SYMBOL] = "symbol",  [T_FLOAT] = "float",
 		[T_STRING] = "string",    [T_SET] = "set",        [T_ARRAY] = "array",
 		[T_PAIR] = "pair",        [T_FRAME] = "frame",    [T_MATRIX] = "matrix",
 		[T_XT] = "xt",            [T_ADDR] = "addr",      [T_CONT] = "continuation",
 		[T_MARK] = "mark",        [T_STREAM] = "stream",  [T_LOGIC_VAR] = "lvar",
 		[T_UNBOUND] = "wildcard", [T_DB] = "db",          [T_PTR] = "ptr",
-		[T_SEGMENT] = "segment",  [T_QUANTITY] = "quantity"
+		[T_SEGMENT] = "segment",  [T_QUANTITY] = "quantity",
+		[T_CURRIED] = "xt"
 	};
-	for (int tag = 0; tag <= T_QUANTITY; tag++)
+	for (int tag = 0; tag <= T_CURRIED; tag++)
 		type_of_symbols[tag] = intern_symbol(interp, names[tag]);
 }
 
@@ -842,6 +843,23 @@ void p_that(DISPATCH_ARGS) {
 	*chain_sp = interp->demonstrative[0];
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
+}
+
+void p_pick(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val depth_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(depth_val, T_FLOAT, "pick", "a float depth");
+	int n = (int)VAL_NUMBER(depth_val);
+	Val *picked_top = chain_sp - 1;
+	if (n < 0 || picked_top - 1 - n < interp->data_stack) {
+		SYNC_REGISTERS(interp, chain_ip, picked_top);
+		fail(interp, "depth %d out of range (stack has %d below it)", n, (int)(picked_top - interp->data_stack));
+		return;
+	}
+
+	picked_top[0] = picked_top[-1 - n];
+
+	DISPATCH_REGISTERS(interp, chain_ip, picked_top + 1);
 }
 
 void p_roll(DISPATCH_ARGS) {
@@ -1088,60 +1106,68 @@ void p_side_peek(DISPATCH_ARGS) {
 }
 
 void p_execute(DISPATCH_ARGS) {
-	POP_XT(value, "execute");
+	POP_CALLABLE(value, "execute");
+	push_curried_bindings(interp, value_val);
+	if (interp->error_flag)
+		return;
+
 	execute_xt(interp, value);
 
 	DISPATCH(interp);
 }
 
-void p_curry(DISPATCH_ARGS) {
-	if (in_parallel) {
-		fail(interp, "cannot curry inside a parallel region");
-		return;
-	}
+#define REQUIRE_CALLABLE(value, op) \
+	do { \
+		if (VAL_TAG(value) != T_XT && VAL_TAG(value) != T_CURRIED) { \
+			fail(interp, "expected an execution token; got %s", tag_name(VAL_TAG(value))); \
+			return; \
+		} \
+	} while (0)
 
+void p_curry(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
 	Val xt_val = chain_sp[-1];
-	REQUIRE_CHAIN_TAG(xt_val, T_XT, "curry", "an execution token");
-	Val bound_value = chain_sp[-2];
+	REQUIRE_CALLABLE(xt_val, "curry");
 
-	int curried_cfa = create_header(interp, "(curried)", 4);
+	int curried_handle = curried_new(interp, xt_val, chain_sp - 2, 1);
 	if (interp->error_flag) return;
 
-	emit(interp, (cell)&docol);
-	emit_val_literal(interp, bound_value);
-	emit_call(interp, (int)VAL_DATA(xt_val));
-	emit_call(interp, vocab.exit_cfa);
-	if (interp->error_flag) return;
-
-	chain_sp[-2] = make_xt(curried_cfa);
+	chain_sp[-2] = make_curried(curried_handle);
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 }
 
-void p_2curry(DISPATCH_ARGS) {
-	if (in_parallel) {
-		fail(interp, "cannot curry inside a parallel region");
+void p_ncurry(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
+	Val count_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(count_val, T_FLOAT, "ncurry", "a count");
+	int n_bound = (int)VAL_NUMBER(count_val);
+	if (n_bound < 0) {
+		fail(interp, "expected a non-negative count; got %d", n_bound);
 		return;
 	}
 
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, n_bound + 2);
+	Val xt_val = chain_sp[-2];
+	REQUIRE_CALLABLE(xt_val, "ncurry");
+
+	int curried_handle = curried_new(interp, xt_val, chain_sp - 2 - n_bound, n_bound);
+	if (interp->error_flag) return;
+
+	chain_sp[-2 - n_bound] = make_curried(curried_handle);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - n_bound - 1);
+}
+
+void p_2curry(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 3);
 	Val xt_val = chain_sp[-1];
-	REQUIRE_CHAIN_TAG(xt_val, T_XT, "2curry", "an execution token");
-	Val first_value = chain_sp[-3];
-	Val second_value = chain_sp[-2];
+	REQUIRE_CALLABLE(xt_val, "2curry");
 
-	int curried_cfa = create_header(interp, "(curried)", 4);
+	int curried_handle = curried_new(interp, xt_val, chain_sp - 3, 2);
 	if (interp->error_flag) return;
 
-	emit(interp, (cell)&docol);
-	emit_val_literal(interp, first_value);
-	emit_val_literal(interp, second_value);
-	emit_call(interp, (int)VAL_DATA(xt_val));
-	emit_call(interp, vocab.exit_cfa);
-	if (interp->error_flag) return;
-
-	chain_sp[-3] = make_xt(curried_cfa);
+	chain_sp[-3] = make_curried(curried_handle);
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 2);
 }
@@ -1257,7 +1283,7 @@ void p_shift(DISPATCH_ARGS) {
 }
 
 void p_shift_with(DISPATCH_ARGS) {
-	POP_XT(handler, "shift-with");
+	POP_CALLABLE(handler, "shift-with");
 
 	int mark_index;
 	int cont_slot = capture_continuation(interp, PROMPT_EXCEPTION, &mark_index);
@@ -1266,6 +1292,9 @@ void p_shift_with(DISPATCH_ARGS) {
 
 	unwind_to(interp, mark_index);
 	push(interp, make_continuation(cont_slot));
+	push_curried_bindings(interp, handler_val);
+	if (interp->error_flag)
+		return;
 
 	execute_xt(interp, handler);
 	if (interp->error_flag)
@@ -1298,8 +1327,12 @@ void p_throw(DISPATCH_ARGS) {
 }
 
 void p_execute_catching(DISPATCH_ARGS) {
-	POP_XT(xt, "(execute-catching)");
+	POP_CALLABLE(xt, "(execute-catching)");
 	int base_dsp = interp->dsp;
+
+	push_curried_bindings(interp, xt_val);
+	if (interp->error_flag)
+		return;
 
 	execute_xt(interp, xt);
 
@@ -1637,13 +1670,20 @@ void p_apropos(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 }
 
-static void see_source_render(FILE *out, Interpreter *interp, int target_cfa) {
+static void see_source_render(FILE *out, Interpreter *interp, Val target) {
+	render_curried_bindings(out, interp, target);
+
+	int target_cfa = callable_cfa(target);
 	const char *name = name_of(target_cfa);
 
 	cfa_handler handler = (cfa_handler)vocab.dict[target_cfa];
 	if (handler == docol) {
 		if (!name) {
-			fprintf(out, "[: ... :]  \\ anonymous, no source\n");
+			const char *quotation_text = quotation_source(target_cfa);
+			if (quotation_text)
+				fprintf(out, "%s\n", quotation_text);
+			else
+				fprintf(out, "[: ... :]  \\ anonymous, no source\n");
 		} else {
 			int src_idx = (int)WORD_SOURCE(target_cfa);
 			if (src_idx > 0)
@@ -1659,7 +1699,7 @@ static void see_source_render(FILE *out, Interpreter *interp, int target_cfa) {
 		putc('\n', out);
 	} else if (handler == dounit) {
 		fprintf(out, "unit %s  \\ ", name ? name : "?");
-		render_unit_description(out, interp, target_cfa);
+		render_unit_description(out, interp, make_xt(target_cfa));
 		putc('\n', out);
 	} else if (handler == dosym) {
 		fprintf(out, "symbol %s\n", name ? name : "?");
@@ -1671,8 +1711,8 @@ static void see_source_render(FILE *out, Interpreter *interp, int target_cfa) {
 void p_see(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	Val target_val = chain_sp[-1];
-	REQUIRE_CHAIN_TAG(target_val, T_XT, "see", "an execution token");
-	see_source_render(stdout, interp, (int)VAL_DATA(target_val));
+	REQUIRE_CALLABLE(target_val, "see");
+	see_source_render(stdout, interp, target_val);
 	fflush(stdout);
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
@@ -1681,9 +1721,9 @@ void p_see(DISPATCH_ARGS) {
 void p_see_to_string(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	Val target_val = chain_sp[-1];
-	REQUIRE_CHAIN_TAG(target_val, T_XT, "see>string", "an execution token");
+	REQUIRE_CALLABLE(target_val, "see>string");
 
-	int handle = capture_render(interp, see_source_render, (int)VAL_DATA(target_val));
+	int handle = capture_render(interp, see_source_render, target_val);
 	if (interp->error_flag)
 		return;
 	chain_sp[-1] = make_string(handle);
@@ -1702,8 +1742,8 @@ static void help_put(Interpreter *interp, int frame_handle, const char *key, con
 void p_man(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	Val target_val = chain_sp[-1];
-	REQUIRE_CHAIN_TAG(target_val, T_XT, "man", "an execution token");
-	int target_cfa = (int)VAL_DATA(target_val);
+	REQUIRE_CALLABLE(target_val, "man");
+	int target_cfa = callable_cfa(target_val);
 
 	const char *name = name_of(target_cfa);
 	const HelpEntry *entry = NULL;
@@ -1715,7 +1755,7 @@ void p_man(DISPATCH_ARGS) {
 	}
 
 	if (!entry && name && (cfa_handler)vocab.dict[target_cfa] == dounit) {
-		int description_handle = capture_render(interp, render_unit_description, target_cfa);
+		int description_handle = capture_render(interp, render_unit_description, make_xt(target_cfa));
 		if (interp->error_flag)
 			return;
 		gc_root_push(interp, make_string(description_handle));

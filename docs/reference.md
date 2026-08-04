@@ -49,6 +49,7 @@ incremental collection.
 | `rot` | `( a b c -- b c a )` | Rotate top three | 6 | none | O(1) |
 | `-rot` | `( a b c -- c a b )` | core.h2o: reverse rotate — brings the top down under the other two (`rot rot`, inlined) | 12 | none | O(1) |
 | `depth` | `( -- n )` | Push current depth | 1 | none | O(1) |
+| `pick` | `( xₙ … x₀ n -- xₙ … x₀ xₙ )` | Copy the item n deep to the top, leaving it in place; `0 pick` is `dup` and `1 pick` is `over`, and n counts from the top as `roll`'s does. Reaches a value a caller parked below a combinator's operands — under `map`, which peeks its source, the element is at 0, the source at 1 and a parked value at 2 | 3 | none | O(1) |
 | `roll` | `( xₙ … x₀ n -- xₙ₋₁ … x₀ xₙ )` | Move the item n deep to the top; memmoves the n above it down | 2 + n | none | O(n) |
 | `clear` | `( … -- )` | Reset data stack depth to 0 | 1 | none | O(1) |
 | `this` | `( -- v )` | Push the first of the two values the demonstratives fixed. `this` and `that` fix the top two stack values at the first mention of either word in the clause and hold them for the rest of it; a clause is one input line at top level, one activation in compiled code. Non-consuming and repeatable: `5 this * .` answers 25, `1 2 this that - .` answers 1, and `1 2 this 3 4 this .s` shows `1 2 2 3 4 2`, the second mention reading what the first fixed. In a definition the pair fixes at its first mention in the body, compiled as a `dup` and a store into a hidden local (`see-compiled` shows the pair) that every later mention reads, once per activation — `: doubled 2 * this + ;` answers 28 for `7 doubled`, and a callee that fixes its own value leaves the caller's intact. A local named `this` shadows the word. The fixing mention sits at the top level of the body, not inside a branch, loop or quotation; mentions after it read the value from anywhere in the body, including inside branches, loops and quotations. A quotation compiled at top level is not a definition, so `this` inside it reads the line's value | 2 | none | O(1) |
@@ -398,8 +399,9 @@ These parse following tokens and/or compile code. Costs are dominated by compila
 | `'` | `( "name" -- xt )` | Parse the following word at compile time and push its xt (immediate; folds the xt in as a literal) |
 | `lookup` | `( "name" -- xt )` | Parse the following word at run time and push its xt — the non-immediate counterpart of `'` |
 | `execute` | `( xt -- … )` | Call the word at xt |
-| `curry` | `( value xt -- xt' )` | Bind a value into a new anonymous word: xt' pushes value, then calls xt. Compiles ~10 permanent dictionary cells per call (reclaimed only by `forget`); errors inside a parallel region — curry before `pmap`, execute freely within |
-| `2curry` | `( a b xt -- xt' )` | Bind two values into a new anonymous word: xt' pushes `a`, then `b`, then calls xt. Same result as `curry curry` but one word and one call instead of two. Same parallel-region restriction as `curry` |
+| `curry` | `( value xt -- xt' )` | Bind a value into a curried token: a heap value carrying the target xt and the bound value, accepted wherever an xt is. At invocation the bound value is pushed, then the target runs — so currying binds a word's **trailing** parameters. Collected like any array, so a word may curry on every call; usable inside a parallel region | 3 | `1o` | O(n bound) |
+| `2curry` | `( a b xt -- xt' )` | Bind two values into a curried token: at invocation it pushes `a`, then `b`, then calls xt. Same result as `curry curry` in one call | 4 | `1o` | O(n bound) |
+| `ncurry` | `( v₁ … v_N xt N -- xt' )` | Bind N values into a curried token: at invocation it pushes `v₁` … `v_N` in that order, then calls xt. `N` of 0 answers a token with the target's own bindings. The arity form of `curry`/`2curry`; the count is a value, so a caller binds as many as it has. Currying a token flattens — the outer values push first | 3 + N | `1o` | O(n bound) |
 | `inline` | — | Mark the most recent definition inline; future calls splice its body. A body containing a quotation is not spliced — such calls compile as plain calls, since a copied quotation header would have no recorded span |
 | `internal` | — | Mark the most recent definition internal: hidden from `words`, `apropos`, and completion, and resolvable — by name or tick — only within its own load unit (the embedded library, one `load`/`load-library` file, or the REPL session); unreachable from another unit |
 | `forget` | — | Read the following name; truncate the dictionary back to before it |
@@ -506,6 +508,7 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 | `set-remove!` | `( set v -- set )` | Remove v if present (no-op if absent); leaves set on the stack | log n + n | none | O(n) |
 | `member?` | `( set v -- bool )` | Binary-search membership | 3 + log n | none | O(log n) |
 | `array>set` | `( array -- set )` | Sort a copy of the array once and dedup into a set — the fast bulk constructor (one sort, not n inserts); the source array is unchanged | n log n | `1o` + realloc | O(n log n) |
+| `set>array` | `( set -- arr )` | arrays.h2o: the elements as an array in `val_cmp` order — `sort`'s set branch, which copies rather than compares | 1 | `1o` | O(n) |
 | `group-by` | `( array col -- frame )` | Group an array of frames by their symbol-valued `col` into a frame from each value to a set of the matching rows; one sorted pass, distinct values sorted | n log n | frame + sets | O(n log n) |
 | `size` | `( coll -- n )` | Element count: set/array members, **codepoints** of a string, pair count of a frame; a string's codepoint count is computed on first use and memoized on the object | 2 | none | O(1); a string's first `size` is O(n) |
 | `byte-size` | `( s -- n )` | Byte length of a string | 2 | none | O(1) |
@@ -855,7 +858,7 @@ The quotation/predicate cost dominates; `xt` denotes one call.
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
 | `map` | `( arr/set xt -- arr )` or `( dataset xt -- dataset )` | Apply xt to each element; xt must net exactly one value. datasets.h2o extends it to a dataset: xt maps each row frame to a new row frame — derive, rename, or drop fields — and the returned frames rebuild through `frames>dataset`, so all rows must share keys and columns re-infer their representation | 2 + n·xt | `1a(n)`; dataset rows + new columns | O(n·xt); dataset O(n·(xt + k log k)) |
-| `mapn` | `( arr₁ … arr_N xt N -- arr )` | N-ary zip-map over equal-length arrays | rows·(N+xt) | `1a(rows)` | O(rows·xt) |
+| `nmap` | `( arr₁ … arr_N xt N -- arr )` | N-ary zip-map over equal-length arrays | rows·(N+xt) | `1a(rows)` | O(rows·xt) |
 | `filter` | `( arr/set xt -- arr )` or `( dataset xt -- dataset )` | Keep elements where xt is truthy. datasets.h2o extends it to a dataset: xt sees each row as a frame keyed by column name and answers a bool (1.0/0.0); the kept rows come back through `select-rows`, so every column keeps its representation | 2 + n·xt | malloc(n) flags + `1a(k)`; dataset rows + mask + one column each | O(n·xt) |
 | `reduce` | `( arr/set init xt -- val )` | Left fold; xt is `( acc elem -- acc )` | 3 + n·xt | none | O(n·xt) |
 | `times` | `( xt n -- )` | Run xt n times, no index pushed | 2 + n·xt | none | O(n·xt) |
@@ -1013,9 +1016,9 @@ Word-locals fuse the same way, which is what makes a locals-based numeric loop c
 | `vars` | `( -- )` | repl.h2o: pretty-print every global, one `variables` frame per block (`variables ' print each`) | dict scan + print | `1a` + frames | O(\|dict\|) |
 | `water` | `( -- )` | Print the water logo and the interpreter version | print | none | O(1) |
 | `apropos` | `( s -- )` | Print every word whose name or reference summary contains s (case-insensitive): name, stack effect, summary per line; session-defined words match by name | table scan | none | O(entries) |
-| `see` | `( xt -- )` | Print a word's source (`: name … ;`), or `variable`/`symbol`/primitive form | dict scan | none | O(\|dict\|) |
+| `see` | `( xt -- )` | Print a word's source (`: name … ;`), a quotation's `[: … :]` text from its recorded span, or `variable`/`symbol`/primitive form; a curried token prints its bound values, then its target | dict scan | none | O(\|dict\|) |
 | `see>string` | `( xt -- s )` | The text `see` would print, returned as a string (trailing newline stripped) | dict scan | `1o` | O(\|dict\|) |
-| `see-compiled` | `( xt -- )` | Disassemble a colon definition's compiled cells | body scan | none | O(body) |
+| `see-compiled` | `( xt -- )` | Disassemble a colon definition's compiled cells; a curried token prints its bound values, then disassembles its target | body scan | none | O(body) |
 | `see-compiled>string` | `( xt -- s )` | The text `see-compiled` would print, returned as a string (trailing newline stripped) | body scan | `1o` | O(body) |
 | `see-tree` | `( xt -- )` | Like `see-compiled`, but each colon-word call is expanded inline, indented two spaces, recursively down to primitives; recursive calls print as `name ...` | body scan | none | O(expanded body) |
 | `see-tree>string` | `( xt -- s )` | The text `see-tree` would print, returned as a string (trailing newline stripped) | body scan | `1o` | O(expanded body) |
@@ -1143,6 +1146,7 @@ A defined FFI word pops its arguments, marshals each per the declared signature,
 | `T_MATRIX` | heap object; r×c row-major `double[]` |
 | `T_QUANTITY` | a magnitude (float or matrix) plus a unit id, in a pair-table slot `{magnitude, unit}`; see Dimensioned quantities. Dimensionless results collapse away, so a live quantity always carries a real unit |
 | `T_XT` | execution token (dict index); first-class callable |
+| `T_CURRIED` | heap object; a curried token — `items[0]` is the target xt, `items[1..]` the bound values pushed at invocation. Accepted wherever `T_XT` is, and `type-of` calls both `:xt` |
 | `T_ADDR` | dict index; used internally for return-stack frames |
 | `T_STREAM` | OS file descriptor (a pipe end to a child process); an inline `int`, like `T_ADDR` |
 | `T_DB` | inline handle into the per-interpreter registry of open SQLite connections; not GC'd (closed with `db-close`) |

@@ -6,6 +6,7 @@ hi
 bye 
 42 
 7 
+12 
 error: unresolved deferred word: unset
 error: embodies: unknown word: nope-xyz
 error: embodies: not a deferred word: plain

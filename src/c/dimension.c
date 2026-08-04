@@ -514,9 +514,9 @@ void render_unit(FILE *out, int unit) {
 	render_unit_terms(out, unit);
 }
 
-void render_unit_description(FILE *out, Interpreter *interp, int word_cfa) {
+void render_unit_description(FILE *out, Interpreter *interp, Val target) {
 	(void)interp;
-	int unit = (int)vocab.dict[word_cfa + 1];
+	int unit = (int)vocab.dict[VAL_DATA(target) + 1];
 	Unit *described = &units[unit];
 
 	int base = described->n_terms == 1

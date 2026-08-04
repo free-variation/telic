@@ -43,7 +43,7 @@ by file in SRCS order. What each file is:
   (radix pair sort + merge exchange count).
 - indexing.c — the @i/!i index/store dispatch family across arrays/
   segments/slices, plus quickened "(word.tag)" specializations.
-- functional.c — map/mapn/filter/reduce and the parallel worker pool
+- functional.c — map/nmap/filter/reduce and the parallel worker pool
   (pmap/pfilter/pmap-reduce, num-cores).
 - superwords.c — compile-time fused float/vector op chains (vf*/vvf+
   family).

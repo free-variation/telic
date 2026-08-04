@@ -142,7 +142,7 @@ dup "insert into t values (?)" [ 42 ] db-exec drop
 - **Anonymous quotations** — `[: ... :]` pushes a fresh xt. Works at top level and inside colon defs.
 - **`recurse`** — compiles a call to the innermost definition being compiled (the enclosing quotation, else the colon word), so an anonymous quotation can self-call.
 - **Tail-call elimination** — a call in tail position compiles to a frame-reusing jump, so a self-recursive or `recurse` loop runs in constant return-stack space. Disabled where it would be unsafe (a body using `>r`/`reset`/`shift`/`fail`, or locals plus a quotation).
-- **Partial application** — `curry` ( value xt -- xt' ) binds a value into a new anonymous word; the curried xt travels through other words' frames intact.
+- **Partial application** — `curry` ( value xt -- xt' ) binds a value into a curried token, a heap value accepted wherever an xt is; the token travels through other words' frames intact, works inside parallel regions, and is garbage-collected.
 - **Control flow** — `if`/`else`/`then`, the `begin`/`until`/`again` and `begin`/`while`/`repeat` loops with `leave` / `continue` for early exit, counted `times` / `i-times`, `exit`, and `>r`/`r>`/`r@` for return-stack access.
 - **Tick and execute** — `' word execute` for first-class invocation by name.
 - **Forward declaration** — `defer name` declares a word with no target, for mutual recursion or late binding; `xt embodies name` installs a target (a colon word or quotation), retargetable through one forwarding dispatch; `xt embodies! name` finalizes, rewriting existing call sites to call the target directly and turning the word ordinary.
@@ -202,7 +202,7 @@ Flat, fixed-length typed numeric buffers stored off the arena (one allocation, f
 - **Array literals** — `[ 1 2 3 ]`, the `array` constructor (gather N from the stack), `array-of` (fill), `range` ( from to -- arr ) for an ascending or descending integer sequence, `iota` ( n -- [0..n-1] ), indexed access via `@i`, in-place store via `!i`.
 - **Array operations** — `sort` (a sorted copy in `val_cmp` order; a set projects to a sorted array, a vector sorts ascending with NaNs last), `reverse`, `take`, `concat`, `flatten-array` (flatten one level), `sample` ( arr count repl -- arr ) drawing elements with or without replacement, `shuffle` (a uniform permutation of the array), `resample` (a same-size draw with replacement — the bootstrap draw), and `first`/`second` (element 0/1 of an array, head/tail of a cons).
 - **Growing at the end** — `add-last!` ( arr v -- arr ) appends over a backing buffer that doubles when full, `remove-last!` ( arr -- v ) pops the last element; both amortized O(1), indexing stays O(1).
-- **Map, fold, zip-map, filter** — `map` for a single source, `reduce` for a left fold with an accumulator, `mapn` for N-ary zip, `filter` to select by predicate, with anonymous quotations as the higher-order argument.
+- **Map, fold, zip-map, filter** — `map` for a single source, `reduce` for a left fold with an accumulator, `nmap` for N-ary zip, `filter` to select by predicate, with anonymous quotations as the higher-order argument.
 - **Search, traversal, and reshaping** — `find` (first element satisfying a predicate, or `null`), `any?`/`all?`, `each` (side effects, no result), `flat-map` (per-element arrays concatenated), `sort-by` (sorted by an extracted key, n key evaluations), `partition` (matches and non-matches in one pass), and `group-with` (group into `{ key → set }` by a computed symbol key — the quotation-keyed kin of `group-by`).
 - **Destructuring** — `destruct` spreads a set/array/frame's elements onto the stack (a frame as alternating symbol/value). `destruct-to` ( values names -- ) takes two equal-length arrays and assigns each value to the global variable named by the corresponding symbol, creating it if absent.
 - **In-place slicing** — `slice!` copies a strided run from one array into another (a negative step with source and target aligned reverses in place), `to-slice!` stores values from the stack into a range.
@@ -391,7 +391,7 @@ Unification and committed choice, on the trail and the continuation machinery:
 
 ### Other
 
-- **`dup`**, **`drop`**, **`swap`**, **`over`**, **`rot`**, **`depth`**, **`roll`**, **`clear`** — stack-manipulation primitives.
+- **`dup`**, **`drop`**, **`swap`**, **`over`**, **`rot`**, **`depth`**, **`pick`**, **`roll`**, **`clear`** — stack-manipulation primitives; `pick` copies the nth item and `roll` moves it.
 - **`this`** / **`that`** — demonstratives: the top of the stack (`this`) and the value under it (`that`), fixed at the first mention of either word and held for the rest of the clause — the input line at top level, the activation in compiled code. `5 this * .` answers 25 and `1 2 this that - .` answers 1. Non-consuming and repeatable (`this this *`). In a definition the pair fixes at its first mention in the body, which sits at the top level of the body; mentions after it read the value from anywhere, including inside branches, loops and quotations, and each activation holds its own.
 - **`copy`** / **`reify`** — deep copy of a value (strings, arrays, sets, frames, matrices); `reify` additionally renames unbound logic vars to canonical `:_0`/`:_1`/… for a ground, storable, comparable snapshot.
 - **`type-of`** — `( a -- sym )` the value's type as a symbol (`:float`, `:frame`, `:lvar`, …), with a lib predicate per type (`float?` … `lvar?`); a bound logic var answers as its value.
@@ -420,7 +420,7 @@ src/c/collections.c    — sets, arrays, and frames
 src/c/indexing.c       — polymorphic element access: @i/!i and their fused forms, over arrays/segments/matrices
 src/c/matrix.c         — matrix words and numeric kernels
 src/c/dimension.c      — dimensioned quantities: base dimensions, units, quantity arithmetic
-src/c/functional.c     — higher-order operations (map, mapn, …) and multi-core parallelism
+src/c/functional.c     — higher-order operations (map, nmap, …) and multi-core parallelism
 src/c/superwords.c     — compile-time instruction fusion (superwords)
 src/c/strings.c        — string and PCRE2 regex operations
 src/c/logic.c          — logic variables, unification, amb, fact database

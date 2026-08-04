@@ -354,7 +354,6 @@ lvar?
 magnitude
 man
 map
-mapn
 match
 match-all
 matches?
@@ -379,11 +378,13 @@ n-rows
 name!key
 name@key
 nan?
+ncurry
 negate
 negative-binomial-log
 negative-binomial-theta
 new-tests
 nip
+nmap
 none?
 nonmissing-count
 norm
@@ -409,6 +410,7 @@ percentile
 pfilter
 pfilter-ext
 pfit-tree
+pick
 plot-tree
 pmap
 pmap-ext
@@ -507,6 +509,7 @@ series-plot
 set
 set-add!
 set-remove!
+set>array
 set?
 shift
 shift-with

@@ -3,7 +3,9 @@
 variable counter  \ current value: 42
 symbol red
 + is a primitive
-[: ... :]  \ anonymous, no source
+[: 99 :]
+\ curried, binds 5
+[: 99 + :]
 : fused   \ 9 cells
  0: (vvf-) a b
  3: (vfsq) a

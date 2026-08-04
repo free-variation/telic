@@ -36,6 +36,10 @@ execute . cr                            \ 7
 \ === errors (reason parenthesized) ===
 clear
 defer unset
+defer plus-five
+5 ' + curry embodies plus-five
+7 plus-five . cr                        \ 12  a curried token materializes into the deferred target
+
 5 unset                                 \ (call before a target is installed)
 [: 1 :] embodies nope-xyz               \ (embodies on an unknown word)
 : plain 1 ;

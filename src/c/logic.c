@@ -209,8 +209,16 @@ void p_deref(DISPATCH_ARGS) {
 }
 
 void p_amb(DISPATCH_ARGS) {
-	POP_XT(branch2, "amb");
-	POP_XT(branch1, "amb");
+	POP_CALLABLE(branch2, "amb");
+	POP_CALLABLE(branch1, "amb");
+
+	gc_root_push(interp, branch1_val);
+	gc_root_push(interp, branch2_val);
+	if (interp->error_flag) {
+		gc_root_pop(interp);
+		gc_root_pop(interp);
+		return;
+	}
 
 	int saved_dsp = interp->dsp;
 	int saved_trail = interp->bind_trail_top;
@@ -219,7 +227,9 @@ void p_amb(DISPATCH_ARGS) {
 	int mark_index = interp->rsp;
 	int mark_id = push_prompt(interp, PROMPT_CHOICE);
 
-	execute_xt(interp, branch1);
+	push_curried_bindings(interp, branch1_val);
+	if (!interp->error_flag)
+		execute_xt(interp, branch1);
 
 	if (interp->unwinding && interp->unwind_target == mark_id) {
 		interp->unwinding = 0;
@@ -228,10 +238,14 @@ void p_amb(DISPATCH_ARGS) {
 		trail_undo_to(interp, saved_trail);
 		interp->lvar_top = saved_lvar;
 
-		execute_xt(interp, branch2);
+		push_curried_bindings(interp, branch2_val);
+		if (!interp->error_flag)
+			execute_xt(interp, branch2);
 	} else if (!interp->unwinding)
 		interp->rsp = mark_index;
 
+	gc_root_pop(interp);
+	gc_root_pop(interp);
 
 	DISPATCH(interp);
 }

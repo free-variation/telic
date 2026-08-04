@@ -15,3 +15,10 @@ clear
 10 20 30 0 set .
 .s
 5 5 6 5 3 set .
+
+clear
+\ === set>array: representation change only, elements stay in val_cmp order ===
+[< 3 1 2 >] set>array .                 \ [ 1 2 3 ]
+[< 3 1 2 >] set>array array? .          \ 1
+[< >] set>array .                       \ [ ]
+[ 3 1 2 3 ] array>set set>array .       \ [ 1 2 3 ] — dedup survives the round trip

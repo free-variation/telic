@@ -1155,6 +1155,51 @@ void p_transpose(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	int unit;
 	Val source_val = quantity_unwrap(chain_sp[-1], &unit);
+
+	if (VAL_TAG(source_val) == T_ARRAY) {
+		Object *rows = OBJECT_AT(VAL_DATA(source_val));
+		int n_rows = rows->len;
+		int n_columns = 0;
+
+		for (int i = 0; i < n_rows; i++) {
+			if (VAL_TAG(rows->items[i]) != T_ARRAY) {
+				fail(interp, "transpose: row %d is %s, expected an array",
+						i, tag_name(VAL_TAG(rows->items[i])));
+				return;
+			}
+			int row_len = OBJECT_AT(VAL_DATA(rows->items[i]))->len;
+			if (i == 0)
+				n_columns = row_len;
+			else if (row_len != n_columns) {
+				fail(interp, "transpose: row %d has %d element(s), expected %d",
+						i, row_len, n_columns);
+				return;
+			}
+		}
+
+		NEW_ARRAY(transposed_handle, transposed, n_columns);
+		memset(transposed->items, 0, sizeof(Val) * (size_t)MAX(n_columns, 1));
+		gc_root_push(interp, make_array(transposed_handle));
+
+		for (int j = 0; j < n_columns; j++) {
+			int column_handle = object_new_array(interp, n_rows);
+			if (interp->error_flag) {
+				gc_root_pop(interp);
+				return;
+			}
+			Object *column = OBJECT_AT(column_handle);
+			Object *source_rows = OBJECT_AT(VAL_DATA(source_val));
+			for (int i = 0; i < n_rows; i++)
+				column->items[i] = OBJECT_AT(VAL_DATA(source_rows->items[i]))->items[j];
+			OBJECT_AT(transposed_handle)->items[j] = make_array(column_handle);
+		}
+
+		gc_root_pop(interp);
+		chain_sp[-1] = make_array(transposed_handle);
+
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+	}
+
 	REQUIRE_CHAIN_TAG(source_val, T_MATRIX, "transpose", "a matrix");
 	Object *source = OBJECT_AT(VAL_DATA(source_val));
 
@@ -1474,6 +1519,57 @@ void p_select_rows(DISPATCH_ARGS) {
 	Val indices_val = chain_sp[-1];
 	int unit;
 	Val matrix_val = quantity_unwrap(chain_sp[-2], &unit);
+
+	if (VAL_TAG(matrix_val) == T_ARRAY) {
+		Object *source_array = OBJECT_AT(VAL_DATA(matrix_val));
+		int n_source = source_array->len;
+		const double *vector_elements = NULL;
+		Object *index_array = NULL;
+		int n_indices;
+
+		if (VAL_TAG(indices_val) == T_MATRIX) {
+			Object *index_vector = OBJECT_AT(VAL_DATA(indices_val));
+			n_indices = vector_length(interp, index_vector, "an index vector");
+			if (n_indices < 0)
+				return;
+			vector_elements = index_vector->matrix.elements;
+		} else {
+			REQUIRE_CHAIN_TAG(indices_val, T_ARRAY, "select-rows", "an index array or vector");
+			index_array = OBJECT_AT(VAL_DATA(indices_val));
+			n_indices = index_array->len;
+		}
+
+		for (int i = 0; i < n_indices; i++) {
+			Val index_val = vector_elements ? make_float(vector_elements[i]) : index_array->items[i];
+			if (VAL_TAG(index_val) != T_FLOAT) {
+				fail(interp, "index %d is %s, expected a float", i, tag_name(VAL_TAG(index_val)));
+				return;
+			}
+			int element = (int)VAL_NUMBER(index_val);
+			if (element < 0 || element >= n_source) {
+				fail(interp, "array index %d out of bounds (length %d)", element, n_source);
+				return;
+			}
+		}
+
+		NEW_ARRAY(gathered_handle, gathered, n_indices);
+		source_array = OBJECT_AT(VAL_DATA(matrix_val));
+		if (vector_elements)
+			vector_elements = OBJECT_AT(VAL_DATA(indices_val))->matrix.elements;
+		else
+			index_array = OBJECT_AT(VAL_DATA(indices_val));
+
+		for (int i = 0; i < n_indices; i++) {
+			int element = vector_elements
+				? (int)vector_elements[i] : (int)VAL_NUMBER(index_array->items[i]);
+			gathered->items[i] = source_array->items[element];
+		}
+
+		chain_sp[-2] = make_array(gathered_handle);
+
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+	}
+
 	REQUIRE_CHAIN_TAG(matrix_val, T_MATRIX, "select-rows", "a matrix");
 	Object *source = OBJECT_AT(VAL_DATA(matrix_val));
 

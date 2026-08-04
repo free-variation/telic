@@ -669,7 +669,12 @@ void p_embodies(DISPATCH_ARGS) {
 	if (!deferred_cfa)
 		return;
 
-	POP_XT(target, "embodies");
+	POP_CALLABLE(target, "embodies");
+	if (VAL_TAG(target_val) == T_CURRIED) {
+		target = curried_materialize(interp, target_val);
+		if (interp->error_flag)
+			return;
+	}
 	if ((cfa_handler)vocab.dict[target] != docol) {
 		fail(interp, "embodies: target must be a colon word or quotation");
 		return;
@@ -734,7 +739,12 @@ void p_embodies_final(DISPATCH_ARGS) {
 	if (!deferred_cfa)
 		return;
 
-	POP_XT(target, "embodies!");
+	POP_CALLABLE(target, "embodies!");
+	if (VAL_TAG(target_val) == T_CURRIED) {
+		target = curried_materialize(interp, target_val);
+		if (interp->error_flag)
+			return;
+	}
 	if ((cfa_handler)vocab.dict[target] != docol) {
 		fail(interp, "embodies!: target must be a colon word or quotation");
 		return;

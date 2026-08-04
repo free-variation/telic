@@ -24,11 +24,12 @@ inline
 inline
 
 
+( set -- arr )  \ the set's elements as an array, already in val_cmp order
+: set>array  sort ;
+inline
+
 ( items xt -- items' )  \ sorted by the key xt ( element -- key ) extracts
-: sort-by
-	| >items >key-xt |
-	items key-xt map argsort
-	[> position | items position @i :] map ;
+: sort-by  over swap map argsort select-rows ;
 
 ( items pred -- matches rest )  \ elements satisfying pred, and the others
 : partition  

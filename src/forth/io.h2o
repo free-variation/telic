@@ -7,6 +7,6 @@
 		drop null exit 
 	then
 
-	":" split
-	[: "/" + name + :] map
+	name swap ":" split
+	[: "/" + 2 pick + :] map nip
 	' file-exists? find-first ;
