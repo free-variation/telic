@@ -338,7 +338,7 @@ const HelpEntry help_entries[] = {
 	{ "format-time", "( instant format -- string )", "Render with strftime, UTC", "len", "1s", "O(len)", 21 },
 	{ "format-time-local", "( instant format -- string )", "Render with strftime in the process's timezone", "len", "1s", "O(len)", 21 },
 	{ "frame", "( keys values -- fr )", "Build from parallel key and value arrays of equal length", "2 + n log n", "1o + reallocs", "O(n log n)", 16 },
-	{ "frame>array", "( fr -- arr )", "Flatten to a key-sorted alternating-kv array; inverse of array>frame", "1 + n", "1o", "O(n)", 16 },
+	{ "frame>array", "( fr -- arr )", "Flatten to an alternating-kv array in the frame's own key order (symbol id, i.e. interning order, not alphabetical); inverse of array>frame", "1 + n", "1o", "O(n)", 16 },
 	{ "frame>json", "( val -- s )", "Serialize a value to JSON. Floats use the shortest round-trip form; strings are escaped (non-ASCII emitted raw); object keys are the symbol names", "walk + build", "1o string", "O(tree size)", 17 },
 	{ "frame?", "( a -- bool )", "core.h2o: type-of :frame = (inlined)", "5", "none", "O(1)", 4 },
 	{ "frames>dataset", "( rows -- dataset )", "datasets.h2o: an array of row frames (as query, db-query :rows, or map over a dataset produce) as a column-oriented dataset, keys from row 0 — differing keys throw. Each column's representation is inferred: all-float cells (none → NaN) become an n×1 vector, uniform-unit quantities a dimensioned vector, anything else stays an array", "n·k log k", "one column per key + 1o", "O(n·k log k)", 22 },

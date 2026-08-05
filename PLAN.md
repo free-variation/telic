@@ -439,6 +439,9 @@ live here instead. File and function name each invariant's home.
   closer decrements it; `try_demonstrative` reads it to reject a fixing
   mention that a later mention would not reach (compiler.c,
   `try_demonstrative`).
+- A local reference resolves only in the innermost locals-bearing scope:
+  name resolution rejects an outer reference before emitting, so no op
+  receives a frame depth above 0 (compiler.c, `reject_outer_local`).
 - The `this` / `that` frame slots register names containing a space, so no
   source token can reach them through `find_local` (compiler.c,
   `restart_definition_body`).

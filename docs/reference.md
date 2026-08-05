@@ -574,7 +574,7 @@ Symbol-keyed sorted maps; binary-search lookup. A **path** is an array of steps;
 | `{ :k v … }` | `( -- fr )` | Frame literal from alternating key/value pairs above the `{` mark; a path key (`/a/b/c`) vivifies nested frames. Built by sorted insertion — a binary search plus a shift per pair; `frame` / `array>frame` are the sort-once bulk constructors | n·(log n + n) | `1o` + reallocs | O(n²) |
 | `frame` | `( keys values -- fr )` | Build from parallel key and value arrays of equal length | 2 + n log n | `1o` + reallocs | O(n log n) |
 | `array>frame` | `( arr -- fr )` | Build from an even-length alternating-kv array; a path key (`/a/b/c`) vivifies nested frames | 1 + n log n | `1o` + reallocs | O(n log n) |
-| `frame>array` | `( fr -- arr )` | Flatten to a key-sorted alternating-kv array; inverse of `array>frame` | 1 + n | `1o` | O(n) |
+| `frame>array` | `( fr -- arr )` | Flatten to an alternating-kv array in the frame's own key order (symbol id, i.e. interning order, not alphabetical); inverse of `array>frame` | 1 + n | `1o` | O(n) |
 | `@` | `( fr sym/path -- val )` | Get by key or path; errors if absent or if the path is a search path | 3 + d log n | none | O(d log n) |
 | `name@key` | `( -- val )` | Get in one token: the part left of `@` is a local, else a defined word, and it supplies the frame; `key` is interned at read time and compiled as the operand of one op, so `row@price` is a local fetch plus `(@key)` with no symbol on the stack. Chains left to right — `row@address@city` walks two frames. An empty left part takes the frame from the stack, `( fr -- val )`, so `@price` is the postfix form. Errors as `@` does when the key is absent or the value is not a frame. The rule applies only to tokens that are not defined words, so `@i`, `@or` and any word named with an `@` keep their meanings, and defining `row@total` shadows the token form for that spelling | 2 + log n | none | O(log n) |
 | `name!key` | `( val -- )` | Set in one token, dropping the frame `!` returns: `99 row!price` stores 99 at `:price` in `row`'s frame and leaves the stack empty. Same resolution of the left part as `name@key`, and an empty left part takes the frame from above the value, `( val fr -- )`. A chain may end in a set — `row@address!city` — but only its last step may, since a set leaves no frame to walk | 2 + log n | none | O(log n) |
@@ -1147,7 +1147,7 @@ A defined FFI word pops its arguments, marshals each per the declared signature,
 | `T_ARRAY` | heap object; `Val[]` |
 | `T_SET` | heap object; sorted `Val[]`, binary-search membership |
 | `T_PAIR` | cons cell in the dense, GC'd pair table; `{head, tail}`. Lists are `null`-terminated chains |
-| `T_FRAME` | heap object; sorted parallel keys (`cell[]`) and values (`Val[]`) |
+| `T_FRAME` | heap object; parallel keys (`cell[]`) and values (`Val[]`) ordered by symbol id — interning order, not alphabetical — for binary-search lookup |
 | `T_MATRIX` | heap object; r×c row-major `double[]` |
 | `T_QUANTITY` | a magnitude (float or matrix) plus a unit id, in a pair-table slot `{magnitude, unit}`; see Dimensioned quantities. Dimensionless results collapse away, so a live quantity always carries a real unit |
 | `T_XT` | execution token (dict index); first-class callable |

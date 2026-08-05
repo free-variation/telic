@@ -95,8 +95,12 @@ $(PCRE2_SRC)/%.o: $(PCRE2_SRC)/%.c
 $(SQLITE_OBJ): $(SQLITE_DIR)/sqlite3.c $(SQLITE_DIR)/sqlite3.h
 	$(CC) $(SQLITE_CFLAGS) -c $< -o $@
 
-$(ISOCLINE_OBJ): $(ISOCLINE_DIR)/src/isocline.c
-	$(CC) $(ISOCLINE_CFLAGS) -c $< -o $@
+# src/isocline.c #includes the rest of src/, so the object must depend on all of
+# them: listing only isocline.c leaves edits to tty.c and friends unbuilt.
+ISOCLINE_SRCS = $(wildcard $(ISOCLINE_DIR)/src/*.c $(ISOCLINE_DIR)/src/*.h $(ISOCLINE_DIR)/include/*.h)
+
+$(ISOCLINE_OBJ): $(ISOCLINE_SRCS)
+	$(CC) $(ISOCLINE_CFLAGS) -c $(ISOCLINE_DIR)/src/isocline.c -o $@
 
 # WASM/WASI cross-build (a-shell, standalone runtimes, browser via a WASI shim).
 # Shares the vendored pcre2 dependency, compiled no-JIT for wasm, and sqlite

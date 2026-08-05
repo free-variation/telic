@@ -52,6 +52,26 @@ cp -R "$upstream/src" "$dest/src"
 cp -R "$upstream/include" "$dest/include"
 cp "$upstream/LICENSE" "$dest/LICENSE"
 
+# Local patches, applied in name order. Each fails the vendoring loudly if it no
+# longer applies, so a commit bump cannot silently drop one.
+patches="$root/tools/patches"
+applied=""
+for patch_file in "$patches"/isocline-*.patch; do
+	[ -e "$patch_file" ] || break
+	echo "applying $(basename "$patch_file")"
+	patch -p1 -s -d "$dest" < "$patch_file"
+	applied="$applied  - $(basename "$patch_file")
+"
+done
+
+# The two raw-mode switches must be TCSADRAIN; the signal-handler restore at
+# tty.c's exit path keeps TCSAFLUSH, so count rather than test for absence.
+drain_count=$(grep -c TCSADRAIN "$dest/src/tty.c" || true)
+if [ "$drain_count" != "2" ]; then
+	echo "patch verification failed: expected 2 TCSADRAIN calls in src/tty.c, found $drain_count" >&2
+	exit 1
+fi
+
 cat > "$dest/PROVENANCE" <<EOF
 isocline vendored source.
 
@@ -64,6 +84,9 @@ Built as a single source unit (src/isocline.c) per isocline's readme.md;
 compile flags live in the Makefile (ISOCLINE_CFLAGS). MIT-licensed (see
 LICENSE). Produced by tools/vendor-isocline.sh; do not edit by hand, re-run
 the script to update.
+
+Local patches applied by that script, from tools/patches:
+$applied
 EOF
 
 echo "vendored isocline ${ISOCLINE_COMMIT} into $dest"
