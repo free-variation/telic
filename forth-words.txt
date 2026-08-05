@@ -1,5 +1,4 @@
 !
-!at
 !e
 !i
 !i,j
@@ -283,6 +282,7 @@ floats>matrix
 flog
 fmod
 fnegate
+fold-times
 forget
 format
 format-time
@@ -428,6 +428,7 @@ predict
 predict-multinomial
 print
 print-stack
+product-times
 prune
 prune-cv
 ptr?
@@ -553,6 +554,7 @@ stroke-width
 submatrix
 substring
 sum
+sum-times
 summary
 svd
 svg-circle

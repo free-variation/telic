@@ -806,6 +806,12 @@ void p_over(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
 }
 
+void p_nip(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
+	chain_sp[-2] = chain_sp[-1];
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+}
+
 void p_rot(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 3);
 	Val bottom = chain_sp[-3];
@@ -890,46 +896,6 @@ void p_pick_n(DISPATCH_ARGS) {
 
 	DISPATCH_REGISTERS(interp, chain_ip + 1, chain_sp + 1);
 }
-
-void p_store_at(DISPATCH_ARGS) {
-	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
-	Val depth_val = chain_sp[-1];
-	REQUIRE_CHAIN_TAG(depth_val, T_FLOAT, "!at", "a float depth");
-	int depth = (int)VAL_NUMBER(depth_val);
-	Val *value_top = chain_sp - 1;
-	if (depth < 1 || value_top - 1 - depth < interp->data_stack) {
-		SYNC_REGISTERS(interp, chain_ip, value_top);
-		fail(interp, "depth %d out of range (stack has %d below it)", depth, (int)(value_top - interp->data_stack));
-		return;
-	}
-
-	value_top[-1 - depth] = value_top[-1];
-
-	DISPATCH_REGISTERS(interp, chain_ip, value_top - 1);
-}
-
-void p_store_at_n(DISPATCH_ARGS) {
-	int depth = (int)chain_ip[0];
-	REQUIRE_STACK_DEPTH(interp, chain_ip + 1, chain_sp, depth + 1);
-	chain_sp[-1 - depth] = chain_sp[-1];
-
-	DISPATCH_REGISTERS(interp, chain_ip + 1, chain_sp - 1);
-}
-
-#define DEPTH_ACC_OP(name, opname, expr) \
-	void name(DISPATCH_ARGS) { \
-		int depth = (int)chain_ip[0]; \
-		REQUIRE_STACK_DEPTH(interp, chain_ip + 1, chain_sp, depth + 1); \
-		double a = chain_sp[-1 - depth].number; \
-		double b = chain_sp[-1].number; \
-		chain_sp[-1 - depth].number = (expr); \
-		DISPATCH_REGISTERS(interp, chain_ip + 1, chain_sp - 1); \
-	}
-
-DEPTH_ACC_OP(p_add_f_acc, "(f+.acc)", a + b)
-DEPTH_ACC_OP(p_sub_f_acc, "(f-.acc)", a - b)
-DEPTH_ACC_OP(p_mul_f_acc, "(f*.acc)", a * b)
-DEPTH_ACC_OP(p_div_f_acc, "(f/.acc)", a / b)
 
 void p_roll(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);

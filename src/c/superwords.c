@@ -282,7 +282,7 @@ static int try_fuse_array_step(Interpreter *interp) {
 			return 0;
 		cfa_handler push = (cfa_handler)dict[here - 4];
 		if (push != p_literal && push != p_local_fetch_0depth
-		    && push != p_local_fetch_1depth && push != dovar)
+		    && push != dovar)
 			return 0;
 	}
 
@@ -295,8 +295,8 @@ static int try_fuse_array_step(Interpreter *interp) {
 	int arr_key;
 	int idx_slot;
 	int fetch_start;
-	if (folded == p_at_i_ll0 || folded == p_at_i_l1l0) {
-		arr_form = (folded == p_at_i_ll0) ? 1 : 2;
+	if (folded == p_at_i_ll0) {
+		arr_form = 1;
 		arr_key = (int)dict[fetch_end - 2];
 		idx_slot = (int)dict[fetch_end - 1];
 		fetch_start = fetch_end - 3;
@@ -325,8 +325,6 @@ static int try_fuse_array_step(Interpreter *interp) {
 	if (arr_form == 0 && arr_push != dovar)
 		return 0;
 	if (arr_form == 1 && arr_push != p_local_fetch_0depth)
-		return 0;
-	if (arr_form == 2 && arr_push != p_local_fetch_1depth)
 		return 0;
 	if ((int)dict[fetch_start - 3] != arr_key)
 		return 0;
@@ -357,9 +355,6 @@ int superword_try_fuse(Interpreter *interp, int op_cfa) {
 
 	if (try_fuse_float_depth(interp, op_cfa))
 		return 1;
-
-	if (op_cfa == vocab.store_at_cfa)
-		return try_fuse_store_at(interp);
 
 	if (op_cfa == vocab.at_i_cfa) {
 		if (try_fuse_at_i_ll(interp))

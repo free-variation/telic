@@ -155,7 +155,7 @@ v: not a colon definition
  5: *
  6: exit
 ;
-: at-swap-pick   \ 22 cells
+: at-swap-pick   \ 21 cells
  0: (enter-locals) 1
  2: (local!0) 0
  4: (local@0) 0
@@ -166,13 +166,12 @@ v: not a colon definition
  12: exit
  13: (lit) '?
  15: map
- 17: swap
- 18: drop
- 19: (leave-locals) 1
- 21: exit
+ 17: nip
+ 18: (leave-locals) 1
+ 20: exit
 ;
 [ 30 10 ] 
-: at-swap-deeper   \ 20 cells
+: at-swap-deeper   \ 19 cells
  0: (enter-locals-to) 2
  2: (load2) 0 1
  5: (branch) 5
@@ -181,8 +180,7 @@ v: not a colon definition
  10: exit
  11: (lit) '?
  13: map
- 15: swap
- 16: drop
- 17: (leave-locals) 2
- 19: exit
+ 15: nip
+ 16: (leave-locals) 2
+ 18: exit
 ;

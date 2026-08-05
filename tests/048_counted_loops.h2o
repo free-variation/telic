@@ -50,3 +50,37 @@ clear
 [: drop :] -1 i-times
 "x" [: drop :] i-times
 5 5 i-times
+
+clear
+\ === fold-times ( acc map-xt combine-xt n -- acc' ) ===
+\ the map body is ( i -- term ); the combiner never sees the data stack when it
+\ is a primitive arithmetic word, so the accumulator stays in the combinator
+
+\ sum of 0..4 with the identity map, and sum of squares 0..4
+0 [: :] ' f+ 5 fold-times . cr            \ 10
+0 [: dup f* :] ' f+ 5 fold-times . cr     \ 30
+
+\ product of 1..5, and subtraction to show the combiner's operand order
+1 [: f1+ :] ' f* 5 fold-times . cr        \ 120
+100 [: :] ' f- 5 fold-times . cr          \ 90 — acc combines on the left
+
+\ zero count answers the initial accumulator untouched
+:untouched [: :] ' f+ 0 fold-times . cr   \ :untouched
+
+\ a quotation combiner takes the dispatched path and sees ( acc term -- acc' )
+0 [: :] [: f+ :] 5 fold-times . cr        \ 10
+[ ] [: :] [: add-last! :] 3 fold-times . cr   \ [ 0 1 2 ] — combiner sees ( acc term )
+
+\ a parked value is read by depth; here f* consumes the index, so the body needs
+\ no cleanup
+7 0 [: 1 pick f* :] ' f+ 4 fold-times nip . cr   \ 42 — 7·(0+1+2+3)
+
+\ the wrappers: sum-times and product-times supply the defaults
+[: :] 5 sum-times . cr                    \ 10
+[: dup f* :] 4 sum-times . cr             \ 14
+[: f1+ :] 5 product-times . cr            \ 120
+
+\ wrong types
+0 [: :] ' f+ -1 fold-times
+0 [: :] 5 fold-times
+0 5 ' f+ 5 fold-times

@@ -1,10 +1,13 @@
 # <img src="water_logo.png" alt="" height="40" align="top"> Water
 
-A Forth-flavored language for numeric and matrix work, statistics and
-regression, dimensioned quantities and calendar arithmetic, set/array/frame
-manipulation, string/regex processing, logic programming, and multi-core data
-parallelism — with embedded SQLite and a runtime C FFI. A compact,
-self-contained C interpreter.
+A Forth-styled language for numeric, statistical, and symbolic work, and for
+general scripting: matrices and linear algebra, statistics and regression,
+dimensioned quantities and calendar arithmetic, sets/arrays/frames and columnar
+datasets, strings and regex, subprocesses and pipes, logic programming with
+backtracking, and multi-core data parallelism — with embedded SQLite, a
+runtime C FFI, and an SVG plotting library. A compact, self-contained C
+interpreter: NaN-boxed tagged values, direct-threaded code with compile-time
+fusion, mark-and-sweep GC, and a WASI build from the same source.
 
 The doc system is designed to fit into a single LLM prompt, making the language LLM-friendly from the start.
 
@@ -122,6 +125,14 @@ dup :age @ mean .                       \ 40  (a numeric column is already a vec
 \ Statistics over a matrix column: mean and the median (0.5 quantile)
 [ 2 4 4 4 5 5 7 9 ] 8 1 matrix dup mean . 0.5 quantile .  \ 5  4.5
 
+\ A fit over a real table: income on three columns of 32,561 rows. The statistics
+\ library reaches LAPACK through the FFI, so this part is native-only.
+"statistics" load-library
+"data/adult.tsv" read-tsv to adult
+adult [ :age :education-num :hours-per-week ] dataset>matrix with-intercept
+adult@income  50 1e-8 1  fit-logistic-ridge transpose .
+\ 1x4: -8.523  0.04691  0.3453  0.04283   (intercept, age, education, hours)
+
 \ SQLite, in-memory: create, insert a bound param, query back
 ":memory:" db-open
 dup "create table t(x)" [ ] db-exec drop
@@ -129,13 +140,64 @@ dup "insert into t values (?)" [ 42 ] db-exec drop
 "select x from t" [ ] db-query :rows @ 0 @i :x @ .   \ 42
 ```
 
+## Benchmarks
+
+`make bench` runs `bench/run-benchmarks.sh`, which builds the binary, runs each
+port five times against three CPython runs, and reports medians with a
+verification table pairing every result against its reference. The run below is
+CPython 3.14.6 and numpy 2.5.1 on Darwin 25.5.0, `clang -O3 -march=native`. The
+`-matrix` rows are vectorized and answer to numpy, the `-parallel` rows to a
+process pool of the same width, and both time pool creation as water times
+spawning its threads.
+
+| benchmark | size | water | python | py / h2o |
+|:----------|:-----|-----------:|-------:|--------:|
+| leibniz | 1000000000 iterations | 8.494 s | 42.258 s | 4.98× |
+| leibniz-matrix | 1000000000, vectorized vs numpy | 0.7628 s | 1.810 s | 2.37× |
+| leibniz-matrix | 1000000000, vectorized vs R 4.5.2 `sum(4 / seq.int(...))` | 0.7628 s | 1.720 s | 2.25× |
+| leibniz-parallel | 1000000000, pmap vs pool of 16 | 1.276 s | 3.420 s | 2.68× |
+| nqueens | N = 8 | 0.0128 s | 0.0420 s | 3.29× |
+| nqueens-iter | N = 8 | 0.0257 s | 0.0420 s | 1.64× |
+| nbody | 20000 steps | 0.0195 s | 0.0524 s | 2.68× |
+| raytrace | 10× 100×100 | 0.1398 s | 1.296 s | 9.27× |
+| raytrace-parallel | 10× 100×100, pmap vs pool | 0.0124 s | 0.2634 s | ~21× |
+| float | 100000 pts × 20 | 0.2502 s | 0.6272 s | 2.51× |
+| crypto-pyaes | 23000 B, 10× enc+dec | 0.0744 s | 0.3772 s | 5.07× |
+| fannkuch | N = 9 | 0.0993 s | 0.1787 s | 1.80× |
+| binary-trees | depth 16 | 0.3127 s | 0.6893 s | 2.20× |
+| mandelbrot | N = 1000 | 0.4050 s | 1.318 s | 3.25× |
+| mandelbrot-matrix | N = 1000, vectorized vs numpy | 0.0868 s | 0.0958 s | 1.10× |
+| mandelbrot-parallel | N = 1000, pmap vs numpy pool | 0.0327 s | 0.1761 s | 5.38× |
+| spectral-norm | N = 130, 50× | 0.6625 s | 2.588 s | 3.91× |
+| spectral-norm-matrix | N = 260, 1000× vs numpy | 0.0817 s | 0.0808 s | 0.99× |
+| scimark-lu | N=100, 100× | 0.5135 s | 5.696 s | ~11× |
+| scimark-sparse | N=1000, 500× | 0.3662 s | 1.085 s | 2.96× |
+| scimark-fft | N=1024, 5×50 | 0.2053 s | 0.7077 s | 3.45× |
+| barnes-hut | 200 bodies, 2×50 | 0.1669 s | 0.4415 s | 2.65× |
+| scimark-sor | N=100, 10 cyc × 100 | 0.3605 s | 5.736 s | ~16× |
+| scimark-montecarlo | 1000000 × 3 | 0.3571 s | 0.9266 s | 2.59× |
+| montecarlo-parallel | 20000000 samples, pmap 10w vs pool 10w | 0.0414 s | 0.2096 s | 5.06× |
+| meteor | 10 solves | 0.2176 s | 0.5373 s | 2.47× |
+| hexiom | level 25, 50 solves | 0.1137 s | 0.1612 s | 1.42× |
+| regex-dna | 100K → 1M | 0.0334 s | 0.1001 s | 3.00× |
+| regex-compile | 239 patterns, cold | 0.0010 s | 0.0070 s | 7.01× |
+| regex-effbot | 21 pat × 0..10k | 2.739 s | 15.653 s | 5.71× |
+| regex-v8 | 12 blocks, browser trace | 0.3924 s | 1.103 s | 2.81× |
+| deepcopy | N=20000, 60 copies/N | 0.1193 s | 2.330 s | ~20× |
+| json-loads | 222k parses | 0.5293 s | 0.9694 s | 1.83× |
+| json-dumps | EMPTY/SIMPLE/NESTED/HUGE ×250 | 0.3627 s | 1.290 s | 3.56× |
+
+The ports live in `bench/pyperformance/` beside the CPython sources they answer
+to, and `bench/variants/` holds the vectorized and parallel forms. Where a port
+departs from its pyperformance original the file's header says so.
+
 ## Features
 
 ### Core language
 
 - **Tagged Vals** — floats, strings, symbols, sets, arrays, cons pairs, frames, matrices, quantities, segments, execution tokens, dictionary addresses, continuations, logic variables, process streams, database handles, C pointers, internal marks. A single 8-byte NaN-boxed representation; the tag determines interpretation.
 - **Direct-threaded inner interpreter** — each dictionary cell is a handler function pointer, dispatched by an indirect tail call (`musttail`); a colon call, literal, or branch carries its operand in the cell(s) right after the handler. The dictionary *is* the threaded code.
-- **Compile-time instruction fusion** — adjacent variable-reads and float ops collapse into single instructions (`var var f+` → one op; `… var f+!` fuses the store), `f*+` / `f*-` are fused multiply-add/subtract, and a comparison immediately before a branch (`= if`, `> while`, `0= until`) fuses into a single compare-and-branch op, and an array read-modify-write (`arr i arr i @i f1- !i` or a `… delta f+ !i` step) collapses to one in-place element update. Variable-fused float words (`vf+`/`vf*`/… on one named variable, `vvf+`/`vvf*`/… on two) collapse the variable load into the float op. Word-locals fuse the same way: a float op over two locals or a local and a literal is one instruction, a following `to name` fuses into it (`zr zr f* to zr2` is one op), and `++ name` / `f++ name` increment a local in one.
+- **Compile-time instruction fusion** — adjacent variable-reads and float ops collapse into single instructions (`var var f+` → one op; `… var f+!` fuses the store), `f*+` / `f*-` are fused multiply-add/subtract, and a comparison immediately before a branch (`= if`, `> while`, `0= until`) fuses into a single compare-and-branch op, and an array read-modify-write (`arr i arr i @i f1- !i` or a `… delta f+ !i` step) collapses to one in-place element update. Variable-fused float words (`vf+`/`vf*`/… on one named variable, `vvf+`/`vvf*`/… on two) collapse the variable load into the float op. Word-locals fuse the same way: a float op over two locals or a local and a literal is one instruction, a following `to name` fuses into it (`zr zr f* to zr2` is one op), and `++ name` / `f++ name` increment a local in one. Stack reads fuse the same way: `n pick` before a float op becomes one depth-addressed instruction, so a quotation body reading values parked below the combinator's operands costs the same as one reading locals.
 - **Program and execution state separated** — the dictionary, symbol pool, and object heap live in global structures (`Vocabulary`, `Compiler`, `Arena`) that are read-only during a run; the per-run mutable state — the three stacks, instruction pointer, locals, and GC roots — lives in an `Interpreter`, so one program can be shared across multiple execution contexts.
 - **Three stacks** — data, return, and a side stack for stashing values that mustn't sit on the other two.
 - **Colon definitions** — `: name body ;`. The body is captured as source text for `see` and the text-form `save`.
@@ -147,14 +209,16 @@ dup "insert into t values (?)" [ 42 ] db-exec drop
 - **Tick and execute** — `' word execute` for first-class invocation by name.
 - **Forward declaration** — `defer name` declares a word with no target, for mutual recursion or late binding; `xt embodies name` installs a target (a colon word or quotation), retargetable through one forwarding dispatch; `xt embodies! name` finalizes, rewriting existing call sites to call the target directly and turning the word ordinary.
 - **`forget`** — truncate the dictionary back to a named word; symbol identities survive.
-- **Variables and symbols** — `variable foo` declares a global; read it by bare name, assign with `42 to foo` (`to` also auto-creates a global on first assignment at the REPL). `symbol bar` defines a symbol; `:foo` is a symbol literal interned on use; `string>symbol` interns a computed string.
-- **Word-local variables** — `| x y |` at the head of a colon definition or quotation declares scoped slots (uninitialized — assign before reading; the compiler rejects a scope that reads a slot it stores nowhere, which also catches a local name shadowing a word the body meant to call); read by bare name, assign with `to name`. A `>` prefix receives a slot from the stack, a `?` prefix fills it with a fresh logic variable per call. `++ name` / `-- name` increment/decrement a local in place (`f++` / `f--` the unsafe float-only forms). Locals nest through quotations and survive continuation capture.
+- **Variables and symbols** — `variable foo` declares a global; read it by bare name, assign with `42 to foo` (`to` auto-creates a global on first assignment at interpreted top level — the REPL, a program file, a `load`ed file; inside a colon definition or quotation the global must already exist). `symbol bar` defines a symbol; `:foo` is a symbol literal interned on use; `string>symbol` interns a computed string.
+- **Word-local variables** — `| x y |` at the head of a colon definition or quotation declares scoped slots (uninitialized — assign before reading; the compiler rejects a scope that reads a slot it stores nowhere, which also catches a local name shadowing a word the body meant to call); read by bare name, assign with `to name`. A `>` prefix receives a slot from the stack, a `?` prefix fills it with a fresh logic variable per call. `++ name` / `-- name` increment/decrement a local in place (`f++` / `f--` the unsafe float-only forms). A word's locals survive continuation capture, so a generator resumes with its slots intact.
+- **A quotation's locals are its own** — a quotation reads the slots it declares and the data stack, never the enclosing word's: `: f | x | 5 to x [: x 1 + :] execute ;` is refused at compile time with `x is not bound in this quotation; pass it in or use pick`. Values reach a quotation three ways — received into its own locals (`[> a b |`), parked on the stack under the combinator's operands and read by depth (`2 pick`), or bound into a curried token by `curry`.
 - **Mark-and-sweep GC** — walks data/return/side stacks, dictionary, and a small `gc_roots` array for in-flight C-level temporaries. It triggers on object-table pressure and on live-byte pressure, and runs at a safepoint between words so popped C-level operands stay live.
 
 ### Numeric / matrix
 
 - **Polymorphic arithmetic** — `+`/`-`/`*`/`/` dispatch on operand tags: floats compute, strings concatenate (`+`), sets union/difference/intersection, matrices element-wise, a scalar broadcasts over a matrix, and arrays concatenate (`+`).
-- **Integer division** — `%` ( a b -- rem quot ) truncating divmod on floats (errors on a zero divisor); `mod` (remainder, sign follows the dividend) and `quotient` (toward zero) build on it.
+- **Integer division** — `%` ( a b -- rem quot ) truncating divmod (errors on a zero divisor); `mod` (remainder, sign follows the dividend) and `quotient` (toward zero) build on it. All three broadcast like the arithmetic words: matrix and array operands compute element-wise and a scalar spreads — `[ 7 5 ] vector 3 mod` answers `[ 1 2 ]`.
+- **`min2`** / **`max2`** — the pairwise minimum and maximum, element-wise over matrices and arrays with scalar broadcast, ordering NaN as `val_cmp` does.
 - **In-place matrix ops** — `+!`/`-!`/`*!`/`/!` mutate the left matrix in place (explicit; the programmer decides). Float-only fast paths (`f+`, `f-`, `f*`, `f/`, `f^`, …) skip the type dispatch when both operands are known floats.
 - **Matrix construction** — `R C 0-matrix` (zeros), `[ ... ] R C matrix`, `[ ... ] vector` (an n×1 column, length inferred), `V N diagonal-matrix` (N×N with V on the diagonal), `N identity-matrix`, `start end step matrix-range` (a 1×N row over a stepped range).
 - **DGEMM** — `dgemm-nn`/`tn`/`nt`/`tt` (`αAB + βC`) for all four transpose variants, each with its own loop order chosen so the inner loop runs unit-stride with `restrict` pointers: `nn` and `tn` are ikj axpy kernels, `nt` and `tt` are vectorized dot products (`tt` staging Aᵀ's column through a scratch buffer).
@@ -202,8 +266,9 @@ Flat, fixed-length typed numeric buffers stored off the arena (one allocation, f
 - **Array literals** — `[ 1 2 3 ]`, the `array` constructor (gather N from the stack), `array-of` (fill), `range` ( from to -- arr ) for an ascending or descending integer sequence, `iota` ( n -- [0..n-1] ), indexed access via `@i`, in-place store via `!i`.
 - **Array operations** — `sort` (a sorted copy in `val_cmp` order; a set projects to a sorted array, a vector sorts ascending with NaNs last), `reverse`, `take`, `concat`, `flatten-array` (flatten one level), `sample` ( arr count repl -- arr ) drawing elements with or without replacement, `shuffle` (a uniform permutation of the array), `resample` (a same-size draw with replacement — the bootstrap draw), and `first`/`second` (element 0/1 of an array, head/tail of a cons).
 - **Growing at the end** — `add-last!` ( arr v -- arr ) appends over a backing buffer that doubles when full, `remove-last!` ( arr -- v ) pops the last element; both amortized O(1), indexing stays O(1).
-- **Map, fold, zip-map, filter** — `map` for a single source, `reduce` for a left fold with an accumulator, `nmap` for N-ary zip, `filter` to select by predicate, with anonymous quotations as the higher-order argument.
-- **Search, traversal, and reshaping** — `find` (first element satisfying a predicate, or `null`), `any?`/`all?`, `each` (side effects, no result), `flat-map` (per-element arrays concatenated), `sort-by` (sorted by an extracted key, n key evaluations), `partition` (matches and non-matches in one pass), and `group-with` (group into `{ key → set }` by a computed symbol key — the quotation-keyed kin of `group-by`).
+- **Map, fold, zip-map, filter** — `map` for a single source, `reduce` for a left fold over a collection, `nmap` for N-ary zip, `filter` to select by predicate, with anonymous quotations as the higher-order argument.
+- **Counted map-fold** — `fold-times` ( acc map-xt combine-xt n -- acc' ) folds over an index range with no collection: the body maps `( i -- term )` and the accumulator stays inside the combinator, so a primitive combiner like `' f+` adds with no dispatch and the fold costs what `i-times` costs. `sum-times` and `product-times` wrap the usual defaults; `pmap-reduce` is the parallel form of the same shape.
+- **Search, traversal, and reshaping** — `find-first` (first element satisfying a predicate, or `null`, stopping there), `any?` (short-circuits through `find-first`) / `all?` (maps then folds, so its predicate runs on every element), `each` (side effects, no result), `flat-map` (per-element arrays concatenated), `sort-by` (sorted by an extracted key, n key evaluations), `partition` (matches and non-matches in one pass), and `group-with` (group into `{ key → set }` by a computed symbol key — the quotation-keyed kin of `group-by`).
 - **Destructuring** — `destruct` spreads a set/array/frame's elements onto the stack (a frame as alternating symbol/value). `destruct-to` ( values names -- ) takes two equal-length arrays and assigns each value to the global variable named by the corresponding symbol, creating it if absent.
 - **In-place slicing** — `slice!` copies a strided run from one array into another (a negative step with source and target aligned reverses in place), `to-slice!` stores values from the stack into a range.
 
@@ -314,7 +379,7 @@ The statistics library (`lib/statistics.h2o`, loaded on demand) builds on the ma
 
 - **Descriptive** — `std`, `se`, `median`, `percentile`, `quantiles`, `iqr`, `ci` (percentile confidence interval).
 - **Resampling** — `bootstrap` / `pbootstrap` (parallel) over a fit quotation.
-- **Linear algebra** — `svd` and `fit-linear` (least-squares) on LAPACK through the FFI; loading the library also rebinds the `dgemm-*` words to BLAS.
+- **Linear algebra** — `svd` and `fit-linear` (least-squares) on LAPACK through the FFI; loading the library also rebinds the `dgemm-*` words to BLAS and adds `dgemv-n` / `dgemv-t` (`α op(A)·x + β·y` with `x` and `y` as columns), which reach cblas with a vector call rather than dgemm on a one-column matrix.
 - **Regression** — `linear-regression` and `logistic-regression` (IRLS with Firth correction), each returning per-coefficient estimate, standard error, bias, and confidence interval from a bootstrap.
 - **Generalized linear models** — `fit-glm` runs IRLS for a family object of three quotations (`:inverse-link`, `:mean-derivative`, `:variance`); `gamma-log`, `poisson-log`, `gaussian-identity`, `binomial-logit`, and `negative-binomial-log` are provided, and `fit-gamma`/`fit-poisson` wrap the log-link fits. `fit-negative-binomial` fits overdispersed counts, estimating the dispersion alongside the coefficients. `fit-multinomial` fits softmax (baseline-category) logistic by Newton–Raphson, `fit-multinomial-ridge` adds an L2 penalty for separable data, and `predict-multinomial` returns class probabilities.
 - **Gradient boosting** — `fit-xgb` trains an XGBoost booster on a feature matrix and response through the system `libxgboost` (`XGBOOST_LIB`, else the default install path), taking a params frame keyed by XGBoost parameter names (`:rounds` drives the boosting loop); `xgb-predict` scores a feature matrix, `xgb-free` releases the booster. `xgb-importance` returns the per-feature importance (`"gain"`/`"weight"`/`"cover"`/`"total_gain"`/`"total_cover"`) as a k×1 matrix — `matrix>array argsort reverse` ranks the features. The matrix passes zero-copy via a NumPy array-interface handle.
@@ -391,7 +456,7 @@ Unification and committed choice, on the trail and the continuation machinery:
 
 ### Other
 
-- **`dup`**, **`drop`**, **`swap`**, **`over`**, **`rot`**, **`depth`**, **`pick`**, **`roll`**, **`clear`** — stack-manipulation primitives; `pick` copies the nth item and `roll` moves it.
+- **`dup`**, **`drop`**, **`swap`**, **`over`**, **`nip`**, **`rot`**, **`depth`**, **`pick`**, **`roll`**, **`clear`** — stack-manipulation primitives; `pick` copies the nth item and `roll` moves it, both counting from the top.
 - **`this`** / **`that`** — demonstratives: the top of the stack (`this`) and the value under it (`that`), fixed at the first mention of either word and held for the rest of the clause — the input line at top level, the activation in compiled code. `5 this * .` answers 25 and `1 2 this that - .` answers 1. Non-consuming and repeatable (`this this *`). In a definition the pair fixes at its first mention in the body, which sits at the top level of the body; mentions after it read the value from anywhere, including inside branches, loops and quotations, and each activation holds its own.
 - **`copy`** / **`reify`** — deep copy of a value (strings, arrays, sets, frames, matrices); `reify` additionally renames unbound logic vars to canonical `:_0`/`:_1`/… for a ground, storable, comparable snapshot.
 - **`type-of`** — `( a -- sym )` the value's type as a symbol (`:float`, `:frame`, `:lvar`, …), with a lib predicate per type (`float?` … `lvar?`); a bound logic var answers as its value.
@@ -419,6 +484,7 @@ src/c/image.c          — binary save-image / load-image serialization
 src/c/collections.c    — sets, arrays, and frames
 src/c/indexing.c       — polymorphic element access: @i/!i and their fused forms, over arrays/segments/matrices
 src/c/matrix.c         — matrix words and numeric kernels
+src/c/statistics.c     — statistics kernels: var, quantile, kendall's tau-b
 src/c/dimension.c      — dimensioned quantities: base dimensions, units, quantity arithmetic
 src/c/functional.c     — higher-order operations (map, nmap, …) and multi-core parallelism
 src/c/superwords.c     — compile-time instruction fusion (superwords)
@@ -430,11 +496,13 @@ src/c/platform_posix.c — POSIX platform: arena mmap, isocline REPL, subprocess
 src/c/platform_wasi.c  — WASI platform: allocator + erroring stubs for FFI/subprocess
 src/c/help_table.c     — generated help/man text (from docs/reference.md)
 src/forth/*.h2o        — standard library (concatenated in Makefile order, embedded)
-lib/                   — loadable libraries: statistics.h2o, files.h2o, claude.h2o
+lib/                   — loadable libraries: statistics.h2o, plot.h2o, files.h2o, claude.h2o
 external/              — vendored deps: pcre2, sqlite, isocline, lapacke
 tests/                 — golden-output test files
 bench/                 — benchmark suite (Water vs CPython) and inventory
-docs/                  — design documents and the word reference
+docs/                  — the word reference (reference.md, reference-libraries.md) and the design
+                         documents: arena, continuations, gc, jit, logic, multicore, nan-boxing,
+                         regression, superwords, symbol-hash, threading
 examples/              — sample programs
 PLAN.md                — future work
 ```

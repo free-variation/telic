@@ -214,17 +214,6 @@ void p_at_e_ll0(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip + 2, pushed_sp);
 }
 
-void p_at_e_l1l0(DISPATCH_ARGS) {
-	REQUIRE_STACK_ROOM(interp, chain_ip + 2, chain_sp, 1);
-	int enclosing = saved_local_base(interp->return_stack[interp->local_base - 1]);
-	Val source_val = interp->return_stack[enclosing + (int)chain_ip[0]];
-	int index = (int)interp->return_stack[interp->local_base + (int)chain_ip[1]].number;
-	Val *pushed_sp = matrix_element_read(interp, chain_ip + 2, chain_sp, source_val, index);
-	if (!pushed_sp)
-		return;
-	DISPATCH_REGISTERS(interp, chain_ip + 2, pushed_sp);
-}
-
 static int matrix_element_write(Interpreter *interp, cell *resume_ip, Val *fail_sp, Val target_val, int index, Val element_val) {
 	if (VAL_TAG(element_val) != T_FLOAT && VAL_TAG(element_val) != T_NONE) {
 		SYNC_REGISTERS(interp, resume_ip, fail_sp);

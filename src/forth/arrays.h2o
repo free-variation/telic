@@ -9,6 +9,16 @@
 ( n -- [0..n-1] ) \ empty when n <= 0
 : iota dup 0= if drop [ ] else 1- 0 swap range then ;
 
+( xt n -- total )  \ sum of xt ( i -- term ) over i in 0..n-1
+: sum-times
+  |> xt n |
+  0 xt ' f+ n fold-times ;
+
+( xt n -- product )  \ product of xt ( i -- term ) over i in 0..n-1
+: product-times
+  |> xt n |
+  1 xt ' f* n fold-times ;
+
 ( items pred -- flag )  \ does any element satisfy pred?
 : any?  find-first none? not ;
 inline

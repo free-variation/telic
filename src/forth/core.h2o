@@ -40,10 +40,6 @@ inline
 : 2drop drop drop ;
 inline
 
-( a b -- b )
-: nip swap drop ;
-inline
-
 ( val -- val ) \ prints the top without consuming it
 : peek dup . ;
 inline

@@ -4,12 +4,9 @@
 1 2 3 1 
 2 3 1 
 [ 300 100 ] 
-1 99 3 
-1 2 99 
-15 
-40 
+10 20 30 
+30 
 error: depth 3 out of range (stack has 3 below it)
 error: depth -1 out of range (stack has 2 below it)
-error: depth 5 out of range (stack has 3 below it)
-error: depth 0 out of range (stack has 3 below it)
+error: expected an execution token; got a float
 5 1 

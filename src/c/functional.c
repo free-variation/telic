@@ -277,6 +277,115 @@ void p_reduce(DISPATCH_ARGS) {
 COUNTED_LOOP(p_times,   "times",   (void)i)
 COUNTED_LOOP(p_i_times, "i-times", push(interp, make_float((double)i)))
 
+typedef enum {
+	COMBINE_DISPATCHED,
+	COMBINE_ADD,
+	COMBINE_SUB,
+	COMBINE_MUL,
+	COMBINE_DIV
+} CombineKind;
+
+static CombineKind combine_kind(Val combiner) {
+	if (VAL_TAG(combiner) != T_XT)
+		return COMBINE_DISPATCHED;
+
+	cell handler = vocab.dict[(int)VAL_DATA(combiner)];
+	if (handler == (cell)p_add_f || handler == (cell)p_add)
+		return COMBINE_ADD;
+	if (handler == (cell)p_sub_f || handler == (cell)p_sub)
+		return COMBINE_SUB;
+	if (handler == (cell)p_mul_f || handler == (cell)p_mul)
+		return COMBINE_MUL;
+	if (handler == (cell)p_div_f || handler == (cell)p_div)
+		return COMBINE_DIV;
+
+	return COMBINE_DISPATCHED;
+}
+
+static double combine_floats(CombineKind kind, double accumulator, double term) {
+	switch (kind) {
+	case COMBINE_ADD: return accumulator + term;
+	case COMBINE_SUB: return accumulator - term;
+	case COMBINE_MUL: return accumulator * term;
+	case COMBINE_DIV: return accumulator / term;
+	case COMBINE_DISPATCHED: break;
+	}
+
+	return term;
+}
+
+void p_fold_times(DISPATCH_ARGS) {
+	POP_INT(n, "fold-times", "count");
+	POP_CALLABLE(combiner, "fold-times");
+	POP_CALLABLE(mapper, "fold-times");
+	POP(init_val);
+	if (n < 0) {
+		fail(interp, "length must be non-negative; got %d", n);
+		return;
+	}
+
+	CombineKind kind = combine_kind(combiner_val);
+	if (kind != COMBINE_DISPATCHED && VAL_TAG(init_val) != T_FLOAT)
+		kind = COMBINE_DISPATCHED;
+
+	Val accumulator = init_val;
+	CallContext context;
+	call_open_callable(interp, mapper_val, &context);
+	if (interp->dsp + 2 > DATA_STACK_DEPTH) {
+		call_close(interp, &context);
+		fail(interp, "stack overflow");
+		return;
+	}
+	if (kind != COMBINE_DISPATCHED) {
+		double total = VAL_NUMBER(init_val);
+		if (context.fast) {
+			for (int i = 0; i < n && !interp->error_flag; i++) {
+				interp->data_stack[interp->dsp++] = make_float((double)i);
+
+				if (context.reuses_locals)
+					interp->loop_local_refill = 1;
+				call_invoke(interp);
+				if (interp->error_flag) break;
+
+				total = combine_floats(kind, total, interp->data_stack[--interp->dsp].number);
+			}
+		} else {
+			for (int i = 0; i < n && !interp->error_flag; i++) {
+				interp->data_stack[interp->dsp++] = make_float((double)i);
+
+				execute_cfa(interp, mapper);
+				if (interp->error_flag) break;
+
+				total = combine_floats(kind, total, interp->data_stack[--interp->dsp].number);
+			}
+		}
+		accumulator = make_float(total);
+	} else {
+		for (int i = 0; i < n && !interp->error_flag; i++) {
+			interp->data_stack[interp->dsp++] = make_float((double)i);
+
+			if (context.reuses_locals)
+				interp->loop_local_refill = 1;
+			call_step(interp, &context, mapper);
+			if (interp->error_flag) break;
+
+			Val term = interp->data_stack[--interp->dsp];
+			interp->data_stack[interp->dsp++] = accumulator;
+			interp->data_stack[interp->dsp++] = term;
+			execute_xt(interp, combiner);
+			if (interp->error_flag) break;
+
+			accumulator = interp->data_stack[--interp->dsp];
+		}
+	}
+	call_close(interp, &context);
+	if (interp->error_flag) return;
+
+	push(interp, accumulator);
+
+	DISPATCH(interp);
+}
+
 static Interpreter *claim_worker(void) {
 	int pool_index = atomic_fetch_add(&worker_claim, 1);
 	worker_slot = pool_index;

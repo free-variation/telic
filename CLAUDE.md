@@ -204,8 +204,11 @@ new inline that calls functions → the tail.
   state. When a feature lands, its entry shrinks to the residuals or
   vanishes.
 - README describes the language as it is: terse present-tense capability
-  statements, one line per feature. No past narratives, no measurements,
-  no reflections or design history — detail belongs in docs/reference.md.
+  statements, one line per feature. No past narratives, no reflections or
+  design history — detail belongs in docs/reference.md. Measurements appear
+  only in the Benchmarks section, as the newest bench report's standalone
+  table plus the provenance line naming host, versions and reps; refresh it
+  from a full run, never edit a cell by hand.
 - docs/reference.md (built-ins and embedded src/forth words) and
   docs/reference-libraries.md (loadable lib/*.h2o words) are the source of
   truth: gen-help.py (help table, automatic in make) reads both and merges

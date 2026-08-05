@@ -16,20 +16,20 @@
   over f+  dup f1+ f*  2 f/  f+  f1+  1.0 swap f/ ;
 inline
 
-\ i and u are parked under the accumulator; the body reads them by depth and
-\ accumulates in place with `2 pick f+ 2 !at`, which fuses to one op. No swap:
-\ a swap between stack writes in a hot body measured 7.6 ns against ~1.2 for
-\ an ordinary op
+\ fold-times keeps the running sum in the combinator: the body maps an index to
+\ one term and `' f+` combines, so the sum never reaches the data stack. i and u
+\ are parked below the index and read by depth. No swap in the body: a swap in a
+\ hot body measured 7.6 ns against ~1.2 for an ordinary op
 : part_A_times_u ( i u -- partial_sum )
   |> i u |
-  i u 0
-  [: 3 pick over eval_A  3 pick 2 pick @i  f*  2 pick f+ 2 !at  drop :] u size i-times
+  i u
+  0 [: 2 pick 1 pick eval_A  2 pick 2 pick @i  f*  nip :] ' f+ u size fold-times
   nip nip ;
 
 : part_At_times_u ( i u -- partial_sum )
   |> i u |
-  i u 0
-  [: dup 4 pick eval_A  3 pick 2 pick @i  f*  2 pick f+ 2 !at  drop :] u size i-times
+  i u
+  0 [: dup 3 pick eval_A  2 pick 2 pick @i  f*  nip :] ' f+ u size fold-times
   nip nip ;
 
 \ eval_times_u: apply func to each (i, u) for i in 0..len(u)-1, gather into a new array.
