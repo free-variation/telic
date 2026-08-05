@@ -573,6 +573,8 @@ static int exploded_array(Interpreter *interp, Object *source,
 STRING_EXPLODE_OP(p_string_to_chars, produce_char_string)
 
 int *decoded_codepoints(Interpreter *interp, const char *bytes, int byte_len, int *count_out) {
+	*count_out = 0;
+
 	int count = utf8_codepoint_count(bytes, byte_len);
 	int *codepoints;
 	MALLOC_OR_FAIL_RETURNING(interp, codepoints, sizeof(int) * (size_t)(count > 0 ? count : 1), NULL);

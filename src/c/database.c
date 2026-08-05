@@ -309,6 +309,8 @@ static int symbol_repeats_later(const cell *keys, int position, int n_columns) {
 }
 
 static __attribute__((noinline)) int db_query_dataset_build(Interpreter *interp, sqlite3 *db, sqlite3_stmt *statement, int *types_handle_out) {
+	*types_handle_out = 0;
+
 	int n_columns = sqlite3_column_count(statement);
 	cell keys[n_columns];
 	for (int j = 0; j < n_columns; j++)

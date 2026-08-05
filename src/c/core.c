@@ -3149,6 +3149,9 @@ static int parse_path_predicate(Interpreter *interp, char *text) {
 }
 
 int find_local(const char *token, int *depth_out, int *slot_out) {
+	*depth_out = 0;
+	*slot_out = 0;
+
 	for (int scope = compiler.n_local_scopes - 1; scope >= 0; scope--) {
 		int slice_start = compiler.local_scope_starts[scope];
 		int slice_end = (scope + 1 < compiler.n_local_scopes)
