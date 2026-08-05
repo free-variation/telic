@@ -830,42 +830,6 @@ void p_depth(DISPATCH_ARGS) {
 
 }
 
-#define CAPTURE_ON_FIRST_MENTION(interp, chain_sp, values, depth, line, needed, word) do { \
-	if ((interp)->line != compiler.input_line) { \
-		int available = (int)((chain_sp) - (interp)->data_stack); \
-		if (available < (needed)) { \
-			fail(interp, "%s: %d value(s) on the stack (need %d)", (word), available, (needed)); \
-			return; \
-		} \
-		(interp)->depth = available < 2 ? available : 2; \
-		for (int slot = 0; slot < (interp)->depth; slot++) \
-			(interp)->values[slot] = (chain_sp)[slot - (interp)->depth]; \
-		(interp)->line = compiler.input_line; \
-	} \
-	if ((interp)->depth < (needed)) { \
-		fail(interp, "%s: the line named %d value(s) (need %d)", (word), (interp)->depth, (needed)); \
-		return; \
-	} \
-} while (0)
-
-void p_this(DISPATCH_ARGS) {
-	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);
-	CAPTURE_ON_FIRST_MENTION(interp, chain_sp, demonstrative, demonstrative_depth, demonstrative_line, 1, "this");
-
-	*chain_sp = interp->demonstrative[interp->demonstrative_depth - 1];
-
-	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
-}
-
-void p_that(DISPATCH_ARGS) {
-	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);
-	CAPTURE_ON_FIRST_MENTION(interp, chain_sp, demonstrative, demonstrative_depth, demonstrative_line, 2, "that");
-
-	*chain_sp = interp->demonstrative[0];
-
-	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
-}
-
 void p_pick(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	Val depth_val = chain_sp[-1];

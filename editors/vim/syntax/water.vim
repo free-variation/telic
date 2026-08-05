@@ -82,12 +82,12 @@ syn keyword waterBuiltin select-columns select-keys select-rows select-values se
 syn keyword waterBuiltin side-depth side-drop side-peek sigmoid sin size skip sleep slice! sort sort-by spaces
 syn keyword waterBuiltin split sq sqrt start-generator start-process std stderr stdin stdout stop stream? string>chars
 syn keyword waterBuiltin string>codepoints string>number string>symbol string? submatrix substring sum sum-times summary swap symbol? take
-syn keyword waterBuiltin tan tanh test test-report that this throw time>iso timed to-slice! transpose trim
-syn keyword waterBuiltin true truncate try-catch tsv>db type-of union unit unit-of update-at values var variables
-syn keyword waterBuiltin vars vector vf* vf+ vf- vf/ vfabs vfcos vfexp vflog vfneg vfsin
-syn keyword waterBuiltin vfsq vfsqrt vftan vftanh vstack vvf* vvf*+ vvf*- vvf+ vvf- vvf/ wait
-syn keyword waterBuiltin wall-now water where wildcard? with-db with-intercept with-stream words write write-file write-in write-tsv
-syn keyword waterBuiltin xml-escape xt? yield
+syn keyword waterBuiltin tan tanh test test-report throw time>iso timed to-slice! transpose trim true truncate
+syn keyword waterBuiltin try-catch tsv>db type-of union unit unit-of update-at values var variables vars vector
+syn keyword waterBuiltin vf* vf+ vf- vf/ vfabs vfcos vfexp vflog vfneg vfsin vfsq vfsqrt
+syn keyword waterBuiltin vftan vftanh vstack vvf* vvf*+ vvf*- vvf+ vvf- vvf/ wait wall-now water
+syn keyword waterBuiltin where wildcard? with-db with-intercept with-stream words write write-file write-in write-tsv xml-escape xt?
+syn keyword waterBuiltin yield
 
 hi def link waterComment      Comment
 hi def link waterString       String

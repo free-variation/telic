@@ -530,9 +530,6 @@ typedef struct Interpreter {
 	Val *entry_snapshot;
 	int entry_snapshot_depth;
 	int entry_snapshot_cap;
-	Val demonstrative[2];
-	int demonstrative_depth;
-	int demonstrative_line;
 
 	struct {
 		char *pattern;
@@ -597,10 +594,6 @@ typedef struct {
 	const char *current_load_dir;
 	int error_located;
 
-	int demonstrative_slots;
-	int demonstrative_bound;
-	int control_depth;
-	int colon_dsp;
 
 	char token_buffer[INPUT_BUFFER_SIZE];
 } Compiler;
@@ -1001,7 +994,6 @@ int create_variable(Interpreter *interp, const char *name);
 int reject_outer_local(Interpreter *interp, const char *token);
 void rollback_partial_definition(void);
 void truncate_quotation_spans(void);
-int try_demonstrative(Interpreter *interp, const char *token);
 
 int read_i32(FILE *f, int32_t *v);
 int read_i64(FILE *f, int64_t *v);
@@ -1275,8 +1267,6 @@ void p_sub_inplace(DISPATCH_ARGS);
 void p_swap(DISPATCH_ARGS);
 void p_tan(DISPATCH_ARGS);
 void p_tanh(DISPATCH_ARGS);
-void p_that(DISPATCH_ARGS);
-void p_this(DISPATCH_ARGS);
 void p_throw(DISPATCH_ARGS);
 void p_to_side(DISPATCH_ARGS);
 void p_tor(DISPATCH_ARGS);

@@ -55,10 +55,6 @@ subprocesses, or threads; the loadable statistics library is native-only.
 \ Arithmetic
 3 4 + .                                 \ 7
 
-\ Demonstratives: this fixes on the stack top where first mentioned
-5 this this * .                         \ 25
-1 2 this that - .                       \ 1
-
 \ Matrices: * is element-wise; matrix multiply is dgemm (αAB + βC)
 [ 1 2 3 4 ] 2 2 matrix dup transpose *  \ element-wise product of M and Mᵀ
 
@@ -212,7 +208,7 @@ departs from its pyperformance original the file's header says so.
 - **Variables and symbols** — `variable foo` declares a global; read it by bare name, assign with `42 to foo` (`to` auto-creates a global on first assignment at interpreted top level — the REPL, a program file, a `load`ed file; inside a colon definition or quotation the global must already exist). `symbol bar` defines a symbol; `:foo` is a symbol literal interned on use; `string>symbol` interns a computed string.
 - **Word-local variables** — `| x y |` at the head of a colon definition or quotation declares scoped slots (uninitialized — assign before reading; the compiler rejects a scope that reads a slot it stores nowhere, which also catches a local name shadowing a word the body meant to call); read by bare name, assign with `to name`. A `>` prefix receives a slot from the stack, a `?` prefix fills it with a fresh logic variable per call. `++ name` / `-- name` increment/decrement a local in place (`f++` / `f--` the unsafe float-only forms). A word's locals survive continuation capture, so a generator resumes with its slots intact.
 - **A quotation's locals are its own** — a quotation reads the slots it declares and the data stack, never the enclosing word's: `: f | x | 5 to x [: x 1 + :] execute ;` is refused at compile time with `x is not bound in this quotation; pass it in or use pick`. Values reach a quotation three ways — received into its own locals (`[> a b |`), parked on the stack under the combinator's operands and read by depth (`2 pick`), or bound into a curried token by `curry`.
-- **Mark-and-sweep GC** — walks data/return/side stacks, the demonstrative and entry-snapshot slots, a small `gc_roots` array for in-flight C-level temporaries, and the dictionary (a separate body walk, marking each `variable`'s value cell and every compiled literal). It triggers on object-table pressure and on live-byte pressure, and runs at a safepoint between words so popped C-level operands stay live.
+- **Mark-and-sweep GC** — walks data/return/side stacks, the entry-snapshot slots, a small `gc_roots` array for in-flight C-level temporaries, and the dictionary (a separate body walk, marking each `variable`'s value cell and every compiled literal). It triggers on object-table pressure and on live-byte pressure, and runs at a safepoint between words so popped C-level operands stay live.
 
 ### Numeric / matrix
 
@@ -457,7 +453,6 @@ Unification and committed choice, on the trail and the continuation machinery:
 ### Other
 
 - **`dup`**, **`drop`**, **`swap`**, **`over`**, **`nip`**, **`rot`**, **`depth`**, **`pick`**, **`roll`**, **`clear`** — stack-manipulation primitives; `pick` copies the nth item and `roll` moves it, both counting from the top.
-- **`this`** / **`that`** — demonstratives: the top of the stack (`this`) and the value under it (`that`), fixed at the first mention of either word and held for the rest of the clause — the input line at top level, the activation in compiled code. `5 this * .` answers 25 and `1 2 this that - .` answers 1. Non-consuming and repeatable (`this this *`). In a definition the pair fixes at its first mention in the body, which sits at the top level of the body; mentions after it read the value from anywhere, including inside branches, loops and quotations, and each activation holds its own.
 - **`copy`** / **`reify`** — deep copy of a value (strings, arrays, sets, frames, matrices); `reify` additionally renames unbound logic vars to canonical `:_0`/`:_1`/… for a ground, storable, comparable snapshot.
 - **`type-of`** — `( a -- sym )` the value's type as a symbol (`:float`, `:frame`, `:lvar`, …), with a lib predicate per type (`float?` … `lvar?`); a bound logic var answers as its value.
 - **`now`** — monotonic seconds as a float, for timing intervals (`wall-now`, under Time and dates, is the absolute clock). **`timed`** — `( xt -- … )` runs xt, prints its elapsed `now` seconds, and passes its results through.

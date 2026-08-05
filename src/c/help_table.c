@@ -620,9 +620,7 @@ const HelpEntry help_entries[] = {
 	{ "test", "( name xt -- )", "test.h2o: run xt under catch; print ok <name> or FAIL <name>: <reason> (a runtime error's :message, else the thrown value), tally it, restore the stack, continue past a failure", "—", "prints", "O(xt)", 24 },
 	{ "test-report", "( -- )", "test.h2o: print <n> passed, <m> failed; throw when any failed so a program-file run exits nonzero", "—", "prints", "O(1)", 24 },
 	{ "text-anchor", "( anchor -- )", "Set the current text anchor: \"start\", \"middle\", or \"end\"", NULL, NULL, NULL, 41 },
-	{ "that", "( -- v )", "Push the second of the two values the demonstratives fixed, under the one this names. Same rules as this; two values must be on the stack where the pair fixes, the emitted over reporting when they are not", "2", "none", "O(1)", 0 },
 	{ "then", "—", "Close an if/if…else; patches the forward branch", NULL, NULL, NULL, 8 },
-	{ "this", "( -- v )", "Push the first of the two values the demonstratives fixed. this and that fix the top two stack values at the first mention of either word in the clause and hold them for the rest of it; a clause is one input line at top level, one activation in compiled code. Non-consuming and repeatable: 5 this * . answers 25, 1 2 this that - . answers 1, and 1 2 this 3 4 this .s shows 1 2 2 3 4 2, the second mention reading what the first fixed. In a definition the pair fixes at its first mention in the body, compiled as a dup and a store into a hidden local (see-compiled shows the pair) that every later mention reads, once per activation — : doubled 2 * this + ; answers 28 for 7 doubled, and a callee that fixes its own value leaves the caller's intact. A local named this shadows the word. The fixing mention sits at the top level of the body, not inside a branch, loop or quotation; mentions after it read the value from anywhere in the body, including inside branches, loops and quotations. A quotation compiled at top level is not a definition, so this inside it reads the line's value", "2", "none", "O(1)", 0 },
 	{ "throw", "( exc -- )", "Unwind to the nearest exception prompt, leaving exc 1 (what catch consumes); with no enclosing prompt it is an interpreter error, uncaught exception: <value>, the trace captured at the throw site. The prompt search skips locals regions, so stale bytes in uninitialized local slots are never read as prompts", "L", "none", "O(L)", 24 },
 	{ "time>iso", "( instant -- string )", "units.h2o: \"%Y-%m-%dT%H:%M:%SZ\" format-time", "len", "1s", "O(1)", 21 },
 	{ "timed", "( xt -- … )", "Run xt, print its elapsed now (CLOCK_MONOTONIC) seconds, then pass through whatever it left on the stack", "2 + xt + print", "none", "O(xt)", 29 },
@@ -700,4 +698,4 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "C primitive alias of unify, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 26 },
 };
 
-const int help_entry_count = 650;
+const int help_entry_count = 648;

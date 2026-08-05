@@ -570,9 +570,7 @@ tanh
 test
 test-report
 text-anchor
-that
 then
-this
 throw
 time>iso
 timed

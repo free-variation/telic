@@ -3430,8 +3430,6 @@ void run_outer(Interpreter *interp) {
 				emit_local_fetch(interp, local_depth, local_slot_idx);
 				continue;
 			}
-			if (try_demonstrative(interp, tok))
-				continue;
 		}
 
 		int cf = find(tok);
@@ -4161,8 +4159,6 @@ static void mark_roots(Interpreter *interp) {
 		mark_value(interp, interp->gc_roots[i]);
 	for (i = 0; i < interp->entry_snapshot_depth; i++)
 		mark_value(interp, interp->entry_snapshot[i]);
-	for (i = 0; i < interp->demonstrative_depth; i++)
-		mark_value(interp, interp->demonstrative[i]);
 }
 
 void gc(Interpreter *interp) {
@@ -4664,7 +4660,6 @@ void forget_user(Interpreter *interp) {
 
 void interp_init(Interpreter *interp) {
 	interp->next_mark_id = 1;
-	interp->demonstrative_line = -1;
 	interp->bind_trail = xmalloc(sizeof(int) * BIND_TRAIL_DEPTH);
 	interp->bind_trail_cap = BIND_TRAIL_DEPTH;
 	interp->lvar_stack = xmalloc(sizeof(Val) * LVAR_STACK_DEPTH);
@@ -4778,8 +4773,6 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "depth", p_depth, 0);
 	vocab.pick_cfa = define_primitive(interp, "pick", p_pick, 0);
 	define_primitive(interp, "roll", p_roll, 0);
-	define_primitive(interp, "this", p_this, 0);
-	define_primitive(interp, "that", p_that, 0);
 	vocab.eq_cfa = define_primitive(interp, "=", p_eq, 0);
 	vocab.lt_cfa = define_primitive(interp, "<", p_lt, 0);
 	vocab.gt_cfa = define_primitive(interp, ">", p_gt, 0);
