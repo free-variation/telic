@@ -9,3 +9,6 @@ Built as a single source unit (src/isocline.c) per isocline's readme.md;
 compile flags live in the Makefile (ISOCLINE_CFLAGS). MIT-licensed (see
 LICENSE). Produced by tools/vendor-isocline.sh; do not edit by hand, re-run
 the script to update.
+
+Local patches applied by that script, from tools/patches:
+  - isocline-keep-pending-input.patch
