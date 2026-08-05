@@ -1,0 +1,30 @@
+{
+  :role user
+  :content hello
+}
+
+{
+  :role assistant
+  :content sure
+}
+
+1 
+1 
+0 
+curl 
+BODY 
+1 
+1 
+1 
+0 
+0 
+the answer 
+curl failed 
+{"error": "nope"} 
+0.0075 
+0.0003 
+16.5 ¢ 
+0 $ 
+491.52 ¢ 
+error: uncaught exception: "no price for model: no-such-model"
+in throw ← model-price

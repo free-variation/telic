@@ -1,7 +1,8 @@
 """scimark SOR (successive over-relaxation), N=100 — port of pyperformance bm_scimark SOR.
-Array2D, Random, and SOR_execute are verbatim from pyperformance. pyperformance's
-bench_SOR leaves G zero; the original SciMark seeds it via RandomMatrix, which we
-do here so the checksum verifies real arithmetic. Outer loops come from argv."""
+Array2D, Random, and SOR_execute are verbatim from pyperformance, and the timed
+loop allocates G per iteration and leaves it zero exactly as bench_SOR does, so
+this measures loop throughput and the checksum is 0. The arithmetic on seeded
+data is checked by tests/152_scimark_kernels.h2o instead. Outer loops from argv."""
 
 from array import array
 
@@ -105,7 +106,7 @@ if __name__ == "__main__":
     t0 = time.perf_counter()
     G = None
     for _ in range(loops):
-        G = Random(101).RandomMatrix(Array2D(N, N))
+        G = Array2D(N, N)
         SOR_execute(1.25, G, cycles, Array2D)
     elapsed = time.perf_counter() - t0
     s = sum(G.data)

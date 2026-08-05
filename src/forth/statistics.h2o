@@ -12,12 +12,13 @@
 	high low = if low 1 - high 1 + to high to low then
 	high low - n-bins / to bin-width
 	n-bins 1 0-matrix to counts
-	[| >i bin tally |
+	data counts low bin-width n-bins
+	[| >i >data >counts >low >bin-width >n-bins bin tally |
 		data i @e low - bin-width / round-down to bin
 		bin n-bins 1 - > if n-bins 1 - to bin then
 		counts bin @e 1+ to tally
 		counts bin tally !e drop
-	:] n-values i-times
+	:] 5 ncurry n-values i-times
 	{ :counts counts :low low :bin-width bin-width } ;
 
 ( v -- xs ys ) \ empirical CDF: finite elements sorted ascending, cumulative fractions (i+1)/n
@@ -38,16 +39,17 @@
 
 ( units n-folds -- folds ) \ round-robin deal in the given order: [ [train test] .. ]
 : cv-folds
-	| >units >n-folds positions |
+	| >units >n-folds fold-ids |
 	n-folds 2 < if n-folds "cross-validate: expected at least 2 folds; got {0}" format throw then
 	units size n-folds < if units size n-folds "cross-validate: {0} folds exceed {1} units" format throw then
-	units size iota to positions
+	units size iota vector n-folds mod to fold-ids
 	n-folds iota
-	[> f |
-		positions [: n-folds mod f = not :] filter units swap select-rows
-		positions [: n-folds mod f = :] filter units swap select-rows
+	fold-ids units
+	[> f fold-ids units |
+		fold-ids f eq  1 swap -  where  units swap select-rows
+		fold-ids f eq  where  units swap select-rows
 		2 array :]
-	map ;
+	2curry map ;
 
 ( units n-folds fit-xt score-xt -- fold-losses ) \ k-fold CV: units deal round-robin
 \ into folds in the given order (shuffle first; one shuffle compares configurations on
@@ -57,10 +59,11 @@
 : cross-validate
 	| >units >n-folds >fit >score |
 	units n-folds cv-folds
-	[> fold |
+	fit score
+	[> fold fit score |
 		fold 0 @i fit execute
 		fold 1 @i score execute :]
-	map vector ;
+	2curry map vector ;
 
 ( matrix -- float ) \ standard deviation
 : std var sqrt ; inline
@@ -120,16 +123,16 @@
 ( dataset -- fr ) \ per-column summaries keyed by column name
 : dataset-summary
 	| >dataset unfit-columns |
-	dataset keys
-	[: dataset swap @ dup numeric-column? swap array? or not :] filter to unfit-columns
+	dataset  dataset keys
+	[: 2 pick swap @ dup numeric-column? swap array? or not :] filter  nip to unfit-columns
 	unfit-columns size 0 > if
 		dataset unfit-columns 0 @i @ type-of
 		unfit-columns 0 @i
 		"summary: column :{0} holds {1}; expected a matrix, quantity, or array" format throw
 	then
-	dataset keys dup
-	[: dataset swap @ column-summary :] map
-	frame ; internal
+	dataset  dataset keys dup
+	[: 3 pick swap @ column-summary :] map
+	rot drop frame ; internal
 
 ( v/dataset -- fr ) \ a vector answers { :min :q1 :median :mean :q3 :max } over its
 \ finite elements (dimensioned in its unit, instants as ISO strings), :missing added
@@ -178,8 +181,8 @@
 	| >column levels |
 	column column>array [: none? not :] filter array>set sort to levels
 	levels size 2 < if "column>indicators: needs at least 2 distinct values" throw then
-	levels 1 skip
-	[: column swap eq :] map
+	column  levels 1 skip
+	[: 2 pick swap eq :] map  nip
 	dup 0 @i swap 1 skip swap [: augment :] reduce ;
 
 ( design column sym -- design ) \ add one 0/1 column per non-reference level to a
@@ -189,9 +192,10 @@
 	column column>array [: none? not :] filter array>set sort to levels
 	levels size 2 < if "indicators!: needs at least 2 distinct values" throw then
 	levels 1 skip
-	[> level |
+	design prefix column
+	[> level design prefix column |
 		design  prefix level "{1}={0}" format string>symbol  column level eq  ! :]
-	map drop
+	3 ncurry map drop
 	design ;
 
 ( X/design -- X'/design ) \ matrix: prepend a column of 1s so beta[0] is the
@@ -214,7 +218,7 @@
 : coefficient-column
 	|> betas replications j |
 
-	betas [> b | b j 0 @i,j :] map replications 1 matrix ; internal
+	betas j [> b j | b j 0 @i,j :] curry map replications 1 matrix ; internal
 
 ( beta betas replications j -- frame )
 : coefficient-summary
@@ -241,7 +245,10 @@
 	data dup nan? row-sums 0 eq where select-rows to data
 	data fit execute to beta
 	data fit replications bootstrap to betas
-	0 beta size 1- range [> j | beta betas replications j coefficient-summary :] map ;
+	0 beta size 1- range
+	beta betas replications
+	[> j beta betas replications | beta betas replications j coefficient-summary :]
+	3 ncurry map ;
 
 ( xs ys -- xs' ys' ) \ drop pairs where either element is NaN; magnitudes taken
 : complete-cases
@@ -282,9 +289,10 @@
 	outcomes 0.5 < where scores swap select-rows to negatives
 	positives num-elements 0 = negatives num-elements 0 = or if
 		"auc: both a positive and a negative outcome required" throw then
-	positives matrix>array [> positive-score |
+	positives matrix>array negatives
+	[> positive-score negatives |
 		negatives positive-score < sum  negatives positive-score <= sum + :]
-	map vector sum
+	curry map vector sum
 	0.5 *  positives num-elements negatives num-elements * / ;
 
 ( outcomes probabilities -- f ) \ Brier score: mean squared error of probabilities against 0/1
@@ -359,7 +367,9 @@
 : predict
 	| >tree >features n |
 	features dup keys first @ size to n
-	n iota [: tree features rot predict-row :] map vector ;
+	tree features  n iota
+	[: 3 pick 3 pick rot predict-row :] map  nip nip
+	vector ;
 
 ( node -- weighted-square ) \ S²/n for the node, = prediction² · n_rows
 : weighted-square dup :prediction @ dup * swap :n_rows @ * ; internal
@@ -383,7 +393,10 @@
 	{ } tree accumulate-gain to accumulator
 	accumulator keys size 0 > if
 		accumulator values vector sum to total
-		accumulator keys [> key | accumulator key  accumulator key @ total /  ! drop :] each
+		accumulator keys
+		accumulator total
+		[> key accumulator total | accumulator key  accumulator key @ total /  ! drop :]
+		2curry each
 	then
 	accumulator ;
 
@@ -460,17 +473,19 @@
 	full-tree alpha-sequence to alphas
 	y size iota to units
 
-	alphas [> alpha |
+	alphas
+	features y params units n-folds
+	[> alpha features y params units n-folds |
 		alpha
 		features y params alpha units n-folds cv-alpha  dup mean  swap std n-folds sqrt /
 		3 array :]
-	map to stats
+	5 ncurry map to stats
 
 	stats [: 1 @i :] map vector argmin to best
 	stats best @i 1 @i  stats best @i 2 @i  +  to threshold
 
 	full-tree
-	stats [: 1 @i threshold > not :] filter  dup size 1 - @i  0 @i
+	threshold stats [: 1 @i 2 pick > not :] filter nip  dup size 1 - @i  0 @i
 	prune ;
 
 ( node depth -- ) \ print node's subtree as indented split rules, left branch first; internal
@@ -499,5 +514,5 @@
 ( values probs -- quantiles )
 : quantiles
 	|> values probabilities |
-	probabilities [: values swap quantile :] map
+	values probabilities [: 2 pick swap quantile :] map nip
 	vector ;

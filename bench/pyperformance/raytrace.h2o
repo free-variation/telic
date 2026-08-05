@@ -121,7 +121,7 @@ variable pixw variable pixh
 : ray-colour ( px py pz dx dy dz -- r g b )
   | >px >py >pz >dx >dy >dz oi li found besti bestt obj cx cy cz v disc t hx hy hz nrmx nrmy nrmz br bg bb cr cg cb spec lamb amb lam lf rr rg rb rfx rfy rfz lightarr sdx sdy sdz |
   rdepth 3.0 > if 0.0 0.0 0.0 exit then
-  rdepth 1+ to rdepth
+  f++ rdepth
   0.0 to found  0.0 to besti  0.0 to bestt  0.0 to oi
   begin oi nobj < while
      objects oi @i to obj
@@ -221,21 +221,26 @@ variable pixw variable pixh
   halfh 2.0 f* height 1.0 f- f/ to pixh ;
 
 \ --- render one frame, summing pixel bytes into CHECKSUM ------------------
+( x y -- ) \ trace one pixel, adding its bytes to checksum
+: render-pixel
+  | >x >y sx sy rdx rdy rdz pr pg pb |
+  x pixw f* halfw f- to sx
+  y pixh f* halfh f- to sy
+  rx sx f* evx f+ ux sy f* f+ to rdx
+  ry sx f* evy f+ uy sy f* f+ to rdy
+  rz sx f* evz f+ uz sy f* f+ to rdz
+  rdx rdy rdz vnorm to rdz to rdy to rdx
+  epx epy epz rdx rdy rdz ray-colour to pb to pg to pr
+  pr clamp-byte  pg clamp-byte f+  pb clamp-byte f+  checksum f+ to checksum ; internal
+
+( y -- ) \ trace one scanline
+: render-row
+  |> y |
+  y ' render-pixel curry  width i-times ; internal
+
 : render-frame
-  | sx sy rdx rdy rdz pr pg pb |
   0.0 to checksum
-  [> y |
-     [> x |
-        x pixw f* halfw f- to sx
-        y pixh f* halfh f- to sy
-        rx sx f* evx f+ ux sy f* f+ to rdx
-        ry sx f* evy f+ uy sy f* f+ to rdy
-        rz sx f* evz f+ uz sy f* f+ to rdz
-        rdx rdy rdz vnorm to rdz to rdy to rdx
-        epx epy epz rdx rdy rdz ray-colour to pb to pg to pr
-        pr clamp-byte  pg clamp-byte f+  pb clamp-byte f+  checksum f+ to checksum
-     :] width i-times
-  :] height i-times ;
+  ' render-row  height i-times ;
 
 : raytrace-run ( frames -- )
   | >frames t0 |

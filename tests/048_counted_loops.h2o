@@ -9,8 +9,9 @@
 \ quotation that leaves values: data stack grows each iter
 [: 7 :] 3 times .s clear cr
 
-\ each-side-effect ordering: 0 1 2 3 4 printed in order
-: count-up | i | 0 to i  [: i . i 1 + to i :] 5 times ;
+\ each-side-effect ordering: 0 1 2 3 4 printed in order. The running value lives
+\ on the stack, not in a local — a quotation cannot write the word's frame
+: count-up  0  [: dup . 1 + :] 5 times  drop ;
 count-up cr
 
 \ wrong types
@@ -30,12 +31,12 @@ clear
 \ index is the only thing pushed; quotation that ignores it leaves it
 [: drop :] 3 i-times .s clear cr
 
-\ sum of 0..9 via accumulator: 45
-: sum-up-to | acc | 0 to acc  [: acc + to acc :] swap i-times  acc ;
+\ sum of 0..9 via a stack accumulator under i-times: 45
+: sum-up-to  0 swap  [: + :] swap i-times ;
 10 sum-up-to . cr
 
 \ sum of squares 0..4: 0+1+4+9+16 = 30
-: sum-sq | acc | 0 to acc  [: dup * acc + to acc :] swap i-times  acc ;
+: sum-sq  0 swap  [: dup * + :] swap i-times ;
 5 sum-sq . cr
 
 \ a receiving quotation whose body under-produces drives the data stack empty:

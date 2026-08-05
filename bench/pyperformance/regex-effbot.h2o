@@ -27,18 +27,21 @@
   |> fill word n |
   fill n rep  word +  fill n rep + ;
 
+( kk arr -- ) \ build string kk in place
+: build-string-at
+  |> kk arr |
+  arr kk
+    fills kk 21 mod @i
+    word-list kk 21 mod @i
+    nvalues kk 21 quotient @i
+    make-string
+  !i drop ; internal
+
 \ build the 147 strings: kk in 0..146, id = kk mod 21, n = nvalues[kk / 21]
 : build-strings ( -- arr )
   | arr |
   "" 147 array-of to arr
-  [> kk |
-     arr kk
-       fills kk 21 mod @i
-       word-list kk 21 mod @i
-       nvalues kk 21 quotient @i
-       make-string
-     !i drop
-  :] 147 i-times
+  arr ' build-string-at curry  147 i-times
   arr ;
 
 build-strings constant strs
@@ -50,10 +53,13 @@ build-strings constant strs
   [> kk |  strs kk @i  patterns kk 21 mod @i  search10 :] 147 i-times ;
 
 \ verification: how many of the 147 pairs match (each counted once)
+( total kk -- total' ) \ count pair kk if it matches
+: add-match
+  |> total kk |
+  strs kk @i  patterns kk 21 mod @i  has?  total + ; internal
+
 : count-matches ( -- n )
-  | n |  0 to n
-  [> kk |  strs kk @i  patterns kk 21 mod @i  has?  n + to n :] 147 i-times
-  n ;
+  0  ' add-match  147 i-times ;
 
 count-matches "matches: {0}" format . cr
 

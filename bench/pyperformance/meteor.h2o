@@ -28,12 +28,15 @@ variable sols   variable done
 : set-max ( s -- v )  dup size take reverse 0.0 @i ;
 
 \ a set of cell indices (0..49) as a 50-bit occupancy mask
+( mask i cells -- mask' ) \ set the bit for cell i
+: mask-bit
+  |> mask i cells |
+  mask  1.0 cells i @i lshift  bit-or ; internal
+
 : set>mask ( s -- mask )
-  | >s cells mask |
+  | >s cells |
   s dup size take to cells
-  0.0 to mask
-  [> i | mask  1.0 cells i @i lshift  bit-or to mask :] cells size i-times
-  mask ;
+  0.0  cells ' mask-bit curry  cells size i-times ;
 
 \ --- direction maps (rotate / flip a single offset) ----------------------
 : rotate-dir ( o -- o' )
@@ -61,47 +64,72 @@ variable sols   variable done
 \ matching the reference order (rotations, then flips of each); is-c2 truncates
 \ piece 3's rotations to break the C2 symmetry.
 : permute ( ido is-c2 -- perms )
-  | >ido >is-c2 ps last snap |
+  | >ido >is-c2 ps last snap turn i |
   [ ido ] to ps
-  [: ps  ps size 1.0 f- @i  rotate-list to last
+  0 to turn
+  begin turn 5 < while
+     ps  ps size 1.0 f- @i  rotate-list to last
      ps [ last ] concat to ps
      is-c2 if ps 3.0 take to ps then
-  :] 5 times
+     f++ turn
+  repeat
   ps to snap
-  [> i | ps [ snap i @i flip-list ] concat to ps :] snap size i-times
+  0 to i
+  begin i snap size < while
+     ps [ snap i @i flip-list ] concat to ps
+     f++ i
+  repeat
   ps ;
 
 \ --- incremental directions -> coordinate offsets (cumulative sums) -------
 : convert ( ido -- offsets )
-  | >ido acc out |
+  | >ido acc out i |
   0.0 to acc  [ 0.0 ] to out
-  [> i | acc ido i @i f+ to acc  out [ acc ] concat to out :] ido size i-times
+  0 to i
+  begin i ido size < while
+     acc ido i @i f+ to acc
+     out [ acc ] concat to out
+     f++ i
+  repeat
   out ;
 
 \ --- footprint set: cells of `pp` placed at code `c` that land on the board -
 : foot ( c pp -- fpset )
-  | >c >pp s |
+  | >c >pp s i |
   [< >] to s
-  [> i |
+  0 to i
+  begin i pp size < while
      c pp i @i f+ cell-index
      dup -1.0 = if drop else s swap set-add! to s then
-  :] pp size i-times
+     f++ i
+  repeat
   s ;
 
 \ --- board + code->index table -------------------------------------------
 : init-board
+  | y x code idx |
   -1.0 460.0 array-of to cti
   0.0 50.0 array-of to board
-  [> y |
-     [| >x code idx |
+  0 to y
+  begin y 10 < while
+     0 to x
+     begin x 5 < while
         2.0 x f* 50.0 y f* f+ y 2.0 mod f+ to code
         y 5.0 f* x f+ to idx
         board idx code !i drop
         cti code idx !i drop
-     :] 5 i-times
-  :] 10 i-times ;
+        f++ x
+     repeat
+     f++ y
+  repeat ;
 
 \ --- pieces: convert each permutation of each incremental-direction list ---
+( pi -- ) \ store piece pi's converted permutations
+: convert-piece
+  |> pi |
+  pieces pi @i  pi 3.0 =  permute  [: convert :] map
+  pieces pi rot !i drop ; internal
+
 : init-pieces
   [ [ 2.0 2.0 2.0 51.0 ]
     [ 51.0 49.0 -2.0 49.0 ]
@@ -113,38 +141,42 @@ variable sols   variable done
     [ -49.0 51.0 2.0 -49.0 ]
     [ 51.0 51.0 2.0 51.0 ]
     [ 2.0 -51.0 -51.0 -51.0 ] ] to pieces
-  [| >pi conv |
-     pieces pi @i  pi 3.0 =  permute  [: convert :] map to conv
-     pieces pi conv !i drop
-  :] 10 i-times ;
+  ' convert-piece  10 i-times ;
 
 \ --- footprints: FPS[ci][pi] = list of piece pi's footprints with min cell ci
 : empty-row ( -- row )
   | row |
   0.0 10.0 array-of to row
-  [: row swap [ ] !i drop :] 10 i-times
+  row [: over swap [ ] !i drop :] 10 i-times drop
   row ;
 
 : init-fps
   0.0 50.0 array-of to fps
-  [: fps swap empty-row !i drop :] 50 i-times ;
+  fps [: over swap empty-row !i drop :] 50 i-times drop ;
+
+( ppi c pps pi -- ) \ record piece pi's ppi-th placement at code c
+: record-footprint
+  | >ppi >c >pps >pi fp m row nb |
+  c pps ppi @i foot to fp
+  fp size 5.0 = 0= if exit then
+  fp set-min to m
+  fps m @i to row
+  row pi @i [ [ fp set>mask  fp dup size take ] ] concat to nb
+  row pi nb !i drop ; internal
+
+( pi c -- ) \ every placement of piece pi at code c
+: record-piece
+  | >pi >c pps |
+  pieces pi @i to pps
+  c pps pi ' record-footprint 3 ncurry  pps size i-times ; internal
+
+( ci -- ) \ every piece's placements at board cell ci
+: record-cell
+  |> ci |
+  board ci @i ' record-piece curry  10 i-times ; internal
 
 : get-footprints
-  [| >ci c |
-     board ci @i to c
-     [| >pi pps |
-        pieces pi @i to pps
-        [| >ppi fp m row nb |
-           c pps ppi @i foot to fp
-           fp size 5.0 = if
-              fp set-min to m
-              fps m @i to row
-              row pi @i [ [ fp set>mask  fp dup size take ] ] concat to nb
-              row pi nb !i drop
-           then
-        :] pps size i-times
-     :] 10 i-times
-  :] 50 i-times ;
+  ' record-cell  50 i-times ;
 
 : get-senh
   0.0 50.0 array-of to se-nh
@@ -156,20 +188,26 @@ variable sols   variable done
 
 \ --- backtracking solver (the timed kernel) ------------------------------
 : solve ( i_min free cb pl -- )
-  | >i_min >free >cb >pl_mask fp_i_cands tmp p fp_cands fp_idx fp fp_mask fp_cells n_free n_i_min npl_mask s rs |
+  | >i_min >free >cb >pl_mask fp_i_cands tmp p fp_cands fp_idx fp fp_mask fp_cells n_free n_i_min npl_mask s rs cell_i n_cands n_cells |
   fps i_min @i to fp_i_cands
   pl_mask to tmp
   begin tmp 0.0 = 0= while
      tmp lowest-bit to p
      tmp  1.0 p lshift  bit-xor to tmp
      fp_i_cands p @i to fp_cands
+     fp_cands size to n_cands
      0.0 to fp_idx
-     begin fp_idx fp_cands size < while
+     begin fp_idx n_cands < while
         fp_cands fp_idx @i to fp
         fp 0 @i to fp_mask
         fp_mask free bit-and fp_mask = if
            fp 1 @i to fp_cells
-           [> i | cb fp_cells i @i p !i drop :] fp_cells size i-times
+           fp_cells size to n_cells
+           0 to cell_i
+           begin cell_i n_cells < while
+              cb fp_cells cell_i @i p !i drop
+              f++ cell_i
+           repeat
            pl_mask  pl_mask 1.0 f- bit-and  0.0 = 0= if
               free fp_mask bit-xor to n_free
               n_free lowest-bit to n_i_min
@@ -184,7 +222,11 @@ variable sols   variable done
               sols rs set-add! to sols
               sols size nsols < 0= if 1.0 to done exit then
            then
-           [> i | cb fp_cells i @i -1.0 !i drop :] fp_cells size i-times
+           0 to cell_i
+           begin cell_i n_cells < while
+              cb fp_cells cell_i @i -1.0 !i drop
+              f++ cell_i
+           repeat
         then
         fp_idx 1.0 f+ to fp_idx
      repeat

@@ -97,10 +97,10 @@ uses-plain-inline . cr
 ' uses-plain-inline see-compiled
 
 clear
-\ local-array + stack-index fuses: <local> swap @i is one op, at depth 0
-\ and through one enclosing quotation frame at depth 1
-: at-swap-local | arr | to arr [: arr swap @i :] map ;
-' at-swap-local see-compiled
-[ 2 0 ] [ 10 20 30 ] at-swap-local . cr    \ [ 30 10 ]
-: at-swap-nested | arr | to arr [: |> j | [ 0 1 ] [: arr swap @i j + :] map :] ;
-' at-swap-nested see-compiled
+\ parked-array + stack-index fuses: `<n> pick swap @i` is one op, the form a
+\ quotation uses now that it cannot name the word's local
+: at-swap-pick | arr | to arr  arr swap [: 2 pick swap @i :] map nip ;
+' at-swap-pick see-compiled
+[ 2 0 ] [ 10 20 30 ] at-swap-pick . cr    \ [ 30 10 ]
+: at-swap-deeper |> arr indices | arr indices [: 2 pick swap @i :] map nip ;
+' at-swap-deeper see-compiled

@@ -34,9 +34,9 @@ variable maxx variable maxy variable maxz
 : maximize-points
   xs 0 @i to maxx  ys 0 @i to maxy  zs 0 @i to maxz
   [| >i xi |
-     xs i @i to xi  maxx xi > 0= if xi to maxx then
-     ys i @i to xi  maxy xi > 0= if xi to maxy then
-     zs i @i to xi  maxz xi > 0= if xi to maxz then
+     xs i @i to xi  xi maxx >= if xi to maxx then
+     ys i @i to xi  xi maxy >= if xi to maxy then
+     zs i @i to xi  xi maxz >= if xi to maxz then
   :] points i-times ;
 
 : float-once

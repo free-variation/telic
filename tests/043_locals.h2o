@@ -10,8 +10,8 @@
 : hyp | a b | to b to a  a a * b b * + ;
 3 4 hyp . cr
 
-\ -- 3: nested quotation reads an outer local (depth path, no inner frame)
-: nest | x | to x  [ 10 20 30 ] [: x + :] map ;
+\ -- 3: a quotation cannot name an outer local; park the value and pick it up
+: nest | x | to x  x [ 10 20 30 ] [: 2 pick + :] map nip ;
 100 nest . cr
 
 \ -- 4: inner quotation's own local shadows the outer one
@@ -48,8 +48,8 @@ ex dup  5 swap resume . cr
 : fact2 |> n | n 1 < if 1 else n  n 1 - fact2 * then ;
 6 fact2 . cr
 
-\ -- 12: |> outer local visible from nested quotation
-: nest2 |> x | [ 10 20 30 ] [: x + :] map ;
+\ -- 12: |> the same, through a receiving quotation that takes it as an argument
+: nest2 |> x | [ 10 20 30 ] x [> element outer | element outer + :] curry map ;
 100 nest2 . cr
 
 \ -- 13: |> across a shift/resume (frame relocation)
@@ -74,6 +74,12 @@ ex2 3 swap resume . cr
 inline
 : outer-inline  77 inlinee ;
 outer-inline . cr
+
+clear
+\ === errors: an outer local is not in scope inside a quotation ===
+: read-outer | x | 5 to x [: x + :] map ;        \ (a read of the word's local)
+: write-outer | x | 0 to x [: 1 to x :] 3 times ; \ (a write, caught at `to`)
+: read-outer-quotation |> n | [> a | [: a n + :] map :] map ;  \ (the enclosing quotation's local)
 
 clear
 \ === errors: a scratch local fetched but stored nowhere holds garbage ===

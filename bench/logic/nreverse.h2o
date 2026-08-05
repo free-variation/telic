@@ -22,12 +22,14 @@
   else A type-of :none = if
      R B ~ drop                           \ append([], B, B)
   else
-     [: A null ~ drop   R B ~ drop :]
+     A B R
+     [: 2 pick null ~ drop   dup 2 pick ~ drop :]
      [| ?H ?T ?R1 |
-        A  H T cons  ~ drop
-        R  H R1 cons ~ drop
-        T B R1 lappend :]
+        2 pick  H T cons  ~ drop
+        dup     H R1 cons ~ drop
+        T 2 pick R1 lappend :]
      amb
+     drop drop drop
   then then ;
 
 : nrev  ( l r -- )                        \ r = naive reverse of l
@@ -40,12 +42,14 @@
   else L type-of :none = if
      R null ~ drop                        \ nrev([], [])
   else
-     [: L null ~ drop   R null ~ drop :]
+     L R
+     [: 1 pick null ~ drop   dup null ~ drop :]
      [| ?H ?T ?RT |
-        L  H T cons  ~ drop
+        1 pick  H T cons  ~ drop
         T RT nrev
-        RT  H null cons  R lappend :]
+        RT  H null cons  2 pick lappend :]
      amb
+     drop drop
   then then ;
 
 : iota  ( n -- list )                     \ the null-terminated list [n n-1 ... 1]

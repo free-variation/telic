@@ -164,6 +164,11 @@ py_binarytrees() { "$python" "$here/pyperformance/pyperf_binary_trees.py" "$bina
 py_mandelbrot() { "$python" "$here/pyperformance/pyperf_mandelbrot.py" "$mandelbrot_n"; }
 py_nbody()    { "$python" "$here/pyperformance/pyperf_nbody.py" "$nbody_steps"; }
 py_raytrace() { "$python" "$here/pyperformance/pyperf_raytrace.py" "$raytrace_loops"; }
+# references for the pmap variants: the same algorithm in a process pool, timed
+# from pool creation onward, as water's pmap spawns its threads inside its timing
+py_raytrace_par() { "$python" "$here/variants/parallel_raytrace.py" "$raytrace_loops" 100 100; }
+py_leibniz_parallel() { "$python" "$here/variants/parallel_leibniz.py" "$leibniz_rounds"; }
+py_montecarlo_par() { "$python" "$here/variants/parallel_montecarlo.py" 20000000; }
 py_float()    { "$python" "$here/pyperformance/pyperf_float.py" "$float_points" "$float_repeat"; }
 py_crypto()   { "$crypto_python" "$here/pyperformance/pyperf_crypto_pyaes.py" "$crypto_loops"; }
 py_spectral() { "$python" "$here/pyperformance/pyperf_spectral_norm.py" "$spectral_loops"; }
@@ -186,10 +191,10 @@ py_json_dumps() { "$python" "$here/pyperformance/pyperf_json_dumps.py"; }
 # numpy references for the vectorized -matrix variants (same sizes as the .h2o).
 np_leibniz()    { "$numpy_python" "$here/variants/numpy_leibniz_matrix.py" "$leibniz_rounds"; }
 np_mandelbrot() { "$numpy_python" "$here/variants/numpy_mandelbrot_matrix.py" "$mandelbrot_n"; }
-# numpy in a process pool; its "elapsed" excludes pool creation, which the note
-# under the table records, while water's pmap-reduce spawns inside its timing.
+# numpy in a process pool, timed from pool creation onward like the other pool
+# references, since water's pmap-reduce spawns its threads inside its timing.
 np_mandelbrot_par() { "$numpy_python" "$here/variants/numpy_mandelbrot_parallel.py" "$mandelbrot_n" processes; }
-np_spectral()   { "$numpy_python" "$here/variants/numpy_spectral_norm_matrix.py" 150 130; }
+np_spectral()   { "$numpy_python" "$here/variants/numpy_spectral_norm_matrix.py" 1000 260; }
 
 # Run a wrapper N times, append each run's stdout (with a separator) to a log.
 run_reps() {
@@ -243,6 +248,7 @@ log "== raytrace =="
 run_reps raytrace_h2o h2o_raytrace "$reps"
 run_reps raytrace_par_h2o h2o_raytrace_par "$reps"
 run_reps raytrace_py py_raytrace "$reps_py"
+run_reps raytrace_par_py py_raytrace_par "$reps_py"
 
 log "== float =="
 run_reps float_h2o h2o_float "$reps"
@@ -297,6 +303,7 @@ run_reps scimark_sor_py py_scimark_sor "$reps_py"
 log "== scimark-montecarlo =="
 run_reps scimark_mc_h2o h2o_scimark_mc "$reps"
 run_reps montecarlo_par_h2o h2o_montecarlo_par "$reps"
+run_reps montecarlo_par_py py_montecarlo_par "$reps_py"
 run_reps scimark_mc_py py_scimark_mc "$reps_py"
 
 log "== meteor =="
@@ -342,6 +349,7 @@ if [ "$skip_leibniz" != 1 ]; then
 	run_reps leibniz_h2o h2o_leibniz "$reps"
 	run_reps leibniz_matrix_h2o h2o_leibniz_matrix "$reps"
 	run_reps leibniz_parallel_h2o h2o_leibniz_parallel "$reps"
+	run_reps leibniz_parallel_py py_leibniz_parallel "$reps_py"
 	[ "$have_numpy" = 1 ] && run_reps leibniz_np np_leibniz "$reps_py"
 	have_leibniz=1
 	have_leibniz_r=1
@@ -408,13 +416,14 @@ if [ "$have_leibniz" = 1 ]; then
 	fi
 	row "leibniz" "${leibniz_rounds} iterations" leibniz_h2o "$leibniz_py_elapsed"
 	row "leibniz-matrix" "${leibniz_rounds}, vectorized vs ${matrix_ref_note}" leibniz_matrix_h2o "$leibniz_matrix_ref"
-	row "leibniz-parallel" "${leibniz_rounds}, pmap" leibniz_parallel_h2o "$leibniz_py_elapsed"
+	[ "$have_leibniz_r" = 1 ] && row "leibniz-matrix" "${leibniz_rounds}, vectorized vs R ${leibniz_r_version} \`sum(4 / seq.int(...))\`" leibniz_matrix_h2o "$leibniz_r_elapsed"
+	row "leibniz-parallel" "${leibniz_rounds}, pmap vs pool of 16" leibniz_parallel_h2o "$(median_elapsed leibniz_parallel_py)"
 fi
 row "nqueens" "N = $nqueens_n" nqueens_h2o "$(median_elapsed nqueens_py)"
 row "nqueens-iter" "N = $nqueens_n" nqueens_iter_h2o "$(median_elapsed nqueens_py)"
 row "nbody" "${nbody_steps} steps" nbody_h2o "$(median_elapsed nbody_py)"
 row "raytrace" "${raytrace_loops}× 100×100" raytrace_h2o "$(median_elapsed raytrace_py)"
-row "raytrace-parallel" "${raytrace_loops}× 100×100, pmap" raytrace_par_h2o "$(median_elapsed raytrace_py)"
+row "raytrace-parallel" "${raytrace_loops}× 100×100, pmap vs pool" raytrace_par_h2o "$(median_elapsed raytrace_par_py)"
 row "float" "${float_points} pts × ${float_repeat}" float_h2o "$(median_elapsed float_py)"
 row "crypto-pyaes" "8192 B, ${crypto_loops}× enc+dec" crypto_h2o "$(median_elapsed crypto_py)"
 row "fannkuch" "N = $fannkuch_n" fannkuch_h2o "$(median_elapsed fannkuch_py)"
@@ -423,14 +432,14 @@ row "mandelbrot" "N = ${mandelbrot_n}" mandelbrot_h2o "$(median_elapsed mandelbr
 row "mandelbrot-matrix" "N = ${mandelbrot_n}, vectorized vs ${matrix_ref_note}" mandelbrot_matrix_h2o "$mandelbrot_matrix_ref"
 row "mandelbrot-parallel" "N = ${mandelbrot_n}, pmap vs ${matrix_ref_note} pool" mandelbrot_par_h2o "$mandelbrot_par_ref"
 row "spectral-norm" "N = 130, ${spectral_loops}×" spectral_h2o "$(median_elapsed spectral_py)"
-row "spectral-norm-matrix" "N = 130, 150× vs ${matrix_ref_note}" spectral_matrix_h2o "$spectral_matrix_ref"
+row "spectral-norm-matrix" "N = 260, 1000× vs ${matrix_ref_note}" spectral_matrix_h2o "$spectral_matrix_ref"
 row "scimark-lu" "N=100, ${scimark_lu_cycles}×" scimark_lu_h2o "$(median_elapsed scimark_lu_py)"
 row "scimark-sparse" "N=1000, ${scimark_sparse_cycles}×" scimark_sparse_h2o "$(median_elapsed scimark_sparse_py)"
 row "scimark-fft" "N=1024, ${fft_loops}×${fft_cycles}" scimark_fft_h2o "$(median_elapsed scimark_fft_py)"
 row "barnes-hut" "200 bodies, ${barnes_loops}×${barnes_iterations}" barnes_h2o "$(median_elapsed barnes_py)"
 row "scimark-sor" "N=100, 10 cyc × ${scimark_sor_loops}" scimark_sor_h2o "$(median_elapsed scimark_sor_py)"
 row "scimark-montecarlo" "${montecarlo_samples} × ${montecarlo_loops}" scimark_mc_h2o "$(median_elapsed scimark_mc_py)"
-row "montecarlo-parallel" "20000000 samples, pmap 10w" montecarlo_par_h2o "$(median_elapsed scimark_mc_py)"
+row "montecarlo-parallel" "20000000 samples, pmap 10w vs pool 10w" montecarlo_par_h2o "$(median_elapsed montecarlo_par_py)"
 row "meteor" "${meteor_loops} solves" meteor_h2o "$(median_elapsed meteor_py)"
 row "hexiom" "level 25, ${hexiom_loops} solves" hexiom_h2o "$(median_elapsed hexiom_py)"
 row "regex-dna" "100K → 1M" regex_dna_h2o "$(median_elapsed regex_dna_py)"
@@ -442,29 +451,6 @@ row "json-loads" "222k parses" json_loads_h2o "$(median_elapsed json_loads_py)"
 row "json-dumps" "EMPTY/SIMPLE/NESTED/HUGE ×250" json_dumps_h2o "$(median_elapsed json_dumps_py)"
 emit ""
 
-# ---- what the parallel row's reference does and does not include ----
-if [ "$have_numpy" = 1 ]; then
-	par_setup=$(grep -h "pool setup" "$work/mandelbrot_par_np.log" | grep -oE '[0-9]+\.[0-9]+' | head -1)
-	emit "**mandelbrot-parallel reference.** numpy over row blocks in a"
-	emit "multiprocessing pool of $(nproc 2>/dev/null || sysctl -n hw.ncpu) workers. Its time is compute only:"
-	emit "creating the pool costs a further $(fmt_s "${par_setup:-0}"), where water's pmap-reduce"
-	emit "spawns its workers inside the time shown. A ThreadPool is slower than"
-	emit "either (numpy releases the GIL per call, but the Python half of each"
-	emit "call serialises), and the same per-pixel algorithm water runs, in"
-	emit "Python processes, is slower again."
-	emit ""
-fi
-
-# ---- R reference for the vectorized variant ----
-if [ "$skip_leibniz" != 1 ] && [ "$have_leibniz_r" = 1 ]; then
-	h2o_matrix=$(median_elapsed leibniz_matrix_h2o)
-	emit "**Vectorized reference (R).** water's leibniz-matrix mirrors the R"
-	emit "one-liner \`sum(4 / seq.int(...))\`. R $leibniz_r_version runs it in"
-	emit "$(fmt_s "$leibniz_r_elapsed") (π = $leibniz_r_result); water's leibniz-matrix is"
-	emit "$(ratio "$h2o_matrix" "$leibniz_r_elapsed") that at $(fmt_s "$h2o_matrix")."
-	emit ""
-fi
-
 # ---- verification ----
 emit "## Verification (results must match)"
 emit ""
@@ -473,7 +459,7 @@ emit "|:----------|:-----------|:-------|"
 emit "| nqueens | $(result_line nqueens_h2o 'solutions') | $(result_line nqueens_py 'solutions') |"
 emit "| nbody | $(result_line nbody_h2o 'final energy') | $(result_line nbody_py 'final energy') |"
 emit "| raytrace | $(result_line raytrace_h2o 'checksum') | $(result_line raytrace_py 'checksum') |"
-emit "| raytrace-parallel | $(result_line raytrace_par_h2o 'checksum') | $(result_line raytrace_py 'checksum') |"
+emit "| raytrace-parallel | $(result_line raytrace_par_h2o 'checksum') | $(result_line raytrace_par_py 'checksum') |"
 emit "| float | $(result_line float_h2o 'result:') | $(result_line float_py 'result:') |"
 emit "| crypto-pyaes | $(result_line crypto_h2o 'checksum:') | $(result_line crypto_py 'checksum:') |"
 emit "| fannkuch | $(result_line fannkuch_h2o 'max flips') | $(result_line fannkuch_py 'max flips') |"
@@ -501,6 +487,7 @@ emit "| json-dumps | $(result_line json_dumps_h2o 'bytes:') | $(result_line json
 if [ "$have_leibniz" = 1 ]; then
 	emit "| leibniz | $(result_line leibniz_h2o 'pi:') | pi = $leibniz_py_result |"
 	emit "| leibniz-matrix | $(result_line leibniz_matrix_h2o 'pi:') | pi = $leibniz_py_result |"
+	[ "$have_leibniz_r" = 1 ] && emit "| leibniz-matrix (R ref) | $(result_line leibniz_matrix_h2o 'pi:') | pi = $leibniz_r_result |"
 fi
 emit ""
 

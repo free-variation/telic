@@ -389,6 +389,21 @@ INPLACE_OP(p_div_inplace, "/!", /)
 		DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1); \
 	}
 
+#define DEPTH_FLOAT_OP(name, opname, expr) \
+	void name(DISPATCH_ARGS) { \
+		int depth = (int)chain_ip[0]; \
+		REQUIRE_STACK_DEPTH(interp, chain_ip + 1, chain_sp, depth + 1); \
+		double a = chain_sp[-1].number; \
+		double b = chain_sp[-1 - depth].number; \
+		chain_sp[-1].number = (expr); \
+		DISPATCH_REGISTERS(interp, chain_ip + 1, chain_sp); \
+	}
+
+DEPTH_FLOAT_OP(p_add_f_depth, "(f+.d)", a + b)
+DEPTH_FLOAT_OP(p_sub_f_depth, "(f-.d)", a - b)
+DEPTH_FLOAT_OP(p_mul_f_depth, "(f*.d)", a * b)
+DEPTH_FLOAT_OP(p_div_f_depth, "(f/.d)", a / b)
+
 BINARY_FLOAT_OP(p_add_f, "f+", a + b)
 BINARY_FLOAT_OP(p_sub_f, "f-", a - b)
 BINARY_FLOAT_OP(p_mul_f, "f*", a * b)
@@ -861,6 +876,60 @@ void p_pick(DISPATCH_ARGS) {
 
 	DISPATCH_REGISTERS(interp, chain_ip, picked_top + 1);
 }
+
+void p_pick_n(DISPATCH_ARGS) {
+	int depth = (int)chain_ip[0];
+	REQUIRE_STACK_ROOM(interp, chain_ip + 1, chain_sp, 1);
+	if (unlikely(chain_sp - 1 - depth < interp->data_stack)) {
+		SYNC_REGISTERS(interp, chain_ip + 1, chain_sp);
+		fail(interp, "depth %d out of range (stack has %d below it)", depth, (int)(chain_sp - interp->data_stack));
+		return;
+	}
+
+	chain_sp[0] = chain_sp[-1 - depth];
+
+	DISPATCH_REGISTERS(interp, chain_ip + 1, chain_sp + 1);
+}
+
+void p_store_at(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
+	Val depth_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(depth_val, T_FLOAT, "!at", "a float depth");
+	int depth = (int)VAL_NUMBER(depth_val);
+	Val *value_top = chain_sp - 1;
+	if (depth < 1 || value_top - 1 - depth < interp->data_stack) {
+		SYNC_REGISTERS(interp, chain_ip, value_top);
+		fail(interp, "depth %d out of range (stack has %d below it)", depth, (int)(value_top - interp->data_stack));
+		return;
+	}
+
+	value_top[-1 - depth] = value_top[-1];
+
+	DISPATCH_REGISTERS(interp, chain_ip, value_top - 1);
+}
+
+void p_store_at_n(DISPATCH_ARGS) {
+	int depth = (int)chain_ip[0];
+	REQUIRE_STACK_DEPTH(interp, chain_ip + 1, chain_sp, depth + 1);
+	chain_sp[-1 - depth] = chain_sp[-1];
+
+	DISPATCH_REGISTERS(interp, chain_ip + 1, chain_sp - 1);
+}
+
+#define DEPTH_ACC_OP(name, opname, expr) \
+	void name(DISPATCH_ARGS) { \
+		int depth = (int)chain_ip[0]; \
+		REQUIRE_STACK_DEPTH(interp, chain_ip + 1, chain_sp, depth + 1); \
+		double a = chain_sp[-1 - depth].number; \
+		double b = chain_sp[-1].number; \
+		chain_sp[-1 - depth].number = (expr); \
+		DISPATCH_REGISTERS(interp, chain_ip + 1, chain_sp - 1); \
+	}
+
+DEPTH_ACC_OP(p_add_f_acc, "(f+.acc)", a + b)
+DEPTH_ACC_OP(p_sub_f_acc, "(f-.acc)", a - b)
+DEPTH_ACC_OP(p_mul_f_acc, "(f*.acc)", a * b)
+DEPTH_ACC_OP(p_div_f_acc, "(f/.acc)", a / b)
 
 void p_roll(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
@@ -2280,7 +2349,7 @@ void p_power(DISPATCH_ARGS) {
 		DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 	}
 
-	SYNC_REGISTERS(interp, chain_ip, chain_sp - 2);
+	interp->dsp -= 2;
 	if (VAL_TAG(left) == T_QUANTITY) {
 		if (VAL_TAG(right) != T_FLOAT) {
 			fail(interp, "exponent must be a number; got %s", tag_name(VAL_TAG(right)));
@@ -2309,27 +2378,177 @@ void p_power(DISPATCH_ARGS) {
 	DISPATCH(interp);
 }
 
+static double lesser_of(double left, double right) {
+	if (isnan(left) || isnan(right))
+		return NAN;
+
+	return left < right ? left : right;
+}
+
+static double greater_of(double left, double right) {
+	if (isnan(left))
+		return right;
+	if (isnan(right))
+		return left;
+
+	return left > right ? left : right;
+}
+
+static void push_ordered_choice(Interpreter *interp, Val left, Val right, int want_lesser, const char *name) {
+	if (VAL_TAG(left) == T_MATRIX || VAL_TAG(right) == T_MATRIX) {
+		binary_op(interp, left, right, want_lesser ? lesser_of : greater_of, name);
+		return;
+	}
+
+	int order = val_cmp(interp, left, right);
+	if (interp->error_flag)
+		return;
+
+	push(interp, (want_lesser ? order <= 0 : order >= 0) ? left : right);
+}
+
+void p_min2(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
+	Val right = chain_sp[-1];
+	Val left = chain_sp[-2];
+
+	if (VAL_TAG(left) == T_FLOAT && VAL_TAG(right) == T_FLOAT) {
+		chain_sp[-2] = make_float(lesser_of(VAL_NUMBER(left), VAL_NUMBER(right)));
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+	}
+
+	interp->dsp -= 2;
+	push_ordered_choice(interp, left, right, 1, "min2");
+
+	DISPATCH(interp);
+}
+
+void p_max2(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
+	Val right = chain_sp[-1];
+	Val left = chain_sp[-2];
+
+	if (VAL_TAG(left) == T_FLOAT && VAL_TAG(right) == T_FLOAT) {
+		chain_sp[-2] = make_float(greater_of(VAL_NUMBER(left), VAL_NUMBER(right)));
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+	}
+
+	interp->dsp -= 2;
+	push_ordered_choice(interp, left, right, 0, "max2");
+
+	DISPATCH(interp);
+}
+
+static int divisor_has_zero(Val divisor) {
+	if (VAL_TAG(divisor) == T_FLOAT)
+		return VAL_NUMBER(divisor) == 0.0;
+
+	if (VAL_TAG(divisor) != T_MATRIX)
+		return 0;
+
+	Object *matrix = OBJECT_AT(VAL_DATA(divisor));
+	int n_elements = matrix->matrix.rows * matrix->matrix.columns;
+	for (int i = 0; i < n_elements; i++)
+		if (matrix->matrix.elements[i] == 0.0)
+			return 1;
+
+	return 0;
+}
+
+static void divmod_matrix(Interpreter *interp, Val left, Val right) {
+	Object *shape = OBJECT_AT(VAL_DATA(VAL_TAG(left) == T_MATRIX ? left : right));
+	int rows = shape->matrix.rows;
+	int columns = shape->matrix.columns;
+
+	if (VAL_TAG(left) == T_MATRIX && VAL_TAG(right) == T_MATRIX) {
+		Object *divisor = OBJECT_AT(VAL_DATA(right));
+		if (divisor->matrix.rows != rows || divisor->matrix.columns != columns) {
+			fail(interp, "%%: matrix shapes differ (%dx%d vs %dx%d)", rows, columns,
+					divisor->matrix.rows, divisor->matrix.columns);
+			return;
+		}
+	}
+
+	int remainder_handle = object_new_matrix_raw(interp, rows, columns);
+	if (interp->error_flag)
+		return;
+
+	gc_root_push(interp, make_matrix(remainder_handle));
+	int quotient_handle = object_new_matrix_raw(interp, rows, columns);
+	gc_root_pop(interp);
+	if (interp->error_flag)
+		return;
+
+	double *remainders = OBJECT_AT(remainder_handle)->matrix.elements;
+	double *quotients = OBJECT_AT(quotient_handle)->matrix.elements;
+	const double *dividends = VAL_TAG(left) == T_MATRIX ? OBJECT_AT(VAL_DATA(left))->matrix.elements : NULL;
+	const double *divisors = VAL_TAG(right) == T_MATRIX ? OBJECT_AT(VAL_DATA(right))->matrix.elements : NULL;
+	double dividend_scalar = dividends ? 0.0 : VAL_NUMBER(left);
+	double divisor_scalar = divisors ? 0.0 : VAL_NUMBER(right);
+
+	int n_elements = rows * columns;
+	for (int i = 0; i < n_elements; i++) {
+		double dividend = dividends ? dividends[i] : dividend_scalar;
+		double divisor = divisors ? divisors[i] : divisor_scalar;
+		double quotient = trunc(dividend / divisor);
+		quotients[i] = quotient;
+		remainders[i] = dividend - quotient * divisor;
+	}
+
+	interp->dsp -= 2;
+	push(interp, make_matrix(remainder_handle));
+	push(interp, make_matrix(quotient_handle));
+}
+
 void p_divmod(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
 	Val right = chain_sp[-1];
 	Val left = chain_sp[-2];
-	if (VAL_TAG(left) != T_FLOAT || VAL_TAG(right) != T_FLOAT) {
-		fail(interp, "%%: expected two floats; got %s and %s", tag_name(VAL_TAG(left)), tag_name(VAL_TAG(right)));
-		return;
+
+	if (VAL_TAG(left) == T_FLOAT && VAL_TAG(right) == T_FLOAT && VAL_NUMBER(right) != 0.0) {
+		double dividend = VAL_NUMBER(left);
+		double quotient = trunc(dividend / VAL_NUMBER(right));
+		chain_sp[-2] = make_float(dividend - quotient * VAL_NUMBER(right));
+		chain_sp[-1] = make_float(quotient);
+
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 	}
 
-	double dividend = VAL_NUMBER(left);
-	double divisor = VAL_NUMBER(right);
-	if (divisor == 0.0) {
+	if (divisor_has_zero(right)) {
 		fail(interp, "%%: division by zero");
 		return;
 	}
+	if ((VAL_TAG(left) != T_MATRIX && VAL_TAG(left) != T_FLOAT)
+			|| (VAL_TAG(right) != T_MATRIX && VAL_TAG(right) != T_FLOAT)) {
+		fail(interp, "%%: expected floats or matrices; got %s and %s",
+				tag_name(VAL_TAG(left)), tag_name(VAL_TAG(right)));
+		return;
+	}
 
-	double quotient = trunc(dividend / divisor);
-	chain_sp[-2] = make_float(dividend - quotient * divisor);
-	chain_sp[-1] = make_float(quotient);
+	divmod_matrix(interp, left, right);
 
-	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+	DISPATCH(interp);
+}
+
+void p_mod(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
+	Val divisor = chain_sp[-1];
+	Val dividend = chain_sp[-2];
+
+	if (VAL_TAG(dividend) == T_FLOAT && VAL_TAG(divisor) == T_FLOAT && VAL_NUMBER(divisor) != 0.0) {
+		chain_sp[-2] = make_float(fmod(VAL_NUMBER(dividend), VAL_NUMBER(divisor)));
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+	}
+
+	if (divisor_has_zero(divisor)) {
+		fail(interp, "mod: division by zero");
+		return;
+	}
+
+	interp->dsp -= 2;
+	binary_op(interp, dividend, divisor, fmod, "mod");
+
+	DISPATCH(interp);
 }
 
 UNARY_FLOAT_OP(p_fabs, "fabs", fabs(n))

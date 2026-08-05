@@ -72,13 +72,15 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
      node 16  x w f- y h f+ w h make-node  !i drop
      node 4 1.0 !i drop
      node 8 @i to oldn
+     node
      [| >k pid |
-        node 9.0 k f+ @i to pid
-        node 13 @i pid insert drop
-        node 14 @i pid insert drop
-        node 15 @i pid insert drop
-        node 16 @i pid insert drop
+        dup 9.0 k f+ @i to pid
+        dup 13 @i pid insert drop
+        dup 14 @i pid insert drop
+        dup 15 @i pid insert drop
+        dup 16 @i pid insert drop
      :] oldn i-times
+     drop
      node 8 0.0 !i drop
   then
   node 13 @i pidx insert if 1.0 exit then
@@ -88,23 +90,24 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
   0.0 ;
 
 : calc-force ( node -- fx fy )
-  | >node dx dy dist f fxacc fyacc fx2 fy2 |
-  node 7 @i 0.0 f= if 0.0 0.0 exit then
+  | >node dx dy dist f fxacc fyacc nodemass |
+  node 7 @i to nodemass
+  nodemass 0.0 f= if 0.0 0.0 exit then
   node 8 @i 1.0 f=  node 9 @i tpidx f= and if 0.0 0.0 exit then
   node 5 @i tpx f- to dx
   node 6 @i tpy f- to dy
   dx dx f* dy dy f* f+ fsqrt to dist
   node 4 @i 0.0 f=  node 2 @i 2.0 f* dist f/ theta f<  or if
      dist softening f< if softening to dist then
-     g tpmass f* node 7 @i f*  dist dist f* f/ to f
+     g tpmass f* nodemass f*  dist dist f* f/ to f
      f dx f* dist f/   f dy f* dist f/
      exit
   then
   0.0 to fxacc  0.0 to fyacc
-  node 13 @i calc-force to fy2 to fx2  fxacc fx2 f+ to fxacc  fyacc fy2 f+ to fyacc
-  node 14 @i calc-force to fy2 to fx2  fxacc fx2 f+ to fxacc  fyacc fy2 f+ to fyacc
-  node 15 @i calc-force to fy2 to fx2  fxacc fx2 f+ to fxacc  fyacc fy2 f+ to fyacc
-  node 16 @i calc-force to fy2 to fx2  fxacc fx2 f+ to fxacc  fyacc fy2 f+ to fyacc
+  node 13 @i calc-force  fyacc f+ to fyacc  fxacc f+ to fxacc
+  node 14 @i calc-force  fyacc f+ to fyacc  fxacc f+ to fxacc
+  node 15 @i calc-force  fyacc f+ to fyacc  fxacc f+ to fxacc
+  node 16 @i calc-force  fyacc f+ to fyacc  fxacc f+ to fxacc
   fxacc fyacc ;
 
 : add-particle ( px py mass -- )
@@ -112,104 +115,141 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
   particles pfill [ px py 0.0 0.0 0.0 0.0 mass ] !i drop
   pfill 1.0 f+ to pfill ;
 
+( i bulge -- ) \ one bulge particle
+: place-bulge-particle
+  | >i >bulge df r angle x y mass |
+  i bulge f/ to df
+  radius 5.0 f/ df f* to r
+  2.0 PI f* i f* bulge f/ 7.0 f* to angle
+  cx r angle fcos f* f+ to x
+  cy r angle fsin f* f+ to y
+  50.0  50.0 1.0 df f- f*  f+ to mass
+  x y mass add-particle ; internal
+
+( i arm per-arm -- ) \ one arm particle
+: place-arm-particle
+  | >i >arm >per-arm df dist angle x y mass base |
+  2.0 PI f* arm f* 2.0 f/ to base
+  i per-arm f/ to df
+  radius  0.2 0.8 df f* f+  f* to dist
+  base  spiral dist f* f+  0.2 i 0.1 f* fsin f* f+ to angle
+  cx dist angle fcos f* f+ to x
+  cy dist angle fsin f* f+ to y
+  1.0  9.0 1.0 df f- f*  f+ to mass
+  x y mass add-particle ; internal
+
+( arm per-arm -- ) \ one spiral arm
+: place-arm
+  |> arm per-arm |
+  arm per-arm ' place-arm-particle 2 ncurry  per-arm i-times ; internal
+
+( i remaining -- ) \ one halo particle
+: place-halo-particle
+  | >i >remaining angle dist x y |
+  2.0 PI f* i f* remaining f/ to angle
+  radius 0.5 f* to dist
+  cx dist angle fcos f* f+ to x
+  cy dist angle fsin f* f+ to y
+  x y 5.0 add-particle ; internal
+
+( i -- ) \ give particle i its orbital velocity
+: orbit-particle
+  | >i p dx dy dist perpx perpy orbv |
+  particles i @i to p
+  p 0 @i cx f- to dx
+  p 1 @i cy f- to dy
+  dx dx f* dy dy f* f+ fsqrt to dist
+  dist 0.0 > if
+     dy fnegate dist f/ to perpx
+     dx dist f/ to perpy
+     0.1 dist 100.0 f+ f* fsqrt 0.3 f* to orbv
+     p 2  perpx orbv f*  !i drop
+     p 3  perpy orbv f*  !i drop
+  then ; internal
+
 : create-galaxy
   | bulge arm-particles per-arm remaining |
   0.0 n array-of to particles
   0.0 to pfill
   n 0.3 f* ftruncate to bulge
-  [| >i df r angle x y mass |
-     i bulge f/ to df
-     radius 5.0 f/ df f* to r
-     2.0 PI f* i f* bulge f/ 7.0 f* to angle
-     cx r angle fcos f* f+ to x
-     cy r angle fsin f* f+ to y
-     50.0  50.0 1.0 df f- f*  f+ to mass
-     x y mass add-particle
-  :] bulge i-times
+  bulge ' place-bulge-particle curry  bulge i-times
   n bulge f- to arm-particles
   arm-particles 2.0 / ftruncate to per-arm
-  [| >arm |
-     [| >i df dist angle x y mass base |
-        2.0 PI f* arm f* 2.0 f/ to base
-        i per-arm f/ to df
-        radius  0.2 0.8 df f* f+  f* to dist
-        base  spiral dist f* f+  0.2 i 0.1 f* fsin f* f+ to angle
-        cx dist angle fcos f* f+ to x
-        cy dist angle fsin f* f+ to y
-        1.0  9.0 1.0 df f- f*  f+ to mass
-        x y mass add-particle
-     :] per-arm i-times
-  :] 2.0 i-times
+  per-arm ' place-arm curry  2.0 i-times
   arm-particles per-arm 2.0 f* f- to remaining
-  [| >i angle dist x y |
-     2.0 PI f* i f* remaining f/ to angle
-     radius 0.5 f* to dist
-     cx dist angle fcos f* f+ to x
-     cy dist angle fsin f* f+ to y
-     x y 5.0 add-particle
-  :] remaining i-times
-  [| >i p dx dy dist perpx perpy orbv |
-     particles i @i to p
-     p 0 @i cx f- to dx
-     p 1 @i cy f- to dy
-     dx dx f* dy dy f* f+ fsqrt to dist
-     dist 0.0 > if
-        dy fnegate dist f/ to perpx
-        dx dist f/ to perpy
-        0.1 dist 100.0 f+ f* fsqrt 0.3 f* to orbv
-        p 2  perpx orbv f*  !i drop
-        p 3  perpy orbv f*  !i drop
-     then
-  :] n i-times ;
+  remaining ' place-halo-particle curry  remaining i-times
+  ' orbit-particle  n i-times ;
+
+( total j i -- total' ) \ subtract the (i, j) pair potential once per unordered pair
+: add-pair-energy
+  | >total >j >i pi pj dx dy dist |
+  j i > 0= if total exit then
+  particles i @i to pi  particles j @i to pj
+  pi 0 @i pj 0 @i f- to dx
+  pi 1 @i pj 1 @i f- to dy
+  dx dx f* dy dy f* f+ fsqrt to dist
+  dist softening < if softening to dist then
+  total  g pi 6 @i f* pj 6 @i f*  dist f/  f- ; internal
+
+( total i -- total' ) \ particle i's potentials against every later particle
+: add-row-energy
+  |> total i |
+  total  i ' add-pair-energy curry  n i-times ; internal
+
+( total i -- total' ) \ particle i's kinetic energy
+: add-kinetic-energy
+  | >total >i p v2 |
+  particles i @i to p
+  p 2 @i p 2 @i f*  p 3 @i p 3 @i f* f+ to v2
+  total  0.5 p 6 @i f* v2 f*  f+ ; internal
 
 : system-energy ( -- e )
-  | e pi pj dx dy dist p v2 |
-  0.0 to e
-  [| >i |
-     [| >j |
-        j i > if
-           particles i @i to pi  particles j @i to pj
-           pi 0 @i pj 0 @i f- to dx
-           pi 1 @i pj 1 @i f- to dy
-           dx dx f* dy dy f* f+ fsqrt to dist
-           dist softening < if softening to dist then
-           e  g pi 6 @i f* pj 6 @i f*  dist f/  f-  to e
-        then
-     :] n i-times
-  :] n i-times
-  [| >i |
-     particles i @i to p
-     p 2 @i p 2 @i f*  p 3 @i p 3 @i f* f+ to v2
-     e  0.5 p 6 @i f* v2 f*  f+  to e
-  :] n i-times
-  e ;
+  0.0  ' add-row-energy  n i-times
+  ' add-kinetic-energy  n i-times ;
+
+( i root -- ) \ insert particle i into the tree
+: insert-particle
+  |> i root |
+  root i insert drop ; internal
+
+( i root -- ) \ accumulate the force on particle i from the tree
+: force-particle
+  | >i >root p fx fy |
+  particles i @i to p
+  i to tpidx  p 0 @i to tpx  p 1 @i to tpy  p 6 @i to tpmass
+  root calc-force to fy to fx
+  p 4  p 4 @i  fx p 6 @i f/  f+  !i drop
+  p 5  p 5 @i  fy p 6 @i f/  f+  !i drop ; internal
+
+( i -- ) \ integrate particle i one time step
+: step-particle
+  | >i p |
+  particles i @i to p
+  p 2  p 2 @i  p 4 @i time-step f* f+  !i drop
+  p 3  p 3 @i  p 5 @i time-step f* f+  !i drop
+  p 0  p 0 @i  p 2 @i time-step f* f+  !i drop
+  p 1  p 1 @i  p 3 @i time-step f* f+  !i drop
+  p 4 0.0 !i drop  p 5 0.0 !i drop ; internal
 
 : advance-system
   | root |
   width 2.0 f/  height 2.0 f/  width 2.0 f/  height 2.0 f/  make-node to root
-  [> i | root i insert drop :] n i-times
-  [| >i p fx fy |
-     particles i @i to p
-     i to tpidx  p 0 @i to tpx  p 1 @i to tpy  p 6 @i to tpmass
-     root calc-force to fy to fx
-     p 4  p 4 @i  fx p 6 @i f/  f+  !i drop
-     p 5  p 5 @i  fy p 6 @i f/  f+  !i drop
-  :] n i-times
-  [| >i p |
-     particles i @i to p
-     p 2  p 2 @i  p 4 @i time-step f* f+  !i drop
-     p 3  p 3 @i  p 5 @i time-step f* f+  !i drop
-     p 0  p 0 @i  p 2 @i time-step f* f+  !i drop
-     p 1  p 1 @i  p 3 @i time-step f* f+  !i drop
-     p 4 0.0 !i drop  p 5 0.0 !i drop
-  :] n i-times ;
+  root ' insert-particle curry  n i-times
+  root ' force-particle curry   n i-times
+  ' step-particle  n i-times ;
+
+( lp -- ) \ one measured pass: advance, then re-measure the energy
+: bench-pass
+  drop
+  ' advance-system  iterations i-times ; internal
 
 : barnes-bench
   | t0 ie fe |
   create-galaxy
   system-energy to ie
   now to t0
-  [> lp | [: advance-system :] iterations times  system-energy to fe :] loops i-times
+  ' bench-pass  loops i-times
+  system-energy to fe
   now t0 - to t0
   "initial energy: " . [ ie ] frame>json . cr
   "final energy: " . [ fe ] frame>json . cr

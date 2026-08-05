@@ -24,10 +24,10 @@ inline
     i f1+ to j
     begin
       board i @i  board j @i  -  abs   j i -  =  not   ok and to ok
-      j f1+ to j
+      f++ j
       j queens =  ok not  or
     until
-    i f1+ to i
+    f++ i
     i queens 1 - =  ok not  or
   until
   ok ;
@@ -35,7 +35,7 @@ inline
 : permute
   | >start i |
   start queens 1 - = if
-    valid? if  solutions f1+ to solutions  then
+    valid? if  f++ solutions  then
   else
     start to i
     begin

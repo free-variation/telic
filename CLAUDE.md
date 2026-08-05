@@ -180,8 +180,12 @@ new inline that calls functions → the tail.
   binding makes partial masking useless). The word's golden runs native
   (masked) and wasm (unmasked) and must agree, pinning both copies.
 - Locals: `>name` receives from the stack at entry, bare names are
-  uninitialized scratch; quotations receive with `|> a b |`. Counter
-  loops: `0 to i begin i n lt while ... f++ i repeat`.
+  uninitialized scratch; quotations receive with `|> a b |`.
+- Counted loops are `times` / `i-times` over a quotation. Reach for
+  `0 to i begin i n < while ... f++ i repeat` only when the body updates
+  the enclosing word's locals — a quotation cannot write a frame it does
+  not own, and moving that state to a heap cell to satisfy `i-times`
+  costs more than the loop saves (subprocess.h2o, `parallel-run`).
 - Quotations: write them bare (`[: ... :]`); receive into locals
   (`[>`/`[|`) when a value is reused past a `dup` or the quotation
   crosses `curry`. Measured: bare is the fastest form — under

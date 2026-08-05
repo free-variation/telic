@@ -3,7 +3,7 @@
 
 ( darwin linux -- handle ) \ open whichever library name this OS resolves
 : ffi-open-either | >darwin >linux |
-	[: darwin ffi-open :] catch if drop linux ffi-open then ;
+	darwin ' ffi-open curry catch if drop linux ffi-open then ;
 
 "hello from ffi variadic" "/tmp/lf_ffi_test.txt" write-file
 "/usr/lib/libcurl.4.dylib" "libcurl.so.4" ffi-open-either to curl

@@ -33,22 +33,25 @@
 \ at most width at a time; collect { :out :err :status } per command in input
 \ order, refilling a slot as soon as its child finishes (as-completed).
 : parallel-run
-  | command-count slot-count results slotprocs slot-commands next-command completed-count >commands >width |
+  | command-count slot-count results slotprocs slot-commands next-command completed-count proc slot command-index >commands >width |
   commands size to command-count
   width 1 < if 1 to width then
   width command-count < if width else command-count then to slot-count
   null command-count array-of to results
   null slot-count array-of to slotprocs
   0 slot-count array-of to slot-commands
-  [: | proc >slot |
+  0 to slot
+  begin slot slot-count < while
     commands slot @i start-process to proc
     slotprocs slot proc !i drop
     slot-commands slot slot !i drop
-  :] slot-count i-times
+    f++ slot
+  repeat
   slot-count to next-command
   0 to completed-count
   begin completed-count command-count < while
-    [: | proc command-index >slot |
+    0 to slot
+    begin slot slot-count < while
       slotprocs slot @i to proc
       proc null = not if
         proc :pid @ running? not if
@@ -65,7 +68,8 @@
           then
         then
       then
-    :] slot-count i-times
+      f++ slot
+    repeat
     0.005 sleep
   repeat
   results ;

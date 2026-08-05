@@ -7,8 +7,11 @@
 
 "statistics" load-library
 
-150 to iterations
-130 constant n
+\ N is twice the scalar port's 130, so each BLAS call moves 4x the data, and the
+\ loop count is high enough that the 40 calls per iteration dominate: what the row
+\ measures is per-call cost, since both sides reach the same platform BLAS.
+1000 to iterations
+260 constant n
 
 variable a-mat
 variable u-mat
@@ -19,14 +22,20 @@ variable zero-col
   |> i j |
   i j +  dup f1+ *  2 /  i +  1 +  1.0 swap / ;
 
+( j i flat -- ) \ flat[i*n + j] = A_ij
+: set-a
+  |> j i flat |
+  flat  i n * j +  i j eval-a  !i drop ; internal
+
+( i flat -- ) \ fill row i
+: set-a-row
+  |> i flat |
+  i flat ' set-a 2 ncurry  n i-times ; internal
+
 : build-a
   | flat |
   0 n n * array-of to flat
-  [> i |
-     [> j |
-        flat  i n * j +  i j eval-a  !i drop
-     :] n i-times
-  :] n i-times
+  flat ' set-a-row curry  n i-times
   flat n n matrix to a-mat ;
 
 : build-u
@@ -36,16 +45,24 @@ variable zero-col
   n 1 0-matrix to zero-col
   build-a ;
 
-\ ata-times ( x -- AtA*x ): compute A*x with dgemm-nn, then At*(...) with dgemm-tn
+\ ata-times ( x -- AtA*x ): compute A*x with dgemv-n, then At*(...) with dgemv-t.
+\ These reach cblas_dgemv, which has less per-call setup than entering dgemm with
+\ an n x 1 column.
 : ata-times
   |> x |
-  1 a-mat x  0 zero-col  dgemm-nn
-  1 a-mat rot 0 zero-col dgemm-tn ;
+  1 a-mat x  0 zero-col  dgemv-n
+  1 a-mat rot 0 zero-col dgemv-t ;
 
 : one-loop
   build-u
   [: u-mat ata-times to v-mat
      v-mat ata-times to u-mat :] 10 times ;
+
+( sum i -- sum' ) \ add u_i * v_i
+: add-uv  |> sum i |  u-mat i 0 @i,j  v-mat i 0 @i,j  *  sum + ; internal
+
+( sum i -- sum' ) \ add v_i squared
+: add-vv  |> sum i |  v-mat i 0 @i,j  dup *  sum + ; internal
 
 : spectral-norm-run ( loops -- )
   | n_loops t0 vBv vv |
@@ -55,10 +72,8 @@ variable zero-col
   [: one-loop :] n_loops times
   "elapsed: " . now t0 - . "s" . cr
 
-  0 to vBv  0 to vv
-  [> i |
-     u-mat i 0 @i,j  v-mat i 0 @i,j  *  vBv + to vBv
-     v-mat i 0 @i,j  dup *  vv + to vv :] n i-times
+  0  ' add-uv  n i-times  to vBv
+  0  ' add-vv  n i-times  to vv
   "spectral norm estimate: " . vBv vv / sqrt . cr ;
 
 iterations spectral-norm-run

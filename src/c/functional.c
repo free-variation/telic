@@ -51,6 +51,38 @@ void p_map(DISPATCH_ARGS) {
 	DISPATCH(interp);
 }
 
+void p_each(DISPATCH_ARGS) {
+	POP_CALLABLE(xt, "each");
+	PEEK_SEQUENCE_AT(source_val, 0, "each");
+	Object *source = OBJECT_AT(VAL_DATA(source_val));
+	int source_index = interp->dsp - 1;
+
+	CallContext context;
+	call_open_callable(interp, xt_val, &context);
+	for (int i = 0; i < source->len && !interp->error_flag; i++) {
+		int dsp_before = interp->dsp;
+		push(interp, source->items[i]);
+
+		call_step(interp, &context, xt);
+		if (interp->error_flag)
+			break;
+
+		if (interp->dsp != dsp_before) {
+			fail(interp, "each: quotation must leave nothing per element, but changed the stack by %d",
+					interp->dsp - dsp_before);
+			break;
+		}
+	}
+	call_close(interp, &context);
+
+	if (interp->error_flag)
+		return;
+
+	interp->dsp = source_index;
+
+	DISPATCH(interp);
+}
+
 void p_nmap(DISPATCH_ARGS) {
 	POP_INT(arity, "nmap", "arity");
 	if (arity < 1) {
@@ -192,14 +224,19 @@ void p_reduce(DISPATCH_ARGS) {
 	Val result_val = init_val;
 	CallContext context;
 	call_open_callable(interp, combiner_val, &context);
+	if (interp->dsp + 2 > DATA_STACK_DEPTH) {
+		call_close(interp, &context);
+		fail(interp, "stack overflow");
+		return;
+	}
 	for (int i = 0; i < source->len && !interp->error_flag; i++) {
-		push(interp, result_val);
-		push(interp, source->items[i]);
+		interp->data_stack[interp->dsp++] = result_val;
+		interp->data_stack[interp->dsp++] = source->items[i];
 
 		call_step(interp, &context, combiner);
 		if (interp->error_flag) break;
 
-		result_val = pop(interp);
+		result_val = interp->data_stack[--interp->dsp];
 	}
 	call_close(interp, &context);
 	if (interp->error_flag) return;

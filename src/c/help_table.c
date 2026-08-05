@@ -49,10 +49,11 @@ const int help_section_count = 42;
 
 const HelpEntry help_entries[] = {
 	{ "!", "( fr sym/path val -- fr )", "Set by key or path, vivifying intermediates; mutates fr; errors on a search path", "d log n", "realloc on growth; 1o per vivified frame", "O(d log n) amortized", 16 },
+	{ "!at", "( xₙ … x₀ v n -- xₙ … x₀ )", "pick's write counterpart: pop v and overwrite the item n deep with it, n counting from v as pick's counts from the top. Updates a parked accumulator in place, so a fold needs no stack shuffling: n pick <op> n !at compiles to one read-combine-store op", "3", "none", "O(1)", 0 },
 	{ "!e", "( m i v -- m )", "Store v (a float, or null for NaN) at flat row-major index i, in place", "4", "none", "O(1)", 18 },
 	{ "!i", "( arr i val -- arr )", "Store val at index i in place; leaves arr on the stack", "4", "none", "O(1)", 14 },
 	{ "!i,j", "( m i j v -- m )", "Store v (a float, or null for NaN) at row i, column j, in place", "5", "none", "O(1)", 18 },
-	{ "%", "( a b -- remainder quotient )", "floats only; truncating division: pushes a − trunc(a/b)·b then trunc(a/b); errors on zero", "4", "none", "O(1)", 1 },
+	{ "%", "( a b -- remainder quotient )", "truncating division: pushes a − trunc(a/b)·b then trunc(a/b); float or matrix element-wise with scalar broadcast, answering a remainder matrix under a quotient matrix; a zero divisor or zero element errors", "4", "none", "O(1)", 1 },
 	{ "'", "( \"name\" -- xt )", "Parse the following word at compile time and push its xt (immediate; folds the xt in as a literal)", NULL, NULL, NULL, 10 },
 	{ ")]", "—", "Close a cons-list literal", NULL, NULL, NULL, 9 },
 	{ "*", "( a b -- a*b )", "float: multiply. set∩set: intersection. matrix: element-wise. scalar/matrix broadcast.", "3 (float)", "as +", "as +", 1 },
@@ -237,6 +238,8 @@ const HelpEntry help_entries[] = {
 	{ "dgemm-nt", "( α A B β C -- R )", "R = α·A·Bᵀ + β·C", "5 + m·k·n", "1m(m×n)", "O(m·k·n)", 18 },
 	{ "dgemm-tn", "( α A B β C -- R )", "R = α·Aᵀ·B + β·C", "5 + m·k·n", "1m(m×n)", "O(m·k·n)", 18 },
 	{ "dgemm-tt", "( α A B β C -- R )", "R = α·Aᵀ·Bᵀ + β·C", "5 + m·k·n", "1m(m×n)", "O(m·k·n)", 18 },
+	{ "dgemv-n", "( α A x β y -- r )", "r = α·A·x + β·y via cblas dgemv, with x and y columns (n×1) and a fresh r copied from y; x must be A's column count and y its row count. Reaches BLAS with a vector call rather than dgemm on a one-column matrix", NULL, NULL, NULL, 37 },
+	{ "dgemv-t", "( α A x β y -- r )", "r = α·Aᵀ·x + β·y via cblas dgemv, with x A's row count and y its column count", NULL, NULL, NULL, 37 },
 	{ "diagonal", "( m -- m' )", "Diagonal as a 1×min(r,c) matrix", "1 + min(r,c)", "1m(1×min)", "O(min(r,c))", 18 },
 	{ "diagonal-matrix", "( fill n -- m )", "n×n matrix with fill on the diagonal", "2 + n", "1m(n×n)", "O(n)", 18 },
 	{ "difference", "( s₁ s₂ -- s₃ )", "s₁ − s₂ into a new set, merging the two sorted arrays", "m+n", "1o + reallocs", "O(m+n)", 13 },
@@ -248,7 +251,7 @@ const HelpEntry help_entries[] = {
 	{ "drop", "( a -- )", "Discard top", "1", "none", "O(1)", 0 },
 	{ "drop-nans", "( v -- v' )", "matrix.h2o: the finite elements of a vector, NaNs dropped (dup nan? 0 eq where select-rows, inlined)", "4n", "mask + index + 1m(k)", "O(n)", 18 },
 	{ "dup", "( a -- a a )", "Duplicate top", "3", "none", "O(1)", 0 },
-	{ "each", "( items xt -- )", "arrays.h2o: run xt ( element -- ) on every element for its side effects; no result, no allocation", "n·xt", "none", "O(n·xt)", 23 },
+	{ "each", "( items xt -- )", "Run xt ( element -- ) on every element for its side effects; the element is the only thing the quotation may consume, and it must leave nothing. No result, no allocation", "2 + n·xt", "none", "O(n·xt)", 23 },
 	{ "ecdf", "( v -- xs ys )", "statistics.h2o: the empirical CDF as two n×1 vectors — the finite elements sorted ascending, and the cumulative fractions (i+1)/n, so ys at index i is F(xs at i). Ties stay as consecutive points; NaNs are excluded from the points and from n; errors when no finite values remain", "2n log n", "2m(n) + 1a(n)", "O(n log n)", 18 },
 	{ "edit-distance", "( a b -- n )", "Edit distance between two strings over codepoints: insertions, deletions, substitutions, and adjacent transpositions each cost 1 (Levenshtein with transpositions — optimal string alignment); symmetric", "n·m", "none", "O(n·m)", 12 },
 	{ "else", "—", "Separate the true and false arms", NULL, NULL, NULL, 8 },
@@ -413,15 +416,15 @@ const HelpEntry help_entries[] = {
 	{ "matrix>pointer", "( m -- ptr )", "Intern the matrix's row-major element buffer and return a T_PTR handle to pass as a :ptr argument; no copy — aliases the live buffer (amortized intern)", "1", "none", "O(1)", 34 },
 	{ "matrix?", "( a -- bool )", "core.h2o: type-of :matrix = (inlined)", "5", "none", "O(1)", 4 },
 	{ "max", "( m -- f )", "Maximum element", "1 + r×c", "none", "O(r×c)", 18 },
-	{ "max2", "( a b -- larger )", "core.h2o: the <-ordered greater of two scalars, min2's twin", "5", "none", "O(1)", 1 },
+	{ "max2", "( a b -- larger )", "the val_cmp-ordered greater, min2's twin; a NaN operand answers the other value", "3 (float)", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 1 },
 	{ "mean", "( m -- f )", "matrix.h2o: sum ÷ element count", "r×c", "none", "O(r×c)", 18 },
 	{ "median", "( m -- f )", "statistics.h2o: 0.5 quantile (inlined)", "n log n", "malloc(n)", "O(n log n)", 18 },
 	{ "member?", "( set v -- bool )", "Binary-search membership", "3 + log n", "none", "O(log n)", 13 },
 	{ "merge", "( fr₁ fr₂ -- fr )", "New frame with all keys; fr₂ wins collisions. A linear two-pointer merge of the two sorted key arrays", "m+n", "1o", "O(m+n)", 16 },
 	{ "mesh", "( v mask b -- v' )", "Masked substitution: element i of the result is b's where mask[i] is a definite nonzero, v's where it is 0 **or NaN** (an unknown mask cell changes nothing). v is a matrix, dimensioned matrix, or array; the mask a bare matrix of v's shape (element count, for an array). b is shape-matched same-representation, or broadcasts: a float, null (→ NaN), a quantity, or — for an array subject — any single value. Units reconcile as +: b rescales into v's unit, which the result keeps; a quantity against a bare number errors. Conditional-mutate idioms: dup nan? 0 mesh fills NaNs, dup -1 eq null mesh turns a sentinel into NaN, dup 100 > 100 mesh caps", "3 + n", "1m(r×c) / 1a(n)", "O(n)", 18 },
 	{ "min", "( m -- f )", "Minimum element", "1 + r×c", "none", "O(r×c)", 18 },
-	{ "min2", "( a b -- smaller )", "core.h2o: the <-ordered lesser of two scalars (2dup > if swap then drop, inlined); min/max reduce a matrix, these order a pair", "5", "none", "O(1)", 1 },
-	{ "mod", "( a b -- remainder )", "core.h2o: % drop; sign follows dividend", "5", "none", "O(1)", 3 },
+	{ "min2", "( a b -- smaller )", "the val_cmp-ordered lesser of two values — floats, strings, quantities; NaN orders below every number, so a NaN operand answers NaN. With a matrix operand it is element-wise with scalar broadcast. min/max reduce one matrix, these order a pair", "3 (float)", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 1 },
+	{ "mod", "( a b -- remainder )", "remainder with the sign of the dividend (fmod); float or matrix element-wise with scalar broadcast; a zero divisor or zero element errors", "3 (float)", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 1 },
 	{ "n-columns", "( m/dataset -- n )", "datasets.h2o: dim nip", "8", "none", "O(1)", 18 },
 	{ "n-observations", "( x -- n )", "statistics.h2o: observation count of a fit input — an array's size, a matrix's row count", "1", "none", "O(1)", 18 },
 	{ "n-rows", "( m/dataset -- n )", "datasets.h2o: dim drop", "6", "none", "O(1)", 18 },
@@ -695,4 +698,4 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "C primitive alias of unify, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 26 },
 };
 
-const int help_entry_count = 645;
+const int help_entry_count = 648;

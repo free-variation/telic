@@ -43,7 +43,7 @@ now t0 - "elapsed: {0} s" format . cr
 
 \ --- 4. long amb search: explore a 2^27 tree of failing leaves ------------
 : leaf  fail ;
-: tree  | >d |  d 0= if leaf else [: d 1- tree :] [: d 1- tree :] amb then ;
+: tree  | >d |  d 0= if leaf exit then  d 1-  [: dup tree :] [: dup tree :] amb  drop ;
 now [: [: 27 tree :] [: :] amb :] 1 times
 now swap - "amb-tree     (2^27 leaves):       {0} s" format . cr
 

@@ -25,5 +25,5 @@
 ' guarded see-compiled
 
 \ === locals + a quotation disables TCE: the map call stays plain and correct ===
-: bump | k | to k  [ 10 20 30 ] [: k + :] map ;
+: bump | k | to k  k [ 10 20 30 ] [: 2 pick + :] map nip ;
 100 bump . cr                          \ [ 110 120 130 ]

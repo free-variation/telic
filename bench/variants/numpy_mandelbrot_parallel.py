@@ -14,9 +14,10 @@ entirely on which tool you reach for:
              algorithm the water variant runs, rather than the same shape
 
 Workers receive only (row_start, row_end) and return an int, so nothing large
-crosses a process boundary. Pool creation is reported separately from the
-compute: spawning 16 CPython processes costs more than this whole benchmark,
-while water's pmap-reduce spawns OS threads inside its timed region.
+crosses a process boundary. The reported elapsed time covers pool creation as
+well as compute, because water's pmap-reduce spawns its OS threads inside its
+own timed region; the setup share is printed separately, and for 16 CPython
+processes it exceeds the compute.
 
 The numpy modes iterate every pixel max_iter times with no early exit, as
 bench/variants/mandelbrot-matrix.h2o does; the scalar mode exits early per
@@ -91,12 +92,11 @@ def run(n, max_iter, mode, workers, chunks):
     worker = count_block_scalar if mode == "scalar" else count_block_numpy
     tasks = [(start, end, n, max_iter) for start, end in blocks(n, chunks)]
 
-    setup_start = _t.perf_counter()
+    start = _t.perf_counter()
     pool = ThreadPool(workers) if mode == "threads" else Pool(workers)
     pool.map(int, range(workers))
-    setup = _t.perf_counter() - setup_start
+    setup = _t.perf_counter() - start
 
-    start = _t.perf_counter()
     checksum = sum(pool.map(worker, tasks))
     elapsed = _t.perf_counter() - start
 

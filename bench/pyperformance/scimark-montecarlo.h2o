@@ -15,7 +15,7 @@ variable rand-m  variable ri  variable rj
 1.0 2147483647.0 f/ constant dm1
 
 : rng-init ( seed -- )
-  | >seed jseed k0 k1 j0 j1 |
+  | >seed jseed k0 k1 j0 j1 fill |
   seed fabs to seed
   seed m1 < 0= if m1 to seed then
   seed 2.0 mod 0.0 = if seed 1.0 f- to seed then
@@ -24,12 +24,14 @@ variable rand-m  variable ri  variable rj
   seed 65536.0 mod to j0
   seed 65536.0 f/ to j1
   17.0 double-segment to rand-m
-  [:
+  0 to fill
+  begin fill 17 < while
      j0 k0 f* to jseed
      jseed 65536.0 f/  j0 k1 f* f+  j1 k0 f* f+  32768.0 fmod to j1
      jseed 65536.0 mod to j0
-     rand-m swap  j0 65536.0 j1 f* f+  !i drop
-  :] 17 i-times
+     rand-m fill  j0 65536.0 j1 f* f+  !i drop
+     f++ fill
+  repeat
   4.0 to ri  16.0 to rj ;
 
 : next-double ( -- d )
@@ -43,16 +45,17 @@ variable rand-m  variable ri  variable rj
   dm1 k f* ;
 
 : monte-carlo ( -- est )
-  | under |
   113.0 rng-init
-  0.0 to under
-  [: next-double next-double  fsq swap fsq f+  1.0 > 0= if f++ under then :] samples times
-  under samples f/ 4.0 f* ;
+  0.0
+  [: next-double fsq next-double fsq f+  1.0 > 0= if 1.0 f+ then :] samples times
+  samples f/ 4.0 f* ;
 
 : mc-bench
   | t0 est |
   now to t0
-  [: monte-carlo to est :] loops times
+  0.0
+  [: drop monte-carlo :] loops times
+  to est
   now t0 - to t0
   "estimate: " . est . cr
   "elapsed: " . t0 . " s" . cr ;

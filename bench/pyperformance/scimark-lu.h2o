@@ -29,16 +29,31 @@ variable rm  variable ri  variable rj
   dm1 k f* ;
 
 : build-empty ( n -- a )
-  | n a | to n  0 n array-of to a
-  [: a swap 0 n array-of !i drop :] n i-times  a ;
+  | n | to n
+  n  n iota  [: drop 0 2 pick array-of :] map  nip ;
+
+( i a n -- ) \ fill row i of a with n random doubles
+: fill-row
+  |> i a n |
+  a i @i
+  [: over swap rng-next !i drop :] n i-times
+  drop ;
 
 : build-filled ( n -- a )
   | n a | to n  n build-empty to a
-  [> i | [: a i @i swap rng-next !i drop :] n i-times :] n i-times  a ;
+  a n ' fill-row 2 ncurry  n i-times
+  a ;
+
+( i src dst n -- ) \ copy n elements of row i, element by element
+: copy-row
+  |> i src dst n |
+  dst i @i  src i @i
+  [: 2 pick swap  dup 3 pick swap @i  !i drop :] n i-times
+  drop drop ;
 
 : copy-into ( src dst n -- )
   | src dst n | to n to dst to src
-  [> i | [> jj | dst i @i  jj  src i @i jj @i  !i drop :] n i-times :] n i-times ;
+  src dst n ' copy-row 3 ncurry  n i-times ;
 
 : lu-factor ( a n -- )
   | a n j jp t i recp ii jj aiij aj aii rowj |
@@ -48,7 +63,7 @@ variable rm  variable ri  variable rj
     a j @i j @i fabs to t
     j 1+ to i
     begin i n < while
-      a i @i j @i fabs  dup t > if i to jp to t else drop then  i 1+ to i
+      a i @i j @i fabs  dup t > if i to jp to t else drop then  f++ i
     repeat
     j jp = 0 = if
       a j @i to rowj  a j  a jp @i  !i drop  a jp  rowj  !i drop
@@ -56,29 +71,40 @@ variable rm  variable ri  variable rj
     1.0 a j @i j @i f/ to recp
     j 1+ to i
     begin i n < while
-      a i @i  j  a i @i j @i recp f*  !i drop  i 1+ to i
+      a i @i  j  a i @i j @i recp f*  !i drop  f++ i
     repeat
     j 1+ to ii
     begin ii n < while
       a ii @i j @i to aiij  a ii @i to aii  a j @i to aj
       j 1+ to jj
       begin jj n < while
-        aii jj  aii jj @i aiij aj jj @i f* f-  !i drop  jj 1+ to jj
+        aii jj  aii jj @i aiij aj jj @i f* f-  !i drop  f++ jj
       repeat
-      ii 1+ to ii
+      f++ ii
     repeat
-    j 1+ to j
+    f++ j
   repeat ;
 
+( sum i a n -- sum' ) \ add row i's n elements to the running sum
+: add-row
+  |> sum i a n |
+  a i @i  sum
+  [: 2 pick swap @i f+ :] n i-times
+  nip ;
+
 : checksum ( a n -- s )
-  | a n s | to n to a  0 to s
-  [> i | [: a i @i swap @i s f+ to s :] n i-times :] n i-times  s ;
+  | a n | to n to a
+  0  a n ' add-row 2 ncurry  n i-times ;
+
+( a lu n -- ) \ one measured round: refresh lu from a, then factor it
+: lu-round
+  |> a lu n | a lu n copy-into  lu n lu-factor ;
 
 : lu-bench ( n cycles -- )
   | n cycles a lu t0 | to cycles to n
   rng-init  n build-filled to a  n build-empty to lu
   now to t0
-  [: a lu n copy-into  lu n lu-factor :] cycles times
+  a lu n ' lu-round 3 ncurry  cycles times
   "elapsed: " . now t0 - . "s" . cr
   lu n checksum "checksum: {0}" format . cr ;
 

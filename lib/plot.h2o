@@ -263,16 +263,15 @@ to aes
 ( labels -- ) \ place category names along the y axis at positions 1..n (right-anchored, just
 \ left of the axis) in place of numeric y-ticks; pins the y domain to [0.5, n+0.5]
 : y-categories
-	| >labels n-cats i pixel-x |
+	| >labels n-cats pixel-x |
 	labels size to n-cats
 	0.5 :ymin figure! n-cats 0.5 + :ymax figure!
 	true :y-categorical figure!
 	:margin figure@ 8 - to pixel-x
-	0 to i
-	begin i n-cats < while
-		pixel-x i 1 + labels i @i "end" :pixel :data text-mark
-		f++ i
-	repeat ;
+	pixel-x labels
+	[> i pixel-x labels |
+		pixel-x i 1 + labels i @i "end" :pixel :data text-mark :]
+	2curry n-cats i-times ;
 
 ( xs ys -- ) \ scatter markers; aes keys :point-fill :point-stroke :point-radius
 : scatter
@@ -315,7 +314,7 @@ to aes
 ( lows highs positions -- ) \ a horizontal segment from each low to its high at the y position,
 \ one 2-point series per interval; equal-length inputs; aes keys :series-stroke :series-width
 : intervals
-	| >lows >highs >positions n i |
+	| >lows >highs >positions n |
 	lows as-column to lows
 	highs as-column to highs
 	positions as-column to positions
@@ -325,13 +324,12 @@ to aes
 		"intervals: expected equal-length lows, highs, positions; got {2}, {1}, {0}" format throw
 	then
 
-	0 to i
-	begin i n < while
+	lows highs positions
+	[> i lows highs positions |
 		lows i @e highs i @e 2 array vector
 		positions i @e dup 2 array vector
-		series
-		f++ i
-	repeat ;
+		series :]
+	3 ncurry n i-times ;
 
 ( slope intercept -- ) \ the line y = slope*x + intercept, clipped to the domain
 \ at render time; aes keys :line-stroke :line-width
@@ -347,20 +345,19 @@ to aes
 ( data n-bins -- ) \ draw a histogram-table as bars; pins the domain (override
 \ with figure! after); aes keys :bar-fill :bar-stroke
 : histogram
-	| >data >n-bins table counts low bin-width i bar-left |
+	| >data >n-bins table counts low bin-width |
 	data n-bins histogram-table to table
 	table :counts @ to counts
 	table :low @ to low
 	table :bin-width @ to bin-width
 	low :xmin figure! low n-bins bin-width * + :xmax figure!
 	0 :ymin figure! counts max :ymax figure!
-	0 to i
-	begin i n-bins < while
+	low bin-width counts
+	[| >i >low >bin-width >counts bar-left |
 		low i bin-width * + to bar-left
 		bar-left 0 bar-left bin-width + counts i @e
-		:bar-fill figure@ :bar-stroke figure@ 1 :data :data rect-mark
-		f++ i
-	repeat ;
+		:bar-fill figure@ :bar-stroke figure@ 1 :data :data rect-mark :]
+	3 ncurry n-bins i-times ;
 
 ( data center-x half-width -- ) \ Tukey box: whiskers to the most extreme points
 \ within 1.5·IQR of the quartiles, points beyond drawn as outlier circles
@@ -424,18 +421,17 @@ to aes
 	0.5 :xmin figure! n-boxes 0.5 + :xmax figure!
 	low high pad-range :ymax figure! :ymin figure!
 	:height figure@ :margin figure@ - 16 + to label-y
-	0 to i
-	begin i n-boxes < while
+	arrays label-y labels
+	[> i arrays label-y labels |
 		arrays i @i i 1 + 0.3 box-at
-		i 1 + label-y labels i @i "middle" :data :pixel text-mark
-		f++ i
-	repeat ;
+		i 1 + label-y labels i @i "middle" :data :pixel text-mark :]
+	3 ncurry n-boxes i-times ;
 
 ( heights labels -- ) \ vertical bars on a categorical x axis, one per height, from the
 \ y=0 baseline; labels is a parallel array of category strings; pins the domain; aes
 \ keys :bar-fill :bar-stroke
 : barchart
-	| >heights >labels n-bars i height low high half-width label-y bar-fill bar-stroke |
+	| >heights >labels n-bars i low high half-width label-y bar-fill bar-stroke |
 	heights as-column to heights
 	heights num-elements to n-bars
 	labels size n-bars = not if
@@ -444,15 +440,8 @@ to aes
 	then
 	n-bars 0= if "barchart: no heights" throw then
 
-	0 to low
-	0 to high
-	0 to i
-	begin i n-bars < while
-		heights i @e to height
-		height low min2 to low
-		height high max2 to high
-		f++ i
-	repeat
+	heights min 0 min2 to low
+	heights max 0 max2 to high
 
 	0.5 :xmin figure! n-bars 0.5 + :xmax figure!
 	true :x-categorical figure!

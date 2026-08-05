@@ -16,6 +16,8 @@ plotting library is pure forth (no FFI) and works under wasm; only its
 
 | Word | Stack effect | Summary |
 | --- | --- | --- |
+| `dgemv-n` | `( α A x β y -- r )` | `r = α·A·x + β·y` via cblas dgemv, with `x` and `y` columns (n×1) and a fresh `r` copied from `y`; `x` must be A's column count and `y` its row count. Reaches BLAS with a vector call rather than dgemm on a one-column matrix |
+| `dgemv-t` | `( α A x β y -- r )` | `r = α·Aᵀ·x + β·y` via cblas dgemv, with `x` A's row count and `y` its column count |
 | `svd` | `( A -- U S VT )` | Thin singular value decomposition via LAPACKE dgesvd: `A = U diag(S) VT`, with `S` the 1×min(m,n) singular values. Column signs of U/VT are not canonical, so pin goldens on S and the reconstruction, not raw U/VT entries |
 | `fit-linear` | `( m y -- beta )` | Ordinary least squares via LAPACKE dgelsd; `m` is observations×predictors (observations ≥ predictors), `y` the observations×1 response, `beta` the predictors×1 coefficients |
 | `fit-augmented` | `( augmented -- beta )` | Least squares of an `[X | y]` block whose last column is the response |

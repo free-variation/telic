@@ -31,13 +31,19 @@ variable iub-cum
 variable homo-cum
 variable rng-seed
 
+( running i probs out -- running' ) \ out[i] = running + probs[i]
+: accumulate-into
+  |> running i probs out |
+  running  probs i @i  +
+  dup  out i rot  !i drop ; internal
+
 \ running cumulative sum of probabilities (matches CPython make_cumulative)
 : cumulative ( probs -- cumulative )
   | >probs n out acc |
   probs size to n
   0.0 n array-of to out
   0.0 to acc
-  [: dup probs swap @i  acc + to acc  out swap acc !i drop :] n i-times
+  0  probs out ' accumulate-into 2 ncurry  n i-times  drop
   out ;
 
 \ advance the LCG, return seed / 139968 in [0, 1)
@@ -61,11 +67,16 @@ variable rng-seed
   next-u cum bisect
   chars swap @i ;
 
+( i out cum chars -- ) \ out[i] = one random character
+: draw-into
+  |> i out cum chars |
+  out i  cum chars draw  !i drop ; internal
+
 \ n random characters as one string, in draw order
 : random-content ( cum chars n -- string )
   | >cum >chars >n out |
   "" n array-of to out
-  [: out swap  cum chars draw  !i drop :] n i-times
+  out cum chars ' draw-into 3 ncurry  n i-times
   out "" join ;
 
 \ src tiled/truncated to exactly len characters
@@ -75,16 +86,20 @@ variable rng-seed
   begin dup size len < while dup + repeat
   0 len substring ;
 
+( i out s width slen -- ) \ out[i] = the i-th width-wide line of s, newline-terminated
+: wrap-line
+  |> i out s width slen |
+  out i
+    s  i width *  dup width +  dup slen > if drop slen then  substring  nl +
+  !i drop ; internal
+
 \ break s into width-wide lines, each ending in a newline
 : wrap ( s width -- wrapped )
   | >s >width slen lines out i |
   s size to slen
   slen width +  1-  width quotient  to lines
   "" lines array-of to out
-  [: to i
-     out i
-       s  i width *  dup width +  dup slen > if drop slen then  substring  nl +
-     !i drop :] lines i-times
+  out s width slen ' wrap-line 4 ncurry  lines i-times
   out "" join ;
 
 \ "name" -> "name\n"

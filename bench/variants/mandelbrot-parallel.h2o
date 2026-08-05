@@ -15,7 +15,7 @@
     zr2 zi2 f+ 4.0 f> if leave then
     zr zi f* 2.0 f* ci f+ to zi
     zr2 zi2 f- cr f+ to zr
-    iter 1+ to iter
+    f++ iter
   repeat
   iter max-iter >= ;
 
@@ -24,8 +24,8 @@
   y 2.0 f* n f/ 1.0 f- to ci
   0.0 to count  0 to x
   begin x n < while
-    x 2.0 f* n f/ 1.5 f- ci in-set? if count 1+ to count then
-    x 1+ to x
+    x 2.0 f* n f/ 1.5 f- ci in-set? if f++ count then
+    f++ x
   repeat
   count ;
 

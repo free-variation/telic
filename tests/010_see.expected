@@ -155,40 +155,34 @@ v: not a colon definition
  5: *
  6: exit
 ;
-: at-swap-local   \ 17 cells
+: at-swap-pick   \ 22 cells
  0: (enter-locals) 1
  2: (local!0) 0
- 4: (branch) 5
- 6: [:
- 7: (@i.swap.l0) 0
- 9: exit
- 10: (lit) '?
- 12: map
- 14: (leave-locals) 1
- 16: exit
+ 4: (local@0) 0
+ 6: swap
+ 7: (branch) 5
+ 9: [:
+ 10: (@i.d) 2
+ 12: exit
+ 13: (lit) '?
+ 15: map
+ 17: swap
+ 18: drop
+ 19: (leave-locals) 1
+ 21: exit
 ;
 [ 30 10 ] 
-: at-swap-nested   \ 36 cells
- 0: (enter-locals) 1
- 2: (local!0) 0
- 4: (branch) 26
- 6: [:
- 7: (enter-locals-to) 1
- 9: [
- 10: (lit) 0
- 12: (lit) 1
- 14: ]
- 15: (branch) 8
- 17: [:
- 18: (@i.swap.l1) 0
- 20: (local@0) 0
- 22: +
- 23: exit
- 24: (lit) '?
- 26: map
- 28: (leave-locals) 1
- 30: exit
- 31: (lit) '?
- 33: (leave-locals) 1
- 35: exit
+: at-swap-deeper   \ 20 cells
+ 0: (enter-locals-to) 2
+ 2: (load2) 0 1
+ 5: (branch) 5
+ 7: [:
+ 8: (@i.d) 2
+ 10: exit
+ 11: (lit) '?
+ 13: map
+ 15: swap
+ 16: drop
+ 17: (leave-locals) 2
+ 19: exit
 ;

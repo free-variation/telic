@@ -48,80 +48,95 @@ variable solution-sig
   cells i @i to c
   c v member? if c v set-remove! drop 1.0 else 0.0 then ;
 
+\ The solver's working state lives at file scope: a quotation cannot name its
+\ defining word's locals, and these values are read and written from inside the
+\ propagation loops. None of the words below recurse (solve-step does, and it
+\ keeps its own locals and plain loops).
+variable cells   variable vmin   variable vmax   variable links
+variable value   variable tally  variable changed
+variable last-move  variable left  variable freecells  variable filledcells
+variable free-index  variable cell-index  variable num  variable filled
+variable unknown  variable neighbour  variable current-value
+
 \ vmin/vmax over cell i's neighbours (done+nonEMPTY bump both, free bumps vmax)
 : nb-vminvmax ( cells i -- vmin vmax )
-  | >cells >i vmin vmax links |
+  | >board >i |
+  board to cells
   0.0 to vmin  0.0 to vmax
   cell-links i @i to links
-  [| >k nid |
-     links k @i to nid
-     cells nid already-done? if
-        cells nid cell-val empty = 0= if vmin 1.0 f+ to vmin  vmax 1.0 f+ to vmax then
+  [| >k |
+     links k @i to neighbour
+     cells neighbour already-done? if
+        cells neighbour cell-val empty = 0= if vmin 1.0 f+ to vmin  vmax 1.0 f+ to vmax then
      else vmax 1.0 f+ to vmax then
   :] links size i-times
   vmin vmax ;
 
 : count-possible ( cells v -- n )            \ how many cells still allow v
-  | >cells >v n |
-  0.0 to n
-  [| >i | cells i v member-cell? if n 1.0 f+ to n then :] count i-times
-  n ;
+  | >board >v |
+  board to cells  v to value
+  0.0 to tally
+  [| >i | cells i value member-cell? if tally 1.0 f+ to tally then :] count i-times
+  tally ;
 
 : remove-unfixed ( cells v -- changed )      \ drop v from every not-yet-fixed cell
-  | >cells >v changed |
+  | >board >v |
+  board to cells  v to value
   0.0 to changed
-  [| >i | cells i already-done? 0= if cells i v cell-remove if 1.0 to changed then then :] count i-times
+  [| >i | cells i already-done? 0= if cells i value cell-remove if 1.0 to changed then then :] count i-times
   changed ;
 
 \ --- constraint propagation (one pass; returns whether anything changed) ---
 : constraint-pass ( cells last-move -- changed )
-  | >cells >last-move changed left freecells filledcells v possible |
+  | >board >move |
+  board to cells  move to last-move
   0.0 to changed
   tiles copy to left
   last-move -1.0 = if 0.0 count 1.0 f- range else cell-links last-move @i then to freecells
   \ 1. remove values impossible by neighbour counts
-  [| >fi i vmin vmax |
-     freecells fi @i to i
-     cells i already-done? 0= if
-        cells i nb-vminvmax to vmax to vmin
-        [| >num |
-           num vmin < num vmax > or if
-              cells i num cell-remove if 1.0 to changed then
+  [| >fi |
+     freecells fi @i to cell-index
+     cells cell-index already-done? 0= if
+        cells cell-index nb-vminvmax to vmax to vmin
+        [| >num-index |
+           num-index vmin < num-index vmax > or if
+              cells cell-index num-index cell-remove if 1.0 to changed then
            then
         :] 7.0 i-times
      then
   :] freecells size i-times
   \ 2. how many of each value remain free
-  [| >i cv | cells i already-done? if cells i cell-val to cv  left cv  left cv @i 1.0 f-  !i drop then :] count i-times
+  [| >i | cells i already-done? if cells i cell-val to current-value  left current-value  left current-value @i 1.0 f-  !i drop then :] count i-times
   \ 3. exhaust or force values
   [| >v |
      tiles v @i 0.0 >  left v @i 0.0 = and if
         cells v remove-unfixed if 1.0 to changed then
      else
         cells v count-possible tiles v @i = if
-           [| >i | cells i already-done? 0=  cells i v member-cell? and if cells i v set-done 1.0 to changed then :] count i-times
+           v to value
+           [| >i | cells i already-done? 0=  cells i value member-cell? and if cells i value set-done 1.0 to changed then :] count i-times
         then
      then
   :] 8.0 i-times
   \ 4. force empty / non-empty around filled cells
   last-move -1.0 = if 0.0 count 1.0 f- range else [ last-move ] then to filledcells
-  [| >fi i num filled unk links |
-     filledcells fi @i to i
-     cells i already-done? if
-        cells i cell-val to num
-        0.0 to filled  [ ] to unk
-        cell-links i @i to links
-        [| >k nid |
-           links k @i to nid
-           cells nid already-done? if
-              cells nid cell-val empty = if else filled 1.0 f+ to filled then
-           else unk [ nid ] concat to unk then
+  [| >fi |
+     filledcells fi @i to cell-index
+     cells cell-index already-done? if
+        cells cell-index cell-val to num
+        0.0 to filled  [ ] to unknown
+        cell-links cell-index @i to links
+        [| >k |
+           links k @i to neighbour
+           cells neighbour already-done? if
+              cells neighbour cell-val empty = if else filled 1.0 f+ to filled then
+           else unknown [ neighbour ] concat to unknown then
         :] links size i-times
-        unk size 0.0 > if
+        unknown size 0.0 > if
            num filled = if
-              [| >uk u | unk uk @i to u  cells u empty member-cell? if cells u empty set-done 1.0 to changed then :] unk size i-times
-           else num filled unk size f+ = if
-              [| >uk u | unk uk @i to u  cells u empty cell-remove if 1.0 to changed then :] unk size i-times
+              [| >uk | unknown uk @i to neighbour  cells neighbour empty member-cell? if cells neighbour empty set-done 1.0 to changed then :] unknown size i-times
+           else num filled unknown size f+ = if
+              [| >uk | unknown uk @i to neighbour  cells neighbour empty cell-remove if 1.0 to changed then :] unknown size i-times
            then then
         then
      then
@@ -130,7 +145,7 @@ variable solution-sig
 
 \ --- record the solved board's 19 cell values (id order) ------------------
 : capture-sig ( cells -- )
-  | >cells |
+  to cells
   [| >i | cells i cell-val 48.0 f+ :] count i-times
   count array codepoints>string to solution-sig ;
 
@@ -202,7 +217,6 @@ variable solution-sig
   -1.0 ;
 
 : solve-once
-  | cells |
   0.0 count array-of to cells
   [| >i | cells i [< 2.0 3.0 4.0 7.0 >] !i drop :] count i-times
   cells 1.0 solve-step drop ;

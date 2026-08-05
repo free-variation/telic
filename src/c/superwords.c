@@ -352,10 +352,21 @@ int superword_is_lit_fold(cell handler) {
 static int unify_cons_cfa;
 
 int superword_try_fuse(Interpreter *interp, int op_cfa) {
+	if (op_cfa == vocab.pick_cfa)
+		return try_fuse_pick_literal(interp);
+
+	if (try_fuse_float_depth(interp, op_cfa))
+		return 1;
+
+	if (op_cfa == vocab.store_at_cfa)
+		return try_fuse_store_at(interp);
+
 	if (op_cfa == vocab.at_i_cfa) {
 		if (try_fuse_at_i_ll(interp))
 			return 1;
 		if (try_fuse_at_i_swap_local(interp))
+			return 1;
+		if (try_fuse_at_i_depth(interp))
 			return 1;
 		if (try_fuse_at_i_local(interp))
 			return 1;

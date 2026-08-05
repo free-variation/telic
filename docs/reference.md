@@ -50,6 +50,7 @@ incremental collection.
 | `-rot` | `( a b c -- c a b )` | core.h2o: reverse rotate — brings the top down under the other two (`rot rot`, inlined) | 12 | none | O(1) |
 | `depth` | `( -- n )` | Push current depth | 1 | none | O(1) |
 | `pick` | `( xₙ … x₀ n -- xₙ … x₀ xₙ )` | Copy the item n deep to the top, leaving it in place; `0 pick` is `dup` and `1 pick` is `over`, and n counts from the top as `roll`'s does. Reaches a value a caller parked below a combinator's operands — under `map`, which peeks its source, the element is at 0, the source at 1 and a parked value at 2 | 3 | none | O(1) |
+| `!at` | `( xₙ … x₀ v n -- xₙ … x₀ )` | `pick`'s write counterpart: pop v and overwrite the item n deep with it, n counting from v as `pick`'s counts from the top. Updates a parked accumulator in place, so a fold needs no stack shuffling: `n pick <op> n !at` compiles to one read-combine-store op | 3 | none | O(1) |
 | `roll` | `( xₙ … x₀ n -- xₙ₋₁ … x₀ xₙ )` | Move the item n deep to the top; memmoves the n above it down | 2 + n | none | O(n) |
 | `clear` | `( … -- )` | Reset data stack depth to 0 | 1 | none | O(1) |
 | `this` | `( -- v )` | Push the first of the two values the demonstratives fixed. `this` and `that` fix the top two stack values at the first mention of either word in the clause and hold them for the rest of it; a clause is one input line at top level, one activation in compiled code. Non-consuming and repeatable: `5 this * .` answers 25, `1 2 this that - .` answers 1, and `1 2 this 3 4 this .s` shows `1 2 2 3 4 2`, the second mention reading what the first fixed. In a definition the pair fixes at its first mention in the body, compiled as a `dup` and a store into a hidden local (`see-compiled` shows the pair) that every later mention reads, once per activation — `: doubled 2 * this + ;` answers 28 for `7 doubled`, and a callee that fixes its own value leaves the caller's intact. A local named `this` shadows the word. The fixing mention sits at the top level of the body, not inside a branch, loop or quotation; mentions after it read the value from anywhere in the body, including inside branches, loops and quotations. A quotation compiled at top level is not a definition, so `this` inside it reads the line's value | 2 | none | O(1) |
@@ -72,14 +73,15 @@ float fast path first; the heavy cases are captured by the O column.
 | `-` | `( a b -- a-b )` | float: subtract. set−set: difference. matrix: element-wise. scalar/matrix broadcast. | 3 (float) | as `+` | as `+` |
 | `*` | `( a b -- a*b )` | float: multiply. set∩set: intersection. matrix: element-wise. scalar/matrix broadcast. | 3 (float) | as `+` | as `+` |
 | `/` | `( a b -- a/b )` | float: divide (errors on zero divisor). matrix÷matrix: element-wise (errors on any zero element). scalar/matrix broadcast. | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
-| `%` | `( a b -- remainder quotient )` | floats only; truncating division: pushes `a − trunc(a/b)·b` then `trunc(a/b)`; errors on zero | 4 | none | O(1) |
+| `%` | `( a b -- remainder quotient )` | truncating division: pushes `a − trunc(a/b)·b` then `trunc(a/b)`; float or matrix element-wise with scalar broadcast, answering a remainder matrix under a quotient matrix; a zero divisor or zero element errors | 4 | none | O(1) |
+| `mod` | `( a b -- remainder )` | remainder with the sign of the dividend (`fmod`); float or matrix element-wise with scalar broadcast; a zero divisor or zero element errors | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `^` | `( a b -- a^b )` | `pow`; float or matrix (element-wise) / scalar broadcast | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `negate` | `( a -- -a )` | float or matrix (element-wise) | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `1+` | `( a -- a+1 )` | float or matrix | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `1-` | `( a -- a-1 )` | float or matrix | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `sq` | `( a -- a² )` | float or matrix | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
-| `min2` | `( a b -- smaller )` | core.h2o: the `<`-ordered lesser of two scalars (`2dup > if swap then drop`, inlined); `min`/`max` reduce a matrix, these order a pair | 5 | none | O(1) |
-| `max2` | `( a b -- larger )` | core.h2o: the `<`-ordered greater of two scalars, `min2`'s twin | 5 | none | O(1) |
+| `min2` | `( a b -- smaller )` | the `val_cmp`-ordered lesser of two values — floats, strings, quantities; NaN orders below every number, so a NaN operand answers NaN. With a matrix operand it is element-wise with scalar broadcast. `min`/`max` reduce one matrix, these order a pair | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
+| `max2` | `( a b -- larger )` | the `val_cmp`-ordered greater, `min2`'s twin; a NaN operand answers the other value | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 
 ### In-place matrix arithmetic
 
@@ -183,7 +185,6 @@ matrix (`@i,j`, `@e`) surfaces as `null` the same way.
 | `truncate` | `( a -- trunc a )` | `trunc` | 2 | matrix `1m(r×c)` | same |
 | `round-up` | `( a -- ceil a )` | `ceil` | 2 | matrix `1m(r×c)` | same |
 | `round-down` | `( a -- floor a )` | `floor` | 2 | matrix `1m(r×c)` | same |
-| `mod` | `( a b -- remainder )` | core.h2o: `% drop`; sign follows dividend | 5 | none | O(1) |
 | `quotient` | `( a b -- quotient )` | core.h2o: `% swap drop`; toward zero | 9 | none | O(1) |
 
 ---
@@ -866,7 +867,7 @@ The quotation/predicate cost dominates; `xt` denotes one call.
 | `find-first` | `( items pred -- element )` | The first element for which pred is truthy, or the none value; short-circuits at the first hit (does not run pred over the rest) | n·xt | none | O(n·xt) |
 | `any?` | `( items pred -- bool )` | arrays.h2o: `find none? not` | n·xt | none | O(n·xt) |
 | `all?` | `( items pred -- bool )` | arrays.h2o: false at the first element failing pred, else true (vacuously true on empty) | n·xt | none | O(n·xt) |
-| `each` | `( items xt -- )` | arrays.h2o: run xt `( element -- )` on every element for its side effects; no result, no allocation | n·xt | none | O(n·xt) |
+| `each` | `( items xt -- )` | Run xt `( element -- )` on every element for its side effects; the element is the only thing the quotation may consume, and it must leave nothing. No result, no allocation | 2 + n·xt | none | O(n·xt) |
 | `flat-map` | `( items xt -- arr )` | arrays.h2o: `map flatten-array`; xt returns an array per element, results concatenated | n·xt + total | `1a(n)` + `1a(total)` | O(n·xt + total) |
 | `sort-by` | `( items xt -- arr )` | arrays.h2o: sorted by the key xt `( element -- key )` extracts, one evaluation per element; the keys are `argsort`ed and the elements gathered by that permutation, so equal keys keep index order | n·xt + n log n | 3×`1a(n)` + `malloc(4n)` | O(n·xt + n log n) |
 | `partition` | `( items pred -- matches rest )` | arrays.h2o: the elements satisfying pred and the others, one pass, input order kept | n·xt | 2 arrays | O(n·xt) |

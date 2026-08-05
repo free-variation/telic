@@ -55,5 +55,5 @@ forget f1
 
 \ a fault inside a quotation names the fused op as its innermost frame,
 \ identically on native and wasm (span-classified body walk)
-: gather-one | >column >indices | indices [> i | column i @i :] map ;
+: gather-one | >column >indices | column indices [: 2 pick swap @i :] map nip ;
 [ 1 2 ] [ 5 ] gather-one

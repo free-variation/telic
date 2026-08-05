@@ -16,9 +16,14 @@ s0 . cr                       \ value - acc: 2->3->7
 : d0 | s | 2 to s 12 s f/ to s 18 s f/ to s s ;
 d0 . cr                       \ value / acc: 2->6->3
 
-\ depth 1 (accumulator from the enclosing scope, used inside the quotation)
-: q1 | s | 0 to s [: |> i | i s f+ to s :] 5 i-times s ;
+\ an enclosing scope's accumulator is out of reach from a quotation, so the fold
+\ carries it on the stack instead — which is what reduce is for
+: q1  5 iota 0 ' + reduce ;
 q1 . cr                       \ sum 0..4 = 10
 
-: q2 | p | 1 to p [: |> i | i 1+ p f* to p :] 4 i-times p ;
+: q2  4 iota 1 [> product i | i 1+ product * :] reduce ;
 q2 . cr                       \ 1*2*3*4 = 24
+
+clear
+\ === errors ===
+: q-outer | s | 0 to s [: |> i | i s f+ to s :] 5 i-times s ;  \ (accumulator in the enclosing frame)

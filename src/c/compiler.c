@@ -1048,6 +1048,15 @@ void p_to_var(DISPATCH_ARGS) {
 	DISPATCH(interp);
 }
 
+int reject_outer_local(Interpreter *interp, const char *token) {
+	if (compiler.found_local_scope >= compiler.n_local_scopes - 1)
+		return 0;
+
+	rollback_partial_definition();
+	fail(interp, "%s is not bound in this quotation; pass it in or use pick", token);
+	return 1;
+}
+
 void p_to(DISPATCH_ARGS) {
 	char *token = next_token();
 	if (!token) {
@@ -1058,6 +1067,8 @@ void p_to(DISPATCH_ARGS) {
 	if (compiler.compiling) {
 		int local_depth, local_slot_idx;
 		if (find_local(token, &local_depth, &local_slot_idx)) {
+			if (reject_outer_local(interp, token))
+				return;
 			compiler.local_stored[compiler.found_local_name_idx] = 1;
 			if (try_fuse_local_acc(interp, local_depth, local_slot_idx))
 				return;
@@ -1118,6 +1129,8 @@ static void compile_local_unary(Interpreter *interp, const char *op,
 	}
 	int depth, slot;
 	if (find_local(token, &depth, &slot)) {
+		if (reject_outer_local(interp, token))
+			return;
 		compiler.local_fetched[compiler.found_local_name_idx] = 1;
 		if (depth == 0) {
 			emit_call(interp, depth0_cfa);

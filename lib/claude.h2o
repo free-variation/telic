@@ -58,7 +58,7 @@
 	| attempts >messages |
 	3 to attempts
 	begin
-		[: messages try-call :] catch
+		messages ' try-call curry catch
 		0 = if exit then
 		-- attempts
 		attempts 1 < if throw then

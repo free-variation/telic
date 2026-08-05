@@ -17,8 +17,8 @@ import time as _t
 import numpy as np
 
 
-DEFAULT_N = 130
-DEFAULT_LOOPS = 150
+DEFAULT_N = 260
+DEFAULT_LOOPS = 1000
 
 
 def build_a(n):

@@ -12,10 +12,10 @@ num-cores 128 * to domain
 
 ( seed -- result )  \ a long, allocation-free float mill (2 FLOPs/iter)
 : crunch
-	| acc >seed |
-	seed 1.0 + to acc
-	[: acc seed + 0.5 * to acc :] iters times
-	acc ;
+	|> seed |
+	seed  seed 1.0 +
+	[: over + 0.5 * :] iters times
+	nip ;
 
 workers "cpu-stress-1pass: one pmap over all cores ({0} workers)" format . cr
 domain iters "  {1} items x {0} float-iters in a single region" format . cr

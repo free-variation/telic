@@ -134,6 +134,46 @@ void p_at_i_swap_local0(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip + 1, pushed_sp);
 }
 
+void p_at_i_depth_top(DISPATCH_ARGS) {
+	int array_depth = (int)chain_ip[0];
+	REQUIRE_STACK_DEPTH(interp, chain_ip + 1, chain_sp, array_depth + 1);
+	Val index_val = chain_sp[-1];
+	if (VAL_TAG(index_val) != T_FLOAT) {
+		SYNC_REGISTERS(interp, chain_ip + 1, chain_sp);
+		fail(interp, "expected a float index; got %s", tag_name(VAL_TAG(index_val)));
+		return;
+	}
+
+	Val source_val = chain_sp[-1 - array_depth];
+	Val *pushed_sp = array_index_fetch(interp, chain_ip + 1, chain_sp - 1, source_val, (int)VAL_NUMBER(index_val));
+	if (!pushed_sp)
+		return;
+
+	DISPATCH_REGISTERS(interp, chain_ip + 1, pushed_sp);
+}
+
+void p_at_i_depth(DISPATCH_ARGS) {
+	int array_depth = (int)chain_ip[0];
+	int index_depth = (int)chain_ip[1];
+	int deepest = array_depth > index_depth ? array_depth : index_depth;
+	REQUIRE_STACK_DEPTH(interp, chain_ip + 2, chain_sp, deepest + 1);
+	REQUIRE_STACK_ROOM(interp, chain_ip + 2, chain_sp, 1);
+
+	Val index_val = chain_sp[-1 - index_depth];
+	if (VAL_TAG(index_val) != T_FLOAT) {
+		SYNC_REGISTERS(interp, chain_ip + 2, chain_sp);
+		fail(interp, "expected a float index; got %s", tag_name(VAL_TAG(index_val)));
+		return;
+	}
+
+	Val source_val = chain_sp[-1 - array_depth];
+	Val *pushed_sp = array_index_fetch(interp, chain_ip + 2, chain_sp, source_val, (int)VAL_NUMBER(index_val));
+	if (!pushed_sp)
+		return;
+
+	DISPATCH_REGISTERS(interp, chain_ip + 2, pushed_sp);
+}
+
 void p_at_i_swap_local1(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip + 1, chain_sp, 1);
 	Val index_val = chain_sp[-1];

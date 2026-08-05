@@ -15,5 +15,5 @@
 0.5 1+ . cr           \ 1.5
 0.25 sq . cr          \ 0.0625
 
-\ inside a quotation, with times
-[: | n | 0 to n  [: n 1+ to n :] 7 times  n . cr :] execute
+\ inside a quotation, with times: the running value is on the stack
+[: 0  [: 1+ :] 7 times  . cr :] execute

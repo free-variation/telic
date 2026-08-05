@@ -1453,6 +1453,8 @@ void call_open_callable(Interpreter *interp, Val callable, CallContext *context)
 	context->rooted = 1;
 
 	context->reuses_locals = 0;
+	context->primitive = NULL;
+	context->hoisted = 0;
 	context->fast = 1;
 	context->leave_ip = 0;
 	context->saved_ip = interp->ip;
@@ -1477,6 +1479,7 @@ void call_open(Interpreter *interp, int cfa, CallContext *context) {
 
 	context->reuses_locals = 0;
 	context->rooted = 0;
+	context->primitive = handler == docol ? NULL : handler;
 
 	if (handler == dovar || handler == dosym || handler == dounit || handler == dodefer) {
 		context->fast = 0;
@@ -1496,6 +1499,14 @@ void call_open(Interpreter *interp, int cfa, CallContext *context) {
 	context->saved_loop_slots_ip = interp->loop_slots_ip;
 	interp->loop_body_start = 0;
 	interp->loop_slots_ip = -1;
+
+	context->hoisted = 0;
+	if (interp->call_depth < MAX_CALL_DEPTH) {
+		interp->call_depth++;
+		context->saved_run_floor = interp->run_floor;
+		interp->run_floor = interp->rsp;
+		context->hoisted = 1;
+	}
 
 	cell stop_handler = vocab.dict[vocab.stop_cfa];
 	if (handler == docol) {
@@ -1536,6 +1547,9 @@ void call_open(Interpreter *interp, int cfa, CallContext *context) {
 			interp->loop_local_base = interp->rsp;
 			interp->rsp += n_locals;
 			context->reuses_locals = 1;
+
+			if (context->hoisted)
+				interp->run_floor = interp->rsp;
 
 			interp->loop_n = n_received;
 			interp->loop_slots_ip = slots_ip;
@@ -1616,6 +1630,15 @@ void execute_xt(Interpreter *interp, int cfa) {
 	interp->running = saved_running;
 }
 
+static void dispatch_body_hoisted(Interpreter *interp, int body_start) {
+	interp->running = 1;
+	interp->ip = body_start + 1;
+	((cfa_handler)vocab.dict[body_start])(interp, vocab.dict + body_start + 1, interp->data_stack + interp->dsp);
+
+	if (interp->running && !interp->error_flag)
+		run_inner(interp, interp->run_floor);
+}
+
 void call_invoke(Interpreter *interp) {
 	if (interp->loop_body_start) {
 		interp->loop_local_refill = 0;
@@ -1639,11 +1662,11 @@ void call_invoke(Interpreter *interp) {
 		}
 
 		interp->dsp -= n;
-		dispatch_body(interp, interp->loop_body_start);
+		dispatch_body_hoisted(interp, interp->loop_body_start);
 		return;
 	}
 
-	dispatch_body(interp, interp->trampoline_base);
+	dispatch_body_hoisted(interp, interp->trampoline_base);
 }
 
 void call_close(Interpreter *interp, CallContext *context) {
@@ -1652,6 +1675,11 @@ void call_close(Interpreter *interp, CallContext *context) {
 
 	if (!context->fast)
 		return;
+
+	if (context->hoisted) {
+		interp->run_floor = context->saved_run_floor;
+		interp->call_depth--;
+	}
 	interp->running = context->saved_running;
 	interp->ip = context->saved_ip;
 	vocab.dict[interp->trampoline_base] = context->saved_slot_0;
@@ -2496,6 +2524,18 @@ static int at_e_l1l0_cfa;
 static int at_i_l1l0_cfa;
 static int at_i_swap_l0_cfa;
 static int at_i_swap_l1_cfa;
+static int at_i_depth_cfa;
+static int at_i_depth_top_cfa;
+static int add_f_depth_cfa;
+static int sub_f_depth_cfa;
+static int mul_f_depth_cfa;
+static int div_f_depth_cfa;
+static int pick_n_cfa;
+static int store_at_n_cfa;
+static int add_f_acc_cfa;
+static int sub_f_acc_cfa;
+static int mul_f_acc_cfa;
+static int div_f_acc_cfa;
 static int load2_cfa, load3_cfa;
 static int load2_1depth_cfa;
 
@@ -2739,6 +2779,151 @@ int try_fuse_at_i_swap_local(Interpreter *interp) {
 		return fuse_rewrite(interp, 3, at_i_swap_l1_cfa, dict[here - 2]);
 
 	return 0;
+}
+
+int try_fuse_pick_literal(Interpreter *interp) {
+	if (!compiler.compiling)
+		return 0;
+
+	cell *dict = vocab.dict;
+	int here = vocab.here;
+	if (here < 2 || here - 2 < compiler.fuse_floor)
+		return 0;
+
+	if (!dict_op_is(here - 2, p_literal))
+		return 0;
+
+	Val depth_val;
+	depth_val.bits = (uint64_t)dict[here - 1];
+	if (VAL_TAG(depth_val) != T_FLOAT)
+		return 0;
+
+	int depth = (int)VAL_NUMBER(depth_val);
+	if (depth < 0)
+		return 0;
+
+	return fuse_rewrite(interp, 2, pick_n_cfa, depth);
+}
+
+static int last_stack_read(int here, int *depth_out, int *cells_out) {
+	if (dict_op_is(here - 1, p_dup)) {
+		*depth_out = 0;
+		*cells_out = 1;
+		return 1;
+	}
+	if (dict_op_is(here - 1, p_over)) {
+		*depth_out = 1;
+		*cells_out = 1;
+		return 1;
+	}
+	if (here >= 2 && dict_op_is(here - 2, p_pick_n)) {
+		*depth_out = (int)vocab.dict[here - 1];
+		*cells_out = 2;
+		return 1;
+	}
+
+	return 0;
+}
+
+static int try_fuse_depth_op(Interpreter *interp, int fused_cfa) {
+	if (!compiler.compiling)
+		return 0;
+
+	int depth, cells;
+	if (!last_stack_read(vocab.here, &depth, &cells))
+		return 0;
+	if (vocab.here - cells < compiler.fuse_floor)
+		return 0;
+
+	return fuse_rewrite(interp, cells, fused_cfa, depth);
+}
+
+static int depth_acc_for(cell handler) {
+	if (handler == (cell)p_add_f_depth) return add_f_acc_cfa;
+	if (handler == (cell)p_sub_f_depth) return sub_f_acc_cfa;
+	if (handler == (cell)p_mul_f_depth) return mul_f_acc_cfa;
+	if (handler == (cell)p_div_f_depth) return div_f_acc_cfa;
+
+	return 0;
+}
+
+int try_fuse_store_at(Interpreter *interp) {
+	if (!compiler.compiling)
+		return 0;
+
+	cell *dict = vocab.dict;
+	int here = vocab.here;
+	if (here < 2 || here - 2 < compiler.fuse_floor)
+		return 0;
+
+	if (!dict_op_is(here - 2, p_literal))
+		return 0;
+
+	Val depth_val;
+	depth_val.bits = (uint64_t)dict[here - 1];
+	if (VAL_TAG(depth_val) != T_FLOAT)
+		return 0;
+
+	int depth = (int)VAL_NUMBER(depth_val);
+	if (depth < 1)
+		return 0;
+
+	if (here >= 4 && here - 4 >= compiler.fuse_floor && (int)dict[here - 3] == depth) {
+		int acc_cfa = depth_acc_for(dict[here - 4]);
+		if (acc_cfa)
+			return fuse_rewrite(interp, 4, acc_cfa, depth);
+	}
+
+	return fuse_rewrite(interp, 2, store_at_n_cfa, depth);
+}
+
+int try_fuse_float_depth(Interpreter *interp, int op_cfa) {
+	int fused_cfa = 0;
+	if (op_cfa == vocab.add_f_cfa)
+		fused_cfa = add_f_depth_cfa;
+	else if (op_cfa == vocab.sub_f_cfa)
+		fused_cfa = sub_f_depth_cfa;
+	else if (op_cfa == vocab.mul_f_cfa)
+		fused_cfa = mul_f_depth_cfa;
+	else if (op_cfa == vocab.div_f_cfa)
+		fused_cfa = div_f_depth_cfa;
+
+	if (!fused_cfa)
+		return 0;
+
+	return try_fuse_depth_op(interp, fused_cfa);
+}
+
+int try_fuse_at_i_depth(Interpreter *interp) {
+	if (!compiler.compiling)
+		return 0;
+
+	int array_depth, array_cells;
+
+	if (dict_op_is(vocab.here - 1, p_swap)) {
+		if (!last_stack_read(vocab.here - 1, &array_depth, &array_cells))
+			return 0;
+		if (vocab.here - 1 - array_cells < compiler.fuse_floor)
+			return 0;
+
+		return fuse_rewrite(interp, array_cells + 1, at_i_depth_top_cfa, array_depth);
+	}
+
+	int index_depth, index_cells;
+	if (!last_stack_read(vocab.here, &index_depth, &index_cells))
+		return 0;
+
+	if (!last_stack_read(vocab.here - index_cells, &array_depth, &array_cells))
+		return 0;
+
+	if (vocab.here - index_cells - array_cells < compiler.fuse_floor)
+		return 0;
+
+	if (index_depth < 1)
+		return 0;
+
+	return fuse_rewrite_pair(interp, index_cells + array_cells, at_i_depth_cfa,
+			array_depth, index_depth - 1);
 }
 
 int try_fuse_at_e_ll(Interpreter *interp) {
@@ -3094,6 +3279,7 @@ int find_local(const char *token, int *depth_out, int *slot_out) {
 			*depth_out = depth;
 			*slot_out = name_idx - slice_start;
 			compiler.found_local_name_idx = name_idx;
+			compiler.found_local_scope = scope;
 			return 1;
 		}
 	}
@@ -3267,6 +3453,8 @@ static int try_frame_key_token(Interpreter *interp, const char *token) {
 		return 0;
 
 	if (left_is_local) {
+		if (reject_outer_local(interp, text))
+			return 0;
 		compiler.local_fetched[compiler.found_local_name_idx] = 1;
 		emit_local_fetch(interp, left_depth, left_slot);
 	} else if (left_cfa) {
@@ -3358,6 +3546,8 @@ void run_outer(Interpreter *interp) {
 		if (compiler.compiling) {
 			int local_depth, local_slot_idx;
 			if (find_local(tok, &local_depth, &local_slot_idx)) {
+				if (reject_outer_local(interp, tok))
+					return;
 				compiler.local_fetched[compiler.found_local_name_idx] = 1;
 				emit_local_fetch(interp, local_depth, local_slot_idx);
 				continue;
@@ -3956,7 +4146,8 @@ int op_cell_count(int cursor) {
 	    || handler == (cell)p_at_i_ll0
 	    || handler == (cell)p_at_i_l1l0
 	    || handler == (cell)p_at_e_ll0
-	    || handler == (cell)p_at_e_l1l0)
+	    || handler == (cell)p_at_e_l1l0
+	    || handler == (cell)p_at_i_depth)
 		return 3;
 
 	if (handler == vocab.dict[vocab.literal_cfa]
@@ -3967,6 +4158,17 @@ int op_cell_count(int cursor) {
 	    || handler == (cell)p_at_i_local0
 	    || handler == (cell)p_at_i_swap_local0
 	    || handler == (cell)p_at_i_swap_local1
+	    || handler == (cell)p_at_i_depth_top
+	    || handler == (cell)p_store_at_n
+	    || handler == (cell)p_add_f_acc
+	    || handler == (cell)p_sub_f_acc
+	    || handler == (cell)p_mul_f_acc
+	    || handler == (cell)p_div_f_acc
+	    || handler == (cell)p_add_f_depth
+	    || handler == (cell)p_sub_f_depth
+	    || handler == (cell)p_mul_f_depth
+	    || handler == (cell)p_div_f_depth
+	    || handler == (cell)p_pick_n
 	    || handler == (cell)p_at_i_lit
 	    || handler == (cell)p_at_e_local0
 	    || handler == (cell)p_at_e_lit
@@ -4656,9 +4858,9 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "-!", p_sub_inplace, 0);
 	define_primitive(interp, "*!", p_mul_inplace, 0);
 	define_primitive(interp, "/!", p_div_inplace, 0);
-	define_primitive(interp, "f+", p_add_f, 0);
-	define_primitive(interp, "f-", p_sub_f, 0);
-	define_primitive(interp, "f*", p_mul_f, 0);
+	vocab.add_f_cfa = define_primitive(interp, "f+", p_add_f, 0);
+	vocab.sub_f_cfa = define_primitive(interp, "f-", p_sub_f, 0);
+	vocab.mul_f_cfa = define_primitive(interp, "f*", p_mul_f, 0);
 	vocab.eq_f_cfa = define_primitive(interp, "f=", p_eq_f, 0);
 	vocab.lt_f_cfa = define_primitive(interp, "f<", p_lt_f, 0);
 	vocab.gt_f_cfa = define_primitive(interp, "f>", p_gt_f, 0);
@@ -4671,7 +4873,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "rshift", p_rshift, 0);
 	define_primitive(interp, "bit-not", p_bit_not, 0);
 	define_primitive(interp, "lowest-bit", p_lowest_bit, 0);
-	define_primitive(interp, "f/", p_div_f, 0);
+	vocab.div_f_cfa = define_primitive(interp, "f/", p_div_f, 0);
 	define_primitive(interp, "f^", p_fpow, 0);
 	define_primitive(interp, "fmod", p_fmodop, 0);
 	define_primitive(interp, "fabs", p_fabs, 0);
@@ -4708,7 +4910,8 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "over", p_over, 0);
 	define_primitive(interp, "rot", p_rot, 0);
 	define_primitive(interp, "depth", p_depth, 0);
-	define_primitive(interp, "pick", p_pick, 0);
+	vocab.pick_cfa = define_primitive(interp, "pick", p_pick, 0);
+	vocab.store_at_cfa = define_primitive(interp, "!at", p_store_at, 0);
 	define_primitive(interp, "roll", p_roll, 0);
 	define_primitive(interp, "this", p_this, 0);
 	define_primitive(interp, "that", p_that, 0);
@@ -4850,6 +5053,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "ncurry", p_ncurry, 0);
 	define_primitive(interp, "(execute-catching)", p_execute_catching, 4);
 	define_primitive(interp, "map", p_map, 0);
+	define_primitive(interp, "each", p_each, 0);
 	define_primitive(interp, "nmap", p_nmap, 0);
 	define_primitive(interp, "filter", p_filter, 0);
 	define_primitive(interp, "find-first", p_find_first, 0);
@@ -4913,7 +5117,19 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	at_i_l1l0_cfa = define_primitive(interp, "(@i.l1l0)", p_at_i_l1l0, 4);
 	at_i_swap_l0_cfa = define_primitive(interp, "(@i.swap.l0)", p_at_i_swap_local0, 4);
 	at_i_swap_l1_cfa = define_primitive(interp, "(@i.swap.l1)", p_at_i_swap_local1, 4);
+	at_i_depth_cfa = define_primitive(interp, "(@i.dd)", p_at_i_depth, 4);
+	at_i_depth_top_cfa = define_primitive(interp, "(@i.d)", p_at_i_depth_top, 4);
+	add_f_depth_cfa = define_primitive(interp, "(f+.d)", p_add_f_depth, 4);
+	sub_f_depth_cfa = define_primitive(interp, "(f-.d)", p_sub_f_depth, 4);
+	mul_f_depth_cfa = define_primitive(interp, "(f*.d)", p_mul_f_depth, 4);
+	div_f_depth_cfa = define_primitive(interp, "(f/.d)", p_div_f_depth, 4);
 	define_primitive(interp, "(enter-curried)", p_enter_curried, 4);
+	pick_n_cfa = define_primitive(interp, "(pick.n)", p_pick_n, 4);
+	store_at_n_cfa = define_primitive(interp, "(!at.n)", p_store_at_n, 4);
+	add_f_acc_cfa = define_primitive(interp, "(f+.acc)", p_add_f_acc, 4);
+	sub_f_acc_cfa = define_primitive(interp, "(f-.acc)", p_sub_f_acc, 4);
+	mul_f_acc_cfa = define_primitive(interp, "(f*.acc)", p_mul_f_acc, 4);
+	div_f_acc_cfa = define_primitive(interp, "(f/.acc)", p_div_f_acc, 4);
 	define_primitive(interp, "(@i.array)", p_at_i_array, 4);
 	define_primitive(interp, "(@i.segment)", p_at_i_segment, 4);
 	at_e_lit_cfa = define_primitive(interp, "(@e.lit)", p_at_e_lit, 4);
@@ -5058,6 +5274,9 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "lgamma", p_lgamma, 0);
 	define_primitive(interp, "^", p_power, 0);
 	define_primitive(interp, "%", p_divmod, 0);
+	define_primitive(interp, "mod", p_mod, 0);
+	define_primitive(interp, "min2", p_min2, 0);
+	define_primitive(interp, "max2", p_max2, 0);
 	define_primitive(interp, "sin", p_sin, 0);
 	define_primitive(interp, "cos", p_cos, 0);
 	define_primitive(interp, "tan", p_tan, 0);

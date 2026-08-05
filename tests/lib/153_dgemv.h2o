@@ -1,0 +1,42 @@
+\ dgemv-n / dgemv-t ( alpha A x beta y -- r ): matrix-vector products through
+\ cblas_dgemv, with x and y as n x 1 columns and a fresh result copied from y.
+\ Every case is checked against the dgemm word that computes the same thing with
+\ the column as a one-column matrix, since that equivalence is the contract --
+\ dgemv exists for its lower per-call cost, not for different arithmetic.
+
+"statistics" load-library
+
+\ === load leaves the stack as it found it ===
+depth . cr                             \ 0
+
+\ === A*x agrees with dgemm-nn, transposed with dgemm-tn ===
+[ 1.0 2.0 3.0  4.0 5.0 6.0 ] 2 3 matrix constant a-mat
+[ 1.0 1.0 2.0 ] 3 1 matrix constant col3
+[ 1.0 2.0 ] 2 1 matrix constant col2
+
+1 a-mat col3 0 2 1 0-matrix dgemv-n . cr    \ 2x1: 9 21
+1 a-mat col3 0 2 1 0-matrix dgemm-nn . cr   \ 2x1: 9 21 (same)
+1 a-mat col2 0 3 1 0-matrix dgemv-t . cr    \ 3x1: 9 12 15
+1 a-mat col2 0 3 1 0-matrix dgemm-tn . cr   \ 3x1: 9 12 15 (same)
+
+\ === alpha and beta scale the product and the accumulator ===
+2 a-mat col3 3 col2 dgemv-n . cr            \ 2x1: 21 48
+2 a-mat col3 3 col2 dgemm-nn . cr           \ 2x1: 21 48 (same)
+
+\ === y is copied, not overwritten in place ===
+2 a-mat col3 3 col2 dgemv-n drop
+col2 . cr                                   \ 2x1: 1 2
+
+\ === a square matrix works both ways (the AtA pattern) ===
+[ 1.0 2.0  3.0 4.0 ] 2 2 matrix constant sq
+1 sq col2 0 2 1 0-matrix dgemv-n  1 sq rot 0 2 1 0-matrix dgemv-t . cr   \ 2x1: 38 54
+
+clear
+
+\ === errors (wrong operand length for the chosen orientation) ===
+[: 1 a-mat col2 0 2 1 0-matrix dgemv-n :] catch drop . cr   \ x too short for A's columns
+[: 1 a-mat col3 0 3 1 0-matrix dgemv-n :] catch drop . cr   \ y too long for A's rows
+[: 1 a-mat col3 0 3 1 0-matrix dgemv-t :] catch drop . cr   \ transposed wants x of A's rows
+[: 1 a-mat [ 1.0 2.0 ] 1 2 matrix 0 2 1 0-matrix dgemv-n :] catch drop . cr   \ x a row, not a column
+
+bye

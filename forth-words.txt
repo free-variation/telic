@@ -1,4 +1,5 @@
 !
+!at
 !e
 !i
 !i,j
@@ -187,6 +188,8 @@ dgemm-nn
 dgemm-nt
 dgemm-tn
 dgemm-tt
+dgemv-n
+dgemv-t
 diagonal
 diagonal-matrix
 difference

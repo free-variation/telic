@@ -18,7 +18,7 @@ variable cycles
   * ;
 
 : check-perm
-  valid? if solutions f1+ to solutions then ;
+  valid? if f++ solutions then ;
 
 : rotate-left ( i -- )
   | >i tmp j |

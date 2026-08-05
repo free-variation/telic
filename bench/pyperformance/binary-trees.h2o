@@ -10,11 +10,11 @@
 
 : make-tree ( depth -- tree )
   dup 0= if drop null
-  else 1- dup recurse swap recurse cons then ;
+  else f1- dup recurse swap recurse cons then ;
 
 : tree-check ( tree -- n )
   dup none? if drop 1
-  else head-tail recurse swap recurse + 1+ then ;
+  else head-tail recurse swap recurse f+ f1+ then ;
 
 : run-trees ( -- checksum )
   | total d iterations sum i |
@@ -27,8 +27,8 @@
     0 to sum
     0 to i
     begin i iterations < while
-      d make-tree tree-check sum + to sum
-      i 1+ to i
+      d make-tree tree-check sum f+ to sum
+      f++ i
     repeat
     sum total + to total
     d 2 + to d

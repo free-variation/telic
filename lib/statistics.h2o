@@ -17,6 +17,13 @@ dup "cblas_dgemm" [
 					   :ptr :int \ b ldb
 					   :double :ptr :int \ beta c ldc
 				   ] :void ffi-function (cblas-dgemm)
+dup "cblas_dgemv" [
+					   :int :int \ order transa
+					   :int :int \ m n
+					   :double :ptr :int \ alpha a lda
+					   :ptr :int \ x incx
+					   :double :ptr :int \ beta y incy
+				   ] :void ffi-function (cblas-dgemv)
 >side
 
 ( m -- columns ) \ the row-major leading dimension
@@ -48,6 +55,35 @@ dup "cblas_dgemm" [
 : dgemm-tn 1 0 accel-dgemm ;
 : dgemm-nt 0 1 accel-dgemm ;
 : dgemm-tt 1 1 accel-dgemm ;
+
+( alpha A x beta y ta -- r ) \ r = alpha op(A) x + beta y via cblas, x and y columns
+: accel-dgemv
+	| >alpha >a >x >beta >y >ta rows cols x-rows x-cols y-rows y-cols x-len y-len r |
+	a dim to cols to rows
+	x dim to x-cols to x-rows
+	y dim to y-cols to y-rows
+	ta if rows else cols then to x-len
+	ta if cols else rows then to y-len
+	x-cols 1 =  x-rows x-len =  and not if
+		x-len "dgemv: x must be a column of length {0}" format throw
+	then
+	y-cols 1 =  y-rows y-len =  and not if
+		y-len "dgemv: y must be a column of length {0}" format throw
+	then
+
+	\ beta 0 means cblas never reads y, so a fresh column serves and the copy of
+	\ y's elements is dead work
+	beta 0 = if y-len 1 0-matrix else y copy then to r
+	101  111 ta +  rows cols  alpha
+	a matrix>pointer  cols
+	x matrix>pointer  1
+	beta
+	r matrix>pointer  1
+	(cblas-dgemv)
+	r ; internal
+
+: dgemv-n 0 accel-dgemv ;
+: dgemv-t 1 accel-dgemv ;
 
 side>
 
@@ -84,6 +120,7 @@ dup "LAPACKE_dpotrs" [
 						 :ptr :int \ a (the cholesky factor) lda
 						 :ptr :int \ b (rhs, overwritten with the solution) ldb
 					 ] :int ffi-function (dpotrs)
+drop
 
 : svd ( A -- U S VT )
 	| a rows cols min-dim u s vt superb info |
@@ -291,13 +328,15 @@ dup "LAPACKE_dpotrs" [
 	X with-intercept y augment to xy
 	units n-folds cv-folds to folds
 	lambdas
-	[> lambda |
+	folds xy
+	[> lambda folds xy |
 		folds
-		[> fold |
+		xy lambda
+		[> fold xy lambda |
 			fold 0 @i  fold 1 @i  xy lambda
 			' cv-ridge-cell curry curry curry curry :]
-		map :]
-	map flatten-array
+		2curry map :]
+	2curry map flatten-array
 	[: execute :] mapper execute
 	vector lambdas size n-folds reshape row-means to losses
 	{ :lambdas lambdas
@@ -382,15 +421,17 @@ drop
 	booster-cell pointer-deref to booster
 
 	params keys [: :rounds = not :] filter
-	[> key | 
-	   booster key "{0}" format 
-	   params key @ "{0}" format 
+	booster params
+	[> key booster params |
+	   booster key "{0}" format
+	   params key @ "{0}" format
 	   (xgb-set-param) xgb-check
-	:] each
+	:] 2curry each
 
-	[> i |
-	   booster i dmatrix (xgb-update) xgb-check 
-	:] rounds i-times
+	booster dmatrix
+	[> i booster dmatrix |
+	   booster i dmatrix (xgb-update) xgb-check
+	:] 2curry rounds i-times
 
 	dmatrix (xgd-free) xgb-check
 	dmatrix-cell ffi-free booster-cell ffi-free
@@ -442,9 +483,10 @@ drop
 	n 0 > if
 		scores-cell pointer-deref n floats>matrix matrix>array to scores
 		features-cell pointer-deref to names
-		[> i |
+		dense names scores
+		[> i dense names scores |
 		   dense  names i pointer-string-at string>number  0  scores i @i  !i,j drop
-		:] n i-times
+		:] 3 ncurry n i-times
 	then
 
 	k-cell ffi-free n-cell ffi-free features-cell ffi-free
@@ -547,9 +589,9 @@ drop
 	then
 
 	X n-columns to n-predictors
-	y max 1+ iota [: reference-class = not :] filter to classes
+	reference-class  y max 1+ iota  [: 2 pick = not :] filter  nip to classes
 	classes size to n-nonreference-classes
-	classes [: y swap eq :] map hstack-all to response
+	y classes [: 2 pick swap eq :] map nip hstack-all to response
 	n-predictors n-nonreference-classes 0-matrix to beta
 
 	n-predictors 1 0-matrix 1 + 0 0 0 !i,j to intercept-mask
@@ -566,11 +608,15 @@ drop
 		1 X response probs - 0 n-predictors n-nonreference-classes 0-matrix dgemm-tn
 		lambda beta penalty-mask * * - to gradient
 
-		n-nonreference-classes iota 
-		[> row-class |
-		   n-nonreference-classes iota 
-		   [: X probs probs row-class @j row-class information-block :] map hstack-all
-		:] map vstack-all  penalty-diagonal +  to information
+		n-nonreference-classes iota
+		n-nonreference-classes X probs
+		[> row-class n-nonreference-classes X probs |
+		   n-nonreference-classes iota
+		   X probs row-class
+		   [> column-class X probs row-class |
+			  column-class X probs  probs row-class @j  row-class  information-block :]
+		   3 ncurry map hstack-all
+		:] 3 ncurry map vstack-all  penalty-diagonal +  to information
 
 		information gradient transpose n-predictors n-nonreference-classes * 1 reshape
 		fit-linear to delta
@@ -600,13 +646,15 @@ drop
 	X n-rows to n-observations
 	1 X beta 0 n-observations n-nonreference-classes 0-matrix dgemm-nn exp to class-weights
 	class-weights row-sums 1 + to weight-total
-	n-classes iota [> label |
+	n-classes iota
+	reference-class class-weights weight-total
+	[> label reference-class class-weights weight-total |
 		label reference-class = if
 			1 weight-total /
 		else
 			class-weights  label reference-class > if label 1 - else label then  @j  weight-total /
 		then
-	:] map hstack-all ;
+	:] 3 ncurry map hstack-all ;
 
 \ ---- Negative binomial (NB2): variance mu + mu^2/theta, log link ----
 \ theta is the dispersion; as theta grows the variance approaches the mean and
@@ -657,7 +705,7 @@ drop
 \ centres on that factor instead, so an answer near the top means Poisson fits
 : negative-binomial-theta
 	| >y >mu log-bracket-factor log-centre section-fraction
-	  log-low log-high log-probe-low log-probe-high |
+	  log-low log-high log-probe-low log-probe-high narrowings |
 
 	PHI 1- to section-fraction
 	1000 ln to log-bracket-factor
@@ -667,15 +715,19 @@ drop
 	log-centre log-bracket-factor - to log-low
 	log-centre log-bracket-factor + to log-high
 
-	[: log-high  log-high log-low - section-fraction *  - to log-probe-low
-	   log-low   log-high log-low - section-fraction *  + to log-probe-high
-	   y mu log-probe-low exp negative-binomial-loglik
-	   y mu log-probe-high exp negative-binomial-loglik
-	   < if 
-		   log-probe-low to log-low
-	   else
-		   log-probe-high to log-high
-	   then :] 60 times
+	0 to narrowings
+	begin narrowings 60 < while
+		log-high  log-high log-low - section-fraction *  - to log-probe-low
+		log-low   log-high log-low - section-fraction *  + to log-probe-high
+		y mu log-probe-low exp negative-binomial-loglik
+		y mu log-probe-high exp negative-binomial-loglik
+		< if
+			log-probe-low to log-low
+		else
+			log-probe-high to log-high
+		then
+		f++ narrowings
+	repeat
 
 	log-low log-high + 2 / exp ;
 

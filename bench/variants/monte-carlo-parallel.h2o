@@ -17,10 +17,9 @@ variable est
 variable t0
 
 : partial ( j -- hits )
-  | >j hits |
-  0.0 to hits
-  [: random random fsq swap fsq f+ 1.0 > 0= if f++ hits then :] chunk times
-  hits ;
+  drop
+  0.0
+  [: random random fsq swap fsq f+ 1.0 > 0= if 1.0 f+ then :] chunk times ;
 
 : pmonte
   samples workers / to chunk

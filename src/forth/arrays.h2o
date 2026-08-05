@@ -16,9 +16,6 @@ inline
 ( items pred -- flag )  \ do all elements satisfy pred?
 : all?  map 1 [: * :] reduce ;
 
-( items xt -- )  \ run xt ( element -- ) on each element, for side effects
-: each  [: over execute :] reduce drop ;
-
 ( items xt -- items' )  \ xt maps an element to an array; results concatenated
 : flat-map  map flatten-array ;
 inline

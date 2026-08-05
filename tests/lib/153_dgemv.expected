@@ -1,0 +1,39 @@
+0 
+<matrix 2x1>
+          9
+         21
+
+<matrix 2x1>
+          9
+         21
+
+<matrix 3x1>
+          9
+         12
+         15
+
+<matrix 3x1>
+          9
+         12
+         15
+
+<matrix 2x1>
+         21
+         48
+
+<matrix 2x1>
+         21
+         48
+
+<matrix 2x1>
+          1
+          2
+
+<matrix 2x1>
+         38
+         54
+
+dgemv: x must be a column of length 3 
+dgemv: y must be a column of length 2 
+dgemv: x must be a column of length 2 
+dgemv: x must be a column of length 3 

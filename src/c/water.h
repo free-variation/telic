@@ -1,7 +1,7 @@
 #ifndef WATER_H
 #define WATER_H
 
-#define VERSION "0.25.1"
+#define VERSION "0.26.0"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -473,6 +473,9 @@ typedef struct Vocabulary {
 	int eq_f_cfa, lt_f_cfa, gt_f_cfa;
 	int lte_cfa, gte_cfa, lte_f_cfa, gte_f_cfa;
 	int at_i_cfa;
+	int pick_cfa;
+	int store_at_cfa;
+	int add_f_cfa, sub_f_cfa, mul_f_cfa, div_f_cfa;
 	int at_e_cfa;
 	int eq_zbranch_cfa, lt_zbranch_cfa, gt_zbranch_cfa, zeq_zbranch_cfa;
 	int eq_f_zbranch_cfa, lt_f_zbranch_cfa, gt_f_zbranch_cfa;
@@ -584,6 +587,7 @@ typedef struct {
 	char local_fetched[MAX_LOCAL_NAMES];
 	char local_stored[MAX_LOCAL_NAMES];
 	int found_local_name_idx;
+	int found_local_scope;
 	int n_local_names;
 	int local_scope_starts[MAX_LOCAL_SCOPES];
 	int local_scope_dict_starts[MAX_LOCAL_SCOPES];
@@ -638,6 +642,9 @@ typedef struct {
 	int fast;
 	int reuses_locals;
 	int rooted;
+	cfa_handler primitive;
+	int hoisted;
+	int saved_run_floor;
 	int saved_loop_local_base;
 
 	int saved_loop_body_start;
@@ -968,6 +975,10 @@ int try_fuse_at_i_lit(Interpreter *interp);
 int try_fuse_at_i_ll(Interpreter *interp);
 int try_fuse_at_i_local(Interpreter *interp);
 int try_fuse_at_i_swap_local(Interpreter *interp);
+int try_fuse_at_i_depth(Interpreter *interp);
+int try_fuse_float_depth(Interpreter *interp, int op_cfa);
+int try_fuse_store_at(Interpreter *interp);
+int try_fuse_pick_literal(Interpreter *interp);
 int try_fuse_gather_local(Interpreter *interp);
 int try_fuse_local_acc(Interpreter *interp, int depth, int slot);
 int try_fuse_local_arith_store(Interpreter *interp, int depth, int slot);
@@ -990,6 +1001,7 @@ void type_of_intern_names(Interpreter *interp);
 void unary_op(Interpreter *interp, Val operand, double (*function)(double));
 
 int create_variable(Interpreter *interp, const char *name);
+int reject_outer_local(Interpreter *interp, const char *token);
 void rollback_partial_definition(void);
 void truncate_quotation_spans(void);
 int try_demonstrative(Interpreter *interp, const char *token);
@@ -1125,6 +1137,16 @@ void p_abs(DISPATCH_ARGS);
 void p_acos(DISPATCH_ARGS);
 void p_add(DISPATCH_ARGS);
 void p_add_f(DISPATCH_ARGS);
+void p_add_f_depth(DISPATCH_ARGS);
+void p_div_f_depth(DISPATCH_ARGS);
+void p_mul_f_depth(DISPATCH_ARGS);
+void p_add_f_acc(DISPATCH_ARGS);
+void p_div_f_acc(DISPATCH_ARGS);
+void p_mul_f_acc(DISPATCH_ARGS);
+void p_store_at(DISPATCH_ARGS);
+void p_store_at_n(DISPATCH_ARGS);
+void p_sub_f_acc(DISPATCH_ARGS);
+void p_sub_f_depth(DISPATCH_ARGS);
 void p_add_inplace(DISPATCH_ARGS);
 void p_and(DISPATCH_ARGS);
 void p_apropos(DISPATCH_ARGS);
@@ -1210,6 +1232,9 @@ void p_lte_f(DISPATCH_ARGS);
 void p_lte_f_zbranch(DISPATCH_ARGS);
 void p_lte_zbranch(DISPATCH_ARGS);
 void p_man(DISPATCH_ARGS);
+void p_max2(DISPATCH_ARGS);
+void p_min2(DISPATCH_ARGS);
+void p_mod(DISPATCH_ARGS);
 void p_mul(DISPATCH_ARGS);
 void p_mul_f(DISPATCH_ARGS);
 void p_mul_inplace(DISPATCH_ARGS);
@@ -1222,6 +1247,7 @@ void p_null(DISPATCH_ARGS);
 void p_or(DISPATCH_ARGS);
 void p_over(DISPATCH_ARGS);
 void p_pick(DISPATCH_ARGS);
+void p_pick_n(DISPATCH_ARGS);
 void p_power(DISPATCH_ARGS);
 void p_random(DISPATCH_ARGS);
 void p_random_int(DISPATCH_ARGS);
@@ -1458,6 +1484,8 @@ void p_at_i_local0(DISPATCH_ARGS);
 void p_at_i_segment(DISPATCH_ARGS);
 void p_at_i_swap_local0(DISPATCH_ARGS);
 void p_at_i_swap_local1(DISPATCH_ARGS);
+void p_at_i_depth(DISPATCH_ARGS);
+void p_at_i_depth_top(DISPATCH_ARGS);
 void p_dec_store_i(DISPATCH_ARGS);
 void p_div_store_i(DISPATCH_ARGS);
 void p_gather_local0(DISPATCH_ARGS);
@@ -1473,6 +1501,7 @@ void p_filter(DISPATCH_ARGS);
 void p_find_first(DISPATCH_ARGS);
 void p_i_times(DISPATCH_ARGS);
 void p_map(DISPATCH_ARGS);
+void p_each(DISPATCH_ARGS);
 void p_nmap(DISPATCH_ARGS);
 void p_num_cores(DISPATCH_ARGS);
 void p_pfilter(DISPATCH_ARGS);
@@ -1623,6 +1652,11 @@ static inline void push_curried_bindings(Interpreter *interp, Val callable) {
 
 static inline void call_step(Interpreter *interp, CallContext *context, int cfa) {
 	if (context->fast) {
+		if (context->primitive) {
+			context->primitive(interp, vocab.dict + interp->trampoline_base + 1,
+					interp->data_stack + interp->dsp);
+			return;
+		}
 		if (context->reuses_locals)
 			interp->loop_local_refill = 1;
 		call_invoke(interp);

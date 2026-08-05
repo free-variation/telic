@@ -1,7 +1,8 @@
 """scimark SparseMatMult — port of pyperformance bm_scimark sparse kernel.
-Random and SparseCompRow_matmult are verbatim from pyperformance; pyperformance
-leaves val/x zero, but the original SciMark fills them via RandomVector, which we
-do here so the checksum (sum of y) verifies real arithmetic. Cycles from argv."""
+Random and SparseCompRow_matmult are verbatim from pyperformance, and val/x are
+left zero as bench_SparseMatMult leaves them, so this measures loop throughput
+and the checksum (sum of y) is 0. The arithmetic on seeded data is checked by
+tests/152_scimark_kernels.h2o instead. Cycles from argv."""
 
 from array import array
 
@@ -75,9 +76,8 @@ if __name__ == "__main__":
     nr = nz // N
     anz = nr * N
 
-    rnd = Random(101)
-    x = rnd.RandomVector(N)
-    val = rnd.RandomVector(anz)
+    x = array('d', [0]) * N
+    val = array('d', [0]) * anz
     y = array('d', [0]) * N
     col = array('i', [0]) * nz
     row = array('i', [0]) * (N + 1)

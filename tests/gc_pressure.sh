@@ -45,6 +45,9 @@ printf "GC-rooting-under-pressure tests:\n"
 exact "binary_op operands stay rooted" \
   ': pressure | acc i | 0 to acc 0 to i begin i 500 < while [ 1 2 3 4 5 6 7 8 ] vector 2 ^ sum acc + to acc f++ i repeat acc ; pressure . cr' \
   "102000 " 500
+exact "mod operands stay rooted" \
+  ': pressure | acc i | 0 to acc 0 to i begin i 500 < while [ 5 7 9 11 ] vector 3 mod sum acc + to acc f++ i repeat acc ; pressure . cr' \
+  "2500 " 500
 exact "unary_op operand stays rooted" \
   ': pressure | acc i | 0 to acc 0 to i begin i 500 < while [ 1 2 3 ] vector exp sum acc + to acc f++ i repeat acc round ; pressure . cr' \
   "15096 " 500
