@@ -70,7 +70,7 @@ wall-now 2 week + time>iso .            \ the ISO timestamp two weeks from now
 [< 1 2 3 >] [< 2 3 4 >] + .                 \ [< 1 2 3 4 >]  (union via polymorphic +)
 
 \ Set-builder { x² | x ∈ 1..10, even x } — literal + filter/map + destruct
-[< 1 10 range [: 2 mod 0= :] filter [: fsq :] map destruct >] .   \ [< 4 16 36 64 100 >]
+[< 1 10 range [: 2 mod 0= :] filter ' fsq map destruct >] .   \ [< 4 16 36 64 100 >]
 
 \ Frames — symbol-keyed nested maps
 { :a 1 :b { :c 2 } } /b/c @ .           \ 2
@@ -230,7 +230,7 @@ departs from its pyperformance original the file's header says so.
 - **Norms** — `norm` (Euclidean/L2) and `frobenius-norm`, both √(Σ elements²) over the matrix; `dot` ( v w -- f ) is the inner product.
 - **Descriptive statistics** — `var` (sample variance) and `quantile` (linearly interpolated at p ∈ [0,1]) over all elements, and `ks-distance` (the two-sample Kolmogorov–Smirnov statistic); the embedded statistics library layers `std`, `se`, `median`, `percentile`, `quantiles` (R's `quantile(x, probs)` over an array of probabilities), `iqr`, `ci`, `summary` (on vectors and per-column on datasets), `histogram-table`, `ecdf`, `binomial-deviance`, `cross-validate` (k-fold over caller-defined units), and the `bootstrap` family; the loadable LAPACK library adds `fit-logistic-ridge` and `cv-logistic-ridge`/`pcv-logistic-ridge` (L2 path selection, serial or parallel) on these — all wasm-capable. The statistics skip NaN elements (missing values) and divide by the non-NaN count (`nonmissing-count`); the correlations and regressions use complete cases.
 - **Correlations** — `correlation-pearson`, `correlation-spearman` (pearson on `ranks`), `correlation-kendall` (tau-b, O(n log n) C kernel); `correlate-with` bootstraps a 95% CI for any of them, and `cor` is kendall + 500 replicates in one word; `qnorm` is the standard normal quantile.
-- **Regression trees** — `fit-tree` grows a CART regression tree over a features frame and a numeric response: numeric columns split at a midpoint threshold, array columns are native categoricals split on a mean-ordered subset, and rows missing a numeric feature follow a per-split default direction learned from the split criterion. It returns the tree as a nested frame — `:prediction` and `:n_rows` at every node, `:feature` with `:threshold` or `:categories` at internal nodes, optional per-leaf `:responses` — and takes a params frame (`:max-depth`, `:min-samples`, `:store-leaf-responses`). `pfit-tree` is the parallel form, growing independent subtrees across cores into a byte-identical tree. `predict` applies a tree to a features frame, walking each row to its leaf (a numeric split sends value ≤ threshold left; a categorical split sends set membership left, an unseen value right). `feature-importance` ranks the features by normalized impurity reduction. `prune` cost-complexity-prunes a fitted tree at a given complexity, and `prune-cv` fits then prunes at the `alpha` chosen by k-fold cross-validation with the 1-SE rule. `draw-tree` prints the tree as indented rules, and `lib/plot.h2o`'s `plot-tree` renders it as an SVG node-link diagram.
+- **Regression trees** — `fit-tree` grows a CART regression tree over a features frame and a numeric response: numeric columns split at a midpoint threshold, array columns are native categoricals split on a mean-ordered subset, and rows missing a numeric feature follow a per-split default direction learned from the split criterion. It returns the tree as a nested frame — `:prediction` and `:n_rows` at every node, `:feature` with `:threshold` or `:categories` at internal nodes, optional per-leaf `:responses` — and takes a params frame (`:max-depth`, `:min-samples`, `:store-leaf-responses`). `predict` applies a tree to a features frame, walking each row to its leaf (a numeric split sends value ≤ threshold left; a categorical split sends set membership left, an unseen value right). `feature-importance` ranks the features by normalized impurity reduction. `prune` cost-complexity-prunes a fitted tree at a given complexity, and `prune-cv` fits then prunes at the `alpha` chosen by k-fold cross-validation with the 1-SE rule. `draw-tree` prints the tree as indented rules, and `lib/plot.h2o`'s `plot-tree` renders it as an SVG node-link diagram.
 - **SVG plotting** (`lib/plot.h2o`) — scatter, line series, histogram, bar charts (explicit heights or value frequencies), and Tukey boxplots over a deferred-rendering figure: marks accumulate with the style in effect, the domain resolves at render (pinned or auto from the data), ticks are placed at round {1,2,5}×10ᵏ steps, `x-label`/`y-label` set axis titles, `panel` draws a filled ground with gridlines as negative space, and `show-figure` opens a live-reloading browser view that `save-figure` updates in place.
 - **Element-wise math** — `abs`, `sqrt`, `exp`, `log`, `ln`, `sin`, `cos`, `tan`, `tanh`, `asin`, `acos`, `atan`, `round`, `truncate`, `round-up`, `round-down`. Polymorphic over floats and matrices.
 - **Comparison** — `=` orders matrices structurally (shape then row-major contents), so matrices work as set members; `<`/`>`/`eq` compare matrices **element-wise**, returning a 1/0 matrix (a scalar broadcasts). An array operand also masks element-wise (`val_cmp` per element, a value broadcasts, equal-length arrays pair up), so `names "ann" eq where` filters a text column. On scalars and strings comparison is structural, `eq` agreeing with `=`.
@@ -496,14 +496,12 @@ src/c/platform_posix.c — POSIX platform: arena mmap, isocline REPL, subprocess
 src/c/platform_wasi.c  — WASI platform: allocator + erroring stubs for FFI/subprocess
 src/c/help_table.c     — generated help/man text (from docs/reference.md)
 src/forth/*.h2o        — standard library (concatenated in Makefile order, embedded)
-lib/                   — loadable libraries: statistics.h2o, plot.h2o, files.h2o, claude.h2o
+lib/                   — loadable libraries: statistics.h2o, plot.h2o, claude.h2o
 external/              — vendored deps: pcre2, sqlite, isocline, lapacke
 tests/                 — golden-output test files
 bench/                 — benchmark suite (Water vs CPython) and inventory
-docs/                  — the word reference (reference.md, reference-libraries.md) and the design
-                         documents: arena, continuations, gc, jit, logic, multicore, nan-boxing,
-                         regression, superwords, symbol-hash, threading
-examples/              — sample programs
+docs/                  — the word reference (reference.md, reference-libraries.md), idioms.md,
+                         and the primers: continuations, logic, regression
 PLAN.md                — future work
 ```
 

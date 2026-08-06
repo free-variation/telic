@@ -72,18 +72,6 @@ clear
 tree /left/feature has? . cr        \ 1
 clear
 
-\ === pfit-tree: parallel word, output matches fit-tree ===
-{ :x [ 1 2 3 4 ] vector } [ 1 1 5 5 ] vector { :max-depth 1 } pfit-tree to tree
-tree :threshold @ . cr              \ 2.5
-tree /left/prediction @ . cr        \ 1
-tree /right/prediction @ . cr       \ 5
-clear
-{ :c [ :a :b :c :a :b :c ] } [ 1 10 2 1 10 2 ] vector { } pfit-tree to tree
-tree :categories @ . cr             \ [< :c :a >]
-tree /left/prediction @ . cr        \ 1.5
-tree /right/prediction @ . cr       \ 10
-clear
-
 \ === predict walks each row to a leaf ===
 { :x [ 1 2 3 4 ] vector } [ 1 1 5 5 ] vector { :max-depth 1 } fit-tree to tree
 tree { :x [ 1 2 3 4 ] vector } predict matrix>array . cr  \ [ 1 1 5 5 ]

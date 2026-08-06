@@ -2976,7 +2976,7 @@ char *next_token(void) {
 		compiler.input_buffer_pos += 2;
 	} else if (lead == '[') {
 		int two_char_opener = after_lead == ':' || after_lead == '('
-			|| after_lead == '|' || after_lead == '>' || after_lead == '<';
+			|| after_lead == '>' || after_lead == '<';
 		compiler.input_buffer_pos += two_char_opener ? 2 : 1;
 	} else if (lead == '{') {
 		compiler.input_buffer_pos++;
@@ -5078,7 +5078,6 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, ":]", p_qsemi, 1);
 	define_primitive(interp, "|", p_bar, 1);
 	define_primitive(interp, "|>", p_bar_to, 1);
-	define_primitive(interp, "[|", p_bracket_bar, 1);
 	define_primitive(interp, "[>", p_bracket_bar_to, 1);
 
 	define_primitive(interp, "0-matrix", p_0_matrix, 0);
@@ -5108,8 +5107,6 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "correlation-kendall", p_correlation_kendall, 0);
 	define_primitive(interp, "ks-distance", p_ks_distance, 0);
 	define_primitive(interp, "fit-tree", p_fit_tree, 0);
-	define_primitive(interp, "pfit-tree", p_pfit_tree, 0);
-	define_primitive(interp, "norm", p_norm, 0);
 	define_primitive(interp, "frobenius-norm", p_frobenius_norm, 0);
 	define_primitive(interp, "row-sums", p_row_sums, 0);
 	define_primitive(interp, "column-sums", p_column_sums, 0);

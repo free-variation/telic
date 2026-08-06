@@ -47,7 +47,7 @@ static int check_locals_assigned(Interpreter *interp) {
 void p_semicolon(DISPATCH_ARGS) {
 	if (compiler.compiling_src_start > 0 && compiler.n_local_scopes > 1) {
 		rollback_partial_definition();
-		fail(interp, "; : unterminated quotation (a [: , [> , or [| has no matching :])");
+		fail(interp, "; : unterminated quotation (a [: or [> has no matching :])");
 		return;
 	}
 	if (compiler.loop_begin != 0) {
@@ -878,13 +878,6 @@ void p_bar(DISPATCH_ARGS) {
 
 void p_bar_to(DISPATCH_ARGS) {
 	compile_locals_decl(interp, "|>", 1);
-
-	DISPATCH(interp);
-}
-
-void p_bracket_bar(DISPATCH_ARGS) {
-	open_quotation(interp);
-	compile_locals_decl(interp, "[|", 0);
 
 	DISPATCH(interp);
 }

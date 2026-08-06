@@ -7,7 +7,7 @@ This document is a primer on delimited continuations and how Water implements th
 - How four primitives (`reset`, `shift`, `shift-with`, `resume`) work mechanically
 - How exceptions, coroutines, generators, restarts, backtracking, green threads, async I/O, and cooperative schedulers all fall out of those four primitives as small library words
 
-The implementation is spread across a few C files. The continuation primitives (`push_prompt`, `p_reset`, `find_prompt`, `capture_continuation`, `p_shift`, `p_shift_with`, `p_resume`, plus the backtracking `backtrack` and `p_fail`) live in `src/c/words.c`; the inner loop and trampoline (`run_inner`, `execute_cfa`, `p_exit`, `object_new_continuation`) are in `src/c/core.c`; and `p_amb` is in `src/c/logic.c`. The library words are in `src/forth/lib.h2o`. Tests demonstrating each pattern are in `tests/45_continuations.h2o`, `tests/47_exceptions.h2o`, and `tests/48_interactions.h2o` — once you understand the model, those are worth reading alongside this document.
+The implementation is spread across a few C files. The continuation primitives (`push_prompt`, `p_reset`, `find_prompt`, `capture_continuation`, `p_shift`, `p_shift_with`, `p_resume`, plus the backtracking `backtrack` and `p_fail`) live in `src/c/words.c`; the inner loop and trampoline (`run_inner`, `execute_cfa`, `p_exit`, `object_new_continuation`) are in `src/c/core.c`; and `p_amb` is in `src/c/logic.c`. The library words are in `src/forth/exceptions.h2o` (`catch`, `try-catch`, `ensure`) and `src/forth/generators.h2o` (`yield` and the generator drivers). Tests demonstrating each pattern are in `tests/030_continuations.h2o`, `tests/032_exceptions.h2o`, and `tests/033_interactions.h2o` — once you understand the model, those are worth reading alongside this document.
 
 The document moves in roughly three arcs. Parts 1–4 motivate continuations and lay out the runtime substrate. Parts 5–9 cover the four primitives and the unwinding mechanism that makes exception-style flow work. Parts 10–17 build the major patterns (exceptions, coroutines, generators, restarts, backtracking, green threads, async I/O) on top of those primitives, with full traces and stack diagrams. Parts 18–20 collect reference material: a primitive table, the C-side surface area, and pointers into the source.
 
@@ -149,12 +149,13 @@ Why a third stack? The data stack is the worst place to stash temporary values: 
 
 The side stack is just storage. Nothing in the execution machinery looks at it. The garbage collector marks its contents as roots (so objects you stash there don't get freed), but nothing else touches it.
 
-Four primitives access it:
+Five primitives access it:
 
 ```
 >side      ( v -- )         pop data, push onto side
 side>      ( -- v )         pop side, push onto data
 side-drop  ( -- )           pop side, discard
+side-peek  ( -- v )         copy side-stack top onto data
 side-depth ( -- n )         current side-stack depth
 ```
 
@@ -172,7 +173,7 @@ The side stack is a small additional piece for situations where library code nee
 
 ## Part 4: The inner interpreter
 
-Forth's execution model is built around an *inner interpreter* — a small loop, `run_inner`, that dispatches one word at a time. It reads the next compiled cell, advances the instruction pointer, and calls the handler stored there; the instruction pointer walks a flat array where all compiled code lives. (Water is direct-threaded — each cell holds its handler directly; `threading.md` covers dispatch in full.)
+Forth's execution model is built around an *inner interpreter* — a small loop, `run_inner`, that dispatches one word at a time. It reads the next compiled cell, advances the instruction pointer, and calls the handler stored there; the instruction pointer walks a flat array where all compiled code lives. (Water is direct-threaded — each cell holds its handler directly.)
 
 A handler doesn't return to this loop between ops: it ends by tail-calling the next handler, so a run of compiled code executes as a chain of jumps, and control only comes back to the loop when something halts, errors, or unwinds. For a primitive (like `+`) the handler does its work and dispatches on. For a colon-defined word the handler saves the current instruction pointer onto the return stack and points the pointer at the word's body before dispatching into it; the body's closing EXIT pops that saved pointer back, so execution continues where it left off before the call.
 
@@ -304,12 +305,11 @@ This is the basic coroutine pattern. `shift` is `yield`. The driver (the code th
 Here's a concrete trace.
 
 ```forth
-: yield   shift ;
 : producer  1 yield 2 yield 3 ;
 : drive   reset producer ;
 ```
 
-Call `drive`. The execution unfolds like this:
+(`yield` is the library word — generators.h2o's `: yield shift ;`.) Call `drive`. The execution unfolds like this:
 
 ```
 1. drive's docol pushes R_drive_tramp onto rstack.
@@ -385,7 +385,7 @@ The mechanism, step by step:
 
 1. **Pop k** from the data stack.
 2. **Save** the current instruction pointer and running flag so they can be restored after the slice finishes.
-3. **Push a trampoline-stop frame** onto the return stack. This is the saved-ip the slice's eventual EXIT chain lands at, ending the slice's execution cleanly (the trampoline is `threading.md`'s subject).
+3. **Push a trampoline-stop frame** onto the return stack. This is the saved-ip the slice's eventual EXIT chain lands at, ending the slice's execution cleanly (the trampoline is the fixed dictionary cell through which C calls words).
 4. **Push a fresh MARK** above it. This delimits the resumed slice — any `shift` fired inside the slice targets *this* mark, not some outer reset. It's a plain delimiter, found by kind rather than by a unique id, not an addressable prompt the way `reset` (Part 5) allocates one.
 5. **Splice the captured frames** above the new mark. The slice's saved-ips are now on the return stack, ready to be popped by EXITs as the slice unwinds, with its locals frame re-anchored to its new position.
 6. **Set the instruction pointer** to the slice's resume point — the cell right after the original `shift`.
@@ -432,13 +432,16 @@ The captured `OBJECT_CONTINUATION` is never modified by resume. The `return_slic
 
 This means you can call `resume` on the same `k` many times, and each time the slice runs fresh, producing the same effects (modulo any global state changes the slice might make). This is "multi-shot" resumption, and it's what enables backtracking-style code.
 
-```forth
+```forth multi-shot
 : shifter shift ;
 : ex reset 99 shifter 2 * ;
-
-ex swap drop       \ stack: [k]
-dup 3 swap resume . cr     \ 6
-    4 swap resume . cr     \ 8
+ex swap drop
+dup 3 swap resume . cr
+4 swap resume . cr
+```
+```output
+6
+8
 ```
 
 The same `k` resumed twice with different inputs produces different results — the slice ran twice, multiplying by 2 each time.
@@ -665,20 +668,15 @@ The side stack is exactly what's needed: a place to put values that nothing else
 
 Nesting works because each `reset` allocates a fresh mark id and the unwind targets the *innermost* mark by id. A throw deep inside two nested try-catches is always caught by the inner one.
 
-```forth
-: outer-h ( exc -- )  ." outer handler: " . cr ;
-: inner-h ( exc -- )  ." inner handler: " . cr ;
-
+```forth nested-try-catch
+: outer-h ( exc -- ) "outer handler: {0}" format print cr ;
+: inner-h ( exc -- ) "inner handler: {0}" format print cr ;
 : demo
-    [: [: 1 throw :] ['] inner-h try-catch  2 throw :]
-    ['] outer-h try-catch ;
-
+    [: [: 1 throw :] ' inner-h try-catch 2 throw :]
+    ' outer-h try-catch ;
 demo
 ```
-
-Output:
-
-```
+```output
 inner handler: 1
 outer handler: 2
 ```
@@ -699,28 +697,17 @@ This works because `throw` is itself a colon definition that calls `shift-with`.
 
 ### Cleanup and "finally"
 
-A `finally` block — code that runs whether the protected region exited normally or via throw — is straightforward:
+A `finally` block — code that runs whether the protected region exited normally or via throw — ships as `ensure` (exceptions.h2o):
 
 ```forth
-: try-finally ( normal-xt cleanup-xt -- ... )
-    >side                  \ stash cleanup
-    [: ['] noop try-catch :]      \ catch any throw (noop handler swallows)
-    execute
-    side> execute                  \ run cleanup
-    ;
-```
-
-Or, with proper rethrow:
-
-```forth
-: try-finally ( normal-xt cleanup-xt -- ... )
+: ensure ( body-xt cleanup-xt -- ... )
     >side
     catch
     side> execute                  \ cleanup runs in both cases
     if throw then ;                \ rethrow on the error path
 ```
 
-The cleanup is unconditional. On the throw path, after cleanup, we rethrow to propagate to any outer try-catch.
+The cleanup xt rides the side stack across the unwind — the return stack does not survive it — and runs unconditionally; on the throw path, after cleanup, the rethrow propagates to any outer catch. `with-db` and `with-stream` (same file) are `ensure` specialized to closing a database handle and a stream.
 
 ---
 
@@ -745,12 +732,11 @@ This is why continuations and coroutines are the same idea seen from two angles.
 ### A simple coroutine
 
 ```forth
-: yield   shift ;
 : producer  1 yield 2 yield 3 yield ;
 : drive   reset producer ;
 ```
 
-`yield` is just `shift` — capture the rest of the producer's work as a continuation `k`, leave it on the data stack, unwind to the reset's caller. `drive` returns to its caller with `(value, k)`.
+`yield` is just `shift` — generators.h2o defines it as exactly `: yield shift ;` — capture the rest of the producer's work as a continuation `k`, leave it on the data stack, unwind to the reset's caller. `drive` returns to its caller with `(value, k)`.
 
 The producer doesn't know it's being run cooperatively. It reads as ordinary linear code that happens to use a `yield` primitive. The continuation mechanism turns the `yield` calls into pause-points without any compiler support.
 
@@ -781,43 +767,46 @@ The driver needs to know when to stop. Three approaches, in increasing sophistic
 **Sentinel value.** The producer yields a special "I'm done" value before truly exiting:
 
 ```forth
-symbol :done
-
 : producer  1 yield 2 yield 3 yield :done yield ;
 ```
 
-The driver checks each yielded value against `:done` and stops the loop when it sees it. Simple but ugly: the protocol leaks into both producer and consumer, and `:done` can't be a legitimate value.
+The driver checks each yielded value against `:done` and stops the loop when it sees it. Simple but ugly: the protocol leaks into both producer and consumer, and `:done` can't be a legitimate value. (This is the protocol generators.h2o's `gen-each` uses, with a `:gen-end` sentinel the driver supplies itself.)
 
-**Tagged yields.** Every yield carries a kind-tag:
+**Tagged yields.** Every yield carries a `[ tag value ]` pair:
 
 ```forth
-symbol :value
-symbol :end
-
-: yield-value ( v -- )  :value 2 shift-as-tuple ;
-: yield-end   ( -- )    :end   1 shift-as-tuple ;
+: yield-value ( v -- )  :value swap 2 array yield drop ;
+: yield-end   ( -- )    [ :end ] yield drop ;
 
 : producer  1 yield-value 2 yield-value 3 yield-value yield-end ;
 ```
 
-The driver dispatches on the tag. Cleaner: any value can be yielded, and the protocol is explicit. Verbose, but explicit beats clever.
+The driver dispatches on `0 @i` (the tag). Cleaner: any value can be yielded, and the protocol is explicit. Verbose, but explicit beats clever.
 
-**Exception-based termination.** The producer signals completion with `throw`:
+**Exception-based termination.** The producer signals completion with `throw`.
+The mechanism is subtler than wrapping the drive loop in one `try-catch`: after
+the first yield, the producer is running inside a `resume`, and resume's fresh
+mark is the nearest exception prompt — so the throw surfaces *at the resume
+site*, as the same `(exc, 1)` shape `catch` delivers, with no `catch` written:
 
-```forth
-symbol :end-of-stream
-
-: producer  1 yield 2 yield 3 yield :end-of-stream throw ;
-
-: drain ( -- list )
-    [: drive  ...drain body... :]
-    [: drop ;]                  \ handler: swallow :end-of-stream
-    try-catch ;
+```forth exception-termination
+: producer  1 yield :done throw ;
+: drive  reset producer ;
+drive swap . cr
+0 swap resume
+. . . cr
+```
+```output
+1
+1 :done 0
 ```
 
-The driver wraps the whole loop in try-catch. When the producer throws `:end-of-stream`, the unwind takes control out of the loop and into the handler, which finishes cleanly. The producer doesn't need an explicit termination value; it just runs out and throws.
-
-This last approach has a clean separation: normal yield handles values, throw handles termination (and other exceptional conditions). It's the closest analog to Python's `StopIteration` exception, which is how Python generators signal end-of-iteration.
+The first line prints the yielded `1`. The resume re-enters the producer, which
+throws; the resume returns with the flag, the exception value, and the `0` the
+driver had passed in. A driver loop tests the top of the stack after each
+resume — flag `1` means the producer terminated. This is the closest analog to
+Python's `StopIteration` exception, which is how Python generators signal
+end-of-iteration.
 
 The choice between these is a matter of library taste. None is wrong; all three work with the same `shift`/`resume` primitives.
 
@@ -896,7 +885,7 @@ Once you have coroutines, you can pipe them. A producer yields values; a filter 
 
 ```forth
 \ Producer yields 1 through n
-: range-gen ( n -- ) 1 begin 2dup >= if drop drop exit then dup yield 1+ again ;
+: range-gen ( n -- ) 1 begin 2dup < if 2drop exit then dup yield 1+ again ;
 
 \ Filter receives values, yields x*x for each
 : square-filter
@@ -957,8 +946,8 @@ Generators are a special case of coroutines: one-way, producer-only. A generator
 : squares-gen ( n -- )
     1
     begin
-        2dup >=
-        if  drop drop exit  then
+        2dup <
+        if  2drop exit  then
         dup dup * yield
         1+
     again ;
@@ -966,27 +955,25 @@ Generators are a special case of coroutines: one-way, producer-only. A generator
 
 This generator has two pieces of state on the data stack: the limit `n` and the current `i`. Each iteration checks `i <= n`, yields `i*i`, and increments. When `i > n`, it exits without yielding — and the driver sees the data stack in a different state than usual, which it can detect.
 
-A more robust protocol uses an explicit done signal. One approach: the generator throws a `:done` exception at the end, and the driver wraps it in try-catch.
+(Wrapping the producer itself in `try-catch` does *not* work: `yield` targets the nearest exception prompt, which would be the catch's own — the first yield would terminate the catch instead of reaching the driver. Termination signals belong at the resume site, per Part 11's exception-based protocol.)
 
-```forth
-symbol :done
+The packaged drivers ship in generators.h2o: `start-generator` runs a producer to its first yield, `gen-take` collects the first n values, and `gen-each` consumes until the producer falls off. They suit a producer that keeps its loop state in locals and leaves yield's return value alone — the driver's accumulated values ride the shared data stack, so a producer like `squares-gen` above, which carries `n` and `i` on that stack, must be hand-driven instead:
 
-: gen-done   :done throw ;
-
-: each-square ( n -- )
-    [: ( n -- )
-       1
-       begin
-         2dup >=
-         if  drop drop gen-done  then
-         dup dup * yield
-         1+
-       again :]
-    [: drop ;]                 \ done-handler: swallow the :done signal
-    try-catch ;
+```forth generator-drivers
+: squares-producer ( n -- )
+    | >n i |
+    1 to i
+    begin i n <= while
+      i i * yield
+      f++ i
+    repeat ;
+4 ' squares-producer curry 4 gen-take . cr
+4 ' squares-producer curry [: . :] gen-each cr
 ```
-
-This is awkward because try-catch wraps everything in a quotation. A cleaner library would package this as a `for-each-yielded` higher-order word.
+```output
+[ 1 4 9 16 ]
+1 4 9 16
+```
 
 ### Lazy sequences
 
@@ -1014,10 +1001,13 @@ The implementation of each combinator allocates a fresh continuation chain that 
 
 `shift-with`'s handler receives `k`. Most of our exception examples drop `k`, but the handler is free to *resume* it instead. When it does, the slice runs as if shift-with had returned whatever the handler pushed before calling resume.
 
-```forth
+```forth restart
 : ouch ( -- v ) [: 42 swap resume :] shift-with ;
 : caller reset 5 ouch + ;
-caller        \ -> 47
+caller . cr
+```
+```output
+47
 ```
 
 Trace:
@@ -1057,10 +1047,6 @@ In Water: the signaling word builds a handler quotation that wraps the resume ca
 \ A division word that signals on divide-by-zero and offers two restarts:
 \   :use-value  – use a caller-supplied default
 \   :retry      – retry with a caller-supplied divisor
-
-symbol :div-by-zero
-symbol :use-value
-symbol :retry
 
 : safe-div ( a b -- result )
     dup 0= if
@@ -1153,9 +1139,12 @@ Two things distinguish this from the continuation-capture sketch above:
 
 A search reads as a description of the constraints. The lib word `choose` (built on `amb`) tries each element of a list in turn, committing to the first for which its continuation succeeds:
 
-```forth
-\ commit to the first x in 1..5 that is greater than 3  (leaves 4)
-[( 1 2 3 4 5 null )] [: |> x | x 3 gt if x else fail then :] choose
+```forth choose
+\ commit to the first x in 1..5 that is greater than 3
+[( 1 2 3 4 5 null )] [: |> x | x 3 > if x else fail then :] choose . cr
+```
+```output
+4
 ```
 
 To enumerate *every* solution rather than commit to the first, make success itself backtrack: do something with each answer, then `fail` to drive the search on to the next leaf. That is the same idiom that turns a search into a generator — each solution is a pause point, and forcing the next is one more `fail` — which is why coroutines and backtracking are the same machinery seen from two angles (Part 11).
@@ -1182,22 +1171,23 @@ A green thread is a captured continuation plus some state (priority, status, per
 \ Sketch of a green-thread runtime in Water
 
 \ A thread is just a continuation, optionally wrapped with metadata.
-\ The scheduler maintains a queue of ready threads.
+\ The scheduler maintains a cons list of ready threads.
 
-variable thread-queue       \ list of ready continuations
-
-: yield   ( -- )
-    \ Cooperative yield: capture k, add to queue, switch to next thread.
-    [: ( k )
-        thread-queue @ k cons thread-queue !    \ append k to queue
-        scheduler-pick                          \ pick another thread, resume it
-    :] shift-with ;
+variable thread-queue
+null to thread-queue
 
 : scheduler-pick   ( -- )
     \ Resume the next thread in the queue, or exit if empty.
-    thread-queue @ empty? if exit then
-    thread-queue @ uncons swap thread-queue !
+    thread-queue null = if exit then
+    thread-queue head-tail to thread-queue
     resume ;
+
+: gyield   ( -- )
+    \ Cooperative yield: capture k, add to queue, switch to next thread.
+    [: ( k -- )
+        thread-queue cons to thread-queue
+        scheduler-pick
+    :] shift-with ;
 
 : spawn   ( xt -- )
     \ Wrap xt in a fresh reset, capture it as a starting continuation,
@@ -1206,7 +1196,7 @@ variable thread-queue       \ list of ready continuations
 
 : run-scheduler ( -- )
     begin
-        thread-queue @ empty? if exit then
+        thread-queue null = if exit then
         scheduler-pick
     again ;
 ```
@@ -1232,14 +1222,15 @@ Green threads typically communicate via channels — blocking message queues. A 
 
 : channel-send  ( v ch -- )
     dup channel-full? if
-        \ Suspend until someone receives.
-        [: ( k )  this-channel-queue-senders @ k cons ... :] shift-with
+        \ Suspend until someone receives: park k on the channel's sender list.
+        [: ( k -- ) ... :] shift-with
     then
     channel-push ;
 
 : channel-receive ( ch -- v )
     dup channel-empty? if
-        [: ( k )  this-channel-queue-receivers @ k cons ... :] shift-with
+        \ Suspend until someone sends: park k on the channel's receiver list.
+        [: ( k -- ) ... :] shift-with
     then
     channel-pop ;
 ```
@@ -1258,9 +1249,9 @@ Async I/O is the same pattern as green threads, with one twist: instead of a sch
 : await   ( pending-io -- result )
     \ Suspend; when the I/O completes, the event loop will resume us
     \ with the result on the data stack.
-    [: ( k )
+    [: ( k -- )
         \ register k with the event loop, tagged with the pending I/O
-        swap k pair event-loop-register
+        cons event-loop-register
     :] shift-with ;
 
 \ User code looks linear:
@@ -1367,15 +1358,21 @@ The mark id counter (`next_mark_id`) is global and monotonic. If you serialize a
 | `>side` | `( v -- )` | Push v on side stack. |
 | `side>` | `( -- v )` | Pop side stack onto data stack. |
 | `side-drop` | `( -- )` | Discard top of side stack. |
+| `side-peek` | `( -- v )` | Copy side-stack top onto data stack. |
 | `side-depth` | `( -- n )` | Current side-stack depth. |
 
-### Library words (in lib.h2o)
+### Library words (in exceptions.h2o and generators.h2o)
 
 | Word | Stack effect | Built from |
 |---|---|---|
 | `throw` | `( exc -- )` | C primitive: unwind to the nearest exception prompt leaving `exc 1`; uncaught → `uncaught exception: <value>` error |
 | `catch` | `( xt -- result 0 \| exc 1 )` | `reset (execute-catching) 0` |
 | `try-catch` | `( normal-xt error-xt -- ... )` | side stack + `catch` + if/else |
+| `ensure` | `( body-xt cleanup-xt -- ... )` | side stack + `catch` + rethrow |
+| `yield` | `( v -- resumed )` | bare `shift` |
+| `start-generator` | `( producer -- value generator )` | `reset execute` |
+| `gen-take` | `( producer count -- array )` | `start-generator` + `resume` loop |
+| `gen-each` | `( producer consumer -- )` | `start-generator` + `resume` + `:gen-end` sentinel |
 
 ### Patterns at a glance
 
@@ -1386,7 +1383,7 @@ The mark id counter (`next_mark_id`) is global and monotonic. If you serialize a
 | Coroutine yield/resume | `yield = shift`, driver calls `resume` | bare `shift` |
 | Generator | Same as coroutine, with values | bare `shift` |
 | Backtracking choice | `amb` between branches, `fail` to retry | `amb`/`fail` primitives (choice prompt) |
-| Green thread | `yield = shift-with(enqueue+pick)` | `shift-with` + scheduler |
+| Green thread | `gyield = shift-with(enqueue+pick)` | `shift-with` + scheduler |
 | Async/await | `await = shift-with(register-with-event-loop)` | `shift-with` + event loop |
 | Cooperative I/O | `read-async`, `write-async`, etc. via await | `shift-with` |
 | Logic programming | unification + `amb` + `fail` | `amb`/`fail` + the unification trail |
@@ -1403,13 +1400,14 @@ unwinding check are the pieces this document walked through.
 
 If you want to read the library code:
 
-- **`src/forth/lib.h2o`** — throw, catch, try-catch are defined there in five lines.
+- **`src/forth/exceptions.h2o`** — catch, try-catch, ensure, with-db, with-stream, in a few lines each.
+- **`src/forth/generators.h2o`** — yield, start-generator, gen-take, gen-each.
 
 If you want to read tests:
 
-- **`tests/45_continuations.h2o`** — basic shift / resume patterns, including multi-shot.
-- **`tests/47_exceptions.h2o`** — every exception case worth knowing about.
-- **`tests/48_interactions.h2o`** — the interesting interactions: catch inside a captured continuation, handler-resumes (restarts), side stack discipline, GC interactions.
+- **`tests/030_continuations.h2o`** — basic shift / resume patterns, including multi-shot.
+- **`tests/032_exceptions.h2o`** — every exception case worth knowing about.
+- **`tests/033_interactions.h2o`** — the interesting interactions: catch inside a captured continuation, handler-resumes (restarts), side stack discipline, GC interactions.
 
 If you want to see the model in action: open the REPL, try the examples in this document, modify them, see what breaks. Continuations are abstract; running them concretely is the fastest way to build intuition.
 

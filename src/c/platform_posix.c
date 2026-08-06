@@ -103,7 +103,7 @@ static const char *lf_token_style(const char *s, long len) {
 		return "ansi-teal";
 	if (len == 2 && (memcmp(s, "[:", 2) == 0 || memcmp(s, ":]", 2) == 0
 			|| memcmp(s, "[(", 2) == 0 || memcmp(s, ")]", 2) == 0
-			|| memcmp(s, "[|", 2) == 0 || memcmp(s, "[>", 2) == 0))
+			|| memcmp(s, "[>", 2) == 0))
 		return "ansi-blue";
 	if (s[0] == ':' && len > 1)
 		return "ansi-olive";

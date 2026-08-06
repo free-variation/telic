@@ -1418,7 +1418,6 @@ REDUCE_OVERALL_HANDLER(p_max, "max", matrix_max_overall, unit, MISSING_CHECK_INF
 REDUCE_OVERALL_HANDLER(p_min, "min", matrix_min_overall, unit, MISSING_CHECK_INFINITE)
 REDUCE_OVERALL_HANDLER(p_argmax, "argmax", matrix_argmax_index, 0, MISSING_CHECK_NAN)
 REDUCE_OVERALL_HANDLER(p_argmin, "argmin", matrix_argmin_index, 0, MISSING_CHECK_NAN)
-REDUCE_OVERALL_HANDLER(p_norm, "norm", matrix_frobenius_overall, unit, MISSING_CHECK_NONE)
 REDUCE_OVERALL_HANDLER(p_frobenius_norm, "frobenius-norm", matrix_frobenius_overall, unit, MISSING_CHECK_NONE)
 REDUCE_OVERALL_HANDLER(p_nonmissing_count, "nonmissing-count", matrix_nonmissing_count, 0, MISSING_CHECK_NONE)
 REDUCE_AXIS_HANDLER(p_row_sums, "row-sums", matrix_sum_rows)

@@ -75,7 +75,7 @@ variable row  variable col  variable val  variable x  variable y
   [> i | x i  i 1.0 f+ sp-n f/  !i drop :] sp-n i-times
   [> i | val i  i 2.0 f* 1.0 f+ sp-anz f/  !i drop :] sp-anz i-times
   row 0.0 0.0 !i drop
-  [| >r rowr step |
+  [: | >r rowr step |
      row r @i to rowr
      row r 1.0 f+  rowr sp-nr f+  !i drop
      r sp-nr / ftruncate to step
@@ -87,11 +87,11 @@ variable row  variable col  variable val  variable x  variable y
 
 : matvec ( cycles -- )
   [:
-     [| >r lo hi |
+     [: | >r lo hi |
         row r @i to lo
         row r 1.0 f+ @i to hi
         lo 0.0
-        [| >k i | 1 pick k f+ to i  x col i @i @i  val i @i f*  f+ :] hi lo f- i-times
+        [: | >k i | 1 pick k f+ to i  x col i @i @i  val i @i f*  f+ :] hi lo f- i-times
         nip
         y r rot !i drop
      :] sp-n i-times

@@ -14,7 +14,7 @@ in times
 error: insufficient values on data stack; need 1
 in (enter-locals-to) ← [> a | :]
 error: insufficient values on data stack; need 1
-in (enter-locals-mixed) ← [| a >b | :]
+in (enter-locals-mixed) ← [: | a >b | :]
 error: length must be non-negative; got -1
 in i-times
 error: expected a float count; got an execution token

@@ -47,7 +47,7 @@ OPERATORS = [
     "2dup", ".s", ".a", ".",
 ]
 # Handled by regex match rules in the templates, never a keyword.
-DELIMITERS = {"[", "]", "{", "}", "<", ">", "|", "|>", "[:", ":]", "[(", ")]", "[|", "[>", "[<", ">]"}
+DELIMITERS = {"[", "]", "{", "}", "<", ">", "|", "|>", "[:", ":]", "[(", ")]", "[>", "[<", ">]"}
 # Documentation pseudo-words (symbol-literal examples), matched by the symbol scope.
 EXCLUDE = {":name"}
 
@@ -134,7 +134,6 @@ def emit_vim(auto):
     L.append(kw("waterDefine", [w for w in DEFINING if w != ";"]))
     L.append('syn match   waterDefine ";"')
     L.append('syn match   waterDefine "\\[:"')
-    L.append('syn match   waterDefine "\\[|"')
     L.append('syn match   waterDefine "\\[>"')
     L.append('syn match   waterDefine ":\\]"')
     L.append('syn match   waterDefName "\\%(^\\|\\s\\):\\s\\+\\zs\\k\\+"')

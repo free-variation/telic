@@ -64,6 +64,9 @@ plotting library is pure forth (no FFI) and works under wasm; only its
 
 ## Regression (lib/statistics.h2o)
 
+The derivation behind these words — the mathematics, step by step, connected
+to the word performing each step — is docs/regression.md.
+
 | Word | Stack effect | Summary |
 | --- | --- | --- |
 | `linear-regression` | `( dataset predictors response replications -- summaries )` | OLS with nonparametric bootstrap inference: a `{ :estimate :se :bias :ci-low :ci-high }` frame per coefficient over `replications` refits |

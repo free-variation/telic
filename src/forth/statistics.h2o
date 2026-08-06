@@ -13,7 +13,7 @@
 	high low - n-bins / to bin-width
 	n-bins 1 0-matrix to counts
 	data counts low bin-width n-bins
-	[| >i >data >counts >low >bin-width >n-bins bin tally |
+	[: | >i >data >counts >low >bin-width >n-bins bin tally |
 		data i @e low - bin-width / round-down to bin
 		bin n-bins 1 - > if n-bins 1 - to bin then
 		counts bin @e 1+ to tally
@@ -153,7 +153,7 @@
 : sample-with-replacement true sample ; inline
 
 ( data -- n ) \ resampling domain size: an array's elements, else rows
-: n-observations dup array? if size else n-rows then ;
+: n-observations dup array? if size else n-rows then ; internal
 
 ( data fit-xt replications fit-mapper -- [estimates] )
 \ One serial draw sets the run seed; replicate i then draws its indices from
@@ -525,7 +525,7 @@
 		node :left @  depth 1 +  draw-node
 		depth 2 * spaces  node :feature @  "{1}{0} not in " format .  node :categories @ . cr
 		node :right @  depth 1 +  draw-node
-	then ;
+	then ; internal
 
 ( tree -- ) \ print a fit-tree tree as indented split rules with per-leaf prediction and count
 : draw-tree  0 draw-node ;

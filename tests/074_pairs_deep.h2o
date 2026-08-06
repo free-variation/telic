@@ -23,11 +23,11 @@ lvar to A
 \ deep recursion: naive reverse of a 15-element list
 : lappend  | >A >B >R |
   A B R [> a b r | a null ~ drop   r b ~ drop :] 3 ncurry
-  A B R [| >a >b >r ?H ?T ?R1 | a  H T cons ~ drop   r  H R1 cons ~ drop   T b R1 lappend :] 3 ncurry
+  A B R [: | >a >b >r ?H ?T ?R1 | a  H T cons ~ drop   r  H R1 cons ~ drop   T b R1 lappend :] 3 ncurry
   amb ;
 : nrev  | >L >R |
   L R [> l r | l null ~ drop   r null ~ drop :] 2curry
-  L R [| >l >r ?H ?T ?RT | l  H T cons ~ drop   T RT nrev   RT  H null cons  r lappend :] 2curry
+  L R [: | >l >r ?H ?T ?RT | l  H T cons ~ drop   T RT nrev   RT  H null cons  r lappend :] 2curry
   amb ;
 : iota  | >n |  null  [: |> i | i 1+ swap cons :] n i-times ;
 variable l15   15 iota to l15

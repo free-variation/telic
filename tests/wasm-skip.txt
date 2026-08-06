@@ -13,6 +13,7 @@
 900_docs_files_and_environment        env!/cd/binary-dir: not supported on WASI
 900_docs_subprocesses_and_streams     start-process: no fork/exec on WASI
 900_docs_foreign_function_interface   ffi: excluded from the wasm build
+901_docs_idioms                       run in the resource-brackets pair: no fork/exec on WASI
 117_with_stream     start-process: no fork/exec on WASI
 098_reload_literals start-process: no fork/exec on WASI
 099_ffi             ffi excluded from the wasm build

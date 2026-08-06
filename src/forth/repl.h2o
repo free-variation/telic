@@ -13,7 +13,7 @@
 : print-raw string>codepoints ' emit each ; internal
 
 : help
-	[| entry examples |
+	[: | entry examples |
 		lookup man to entry
 		entry frame? if
 			entry :examples [ ] @or to examples

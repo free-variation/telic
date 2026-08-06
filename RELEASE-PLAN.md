@@ -7,41 +7,14 @@ operations).
 
 ---
 
-## 1. Language pack
+## 1. Language pack — acceptance battery
 
-### Semantics
-
-1. One generated file — `water-pack.md` (emit `llms.txt` as a copy or
-   symlink) — containing the whole language: the reference word tables,
-   the README taste block, the tokenizer's self-delimiting rules, the
-   idiom notes a generator cannot derive (locals are uninitialized by
-   design; matrices for numbers, arrays for structure; resampling
-   patterns; quotation-locals rules), and a few verified programs from
-   examples/.
-2. Generated, never written.
-3. Budgeted: the generator counts tokens (chars/4) against a ~100k target
-   and names what to trim when it overflows.
-
-### Implementation
-
-1. Write `tools/gen-pack.py` beside gen-help.py and gen-editors.py,
-   reading docs/reference.md, README.md, and a curated examples list.
-2. Add `make pack` producing `water-pack.md`; the token-budget check is
-   a hard failure naming the overflow per section.
-3. Embed a few of the doc-test goldens' input/output pairs as few-shot
-   material.
-4. One pack; add a lean/full tier split only when the budget forces a
-   cut that costs generation quality.
-
-### Acceptance
-
-1. `make pack` output is under the token target and regenerating twice
-   is byte-identical.
-2. A fixed set of task prompts (≥10, spanning matrices, frames, regex,
-   logic, datasets) given to a strong model with only the pack as
-   context; the generated programs run under the golden harness. Record
-   the pass count in the release notes; a regression blocks the tag.
-3. Discriminating case: a task whose natural solution needs an idiom
+1. A fixed set of task prompts (≥10, spanning matrices, frames, regex,
+   logic, datasets) given to a strong model with only `make pack`'s
+   `water-pack.md` as context; the generated programs run under the
+   golden harness. Record the pass count in the release notes; a
+   regression blocks the tag.
+2. Discriminating case: a task whose natural solution needs an idiom
    note (locals-are-uninitialized) — a model with the pack writes the
    assignment before read.
 

@@ -105,27 +105,10 @@ Each one pass over sorted samples, in the `ks-distance` mold:
 
 ## Language pack
 
-One concatenated file sized for a model's context window: the whole
-language, learnable in a single read. Water cannot be in the weights; it
-can be in every prompt. The measure of success is direct — how good is
-Water code written by a strong model given only this file?
-
-- **Contents** — the reference (word tables are the core), the README
-  taste block, the tokenizer's self-delimiting rules, the idiom notes a
-  generator can't derive (locals are uninitialized by design; matrices
-  for numbers, arrays for structure; resampling patterns), and a few
-  verified programs from examples/.
-- **Generated, never written** — tools/gen-pack.py beside gen-help and
-  gen-editors, so the pack cannot drift from its sources; `make pack`,
-  output `water-pack.md` (or `llms.txt`, per the emerging convention).
-- **Budgeted** — the generator counts tokens (chars/4 is close enough)
-  against a target (~50k) and names what to trim when it overflows.
-- Complements lib/claude.h2o, which is the other direction: that file is
-  Water calling a model; the pack is a model writing Water.
-
-To settle: one pack or two tiers (lean core + full); whole example
-programs or excerpts; whether the pack embeds the executable-docs goldens
-as input/output pairs (few-shot format) once that section is done.
+Run the acceptance battery (RELEASE-PLAN.md item 1): ≥10 task prompts to
+a strong model with only `water-pack.md` as context, generated programs
+run under the golden harness, pass count recorded in the release notes,
+plus the locals-are-uninitialized discriminating case.
 
 ---
 
@@ -372,6 +355,51 @@ Building on the generator primitives:
   are the substrate; the interleaving combinators are the work.
 
 All library forth on the existing primitives — no new C.
+
+---
+
+## Template JIT
+
+Close the remaining 3–4× on dispatch-bound code — fused float loops,
+array/segment index loops, locals-heavy bodies (~3–6 ns/op interpreted).
+C-bound words (regex, SQLite, dgemm, JSON) gain nothing; the interpreter
+stays permanently as the wasm implementation, the deopt target, and the
+semantics of record.
+
+- **Shape: compile bodies, not control.** The governing invariant is that
+  control state stays serializable data — continuations capture virtual
+  return-stack slices of dict indices, never C-stack state; that is what
+  makes resume multi-shot, images able to serialize live continuations,
+  and the GC walk uniform. Straight-line native within a word body;
+  branches native; calls stay virtual (trampolined first cut); return
+  stack, locals frames, marks, and unwinding untouched, so a continuation
+  captured under JIT is byte-identical to one captured interpreted.
+- **Mechanism: templates / copy-and-patch.** One pre-built native fragment
+  per op, concatenated per body, operand cells patched as immediates;
+  template variants with register-pinned inputs/outputs keep stack values
+  in registers. The dictionary already provides the front end: a linear
+  resolved operand-inline stream, superwords one-template-per-fused-op,
+  quickening's guards becoming native tests that deopt.
+- **Per compiled word, a side table** mapping cell index → native offset;
+  resume re-enters through the interpreter in the first cut (side-table
+  jump later if generator-heavy profiles justify it); deopt to the
+  interpreter is possible at every op boundary because virtual state is
+  complete there.
+- **Ruled out permanently:** subroutine threading with native calls,
+  native-stack copying for continuations, a tracing JIT — each moves
+  control state into native form and breaks capture, images, and the GC
+  walk at once.
+- **Do not hand-build first** (the JIT subsumes them): TOS-in-a-register,
+  the loop-back patch for combinator drivers, bounds-check hoisting.
+- **Requirements:** W^X executable memory (macOS `MAP_JIT` +
+  `pthread_jit_write_protect_np`); arm64 templates first; invalidation on
+  `forget`/redefinition (dictionary truncation defines the boundary) and
+  on quickening retargets; emission fenced outside parallel regions.
+- **Staging:** executable-memory plumbing with everything still
+  interpreted; then templates for the fused-loop op families with a
+  compile-on-Nth-execution trigger; the gate at every step is the full
+  suite run JIT-on and JIT-off with nothing observable changed except
+  time.
 
 ---
 

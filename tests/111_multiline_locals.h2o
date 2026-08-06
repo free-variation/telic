@@ -9,9 +9,9 @@
   a b + c + ;
 1 2 3 add3 . cr
 
-\ (2) [| quotation locals split across lines
+\ (2) quotation locals split across lines
 : hyp2
-  [| >p
+  [: | >p
      >q |
      p p *  q q *  +
   :] ;

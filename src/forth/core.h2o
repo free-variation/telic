@@ -57,9 +57,6 @@ inline
 
 \ arithmetic words
 
-( a b -- remainder )  \ = % drop ; sign follows the dividend
-inline
-
 ( a b -- quotient )  \ integer quotient toward zero ( = % swap drop )
 : quotient % swap drop ;
 inline
@@ -73,7 +70,7 @@ inline
 ( -- arr ) \ one { :name :value :type } frame per global, oldest first
 : variables
 	(globals)
-	[| >binding value |
+	[: | >binding value |
 	   binding 1 @i to value
 	   { :name binding 0 @i :value value :type value type-of } :]
 	map ;

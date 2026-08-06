@@ -34,3 +34,6 @@
 
 ( v -- v' )  \ the finite elements of a vector, NaNs dropped
 : drop-nans dup nan? 0 eq where select-rows ; inline
+
+( m -- f )  \ frobenius-norm under the short name
+: norm frobenius-norm ; inline

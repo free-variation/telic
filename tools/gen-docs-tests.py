@@ -36,6 +36,17 @@ Two kinds of runnable documentation, both extracted here:
    fences are help-only and never extracted. Example code must be
    self-contained (clear is inserted between pairs), deterministic
    (seed any random draw), and newline-terminated.
+
+3. Explanatory-doc example fences — the same ``forth <label>`` /
+   ``output`` pair format in DOC_EXAMPLE_SOURCES (the label is free
+   text, not a reference word; gen-help never reads these files). All
+   of one document's pairs become a single trio
+
+     tests/901_docs_<doc-stem>.{h2o,expected,sed}
+
+   routed to tests/lib/ when any pair loads the statistics library. A
+   bare ``forth`` fence in these documents is display-only (they are
+   not program sources), so sketches and fragments stay untagged.
 """
 
 import glob
@@ -50,11 +61,17 @@ EXAMPLE_SOURCES = [
     os.path.join("docs", "reference.md"),
     os.path.join("docs", "reference-libraries.md"),
 ]
+DOC_EXAMPLE_SOURCES = [
+    os.path.join("docs", "continuations.md"),
+    os.path.join("docs", "logic.md"),
+    os.path.join("docs", "regression.md"),
+    os.path.join("docs", "idioms.md"),
+]
 
 MAIN_TEST = os.path.join("tests", "154_readme_taste.h2o")
 LIB_TEST = os.path.join("tests", "lib", "154_readme_taste_fit.h2o")
 
-FENCE = re.compile(r"^```(.*)$")
+FENCE = re.compile(r"^(\s*)```(.*)$")
 EXAMPLE_TAG = re.compile(r"^forth(-noexec)?\s+(\S+)\s*$")
 
 GENERATED_HEADER = (
@@ -88,35 +105,35 @@ def parse_document(path):
         if not fence_line:
             i += 1
             continue
-        info = fence_line.group(1).strip()
-        body = []
-        i += 1
-        while i < len(lines) and lines[i] != "```":
-            body.append(lines[i])
-            i += 1
-        if i >= len(lines):
-            sys.stderr.write("error: %s: unterminated fence\n" % path)
-            sys.exit(1)
-        i += 1
+        indent = fence_line.group(1)
+        info = fence_line.group(2).strip()
+
+        def read_fence_body(start):
+            collected = []
+            j = start
+            while j < len(lines) and lines[j] != indent + "```":
+                stripped = lines[j]
+                if stripped.startswith(indent):
+                    stripped = stripped[len(indent):]
+                collected.append(stripped)
+                j += 1
+            if j >= len(lines):
+                sys.stderr.write("error: %s: unterminated fence\n" % path)
+                sys.exit(1)
+            return collected, j + 1
+
+        body, i = read_fence_body(i + 1)
         tag = EXAMPLE_TAG.match(info)
-        if info == "forth":
+        if info == "forth" and not indent:
             events.append(("program", "\n".join(body)))
         elif tag:
             noexec = tag.group(1) is not None
             word = tag.group(2)
-            if i >= len(lines) or lines[i] != "```output":
+            if i >= len(lines) or lines[i] != indent + "```output":
                 sys.stderr.write("error: %s: example for %r lacks its ```output fence\n"
                                  % (path, word))
                 sys.exit(1)
-            output = []
-            i += 1
-            while i < len(lines) and lines[i] != "```":
-                output.append(lines[i])
-                i += 1
-            if i >= len(lines):
-                sys.stderr.write("error: %s: unterminated output fence\n" % path)
-                sys.exit(1)
-            i += 1
+            output, i = read_fence_body(i + 1)
             if not noexec:
                 events.append(("example", (section, word, "\n".join(body), "\n".join(output))))
     return events
@@ -184,18 +201,34 @@ def emit_examples():
             if kind != "example":
                 continue
             section, _, code, output = payload
-            if section not in grouped:
-                grouped[section] = []
-                order.append(section)
-            grouped[section].append((code, output))
+            key = ("900", section)
+            if key not in grouped:
+                grouped[key] = []
+                order.append(key)
+            grouped[key].append((code, output))
+
+    for source in DOC_EXAMPLE_SOURCES:
+        if not os.path.exists(os.path.join(ROOT, source)):
+            continue
+        stem = os.path.splitext(os.path.basename(source))[0]
+        key = ("901", stem)
+        for kind, payload in parse_document(source):
+            if kind != "example":
+                continue
+            _, _, code, output = payload
+            if key not in grouped:
+                grouped[key] = []
+                order.append(key)
+            grouped[key].append((code, output))
 
     written = []
-    for section in order:
-        pairs = grouped[section]
+    for key in order:
+        prefix, section = key
+        pairs = grouped[key]
         external = any('"statistics" load-library' in code_of(line)
                        for code, _ in pairs for line in code.splitlines())
         test_dir = os.path.join("tests", "lib") if external else "tests"
-        name = "900_docs_%s" % slug(section)
+        name = "%s_docs_%s" % (prefix, slug(section))
         base = os.path.join(test_dir, name)
         write_file(base + ".h2o",
                    GENERATED_HEADER + "\nclear\n".join(code + "\n" for code, _ in pairs))

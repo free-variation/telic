@@ -73,7 +73,7 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
      node 4 1.0 !i drop
      node 8 @i to oldn
      node
-     [| >k pid |
+     [: | >k pid |
         dup 9.0 k f+ @i to pid
         dup 13 @i pid insert drop
         dup 14 @i pid insert drop

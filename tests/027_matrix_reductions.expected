@@ -158,6 +158,6 @@ in row-maxes
 <matrix 1x4>
           1          0          1          0
 error: expected a matrix; got an array
-in norm
+in frobenius-norm ← norm
 error: expected a matrix; got a string
 in frobenius-norm

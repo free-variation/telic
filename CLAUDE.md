@@ -187,7 +187,7 @@ new inline that calls functions → the tail.
   not own, and moving that state to a heap cell to satisfy `i-times`
   costs more than the loop saves (subprocess.h2o, `parallel-run`).
 - Quotations: write them bare (`[: ... :]`); receive into locals
-  (`[>`/`[|`) when a value is reused past a `dup` or the quotation
+  (`[>`/`[: |`) when a value is reused past a `dup` or the quotation
   crosses `curry`. Measured: bare is the fastest form — under
   map/times/i-times it dispatches straight into the body, and
   `local swap @i` fuses to one op ((@i.swap.l0)/(@i.swap.l1)) —
@@ -220,11 +220,20 @@ new inline that calls functions → the tail.
   section's ```forth <word> / ```output example pairs into generated
   golden trios (tests/9*_docs_*, gitignored). A word's example pairs sit
   after its section's table — self-contained, seeded, newline-terminated,
-  both stacks left empty — and surface in help/man as :examples. Never
+  both stacks left empty — and surface in help/man as :examples. The
+  explanatory docs (continuations, logic, regression, idioms) carry the
+  same pair format with a free-text label instead of a word name; all of
+  one doc's pairs become one trio (tests/901_docs_<stem>), indented
+  fences allowed inside list bullets, and a bare ```forth fence there is
+  display-only (sketches and fragments stay untagged). gen-pack.py
+  (make pack) concatenates the README taste, both references, and
+  idioms.md verbatim into water-pack.md + llms.txt (gitignored), with a
+  hard-fail chars/4 token budget. Never
   hand-edit a generated file: help_table.c,
   forth-words.txt, repl_highlight_groups.h,
   editors/vim/syntax/water.vim, editors/vscode/syntaxes/water.tmLanguage.json,
-  tests/154_readme_taste.h2o, tests/lib/154_readme_taste_fit.h2o.
+  tests/154_readme_taste.h2o, tests/lib/154_readme_taste_fit.h2o,
+  water-pack.md, llms.txt.
   The rest of editors/ (vim indent/, ftplugin/, ftdetect/, and vscode's
   package.json, language-configuration.json, README.md) has no generator and
   is edited by hand.

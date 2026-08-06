@@ -64,7 +64,6 @@ TAU
 [:
 [<
 [>
-[|
 ]
 ^
 _
@@ -195,7 +194,6 @@ difference
 dim
 dot
 double-segment
-draw-node
 draw-tree
 drop
 drop-nans
@@ -376,7 +374,6 @@ min
 min2
 mod
 n-columns
-n-observations
 n-rows
 name!key
 name@key
@@ -412,7 +409,6 @@ peek
 percentile
 pfilter
 pfilter-ext
-pfit-tree
 pick
 plot-tree
 pmap

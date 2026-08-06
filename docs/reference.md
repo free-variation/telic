@@ -33,7 +33,7 @@ insignificant). `make test` extracts and verifies every pair, and
 
 Tokens are whitespace-delimited, with self-delimiting punctuation: `;`, `]`,
 and `}` always end a token and `[` and `{` always start one (the two-char
-openers `[:` `[(` `[|` `[>` `[<` and closers `:]` `)]` `>]` stay whole), so
+openers `[:` `[(` `[>` `[<` and closers `:]` `)]` `>]` stay whole), so
 `[1 2 3]`, `{:a 1}`, and `dup *;` parse without inner spaces. A path literal's
 predicate brackets (`/a[x>3]`) are kept whole by bracket balance. `<` `>` `<=`
 `>=` are ordinary comparison words; set literals `[< … >]` still need spaces
@@ -1479,8 +1479,7 @@ closers are self-delimiting tokens (see the note in the introduction).
 | `>]` | — | Close a set literal |
 | `[(` | — | Open a cons-list literal; `)]` closes it |
 | `)]` | — | Close a cons-list literal |
-| `:]` | — | Close a quotation (any `[:` / `[\|` / `[>` form; `[:` itself is under Defining) |
-| `[\|` | — | Open a quotation whose body starts with a `\| … \|` locals list |
+| `:]` | — | Close a quotation (either `[:` / `[>` form; `[:` itself is under Defining) |
 | `[>` | — | Open a quotation whose locals list receives every slot from the stack |
 | `\|` | — | Declare word-locals at a definition's head: `\| x y \|` |
 | `\|>` | — | Locals list in which every slot receives from the stack |
@@ -1546,13 +1545,6 @@ closers are self-delimiting tokens (see the note in the introduction).
 ```
 ```output
 10
-```
-
-```forth [|
-10 [| >x | x x + :] execute . cr
-```
-```output
-20
 ```
 
 ```forth [>
@@ -1778,7 +1770,7 @@ lookup sqrt 9 swap execute . cr
 
 ### Locals
 
-Declared only at the **head** of a definition or quotation body. Live on the return stack: up to 128 names across up to 64 nested scopes. A body reads the locals **it declares itself** and nothing else: a reference to a name declared in an enclosing definition or an enclosing quotation is a compile error — `x is not bound in this quotation; pass it in or use pick` — and the partial definition rolls back. Values reach a quotation three ways: received into its own slots (`[>` receive-all, `[|` selective), parked on the stack below the combinator's operands and read by depth with `pick`, or bound into a curried token by `curry`/`2curry`/`ncurry`.
+Declared only at the **head** of a definition or quotation body. Live on the return stack: up to 128 names across up to 64 nested scopes. A body reads the locals **it declares itself** and nothing else: a reference to a name declared in an enclosing definition or an enclosing quotation is a compile error — `x is not bound in this quotation; pass it in or use pick` — and the partial definition rolls back. Values reach a quotation three ways: received into its own slots (`[>` receive-all, `[: | >x |` selective), parked on the stack below the combinator's operands and read by depth with `pick`, or bound into a curried token by `curry`/`2curry`/`ncurry`.
 
 The mechanism: a local reference compiles to the **slot index** in the frame that declares it, always the innermost locals-bearing scope, and the op reads `local_base + slot` with no frame walk. Names are discarded after compilation and no value is bound then. Because every reference is depth 0, a quotation's meaning does not depend on which frames happen to be live when it runs — it reads the same slots under `map`, under `i-times`, through `execute`, inside another word's frame, or after a continuation capture and resume. The rejected alternative was resolving a reference as `(frames-up, slot)` against the live frame chain, which made a quotation's reads depend on its caller's frames and silently returned another word's slots when it travelled.
 
@@ -1788,7 +1780,6 @@ The mechanism: a local reference compiles to the **slot index** in the frame tha
 | `\|> x y z \|` | Declare and receive from the stack: z ← top, y ← second, x ← third |
 | `\| x >y z \|` | Mixed: a `>` prefix marks an individual name as a receive slot; the rest are uninitialized |
 | `\| ?x \|` | A `?` prefix marks a slot initialized with a fresh logic variable per call; read by bare name. Cannot combine with `>`, and not allowed in the all-receive `\|>` / `[>` forms |
-| `[\| x y z \| … :]` | Lambda sugar: `[\|` fuses `[:` and `\|` into one token, opening an anonymous quotation whose body begins with a `\|` locals list (`>` prefixes receive selectively) |
 | `[> x y z \| … :]` | Lambda sugar for the receive-all case: `[>` fuses `[:` and `\|>`, so x, y, z are received from the stack |
 
 These compile-time words read a following local name and emit a single fused depth-0 instruction:
@@ -2585,7 +2576,7 @@ Symbol-keyed sorted maps; binary-search lookup. A **path** is an array of steps;
 ```
 
 ```forth update-at
-{ :n 10 } :n [: 1+ :] update-at frame>array . cr
+{ :n 10 } :n ' 1+ update-at frame>array . cr
 ```
 ```output
 [ :n 11 ]
@@ -3068,7 +3059,6 @@ keep NaN in place.
 | `brier` | `( outcomes probabilities -- f )` | statistics.h2o: Brier score — mean of (probability − outcome)² over n×1 vectors; NaN elements are skipped by `mean` | 3n | `2m(n)` | O(n) |
 | `auc` | `( outcomes scores -- f )` | statistics.h2o: area under the ROC curve = P(a random positive scores above a random negative), ties counted half (Mann–Whitney). outcomes n×1 in {0,1}, scores real; a NaN score drops its row (outcomes stay aligned); throws if either class is absent. Ties are handled exactly, so the result is independent of row order | n_pos·n_neg | index vectors + per-positive masks | O(n_pos·n_neg) |
 | `cv-folds` | `( units n-folds -- folds )` | statistics.h2o: deal `units` round-robin into `n-folds` `[ train test ]` index-array pairs in the given order — the split `cross-validate` runs on; errors on n-folds < 2 or fewer units than folds | n | fold index arrays | O(n) |
-| `n-observations` | `( x -- n )` | statistics.h2o: observation count of a fit input — an array's `size`, a matrix's row count | 8 | none | O(1) |
 | `cross-validate` | `( units n-folds fit-xt score-xt -- fold-losses )` | statistics.h2o: k-fold cross-validation — units deal round-robin into folds in the order given (shuffle first when order matters; reuse one shuffle to compare configurations on the same folds); per fold, `fit` `( train-units -- model )` then `score` `( model test-units -- loss )`, both taking everything from the stack since they run in this word's frame; answers the per-fold losses as an n-folds vector (`mean` it for the CV estimate, `std` for the standard error). A unit is whatever the array holds — rows, or per-cluster index arrays for cluster CV | k·(fit + score) + n·k | fold index arrays | O(k·(fit + score)) |
 | `ks-distance` | `( a b -- d )` | Two-sample Kolmogorov–Smirnov statistic: the largest absolute gap between the two samples' ECDFs, both advanced past each pooled value before measuring (ties). Symmetric; d ∈ [0, 1]; NaNs excluded per sample, each sample's own n; dimensioned inputs are computed over their magnitudes; errors when either sample has no finite values | (n+m) log(n+m) | `malloc(n)` + `malloc(m)` | O((n+m) log(n+m)); above 8k elements the sorts are O(n) radix |
 | `std` | `( m -- f )` | statistics.h2o: standard deviation, `var sqrt` (inlined) | n | none | O(n) |
@@ -3096,17 +3086,15 @@ keep NaN in place.
 | `with-intercept` | `( X/design -- X'/design )` | statistics.h2o: a matrix gets a prepended column of ones, so a fit's beta[0] is the intercept; a design dataset gets an `:intercept` ones column keyed like any term (errors on an empty design — the rows are read from it) | r×c | matrix `1m(r×(c+1))`; design `1m(r×1)` | O(r×c) |
 | `sigmoid` | `( m -- m' )` | statistics.h2o: elementwise logistic 1/(1+e⁻ˣ), mapping reals to (0,1) | 4n | `1m(r×c)` | O(n) |
 | `regress-with` | `( dataset predictors response B fit-xt -- arr )` | statistics.h2o: the shared regression pipeline — design matrix with intercept, point estimate, then B bootstrap refits for per-coefficient `{ :estimate :se :bias :ci-low :ci-high }` frames; the loadable statistics library's `linear-regression`/`logistic-regression` pass the fit | fit + B·fit | matrices + B refits + `1a(k)` | O(B·fit) |
-| `norm` | `( m -- f )` | Euclidean (L2) norm: √(Σ aᵢⱼ²) over all elements — a vector's length; for a matrix the Frobenius (entrywise 2-)norm, not the spectral norm | 1 + n | none | O(n) |
+| `norm` | `( m -- f )` | matrix.h2o: `frobenius-norm` under the short name (inlined) | 1 + n | none | O(n) |
 | `dot` | `( v w -- f )` | matrix.h2o: inner product (`* sum`, inlined); shapes must broadcast, so match the vectors | 2 + 2n | `1m(n)` | O(n) |
-| `frobenius-norm` | `( m -- f )` | √(Σ aᵢⱼ²) over all elements (same value as `norm`) | 1 + n | none | O(n) |
+| `frobenius-norm` | `( m -- f )` | Euclidean (L2) norm: √(Σ aᵢⱼ²) over all elements — a vector's length; for a matrix the Frobenius (entrywise 2-)norm, not the spectral norm | 1 + n | none | O(n) |
 | `fit-tree` | `( features y params -- tree )` | CART regression tree. `features` is a frame of typed columns — a numeric vector splits at a midpoint `:threshold`, an array column is categorical and splits on a mean-ordered subset stored as `:categories`; `y` is a numeric response vector. Returns a nested frame: every node carries `:prediction` (mean of its rows) and `:n_rows`, an internal node adds `:feature` and either `:threshold` or `:categories` plus `:left`/`:right`, a leaf optionally carries `:responses`. Splits maximize S_L²/n_L + S_R²/n_R (squared-error reduction), each numeric column presorted once. Params frame: `:max-depth` (default unlimited), `:min-samples` (minimum rows on each side of a split, default 1), `:store-leaf-responses` (default off). A numeric split learns a default direction for rows missing that feature (NaN): the side that maximizes the split criterion, stored on the node as `:default` (`:left`/`:right`) — present only when the node saw missing rows | features·n·depth | `malloc(24n)` per numeric column + node buffer + tree frame | O(features·n·depth) |
-| `pfit-tree` | `( features y params -- tree )` | `fit-tree`'s parallel form, producing a byte-identical tree: independent subtrees below a shallow frontier grow concurrently across `num-cores` worker threads, then graft into the tree; the presort and the frontier top stay serial. Speeds up deep trees; shallow (boosting-depth) trees reach no frontier and fall back to serial | as `fit-tree` | as `fit-tree` + per-worker node buffers | O(features·n·depth / cores) |
 | `predict` | `( tree features -- yhat )` | statistics.h2o: apply a `fit-tree` tree to a features frame keyed as at training, walking each row from the root to a leaf — a `:threshold` node sends value ≤ threshold left, a `:categories` node sends set membership left (an unseen value goes right), a NaN feature value follows the node's `:default` (left when the node has none) — and answer the leaf `:prediction`s as an n×1 vector | n·depth | `1a(n)` + `1m(n)` | O(n·depth) |
 | `feature-importance` | `( tree -- fr )` | statistics.h2o: normalized impurity-reduction importance from a `fit-tree` tree — each split's squared-error reduction (`n_L·pred_L² + n_R·pred_R² − n_P·pred_P²`) summed per `:feature` and scaled to sum 1, as a frame keyed by feature symbol over the features actually split on; a stump gives `{ }` | nodes | `1fr` | O(nodes) |
 | `prune` | `( tree alpha -- tree )` | statistics.h2o: cost-complexity prune in place — collapse every subtree whose total split-gain per extra leaf is at most `alpha` (bottom-up, so each collapse sees already-pruned children); `alpha` 0 leaves the tree unchanged, large `alpha` reduces it to the root stump. Mutates the input tree | nodes | leaf frames | O(nodes) |
 | `prune-cv` | `( features y params -- tree )` | statistics.h2o: fit a `fit-tree`, then `prune` at the `alpha` the 1-SE rule picks — the largest `alpha` (smallest tree) whose mean k-fold CV mean-squared-error is within one standard error of the minimum, over the weakest-link `alpha` sequence; `:folds` in params sets k (default 5). Fits k×(sequence length) trees | k·seq·(fit + n) | trees + fold data | O(k·seq·fit) |
 | `draw-tree` | `( tree -- )` | statistics.h2o: print a `fit-tree` tree as indented split rules — each internal node's condition (`feature <= threshold`, or `feature in <categories>`), left (condition-true) branch first, and each leaf's `predict <value> (n <rows>)` | nodes | strings | O(nodes) |
-| `draw-node` | `( node depth -- )` | statistics.h2o: print one `fit-tree` node and its subtree indented at `depth`; the recursion `draw-tree` drives from the root | subtree | strings | O(nodes) |
 
 ```forth augment
 [ 1 2 ] vector [ 3 4 ] vector augment matrix>array . cr
@@ -3249,13 +3237,6 @@ keep NaN in place.
     [ 0 2 ] ]
   [ [ 0 2 ]
     [ 1 3 ] ] ]
-```
-
-```forth n-observations
-[ 1 2 3 ] n-observations . [ 1 2 3 ] vector n-observations . cr
-```
-```output
-3 3
 ```
 
 ```forth cross-validate
@@ -3444,7 +3425,7 @@ keep NaN in place.
 
 ```forth-noexec regress-with
 \ the loadable statistics library passes its LAPACK fit:
-adult [ :age :education-num ] :income 200 [: fit-linear :] regress-with
+adult [ :age :education-num ] :income 200 ' fit-linear regress-with
 ```
 ```output
 [ per-coefficient { :estimate :se :bias :ci-low :ci-high } frames ]
@@ -3476,13 +3457,6 @@ adult [ :age :education-num ] :income 200 [: fit-linear :] regress-with
 ```
 ```output
 :x
-```
-
-```forth pfit-tree
-{ :x [ 1 2 3 4 ] vector } [ 10 10 20 20 ] vector { } pfit-tree :threshold @ . cr
-```
-```output
-2.5
 ```
 
 ```forth predict
@@ -3521,16 +3495,6 @@ x <= 2.5
   predict 10  (n 2)
 x > 2.5
   predict 20  (n 2)
-```
-
-```forth draw-node
-{ :x [ 1 2 3 4 ] vector } [ 10 10 20 20 ] vector { } fit-tree 1 draw-node
-```
-```output
-  x <= 2.5
-    predict 10  (n 2)
-  x > 2.5
-    predict 20  (n 2)
 ```
 
 ---
@@ -3944,7 +3908,7 @@ The quotation/predicate cost dominates; `xt` denotes one call.
 ```
 
 ```forth nmap
-[ 1 2 ] [ 10 20 ] [: + :] 2 nmap . cr
+[ 1 2 ] [ 10 20 ] ' + 2 nmap . cr
 ```
 ```output
 [ 11 22 ]
@@ -3958,7 +3922,7 @@ The quotation/predicate cost dominates; `xt` denotes one call.
 ```
 
 ```forth reduce
-[ 1 2 3 4 ] 0 [: + :] reduce . cr
+[ 1 2 3 4 ] 0 ' + reduce . cr
 ```
 ```output
 10
@@ -3979,7 +3943,7 @@ ho ho ho
 ```
 
 ```forth product-times
-[: 1+ :] 4 product-times . cr
+' 1+ 4 product-times . cr
 ```
 ```output
 24
@@ -4035,7 +3999,7 @@ ho ho ho
 ```
 
 ```forth sort-by
-[ "bb" "a" "ccc" ] [: size :] sort-by . cr
+[ "bb" "a" "ccc" ] ' size sort-by . cr
 ```
 ```output
 [ "a" "bb" "ccc" ]
@@ -4055,9 +4019,9 @@ ho ho ho
 [ :even [< 2 4 >] :odd [< 1 3 >] ]
 ```
 
-### Parallel (`docs/multicore.md`)
+### Parallel
 
-Run the xt across worker threads over the shared heap; `w` worker threads, `c` items per claim. The bare forms default to `num-cores` workers and claim 1. xt runs concurrently, so it must produce fresh values, not mutate shared inputs, and not print. A faulting xt aborts the region and raises an error.
+Run the xt across worker threads over the shared heap; `w` worker threads, `c` items per claim. The bare forms default to `num-cores` workers and claim 1. The worker contract: the xt produces fresh values — reading shared inputs is fine, writing into them from several workers is an unguarded race — and it must not print (workers share one stdout; print from the coordinator after the join). Allocation of any type inside a worker is unrestricted — strings, arrays, sets, frames, matrices, segments, cons cells, interned symbols all take the per-thread path. A faulting xt (a throw, wrong arity, out-allocating the region) aborts the whole region and raises a clean error, never a partial result. Each worker's logic-variable bindings are private, so unification inside a parallel quotation is local to its worker and does not compose into a shared search.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
@@ -4324,7 +4288,7 @@ Coroutines over the continuation substrate: a producer `yield`s values one at a 
 
 ## Logic
 
-Logic variables, unification, and committed choice, built on the trail and a `PROMPT_CHOICE` prompt. A logic var is always created explicitly: `lvar` pushes a fresh one, `lvar to x` names a persistent global (`to` auto-creates the global at the top level), and a `?` prefix in a locals list (`| ?x |`) declares a fresh per-call local. Capitalizing logic-var names (`X`, `Hs`) is stylistic convention, not syntax — case carries no meaning. `unify` records every binding on the trail; a `unify` mismatch or an explicit `fail` backtracks to the nearest `amb`. Lists are cons pairs (see Pairs): `[( H T )]` is the `[H|T]` head/tail pattern under `unify`. To keep a result past backtracking, snapshot it with `copy` (fresh vars) or `reify` (canonical `:_N`). A logic var prints by the name of a variable that holds it — `?x` while free (the `?` marks the hole, echoing the `| ?x |` declaration form), `x=value` once bound — or `_N` when anonymous; an anonymous bound var prints its value.
+Logic variables, unification, and committed choice, built on the trail and a `PROMPT_CHOICE` prompt. The primer behind these words — unknowns and substitutions, unification, the trail, search, reification, and the fact database as a worked application — is docs/logic.md. A logic var is always created explicitly: `lvar` pushes a fresh one, `lvar to x` names a persistent global (`to` auto-creates the global at the top level), and a `?` prefix in a locals list (`| ?x |`) declares a fresh per-call local. Capitalizing logic-var names (`X`, `Hs`) is stylistic convention, not syntax — case carries no meaning. `unify` records every binding on the trail; a `unify` mismatch or an explicit `fail` backtracks to the nearest `amb`. Lists are cons pairs (see Pairs): `[( H T )]` is the `[H|T]` head/tail pattern under `unify`. To keep a result past backtracking, snapshot it with `copy` (fresh vars) or `reify` (canonical `:_N`). A logic var prints by the name of a variable that holds it — `?x` while free (the `?` marks the hole, echoing the `| ?x |` declaration form), `x=value` once bound — or `_N` when anonymous; an anonymous bound var prints its value.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
@@ -4885,10 +4849,11 @@ woke
 ```
 
 ```forth-noexec timed
-[: 1000 iota [: 1+ :] map drop :] timed
+[: [ 1 2 3 ] ' 1+ map :] timed . cr
 ```
 ```output
-1.00001e-05
+2.1e-06
+[ 2 3 4 ]
 ```
 
 ---

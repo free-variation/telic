@@ -22,7 +22,7 @@ variable row  variable col  variable val  variable x  variable y
   n double-segment to x
   n double-segment to y
   row 0.0 0.0 !i drop
-  [| >r rowr step |
+  [: | >r rowr step |
      row r @i to rowr
      row r 1.0 f+  rowr nr f+  !i drop
      r nr / ftruncate to step
@@ -34,11 +34,11 @@ variable row  variable col  variable val  variable x  variable y
 
 : sparse-matmult
   [:
-     [| >r lo hi |
+     [: | >r lo hi |
         row r @i to lo
         row r 1.0 f+ @i to hi
         lo 0.0
-        [| >k i | 1 pick k f+ to i  x col i @i @i  val i @i f*  f+ :] hi lo f- i-times
+        [: | >k i | 1 pick k f+ to i  x col i @i @i  val i @i f*  f+ :] hi lo f- i-times
         nip
         y r rot !i drop
      :] n i-times

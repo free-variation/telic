@@ -24,7 +24,7 @@
   else
      A B R
      [: 2 pick null ~ drop   dup 2 pick ~ drop :]
-     [| ?H ?T ?R1 |
+     [: | ?H ?T ?R1 |
         2 pick  H T cons  ~ drop
         dup     H R1 cons ~ drop
         T 2 pick R1 lappend :]
@@ -44,7 +44,7 @@
   else
      L R
      [: 1 pick null ~ drop   dup null ~ drop :]
-     [| ?H ?T ?RT |
+     [: | ?H ?T ?RT |
         1 pick  H T cons  ~ drop
         T RT nrev
         RT  H null cons  2 pick lappend :]

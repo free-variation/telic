@@ -245,7 +245,7 @@ to aes
 
 	:font-size figure@ to swatch
 	swatch 6 + to pitch
-	labels [: size :] map 0 ' max2 reduce swatch 0.6 * * to label-width
+	labels ' size map 0 ' max2 reduce swatch 0.6 * * to label-width
 	swatch 4 + label-width + to strip-width
 	strip-width 20 + :right-pad figure!
 	:width figure@ :margin figure@ - strip-width - to legend-x
@@ -353,7 +353,7 @@ to aes
 	low :xmin figure! low n-bins bin-width * + :xmax figure!
 	0 :ymin figure! counts max :ymax figure!
 	low bin-width counts
-	[| >i >low >bin-width >counts bar-left |
+	[: | >i >low >bin-width >counts bar-left |
 		low i bin-width * + to bar-left
 		bar-left 0 bar-left bin-width + counts i @e
 		:bar-fill figure@ :bar-stroke figure@ 1 :data :data rect-mark :]

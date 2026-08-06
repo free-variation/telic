@@ -803,185 +803,6 @@ static int grow_node(CARTSample *sample, CARTPartition *partition,
 	return node_index;
 }
 
-#define PARALLEL_FIT_MIN_ROWS 20000
-
-typedef struct {
-	int node_start;
-	int node_end;
-	double node_sum;
-	int tree_depth;
-	int parent_index;
-	int child_side;
-	CART fragment;
-	CARTCategoryStats category_stats;
-} CARTSubtreeTask;
-
-typedef struct {
-	CARTSubtreeTask *tasks;
-	int n_tasks;
-	int n_allocated;
-} CARTSubtreeList;
-
-static int grow_top(CARTSample *sample, CARTPartition *partition, CARTCategoryStats *category_stats,
-		CART *tree, CARTSubtreeList *subtrees, int max_depth, int min_samples, int frontier_depth,
-		int node_start, int node_end, double node_sum, int tree_depth, int parent_index, int child_side) {
-	if (tree_depth == frontier_depth) {
-		GROW_IF_FULL_SYS(subtrees->n_tasks, subtrees->n_allocated, subtrees->tasks);
-		CARTSubtreeTask *task = &subtrees->tasks[subtrees->n_tasks++];
-		task->node_start = node_start;
-		task->node_end = node_end;
-		task->node_sum = node_sum;
-		task->tree_depth = tree_depth;
-		task->parent_index = parent_index;
-		task->child_side = child_side;
-		task->fragment = (CART){0};
-		task->category_stats = (CARTCategoryStats){0};
-		return -1;
-	}
-
-	int n_rows = node_end - node_start;
-
-	int node_index = append_leaf(tree, node_start, n_rows, node_sum);
-
-	if (tree_depth >= max_depth)
-		return node_index;
-
-	CARTSplit split = choose_split(sample, partition, category_stats, node_start, node_end, node_sum, min_samples);
-	if (split.feature < 0)
-		return node_index;
-
-	partition_node(sample, partition, category_stats, &split, node_start, node_end);
-
-	if (sample->features[split.feature].kind == FEATURE_CATEGORICAL)
-		record_categorical_split(tree, node_index, category_stats, sample->features[split.feature].n_levels);
-
-	double left_sum;
-	int n_left = split_left_count(&split, &left_sum);
-	int right_start = node_start + n_left;
-	double right_sum = node_sum - left_sum;
-	int left = grow_top(sample, partition, category_stats, tree, subtrees, max_depth, min_samples,
-			frontier_depth, node_start, right_start, left_sum, tree_depth + 1, node_index, 0);
-	int right = grow_top(sample, partition, category_stats, tree, subtrees, max_depth, min_samples,
-			frontier_depth, right_start, node_end, right_sum, tree_depth + 1, node_index, 1);
-
-	CARTNode *node = &tree->nodes[node_index];
-	node->feature = split.feature;
-	node->threshold = split.threshold;
-	node->left_child = left;
-	node->right_child = right;
-	node->missing_left = split.missing_left;
-	node->split_missing_count = split.missing_count;
-
-	return node_index;
-}
-
-static void graft_fragment(CART *tree, const CART *fragment, int parent_index, int child_side) {
-	int node_base = tree->n_nodes;
-	int flags_base = tree->n_category_flags;
-
-	while (tree->n_nodes + fragment->n_nodes > tree->n_allocated) {
-		tree->n_allocated = tree->n_allocated ? tree->n_allocated * 2 : 8;
-		tree->nodes = realloc(tree->nodes, sizeof(CARTNode) * (size_t)tree->n_allocated);
-	}
-	while (tree->n_category_flags + fragment->n_category_flags > tree->category_flags_cap) {
-		tree->category_flags_cap = tree->category_flags_cap ? tree->category_flags_cap * 2 : 8;
-		tree->category_flags = realloc(tree->category_flags, (size_t)tree->category_flags_cap);
-	}
-
-	if (fragment->n_category_flags > 0)
-		memcpy(&tree->category_flags[flags_base], fragment->category_flags, (size_t)fragment->n_category_flags);
-	tree->n_category_flags += fragment->n_category_flags;
-
-	for (int i = 0; i < fragment->n_nodes; i++) {
-		CARTNode node = fragment->nodes[i];
-		if (node.left_child >= 0) {
-			node.left_child += node_base;
-			node.right_child += node_base;
-		}
-		if (node.category_offset >= 0)
-			node.category_offset += flags_base;
-		tree->nodes[node_base + i] = node;
-	}
-	tree->n_nodes += fragment->n_nodes;
-
-	if (child_side == 0)
-		tree->nodes[parent_index].left_child = node_base;
-	else
-		tree->nodes[parent_index].right_child = node_base;
-}
-
-typedef struct {
-	CARTSample *sample;
-	CARTPartition *partition;
-	CARTSubtreeTask *tasks;
-	int max_depth;
-	int min_samples;
-} CARTGrowContext;
-
-static void grow_subtree_kernel(int start_index, int end_index, void *context_pointer) {
-	CARTGrowContext *context = context_pointer;
-
-	for (int t = start_index; t < end_index; t++) {
-		CARTSubtreeTask *task = &context->tasks[t];
-		grow_node(context->sample, context->partition, &task->category_stats, &task->fragment,
-				context->max_depth, context->min_samples,
-				task->node_start, task->node_end, task->node_sum, task->tree_depth);
-	}
-}
-
-static void grow_tree_parallel(Interpreter *interp, CARTSample *sample, CARTPartition *partition,
-		CARTCategoryStats *top_category_stats, CART *tree, int max_depth, int min_samples,
-		int frontier_depth, int n_rows, double root_sum, int worker_count, int max_levels) {
-	CARTSubtreeList subtrees = {0};
-	grow_top(sample, partition, top_category_stats, tree, &subtrees,
-			max_depth, min_samples, frontier_depth, 0, n_rows, root_sum, 0, -1, 0);
-
-	if (subtrees.n_tasks == 0) {
-		free(subtrees.tasks);
-		return;
-	}
-
-	for (int t = 0; max_levels > 0 && t < subtrees.n_tasks; t++) {
-		CARTCategoryStats *stats = &subtrees.tasks[t].category_stats;
-		stats->level_sum = malloc((size_t)max_levels * sizeof(double));
-		stats->level_count = malloc((size_t)max_levels * sizeof(int));
-		stats->level_order = malloc((size_t)max_levels * sizeof(int));
-		stats->goes_left = malloc((size_t)max_levels * sizeof(char));
-		if (!stats->level_sum || !stats->level_count || !stats->level_order || !stats->goes_left) {
-			for (int done = 0; done <= t; done++) {
-				free(subtrees.tasks[done].category_stats.level_sum);
-				free(subtrees.tasks[done].category_stats.level_count);
-				free(subtrees.tasks[done].category_stats.level_order);
-				free(subtrees.tasks[done].category_stats.goes_left);
-			}
-			free(subtrees.tasks);
-			fail(interp, "out of memory");
-			return;
-		}
-	}
-
-	CARTGrowContext context = {
-		.sample = sample,
-		.partition = partition,
-		.tasks = subtrees.tasks,
-		.max_depth = max_depth,
-		.min_samples = min_samples,
-	};
-	parallel_for(subtrees.n_tasks, worker_count, 1, grow_subtree_kernel, &context);
-
-	for (int t = 0; t < subtrees.n_tasks; t++) {
-		CARTSubtreeTask *task = &subtrees.tasks[t];
-		graft_fragment(tree, &task->fragment, task->parent_index, task->child_side);
-		free(task->fragment.nodes);
-		free(task->fragment.category_flags);
-		free(task->category_stats.level_sum);
-		free(task->category_stats.level_count);
-		free(task->category_stats.level_order);
-		free(task->category_stats.goes_left);
-	}
-	free(subtrees.tasks);
-}
-
 static void presort_numeric_column(const double *column_values, const double *response,
 		int n_rows, CARTSortedColumn *sorted_column, ArgsortPair *value_rows) {
 	int n_finite = 0;
@@ -1254,7 +1075,7 @@ static int validate_tree_inputs(Interpreter *interp, Object *features, Object *y
 	return 0;
 }
 
-static int fit_tree_build(Interpreter *interp, Object *features, Object *y, Object *params, int parallel) {
+static int fit_tree_build(Interpreter *interp, Object *features, Object *y, Object *params) {
 	int n_rows;
 	if (validate_tree_inputs(interp, features, y, &n_rows) < 0)
 		return -1;
@@ -1305,20 +1126,7 @@ static int fit_tree_build(Interpreter *interp, Object *features, Object *y, Obje
 	for (int i = 0; i < n_rows; i++)
 		root_sum += response[i];
 
-	if (parallel) {
-		int worker_count = cpu_count();
-		int frontier_depth = 1;
-		while ((1 << frontier_depth) < 4 * worker_count && frontier_depth < 12)
-			frontier_depth++;
-		grow_tree_parallel(interp, &sample, &partition, &category_stats, &tree,
-				max_depth, min_samples, frontier_depth, n_rows, root_sum, worker_count, max_levels);
-		if (interp->error_flag) {
-			free_fit_allocations(&partition, &category_stats, &tree, &sample, n_features);
-			return -1;
-		}
-	} else {
-		grow_node(&sample, &partition, &category_stats, &tree, max_depth, min_samples, 0, n_rows, root_sum, 0);
-	}
+	grow_node(&sample, &partition, &category_stats, &tree, max_depth, min_samples, 0, n_rows, root_sum, 0);
 
 	int root_handle = object_new_frame(interp);
 	if (interp->error_flag) {
@@ -1347,16 +1155,7 @@ static int fit_tree_build(Interpreter *interp, Object *features, Object *y, Obje
 	return root_handle;
 }
 
-static int fit_tree_serial(Interpreter *interp, Object *features, Object *y, Object *params) {
-	return fit_tree_build(interp, features, y, params, 0);
-}
-
-static int fit_tree_parallel(Interpreter *interp, Object *features, Object *y, Object *params) {
-	return fit_tree_build(interp, features, y, params, 1);
-}
-
-static int tree_word_operands(Interpreter *interp, Val *chain_sp,
-		int (*build)(Interpreter *, Object *, Object *, Object *)) {
+static int tree_word_operands(Interpreter *interp, Val *chain_sp) {
 	Val params_val = chain_sp[-1];
 	if (VAL_TAG(params_val) != T_FRAME) {
 		fail(interp, "expected a parameters frame; got %s", tag_name(VAL_TAG(params_val)));
@@ -1377,26 +1176,14 @@ static int tree_word_operands(Interpreter *interp, Val *chain_sp,
 		return -1;
 	}
 
-	return build(interp, OBJECT_AT(VAL_DATA(features_val)),
+	return fit_tree_build(interp, OBJECT_AT(VAL_DATA(features_val)),
 			OBJECT_AT(VAL_DATA(y_matrix_val)), OBJECT_AT(VAL_DATA(params_val)));
 }
 
 void p_fit_tree(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 3);
 
-	int root_handle = tree_word_operands(interp, chain_sp, fit_tree_serial);
-	if (interp->error_flag)
-		return;
-
-	chain_sp[-3] = make_frame(root_handle);
-
-	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 2);
-}
-
-void p_pfit_tree(DISPATCH_ARGS) {
-	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 3);
-
-	int root_handle = tree_word_operands(interp, chain_sp, fit_tree_parallel);
+	int root_handle = tree_word_operands(interp, chain_sp);
 	if (interp->error_flag)
 		return;
 

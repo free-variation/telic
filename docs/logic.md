@@ -114,11 +114,30 @@ leaves `42` — or fails and backtracks.
 A program describes a relation by sequencing unification goals: each `~` either
 narrows the unknowns or fails the branch.
 
+```forth unify-binds
+lvar to V
+V 42 ~ . cr
+V ? . cr
+```
+```output
+42
+42
+```
+
 Sometimes you want to know *whether* two terms could unify without keeping the
 bindings — a pure predicate. `matches?` unifies, then immediately rewinds the
 substitution to where it started, answering the yes/no question and leaving the
 store untouched. The mechanism it uses to rewind is the same one that powers all
 of backtracking: the trail.
+
+```forth open-record-matches
+{ :role :wizard :name :tim } { :role :wizard } matches? . cr
+{ :role :fighter :name :bob } { :role :wizard } matches? . cr
+```
+```output
+1
+0
+```
 
 ---
 
@@ -176,6 +195,13 @@ propagates outward to the enclosing choice) nested inside disjunction (`amb`),
 which `amb`/`fail` walk depth-first, binding on the way down and unbinding on the
 way back up.
 
+```forth amb-fail
+[: fail :] [: "second branch" :] amb . cr
+```
+```output
+second branch
+```
+
 ---
 
 ## Part 6: Reification — reading out an answer
@@ -199,6 +225,13 @@ structure stays shared). Two modes share the walk:
 
 Both deep-copy the surrounding structure, dereferencing variables as they go, so a
 reified term reflects every binding in force at the moment of reification.
+
+```forth reify-snapshot
+[ lvar lvar 5 ] reify . cr
+```
+```output
+[ :_0 :_1 5 ]
+```
 
 ---
 
@@ -265,6 +298,5 @@ and frame data structures, assembled in a library.
 ---
 
 For broader context: `continuations.md` is the `amb`/`fail` choice-point machinery
-(the same prompt mechanism, used for backtracking); `gc.md` notes that the
-collector follows a reachable logic variable into the binding store, so its
-binding is kept alive.
+(the same prompt mechanism, used for backtracking). The garbage collector follows
+a reachable logic variable into the binding store, so its binding is kept alive.

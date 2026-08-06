@@ -1,11 +1,13 @@
 # Regression in Water
 
-This document explains how Water fits linear and logistic regressions — and
-to do that honestly it has to explain the *mathematics*, because the code is the
-math made executable. So it does both at once: each idea is derived far enough
-that you could reconstruct it, and then connected to the word that performs it.
-The aim is that by the end you understand not just *what* `linear-regression` and
-`logistic-regression` return, but *why* every step is the step it is.
+This document explains how Water fits linear and logistic regressions, and
+the regression trees that drop the linear predictor altogether. That requires
+explaining the *mathematics*, because the code is the math made executable. So
+it does both at once: each idea is derived far enough that you could
+reconstruct it, and then connected to the word that performs it. The aim is
+that by the end you understand not just *what* `linear-regression`,
+`logistic-regression`, and `fit-tree` return, but *why* every step is the step
+it is.
 
 It assumes you've seen means, variance, vectors and matrices, and the idea of a
 sampling distribution — a second-semester course. Throughout, `n` is the number
@@ -141,7 +143,7 @@ where `U` and `V` have orthonormal columns and `Σ` is diagonal with the
 non-negative **singular values** σ₁ ≥ σ₂ ≥ … (the intrinsic "gains" of `X`, biggest
 to smallest). In these coordinates the least-squares solution is immediate — each
 singular direction is solved independently, scaling by `1/σⱼ` — and the squaring
-never happens, so the conditioning is the honest conditioning of `X` itself. The
+never happens, so the conditioning is that of `X` itself. The
 SVD also handles a *rank-deficient* `X` gracefully: a zero (or tiny) singular value
 is simply dropped instead of blowing up an inverse, yielding the minimum-norm
 solution.
@@ -280,8 +282,8 @@ The cure Water applies is the **Firth correction**: a principled penalty that
 adjusts each observation's residual by its **leverage**. Leverage `hᵢ` measures how
 much observation `i` pulls its own fitted value — and it falls straight out of the
 SVD of the weighted design: with `√W·X = UΣVᵀ`, the leverages are `hᵢ = Σⱼ Uᵢⱼ²`,
-the squared row norms of `U`. (This is the second place the SVD earns its keep:
-the same factorization that solves the step also hands back the leverages.) Firth
+the squared row norms of `U`. (This is the SVD's second use:
+the same factorization that solves the step also produces the leverages.) Firth
 replaces the plain residual `yᵢ − pᵢ` with
 
 ```
@@ -368,7 +370,8 @@ The decisive structural fact: each resample's fit is **independent** of the othe
 is why it's the natural workload for `pmap`: `bootstrap` runs the resamples
 serially, `pbootstrap` spreads them across cores, and because a worker only reads
 the shared data and produces its own `β*`, the parallel version computes the
-identical distribution, just faster (see `multicore.md`).
+identical distribution, just faster (the worker contract is in the reference's
+Parallel section).
 
 ### Why the bootstrap rather than classical formulas
 
@@ -411,3 +414,136 @@ resample-and-refit loop, parallel over `pmap`, supplies all the uncertainty.
 Understanding the single idea — a linear predictor, fit by making the data as
 probable as possible, with uncertainty read off the sampling distribution — is
 what lets you use these well and recognize when they'll mislead you.
+
+---
+
+## 7. Regression trees
+
+Every model so far is built on the linear predictor: a weighted sum, one
+coefficient per predictor, effects that are global and additive. A **regression
+tree** drops that structure entirely. Instead of asking "how much does `y` move per unit of
+`xⱼ`, everywhere," it asks "which *regions* of predictor space have different
+typical outcomes?" — and answers with a recursive partition: split the data on
+one predictor at one cutpoint, split each half again, and predict within each
+final region by a constant. No design matrix, no link, no coefficients. The
+model is a set of rules you can read aloud.
+
+### The prediction rule
+
+Fix a region and ask: what single constant `c` should predict every observation
+that lands there? Under squared error, minimize `Σ (yᵢ − c)²`. Differentiate,
+set to zero: `Σ (yᵢ − c) = 0`, so `c` is the **mean** of the region's outcomes.
+That is the whole prediction rule — a tree is a piecewise-constant function
+whose pieces are the leaves and whose values are leaf means. `fit-tree` records
+exactly this: every node carries `:prediction` (the mean of its rows) and
+`:n_rows`.
+
+### The split criterion
+
+To grow the tree we need to score a candidate split. A node's squared error
+around its own mean has a convenient closed form. With `S = Σ yᵢ` and
+`n` observations,
+
+```
+SSE = Σ (yᵢ − S/n)²  =  Σ yᵢ² − S²/n
+```
+
+Split the node into left and right; the children's total error is
+
+```
+SSE_L + SSE_R = Σ yᵢ² − ( S_L²/n_L + S_R²/n_R )
+```
+
+and `Σ yᵢ²` is the same for every candidate split of this node. So *minimizing
+the children's squared error is exactly maximizing*
+
+```
+S_L²/n_L + S_R²/n_R
+```
+
+— a criterion that needs only running sums and counts, never a variance
+recomputation. This is why the fit is fast: `fit-tree` presorts each numeric
+column once, then evaluates every cutpoint of every feature in a single sweep
+of accumulating sums, choosing the split that maximizes the expression above.
+The chosen cutpoint is stored as `:threshold`, the midpoint between the two
+adjacent sorted values it separates.
+
+Growth is **greedy and recursive**: choose the best split of the root, then the
+best split of each child, and so on. (Finding the globally optimal tree is
+intractable; the greedy tree is the standard, and the pruning below corrects
+most of its excess splits.) Recursion stops when a node is deeper than `:max-depth`,
+when a side would fall below `:min-samples` rows, or when no split improves the
+criterion.
+
+### Categorical splits
+
+A categorical predictor with `k` levels has `2^(k−1) − 1` possible binary
+partitions — too many to scan. A classical result (Fisher's grouping lemma)
+collapses this: under squared error, *the optimal partition respects the
+ordering of the levels by their mean response*. Sort the levels by mean `y`;
+the best subset is a prefix of that order; only `k − 1` candidates remain, and
+the same sums-and-counts sweep evaluates them. This is why `fit-tree` takes an
+array column as a **native categorical** — no `indicators!`, no one-hot design
+— and stores the winning subset as `:categories`, the set that goes left.
+`predict` sends set membership left and an unseen level right.
+
+### Missing values
+
+A row missing the split feature has to go somewhere. `fit-tree` tries the
+missing rows on each side and keeps the assignment that maximizes the split
+criterion, recording it as `:default` (`:left`/`:right`) on the node — present
+only when the node actually saw missing rows. `predict` routes a NaN by the
+node's `:default` (left when there is none). Missingness costs no row
+deletions, unlike the regressions' `complete-cases` step.
+
+### Overfitting and pruning
+
+Grown to purity, a tree memorizes: with enough splits every leaf holds one
+observation, training error is zero, and the "model" is the dataset. The cure
+is the same principle as §5 — in-sample error is not the measure; penalize
+complexity. **Cost-complexity pruning** scores a tree `T` by
+
+```
+R_α(T) = SSE(T) + α · |leaves(T)|
+```
+
+An internal node's subtree is kept only if its total split gain per extra leaf
+exceeds `α`. `prune` applies this bottom-up: collapse every subtree
+whose gain per added leaf is at most `α` — so `0 prune` returns the tree
+unchanged and a large `α` collapses it to the root stump.
+
+What `α` is right? That is a tuning question, and the answer comes the same way
+§5 answered uncertainty: by resampling. `prune-cv` computes the tree's
+**weakest-link sequence** — the increasing `α` values at which successive
+subtrees would collapse — and evaluates each by k-fold cross-validation
+(`:folds` in the params frame, default 5), refitting and pruning on each
+training fold and scoring mean squared error on the held-out fold. It then
+applies the **1-SE rule**: choose the *largest* `α` (the smallest tree) whose
+mean CV error is within one standard error of the minimum. The rule is a
+judgment about noise — CV error estimates are themselves uncertain, so among
+trees statistically indistinguishable from the best, prefer the simplest.
+
+### Reading a tree
+
+`draw-tree` prints the fitted partition as indented rules — each internal
+node's condition, condition-true branch first, each leaf's prediction and row
+count. `feature-importance` summarizes how much each predictor reduced the
+error: every split's error reduction (in the sums-and-counts form,
+`n_L·pred_L² + n_R·pred_R² − n_P·pred_P²`) is summed per feature and the whole
+frame scaled to sum 1. A feature can matter through many small splits or one
+large one; importance adds them indifferently.
+
+### One idea, three models
+
+Where §4 put the two regressions side by side, the tree is a third column. It
+captures what the linear predictor cannot — interactions and nonlinearity
+appear automatically as nested splits, monotone transformations of a predictor
+change nothing (only the order of values matters), and categoricals need no
+encoding. What it lacks is what the linear predictor guaranteed: effects are no
+longer global (a predictor influences only the regions that split on it), the
+fitted function is piecewise constant and cannot extrapolate beyond the
+training range, and the fit is **high-variance** — a small change in the data
+can change the early splits and with them the whole partition. Pruning reduces
+the variance within one tree; averaging many trees removes it, which is what
+gradient boosting does, and why `lib/statistics.h2o`'s `fit-xgb` is the
+prediction-oriented complement to the single interpretable tree here.

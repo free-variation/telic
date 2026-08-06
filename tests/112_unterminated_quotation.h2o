@@ -1,4 +1,4 @@
-\ An unterminated quotation inside a definition (a [: / [> / [| with no
+\ An unterminated quotation inside a definition (a [: / [> with no
 \ matching :]) must fail loudly and discard the half-built word, not segfault.
 \ The system must recover and keep compiling/running normally afterward.
 

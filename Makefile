@@ -194,6 +194,12 @@ vendor-lapacke:
 docs-tests:
 	python3 tools/gen-docs-tests.py
 
+# The language pack: the whole language in one generated file (plus an
+# llms.txt copy) sized for a model's context window.
+.PHONY: pack
+pack:
+	python3 tools/gen-pack.py
+
 test: water docs-tests
 	sh tests/run.sh
 

@@ -22,12 +22,12 @@ if exists("loaded_matchit") || exists("g:loaded_matchit")
   let b:match_words =
         \ '\<if\>:\<else\>:\<then\>,' .
         \ '\<begin\>:\<while\>:\<until\>:\<again\>:\<repeat\>,' .
-        \ '\%(\[:\|\[|\|\[>\):\:\]'
+        \ '\%(\[:\|\[>\):\:\]'
   let b:match_ignorecase = 0
 endif
 
 " Self-delimiting punctuation, mirroring the tokenizer: ; ] } end a token,
-" [ { start one, and the two-char forms ([: [( [| [> and :] )]) stay whole.
+" [ { start one, and the two-char forms ([: [( [> and :] )]) stay whole.
 " These insert-mode helpers add the canonical spaces as you type, and stay
 " quiet inside strings and comments.
 function! s:InStringOrComment() abort
@@ -87,11 +87,11 @@ function! s:SpaceAfterOpener() abort
   endif
   let token = s:TokenBeforeCursor()
   if token ==# '['
-    if v:char !~# '[:(|>]'
+    if v:char !~# '[:(><]'
       let v:char = ' ' . v:char
     endif
   elseif token ==# '{' || token ==# '[:' || token ==# '[(' ||
-        \ token ==# '[|' || token ==# '[>'
+        \ token ==# '[>'
     let v:char = ' ' . v:char
   endif
 endfunction
