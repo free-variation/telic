@@ -59,14 +59,24 @@ for input in "$here"/*.h2o; do
     # root (guest ".") for relative loads and /tmp for scratch files, so file
     # I/O tests get the same access the native harness has.
     (cd "$root" && $exec_cmd "$module" -b < "$input") > "$actual" 2>&1
-    if diff -q "$expected" "$actual" > /dev/null 2>&1; then
+    # A <name>.sed file normalizes both sides before the diff, as in run.sh.
+    expected_cmp="$expected"
+    actual_cmp="$actual"
+    if [ -f "$here/$name.sed" ]; then
+        expected_cmp=$(mktemp "${TMPDIR:-/tmp}/lfwasm.XXXXXX")
+        actual_cmp=$(mktemp "${TMPDIR:-/tmp}/lfwasm.XXXXXX")
+        sed -E -f "$here/$name.sed" "$expected" > "$expected_cmp"
+        sed -E -f "$here/$name.sed" "$actual" > "$actual_cmp"
+    fi
+    if diff -q "$expected_cmp" "$actual_cmp" > /dev/null 2>&1; then
         pass=$((pass + 1))
         printf "  ok   %s\n" "$name"
     else
         fail=$((fail + 1))
         printf "  FAIL %s\n" "$name"
-        diff -u "$expected" "$actual" | sed 's/^/       /'
+        diff -u "$expected_cmp" "$actual_cmp" | sed 's/^/       /'
     fi
+    [ "$expected_cmp" = "$expected" ] || rm -f "$expected_cmp" "$actual_cmp"
     rm -f "$actual"
 done
 

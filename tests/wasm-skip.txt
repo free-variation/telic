@@ -6,6 +6,13 @@
 066_env             env!/start-process: not supported on WASI
 069_parallel_run    start-process: no fork/exec on WASI
 140_save_figure     save-figure: mkdir via a subprocess, no fork/exec on WASI
+154_readme_taste    run/read-out and pmap: no fork/exec or threads on WASI
+900_docs_persistence                  load-library via binary-dir: no executable path on WASI
+900_docs_plotting_lib_plot_h2o        load-library via binary-dir: no executable path on WASI
+900_docs_wall_clock_time_and_dates    env! and the -local words: no setenv/timezone on WASI
+900_docs_files_and_environment        env!/cd/binary-dir: not supported on WASI
+900_docs_subprocesses_and_streams     start-process: no fork/exec on WASI
+900_docs_foreign_function_interface   ffi: excluded from the wasm build
 117_with_stream     start-process: no fork/exec on WASI
 098_reload_literals start-process: no fork/exec on WASI
 099_ffi             ffi excluded from the wasm build

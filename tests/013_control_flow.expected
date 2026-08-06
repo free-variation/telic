@@ -4,7 +4,11 @@ z
 1 2 3 
 1 2 3 4 
 error: then: no matching control-flow opener
+in then
 error: else: no matching control-flow opener
+in else
 error: until: no matching control-flow opener
+in until
 error: repeat: no matching control-flow opener
+in repeat
 7 

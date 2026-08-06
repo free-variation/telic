@@ -2,8 +2,11 @@
 7 7 7 
 0 1 2 3 4 
 error: length must be non-negative; got -1
+in times
 error: expected a float count; got an execution token
+in times
 error: expected an execution token; got a float
+in times
 0 1 2 3 4 
 
 45 
@@ -13,8 +16,11 @@ in (enter-locals-to) ← [> a | :]
 error: insufficient values on data stack; need 1
 in (enter-locals-mixed) ← [| a >b | :]
 error: length must be non-negative; got -1
+in i-times
 error: expected a float count; got an execution token
+in i-times
 error: expected an execution token; got a float
+in i-times
 10 
 30 
 120 
@@ -27,5 +33,8 @@ error: expected an execution token; got a float
 14 
 120 
 error: length must be non-negative; got -1
+in fold-times
 error: expected an execution token; got a float
+in fold-times
 error: expected an execution token; got a float
+in fold-times

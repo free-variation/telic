@@ -146,7 +146,9 @@ void p_ffi_open(DISPATCH_ARGS) {
 	Val path_val = chain_sp[-1];
 	REQUIRE_CHAIN_TAG(path_val, T_STRING, "ffi-open", "a string");
 
-	void *library = dlopen(OBJECT_AT(VAL_DATA(path_val))->bytes, RTLD_NOW | RTLD_GLOBAL);
+	Object *path_string = OBJECT_AT(VAL_DATA(path_val));
+
+	void *library = dlopen(path_string->len ? path_string->bytes : NULL, RTLD_NOW | RTLD_GLOBAL);
 	if (!library) {
 		fail(interp, "%s", dlerror());
 		return;

@@ -10,6 +10,10 @@ hi there
 0 
 1 
 error: cannot open /tmp/lf_no_such_dir_zzz/nope
+in read-file
 error: expected a string; got a float
+in write-file
 error: expected a string; got a float
+in append-file
 error: expected a string; got a float
+in file-exists?

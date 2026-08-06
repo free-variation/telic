@@ -1,5 +1,7 @@
 10 21 7 0 4 0 1 15 45 error: expected a matrix; got a string
+in sum
 error: expected a matrix; got an array
+in sum
 <matrix 2x1>
           6
          15
@@ -45,8 +47,11 @@ error: expected a matrix; got an array
           6         15
 
 2.5 2 7 0 0.333333 5 error: expected a matrix; got a string
+in row-sums
 error: expected a matrix; got a string
+in column-sums
 error: expected a matrix; got an array
+in column-sums
 <matrix 2x1>
           2
           5
@@ -124,8 +129,11 @@ error: expected a matrix; got an array
           4          9          8
 
 1 5 1 0 0 0 2 0 error: expected a matrix; got a string
+in max
 error: expected a matrix; got a set
+in min
 error: expected a matrix; got an array
+in row-maxes
 5 
 5 
 5 
@@ -150,4 +158,6 @@ error: expected a matrix; got an array
 <matrix 1x4>
           1          0          1          0
 error: expected a matrix; got an array
+in norm
 error: expected a matrix; got a string
+in frobenius-norm

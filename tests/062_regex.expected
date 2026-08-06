@@ -7,6 +7,7 @@
 1 
 0 
 error: missing terminating ] for character class
+in has?
 [ [ "chr1" "chr" "1" ]
   [ "chr2" "chr" "2" ] ] 
 [ [ "x=1" "x" "1" ]
@@ -30,8 +31,11 @@ error: missing terminating ] for character class
 3 
 1 
 error: missing closing parenthesis
+in match-all
 error: expected a string; got a float
+in match-all
 error: expected a string; got a float
+in match-all
 heLLo 
 (c|g|t)(c|g|t)(c|g|t)(c|g|t) 
 abc 
@@ -55,10 +59,15 @@ plain text
 &amp;amp; 
  
 error: missing closing parenthesis
+in replace
 error: backref \3 but pattern has 0 group(s)
+in replace
 error: expected a string; got a float
+in replace
 error: expected a string; got a float
+in replace
 error: expected a string; got a float
+in replace
 [ "chr1" "chr" "1" ] 
 [ "x=1" "x" "1" ] 
 [ "1" ] 
@@ -74,10 +83,14 @@ error: expected a string; got a float
 [ "naïve_x" ] 
 [ "a" ] 
 error: missing closing parenthesis
+in match
 error: expected a string; got a float
+in match
 error: expected a string; got a float
+in match
 [ "a" "b" "c" ] [ "a" "" "b" ] [ "" "a" "" ] [ "nodelim" ] [ "" ] [ "a" "b" "c" ] [ "a" "b" "c" ] 1 
 error: expected a string; got a float
+in split
 3 
 0 
 -1 

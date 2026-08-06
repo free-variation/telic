@@ -2007,7 +2007,23 @@ static void capture_error_trace(Interpreter *interp) {
 	}
 
 	int len = 0;
-	if (n_merged > 0 && frames[0].addr == interp->ip) {
+	int fault_cell = interp->ip - 1;
+	if (interp->running && fault_cell >= interp->trampoline_base
+			&& fault_cell < interp->trampoline_base + 3) {
+		const char *op_name = NULL;
+		cell trampoline_handler = vocab.dict[interp->trampoline_base];
+		if ((cfa_handler)trampoline_handler == docol) {
+			int target = (int)vocab.dict[interp->trampoline_base + 1];
+			if (target >= DICT_RESERVED && target < vocab.here)
+				op_name = &vocab.name_pool[WORD_NAME(target)];
+		} else {
+			op_name = handler_word_name(trampoline_handler);
+		}
+		if (op_name) {
+			trace_write(interp, &len, "in ");
+			trace_write(interp, &len, op_name);
+		}
+	} else if (n_merged > 0 && frames[0].addr == interp->ip) {
 		int body_start = frames[0].span ? frames[0].span->start_cfa + 1 : frames[0].cfa + 1;
 		int body_end = frames[0].span ? frames[0].span->end_cfa : vocab.here;
 		const char *op_name = running_op_name(interp->ip - 1, body_start, body_end);
@@ -5169,6 +5185,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "stdin", p_stdin, 0);
 	define_primitive(interp, "stdout", p_stdout, 0);
 	define_primitive(interp, "stderr", p_stderr, 0);
+	define_primitive(interp, "tty?", p_tty, 0);
 	define_primitive(interp, "db-open", p_db_open, 0);
 	define_primitive(interp, "ffi-open", p_ffi_open, 0);
 	define_primitive(interp, "ffi-function", p_ffi_function, 0);

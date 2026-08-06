@@ -40,13 +40,20 @@ o'brien
 [ :name :id ] 0 
 [ :name ] 4 
 error: query takes 1 parameter(s) 0 given
+in db-query
 error: query takes 0 parameter(s) 1 given
+in db-query
 error: cannot bind a set as a parameter
+in db-query
 error: expected a database; got a float
+in db-close
 error: near "SELCT": syntax error
+in db-query
 error: near "SELCT": syntax error
 in (db-query>dataset) ← db-query>dataset
 error: expected a database; got a float
 in (db-query>dataset) ← db-query>dataset
 error: no such table: nope
+in db-exec
 error: database is closed
+in db-query

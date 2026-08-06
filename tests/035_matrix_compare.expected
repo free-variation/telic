@@ -15,5 +15,6 @@
           0          0
           1          1
 error: lt: matrix shapes differ (1x2 vs 1x3)
+in <
 2 
 1 

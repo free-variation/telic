@@ -1791,6 +1791,47 @@ void p_man(DISPATCH_ARGS) {
 		help_put(interp, frame_handle, "alloc", entry->alloc);
 		help_put(interp, frame_handle, "order", entry->order);
 	}
+
+	LOWER_BOUND(help_example_count, example_probe,
+			strcmp(help_examples[example_probe].word, entry->name) < 0, first_example);
+	int n_examples = 0;
+	while (first_example + n_examples < help_example_count
+	       && strcmp(help_examples[first_example + n_examples].word, entry->name) == 0)
+		n_examples++;
+
+	if (n_examples > 0) {
+		int examples_handle = object_new_array(interp, n_examples);
+		if (interp->error_flag) {
+			gc_root_pop(interp);
+			return;
+		}
+
+		Object *examples_array = OBJECT_AT(examples_handle);
+		for (int slot = 0; slot < n_examples; slot++)
+			examples_array->items[slot] = make_tagged(T_NONE, 0);
+		gc_root_push(interp, make_array(examples_handle));
+
+		for (int slot = 0; slot < n_examples; slot++) {
+			const HelpExample *example = &help_examples[first_example + slot];
+
+			int example_frame_handle = object_new_frame(interp);
+			if (!interp->error_flag) {
+				OBJECT_AT(examples_handle)->items[slot] = make_frame(example_frame_handle);
+				help_put(interp, example_frame_handle, "code", example->code);
+			}
+			if (!interp->error_flag)
+				help_put(interp, example_frame_handle, "output", example->output);
+			if (interp->error_flag) {
+				gc_root_pop(interp);
+				gc_root_pop(interp);
+				return;
+			}
+		}
+
+		frame_put(OBJECT_AT(frame_handle),
+				intern_symbol(interp, "examples"), make_array(examples_handle));
+		gc_root_pop(interp);
+	}
 	gc_root_pop(interp);
 
 	chain_sp[-1] = make_frame(frame_handle);

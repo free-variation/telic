@@ -28,9 +28,13 @@ zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
 1 
 1 
 error: {d} needs a float; got a string
+in format
 error: {.2f} needs a float; got a string
+in format
 error: bad spec 'z'
+in format
 error: bad spec '.2x'
+in format
 ell 
 hello 
 h 
@@ -38,9 +42,13 @@ o
  
  
 error: range [0, 6) out of bounds for length 5
+in substring
 error: range [-1, 3) out of bounds for length 5
+in substring
 error: range [3, 1) out of bounds for length 5
+in substring
 error: expected a string; got a float
+in substring
 héllo 
 wörld 
 héll 
@@ -55,7 +63,9 @@ h
 233 
 128512 
 error: index 5 out of bounds for length 5
+in char-at
 error: index -1 out of bounds for length 5
+in codepoint-at
 [ "h" "é" "l" "l" "o" ] 
 [ "x" "😀" "y" ] 
 [ 104 233 108 108 111 ] 
@@ -67,7 +77,9 @@ x😀y
  
 héllo 😀 wörld 
 error: codepoint 1114112 out of range
+in codepoint>char
 error: codepoint -1 out of range at element 1
+in codepoints>string
 hi 
 2 
 mid word 
@@ -75,6 +87,7 @@ data
 0 
 0 
 error: expected a string; got a float
+in trim
 a,b,c 
 abc 
 x 
@@ -82,6 +95,7 @@ x
 chr1 
 one - two 
 error: element 1 is a float, expected a string
+in join
 1 
 1 
 1 
@@ -102,9 +116,13 @@ b 3
 2 
 3 
 error: {0} needs 1 stack value(s) but only 0 present
+in format
 error: {3} needs 4 stack value(s) but only 1 present
+in format
 error: expected a template string; got a float
+in format
 error: {3000000000} needs 3000000001 stack value(s) but only 1 present
+in format
 1 
 1 
 1 

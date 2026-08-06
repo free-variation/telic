@@ -6,4 +6,6 @@
 <matrix 1x3>
           1          2          3
 error: expected a float or a matrix; got a string
+in negate
 error: expected a float or a matrix; got a set
+in negate

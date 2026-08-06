@@ -15,7 +15,9 @@
 1 
 1 
 error: array index 5 out of bounds (length 2)
+in pmap-ext
 error: side stack is empty
+in pmap-ext
 error: pmap: quotation must leave exactly one value per element, but changed the stack by 0
 in pmap-ext ← pmap
 error: pmap: quotation must leave exactly one value per element, but changed the stack by 2

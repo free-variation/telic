@@ -427,3 +427,10 @@ void p_stdin(DISPATCH_ARGS)  { push(interp, make_stream(0)); DISPATCH(interp); }
 void p_stdout(DISPATCH_ARGS) { push(interp, make_stream(1)); DISPATCH(interp); }
 void p_stderr(DISPATCH_ARGS) { push(interp, make_stream(2)); DISPATCH(interp); }
 
+void p_tty(DISPATCH_ARGS) {
+	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);
+	*chain_sp = make_float(isatty(1) ? 1.0 : 0.0);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
+}
+

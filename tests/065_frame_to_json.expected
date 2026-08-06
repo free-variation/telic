@@ -28,4 +28,6 @@ false
 1 
 1 
 error: cannot serialize a set
+in frame>json
 error: cannot serialize a non-boolean symbol
+in frame>json

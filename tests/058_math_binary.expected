@@ -6,7 +6,9 @@
 <matrix 1x3>
           8          9          4
 error: ^: expected floats or matrices; got a string and a float
+in ^
 error: ^: matrix shapes differ (1x2 vs 1x3)
+in ^
 3 2 
 2 1 
 -2 -1 
@@ -84,7 +86,9 @@ null
  3
 
 error: %: division by zero
+in %
 error: %: expected floats or matrices; got a string and a float
+in %
 3 
 3 
 1 
@@ -111,13 +115,24 @@ error: %: expected floats or matrices; got a string and a float
 8 
 4 
 error: n is not bound in this quotation; pass it in or use pick
+in f++
 error: %: division by zero
+in %
 error: %: division by zero
+in %
 error: %: matrix shapes differ (2x1 vs 3x1)
+in %
 error: %: expected floats or matrices; got a string and a float
+in %
 error: mod: division by zero
+in mod
 error: mod: division by zero
+in mod
 error: mod: division by zero
+in mod
 error: mod: matrix shapes differ (2x1 vs 3x1)
+in mod
 error: mod: expected floats or matrices; got a string and a float
+in mod
 error: stack underflow
+in fsqrt

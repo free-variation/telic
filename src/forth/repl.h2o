@@ -2,12 +2,44 @@
 \ Words for the person at the prompt: help and its kin. Loaded last in
 \ FORTH_SRCS so the whole library is available to build on.
 
-\ help ( "name" -- ): print the named word's reference entry; bare `help` (no name
-\ on the line) prints a starter cheat sheet. Built on catch — `lookup` fails with a
-\ distinct message for an empty line versus an unknown word, and catch hands the
-\ message over to tell the two apart.
+\ help ( "name" -- ): print the named word's reference entry — header line of
+\ name and stack effect, summary, one cost line when the entry has one — then
+\ each example as a transcript: code lines prefixed "> ", output lines bare
+\ beneath. Bare `help` (no name on the line) prints a starter cheat sheet.
+\ Built on catch — `lookup` fails with a distinct message for an empty line
+\ versus an unknown word, and catch hands the message over to tell the two
+\ apart.
+( s -- ) \ print a string's characters exactly, no trailing space
+: print-raw string>codepoints ' emit each ; internal
+
+27 codepoint>char "[1m" + constant bold-on internal
+27 codepoint>char "[2m" + constant dim-on internal
+27 codepoint>char "[0m" + constant style-off internal
+
+( s -- ) \ the line dimmed on a tty, plain when piped
+: print-dim-line |> line |
+	tty? if dim-on print-raw line print-raw style-off print-raw
+	else line print-raw then cr ; internal
+
 : help
-	[: lookup man . :] catch if
+	[| entry examples |
+		lookup man to entry
+		entry frame? if
+			entry :examples [ ] @or to examples
+			entry :word @ tty? if bold-on swap + style-off + then " " + entry :effect @ + print-raw cr
+			"  " entry :summary @ + print-dim-line
+			entry :ops has? if
+				"  ops " entry :ops @ + ", alloc " + entry :alloc @ + ", " + entry :order @ + print-dim-line
+			then
+			examples [> example |
+				cr
+				example @code "\n" split [: "  > " swap + print-raw cr :] each
+				example @output "\n" split [: "  " swap + print-raw cr :] each
+			:] each
+		else
+			entry .
+		then
+	:] catch if
 		:message @ dup "expected a word name" has? if
 			drop
 "water — a quick start:

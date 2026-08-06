@@ -65,7 +65,12 @@ x > 4.5
   x > 6.5 
     predict 9  (n 2) 
 error: expected a features frame; got a matrix
+in fit-tree
 error: expected a numeric response vector; got a frame
+in fit-tree
 error: feature column has 3 rows; response has 2
+in fit-tree
 error: feature column must be a numeric vector or an array; got a set
+in fit-tree
 error: need at least one row and one feature; got 2 rows, 0 features
+in fit-tree

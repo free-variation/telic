@@ -4,7 +4,12 @@
 7 
 9 
 error: empty path key
+in }
 error: path elements must be symbols; got a float
+in }
 error: keys must be symbols or paths; got a float
+in }
 error: empty path key
+in array>frame
 error: path elements must be symbols; got a float
+in array>frame

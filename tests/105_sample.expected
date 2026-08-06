@@ -12,5 +12,8 @@
 [ 6 7 5 ] 
 [ ] 
 error: cannot draw 5 without replacement from 2
+in sample
 error: length must be non-negative; got -1
+in sample
 error: expected array or set; got a float
+in sample

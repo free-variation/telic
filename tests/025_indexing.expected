@@ -70,6 +70,10 @@ null
           0          0
 
 error: element index 3 out of bounds (3 elements)
+in @e
 error: expected a float or null value; got a symbol
+in !e
 error: column index 2 out of bounds (2 columns)
+in !i,j
 error: expected a matrix; got a string
+in @e

@@ -68,8 +68,11 @@
           4          5
 
 error: array index 5 out of bounds (length 3)
+in select-rows
 error: array index 3 out of bounds (length 2)
+in select-rows
 error: expected a matrix; got a float
+in select-rows
 4 3 
 3 4 
 2 
@@ -224,7 +227,9 @@ in throw ← frames>dataset
 [ "a" "?" "b" ] 
 [ "X" "b" ] 
 error: mask is 3x1; subject is 2x1
+in mesh
 error: expected a mask matrix; got a float
+in mesh
 <matrix 1x3>
           3        nan          7
 

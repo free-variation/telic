@@ -5,12 +5,12 @@
 1 
 1 
 1 
-6 
+7 
 1 
 0 
 0 
 0 
-3 
+4 
 1 
 1 
 1 
@@ -21,14 +21,22 @@ unit: m × 1000
 0 
 unit newton  \ m.kg.s^-2
 1 
-{
-  :summary sine (radians)
-  :word sin
-  :effect ( a -- sin a )
-  :ops 2
-  :alloc matrix 1m(r×c)
-  :order same
-}
+sin ( a -- sin a )
+  sine (radians)
+  ops 2, alloc matrix 1m(r×c), same
+
+  > 0 sin . cr
+  0
+1 
+1 
+1 2 cons . cr 
+1 
+cons ( head tail -- pair )
+  Build a cons cell
+  ops 2, alloc 1 pair, O(1)
+
+  > 1 2 cons . cr
+  [( 1 2 )]
 unknown word: no-such-word 
 7 
 1 2 
@@ -45,14 +53,12 @@ row-means        ( m -- m' )              matrix.h2o: row-sums then scalar ÷
 se               ( m -- f )               statistics.h2o: standard error of the mean, std / sqrt(n)
 summary          ( v/dataset -- fr )      statistics.h2o: a vector answers { :min :q1 :median :mean :q3 :max } over its finite elements — a dimensioned vector in its unit, an instant vector (unit exactly s) with each statistic rendered through time>iso — plus :missing with the NaN count when any; an all-missing vector answers { :missing n }, an empty one { }. A dataset answers that frame per numeric column and { :distinct } (distinct non-missing cells, plus :missing) per text column, keyed by column name; any other column value errors naming the column
 : 2dup over over ;
-{
-  :summary Apply xt to each element; xt must net exactly one value. datasets.h2o extends it to a dataset: xt maps each row frame to a new row frame — derive, rename, or drop fields — and the returned frames rebuild through frames>dataset, so all rows must share keys and columns re-infer their representation
-  :word map
-  :effect ( arr/set xt -- arr ) or ( dataset xt -- dataset )
-  :ops 2 + n·xt
-  :alloc 1a(n); dataset rows + new columns
-  :order O(n·xt); dataset O(n·(xt + k log k))
-}
+map ( arr/set xt -- arr ) or ( dataset xt -- dataset )
+  Apply xt to each element; xt must net exactly one value. datasets.h2o extends it to a dataset: xt maps each row frame to a new row frame — derive, rename, or drop fields — and the returned frames rebuild through frames>dataset, so all rows must share keys and columns re-infer their representation
+  ops 2 + n·xt, alloc 1a(n); dataset rows + new columns, O(n·xt); dataset O(n·(xt + k log k))
+
+  > [ 1 2 3 ] [: dup * :] map . cr
+  [ 1 4 9 ]
 water — a quick start:
   3 4 + .            add two numbers and print the result
   .s                 show the whole stack (clear empties it)

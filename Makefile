@@ -187,18 +187,25 @@ vendor-isocline:
 vendor-lapacke:
 	sh tools/vendor-lapacke.sh
 
-test: water
+# The doc tests are generated from the runnable (```forth) documentation
+# fences: the README taste pair (committed .expected) and one trio per
+# reference section with examples (fully generated, gitignored).
+.PHONY: docs-tests
+docs-tests:
+	python3 tools/gen-docs-tests.py
+
+test: water docs-tests
 	sh tests/run.sh
 
 # Loadable-library golden tests (tests/lib/): they load a lib/ library and need
 # its external deps (LAPACK via liblapacke_water, xgboost via libxgboost).
 # Excluded from `make test` so the core suite runs without them. Native-only.
-test-libs: water $(LAPACKE_SHARED)
+test-libs: water $(LAPACKE_SHARED) docs-tests
 	sh tests/run-libs.sh
 
 # Runs the golden suite against the wasm build under a WASI runtime. The runner
 # finds wasmtime on PATH or ~/.wasmtime/bin; otherwise set WASMTIME=<path>.
-test-wasm: water.wasm
+test-wasm: water.wasm docs-tests
 	sh tests/run-wasm.sh
 
 bench:

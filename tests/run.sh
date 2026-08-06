@@ -31,14 +31,25 @@ for input in "$here"/*.h2o; do
     # Batch mode (-b): no banner, no per-line prompt — just the program's own
     # output (and errors), so expected files hold exactly what the script prints.
     "$bin" -b < "$input" > "$actual" 2>&1
-    if diff -q "$expected" "$actual" > /dev/null 2>&1; then
+    # A <name>.sed file normalizes nondeterministic output (a wall-clock
+    # timestamp) on both sides before the diff.
+    expected_cmp="$expected"
+    actual_cmp="$actual"
+    if [ -f "$here/$name.sed" ]; then
+        expected_cmp=$(mktemp "${TMPDIR:-/tmp}/water.XXXXXX")
+        actual_cmp=$(mktemp "${TMPDIR:-/tmp}/water.XXXXXX")
+        sed -E -f "$here/$name.sed" "$expected" > "$expected_cmp"
+        sed -E -f "$here/$name.sed" "$actual" > "$actual_cmp"
+    fi
+    if diff -q "$expected_cmp" "$actual_cmp" > /dev/null 2>&1; then
         pass=$((pass + 1))
         printf "  ok   %s\n" "$name"
     else
         fail=$((fail + 1))
         printf "  FAIL %s\n" "$name"
-        diff -u "$expected" "$actual" | sed 's/^/       /'
+        diff -u "$expected_cmp" "$actual_cmp" | sed 's/^/       /'
     fi
+    [ "$expected_cmp" = "$expected" ] || rm -f "$expected_cmp" "$actual_cmp"
     rm -f "$actual"
 done
 

@@ -9,5 +9,8 @@
 <matrix 1x4>
           0          3          6          9
 error: step cannot be zero
+in matrix-range
 error: step sign does not match start/end direction
+in matrix-range
 error: too many elements
+in matrix-range

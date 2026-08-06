@@ -5,6 +5,7 @@
 0 0 0 
 3.5 3.5 3.5 
 error: needs at least 2 non-NaN elements; got 1
+in var
 1 
 10 
 5.5 
@@ -17,8 +18,11 @@ error: needs at least 2 non-NaN elements; got 1
 2 
 6.5 
 error: probability must be in [0,1]; got 1.5
+in quantile
 error: expected a float probability; got a symbol
+in quantile
 error: empty matrix
+in quantile
 <matrix 1x3>
        1.75        2.5       3.25
 
@@ -168,6 +172,7 @@ in quantile ← percentile
 0 
 1 
 error: a sample has no finite values
+in ks-distance
 [ 110 130 150 80 ] 
 <matrix 5x2>
           0          0

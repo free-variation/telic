@@ -53,6 +53,10 @@
 
 1 
 error: needs at least 2 non-NaN elements; got 1
+in var
 error: all elements are NaN (missing)
+in max
 error: all elements are NaN (missing)
+in quantile
 error: needs at least 2 complete pairs; got 1
+in correlation-kendall

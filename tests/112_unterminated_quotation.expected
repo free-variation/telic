@@ -1,5 +1,7 @@
 error: ; : unterminated quotation (a [: , [> , or [| has no matching :])
+in ;
 error: unknown word: bad (did you mean map?)
 error: ; : unterminated quotation (a [: , [> , or [| has no matching :])
+in ;
 error: unknown word: bad2 (did you mean base?)
 3 13 [ 1 4 9 ] 

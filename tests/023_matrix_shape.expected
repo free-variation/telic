@@ -50,14 +50,23 @@
           1          2          3
           4          5          6
 error: cannot reshape 6 elements (2x3) into 2x2 (4)
+in reshape
 error: expected a float row count; got a string
+in reshape
 error: expected a matrix; got a float
+in reshape
 error: dimensions must be non-negative; got -2x-2
+in reshape
 error: 100000x100000 too large (element count overflows)
+in reshape
 error: matrix dimensions: 100000x100000 too large (element count overflows)
+in 0-matrix
 error: matrix dimensions: 1000000000x1000000000 too large (element count overflows)
+in 0-matrix
 error: matrix dimensions: must be non-negative; got -1x3
+in 0-matrix
 error: matrix dimensions: must be non-negative; got 3x-1
+in 0-matrix
 100 100 3 2 
 6 
 10000 
@@ -80,4 +89,6 @@ error: matrix dimensions: must be non-negative; got 3x-1
           5          1          4
 
 error: expected a matrix; got a float
+in matrix>array
 error: expected a matrix; got a string
+in matrix>array

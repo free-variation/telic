@@ -103,31 +103,6 @@ Each one pass over sorted samples, in the `ks-distance` mold:
 
 ---
 
-## Executable documentation
-
-Every example in the docs runs, and is machine-verified to run. The
-motivation is genAI as much as readers: a new language lives in no model's
-weights, so its documentation *is* its corpus — read in-context today,
-fine-tuning material tomorrow — and one broken example poisons generation
-the way a wrong golden would poison the suite. (The README's logic example
-was broken for an unknown span until a session happened to run it; a
-harness would have caught it at `make test`.)
-
-- **README taste block as a golden** — extract the `## A taste` fence,
-  run it, pin the output. The block is the single most-read (by humans
-  and models) Water program in existence; it must never regress.
-- **reference.md snippets** — the extractable inline examples join the
-  same harness; a marker separates runnable from illustrative-only.
-- **One extraction harness** — a tools/ script in the gen-help/gen-editors
-  family renders marked snippets into generated .h2o/.expected pairs that
-  tests/run.sh picks up like any other test.
-
-To settle: the runnable-vs-illustrative marker; pin outputs verbatim or
-only assert error-free execution; nondeterministic examples (`wall-now`,
-unseeded draws) — skip-mark them or normalize their output.
-
----
-
 ## Language pack
 
 One concatenated file sized for a model's context window: the whole
@@ -355,18 +330,10 @@ current one-assignment cost. The frame walk runs only while a region is live.
 
 ## Error trace for a primitive invoked as an xt
 
-An error raised by a C primitive that was handed to `execute` as an xt carries no
-trace: `' transpose execute` on a float reports `expected a matrix; got a float`
-and nothing else, while the same failure inside a colon word or quotation reports
-`in transpose ← boom`. `interp->ip` then points into the trampoline rather than
-into any word's body, so `word_containing` matches nothing and no frame qualifies.
-
-This hits the shadowing idiom, where a forth word captures the C original and
-dispatches it — `(matrix-select-rows)`, `(matrix-dim)`, the `dgemm-*` redefinitions
-in `lib/statistics.h2o` — so an out-of-bounds `select-rows` names neither the
-primitive nor the caller. Naming the primitive requires the trace builder to
-recognise a trampoline `ip` and take the running handler's word from the dictionary
-instead of from the body range.
+- Carry the calling word through nested `execute_cfa` into the error
+  trace: the caller's ip is a C local (`execute_cfa`, `saved_ip`),
+  invisible to `capture_error_trace`, so `' transpose execute` inside a
+  colon word names the primitive but not the caller.
 
 ---
 

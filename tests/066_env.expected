@@ -10,4 +10,6 @@ world
 1 
 /tmp/lf_findexec_tool 
 error: expected a string; got a float
+in env
 error: expected a string; got a float
+in env!

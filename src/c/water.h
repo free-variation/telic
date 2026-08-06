@@ -655,10 +655,18 @@ typedef struct {
 	int section;
 } HelpEntry;
 
+typedef struct {
+	const char *word;
+	const char *code;
+	const char *output;
+} HelpExample;
+
 extern const HelpEntry help_entries[];
 extern const int help_entry_count;
 extern const char *const help_section_names[];
 extern const int help_section_count;
+extern const HelpExample help_examples[];
+extern const int help_example_count;
 
 extern int print_truncate;
 extern int print_full_precision;
@@ -1331,6 +1339,7 @@ void p_save_tsv(DISPATCH_ARGS);
 void p_stderr(DISPATCH_ARGS);
 void p_stdin(DISPATCH_ARGS);
 void p_stdout(DISPATCH_ARGS);
+void p_tty(DISPATCH_ARGS);
 void p_write(DISPATCH_ARGS);
 void p_write_file(DISPATCH_ARGS);
 

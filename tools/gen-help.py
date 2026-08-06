@@ -9,6 +9,12 @@ a word entry iff its first cell is a single bare backtick token (no spaces).
 Column 2 is the stack effect (or, for superwords, the usage syntax), column 3
 the one-line summary. Tables that also carry Ops/Alloc/O columns contribute
 those three cost strings; tables without them leave the cost fields NULL.
+
+A word's examples follow its section's table as fence pairs: a fence tagged
+``forth <word>`` (or ``forth-noexec <word>`` for one that must not run)
+holding the code, immediately followed by a fence tagged ``output`` holding
+exactly what it prints. Pairs land in help_examples[], sorted by word; a
+fence naming an unknown word is an error.
 """
 
 import re
@@ -51,11 +57,25 @@ def is_separator(parts):
 def c_string(value):
     if value is None:
         return "NULL"
-    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
     return '"%s"' % escaped
 
 
-def parse_file(path, entries, sections):
+EXAMPLE_FENCE = re.compile(r"^```forth(-noexec)?\s+(\S+)\s*$")
+
+
+def read_fence_body(lines, i):
+    body = []
+    while i < len(lines) and lines[i] != "```":
+        body.append(lines[i])
+        i += 1
+    if i >= len(lines):
+        sys.stderr.write("error: unterminated fence\n")
+        sys.exit(1)
+    return "\n".join(body), i + 1
+
+
+def parse_file(path, entries, sections, examples):
     with open(path, encoding="utf-8") as handle:
         lines = handle.read().splitlines()
 
@@ -67,6 +87,17 @@ def parse_file(path, entries, sections):
             sections.append(line[3:].strip())
             section_index = len(sections) - 1
             i += 1
+            continue
+        fence = EXAMPLE_FENCE.match(line)
+        if fence:
+            word = fence.group(2)
+            code, i = read_fence_body(lines, i + 1)
+            if i >= len(lines) or lines[i] != "```output":
+                sys.stderr.write("error: %s example for %r lacks its ```output fence\n"
+                                 % (path, word))
+                sys.exit(1)
+            output, i = read_fence_body(lines, i + 1)
+            examples.append((word, code, output))
             continue
         if not line.lstrip().startswith("|"):
             i += 1
@@ -109,12 +140,27 @@ def parse_file(path, entries, sections):
 def parse():
     entries = {}
     sections = []
+    examples = []
     for path in (REFERENCE, REFERENCE_LIBRARIES):
-        parse_file(path, entries, sections)
-    return sorted(entries.values(), key=lambda entry: entry[0]), sections
+        parse_file(path, entries, sections, examples)
+
+    unknown = sorted({word for word, _, _ in examples} - set(entries))
+    if unknown:
+        sys.stderr.write("error: examples for words with no reference row: %s\n"
+                         % ", ".join(unknown))
+        sys.exit(1)
+
+    uncovered = sorted(set(entries) - {word for word, _, _ in examples})
+    if uncovered:
+        sys.stderr.write("error: words with no example fence: %s\n"
+                         % ", ".join(uncovered))
+        sys.exit(1)
+
+    examples.sort(key=lambda example: example[0].encode())
+    return sorted(entries.values(), key=lambda entry: entry[0]), sections, examples
 
 
-def emit(entries, sections):
+def emit(entries, sections, examples):
     out = []
     out.append('#include "water.h"')
     out.append("")
@@ -133,6 +179,15 @@ def emit(entries, sections):
     out.append("")
     out.append("const int help_entry_count = %d;" % len(entries))
     out.append("")
+    out.append("const HelpExample help_examples[] = {")
+    for word, code, output in examples:
+        out.append("\t{ %s, %s, %s }," % (c_string(word), c_string(code), c_string(output)))
+    if not examples:
+        out.append("\t{ NULL, NULL, NULL },")
+    out.append("};")
+    out.append("")
+    out.append("const int help_example_count = %d;" % len(examples))
+    out.append("")
     return "\n".join(out)
 
 
@@ -142,13 +197,14 @@ def emit_wordlist(entries):
 
 
 def main():
-    entries, sections = parse()
+    entries, sections, examples = parse()
     with open(OUTPUT, "w", encoding="utf-8") as handle:
-        handle.write(emit(entries, sections))
+        handle.write(emit(entries, sections, examples))
     with open(WORDLIST, "w", encoding="utf-8") as handle:
         handle.write(emit_wordlist(entries))
-    sys.stderr.write("wrote %d entries (%d sections) to %s and %s\n"
-                     % (len(entries), len(sections), OUTPUT, WORDLIST))
+    exampled = len({word for word, _, _ in examples})
+    sys.stderr.write("wrote %d entries (%d sections, %d examples on %d words) to %s and %s\n"
+                     % (len(entries), len(sections), len(examples), exampled, OUTPUT, WORDLIST))
 
 
 if __name__ == "__main__":

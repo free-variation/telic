@@ -33,10 +33,17 @@
 1 
 1 
 error: cannot unify 1 with 2
+in ~
 error: cannot unify "a" with "b"
+in ~
 error: cannot unify :foo with :bar
+in ~
 error: cannot unify [ 1 2 ] with [ 1 2 3 ]
+in ~
 error: cannot unify [ 1 2 ] with [ 1 9 ]
+in ~
 error: cannot unify { :a 1 } with { :a 2 }
+in ~
 error: cannot unify 1 with 2
+in ~
 1 

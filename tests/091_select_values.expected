@@ -6,5 +6,8 @@
 [ 1 ] 
 [ { :x 1 } { :x 2 :y 3 } 1 2 3 ] 
 error: structure too deeply nested (cycle?)
+in select-values
 error: malformed predicate (expected [key] or [key op value])
+in select-values
 error: malformed predicate (comparison needs a value)
+in select-values

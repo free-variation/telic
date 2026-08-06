@@ -6,6 +6,9 @@
 3 
 7 
 error: leave: not inside a loop
+in leave
 error: leave: not inside a loop
+in leave
 error: ; : unterminated loop (a begin has no until/again/repeat)
+in ;
 error: unknown word: unclosed

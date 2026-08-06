@@ -5,6 +5,10 @@
 "keep" 
 [ "hi" :sym 42 ] 
 error: slice [5, 8) out of bounds for length 3
+in to-slice!
 error: length must be non-negative; got -1
+in to-slice!
 error: expected an array; got a float
+in to-slice!
 error: stack underflow (need 5 values plus target)
+in to-slice!

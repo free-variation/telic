@@ -25,4 +25,6 @@
           9         18
          27         36
 error: matrix shapes differ (1x2 vs 1x3)
+in +!
 error: expected a matrix operand; got a float and a float
+in +!

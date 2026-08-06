@@ -7,4 +7,6 @@
 9 
 null 
 error: expected a pair; got a float
+in head-tail
 error: expected a pair; got none
+in head-tail

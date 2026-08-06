@@ -22,6 +22,46 @@ plotting library is pure forth (no FFI) and works under wasm; only its
 | `fit-linear` | `( m y -- beta )` | Ordinary least squares via LAPACKE dgelsd; `m` is observations×predictors (observations ≥ predictors), `y` the observations×1 response, `beta` the predictors×1 coefficients |
 | `fit-augmented` | `( augmented -- beta )` | Least squares of an `[X | y]` block whose last column is the response |
 
+```forth dgemv-n
+"statistics" load-library
+1 [ 1 2 3 4 ] 2 2 matrix [ 1 1 ] vector 0 [ 0 0 ] vector dgemv-n matrix>array . cr
+```
+```output
+[ 3 7 ]
+```
+
+```forth dgemv-t
+"statistics" load-library
+1 [ 1 2 3 4 ] 2 2 matrix [ 1 1 ] vector 0 [ 0 0 ] vector dgemv-t matrix>array . cr
+```
+```output
+[ 4 6 ]
+```
+
+```forth svd
+"statistics" load-library
+[ 3 0 0 2 ] 2 2 matrix svd drop matrix>array . drop cr
+```
+```output
+[ 3 2 ]
+```
+
+```forth fit-linear
+"statistics" load-library
+[ 1 1 1 2 1 3 ] 3 2 matrix [ 3 5 7 ] vector fit-linear matrix>array . cr
+```
+```output
+[ 1 2 ]
+```
+
+```forth fit-augmented
+"statistics" load-library
+[ 1 1 3 1 2 5 1 3 7 ] 3 3 matrix fit-augmented matrix>array . cr
+```
+```output
+[ 1 2 ]
+```
+
 ## Regression (lib/statistics.h2o)
 
 | Word | Stack effect | Summary |
@@ -33,6 +73,62 @@ plotting library is pure forth (no FFI) and works under wasm; only its
 | `logistic-regression` | `( dataset predictors response replications -- summaries )` | Firth logistic with the bootstrap per-coefficient summaries of `linear-regression` |
 | `cv-logistic-ridge` | `( X y units lambdas n-folds -- fr )` | k-fold cross-validation of ridge logistic over a `lambdas` grid, returning `{ :lambdas :deviances :best }`; `X` excludes the intercept (added internally, unpenalized), `units` index rows so per-cluster index arrays give cluster CV |
 | `pcv-logistic-ridge` | `( X y units lambdas n-folds -- fr )` | `cv-logistic-ridge` with the (lambda, fold) cells evaluated under `pmap`; results are identical, the cells being deterministic |
+
+```forth linear-regression
+"statistics" load-library
+42 seed [ [ "x" "y" ] [ 1 3 ] [ 2 5 ] [ 3 7 ] [ 4 9.1 ] [ 5 10.9 ] ] true rows>dataset [ :x ] :y 50 linear-regression first :estimate @ . cr
+```
+```output
+1.03
+```
+
+```forth fit-logistic
+"statistics" load-library
+[ 1 0 1 1 1 2 1 3 ] 4 2 matrix [ 0 0 1 1 ] vector 25 1e-8 fit-logistic matrix>array . cr
+```
+```output
+[ -1.96485 1.3099 ]
+```
+
+```forth fit-logistic-ridge
+"statistics" load-library
+[ 1 0 1 1 1 2 1 3 ] 4 2 matrix [ 0 0 1 1 ] vector 25 1e-8 1 fit-logistic-ridge matrix>array . cr
+```
+```output
+[ -1.43743 0.958286 ]
+```
+
+```forth fit-augmented-logistic
+"statistics" load-library
+[ 1 0 0 1 1 0 1 2 1 1 3 1 ] 4 3 matrix fit-augmented-logistic matrix>array . cr
+```
+```output
+[ -1.96485 1.3099 ]
+```
+
+```forth logistic-regression
+"statistics" load-library
+42 seed [ [ "x" "y" ] [ 0 0 ] [ 1 1 ] [ 2 0 ] [ 3 1 ] [ 4 1 ] [ 5 0 ] [ 6 1 ] [ 7 1 ] ] true rows>dataset [ :x ] :y 50 logistic-regression first :estimate @ . cr
+```
+```output
+-0.521648
+```
+
+```forth cv-logistic-ridge
+"statistics" load-library
+42 seed [ 0 1 2 3 4 5 ] 6 1 matrix [ 0 0 0 1 1 1 ] vector 6 iota [ 0.1 1 ] 2 cv-logistic-ridge :best @ . cr
+```
+```output
+0.1
+```
+
+```forth pcv-logistic-ridge
+"statistics" load-library
+42 seed [ 0 1 2 3 4 5 ] 6 1 matrix [ 0 0 0 1 1 1 ] vector 6 iota [ 0.1 1 ] 2 pcv-logistic-ridge :best @ . cr
+```
+```output
+0.1
+```
 
 ## Generalized linear models (lib/statistics.h2o)
 
@@ -48,6 +144,78 @@ plotting library is pure forth (no FFI) and works under wasm; only its
 | `fit-multinomial-ridge` | `( X y reference-class max-iterations tolerance lambda -- beta )` | `fit-multinomial` with an L2 penalty λ·‖β‖²/2 on every coefficient except each class's intercept; `lambda` 0 is the plain MLE (what `fit-multinomial` calls), `lambda` > 0 keeps the estimate finite under separation |
 | `predict-multinomial` | `( beta X reference-class -- probabilities )` | Softmax probabilities from a `fit-multinomial`/`fit-multinomial-ridge` model: n×K, columns in label order 0..K−1 (the `reference-class` column is `1/Σ` weights). Each row sums to 1 |
 
+```forth fit-glm
+"statistics" load-library
+[ 1 1 1 2 1 3 ] 3 2 matrix [ 3 5 7 ] vector gaussian-identity 25 1e-8 fit-glm matrix>array . cr
+```
+```output
+[ 1 2 ]
+```
+
+```forth fit-gamma
+"statistics" load-library
+[ 1 1 1 2 1 3 1 4 ] 4 2 matrix [ 1 2 4 8 ] vector 50 1e-8 fit-gamma matrix>array . cr
+```
+```output
+[ -0.693147 0.693147 ]
+```
+
+```forth fit-poisson
+"statistics" load-library
+[ 1 1 1 2 1 3 1 4 ] 4 2 matrix [ 1 2 4 8 ] vector 50 1e-8 fit-poisson matrix>array . cr
+```
+```output
+[ -0.693147 0.693147 ]
+```
+
+```forth negative-binomial-log
+"statistics" load-library
+10 negative-binomial-log keys . cr
+```
+```output
+[ :inverse-link :mean-derivative :variance ]
+```
+
+```forth negative-binomial-theta
+"statistics" load-library
+[ 1 2 3 9 ] vector [ 2 2 2 2 ] vector negative-binomial-theta . cr
+```
+```output
+1.42853
+```
+
+```forth fit-negative-binomial
+"statistics" load-library
+[ 1 1 1 2 1 3 1 4 1 5 1 6 ] 6 2 matrix [ 0 3 1 8 2 25 ] vector 50 1e-6 fit-negative-binomial . matrix>array . cr
+```
+```output
+2.58028 [ -1.06913 0.667128 ]
+```
+
+```forth fit-multinomial
+"statistics" load-library
+[ 1 0 1 1 1 2 1 3 1 4 1 5 ] 6 2 matrix [ 0 1 0 2 1 2 ] vector 0 50 1e-6 fit-multinomial dim swap . . cr
+```
+```output
+2 2
+```
+
+```forth fit-multinomial-ridge
+"statistics" load-library
+[ 1 0 1 1 1 2 1 3 1 4 1 5 ] 6 2 matrix [ 0 0 1 1 2 2 ] vector 0 50 1e-6 1 fit-multinomial-ridge matrix>array . cr
+```
+```output
+[ -0.802023 -3.29408 0.448776 1.24168 ]
+```
+
+```forth predict-multinomial
+"statistics" load-library
+[ 1 0 1 1 1 2 1 3 1 4 1 5 ] 6 2 matrix [ 0 0 1 1 2 2 ] vector 0 50 1e-6 1 fit-multinomial-ridge [ 1 0 1 5 ] 2 2 matrix 0 predict-multinomial row-sums matrix>array . cr
+```
+```output
+[ 1 1 ]
+```
+
 ## Gradient boosting (lib/statistics.h2o)
 
 | Word | Stack effect | Summary |
@@ -56,6 +224,38 @@ plotting library is pure forth (no FFI) and works under wasm; only its
 | `xgb-predict` | `( booster X -- predictions )` | n×1 scores for an n×k feature matrix; the booster is not freed |
 | `xgb-free` | `( booster -- )` | Free a booster handle |
 | `xgb-importance` | `( booster importance-type -- scores )` | k×1 per-feature importance, row i is feature i; `importance-type` is `"gain"`, `"weight"`, `"cover"`, `"total_gain"`, or `"total_cover"`. Rank with `matrix>array argsort reverse` |
+
+```forth fit-xgb
+"statistics" load-library
+[ 0 1 2 3 4 5 6 7 ] 8 1 matrix [ 0 1 2 3 4 5 6 7 ] vector { :rounds 5 :nthread 1 } fit-xgb dup ptr? . xgb-free cr
+```
+```output
+1
+```
+
+```forth xgb-predict
+"statistics" load-library
+[ 0 1 2 3 4 5 6 7 ] 8 1 matrix [ 0 1 2 3 4 5 6 7 ] vector { :rounds 5 :nthread 1 } fit-xgb dup [ 0 7 ] 2 1 matrix xgb-predict matrix>array [: 100 * round :] map . xgb-free cr
+```
+```output
+[ 152 548 ]
+```
+
+```forth xgb-importance
+"statistics" load-library
+[ 0 1 2 3 4 5 6 7 ] 8 1 matrix [ 0 1 2 3 4 5 6 7 ] vector { :rounds 5 :nthread 1 } fit-xgb dup "gain" xgb-importance dim swap . . xgb-free cr
+```
+```output
+1 1
+```
+
+```forth xgb-free
+"statistics" load-library
+[ 0 1 2 3 4 5 6 7 ] 8 1 matrix [ 0 1 2 3 4 5 6 7 ] vector { :rounds 5 :nthread 1 } fit-xgb xgb-free "freed" . cr
+```
+```output
+freed
+```
 
 ## Plotting (lib/plot.h2o)
 
@@ -110,3 +310,344 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 | `barchart-plot` | `( heights labels -- svg )` | Complete bar chart (border and y-ticks, no x-ticks), rendered |
 | `count-barchart-plot` | `( values -- svg )` | Complete frequency bar chart from raw values, rendered |
 | `plot-tree` | `( tree -- svg )` | Render a `fit-tree` as a node-link diagram — internal nodes show the split, leaves the prediction, edges to the left (condition-true) child then the right |
+
+```forth figure
+"plot" load-library
+320 240 figure [ 1 2 ] vector [ 3 4 ] vector scatter figure>svg "<svg" has? . cr
+```
+```output
+1
+```
+
+```forth aes!
+"plot" load-library
+{ :point-radius 9 } aes! 100 100 figure :point-radius figure@ . cr
+```
+```output
+9
+```
+
+```forth figure!
+"plot" load-library
+320 240 figure 5 :xmin figure! :xmin figure@ . cr
+```
+```output
+5
+```
+
+```forth figure@
+"plot" load-library
+320 240 figure 5 :xmin figure! :xmin figure@ . cr
+```
+```output
+5
+```
+
+```forth stroke
+"plot" load-library
+320 240 figure "red" stroke 0 0 10 10 svg-line figure>svg "red" has? . cr
+```
+```output
+1
+```
+
+```forth fill
+"plot" load-library
+320 240 figure "blue" fill 1 1 5 5 svg-rect figure>svg "blue" has? . cr
+```
+```output
+1
+```
+
+```forth stroke-width
+"plot" load-library
+320 240 figure 7 stroke-width 0 0 9 9 svg-line figure>svg "stroke-width='7'" has? . cr
+```
+```output
+1
+```
+
+```forth text-anchor
+"plot" load-library
+320 240 figure "middle" text-anchor 10 10 "hi" svg-text figure>svg "middle" has? . cr
+```
+```output
+1
+```
+
+```forth axes
+"plot" load-library
+320 240 figure [ 1 2 ] vector [ 3 4 ] vector data-domain axes figure>svg "<line" has? . cr
+```
+```output
+1
+```
+
+```forth panel
+"plot" load-library
+320 240 figure [ 1 2 ] vector [ 3 4 ] vector data-domain panel figure>svg "<rect" has? . cr
+```
+```output
+1
+```
+
+```forth x-label
+"plot" load-library
+320 240 figure [ 1 2 ] vector [ 3 4 ] vector data-domain "time" x-label figure>svg "time" has? . cr
+```
+```output
+1
+```
+
+```forth y-label
+"plot" load-library
+320 240 figure [ 1 2 ] vector [ 3 4 ] vector data-domain "level" y-label figure>svg "level" has? . cr
+```
+```output
+1
+```
+
+```forth legend
+"plot" load-library
+320 240 figure [ 1 2 ] vector [ 3 4 ] vector data-domain [ "a" ] [ "red" ] legend figure>svg "red" has? . cr
+```
+```output
+1
+```
+
+```forth y-categories
+"plot" load-library
+320 240 figure 0 :xmin figure! 10 :xmax figure! [ "one" "two" ] y-categories figure>svg "one" has? . cr
+```
+```output
+1
+```
+
+```forth data-domain
+"plot" load-library
+320 240 figure [ 1 5 ] vector [ 2 6 ] vector data-domain :xmin figure@ 1 < . cr
+```
+```output
+1
+```
+
+```forth scatter
+"plot" load-library
+320 240 figure [ 1 2 3 ] vector [ 4 5 6 ] vector scatter figure>svg "<circle" has? . cr
+```
+```output
+1
+```
+
+```forth series
+"plot" load-library
+320 240 figure [ 1 2 3 ] vector [ 4 5 6 ] vector series figure>svg "<polyline" has? . cr
+```
+```output
+1
+```
+
+```forth intervals
+"plot" load-library
+320 240 figure [ 1 ] vector [ 2 ] vector [ 1 ] vector intervals figure>svg "<polyline" has? . cr
+```
+```output
+1
+```
+
+```forth abline
+"plot" load-library
+320 240 figure [ 0 4 ] vector [ 0 4 ] vector data-domain 1 0 abline figure>svg "<line" has? . cr
+```
+```output
+1
+```
+
+```forth histogram
+"plot" load-library
+320 240 figure [ 1 2 2 3 3 3 ] vector 3 histogram figure>svg "<rect" has? . cr
+```
+```output
+1
+```
+
+```forth boxplot
+"plot" load-library
+320 240 figure [ 1 2 3 4 5 9 ] vector boxplot figure>svg "<rect" has? . cr
+```
+```output
+1
+```
+
+```forth boxplots
+"plot" load-library
+320 240 figure [ [ 1 2 3 ] vector [ 4 5 6 ] vector ] [ "lo" "hi" ] boxplots figure>svg "lo" has? . cr
+```
+```output
+1
+```
+
+```forth barchart
+"plot" load-library
+320 240 figure [ 3 5 ] vector [ "a" "b" ] barchart figure>svg "<rect" has? . cr
+```
+```output
+1
+```
+
+```forth count-barchart
+"plot" load-library
+320 240 figure [ "cat" "cat" "dog" ] count-barchart figure>svg "cat" has? . cr
+```
+```output
+1
+```
+
+```forth stacked-barchart
+"plot" load-library
+320 240 figure [ 1 2 3 4 ] 2 2 matrix [ "a" "b" ] [ "red" "blue" ] stacked-barchart figure>svg "blue" has? . cr
+```
+```output
+1
+```
+
+```forth annotate
+"plot" load-library
+320 240 figure [ 0 2 ] vector [ 0 2 ] vector data-domain 1 1 "note" annotate figure>svg "note" has? . cr
+```
+```output
+1
+```
+
+```forth rect-at
+"plot" load-library
+320 240 figure [ 0 3 ] vector [ 0 3 ] vector data-domain 1 1 2 2 rect-at figure>svg "<rect" has? . cr
+```
+```output
+1
+```
+
+```forth svg-line
+"plot" load-library
+320 240 figure 0 0 9 9 svg-line figure>svg "<line" has? . cr
+```
+```output
+1
+```
+
+```forth svg-rect
+"plot" load-library
+320 240 figure "blue" fill 1 1 5 5 svg-rect figure>svg "<rect" has? . cr
+```
+```output
+1
+```
+
+```forth svg-circle
+"plot" load-library
+320 240 figure 50 50 9 svg-circle figure>svg "<circle" has? . cr
+```
+```output
+1
+```
+
+```forth svg-text
+"plot" load-library
+320 240 figure 10 20 "pixel text" svg-text figure>svg "pixel text" has? . cr
+```
+```output
+1
+```
+
+```forth figure>svg
+"plot" load-library
+320 240 figure [ 1 2 ] vector [ 3 4 ] vector scatter figure>svg "<svg" has? . cr
+```
+```output
+1
+```
+
+```forth-noexec save-figure
+"plot" load-library
+320 240 figure [ 1 2 ] vector [ 3 4 ] vector scatter "my-plot" save-figure
+```
+```output
+```
+
+```forth-noexec show-figure
+"plot" load-library
+320 240 figure [ 1 2 ] vector [ 3 4 ] vector scatter "my-plot" show-figure
+```
+```output
+```
+
+```forth-noexec view-figure
+"plot" load-library
+"my-plot" view-figure
+```
+```output
+```
+
+```forth scatter-plot
+"plot" load-library
+[ 1 2 3 ] vector [ 2 4 6 ] vector scatter-plot "<circle" has? . cr
+```
+```output
+1
+```
+
+```forth series-plot
+"plot" load-library
+[ 1 2 3 ] vector [ 2 4 6 ] vector series-plot "<polyline" has? . cr
+```
+```output
+1
+```
+
+```forth histogram-plot
+"plot" load-library
+[ 1 2 2 3 ] vector 2 histogram-plot "<rect" has? . cr
+```
+```output
+1
+```
+
+```forth boxplot-plot
+"plot" load-library
+[ 1 2 3 4 9 ] vector boxplot-plot "<rect" has? . cr
+```
+```output
+1
+```
+
+```forth boxplots-plot
+"plot" load-library
+[ [ 1 2 ] vector [ 3 4 ] vector ] [ "a" "b" ] boxplots-plot "<svg" has? . cr
+```
+```output
+1
+```
+
+```forth barchart-plot
+"plot" load-library
+[ 2 4 ] vector [ "a" "b" ] barchart-plot "<rect" has? . cr
+```
+```output
+1
+```
+
+```forth count-barchart-plot
+"plot" load-library
+[ "x" "x" "y" ] count-barchart-plot "<rect" has? . cr
+```
+```output
+1
+```
+
+```forth plot-tree
+"plot" load-library
+{ :x [ 1 2 3 4 ] vector } [ 10 10 20 20 ] vector { } fit-tree plot-tree "<svg" has? . cr
+```
+```output
+1
+```

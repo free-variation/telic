@@ -23,6 +23,8 @@ caught: division by zero
 after 
 inner caught 
 error: uncaught exception: 42
+in throw
 error: uncaught exception: { :code 7 }
+in throw
 error: uncaught exception: "histogram-table: expected at least 1 bin; got 0"
 in throw ← histogram-table

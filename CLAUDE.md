@@ -214,9 +214,17 @@ new inline that calls functions → the tail.
   truth: gen-help.py (help table, automatic in make) reads both and merges
   them into one name-sorted table, so a lib word answers to help/man/apropos
   once its library is loaded; gen-editors.py (make editors) reads
-  reference.md only. Never hand-edit a generated file: help_table.c,
+  reference.md only; gen-docs-tests.py (automatic in make test) extracts
+  the runnable (```forth) documentation fences into golden-test inputs,
+  routing load-library sections to tests/lib/, and each reference
+  section's ```forth <word> / ```output example pairs into generated
+  golden trios (tests/9*_docs_*, gitignored). A word's example pairs sit
+  after its section's table — self-contained, seeded, newline-terminated,
+  both stacks left empty — and surface in help/man as :examples. Never
+  hand-edit a generated file: help_table.c,
   forth-words.txt, repl_highlight_groups.h,
-  editors/vim/syntax/water.vim, editors/vscode/syntaxes/water.tmLanguage.json.
+  editors/vim/syntax/water.vim, editors/vscode/syntaxes/water.tmLanguage.json,
+  tests/154_readme_taste.h2o, tests/lib/154_readme_taste_fit.h2o.
   The rest of editors/ (vim indent/, ftplugin/, ftdetect/, and vscode's
   package.json, language-configuration.json, README.md) has no generator and
   is edited by hand.
@@ -225,8 +233,8 @@ new inline that calls functions → the tail.
   "undocumented" must stay empty (it checks built-in/embedded words only;
   loaded lib words show under "this session").
 - New words: reference row (reference.md for built-in/embedded,
-  reference-libraries.md for lib/), README mention if user-facing, golden
-  test, wasm suite run.
+  reference-libraries.md for lib/) plus an example fence pair, README
+  mention if user-facing, golden test, wasm suite run.
 
 ## Tests
 - Golden pairs in tests/ (see run.sh); regenerate with ./water -b <
