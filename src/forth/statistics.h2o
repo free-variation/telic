@@ -273,8 +273,28 @@
 		centered-xs centered-ys dot swap sqrt / 
 	then ;
 
-( vector -- ranks ) \ 0-based ordinal ranks; ties ranked by sort order
-: ranks as-column argsort argsort ; inline
+( vector -- ranks ) \ 0-based midranks as nx1: tied values share the mean of their positions; NaNs rank last in index order
+: ranks
+	| >values order sorted-values midranks n run-value run-start run-end mid |
+	values magnitude as-column to values
+	values argsort to order
+	values order select-rows to sorted-values
+	values num-elements to n
+	n 1 0-matrix to midranks
+	0.0 to run-start
+	begin run-start n f< while
+		sorted-values run-start @e to run-value
+		run-start 1.0 f+ to run-end
+		begin run-end n f< if sorted-values run-end @e run-value f= else 0 then while
+			f++ run-end
+		repeat
+		run-start run-end f+ 1.0 f- 2.0 f/ to mid
+		begin run-start run-end f< while
+			midranks  order run-start @e  mid !e drop
+			f++ run-start
+		repeat
+	repeat
+	midranks ;
 
 ( xs ys -- rho ) \ Spearman rank correlation: pearson on the ranks of the complete pairs
 : correlation-spearman complete-cases ranks swap ranks correlation-pearson ; inline

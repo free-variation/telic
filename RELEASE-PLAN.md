@@ -1,9 +1,9 @@
 # Water — 1.0-alpha release plan
 
-The gate for 1.0-alpha, in priority order. Five items; four already have
+The gate for 1.0-alpha, in priority order. Four items; items 1–3 have
 PLAN.md entries (this file holds the release scope and its acceptance
-criteria; PLAN.md keeps the full backlog, and an entry there shrinks or
-vanishes as its item lands).
+criteria; PLAN.md keeps the full backlog, and an entry here vanishes as
+its item lands).
 
 **Definition of done.** The language's identity claims are: the
 documentation is the corpus (README: "designed to fit into a single LLM
@@ -183,49 +183,7 @@ to the release.
 
 ---
 
-## 4. `ranks` midranks
-
-docs/reference.md documents `correlation-spearman` as drifting from the
-midrank definition on tied data. A statistics-pitched language releasing
-a correlation that is wrong on ties, with the wrongness documented in
-place of fixed, contradicts the project's own rule against documenting
-limitations. Small; PLAN.md §2b.
-
-### Semantics
-
-1. `ranks` assigns tied values their midrank (the mean of the positions
-   they occupy), so `correlation-spearman` matches the standard
-   definition on tied data.
-2. `correlation-spearman` answers `null` for a constant vector, agreeing
-   with `correlation-pearson`'s convention.
-
-### Implementation
-
-1. Rework `ranks` in src/forth/statistics.h2o (embedded, wasm-capable):
-   after the first `argsort`, average positions within runs of equal
-   values instead of the second `argsort`. NaN handling stays as today
-   (NaNs sort last; the correlations already delete incomplete pairs
-   upstream).
-2. Update the `ranks` and `correlation-spearman` reference rows to state
-   present behavior only — the drift sentence goes away, no comparison
-   with the previous implementation.
-3. Regenerate affected goldens, inspecting every changed line.
-
-### Acceptance
-
-1. Golden on tied data cross-checked once against R's
-   `cor(x, y, method = "spearman")`, with the R value and version noted
-   in-test, per the test-data convention.
-2. Discriminating case: `x = [ 1 2 2 3 ]` against a y with the tie
-   broken — index-order ranks and midranks give different rho; the
-   golden pins the midrank value.
-3. Constant-vector input answers `null`, not a number.
-4. Both native and wasm suites pass (the word is embedded, so both run
-   the same definition).
-
----
-
-## 5. Release mechanics
+## 4. Release mechanics
 
 Absent from PLAN.md because it is process, not future work. LICENSE
 exists; VERSION is 0.26.0 (src/c/water.h); the Makefile has no install

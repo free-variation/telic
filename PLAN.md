@@ -50,11 +50,6 @@ Small C words the rest builds on:
 - **More GLM families** — negative binomial, ordinal logistic (cumulative-logit).
 - **KDE** — kernel density estimation, distance weights alone.
 
-### 2b. Correlations
-
-- Give `ranks` midranks for ties, so `correlation-spearman` stops drifting on
-  tied data and returns null for a constant vector.
-
 ### 3. Resampling inference
 
 Generalize the bootstrap shape — index sets → refit → collect:

@@ -40,6 +40,7 @@ fit-tree         ( features y params -- tree ) CART regression tree. features is
 mean             ( m -- f )               matrix.h2o: sum ÷ element count
 nonmissing-count ( m -- n )               The number of non-NaN elements — the divisor mean and se use
 prune-cv         ( features y params -- tree ) statistics.h2o: fit a fit-tree, then prune at the alpha the 1-SE rule picks — the largest alpha (smallest tree) whose mean k-fold CV mean-squared-error is within one standard error of the minimum, over the weakest-link alpha sequence; :folds in params sets k (default 5). Fits k×(sequence length) trees
+ranks            ( v -- v' )              statistics.h2o: 0-based midranks as nx1 — tied values share the mean of their sorted positions, NaNs rank last in index order; one argsort, a gather, and a linear run walk
 row-means        ( m -- m' )              matrix.h2o: row-sums then scalar ÷
 se               ( m -- f )               statistics.h2o: standard error of the mean, std / sqrt(n)
 summary          ( v/dataset -- fr )      statistics.h2o: a vector answers { :min :q1 :median :mean :q3 :max } over its finite elements — a dimensioned vector in its unit, an instant vector (unit exactly s) with each statistic rendered through time>iso — plus :missing with the NaN count when any; an all-missing vector answers { :missing n }, an empty one { }. A dataset answers that frame per numeric column and { :distinct } (distinct non-missing cells, plus :missing) per text column, keyed by column name; any other column value errors naming the column

@@ -247,7 +247,7 @@ clear
 \ NaNs last, in index order (ln of a negative is NaN)
 [ -3 1 -1 ] vector ln argsort .     \ [ 1 0 2 ]
 
-\ ranks are argsort applied twice
+\ argsort applied twice: each element's ordinal position
 [ 30 10 20 ] vector argsort argsort .   \ [ 2 0 1 ]
 
 \ functional: the source vector is not mutated
