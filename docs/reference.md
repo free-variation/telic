@@ -1353,7 +1353,7 @@ A third stack (depth 1024) for stashing values out of the way; used by `try-catc
 
 ## Control flow (compile-time)
 
-Immediate words that emit branch instructions into the current definition. They have no effect outside a definition or quotation.
+Immediate words that emit branch instructions into the current definition. Outside a definition or quotation there is nothing to emit into, and the openers (`if`, `?if`, `begin`) error: `only valid inside a colon definition or quotation`. A top-level conditional goes in a quotation, run on the spot: `[: … if … then :] execute`.
 
 | Word | Runtime effect | Behavior |
 |------|---------------|----------|

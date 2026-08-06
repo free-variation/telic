@@ -15,3 +15,10 @@ tagged cr
 200 until
 200 200 repeat
 3 4 + . cr
+
+\ an opener outside a definition or quotation errors instead of silently
+\ emitting nothing (the guarded body used to run regardless of the test)
+0 if "unreachable" . then
+?if "unreachable" . then
+begin 1 until
+5 5 + . cr

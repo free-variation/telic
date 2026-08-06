@@ -120,6 +120,11 @@ static int try_fuse_cmp_branch(Interpreter *interp) {
 
 
 void p_if(DISPATCH_ARGS) {
+	if (!compiler.compiling) {
+		fail(interp, "if: only valid inside a colon definition or quotation");
+		return;
+	}
+
 	if (!try_fuse_cmp_branch(interp))
 		emit_call(interp, vocab.zbranch_cfa);
 	push(interp, make_float((double)vocab.here));
@@ -129,6 +134,11 @@ void p_if(DISPATCH_ARGS) {
 }
 
 void p_qif(DISPATCH_ARGS) {
+	if (!compiler.compiling) {
+		fail(interp, "?if: only valid inside a colon definition or quotation");
+		return;
+	}
+
 	emit_call(interp, vocab.qzbranch_cfa);
 	push(interp, make_float((double)vocab.here));
 	emit(interp, 0);
@@ -172,6 +182,11 @@ void p_else(DISPATCH_ARGS) {
 }
 
 void p_begin(DISPATCH_ARGS) {
+	if (!compiler.compiling) {
+		fail(interp, "begin: only valid inside a colon definition or quotation");
+		return;
+	}
+
 	push(interp, make_float((double)compiler.loop_begin));
 	push(interp, make_float((double)compiler.leave_chain));
 	push(interp, make_float((double)vocab.here));

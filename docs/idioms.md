@@ -64,6 +64,32 @@ through consumption to its destination — a `to name`, a store, a print, an
 - An analysis file carries section banners — `\ ---- title ----` — each
   section a sequence of checked sentences.
 
+## Control structures compile
+
+`if`/`else`/`then`, `begin`/`while`/`repeat`/`until`/`again`, and
+`leave`/`continue` are compile-time words: they emit branch instructions into
+the definition being compiled. They belong inside a `: … ;` or a `[: … :]`
+body — at the top level of a file or the REPL there is no definition to emit
+into, and the opener errors (`if: only valid inside a colon definition or
+quotation`).
+
+- A top-level conditional goes in a quotation, run on the spot:
+
+  ```forth top-level-conditional
+  variable checksum 7 to checksum
+  [: checksum 7 = 0= if "checksum mismatch" throw then :] execute
+  "checked" . cr
+  ```
+  ```output
+  checked
+  ```
+
+- A top-level loop is `times`/`i-times` over a quotation, or a defined word.
+
+- Definitions do not nest in branches: a `:` inside a top-level `if`/`then`
+  (conditional definition) breaks for the same reason. Define the word
+  unconditionally and branch inside it.
+
 ## The logic engine
 
 Reach for unification early, not as a last resort: it is the shortest way to
