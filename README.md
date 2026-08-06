@@ -90,6 +90,11 @@ wall-now 2 week + time>iso .            \ the ISO timestamp two weeks from now
 "x=42" "(\w+)=(\d+)" match .            \ [ "x=42" "x" "42" ]
 "hello world" "o" "0" replace .         \ hell0 w0rld
 
+\ format fills {n} with the stack entry n deep from the top ({0} = top, {1} under
+\ it), with a printf-style {n:spec}; {tab} and {nl} emit the control characters
+1.5 250 "{0:d} ms{tab}{1:04.1f} s" format .   \ 250 ms	01.5 s
+"{bold}{red}alert{plain} ok" format .         \ colored on a tty; the ink escapes vanish when piped
+
 \ Exceptions
 [: "missing" throw :]
 [: "got " . . cr :] try-catch           \ prints "got missing"
@@ -311,7 +316,7 @@ Symbol-keyed nested maps — the associative type, and the compound term the log
 
 ### Strings and regex
 
-- **String literals** are raw (newlines allowed; `""` is the one escape → a literal `"`); **`format`** fills `{n}` placeholders from the stack — `"got {0} of {1}" format`; **polymorphic concatenation** via `+`.
+- **String literals** are raw (newlines allowed; `""` is the one escape → a literal `"`); **`format`** fills `{n}` placeholders from the stack — `"got {0} of {1}" format` — and, on a terminal, colors text with ink directives (`{red}`…`{plain}`) that vanish when output is piped; **polymorphic concatenation** via `+`.
 - **Regex** on PCRE2 (Perl-compatible, JIT-compiled): `match` (first match as a flat `[ whole cap… ]`), `match-all` (all matches, nested), `replace` (replace-all, with `&` / `\1`–`\9` backrefs), and the `has?` string overload (does the pattern match?). Patterns are plain `"..."` literals — PCRE2 reads `\d`, `\w`, `\n`, lookaround, `\p{...}`.
 - **Slicing / building** — `substring` (half-open codepoint range), `char-at` (the one-character string at a codepoint index), `split` (split at each non-overlapping match of a pattern, empty fields kept), `join` (concatenate an array of strings with a separator).
 - **Unicode** — strings are UTF-8 and the bare words work in *codepoints*: `size`/`substring`/`char-at`/`codepoint-at` count and index by codepoint, with byte-level forms (`byte-size`, `byte-substring`) for the raw layer and to pair with regex byte offsets. `string>chars`/`string>codepoints` decompose a string, `codepoint>char`/`codepoints>string` rebuild one, and `emit` UTF-8-encodes a codepoint. Regex runs in UTF + UCP mode: `.` matches a codepoint, `\w`/`\d`/`\b` are Unicode-aware, and invalid byte sequences are tolerated rather than erroring.

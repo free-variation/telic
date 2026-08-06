@@ -12,28 +12,19 @@
 ( s -- ) \ print a string's characters exactly, no trailing space
 : print-raw string>codepoints ' emit each ; internal
 
-27 codepoint>char "[1m" + constant bold-on internal
-27 codepoint>char "[2m" + constant dim-on internal
-27 codepoint>char "[0m" + constant style-off internal
-
-( s -- ) \ the line dimmed on a tty, plain when piped
-: print-dim-line |> line |
-	tty? if dim-on print-raw line print-raw style-off print-raw
-	else line print-raw then cr ; internal
-
 : help
 	[| entry examples |
 		lookup man to entry
 		entry frame? if
 			entry :examples [ ] @or to examples
-			entry :word @ tty? if bold-on swap + style-off + then " " + entry :effect @ + print-raw cr
-			"  " entry :summary @ + print-dim-line
+			entry :effect @ entry :word @ "{bold}{0}{plain} {1}" format print-raw cr
+			entry :summary @ "{dim}  {0}{plain}" format print-raw cr
 			entry :ops has? if
-				"  ops " entry :ops @ + ", alloc " + entry :alloc @ + ", " + entry :order @ + print-dim-line
+				entry :order @ entry :alloc @ entry :ops @ "{dim}  ops {0}, alloc {1}, {2}{plain}" format print-raw cr
 			then
 			examples [> example |
 				cr
-				example @code "\n" split [: "  > " swap + print-raw cr :] each
+				example @code "\n" split [: "  {cyan}>{plain} {0}" format print-raw cr :] each
 				example @output "\n" split [: "  " swap + print-raw cr :] each
 			:] each
 		else

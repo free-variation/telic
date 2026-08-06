@@ -39,6 +39,11 @@ wall-now 2 week + time>iso .            \ the ISO timestamp two weeks from now
 "x=42" "(\w+)=(\d+)" match .            \ [ "x=42" "x" "42" ]
 "hello world" "o" "0" replace .         \ hell0 w0rld
 
+\ format fills {n} with the stack entry n deep from the top ({0} = top, {1} under
+\ it), with a printf-style {n:spec}; {tab} and {nl} emit the control characters
+1.5 250 "{0:d} ms{tab}{1:04.1f} s" format .   \ 250 ms	01.5 s
+"{bold}{red}alert{plain} ok" format .         \ colored on a tty; the ink escapes vanish when piped
+
 \ Exceptions
 [: "missing" throw :]
 [: "got " . . cr :] try-catch           \ prints "got missing"

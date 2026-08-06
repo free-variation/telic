@@ -2032,6 +2032,23 @@ static void interp_render_with_spec(Interpreter *interp, Val value,
 		free(rendered);
 }
 
+static const struct {
+	const char *directive;
+	const char *escape;
+} format_inks[] = {
+	{ "{black}", "\x1b[30m" },
+	{ "{red}", "\x1b[31m" },
+	{ "{green}", "\x1b[32m" },
+	{ "{yellow}", "\x1b[33m" },
+	{ "{blue}", "\x1b[34m" },
+	{ "{magenta}", "\x1b[35m" },
+	{ "{cyan}", "\x1b[36m" },
+	{ "{white}", "\x1b[37m" },
+	{ "{bold}", "\x1b[1m" },
+	{ "{dim}", "\x1b[2m" },
+	{ "{plain}", "\x1b[0m" },
+};
+
 int interpolate(Interpreter *interp, int template_handle) {
 	Object *template = OBJECT_AT(template_handle);
 	int capacity = template->len + 64;
@@ -2040,6 +2057,7 @@ int interpolate(Interpreter *interp, int template_handle) {
 	int out_length = 0;
 	int refs[64];
 	int ref_count = 0;
+	int ink_tty = -1;
 
 	for (int cursor = 0; cursor < template->len; ) {
 		if (template->bytes[cursor] == '{') {
@@ -2053,6 +2071,24 @@ int interpolate(Interpreter *interp, int template_handle) {
 				cursor += 5;
 				continue;
 			}
+
+			int matched_ink = 0;
+			for (int i = 0; i < (int)(sizeof(format_inks) / sizeof(format_inks[0])); i++) {
+				int directive_len = (int)strlen(format_inks[i].directive);
+				if (template->len - cursor >= directive_len
+						&& memcmp(&template->bytes[cursor], format_inks[i].directive, directive_len) == 0) {
+					if (ink_tty < 0)
+						ink_tty = isatty(1);
+					if (ink_tty)
+						interp_append(interp, &out_buffer, &capacity, &out_length,
+								format_inks[i].escape, (int)strlen(format_inks[i].escape));
+					cursor += directive_len;
+					matched_ink = 1;
+					break;
+				}
+			}
+			if (matched_ink)
+				continue;
 			int scan = cursor + 1, saw_digit = 0;
 			long long digit_value = 0;
 			while (scan < template->len && isdigit((unsigned char)template->bytes[scan])) {

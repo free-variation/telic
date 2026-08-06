@@ -1958,7 +1958,7 @@ Regex words run on PCRE2 with JIT-compiled patterns. Each distinct pattern is co
 | `pad-right` | `( s width -- s' )` | strings.h2o: s right-padded with spaces to width (unchanged when already that wide; codepoint widths) | n | `1a` + `1o` | O(n) |
 | `string>number` | `( s -- n \| none )` | Parse a decimal/float string (via `strtod`, like a numeric literal) to a float, ignoring surrounding whitespace; the none value if `s` is not entirely a number | n | none | O(n) |
 | `edit-distance` | `( a b -- n )` | Edit distance between two strings over codepoints: insertions, deletions, substitutions, and adjacent transpositions each cost 1 (Levenshtein with transpositions — optimal string alignment); symmetric | n·m | none | O(n·m) |
-| `format` | `( … template -- s )` | Fill `template`'s `{n}` (or `{n:spec}`) placeholders with the nth-from-top stack value, then drop exactly the referenced positions (unreferenced values stay); renders floats/strings/symbols. `{nl}` and `{tab}` emit a newline and a tab — string literals have no escapes, so format is where control characters come from. Only these directives substitute; other brace content is left literal | len + refs | `1o` | O(len) |
+| `format` | `( … template -- s )` | Fill `template`'s `{n}` (or `{n:spec}`) placeholders with the nth-from-top stack value, then drop exactly the referenced positions (unreferenced values stay); renders floats/strings/symbols. `{nl}` and `{tab}` emit a newline and a tab — string literals have no escapes, so format is where control characters come from. When stdout is a terminal, the ink directives `{black}` `{red}` `{green}` `{yellow}` `{blue}` `{magenta}` `{cyan}` `{white}` and `{bold}` `{dim}` emit the SGR escape styling the following text until `{plain}` reverts to plain ink; when it is not (piped, batch), they vanish, so redirected output carries no escape bytes. Only these directives substitute; other brace content is left literal | len + refs | `1o` | O(len) |
 
 A placeholder may carry a format spec after a colon — `{n:spec}` — a printf-style mini-language controlling how the value renders. `spec` is optional flags (`-`, `+`, space, `#`, `0`), an optional field width, an optional `.precision`, and an optional conversion letter:
 
@@ -2128,10 +2128,12 @@ a-b-c
 ```forth format
 1 2 "{1} then {0}" format . cr
 PI "{0:.2f}" format . cr
+"{bold}{red}alert{plain} normal" format . cr
 ```
 ```output
 1 then 2
 3.14
+alert normal
 ```
 
 ---
