@@ -63,6 +63,14 @@ through consumption to its destination — a `to name`, a store, a print, an
   the body's paragraphs — guard, work, result.
 - An analysis file carries section banners — `\ ---- title ----` — each
   section a sequence of checked sentences.
+- A name a sentence stores into must be free of the dictionary, because `to`
+  refuses to shadow a word: `to m` and `to log` both fail, `m` being the metre
+  unit and `log` the base-10 logarithm. The short nouns are largely spoken
+  for — `m` `s` `kg` `day` `week` are units, and `log` `min` `max` `sum`
+  `mean` `size` `count` `first` `last` are words — so a variable
+  takes a name that says what it holds: `price-column`, `daily-totals`.
+  Locals live in their own scope and may shadow freely, but the compiler
+  flags a scratch local that shadows a word when it is read before any store.
 
 ## Control structures compile
 

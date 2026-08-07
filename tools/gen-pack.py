@@ -2,7 +2,7 @@
 """Generate the language pack: water-pack.md and its llms.txt copy.
 
 One concatenated file holding the whole language for a model's context
-window (RELEASE-PLAN item 1): the README taste block, docs/reference.md
+window: the README taste block, docs/reference.md
 and docs/reference-libraries.md verbatim (word tables, tokenizer rules,
 and the tested example pairs), and docs/idioms.md verbatim.
 

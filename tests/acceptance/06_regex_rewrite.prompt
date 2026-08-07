@@ -1,0 +1,14 @@
+Print two lines, each the result of one regular-expression rewrite, printed
+with `.` followed by `cr`.
+
+1. In the string `due 2026-01-31 and 2025-12-01`, rewrite every date from
+   YYYY-MM-DD to DD/MM/YYYY, leaving the rest of the text alone.
+
+2. This string has leading and trailing spaces and runs of whitespace inside
+   it, including a newline:
+
+       "  a   b
+        c  "
+
+   Strip the leading and trailing whitespace, then collapse every remaining
+   run of whitespace to a single space.

@@ -1,0 +1,9 @@
+Use backtracking search, not a filter or a loop, for both parts.
+
+1. Take the candidates 12, 18, 21, 30 as a cons list. Search them in order
+   for the first one divisible by 7, failing the branch when a candidate is
+   not divisible, and print the one found with `.` followed by `cr`.
+
+2. Run a two-branch committed choice whose first branch fails outright and
+   whose second branch produces the string `no candidate`. Print the result
+   with `.` followed by `cr`.

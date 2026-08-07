@@ -84,3 +84,6 @@ tests/lib/9*_docs_*
 water-pack.md
 llms.txt
 generated
+
+# python venv for tools/run-acceptance.py (anthropic SDK)
+.venv

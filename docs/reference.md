@@ -2,8 +2,11 @@
 
 Every entry is derived from reading the C source. Stack effects are exact;
 `--` separates the state before (bottom to top, leftmost = deepest) from after.
-Shorthand: `f` float, `s` string, `xt` execution token, `m` matrix, `arr`
-array, `set` set, `fr` frame, `sym` symbol, `k` continuation.
+Shorthand: `f` float, `str` string, `xt` execution token, `mat` matrix, `arr`
+array, `set` set, `fr` frame, `sym` symbol, `k` continuation. `mat` and `str`
+are spelled out because `m` is the metre unit and `s` the second, and `to`
+refuses to shadow a word; `set` is itself the set constructor, so a variable
+holding one takes a name of its own.
 
 Three cost columns appear on runtime words:
 
@@ -291,10 +294,10 @@ Mutate the left operand and return it; no allocation. Programmer is responsible 
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `+!` | `( m a -- m )` | matrix+matrix or matrix+scalar (and scalar+matrix, mutating the matrix) in place | 3 + r×c | none | O(r×c) |
-| `-!` | `( m a -- m )` | in-place subtract | 3 + r×c | none | O(r×c) |
-| `*!` | `( m a -- m )` | in-place multiply | 3 + r×c | none | O(r×c) |
-| `/!` | `( m a -- m )` | in-place divide | 3 + r×c | none | O(r×c) |
+| `+!` | `( mat a -- mat )` | matrix+matrix or matrix+scalar (and scalar+matrix, mutating the matrix) in place | 3 + r×c | none | O(r×c) |
+| `-!` | `( mat a -- mat )` | in-place subtract | 3 + r×c | none | O(r×c) |
+| `*!` | `( mat a -- mat )` | in-place multiply | 3 + r×c | none | O(r×c) |
+| `/!` | `( mat a -- mat )` | in-place divide | 3 + r×c | none | O(r×c) |
 
 ```forth +!
 [ 1 2 ] vector 10 +! matrix>array . cr
@@ -864,14 +867,14 @@ Result is `1.0` (true) or `0.0` (false), with a float fast path. `=` uses `val_c
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
 | `=` | `( a b -- bool )` | structural equality | 3 (float) | none | float O(1); string O(\|s\|); array/set O(n); frame O(n); matrix O(r×c) |
-| `<` | `( a b -- bool )` or `( m/arr x -- m )` | less-than; element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (`val_cmp` per element, n×1) | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
-| `<=` | `( a b -- bool )` or `( m/arr x -- m )` | less-than-or-equal (≤); element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (`val_cmp` per element, n×1) | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
+| `<` | `( a b -- bool )` or `( mat/arr x -- mat )` | less-than; element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (`val_cmp` per element, n×1) | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
+| `<=` | `( a b -- bool )` or `( mat/arr x -- mat )` | less-than-or-equal (≤); element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (`val_cmp` per element, n×1) | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
 | `true` | `( -- bool )` | core.h2o: pushes 1 (inline) | 1 | none | O(1) |
 | `false` | `( -- bool )` | core.h2o: pushes 0 (inline) | 1 | none | O(1) |
-| `>` | `( a b -- bool )` or `( m/arr x -- m )` | greater-than; element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (`val_cmp` per element, n×1) | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
-| `>=` | `( a b -- bool )` or `( m/arr x -- m )` | greater-than-or-equal (≥); element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (`val_cmp` per element, n×1) | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
-| `eq` | `( a b -- bool )` or `( m/arr x -- m )` | equality; element-wise 1/0 mask on matrix and array operands (scalar broadcast; `val_cmp` per array element) — the mask-producing twin of `=`, which stays structural on collections. NaN elements equal nothing | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
-| `nan?` | `( v -- bool )` or `( m/arr -- m )` | NaN test: 1/0 mask over a matrix's elements; an array answers an n×1 mask marking `none` elements (a text column's missing cells), composing with `where`/`select-rows`; `1` on `null` itself (a scalar NaN *is* `null`), `0` on any float. The only mask route to NaNs — they compare false under `<`/`>`/`eq` | 2 | `1m(r×c)` | O(1); matrix/array O(n) |
+| `>` | `( a b -- bool )` or `( mat/arr x -- mat )` | greater-than; element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (`val_cmp` per element, n×1) | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
+| `>=` | `( a b -- bool )` or `( mat/arr x -- mat )` | greater-than-or-equal (≥); element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (`val_cmp` per element, n×1) | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
+| `eq` | `( a b -- bool )` or `( mat/arr x -- mat )` | equality; element-wise 1/0 mask on matrix and array operands (scalar broadcast; `val_cmp` per array element) — the mask-producing twin of `=`, which stays structural on collections. NaN elements equal nothing | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
+| `nan?` | `( v -- bool )` or `( mat/arr -- mat )` | NaN test: 1/0 mask over a matrix's elements; an array answers an n×1 mask marking `none` elements (a text column's missing cells), composing with `where`/`select-rows`; `1` on `null` itself (a scalar NaN *is* `null`), `0` on any float. The only mask route to NaNs — they compare false under `<`/`>`/`eq` | 2 | `1m(r×c)` | O(1); matrix/array O(n) |
 | `0=` | `( a -- bool )` | `!truthy(a)`; any type | 2 | none | O(1) |
 | `1=` | `( a -- bool )` | core.h2o: `1 =` (inlined) | 5 | none | O(1) |
 | `type-of` | `( a -- sym )` | The value's type as a symbol: `:float` `:string` `:symbol` `:array` `:set` `:pair` `:frame` `:matrix` `:quantity` `:xt` `:continuation` `:stream` `:db` `:ptr` `:segment` `:none` `:wildcard` `:lvar`. A bound logic var reports its value's type; an unbound one is `:lvar` | 2 | none | O(1) |
@@ -1556,9 +1559,11 @@ closers are self-delimiting tokens (see the note in the introduction).
 
 ```forth |
 : hyp | a b | to b to a a a * b b * + sqrt ; 3 4 hyp . cr
+: discounted | >price rate | 0.2 to rate price price rate * - ; 100 discounted . cr
 ```
 ```output
 5
+80
 ```
 
 ```forth |>
@@ -1579,7 +1584,7 @@ These parse following tokens and/or compile code. Costs are dominated by compila
 | `recurse` | — | Compile a call to the innermost definition being compiled — the enclosing quotation, else the enclosing colon word — so an anonymous quotation can self-call. An ordinary recursive call (grows the return stack); compile error outside a definition |
 | `variable` | — | Read the following name; declare a global variable initialized to `0.0` |
 | `constant` | `( val -- )` | Pop a value and read the following name; define an inline word that pushes it as a literal, so call sites fold to the literal with no run-time fetch. Fixed at definition — `to` cannot reassign it |
-| `to` | `( val -- )` | Assign to the named local (in a definition) or global. At interpreted top level — the REPL, a program file, a `load`ed file — it auto-creates an absent global. In a compiled body, a colon definition or a quotation alike, the global must already exist: `to: unknown variable: <name>; declare it with variable`. May trigger superword store-fusion while compiling. |
+| `to` | `( val -- )` | Assign to the named local (in a definition) or global. At interpreted top level — the REPL, a program file, a `load`ed file — it auto-creates an absent global. In a compiled body, a colon definition or a quotation alike, the global must already exist: `to: unknown variable: <name>; declare it with variable`. The name must also be free: `to` refuses to shadow an existing word, `to: <name> is already a word, not a variable` — `to m` fails because `m` is the metre unit. May trigger superword store-fusion while compiling. |
 | `symbol` | — | Read the following name; declare a word that pushes a specific interned symbol |
 | `defer` | `( "name" -- )` | Read the following name; declare a forward-referenced word with no target. Calling it before a target is installed throws `unresolved deferred word`. Enables mutual recursion and late binding; set the target with `embodies` or `embodies!` |
 | `embodies` | `( xt "name" -- )` | Pop an xt (a colon word or quotation) and read the following name; install it as the named deferred word's target. Retargetable — each later call re-reads it — so a call to the deferred word forwards through one dispatch. Top-level only |
@@ -1587,7 +1592,7 @@ These parse following tokens and/or compile code. Costs are dominated by compila
 | `base` | `( -- q )` | Push a base quantity — a fresh dimension with its base unit, magnitude `1.0`. Paired with `unit` to declare a base dimension (`base unit m`) |
 | `unit` | `( q -- )` | Read the following name; pop a quantity whose magnitude is a positive whole number, and define a postfix word attaching that unit. The magnitude is the unit's integer scale relative to its dimension's base (`100 cent unit dollar`). A single unnamed base dimension gets named after the word |
 | `:name` | `( -- sym )` | Symbol literal; interns the name at read time |
-| `string>symbol` | `( s -- sym )` | Intern a computed string as a symbol |
+| `string>symbol` | `( str -- sym )` | Intern a computed string as a symbol |
 | `[:` | `( -- xt )` | Open an anonymous quotation (closed by `:]`); compiles its body and pushes its xt |
 | `'` | `( "name" -- xt )` | Parse the following word at compile time and push its xt (immediate; folds the xt in as a literal) |
 | `lookup` | `( "name" -- xt )` | Parse the following word at run time and push its xt — the non-immediate counterpart of `'` |
@@ -1770,7 +1775,7 @@ lookup sqrt 9 swap execute . cr
 
 ### Locals
 
-Declared only at the **head** of a definition or quotation body. Live on the return stack: up to 128 names across up to 64 nested scopes. A body reads the locals **it declares itself** and nothing else: a reference to a name declared in an enclosing definition or an enclosing quotation is a compile error — `x is not bound in this quotation; pass it in or use pick` — and the partial definition rolls back. Values reach a quotation three ways: received into its own slots (`[>` receive-all, `[: | >x |` selective), parked on the stack below the combinator's operands and read by depth with `pick`, or bound into a curried token by `curry`/`2curry`/`ncurry`.
+Declared only at the **head** of a definition or quotation body, and in a **single list**: a receive list followed by a scratch list — `|> items | | total i |` — is a compile error, `locals are declared in one list; mark individual receive slots with a > prefix (| >a b c |)`. A body mixing received and uninitialized slots writes one list with `>` on the names that receive, as the mixed row below shows. Live on the return stack: up to 128 names across up to 64 nested scopes. A body reads the locals **it declares itself** and nothing else: a reference to a name declared in an enclosing definition or an enclosing quotation is a compile error — `x is not bound in this quotation; pass it in or use pick` — and the partial definition rolls back. Values reach a quotation three ways: received into its own slots (`[>` receive-all, `[: | >x |` selective), parked on the stack below the combinator's operands and read by depth with `pick`, or bound into a curried token by `curry`/`2curry`/`ncurry`.
 
 The mechanism: a local reference compiles to the **slot index** in the frame that declares it, always the innermost locals-bearing scope, and the op reads `local_base + slot` with no frame walk. Names are discarded after compilation and no value is bound then. Because every reference is depth 0, a quotation's meaning does not depend on which frames happen to be live when it runs — it reads the same slots under `map`, under `i-times`, through `execute`, inside another word's frame, or after a continuation capture and resume. The rejected alternative was resolving a reference as `(frames-up, slot)` against the live frame chain, which made a quotation's reads depend on its caller's frames and silently returned another word's slots when it travelled.
 
@@ -1827,7 +1832,7 @@ These compile-time words read a following local name and emit a single fused dep
 |------|-------------|----------|-----|-------|---|
 | `.` | `( a -- )` | Print value then a space; matrices print as a grid, frames pretty-print | 1 + print | none | O(size printed) |
 | `.a` | `( a -- )` | Like `.` but shows everything: no element truncation, and floats print at full round-trip precision (`%.17g`) instead of `.`'s 6 significant figures. Matrix/vector columns lose their fixed-width alignment when values render at full precision | 1 + print | none | O(size printed) |
-| `render` | `( a -- s )` | The text `.` would print, returned as a string instead of printed: no truncation, no trailing separator (a matrix grid's final newline is dropped). Strings render raw, symbols by name, collections/frames/matrices in their laid-out form | 1 + size | `1o` | O(size) |
+| `render` | `( a -- str )` | The text `.` would print, returned as a string instead of printed: no truncation, no trailing separator (a matrix grid's final newline is dropped). Strings render raw, symbols by name, collections/frames/matrices in their laid-out form | 1 + size | `1o` | O(size) |
 | `.s` | `( -- )` | Print every stack value, bottom to top; leaves the stack intact | print | none | O(depth) |
 | `peek` | `( a -- a )` | core.h2o: print the top value then a space without consuming it (`dup .`, inlined) — a stack probe | 1 + print | none | O(size printed) |
 | `,` | `( a -- a )` | core.h2o: `peek` under a one-character name, for splicing probes into a pipeline (inlined) | 1 + print | none | O(size printed) |
@@ -1927,29 +1932,29 @@ Regex words run on PCRE2 with JIT-compiled patterns. Each distinct pattern is co
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `match` | `( s pat -- [ whole cap… ] \| 0 )` | First (leftmost) match as a flat array: whole match then each capture; no match returns `0` | n | `1a` + captures | O(n) |
-| `match-all` | `( s pat -- [ [whole cap…] … ] \| 0 )` | Every non-overlapping leftmost match, each a flat sub-array; a zero-width match advances one byte; no match returns `0` | n | `1a` per match + captures | O(n + m·g) |
-| `replace` | `( s pat rep -- s' )` | Replace **all** matches; in `rep`, `&` or `\0` is the whole match, `\1`–`\9` a capture, `\&` and `\\` literals | n | `1o` + buffer growth | O(n) |
-| `xml-escape` | `( s -- s' )` | strings.h2o: `&` `<` `>` `'` to their XML entities, for element text and single-quoted attributes; four `replace` passes | 4n | 4 strings | O(n) |
+| `match` | `( str pat -- [ whole cap… ] \| 0 )` | First (leftmost) match as a flat array: whole match then each capture; no match returns `0` | n | `1a` + captures | O(n) |
+| `match-all` | `( str pat -- [ [whole cap…] … ] \| 0 )` | Every non-overlapping leftmost match, each a flat sub-array; a zero-width match advances one byte; no match returns `0` | n | `1a` per match + captures | O(n + m·g) |
+| `replace` | `( str pat rep -- str' )` | Replace **all** matches; in `rep`, `&` or `\0` is the whole match, `\1`–`\9` a capture, `\&` and `\\` literals | n | `1o` + buffer growth | O(n) |
+| `xml-escape` | `( str -- str' )` | strings.h2o: `&` `<` `>` `'` to their XML entities, for element text and single-quoted attributes; four `replace` passes | 4n | 4 strings | O(n) |
 | `basename` | `( path -- filename )` | strings.h2o: the path's last component (`"^.*/" "" replace`, inlined); a path with no `/` passes through | n | `1o` | O(n) |
-| `split` | `( s pat -- [ piece… ] )` | Split `s` at each non-overlapping match of `pat`; the pieces are the gaps between matches, empty fields kept; no match → `[ s ]` | n | `1a` + pieces | O(n) |
-| `substring` | `( s start end -- sub )` | Half-open **codepoint** range `[start, end)`; bounds-checked against the codepoint count | 2 + n | `1o` | O(n) |
-| `byte-substring` | `( s start end -- sub )` | Half-open **byte** range `[start, end)`; bounds-checked. Pairs with byte offsets from `match`/`match-all` | 2 + k | `1o` | O(k), k = end − start |
-| `char-at` | `( s index -- char )` | The one-character string at codepoint `index`; bounds-checked against the codepoint count | 2 + n | `1o` | O(n) |
-| `codepoint-at` | `( s index -- code )` | The integer codepoint at codepoint `index`; bounds-checked | 2 + n | none | O(n) |
-| `string>chars` | `( s -- [ char… ] )` | Array of one-character strings, one per codepoint | n | `1a` + `1o`/char | O(n) |
-| `string>codepoints` | `( s -- [ code… ] )` | Array of integer codepoints, one per codepoint | n | `1a` | O(n) |
+| `split` | `( str pat -- [ piece… ] )` | Split `str` at each non-overlapping match of `pat`; the pieces are the gaps between matches, empty fields kept; no match → `[ str ]` | n | `1a` + pieces | O(n) |
+| `substring` | `( str start end -- sub )` | Half-open **codepoint** range `[start, end)`; bounds-checked against the codepoint count | 2 + n | `1o` | O(n) |
+| `byte-substring` | `( str start end -- sub )` | Half-open **byte** range `[start, end)`; bounds-checked. Pairs with byte offsets from `match`/`match-all` | 2 + k | `1o` | O(k), k = end − start |
+| `char-at` | `( str index -- char )` | The one-character string at codepoint `index`; bounds-checked against the codepoint count | 2 + n | `1o` | O(n) |
+| `codepoint-at` | `( str index -- code )` | The integer codepoint at codepoint `index`; bounds-checked | 2 + n | none | O(n) |
+| `string>chars` | `( str -- [ char… ] )` | Array of one-character strings, one per codepoint | n | `1a` + `1o`/char | O(n) |
+| `string>codepoints` | `( str -- [ code… ] )` | Array of integer codepoints, one per codepoint | n | `1a` | O(n) |
 | `codepoint>char` | `( code -- char )` | One-character string for codepoint `code`; range-checked `[0, 0x10FFFF]` | 1 | `1o` | O(1) |
-| `codepoints>string` | `( [ code… ] -- s )` | Encode each codepoint to UTF-8 and concatenate; per-element type- and range-checked | n | `1o` | O(n) |
-| `trim` | `( s -- s' )` | Strip leading and trailing ASCII whitespace (`' ' \t \n \v \f \r`); a backward/forward byte-scan, one allocation of the surviving span | n | `1o` | O(n) |
-| `join` | `( arr sep -- s )` | Concatenate the string elements of `arr` separated by `sep`; errors on a non-string element | 2 + total | `1o` | O(total) |
-| `index-of` | `( s pat -- i )` | strings.h2o: codepoint index of `pat`'s first regex match in `s`, or `-1` if none (`split 0 @i size` guarded by `has?`) | n | `1a` + pieces | O(n) |
-| `spaces` | `( k -- s )` | strings.h2o: a string of k spaces (`" " swap array-of "" join`) | k | `1a` + `1o` | O(k) |
-| `pad-left` | `( s width -- s' )` | strings.h2o: s left-padded with spaces to width (unchanged when already that wide; codepoint widths) | n | `1a` + `1o` | O(n) |
-| `pad-right` | `( s width -- s' )` | strings.h2o: s right-padded with spaces to width (unchanged when already that wide; codepoint widths) | n | `1a` + `1o` | O(n) |
-| `string>number` | `( s -- n \| none )` | Parse a decimal/float string (via `strtod`, like a numeric literal) to a float, ignoring surrounding whitespace; the none value if `s` is not entirely a number | n | none | O(n) |
+| `codepoints>string` | `( [ code… ] -- str )` | Encode each codepoint to UTF-8 and concatenate; per-element type- and range-checked | n | `1o` | O(n) |
+| `trim` | `( str -- str' )` | Strip leading and trailing ASCII whitespace (`' ' \t \n \v \f \r`); a backward/forward byte-scan, one allocation of the surviving span | n | `1o` | O(n) |
+| `join` | `( arr sep -- str )` | Concatenate the string elements of `arr` separated by `sep`; errors on a non-string element | 2 + total | `1o` | O(total) |
+| `index-of` | `( str pat -- i )` | strings.h2o: codepoint index of `pat`'s first regex match in `str`, or `-1` if none (`split 0 @i size` guarded by `has?`) | n | `1a` + pieces | O(n) |
+| `spaces` | `( k -- str )` | strings.h2o: a string of k spaces (`" " swap array-of "" join`) | k | `1a` + `1o` | O(k) |
+| `pad-left` | `( str width -- str' )` | strings.h2o: s left-padded with spaces to width (unchanged when already that wide; codepoint widths) | n | `1a` + `1o` | O(n) |
+| `pad-right` | `( str width -- str' )` | strings.h2o: s right-padded with spaces to width (unchanged when already that wide; codepoint widths) | n | `1a` + `1o` | O(n) |
+| `string>number` | `( str -- n \| none )` | Parse a decimal/float string (via `strtod`, like a numeric literal) to a float, ignoring surrounding whitespace; the none value if `str` is not entirely a number | n | none | O(n) |
 | `edit-distance` | `( a b -- n )` | Edit distance between two strings over codepoints: insertions, deletions, substitutions, and adjacent transpositions each cost 1 (Levenshtein with transpositions — optimal string alignment); symmetric | n·m | none | O(n·m) |
-| `format` | `( … template -- s )` | Fill `template`'s `{n}` (or `{n:spec}`) placeholders with the nth-from-top stack value, then drop exactly the referenced positions (unreferenced values stay); renders floats/strings/symbols. `{nl}` and `{tab}` emit a newline and a tab — string literals have no escapes, so format is where control characters come from. When stdout is a terminal, the ink directives `{black}` `{red}` `{green}` `{yellow}` `{blue}` `{magenta}` `{cyan}` `{white}` and `{bold}` `{dim}` emit the SGR escape styling the following text until `{plain}` reverts to plain ink; when it is not (piped, batch), they vanish, so redirected output carries no escape bytes. Only these directives substitute; other brace content is left literal | len + refs | `1o` | O(len) |
+| `format` | `( … template -- str )` | Fill `template`'s `{n}` (or `{n:spec}`) placeholders with the nth-from-top stack value, then drop exactly the referenced positions (unreferenced values stay); renders floats/strings/symbols. `{nl}` and `{tab}` emit a newline and a tab — string literals have no escapes, so format is where control characters come from. When stdout is a terminal, the ink directives `{black}` `{red}` `{green}` `{yellow}` `{blue}` `{magenta}` `{cyan}` `{white}` and `{bold}` `{dim}` emit the SGR escape styling the following text until `{plain}` reverts to plain ink; when it is not (piped, batch), they vanish, so redirected output carries no escape bytes. Only these directives substitute; other brace content is left literal | len + refs | `1o` | O(len) |
 
 A placeholder may carry a format spec after a colon — `{n:spec}` — a printf-style mini-language controlling how the value renders. `spec` is optional flags (`-`, `+`, space, `#`, `0`), an optional field width, an optional `.precision`, and an optional conversion letter:
 
@@ -2137,9 +2142,9 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 |------|-------------|----------|-----|-------|---|
 | `[< v… >]` | `( -- set )` | Set literal; `[<` pushes a mark, `>]` gathers everything above it in one sort-and-dedup pass, like `set` | n log n | `1o` + realloc | O(n log n) |
 | `set` | `( v₀ … vₙ₋₁ n -- set )` | Gather the top n values into a new set (the set analog of `array`) | 2 + n log n | `1o` + reallocs | O(n log n) |
-| `union` | `( s₁ s₂ -- s₃ )` | Union into a new set, merging the two sorted arrays | m+n | `1o` + reallocs | O(m+n) |
-| `intersection` | `( s₁ s₂ -- s₃ )` | Intersection into a new set, merging the two sorted arrays | m+n | `1o` + reallocs | O(m+n) |
-| `difference` | `( s₁ s₂ -- s₃ )` | s₁ − s₂ into a new set, merging the two sorted arrays | m+n | `1o` + reallocs | O(m+n) |
+| `union` | `( set₁ set₂ -- set₃ )` | Union into a new set, merging the two sorted arrays | m+n | `1o` + reallocs | O(m+n) |
+| `intersection` | `( set₁ set₂ -- set₃ )` | Intersection into a new set, merging the two sorted arrays | m+n | `1o` + reallocs | O(m+n) |
+| `difference` | `( set₁ set₂ -- set₃ )` | set₁ − set₂ into a new set, merging the two sorted arrays | m+n | `1o` + reallocs | O(m+n) |
 | `set-add!` | `( set v -- set )` | Insert v in sorted position if absent (dedups); leaves set on the stack | log n + n | reallocs | O(n) |
 | `set-remove!` | `( set v -- set )` | Remove v if present (no-op if absent); leaves set on the stack | log n + n | none | O(n) |
 | `member?` | `( set v -- bool )` | Binary-search membership | 3 + log n | none | O(log n) |
@@ -2147,7 +2152,7 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 | `set>array` | `( set -- arr )` | arrays.h2o: the elements as an array in `val_cmp` order — `sort`'s set branch, which copies rather than compares | 1 | `1o` | O(n) |
 | `group-by` | `( array col -- frame )` | Group an array of frames by their symbol-valued `col` into a frame from each value to a set of the matching rows; one sorted pass, distinct values sorted | n log n | frame + sets | O(n log n) |
 | `size` | `( coll -- n )` | Element count: set/array members, **codepoints** of a string, pair count of a frame; a string's codepoint count is computed on first use and memoized on the object | 2 | none | O(1); a string's first `size` is O(n) |
-| `byte-size` | `( s -- n )` | Byte length of a string | 2 | none | O(1) |
+| `byte-size` | `( str -- n )` | Byte length of a string | 2 | none | O(1) |
 
 ```forth set
 10 20 20 3 set . cr
@@ -2496,7 +2501,7 @@ Symbol-keyed sorted maps; binary-search lookup. A **path** is an array of steps;
 | `name!key` | `( val -- )` | Set in one token, dropping the frame `!` returns: `99 row!price` stores 99 at `:price` in `row`'s frame and leaves the stack empty. Same resolution of the left part as `name@key`, and an empty left part takes the frame from above the value, `( val fr -- )`. A chain may end in a set — `row@address!city` — but only its last step may, since a set leaves no frame to walk | 2 + log n | none | O(log n) |
 | `@or` | `( fr sym/path fallback -- val )` | Get by key or path, the fallback when absent — `has? if @` in one probe, no error on miss; the fallback is already evaluated, so it suits values, not expensive computations | 4 + d log n | none | O(d log n) |
 | `!` | `( fr sym/path val -- fr )` | Set by key or path, vivifying intermediates; mutates fr; errors on a search path | d log n | realloc on growth; `1o` per vivified frame | O(d log n) amortized |
-| `has?` | `( fr sym/path -- bool )` | Existence test for a frame key or path, no error on miss; a search path is true if any node matches (short-circuits at the first); on a string `( s pat -- bool )`, true if regex `pat` matches anywhere | 3 + d log n | none | O(d log n) |
+| `has?` | `( fr sym/path -- bool )` | Existence test for a frame key or path, no error on miss; a search path is true if any node matches (short-circuits at the first); on a string `( str pat -- bool )`, true if regex `pat` matches anywhere | 3 + d log n | none | O(d log n) |
 | `delete-at` | `( fr sym/path -- fr )` | Remove a key (errors if absent or on a search path); mutates fr | n | none | O(n) |
 | `update-at` | `( fr sym/path xt -- fr )` | Apply xt to the value at the key, store the result back; errors on a search path | d log n + xt | none | O(d log n + xt) |
 | `keys` | `( fr -- arr )` | Keys (symbols) in sorted order | 1 + n | `1a(n)` | O(n) |
@@ -2657,8 +2662,8 @@ Objects ↔ frames (keys interned as symbols), arrays ↔ arrays, strings ↔ st
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `json>frame` | `( s -- val )` | Parse a JSON string. Escapes and `\uXXXX` (with surrogate pairs) decode to UTF-8; recursive-descent, depth-guarded; rejects trailing non-whitespace. Each object's keys are sorted after collection | scan + build | one object per node | O(\|s\| log \|s\|) |
-| `frame>json` | `( val -- s )` | Serialize a value to JSON. Floats use the shortest round-trip form; strings are escaped (non-ASCII emitted raw); object keys are the symbol names | walk + build | `1o` string | O(tree size) |
+| `json>frame` | `( str -- val )` | Parse a JSON string. Escapes and `\uXXXX` (with surrogate pairs) decode to UTF-8; recursive-descent, depth-guarded; rejects trailing non-whitespace. Each object's keys are sorted after collection | scan + build | one object per node | O(\|s\| log \|s\|) |
+| `frame>json` | `( val -- str )` | Serialize a value to JSON. Floats use the shortest round-trip form; strings are escaped (non-ASCII emitted raw); object keys are the symbol names | walk + build | `1o` string | O(tree size) |
 | `null` | `( -- none )` | Push the none value (`T_NONE`) — what JSON `null` parses to, and what an unset `env` returns | 1 | none | O(1) |
 
 ```forth json>frame
@@ -2692,12 +2697,12 @@ Row-major `double` storage. `r` rows, `c` columns.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `0-matrix` | `( r c -- m )` | r×c zero matrix (calloc) | 3 | `1m(r×c)` | O(1)+ |
-| `matrix` | `( arr r c -- m )` or `( arr r -- m )` | Build from a float array; two-arg form takes r = rows and infers columns | 3 + r×c | `1m(r×c)` | O(r×c) |
+| `0-matrix` | `( r c -- mat )` | r×c zero matrix (calloc) | 3 | `1m(r×c)` | O(1)+ |
+| `matrix` | `( arr r c -- mat )` or `( arr r -- mat )` | Build from a float array; two-arg form takes r = rows and infers columns | 3 + r×c | `1m(r×c)` | O(r×c) |
 | `vector` | `( arr -- v )` | matrix.h2o: the array as an nx1 matrix, length inferred (`dup size 1 matrix`, inlined) | 3 + n | `1m(n)` | O(n) |
-| `diagonal-matrix` | `( fill n -- m )` | n×n matrix with `fill` on the diagonal | 2 + n | `1m(n×n)` | O(n) |
-| `identity-matrix` | `( n -- m )` | matrix.h2o: `1 swap diagonal-matrix` | n | `1m(n×n)` | O(n) |
-| `matrix-range` | `( start end step -- m )` | 1×N row of evenly spaced values | 3 + N | `1m(1×N)` | O(N) |
+| `diagonal-matrix` | `( fill n -- mat )` | n×n matrix with `fill` on the diagonal | 2 + n | `1m(n×n)` | O(n) |
+| `identity-matrix` | `( n -- mat )` | matrix.h2o: `1 swap diagonal-matrix` | n | `1m(n×n)` | O(n) |
+| `matrix-range` | `( start end step -- mat )` | 1×N row of evenly spaced values | 3 + N | `1m(1×N)` | O(N) |
 
 ```forth 0-matrix
 2 3 0-matrix dim swap . . cr
@@ -2751,21 +2756,21 @@ Row-major `double` storage. `r` rows, `c` columns.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `@j` | `( m j -- col )` | Column j as an r×1 matrix (copy) | 2 + r | `1m(r×1)` | O(r) |
-| `@i,j` | `( m i j -- f )` | Single element as a float | 4 | none | O(1) |
-| `@e` | `( m i -- f )` | Element at flat row-major index i as a float — consumes `argmin`/`argmax`/`where` indices; the same access on n×1 and 1×n vectors | 3 | none | O(1) |
-| `!e` | `( m i v -- m )` | Store v (a float, or `null` for NaN) at flat row-major index i, in place | 4 | none | O(1) |
-| `!i,j` | `( m i j v -- m )` | Store v (a float, or `null` for NaN) at row i, column j, in place | 5 | none | O(1) |
-| `dim` | `( m/dataset -- r c )` | Push rows then columns; datasets.h2o extends it to a dataset — rows from the first column's length, columns from the key count | 3 | none | O(1) |
-| `reshape` | `( m r c -- m' )` | Same elements, new shape (must match); memcpy | 3 + r×c | `1m(r×c)` | O(r×c) |
-| `transpose` | `( m -- m' )` | Rows/columns swapped | 1 + r×c | `1m(c×r)` | O(r×c) |
-| `diagonal` | `( m -- m' )` | Diagonal as a 1×min(r,c) matrix | 1 + min(r,c) | `1m(1×min)` | O(min(r,c)) |
-| `flatten` | `( m -- m' )` | matrix.h2o: 1×(r·c) reshape | r×c | `1m(1×r·c)` | O(r×c) |
+| `@j` | `( mat j -- col )` | Column j as an r×1 matrix (copy) | 2 + r | `1m(r×1)` | O(r) |
+| `@i,j` | `( mat i j -- f )` | Single element as a float | 4 | none | O(1) |
+| `@e` | `( mat i -- f )` | Element at flat row-major index i as a float — consumes `argmin`/`argmax`/`where` indices; the same access on n×1 and 1×n vectors | 3 | none | O(1) |
+| `!e` | `( mat i v -- mat )` | Store v (a float, or `null` for NaN) at flat row-major index i, in place | 4 | none | O(1) |
+| `!i,j` | `( mat i j v -- mat )` | Store v (a float, or `null` for NaN) at row i, column j, in place | 5 | none | O(1) |
+| `dim` | `( mat/dataset -- r c )` | Push rows then columns; datasets.h2o extends it to a dataset — rows from the first column's length, columns from the key count | 3 | none | O(1) |
+| `reshape` | `( mat r c -- mat' )` | Same elements, new shape (must match); memcpy | 3 + r×c | `1m(r×c)` | O(r×c) |
+| `transpose` | `( mat -- mat' )` | Rows/columns swapped | 1 + r×c | `1m(c×r)` | O(r×c) |
+| `diagonal` | `( mat -- mat' )` | Diagonal as a 1×min(r,c) matrix | 1 + min(r,c) | `1m(1×min)` | O(min(r,c)) |
+| `flatten` | `( mat -- mat' )` | matrix.h2o: 1×(r·c) reshape | r×c | `1m(1×r·c)` | O(r×c) |
 | `as-column` | `( v -- v' )` | matrix.h2o: any vector shape as n×1 (`dup dim * 1 reshape`, inlined) | r×c | `1m(n×1)` | O(n) |
-| `matrix>array` | `( m -- arr )` | The elements as an array in row-major order: floats from a bare matrix; a dimensioned matrix yields one quantity per element in its unit; a NaN element becomes `null` either way | 1 + r×c | `1a(r×c)`; dimensioned + 1 pair per non-NaN element | O(r×c) |
-| `num-elements` | `( m -- n )` | matrix.h2o: `dim *` (inlined) | 5 | none | O(1) |
-| `n-rows` | `( m/dataset -- n )` | datasets.h2o: `dim drop` | 6 | none | O(1) |
-| `n-columns` | `( m/dataset -- n )` | datasets.h2o: `dim nip` | 8 | none | O(1) |
+| `matrix>array` | `( mat -- arr )` | The elements as an array in row-major order: floats from a bare matrix; a dimensioned matrix yields one quantity per element in its unit; a NaN element becomes `null` either way | 1 + r×c | `1a(r×c)`; dimensioned + 1 pair per non-NaN element | O(r×c) |
+| `num-elements` | `( mat -- n )` | matrix.h2o: `dim *` (inlined) | 5 | none | O(1) |
+| `n-rows` | `( mat/dataset -- n )` | datasets.h2o: `dim drop` | 6 | none | O(1) |
+| `n-columns` | `( mat/dataset -- n )` | datasets.h2o: `dim nip` | 8 | none | O(1) |
 
 ```forth @j
 [ 1 2 3 4 ] 2 2 matrix 1 @j matrix>array . cr
@@ -2882,20 +2887,20 @@ Row-major `double` storage. `r` rows, `c` columns.
 | `dgemm-tn` | `( α A B β C -- R )` | `R = α·Aᵀ·B + β·C` | 5 + m·k·n | `1m(m×n)` | O(m·k·n) |
 | `dgemm-nt` | `( α A B β C -- R )` | `R = α·A·Bᵀ + β·C` | 5 + m·k·n | `1m(m×n)` | O(m·k·n) |
 | `dgemm-tt` | `( α A B β C -- R )` | `R = α·Aᵀ·Bᵀ + β·C` | 5 + m·k·n | `1m(m×n)` | O(m·k·n) |
-| `sum` | `( m -- f )` | Sum of all elements (4-way unrolled, fast-math) | 1 + r×c | none | O(r×c) |
-| `max` | `( m -- f )` | Maximum element | 1 + r×c | none | O(r×c) |
-| `min` | `( m -- f )` | Minimum element | 1 + r×c | none | O(r×c) |
-| `argmax` | `( m -- f )` | Flat row-major index of the maximum element (first on ties) | 1 + r×c | none | O(r×c) |
-| `argmin` | `( m -- f )` | Flat row-major index of the minimum element (first on ties) | 1 + r×c | none | O(r×c) |
-| `row-sums` | `( m -- m' )` | r×1 of per-row sums | 1 + r×c | `1m(r×1)` | O(r×c) |
-| `row-maxes` | `( m -- m' )` | r×1 of per-row maxima | 1 + r×c | `1m(r×1)` | O(r×c) |
-| `row-mins` | `( m -- m' )` | r×1 of per-row minima | 1 + r×c | `1m(r×1)` | O(r×c) |
-| `column-sums` | `( m -- m' )` | 1×c of per-column sums | 1 + r×c | `1m(1×c)` | O(r×c) |
-| `column-maxes` | `( m -- m' )` | 1×c of per-column maxima | 1 + r×c | `1m(1×c)` | O(r×c) |
-| `column-mins` | `( m -- m' )` | 1×c of per-column minima | 1 + r×c | `1m(1×c)` | O(r×c) |
-| `mean` | `( m -- f )` | matrix.h2o: sum ÷ element count | r×c | none | O(r×c) |
-| `row-means` | `( m -- m' )` | matrix.h2o: `row-sums` then scalar ÷ | r×c | 2×`1m(r×1)` | O(r×c) |
-| `column-means` | `( m -- m' )` | matrix.h2o: `column-sums` then scalar ÷ | r×c | 2×`1m(1×c)` | O(r×c) |
+| `sum` | `( mat -- f )` | Sum of all elements (4-way unrolled, fast-math) | 1 + r×c | none | O(r×c) |
+| `max` | `( mat -- f )` | Maximum element | 1 + r×c | none | O(r×c) |
+| `min` | `( mat -- f )` | Minimum element | 1 + r×c | none | O(r×c) |
+| `argmax` | `( mat -- f )` | Flat row-major index of the maximum element (first on ties) | 1 + r×c | none | O(r×c) |
+| `argmin` | `( mat -- f )` | Flat row-major index of the minimum element (first on ties) | 1 + r×c | none | O(r×c) |
+| `row-sums` | `( mat -- mat' )` | r×1 of per-row sums | 1 + r×c | `1m(r×1)` | O(r×c) |
+| `row-maxes` | `( mat -- mat' )` | r×1 of per-row maxima | 1 + r×c | `1m(r×1)` | O(r×c) |
+| `row-mins` | `( mat -- mat' )` | r×1 of per-row minima | 1 + r×c | `1m(r×1)` | O(r×c) |
+| `column-sums` | `( mat -- mat' )` | 1×c of per-column sums | 1 + r×c | `1m(1×c)` | O(r×c) |
+| `column-maxes` | `( mat -- mat' )` | 1×c of per-column maxima | 1 + r×c | `1m(1×c)` | O(r×c) |
+| `column-mins` | `( mat -- mat' )` | 1×c of per-column minima | 1 + r×c | `1m(1×c)` | O(r×c) |
+| `mean` | `( mat -- f )` | matrix.h2o: sum ÷ element count | r×c | none | O(r×c) |
+| `row-means` | `( mat -- mat' )` | matrix.h2o: `row-sums` then scalar ÷ | r×c | 2×`1m(r×1)` | O(r×c) |
+| `column-means` | `( mat -- mat' )` | matrix.h2o: `column-sums` then scalar ÷ | r×c | 2×`1m(1×c)` | O(r×c) |
 
 ```forth dgemm-nn
 1 [ 1 2 3 4 ] 2 2 matrix 2 identity-matrix 0 2 2 0-matrix dgemm-nn matrix>array . cr
@@ -3039,20 +3044,20 @@ keep NaN in place.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `augment` | `( a b -- m )` | Concatenate two matrices column-wise; errors unless row counts match | 2 + r·c | `1m(r×c)` | O(r·c) |
-| `vstack` | `( a b -- m )` | Stack two matrices row-wise (a on top of b); errors unless column counts match | 2 + r·c | `1m(r×c)` | O(r·c) |
-| `hstack` | `( a b -- m )` | matrix.h2o: `augment` under its numpy name (inlined) | 2 + r·c | `1m(r×c)` | O(r·c) |
-| `submatrix` | `( m rs re cs ce -- m )` | Copy the half-open block rows [rs,re) × cols [cs,ce); errors out of bounds or start > end | 5 + r·c | `1m(r×c)` | O(r·c) |
-| `select-rows` | `( m/dataset/arr idx -- same )` | New matrix of the rows named by `idx` — a float index array or an index vector (nx1 or 1xn, as `where`/`argsort` return); a dimensioned matrix keeps its unit; errors on a non-float or out-of-range index. datasets.h2o extends it to a dataset (every column gathered by the same indices — matrix and dimensioned columns through the matrix path, array columns element-wise) and to a bare array (elements gathered by index) | 2 + k·c | `1m(k×c)`; dataset one column each; array `1a(k)` | O(k·c) |
+| `augment` | `( a b -- mat )` | Concatenate two matrices column-wise; errors unless row counts match | 2 + r·c | `1m(r×c)` | O(r·c) |
+| `vstack` | `( a b -- mat )` | Stack two matrices row-wise (a on top of b); errors unless column counts match | 2 + r·c | `1m(r×c)` | O(r·c) |
+| `hstack` | `( a b -- mat )` | matrix.h2o: `augment` under its numpy name (inlined) | 2 + r·c | `1m(r×c)` | O(r·c) |
+| `submatrix` | `( mat rs re cs ce -- mat )` | Copy the half-open block rows [rs,re) × cols [cs,ce); errors out of bounds or start > end | 5 + r·c | `1m(r×c)` | O(r·c) |
+| `select-rows` | `( mat/dataset/arr idx -- same )` | New matrix of the rows named by `idx` — a float index array or an index vector (nx1 or 1xn, as `where`/`argsort` return); a dimensioned matrix keeps its unit; errors on a non-float or out-of-range index. datasets.h2o extends it to a dataset (every column gathered by the same indices — matrix and dimensioned columns through the matrix path, array columns element-wise) and to a bare array (elements gathered by index) | 2 + k·c | `1m(k×c)`; dataset one column each; array `1a(k)` | O(k·c) |
 | `mesh` | `( v mask b -- v' )` | Masked substitution: element i of the result is `b`'s where `mask[i]` is a definite nonzero, `v`'s where it is 0 **or NaN** (an unknown mask cell changes nothing). `v` is a matrix, dimensioned matrix, or array; the mask a bare matrix of `v`'s shape (element count, for an array). `b` is shape-matched same-representation, or broadcasts: a float, `null` (→ NaN), a quantity, or — for an array subject — any single value. Units reconcile as `+`: `b` rescales into `v`'s unit, which the result keeps; a quantity against a bare number errors. Conditional-mutate idioms: `dup nan? 0 mesh` fills NaNs, `dup -1 eq null mesh` turns a sentinel into NaN, `dup 100 > 100 mesh` caps | 3 + n | `1m(r×c)` / `1a(n)` | O(n) |
 | `argsort` | `( v -- v' )` or `( arr -- arr )` | The sorting permutation of a vector, shape preserved: element i is the source index of the i-th smallest value; ties keep index order, NaNs go last in index order. An array operand answers the permutation under `val_cmp` (structural, so mixed types order), ties in index order, as a float-index array | 1 + n log n | `1m(n)` + `malloc(16n)`; array `1a(n)` + `malloc(4n)` | O(n log n); vectors above 8k elements O(n) radix |
 | `ranks` | `( v -- v' )` | statistics.h2o: 0-based midranks as nx1 — tied values share the mean of their sorted positions, NaNs rank last in index order; one `argsort`, a gather, and a linear run walk | n log n + 2n | `3m(n)` + `malloc(16n)` | O(n log n) |
-| `where` | `( m -- v )` | Flat row-major indices of the nonzero elements, as a k×1 index vector (1×k for a 1×n mask); composes with the `<`/`>` masks and `select-rows` | 1 + n | `1m(k)` | O(n) |
+| `where` | `( mat -- v )` | Flat row-major indices of the nonzero elements, as a k×1 index vector (1×k for a 1×n mask); composes with the `<`/`>` masks and `select-rows` | 1 + n | `1m(k)` | O(n) |
 | `drop-nans` | `( v -- v' )` | matrix.h2o: the finite elements of a vector, NaNs dropped (`dup nan? 0 eq where select-rows`, inlined) | 4n | mask + index + `1m(k)` | O(n) |
-| `cumulative-sum` | `( m -- m' )` | Running sum over the elements in row-major order, shape preserved — a vector's prefix sums (ecdf, ROC, and calibration plumbing) | 1 + n | `1m(r×c)` | O(n) |
-| `var` | `( m -- f )` | Sample variance (÷ n−1) over all elements; errors with fewer than 2 | 1 + n | none | O(n) |
-| `quantile` | `( m p -- f )` | Linearly-interpolated quantile at p ∈ [0,1] over all elements (sorts a copy); errors if p out of range or empty | 2 + n log n | `malloc(n)` | O(n log n) |
-| `quantiles` | `( m probs -- v )` | statistics.h2o: `quantile` at each probability in the `probs` array, as a vector in that order — R's `quantile(x, probs)` (type 7). Sorts a copy per probability | k·(2 + n log n) | `1a(k)` + `1m(k)` | O(k·n log n) |
+| `cumulative-sum` | `( mat -- mat' )` | Running sum over the elements in row-major order, shape preserved — a vector's prefix sums (ecdf, ROC, and calibration plumbing) | 1 + n | `1m(r×c)` | O(n) |
+| `var` | `( mat -- f )` | Sample variance (÷ n−1) over all elements; errors with fewer than 2 | 1 + n | none | O(n) |
+| `quantile` | `( mat p -- f )` | Linearly-interpolated quantile at p ∈ [0,1] over all elements (sorts a copy); errors if p out of range or empty | 2 + n log n | `malloc(n)` | O(n log n) |
+| `quantiles` | `( mat probs -- v )` | statistics.h2o: `quantile` at each probability in the `probs` array, as a vector in that order — R's `quantile(x, probs)` (type 7). Sorts a copy per probability | k·(2 + n log n) | `1a(k)` + `1m(k)` | O(k·n log n) |
 | `histogram-table` | `( v n-bins -- fr )` | statistics.h2o: equal-width bin counts over a vector's value range, as `{ :counts (n-bins×1) :low :bin-width }`. NaNs dropped, the top value lands in the last bin, a constant vector takes the range value ± 1; errors on n-bins < 1 or no finite values | n + n-bins | `1m(n-bins)` + `1fr` | O(n + n-bins) |
 | `ecdf` | `( v -- xs ys )` | statistics.h2o: the empirical CDF as two n×1 vectors — the finite elements sorted ascending, and the cumulative fractions (i+1)/n, so `ys` at index i is F(`xs` at i). Ties stay as consecutive points; NaNs are excluded from the points and from n; errors when no finite values remain | 2n log n | `2m(n)` + `1a(n)` | O(n log n) |
 | `binomial-deviance` | `( y p -- dev )` | statistics.h2o: −2 Σ[y ln p + (1−y) ln(1−p)] over n×1 vectors — the proper scoring rule for probability models; p is clamped to [1e-12, 1−1e-12], so an overconfident prediction scores finitely bad rather than losing its ln 0 term to `sum`'s NaN skipping | 10n | clamp + term vectors | O(n) |
@@ -3061,14 +3066,14 @@ keep NaN in place.
 | `cv-folds` | `( units n-folds -- folds )` | statistics.h2o: deal `units` round-robin into `n-folds` `[ train test ]` index-array pairs in the given order — the split `cross-validate` runs on; errors on n-folds < 2 or fewer units than folds | n | fold index arrays | O(n) |
 | `cross-validate` | `( units n-folds fit-xt score-xt -- fold-losses )` | statistics.h2o: k-fold cross-validation — units deal round-robin into folds in the order given (shuffle first when order matters; reuse one shuffle to compare configurations on the same folds); per fold, `fit` `( train-units -- model )` then `score` `( model test-units -- loss )`, both taking everything from the stack since they run in this word's frame; answers the per-fold losses as an n-folds vector (`mean` it for the CV estimate, `std` for the standard error). A unit is whatever the array holds — rows, or per-cluster index arrays for cluster CV | k·(fit + score) + n·k | fold index arrays | O(k·(fit + score)) |
 | `ks-distance` | `( a b -- d )` | Two-sample Kolmogorov–Smirnov statistic: the largest absolute gap between the two samples' ECDFs, both advanced past each pooled value before measuring (ties). Symmetric; d ∈ [0, 1]; NaNs excluded per sample, each sample's own n; dimensioned inputs are computed over their magnitudes; errors when either sample has no finite values | (n+m) log(n+m) | `malloc(n)` + `malloc(m)` | O((n+m) log(n+m)); above 8k elements the sorts are O(n) radix |
-| `std` | `( m -- f )` | statistics.h2o: standard deviation, `var sqrt` (inlined) | n | none | O(n) |
-| `se` | `( m -- f )` | statistics.h2o: standard error of the mean, `std / sqrt(n)` | n | none | O(n) |
-| `median` | `( m -- f )` | statistics.h2o: `0.5 quantile` (inlined) | n log n | `malloc(n)` | O(n log n) |
-| `percentile` | `( m pct -- f )` | statistics.h2o: `quantile` at pct ∈ [0,100] (inlined) | n log n | `malloc(n)` | O(n log n) |
-| `iqr` | `( m -- f )` | statistics.h2o: interquartile range, Q3 − Q1 | 2n log n | `malloc(n)` ×2 | O(n log n) |
-| `nonmissing-count` | `( m -- n )` | The number of non-NaN elements — the divisor `mean` and `se` use | 1 + n | none | O(n) |
+| `std` | `( mat -- f )` | statistics.h2o: standard deviation, `var sqrt` (inlined) | n | none | O(n) |
+| `se` | `( mat -- f )` | statistics.h2o: standard error of the mean, `std / sqrt(n)` | n | none | O(n) |
+| `median` | `( mat -- f )` | statistics.h2o: `0.5 quantile` (inlined) | n log n | `malloc(n)` | O(n log n) |
+| `percentile` | `( mat pct -- f )` | statistics.h2o: `quantile` at pct ∈ [0,100] (inlined) | n log n | `malloc(n)` | O(n log n) |
+| `iqr` | `( mat -- f )` | statistics.h2o: interquartile range, Q3 − Q1 | 2n log n | `malloc(n)` ×2 | O(n log n) |
+| `nonmissing-count` | `( mat -- n )` | The number of non-NaN elements — the divisor `mean` and `se` use | 1 + n | none | O(n) |
 | `summary` | `( v/dataset -- fr )` | statistics.h2o: a vector answers `{ :min :q1 :median :mean :q3 :max }` over its finite elements — a dimensioned vector in its unit, an instant vector (unit exactly `s`) with each statistic rendered through `time>iso` — plus `:missing` with the NaN count when any; an all-missing vector answers `{ :missing n }`, an empty one `{ }`. A dataset answers that frame per numeric column and `{ :distinct }` (distinct non-missing cells, plus `:missing`) per text column, keyed by column name; any other column value errors naming the column | 4n log n (per column) | `malloc(n)` ×4 + `1fr` (per column) | O(n log n) |
-| `ci` | `( m level -- low high )` | statistics.h2o: percentile confidence interval — level 0.95 gives the 0.025 and 0.975 quantiles | 2n log n | `malloc(n)` ×2 | O(n log n) |
+| `ci` | `( mat level -- low high )` | statistics.h2o: percentile confidence interval — level 0.95 gives the 0.025 and 0.975 quantiles | 2n log n | `malloc(n)` ×2 | O(n log n) |
 | `complete-cases` | `( xs ys -- xs' ys' )` | statistics.h2o: drop the paired rows where either vector is NaN, keeping the two aligned and returned as n×1; magnitudes are taken, so dimensioned inputs come back unitless | 4n | index vector + 2 gathers | O(n) |
 | `correlation-pearson` | `( xs ys -- f )` | statistics.h2o: Pearson r — center both vectors, then `dot` products for covariance and the two variances; accepts nx1 or 1xn; `null` when either vector is constant (R's NA) | 12n | `6m(n)` | O(n) |
 | `correlation-spearman` | `( xs ys -- f )` | statistics.h2o: Spearman rho — `correlation-pearson` on the midrank `ranks` of both vectors (inlined); `null` when either vector is constant (R's NA) | 2n log n | `6m(n)` + `malloc(16n)` ×2 | O(n log n) |
@@ -3081,14 +3086,14 @@ keep NaN in place.
 | `bootstrap` | `( data fit-xt B -- arr )` | statistics.h2o: B refits of fit-xt over resamples of data — dataset/matrix rows, or an array's elements. One serial draw sets the run seed; replicate i draws its indices via `resample-indices-ext` at run-seed + i, so no resample outlives its fit and results don't depend on scheduling — deterministic under a fixed seed | B(n + fit) | per-fit resample + `1a(B)` | O(B·(n + fit)) |
 | `pbootstrap` | `( data fit-xt B -- arr )` | statistics.h2o: `bootstrap` with the fits run under `pmap` — identical results (per-replicate seeding), parallel resample+fit | as `bootstrap` | as `bootstrap` | O(B·(n + fit) / cores) |
 | `bootstrap-with` | `( data fit-xt B mapper-xt -- arr )` | statistics.h2o: the bootstrap skeleton `bootstrap`/`pbootstrap` instantiate; mapper-xt is `map`-shaped | as `bootstrap` | as `bootstrap` | as `bootstrap` |
-| `column>indicators` | `( column -- m )` | statistics.h2o: one 0/1 indicator column per distinct value above the first (the reference) — an n×(k−1) matrix from a numeric vector or text array column, levels in `val_cmp` order (`column>set` lists them); a missing cell lands in no column; errors on fewer than 2 distinct values | n·k + n log n | level masks + `1m` per fold | O(n·k + n log n) |
+| `column>indicators` | `( column -- mat )` | statistics.h2o: one 0/1 indicator column per distinct value above the first (the reference) — an n×(k−1) matrix from a numeric vector or text array column, levels in `val_cmp` order (`column>set` lists them); a missing cell lands in no column; errors on fewer than 2 distinct values | n·k + n log n | level masks + `1m` per fold | O(n·k + n log n) |
 | `indicators!` | `( design column sym -- design )` | statistics.h2o: `column>indicators`' named twin for a design dataset (a frame of columns): adds one 0/1 column per distinct value above the first (the reference), keyed `sym=level`, mutating and returning the frame — keys and columns derive from the same data, so a level change grows both together; `keys` then names the design and `dataset>matrix` over them is the aligned matrix; errors on fewer than 2 distinct values | n·k + n log n | level masks + frame growth | O(n·k + n log n) |
 | `with-intercept` | `( X/design -- X'/design )` | statistics.h2o: a matrix gets a prepended column of ones, so a fit's beta[0] is the intercept; a design dataset gets an `:intercept` ones column keyed like any term (errors on an empty design — the rows are read from it) | r×c | matrix `1m(r×(c+1))`; design `1m(r×1)` | O(r×c) |
-| `sigmoid` | `( m -- m' )` | statistics.h2o: elementwise logistic 1/(1+e⁻ˣ), mapping reals to (0,1) | 4n | `1m(r×c)` | O(n) |
+| `sigmoid` | `( mat -- mat' )` | statistics.h2o: elementwise logistic 1/(1+e⁻ˣ), mapping reals to (0,1) | 4n | `1m(r×c)` | O(n) |
 | `regress-with` | `( dataset predictors response B fit-xt -- arr )` | statistics.h2o: the shared regression pipeline — design matrix with intercept, point estimate, then B bootstrap refits for per-coefficient `{ :estimate :se :bias :ci-low :ci-high }` frames; the loadable statistics library's `linear-regression`/`logistic-regression` pass the fit | fit + B·fit | matrices + B refits + `1a(k)` | O(B·fit) |
-| `norm` | `( m -- f )` | matrix.h2o: `frobenius-norm` under the short name (inlined) | 1 + n | none | O(n) |
+| `norm` | `( mat -- f )` | matrix.h2o: `frobenius-norm` under the short name (inlined) | 1 + n | none | O(n) |
 | `dot` | `( v w -- f )` | matrix.h2o: inner product (`* sum`, inlined); shapes must broadcast, so match the vectors | 2 + 2n | `1m(n)` | O(n) |
-| `frobenius-norm` | `( m -- f )` | Euclidean (L2) norm: √(Σ aᵢⱼ²) over all elements — a vector's length; for a matrix the Frobenius (entrywise 2-)norm, not the spectral norm | 1 + n | none | O(n) |
+| `frobenius-norm` | `( mat -- f )` | Euclidean (L2) norm: √(Σ aᵢⱼ²) over all elements — a vector's length; for a matrix the Frobenius (entrywise 2-)norm, not the spectral norm | 1 + n | none | O(n) |
 | `fit-tree` | `( features y params -- tree )` | CART regression tree. `features` is a frame of typed columns — a numeric vector splits at a midpoint `:threshold`, an array column is categorical and splits on a mean-ordered subset stored as `:categories`; `y` is a numeric response vector. Returns a nested frame: every node carries `:prediction` (mean of its rows) and `:n_rows`, an internal node adds `:feature` and either `:threshold` or `:categories` plus `:left`/`:right`, a leaf optionally carries `:responses`. Splits maximize S_L²/n_L + S_R²/n_R (squared-error reduction), each numeric column presorted once. Params frame: `:max-depth` (default unlimited), `:min-samples` (minimum rows on each side of a split, default 1), `:store-leaf-responses` (default off). A numeric split learns a default direction for rows missing that feature (NaN): the side that maximizes the split criterion, stored on the node as `:default` (`:left`/`:right`) — present only when the node saw missing rows | features·n·depth | `malloc(24n)` per numeric column + node buffer + tree frame | O(features·n·depth) |
 | `predict` | `( tree features -- yhat )` | statistics.h2o: apply a `fit-tree` tree to a features frame keyed as at training, walking each row from the root to a leaf — a `:threshold` node sends value ≤ threshold left, a `:categories` node sends set membership left (an unseen value goes right), a NaN feature value follows the node's `:default` (left when the node has none) — and answer the leaf `:prediction`s as an n×1 vector | n·depth | `1a(n)` + `1m(n)` | O(n·depth) |
 | `feature-importance` | `( tree -- fr )` | statistics.h2o: normalized impurity-reduction importance from a `fit-tree` tree — each split's squared-error reduction (`n_L·pred_L² + n_R·pred_R² − n_P·pred_P²`) summed per `:feature` and scaled to sum 1, as a frame keyed by feature symbol over the features actually split on; a stump gives `{ }` | nodes | `1fr` | O(nodes) |
@@ -3712,7 +3717,7 @@ wall-now time>iso . cr
 | `dataset>rows` | `( dataset -- rows )` | datasets.h2o: the inverse of `true rows>dataset` — an array of row-arrays led by a header row of the column names as strings, columns in key order, cells through `column>array` (NaN → `null`, dimensioned cells as quantities); feeds `save-tsv` directly (`1 skip` for headerless rows) | r·c | header + one array per row + `1a(r·c)` cells | O(r·c) |
 | `headn` | `( dataset n leading-columns -- )` | datasets.h2o: print the first min(n, rows) rows as an aligned table — the `leading-columns` symbols appear first in the given order, the remaining columns alphabetical by name (an empty `leading-columns` orders every column alphabetically); column names as the header line, two-space gutter, numeric/quantity columns right-aligned, text left, `:datetime` columns through `time>iso`, other cells through `render`; empty dataset prints nothing | r·c | rendered cells | O(r·c) |
 | `head` | `( dataset -- )` | datasets.h2o: `10 [ ] headn` — the first 10 rows with columns alphabetical | r·c | rendered cells | O(r·c) |
-| `dataset>matrix` | `( dataset cols -- m )` | datasets.h2o: build an n×k matrix from the named numeric columns (rows are observations) | n·k | flat `1a(n·k)` + `2m(n×k)` | O(n·k) |
+| `dataset>matrix` | `( dataset cols -- mat )` | datasets.h2o: build an n×k matrix from the named numeric columns (rows are observations) | n·k | flat `1a(n·k)` + `2m(n×k)` | O(n·k) |
 | `column-type` | `( dataset sym -- sym )` | datasets.h2o: the named column's type from its representation — matrix `:numeric`, quantity in exactly `s` `:datetime`, other quantity `:quantity`, array `:text`; a missing key errors through `@` | 8 | 1 pair | O(log c) |
 | `column>array` | `( column -- arr )` | datasets.h2o: a column in any representation as an array of its values — arrays pass through unchanged, matrix/quantity columns go through `matrix>array` (NaN → `null`, dimensioned elements become quantities) | n | `1a(n)` for matrix columns, none for arrays | O(n) |
 | `column>set` | `( column -- set )` | datasets.h2o: the set of the column's distinct values — `column>array array>set` | 2n log n | `1a(n)` + `1o` | O(n log n) |
@@ -4249,18 +4254,26 @@ hi
 
 Coroutines over the continuation substrate: a producer `yield`s values one at a time and a driver `resume`s it for the next. All generators.h2o on `shift`/`reset`/`resume`. `L` = captured return-stack length per step.
 
+A producer drops nothing after `yield`. The word does not consume the value it emits, and what stands on the stack when the producer resumes is whatever the driver left there: under `gen-take` the emitted value itself, since that word gathers the run of them into an array at the end; under `gen-each` the `:gen-end` sentinel, the consumer having already taken the value. A `drop` after `yield` therefore eats a collected value under `gen-take` (`count N out of range`) and eats the sentinel under `gen-each`, which ends the iteration early and silently.
+
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `yield` | `( v -- resumed )` | generators.h2o: `shift` — emit v to the driver; returns whatever the driver passes back via `resume` | L | `1o` (cont) | O(L) |
+| `yield` | `( v -- … )` | generators.h2o: `shift` — emit v to the driver and suspend. What stands on the stack when the producer resumes is the driver's doing, so a producer loop drops nothing after `yield` (see the note above the table) | L | `1o` (cont) | O(L) |
 | `start-generator` | `( producer -- value generator )` | generators.h2o: `reset execute` — run producer to its first `yield`; leaves the yielded value and a resumable continuation | L | `1o` (cont) | O(producer to first yield) |
 | `gen-take` | `( producer count -- array )` | generators.h2o: the first `count` values the producer yields, collected into an array | — | `1a(count)` + cont/step | O(count · L) |
 | `gen-each` | `( producer consumer -- )` | generators.h2o: run consumer on each value the producer yields until the producer falls off (a `:gen-end` sentinel marks exhaustion) | — | cont/step | O(values · consumer) |
 
 ```forth yield
 : nums 1 yield 2 yield ; ' nums 2 gen-take . cr
+: countdown-gen | n | 3 to n begin n 0 > while n yield n 1- to n repeat ;
+' countdown-gen 3 gen-take . cr
+: naturals | n | 0 to n begin n yield n 1+ to n again ;
+' naturals 4 gen-take . cr
 ```
 ```output
 [ 1 2 ]
+[ 3 2 1 ]
+[ 0 1 2 3 ]
 ```
 
 ```forth start-generator
@@ -4670,13 +4683,13 @@ variable b 4 to b variable c 10 to c
 | `variables` | `( -- arr )` | core.h2o: one `{ :name :value :type }` frame per global (`variable`-declared or `to`-auto-created), oldest first — the name symbol, the live value (shared reference for collections), and its `type-of` symbol. `variables [: :name @ :] map` is the name list; `variables frames>dataset head` a table | dict scan | `1a` + one frame per global | O(\|dict\|) |
 | `vars` | `( -- )` | repl.h2o: pretty-print every global, one `variables` frame per block (`variables ' print each`) | dict scan + print | `1a` + frames | O(\|dict\|) |
 | `water` | `( -- )` | Print the water logo and the interpreter version | print | none | O(1) |
-| `apropos` | `( s -- )` | Print every word whose name or reference summary contains s (case-insensitive): name, stack effect, summary per line; session-defined words match by name | table scan | none | O(entries) |
+| `apropos` | `( str -- )` | Print every word whose name or reference summary contains s (case-insensitive): name, stack effect, summary per line; session-defined words match by name | table scan | none | O(entries) |
 | `see` | `( xt -- )` | Print a word's source (`: name … ;`), a quotation's `[: … :]` text from its recorded span, or `variable`/`symbol`/primitive form; a curried token prints its bound values, then its target | dict scan | none | O(\|dict\|) |
-| `see>string` | `( xt -- s )` | The text `see` would print, returned as a string (trailing newline stripped) | dict scan | `1o` | O(\|dict\|) |
+| `see>string` | `( xt -- str )` | The text `see` would print, returned as a string (trailing newline stripped) | dict scan | `1o` | O(\|dict\|) |
 | `see-compiled` | `( xt -- )` | Disassemble a colon definition's compiled cells; a curried token prints its bound values, then disassembles its target | body scan | none | O(body) |
-| `see-compiled>string` | `( xt -- s )` | The text `see-compiled` would print, returned as a string (trailing newline stripped) | body scan | `1o` | O(body) |
+| `see-compiled>string` | `( xt -- str )` | The text `see-compiled` would print, returned as a string (trailing newline stripped) | body scan | `1o` | O(body) |
 | `see-tree` | `( xt -- )` | Like `see-compiled`, but each colon-word call is expanded inline, indented two spaces, recursively down to primitives; recursive calls print as `name ...` | body scan | none | O(expanded body) |
-| `see-tree>string` | `( xt -- s )` | The text `see-tree` would print, returned as a string (trailing newline stripped) | body scan | `1o` | O(expanded body) |
+| `see-tree>string` | `( xt -- str )` | The text `see-tree` would print, returned as a string (trailing newline stripped) | body scan | `1o` | O(expanded body) |
 | `man` | `( xt -- fr )` | Frame of a word's reference entry (`:word :effect :summary`, plus `:ops :alloc :order` for runtime words); a unit word synthesizes its entry from the unit's definition (`unit: m × 1000`); `T_NONE` if undocumented | dict scan + log n | `1o` + strings | O(\|dict\|) |
 | `help` | `( "name" -- )` | repl.h2o: parse the next word and print its `man` frame; bare `help` (no name on the line) prints a starter cheat sheet, and an unknown name prints `unknown word: <name>` without erroring. Distinguishes the three cases by `catch`ing `lookup`'s message | dict scan + log n | `1o` + strings + print | O(\|dict\|) |
 | `gc` | `( -- )` | Force a mark-sweep now | walks stacks + dict + roots, frees unmarked | none | O(objects + dict) |
@@ -4862,12 +4875,12 @@ woke
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `load` | `( s -- )` | Run a source file as if typed; record it for `reload`. Resolves the path as given (relative to the current directory, or absolute); if that open fails, retries relative to the directory of the file that ran the `load`. An error raised while loading is prefixed `file:line: ` (the line of the failing token); a nested `load` locates to the innermost file | file read + run | input buffer | O(file) |
+| `load` | `( str -- )` | Run a source file as if typed; record it for `reload`. Resolves the path as given (relative to the current directory, or absolute); if that open fails, retries relative to the directory of the file that ran the `load`. An error raised while loading is prefixed `file:line: ` (the line of the failing token); a nested `load` locates to the innermost file | file read + run | input buffer | O(file) |
 | `load-library` | `( name -- )` | core.h2o: `load` `lib/<name>` from beside the water binary (`binary-dir`), so `"plot" load-library` works from any cwd; a name without `.h2o` gains it | file read + run | input buffer | O(file) |
 | `reload` | `( -- )` | Truncate user state, re-run every loaded file in order | forget + N loads | — | O(Σ files) |
-| `save` | `( s -- )` | Write all user words as re-loadable `.h2o` source | dict scan + write | file I/O | O(\|user dict\|) |
-| `save-image` | `( s -- )` | Binary snapshot of full state (dict, objects, stacks, continuations) | serialize all | file I/O | O(objects + dict) |
-| `load-image` | `( s -- )` | Restore a binary snapshot, replacing current state | deserialize all | reallocates all objects | O(objects) |
+| `save` | `( str -- )` | Write all user words as re-loadable `.h2o` source | dict scan + write | file I/O | O(\|user dict\|) |
+| `save-image` | `( str -- )` | Binary snapshot of full state (dict, objects, stacks, continuations) | serialize all | file I/O | O(objects + dict) |
+| `load-image` | `( str -- )` | Restore a binary snapshot, replacing current state | deserialize all | reallocates all objects | O(objects) |
 
 ```forth load
 ": loaded-word 11 ;" "/tmp/docs-load.h2o" write-file "/tmp/docs-load.h2o" load loaded-word . cr
@@ -4915,14 +4928,14 @@ reload
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `read-file` | `( path -- s )` | Read a whole file as one string (byte-safe); errors if it can't be opened | file read | `1o` + buffer | O(file) |
-| `write-file` | `( s path -- )` | Create or truncate the file, then write the string's bytes | file write | none | O(\|s\|) |
-| `append-file` | `( s path -- )` | Open in append mode, write the string's bytes | file write | none | O(\|s\|) |
+| `read-file` | `( path -- str )` | Read a whole file as one string (byte-safe); errors if it can't be opened | file read | `1o` + buffer | O(file) |
+| `write-file` | `( str path -- )` | Create or truncate the file, then write the string's bytes | file write | none | O(\|s\|) |
+| `append-file` | `( str path -- )` | Open in append mode, write the string's bytes | file write | none | O(\|s\|) |
 | `file-exists?` | `( path -- bool )` | Whether the path exists (`access` with `F_OK`); follows symlinks, tests any file type, not just regular files | 1 | none | O(1) |
 | `env` | `( name -- val )` | Environment variable as a string, or the none value if unset (so set-empty `""` and unset stay distinct) | 1 | `1o` on hit | O(\|val\|) |
 | `env!` | `( name value -- )` | Set an environment variable (overwriting); process-wide, so subsequent `start-process` children inherit it | 1 | none | O(1) |
 | `cwd` | `( -- path )` | The interpreter's current working directory as a string (`getcwd`) | 1 | `1o` | O(\|path\|) |
-| `binary-dir` | `( -- s )` | The directory holding the running water binary, symlinks resolved (`realpath`), so an installation's resources are reachable from any cwd; errors on the wasm build (no executable path) | 1 | `1o` | O(\|path\|) |
+| `binary-dir` | `( -- str )` | The directory holding the running water binary, symlinks resolved (`realpath`), so an installation's resources are reachable from any cwd; errors on the wasm build (no executable path) | 1 | `1o` | O(\|path\|) |
 | `cd` | `( path -- )` | Change the interpreter's working directory (`chdir`); process-wide, so it moves the base for relative file I/O and is inherited by subsequent `start-process` children | 1 | none | O(1) |
 | `find-executable` | `( name -- path\|none )` | `io.h2o`: the absolute path of `name` on `$PATH` (first directory holding it), or the none value if unset or not found; a name containing `/` is not special-cased (it just won't match a bare `PATH` entry) | split + probe | `1o` per candidate | O(dirs) |
 
@@ -5008,8 +5021,8 @@ A stream (`T_STREAM`) wraps an OS file descriptor — a pipe to a child process.
 |------|-------------|----------|-----|-------|---|
 | `start-process` | `( argv -- proc )` | fork/exec `argv[0]` with `argv` as its arguments; return `{ :pid :in :out :err }` (the three streams are `T_STREAM`) | fork + 3 pipes | `1o` frame + 3 streams | O(argc) |
 | `run-result` | `( argv -- frame )` | subprocess.h2o: run `argv` to completion and return `{ :out :err :status }`, closing the streams and reaping the child | fork + drain | `1fr` + output strings | O(output) |
-| `write` | `( s stream -- )` | Write the string's bytes to the stream; loops over partial writes, retries `EINTR` | write syscalls | none | O(\|s\|) |
-| `read` | `( stream -- s )` | Read the stream to EOF into one string | read syscalls | `1o` + buffer growth | O(bytes) |
+| `write` | `( str stream -- )` | Write the string's bytes to the stream; loops over partial writes, retries `EINTR` | write syscalls | none | O(\|s\|) |
+| `read` | `( stream -- str )` | Read the stream to EOF into one string | read syscalls | `1o` + buffer growth | O(bytes) |
 | `close` | `( stream -- )` | Close the fd; closing a child's `:in` sends it EOF | 1 syscall | none | O(1) |
 | `stdin` | `( -- stream )` | Standard input as a `T_STREAM` over fd 0; `stdin read` slurps it. (Conflicts with the REPL reading its own program from stdin — for file-loaded programs.) | 1 | none | O(1) |
 | `stdout` | `( -- stream )` | Standard output as a `T_STREAM` over fd 1; `s stdout write` emits | 1 | none | O(1) |
@@ -5018,10 +5031,10 @@ A stream (`T_STREAM`) wraps an OS file descriptor — a pipe to a child process.
 | `stop` | `( pid -- status )` | `SIGKILL` the child then reap it (137 = 128+9, or its code if it had already exited) | 2 syscalls | none | O(1) |
 | `running?` | `( pid -- bool )` | Non-blocking liveness via `waitid`+`WNOHANG`+`WNOWAIT`; true while running, false once exited. Non-reaping, so a later `wait` still returns the status | 1 syscall | none | O(1) |
 | `open-app-window` | `( path -- )` | browser.h2o: open `path` in a detached browser application window (Chromium `--app`), falling back to the system `open` / `xdg-open`; the mechanism behind `show-figure` | fork | none | O(1) |
-| `run` | `( s -- proc )` | subprocess.h2o: split a command string on runs of spaces and `start-process` it (`" +" split start-process`) | split + fork | `1a` + `1o` frame + 3 streams | O(\|s\| + argc) |
-| `write-in` | `( s proc -- )` | subprocess.h2o: write the string to the child's `:in` stream | write syscalls | none | O(\|s\|) |
-| `read-out` | `( proc -- s )` | subprocess.h2o: read the child's `:out` stream to EOF | read syscalls | `1o` + buffer growth | O(bytes) |
-| `read-err` | `( proc -- s )` | subprocess.h2o: read the child's `:err` stream to EOF | read syscalls | `1o` + buffer growth | O(bytes) |
+| `run` | `( str -- proc )` | subprocess.h2o: split a command string on runs of spaces and `start-process` it (`" +" split start-process`) | split + fork | `1a` + `1o` frame + 3 streams | O(\|s\| + argc) |
+| `write-in` | `( str proc -- )` | subprocess.h2o: write the string to the child's `:in` stream | write syscalls | none | O(\|s\|) |
+| `read-out` | `( proc -- str )` | subprocess.h2o: read the child's `:out` stream to EOF | read syscalls | `1o` + buffer growth | O(bytes) |
+| `read-err` | `( proc -- str )` | subprocess.h2o: read the child's `:err` stream to EOF | read syscalls | `1o` + buffer growth | O(bytes) |
 | `end-process` | `( proc -- )` | subprocess.h2o: the teardown mirror of `start-process` — close `:in`/`:out`/`:err` and `wait` `:pid` (graceful, blocks until exit) | 3 closes + wait | none | O(1) |
 | `parallel-run` | `( commands width -- results )` | subprocess.h2o: run each argv array in `commands` as a subprocess, at most `width` at once; collect `{ :out :err :status }` per command in input order, refilling a slot as each child finishes | fork per command + poll | `1a` + per-child frames/streams | O(critical path) |
 
@@ -5221,14 +5234,14 @@ Call C functions in any shared library at runtime via `libdl` + `libffi` — no 
 |------|-------------|----------|-----|-------|---|
 | `ffi-open` | `( path -- lib )` | `dlopen` the library at `path` and push a `T_PTR` handle; `""` opens the running process itself (`dlopen(NULL)`) for already-linked symbols. Errors if not found | dlopen | 1 handle (not GC'd) | O(1) |
 | `ffi-function` | `( lib symbol arg-types ret-type -- ) <name>` | Resolve `symbol` in `lib`, build a libffi call interface, and define the following word `<name>` to call it. `arg-types` is an array of type symbols, `ret-type` a single symbol. The interface is prepared once; calls are ~30–100 ns | dlsym + prep_cif | 1 binding | O(argc) |
-| `matrix>pointer` | `( m -- ptr )` | Intern the matrix's row-major element buffer and return a `T_PTR` handle to pass as a `:ptr` argument; no copy — aliases the live buffer (amortized intern) | 1 | none | O(1) |
+| `matrix>pointer` | `( mat -- ptr )` | Intern the matrix's row-major element buffer and return a `T_PTR` handle to pass as a `:ptr` argument; no copy — aliases the live buffer (amortized intern) | 1 | none | O(1) |
 | `segment>pointer` | `( seg -- ptr )` | Intern a segment's data buffer and return a `T_PTR` handle (no copy) | 1 | none | O(1) |
 | `pointer-cell` | `( -- ptr )` | Allocate a zeroed pointer-sized cell and return a `T_PTR` handle to it, for use as a C out-parameter slot (`&out`) or a one-element handle array; a callee writes a pointer or integer into it, read back with `pointer-deref`. Freed by `ffi-free` | malloc | 1 cell (not GC'd) | O(1) |
 | `pointer-deref` | `( ptr -- ptr' )` | Load the pointer stored at cell `ptr` (`*(void**)ptr`) and return it as a `T_PTR` handle — reads a handle a C call wrote into an out-parameter cell, or steps through a `T**` | 1 | 1 handle | O(1) |
 | `pointer-long` | `( ptr -- n )` | Load the 64-bit integer stored at cell `ptr` (`*(int64_t*)ptr`) as a float — reads a `bst_ulong`/`long` out-value a C call wrote into a cell; errors above 2^53 (not float-exact) | 1 | none | O(1) |
-| `pointer-string-at` | `( ptr i -- s )` | Copy the C string at index `i` of a `char**` at `ptr` (`ptr[i]`, NUL-terminated) into a Water string — reads one entry of a returned string array (e.g. `XGBoosterFeatureScore`'s feature names) | 1 + \|s\| | `1o` | O(\|s\|) |
+| `pointer-string-at` | `( ptr i -- str )` | Copy the C string at index `i` of a `char**` at `ptr` (`ptr[i]`, NUL-terminated) into a Water string — reads one entry of a returned string array (e.g. `XGBoosterFeatureScore`'s feature names) | 1 + \|s\| | `1o` | O(\|s\|) |
 | `pointer>address` | `( ptr -- n )` | The pointer's numeric address as a float, for embedding in an `__array_interface__` JSON string; errors if the address exceeds 2^53 (not float-exact — macOS arm64 user addresses are well under it) | 1 | none | O(1) |
-| `floats>matrix` | `( ptr n -- m )` | Copy `n` 32-bit floats from foreign memory at `ptr` into a fresh n×1 double matrix — the read-back for a C call that returns a `float const*` result buffer (e.g. predictions); errors if `n < 1` | n | `1m(n×1)` | O(n) |
+| `floats>matrix` | `( ptr n -- mat )` | Copy `n` 32-bit floats from foreign memory at `ptr` into a fresh n×1 double matrix — the read-back for a C call that returns a `float const*` result buffer (e.g. predictions); errors if `n < 1` | n | `1m(n×1)` | O(n) |
 | `ffi-variadic` | `( lib symbol arg-types ret-type n-fixed -- ) <name>` | Like `ffi-function` for a variadic C function: `n-fixed` leading arguments use the fixed convention, the rest the variadic one (`ffi_prep_cif_var`). Variadic argument types are fixed per binding, so declare one word per type combination (e.g. a `:string` `setopt` and a `:long` `setopt`) | dlsym + prep_cif_var | 1 binding | O(argc) |
 | `ffi-free` | `( ptr -- )` | `free` a C buffer held as a `T_PTR` (e.g. from `malloc`) and clear its registry slot. Not for library handles | free | none | O(1) |
 

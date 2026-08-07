@@ -1,0 +1,3 @@
+: powers-of-two | v | 1 to v begin v yield v 2 * to v again ;
+' powers-of-two 6 gen-take . cr
+' powers-of-two 3 gen-take 0 ' + reduce . cr

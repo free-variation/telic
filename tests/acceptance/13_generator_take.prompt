@@ -1,0 +1,7 @@
+Write a generator that produces the powers of two — 1, 2, 4, 8, and so on —
+one at a time and without end, and drive it twice.
+
+Print two lines:
+
+1. the first six values it produces, as an array, with `.` followed by `cr`
+2. the sum of the first three values it produces, with `.` followed by `cr`

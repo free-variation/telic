@@ -1,0 +1,10 @@
+Print a three-line report from these name and amount pairs, in this order:
+
+    ann   3.5
+    bo    12.25
+    cy    7
+
+Each line is one template fill: the name left-justified in a field six
+characters wide, immediately followed by the amount right-justified in a
+field eight characters wide with exactly two decimal places. Print each
+filled line with `.` followed by `cr`.

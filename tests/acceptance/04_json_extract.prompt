@@ -1,0 +1,11 @@
+Parse this JSON text, which the program must hold as a string literal:
+
+    {"users": [{"name": "ann", "age": 34}, {"name": "bo", "age": 25}]}
+
+Print three lines from the parsed value, in this order:
+
+1. how many users there are
+2. the first user's name
+3. the sum of all the users' ages
+
+Print each with `.` followed by `cr`, so each line holds one value.

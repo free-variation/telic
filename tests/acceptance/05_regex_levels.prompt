@@ -1,0 +1,18 @@
+This log text is five lines, held in the program as one string literal with
+embedded newlines:
+
+    2026-01-01 INFO start
+    2026-01-02 WARN slow
+    2026-01-03 INFO done
+    2026-01-04 ERROR crash
+    2026-01-05 INFO ok
+
+Each line carries exactly one severity word: INFO, WARN, or ERROR. Extract
+every severity word with a single regular expression, then print three lines:
+
+1. how many severity words were found
+2. how many of them are INFO
+3. the distinct severity words in ascending order, joined into one string
+   with a comma between them and no spaces
+
+Print each with `.` followed by `cr`, so each line holds one value.

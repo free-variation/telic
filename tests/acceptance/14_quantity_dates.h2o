@@ -1,0 +1,4 @@
+100 km 2 hour / . cr
+1 kg 1 m * 1 s / 1 s / . cr
+"2026-01-31T09:00:00Z" iso>time { :months 1 } date-shift time>iso . cr
+"2026-03-01T00:00:00Z" iso>time "2026-01-01T00:00:00Z" iso>time - 1 day / . cr

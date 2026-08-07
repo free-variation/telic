@@ -1,0 +1,15 @@
+Build a table from these rows, with the first row as the header:
+
+    name  team  score
+    ann   red   10
+    bo    blue  20
+    cy    red   30
+    di    blue  40
+
+Print three lines, in this order:
+
+1. the mean of the score column
+2. the total score of the red team
+3. how many rows have a score above 15
+
+Print each with `.` followed by `cr`, so each line holds one number.

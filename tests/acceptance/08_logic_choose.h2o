@@ -1,0 +1,2 @@
+[( 12 18 21 30 null )] [: dup 7 mod 0= 0= if fail then . cr :] choose
+[: fail :] [: "no candidate" :] amb . cr

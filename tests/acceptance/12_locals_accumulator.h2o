@@ -1,0 +1,12 @@
+: weighted-total | >items total i n |
+	0 to total
+	0 to i
+	items size to n
+	begin i n < while
+		total items i @i i 1 + * + to total
+		i 1 + to i
+	repeat
+	total ;
+[ 5 5 5 5 ] weighted-total . cr
+[ 1 2 3 4 ] weighted-total . cr
+[ 10 ] weighted-total . cr

@@ -1,0 +1,8 @@
+Here are three people, each a record with a `:name` (a string) and an `:age`
+(a number): cy is 61, ann is 34, bo is 25. Keep them in that order.
+
+Keep only the people older than 30, then print two lines:
+
+1. how many people were kept, with `.` followed by `cr`
+2. their names in ascending order, joined into one string with a comma
+   between names and no spaces, printed with `.` followed by `cr`

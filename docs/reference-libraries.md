@@ -19,7 +19,7 @@ plotting library is pure forth (no FFI) and works under wasm; only its
 | `dgemv-n` | `( α A x β y -- r )` | `r = α·A·x + β·y` via cblas dgemv, with `x` and `y` columns (n×1) and a fresh `r` copied from `y`; `x` must be A's column count and `y` its row count. Reaches BLAS with a vector call rather than dgemm on a one-column matrix |
 | `dgemv-t` | `( α A x β y -- r )` | `r = α·Aᵀ·x + β·y` via cblas dgemv, with `x` A's row count and `y` its column count |
 | `svd` | `( A -- U S VT )` | Thin singular value decomposition via LAPACKE dgesvd: `A = U diag(S) VT`, with `S` the 1×min(m,n) singular values. Column signs of U/VT are not canonical, so pin goldens on S and the reconstruction, not raw U/VT entries |
-| `fit-linear` | `( m y -- beta )` | Ordinary least squares via LAPACKE dgelsd; `m` is observations×predictors (observations ≥ predictors), `y` the observations×1 response, `beta` the predictors×1 coefficients |
+| `fit-linear` | `( mat y -- beta )` | Ordinary least squares via LAPACKE dgelsd; `mat` is observations×predictors (observations ≥ predictors), `y` the observations×1 response, `beta` the predictors×1 coefficients |
 | `fit-augmented` | `( augmented -- beta )` | Least squares of an `[X | y]` block whose last column is the response |
 
 ```forth dgemv-n
@@ -280,8 +280,8 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 | `text-anchor` | `( anchor -- )` | Set the current text anchor: `"start"`, `"middle"`, or `"end"` |
 | `axes` | `( -- )` | Plot-area border plus labeled x and y ticks, laid out at render time; tick labels use the aes `:tick-format` string (default `{0:g}` — whole numbers as integers, no forced scientific notation); an axis marked categorical (`:x-categorical`/`:y-categorical`, set by `barchart`/`y-categories`) shows no numeric ticks |
 | `panel` | `( -- )` | `axes`' themed twin: a filled ground (`:panel-fill`) with gridlines as negative space and labeled ticks, no border; call before the data so it draws underneath; honors the categorical flags like `axes` |
-| `x-label` | `( s -- )` | x-axis title, centered below the tick labels |
-| `y-label` | `( s -- )` | y-axis title, rotated, centered beside the tick labels |
+| `x-label` | `( str -- )` | x-axis title, centered below the tick labels |
+| `y-label` | `( str -- )` | y-axis title, rotated, centered beside the tick labels |
 | `legend` | `( labels colors -- )` | Color key in a strip reserved to the right of the plot area (the plot narrows to fit); one row per label with a filled swatch, `labels`/`colors` equal-length parallel arrays; pixel-space, label text in `:ink` |
 | `y-categories` | `( labels -- )` | Place category names along the y axis at positions 1..n (right-anchored, just left of the axis) in place of numeric y-ticks; pins the y domain to `[0.5, n+0.5]` and sets `:y-categorical`, so `axes`/`panel` drop the numeric y-ticks |
 | `data-domain` | `( xs ys -- )` | Pin the domain to the padded extents of two data vectors |

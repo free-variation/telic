@@ -20,6 +20,10 @@ error: x is not bound in this quotation; pass it in or use pick
 error: x is not bound in this quotation; pass it in or use pick
 in to
 error: a is not bound in this quotation; pass it in or use pick
+error: |: locals are declared in one list; mark individual receive slots with a > prefix (| >a b c |)
+in |
+error: |: locals must be declared at the head of the body
+in |
 error: local 'x' is read but never assigned
 in ;
 error: local 'keys' is read but never assigned (a word of that name exists)

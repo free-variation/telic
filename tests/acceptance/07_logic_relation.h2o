@@ -1,0 +1,6 @@
+[ :dept ] relation to staff
+staff { :name :ann :dept :eng } assert drop
+staff { :name :bo :dept :sales } assert drop
+staff { :name :cy :dept :eng } assert drop
+staff { :dept :eng } count-matches . cr
+staff { :dept :eng } query [: :name @ :] map sort . cr

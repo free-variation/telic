@@ -1,0 +1,3 @@
+1 10 range [: dup * :] map 0 ' + reduce . cr
+0 [: dup f* :] ' f+ 11 fold-times . cr
+[ 1 2 3 4 5 6 ] [: 2 mod 0= :] filter 1 ' * reduce . cr

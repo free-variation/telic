@@ -203,6 +203,25 @@ pack:
 test: water docs-tests
 	sh tests/run.sh
 
+# The language-pack acceptance battery (RELEASE-PLAN.md, release mechanics): each
+# tests/acceptance prompt goes to a model with only water-pack.md as context
+# and the generated program is compared against the expected output. Needs
+# ANTHROPIC_API_KEY and the anthropic SDK in .venv; costs API tokens, so it
+# is opt-in and outside `make test`. Extra flags via ACCEPTANCE_FLAGS
+# (--samples N, --no-pack, --repair, --tasks GLOB, --model ID).
+.PHONY: acceptance acceptance-refs
+acceptance: water pack
+	.venv/bin/python tools/run-acceptance.py $(ACCEPTANCE_FLAGS)
+
+# The battery's reference solutions against their expected output — no API
+# calls. A language change that breaks one invalidates that task's .expected.
+acceptance-refs: water
+	@fail=0; for f in tests/acceptance/*.h2o; do \
+		./water -b "$$f" | diff -q - "$${f%.h2o}.expected" > /dev/null \
+			|| { echo "FAIL $$f"; fail=1; }; \
+	done; \
+	[ $$fail -eq 0 ] && echo "acceptance reference solutions reproduce"
+
 # Loadable-library golden tests (tests/lib/): they load a lib/ library and need
 # its external deps (LAPACK via liblapacke_water, xgboost via libxgboost).
 # Excluded from `make test` so the core suite runs without them. Native-only.

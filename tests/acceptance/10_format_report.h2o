@@ -1,0 +1,2 @@
+[ [ "ann" 3.5 ] [ "bo" 12.25 ] [ "cy" 7 ] ] to rows
+rows [: dup 0 @i swap 1 @i "{1:-6}{0:8.2f}" format . cr :] each

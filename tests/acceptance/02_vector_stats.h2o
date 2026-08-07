@@ -1,0 +1,6 @@
+[ 2 4 4 4 5 5 7 9 ] vector to xs
+[ 1 3 5 7 9 11 13 15 ] vector to ys
+xs mean . cr
+xs median . cr
+xs std 1000 * round 1000 / . cr
+xs ys correlation-pearson 1000 * round 1000 / . cr

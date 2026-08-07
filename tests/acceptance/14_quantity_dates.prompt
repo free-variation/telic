@@ -1,0 +1,12 @@
+Print four lines, each with `.` followed by `cr`, using dimensioned
+quantities rather than bare numbers:
+
+1. the speed of a body covering 100 kilometres in 2 hours
+2. the force of a 1-kilogram mass accelerating at 1 metre per second squared,
+   written as mass times length divided by time twice
+3. the ISO timestamp one calendar month after 2026-01-31T09:00:00Z, where a
+   day that does not exist in the target month clamps to that month's last
+   day
+4. the number of whole days from 2026-01-01T00:00:00Z to
+   2026-03-01T00:00:00Z, obtained by subtracting the two instants and
+   dividing by one day

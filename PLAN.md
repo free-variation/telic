@@ -103,15 +103,6 @@ Each one pass over sorted samples, in the `ks-distance` mold:
 
 ---
 
-## Language pack
-
-Run the acceptance battery (RELEASE-PLAN.md item 1): ≥10 task prompts to
-a strong model with only `water-pack.md` as context, generated programs
-run under the golden harness, pass count recorded in the release notes,
-plus the locals-are-uninitialized discriminating case.
-
----
-
 ## Symbol collection
 
 Interned symbols are never reclaimed: `:foo` literals, `string>symbol`, and
@@ -174,7 +165,8 @@ keeps the HTTP work:
   (`FCGI_LISTENSOCK_FILENO`), so `bind`/`listen` may be unnecessary.
 - `read-n ( stream n -- s )` — read exactly `n` bytes. A slurp-to-EOF read never
   terminates on a persistent FastCGI connection; records are length-framed, so a
-  bounded read is required.
+  bounded read is required. `read-line` arrives first with the MCP stdio server
+  (RELEASE-PLAN.md, MCP stdio server); `read-n` shares its buffered-stream plumbing.
 - A FastCGI record codec — decode `BEGIN_REQUEST` / `PARAMS` (the CGI environment
   → a request frame) / `STDIN` (body → a string), and encode `STDOUT` +
   `END_REQUEST`. The framing is simple: embedded forth over `read-n`/`write` plus byte

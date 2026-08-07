@@ -1,0 +1,10 @@
+Build a 3-row, 4-column matrix from the numbers 1 through 12 in row-major
+order.
+
+Print three lines, in this order:
+
+1. the transpose, converted to a flat array before printing
+2. the sums of the original matrix's rows, converted to a flat array
+3. the means of the original matrix's columns, converted to a flat array
+
+Print each result with `.` followed by `cr`, so each line holds one array.

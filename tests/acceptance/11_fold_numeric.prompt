@@ -1,0 +1,8 @@
+Print three numbers, each with `.` followed by `cr`:
+
+1. the sum of the squares of the integers 1 through 10, computed by building
+   the range, mapping each element to its square, and folding the result
+2. the same total, computed instead by a counted map-fold over the indices
+   0 through 10 that never builds an array
+3. the product of the even numbers in 1, 2, 3, 4, 5, 6, computed by keeping
+   the even elements and folding them

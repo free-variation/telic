@@ -1,0 +1,8 @@
+[ [ "name" "team" "score" ]
+  [ "ann" "red" 10 ]
+  [ "bo" "blue" 20 ]
+  [ "cy" "red" 30 ]
+  [ "di" "blue" 40 ] ] true rows>dataset to scores
+scores :score @ mean . cr
+scores [: :team @ "red" = :] filter :score @ sum . cr
+scores [: :score @ 15 > :] filter n-rows . cr

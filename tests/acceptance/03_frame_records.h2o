@@ -1,0 +1,4 @@
+[ { :name "cy" :age 61 } { :name "ann" :age 34 } { :name "bo" :age 25 } ] to people
+people [: :age @ 30 > :] filter to elders
+elders size . cr
+elders [: :name @ :] map sort "," join . cr

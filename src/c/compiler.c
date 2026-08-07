@@ -770,7 +770,10 @@ static void compile_locals_decl(Interpreter *interp, const char *opener, int for
 	int scope_idx = compiler.n_local_scopes - 1;
 	int scope_dict_start = compiler.local_scope_dict_starts[scope_idx];
 	if (vocab.here != scope_dict_start) {
-		fail(interp, "%s: locals must be declared at the head of the body", opener);
+		if (compiler.n_local_names > compiler.local_scope_starts[scope_idx])
+			fail(interp, "%s: locals are declared in one list; mark individual receive slots with a > prefix (| >a b c |)", opener);
+		else
+			fail(interp, "%s: locals must be declared at the head of the body", opener);
 		return;
 	}
 
@@ -963,7 +966,7 @@ void p_to(DISPATCH_ARGS) {
 
 	cfa_handler h = (cfa_handler)vocab.dict[target_cfa];
 	if (h != dovar) {
-		fail(interp, "to: %s is not a variable", token);
+		fail(interp, "to: %s is already a word, not a variable", token);
 		return;
 	}
 

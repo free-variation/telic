@@ -1,0 +1,12 @@
+Build a fact database of staff, indexed on the department column, and add
+three facts, each with a name and a department, both as symbols:
+
+    ann works in eng
+    bo works in sales
+    cy works in eng
+
+Then print two lines:
+
+1. how many staff are in eng, with `.` followed by `cr`
+2. the names of the eng staff, in ascending order, as an array of symbols,
+   printed with `.` followed by `cr`

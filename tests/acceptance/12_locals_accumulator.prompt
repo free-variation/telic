@@ -1,0 +1,15 @@
+Define a word `weighted-total` that takes one array of numbers and answers
+the sum of each element multiplied by its 1-based position: the first element
+counts once, the second twice, and so on.
+
+Write it as a colon definition that receives the array into a word-local and
+keeps the running total and the loop index in word-locals of its own,
+advancing through the array with a `begin … while … repeat` loop. Do not use
+`reduce`, `each`, `map`, `times`, `i-times`, `fold-times`, or a matrix
+operation.
+
+Call it three times and print each answer with `.` followed by `cr`:
+
+1. on the array 5 5 5 5
+2. on the array 1 2 3 4
+3. on the array 10

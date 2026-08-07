@@ -9,5 +9,5 @@
 4.14195e-21 joule 
 8.98755e+16 joule 
 1 
-error: to: PI is not a variable
+error: to: PI is already a word, not a variable
 in to

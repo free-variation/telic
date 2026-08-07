@@ -1,0 +1,9 @@
+"2026-01-01 INFO start
+2026-01-02 WARN slow
+2026-01-03 INFO done
+2026-01-04 ERROR crash
+2026-01-05 INFO ok" to log-text
+log-text "\b(INFO|WARN|ERROR)\b" match-all [: 1 @i :] map to levels
+levels size . cr
+levels [: "INFO" = :] filter size . cr
+levels array>set set>array "," join . cr

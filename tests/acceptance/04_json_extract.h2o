@@ -1,0 +1,4 @@
+"{""users"": [{""name"": ""ann"", ""age"": 34}, {""name"": ""bo"", ""age"": 25}]}" json>frame to doc
+doc /users @ size . cr
+doc /users @ 0 @i :name @ . cr
+doc /users @ [: :age @ :] map 0 ' + reduce . cr

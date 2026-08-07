@@ -1,0 +1,15 @@
+Take these two samples as column vectors:
+
+    xs: 2 4 4 4 5 5 7 9
+    ys: 1 3 5 7 9 11 13 15
+
+Print four lines, in this order:
+
+1. the mean of xs
+2. the median of xs
+3. the sample standard deviation of xs, rounded to three decimals by
+   multiplying by 1000, rounding to the nearest integer, and dividing by 1000
+4. the Pearson correlation of xs with ys, rounded to three decimals the same
+   way
+
+Print each value with `.` followed by `cr`, so each line holds one number.
