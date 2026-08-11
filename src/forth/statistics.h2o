@@ -534,7 +534,7 @@
 	[: 2 pick swap quantile :] map nip
 	vector ;
 
-\ ---- generalized Pareto tail (peaks over threshold) ----
+\ ---- generalized Pareto distribution (GPD): the peaks-over-threshold tail ----
 \ Exceedances are the amounts by which observations pass a threshold, so they
 \ are positive and measured from zero.
 
