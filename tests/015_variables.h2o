@@ -33,9 +33,10 @@ variables frames>dataset 3 [ ] headn
 \ === vars pretty-prints each frame ===
 vars
 
-\ === ++ / -- increment a global variable in place (inside a definition) ===
+\ === ++ / -- increment a global variable in place; ^ declares it, as `to` needs ===
 variable counter
 5 to counter
-: bump  ++ counter ;
-: unbump  -- counter ;
+: bump  ^counter | ++ counter ;
+: unbump  ^counter | -- counter ;
+: undeclared-bump ++ counter ;          \ (error: no ^counter in the head)
 bump counter . bump counter . unbump counter . cr    \ 6 7 6

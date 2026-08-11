@@ -21,20 +21,20 @@ inline
 \ are parked below the index and read by depth. No swap in the body: a swap in a
 \ hot body measured 7.6 ns against ~1.2 for an ordinary op
 : part_A_times_u ( i u -- partial_sum )
-  |> i u |
+  | i u |
   i u
   0 [: 2 pick 1 pick eval_A  2 pick 2 pick @i  f*  nip :] ' f+ u size fold-times
   nip nip ;
 
 : part_At_times_u ( i u -- partial_sum )
-  |> i u |
+  | i u |
   i u
   0 [: dup 3 pick eval_A  2 pick 2 pick @i  f*  nip :] ' f+ u size fold-times
   nip nip ;
 
 \ eval_times_u: apply func to each (i, u) for i in 0..len(u)-1, gather into a new array.
 : eval_times_u ( u xt -- new-u )
-  | >u >xt i |
+  | u xt |
   0 to i
   begin i u size < while
      i u xt execute
@@ -47,11 +47,10 @@ inline
   ' part_At_times_u eval_times_u ;
 
 : spectral-norm-run ( loops -- )
-  | n_loops u v vBv vv t0 round index |
   to n_loops
   now to t0
-  0 to round
-  begin round n_loops < while
+  0 to loop-round
+  begin loop-round n_loops < while
      1 n array-of to u
      10 to vv
      begin vv 0 > while
@@ -67,7 +66,7 @@ inline
         v index @i  dup *  vv + to vv
         f++ index
      repeat
-     f++ round
+     f++ loop-round
   repeat
   "elapsed: " . now t0 - . "s" . cr
   "spectral norm estimate: " . vBv vv / sqrt . cr ;

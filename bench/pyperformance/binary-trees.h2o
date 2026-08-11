@@ -17,20 +17,19 @@
   else head-tail recurse swap recurse f+ f1+ then ;
 
 : run-trees ( -- checksum )
-  | total d iterations sum i |
   0 to total
   max-depth 1+ make-tree tree-check total + to total
   max-depth make-tree tree-check total + to total
   min-depth to d
   begin d max-depth <= while
     1 max-depth d - min-depth + lshift to iterations
-    0 to sum
+    0 to depth-total
     0 to i
     begin i iterations < while
-      d make-tree tree-check sum f+ to sum
+      d make-tree tree-check depth-total f+ to depth-total
       f++ i
     repeat
-    sum total + to total
+    depth-total total + to total
     d 2 + to d
   repeat
   total ;

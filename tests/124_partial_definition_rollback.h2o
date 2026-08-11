@@ -1,13 +1,13 @@
 \ a definition that fails mid-compile rolls back entirely: no callable stub
-: loopy | acc | [: >x | :] ;
+: loopy | acc | [: no-such-word :] ;
 loopy
 
 \ compiler state is clean afterward: locals compile and run fine
-: fine | a | 3 to a a ;
+: fine 3 to a a ;
 fine . cr
 
 \ a failing load caught by catch rolls back too
-": broken | q | [: >z | :] ;" "/tmp/w124_bad.h2o" write-file
+": broken | q | [: no-such-word :] ;" "/tmp/w124_bad.h2o" write-file
 [: "/tmp/w124_bad.h2o" load :] catch . cr . cr
 broken
 

@@ -44,6 +44,8 @@ error: cannot unify [ 1 2 ] with [ 1 9 ]
 in ~
 error: cannot unify { :a 1 } with { :a 2 }
 in ~
+50000 
+700 
 error: cannot unify 1 with 2
 in ~
 1 

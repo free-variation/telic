@@ -15,14 +15,14 @@ variable row  variable col  variable val  variable x  variable y
 50.0 constant nr
 50000.0 constant anz
 
-: build-sparse
+: build-sparse ^row ^col ^val ^x ^y |
   n 1.0 f+ double-segment to row
   nz double-segment to col
   anz double-segment to val
   n double-segment to x
   n double-segment to y
   row 0.0 0.0 !i drop
-  [: | >r rowr step |
+  [: r |
      row r @i to rowr
      row r 1.0 f+  rowr nr f+  !i drop
      r nr / ftruncate to step
@@ -34,25 +34,24 @@ variable row  variable col  variable val  variable x  variable y
 
 : sparse-matmult
   [:
-     [: | >r lo hi |
+     [: r |
         row r @i to lo
         row r 1.0 f+ @i to hi
         lo 0.0
-        [: | >k i | 1 pick k f+ to i  x col i @i @i  val i @i f*  f+ :] hi lo f- i-times
+        [: k | 1 pick k f+ to i  x col i @i @i  val i @i f*  f+ :] hi lo f- i-times
         nip
         y r rot !i drop
      :] n i-times
   :] cycles times ;
 
 : sparse-checksum ( -- s )
-  | s |
+
   0.0
   [: y swap @i f+ :] n i-times
-  to s
-  s ;
+  to total
+  total ;
 
 : sparse-bench
-  | t0 |
   build-sparse
   now to t0
   sparse-matmult

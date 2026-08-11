@@ -7,7 +7,7 @@ variable tests-passed internal
 variable tests-failed internal
 
 ( -- ) \ clears the test counters
-: new-tests
+: new-tests ^tests-passed ^tests-failed |
 	0 to tests-passed
 	0 to tests-failed ;
 
@@ -25,7 +25,7 @@ variable tests-failed internal
 ( actual expected tolerance -- ) \ pass when |actual - expected| <= tolerance; for matrix or
 \ vector operands, when the largest element-wise absolute difference is within tolerance
 : expect-near
-	|> actual expected tolerance |
+	| actual expected tolerance |
 	actual expected - abs dup matrix? if max then tolerance <= not if
 		actual render expected render tolerance render
 		"expected {1} +/- {0}, got {2}" format throw
@@ -48,12 +48,12 @@ variable tests-failed internal
 
 ( baseline -- ) \ drop data-stack entries above baseline
 : reset-depth
-	|> baseline |
+	| baseline |
 	begin depth baseline > while drop repeat ; internal
 
 ( name xt -- ) \ run xt under catch; print ok/FAIL, count it, restore the stack, continue past a failure
 : test
-	| >name >xt baseline reason |
+	| name xt  ^tests-passed ^tests-failed |
 	depth to baseline
 
 	xt catch if

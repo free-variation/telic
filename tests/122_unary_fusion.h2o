@@ -27,9 +27,9 @@ x-sqrt . cr                                \ 1.5
 
 \ the store-fused shape ( var op to var ) must agree too
 variable out
-: mat-sqrt!  mat sqrt to out ;
+: mat-sqrt! ^out |  mat sqrt to out ;
 mat-sqrt!  out  mat sqrt  = . cr           \ 1
-: dur-neg!  dur negate to out ;
+: dur-neg! ^out |  dur negate to out ;
 dur-neg!  out  dur negate  = . cr          \ 1
 
 bye

@@ -12,9 +12,9 @@ in times
 45 
 30 
 error: insufficient values on data stack; need 1
-in (enter-locals-to) ← [> a | :]
-error: insufficient values on data stack; need 1
-in (enter-locals-mixed) ← [: | a >b | :]
+in (enter-locals-to) ← [: a | :]
+error: insufficient values on data stack; need 2
+in (enter-locals-to) ← [: | a b | :]
 error: length must be non-negative; got -1
 in i-times
 error: expected a float count; got an execution token

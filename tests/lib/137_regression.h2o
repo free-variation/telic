@@ -8,7 +8,7 @@
 
 ( coef estimate tol -- ) \ the coefficient frame's estimate is near estimate and its CI brackets it
 : expect-coef
-	|> coef estimate tol |
+	| coef estimate tol |
 	coef :estimate @ estimate tol expect-near
 	coef :ci-low @ coef :estimate @ < expect
 	coef :estimate @ coef :ci-high @ < expect ;
@@ -21,7 +21,7 @@
 :] test
 
 "linear-regression on synthetic 2x+1: estimates near, CIs bracket" [:
-	| fit |
+
 	7 seed
 	[ [ "x" "y" ]
 	  [ 1 3.1 ] [ 2 4.9 ] [ 3 7.2 ] [ 4 8.8 ] [ 5 11.1 ] [ 6 12.9 ] ] 1 rows>dataset
@@ -31,7 +31,7 @@
 :] test
 
 "linear-regression on iris reproduces textbook OLS" [:
-	| fit |
+
 	7 seed
 	"data/iris.tsv" load-tsv 1 rows>dataset
 	[ :petal_length ] :petal_width 500 linear-regression to fit
@@ -72,7 +72,7 @@
 :] test
 
 "ridge CV picks the best lambda; serial and parallel agree" [:
-	| cv-X cv-y cv-units cv-serial |
+
 	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix to cv-X
 	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix to cv-y
 	7 seed 8 iota shuffle to cv-units
@@ -84,7 +84,7 @@
 :] test
 
 "logistic-regression on iris: positive slope, CIs bracket" [:
-	| sepal-lengths species-y iris-two fit |
+
 	"data/iris.tsv" load-tsv 1 rows>dataset :sepal_length @ matrix>array 50 skip to sepal-lengths
 	0 50 array-of  1 50 array-of  concat to species-y
 	[ :sepal_length :y ]  sepal-lengths species-y 2 array  frame to iris-two
@@ -118,14 +118,14 @@
 :] test
 
 "gaussian-identity GLM equals fit-linear (one-step OLS)" [:
-	| gauss-X gauss-y |
+
 	[ 1 1  1 2  1 3  1 4 ] 4 2 matrix  [ 2.1 3.9 6.2 7.8 ] 4 1 matrix to gauss-y to gauss-X
 	gauss-X gauss-y gaussian-identity 50 1e-10 fit-glm
 	gauss-X gauss-y fit-linear 1e-9 expect-near
 :] test
 
 "binomial-logit GLM equals fit-logistic-ridge at lambda 0" [:
-	| bin-X bin-y |
+
 	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept to bin-X
 	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix to bin-y
 	bin-X bin-y binomial-logit 100 1e-10 fit-glm
@@ -162,21 +162,21 @@
 :] test
 
 "theta changes the fit: the variance function is in play" [:
-	| at-half at-huge |
+
 	nb-design nb-heavy 0.5 negative-binomial-log 100 1e-12 fit-glm to at-half
 	nb-design nb-heavy 1e6 negative-binomial-log 100 1e-12 fit-glm to at-huge
 	at-half at-huge - dup * sum 1e-4 > expect
 :] test
 
 "fit-negative-binomial on overdispersed counts" [:
-	| beta theta |
+
 	nb-design nb-heavy 100 1e-8 fit-negative-binomial to theta to beta
 	beta [ 2.009 0.5313 ] 2 1 matrix 1e-3 expect-near
 	theta 2.99094 1e-4 expect-near
 :] test
 
 "y = mu exactly reports no overdispersion: theta runs to the bracket top" [:
-	| beta theta |
+
 	[ 1 0.0  1 0.5  1 1.0  1 1.5  1 2.0  1 2.5 ] 6 2 matrix
 	[ 0.5 0.4 0.0 * + exp  0.5 0.4 0.5 * + exp  0.5 0.4 1.0 * + exp
 	  0.5 0.4 1.5 * + exp  0.5 0.4 2.0 * + exp  0.5 0.4 2.5 * + exp ] 6 1 matrix
@@ -186,7 +186,7 @@
 :] test
 
 "overdispersion lowers theta" [:
-	| mild-theta heavy-theta |
+
 	nb-design nb-mild 100 1e-8 fit-negative-binomial to mild-theta drop
 	nb-design nb-heavy 100 1e-8 fit-negative-binomial to heavy-theta drop
 	heavy-theta mild-theta < expect
@@ -202,10 +202,10 @@
 :] test
 
 "the same data gives the same dispersion" [:
-	| first second |
-	nb-design nb-heavy 100 1e-8 fit-negative-binomial to first drop
-	nb-design nb-heavy 100 1e-8 fit-negative-binomial to second drop
-	first second expect=
+
+	nb-design nb-heavy 100 1e-8 fit-negative-binomial to first-theta drop
+	nb-design nb-heavy 100 1e-8 fit-negative-binomial to second-theta drop
+	first-theta second-theta expect=
 :] test
 
 "a budget too small to converge throws from the inner IRLS" [:
@@ -215,7 +215,7 @@
 \ ===== multinomial logistic (fit-multinomial + predict-multinomial) =====
 
 "K=2 multinomial equals binary logistic" [:
-	| bin-X bin-y |
+
 	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept to bin-X
 	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix to bin-y
 	bin-X bin-y 0 100 1e-10 fit-multinomial
@@ -223,7 +223,7 @@
 :] test
 
 "predict-multinomial class-1 column equals sigmoid(Xβ)" [:
-	| bin-X bin-y |
+
 	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept to bin-X
 	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix to bin-y
 	bin-X bin-y 0 100 1e-10 fit-multinomial bin-X 0 predict-multinomial 1 @j
@@ -231,7 +231,7 @@
 :] test
 
 "intercept-only predict-multinomial relabels columns by reference class" [:
-	| mn-beta |
+
 	[ 0.6931471805599453 1.0986122886681098 ] 1 2 matrix to mn-beta
 	mn-beta [ 1 ] 1 1 matrix 0 predict-multinomial [ 0.1667 0.3333 0.5 ] 1 3 matrix 1e-3 expect-near
 	mn-beta [ 1 ] 1 1 matrix 1 predict-multinomial [ 0.3333 0.1667 0.5 ] 1 3 matrix 1e-3 expect-near
@@ -239,14 +239,14 @@
 :] test
 
 "K=3 non-separable: predicted probabilities sum to 1" [:
-	| mn-X mn-y |
+
 	[ 1 2 3 4 5 6 7 8 9 10 11 12 ] 12 1 matrix with-intercept to mn-X
 	[ 0 1 2 0 1 2 0 1 2 0 1 2 ] 12 1 matrix to mn-y
 	mn-X mn-y 0 100 1e-8 fit-multinomial mn-X 0 predict-multinomial row-sums 1 - dup * sum 1e-8 < expect
 :] test
 
 "ridge lambda 0 reproduces the plain multinomial MLE" [:
-	| bin-X bin-y |
+
 	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept to bin-X
 	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix to bin-y
 	bin-X bin-y 0 100 1e-10 0 fit-multinomial-ridge
@@ -254,7 +254,7 @@
 :] test
 
 "separable 3-class: ridge stays finite, probabilities sum to 1" [:
-	| sep-X sep-y |
+
 	[ 1 2 3  4 5 6  7 8 9 ] 9 1 matrix with-intercept to sep-X
 	[ 0 0 0  1 1 1  2 2 2 ] 9 1 matrix to sep-y
 	sep-X sep-y 0 100 1e-8 1 fit-multinomial-ridge sep-X 0 predict-multinomial row-sums 1 - dup * sum 1e-8 < expect

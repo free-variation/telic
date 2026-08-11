@@ -18,11 +18,10 @@ variable g
 1.25 0.25 f* constant omega-over-four
 1.0 1.25 f- constant one-minus-omega
 
-: build-g
+: build-g ^g |
   nn double-segment to g ;
 
 : sor-execute
-  | y x idx nv cycle rowbase |
   0.0 to cycle
   begin cycle cycles < while
      1.0 to y
@@ -46,14 +45,13 @@ variable g
   repeat ;
 
 : sor-checksum ( -- s )
-  | s |
+
   0.0
   [: g swap @i f+ :] nn i-times
-  to s
-  s ;
+  to total
+  total ;
 
 : sor-bench
-  | t0 |
   now to t0
   [: build-g sor-execute :] iterations times
   now t0 - to t0

@@ -961,7 +961,7 @@ The packaged drivers ship in generators.h2o: `start-generator` runs a producer t
 
 ```forth generator-drivers
 : squares-producer ( n -- )
-    | >n i |
+    | n |
     1 to i
     begin i n <= while
       i i * yield
@@ -1141,7 +1141,7 @@ A search reads as a description of the constraints. The lib word `choose` (built
 
 ```forth choose
 \ commit to the first x in 1..5 that is greater than 3
-[( 1 2 3 4 5 null )] [: |> x | x 3 > if x else fail then :] choose . cr
+[( 1 2 3 4 5 null )] [: x | x 3 > if x else fail then :] choose . cr
 ```
 ```output
 4

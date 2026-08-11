@@ -1,12 +1,11 @@
-error: unknown word: >x (did you mean >?)
+error: unknown word: no-such-word
 error: unknown word: loopy (did you mean copy?)
 3 
 1 
 {
-  :message /tmp/w124_bad.h2o:1: unknown word: >z (did you mean >?)
+  :message /tmp/w124_bad.h2o:1: unknown word: no-such-word
   :trace in load ← [: "/tmp/w124_bad.h2o" load :]
 }
 
 error: unknown word: broken
 error: unknown word: nosuchword
-error: unknown word: partial

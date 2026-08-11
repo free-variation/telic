@@ -19,7 +19,7 @@ variable init  variable data
 2048.0 constant nlen          \ data length = 2·NPTS
 
 : rng-init ( seed -- )
-  | >seed jseed k0 k1 j0 j1 fill |
+  | seed ^rand-m ^ri ^rj |
   seed fabs to seed
   seed m1 < 0= if m1 to seed then
   seed 2.0 mod 0.0 = if seed 1.0 f- to seed then
@@ -28,18 +28,17 @@ variable init  variable data
   seed 65536.0 mod to j0
   seed 65536.0 f/ to j1
   17.0 double-segment to rand-m
-  0 to fill
-  begin fill 17 < while
+  0 to slot
+  begin slot 17 < while
      j0 k0 f* to jseed
      jseed 65536.0 f/  j0 k1 f* f+  j1 k0 f* f+  32768.0 fmod to j1
      jseed 65536.0 mod to j0
-     rand-m fill  j0 65536.0 j1 f* f+  !i drop
-     f++ fill
+     rand-m slot  j0 65536.0 j1 f* f+  !i drop
+     f++ slot
   repeat
   4.0 to ri  16.0 to rj ;
 
-: next-double ( -- d )
-  | k ii jj |
+: next-double ( -- d ) ^ri ^rj |
   ri to ii  rj to jj
   rand-m ii @i  rand-m jj @i f- to k
   k 0.0 < if k m1 f+ to k then
@@ -49,13 +48,12 @@ variable init  variable data
   dm1 k f* ;
 
 : int-log2 ( n -- log )
-  | >n k log |
-  1.0 to k  0.0 to log
-  begin k n < while  k 2.0 f* to k  log 1.0 f+ to log  repeat
-  log ;
+  | n |
+  1.0 to k  0.0 to power
+  begin k n < while  k 2.0 f* to k  power 1.0 f+ to power  repeat
+  power ;
 
 : fft-bitreverse ( -- )            \ permute DATA into bit-reversed order
-  | n nm1 j i ii jj k tr ti |
   nlen 2.0 / to n
   n 1.0 f- to nm1
   0.0 to j  0.0 to i
@@ -77,7 +75,7 @@ variable init  variable data
   repeat ;
 
 : fft-transform-internal ( direction -- )
-  | >direction n logn bit dual wr wi theta s t s2 b a ii jj wdr wdi z1r z1i ii1 jj1 xr xi |
+  | direction |
   nlen 2.0 / to n
   n 1.0 = if exit then
   n int-log2 to logn
@@ -86,9 +84,9 @@ variable init  variable data
   begin bit logn < while
      1.0 to wr  0.0 to wi
      2.0 direction f* PI f* 2.0 dual f* f/ to theta
-     theta fsin to s
+     theta fsin to sine
      theta 2.0 f/ fsin to t
-     2.0 t f* t f* to s2
+     2.0 t f* t f* to sine-squared
      0.0 to b
      begin b n < while
         b 2.0 f* to ii
@@ -107,8 +105,8 @@ variable init  variable data
      repeat
      1.0 to a
      begin a dual < while
-        wr s wi f* f-  s2 wr f* f-  to ii    \ reuse ii as tmp_real
-        wi s wr f* f+  s2 wi f* f-  to jj    \ reuse jj as tmp_imag
+        wr sine wi f* f-  sine-squared wr f* f-  to ii    \ reuse ii as tmp_real
+        wi sine wr f* f+  sine-squared wi f* f-  to jj    \ reuse jj as tmp_imag
         ii to wr  jj to wi
         0.0 to b
         begin b n < while
@@ -135,15 +133,13 @@ variable init  variable data
   repeat ;
 
 : fft-inverse ( -- )
-  | norm |
   1.0 fft-transform-internal
-  1.0  nlen 2.0 f/  f/ to norm
-  norm
+  1.0  nlen 2.0 f/  f/ to scale
+  scale
   [: dup data swap @i  2 pick f*  data rot rot  !i drop :] nlen i-times
   drop ;
 
-: fft-bench
-  | t0 s |
+: fft-bench ^init ^data |
   nlen double-segment to init
   nlen double-segment to data
   7.0 rng-init
@@ -156,9 +152,9 @@ variable init  variable data
   now t0 - to t0
   0.0
   [: data swap @i f+ :] nlen i-times
-  to s
+  to checksum
   "elapsed: " . t0 . " s" . cr
-  s "checksum: {0}" format . cr ;
+  checksum "checksum: {0}" format . cr ;
 
 fft-bench
 bye

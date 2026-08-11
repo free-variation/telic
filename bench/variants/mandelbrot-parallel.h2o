@@ -7,7 +7,7 @@
 50 constant max-iter
 
 : in-set? ( cr ci -- flag )
-  | >cr >ci zr zi zr2 zi2 iter |
+  | cr ci |
   0.0 to zr  0.0 to zi  0 to iter
   begin iter max-iter < while
     zr zr f* to zr2
@@ -20,14 +20,14 @@
   iter max-iter >= ;
 
 : render-row ( y -- count )
-  | >y ci count x |
-  y 2.0 f* n f/ 1.0 f- to ci
-  0.0 to count  0 to x
+  | y |
+  y 2.0 f* n f/ 1.0 f- to imaginary
+  0.0 to in-set-count  0 to x
   begin x n < while
-    x 2.0 f* n f/ 1.5 f- ci in-set? if f++ count then
+    x 2.0 f* n f/ 1.5 f- imaginary in-set? if f++ in-set-count then
     f++ x
   repeat
-  count ;
+  in-set-count ;
 
 now to t0
 n iota 0.0 ' render-row [: f+ :] pmap-reduce to checksum

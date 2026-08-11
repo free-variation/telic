@@ -6,7 +6,7 @@
 
 : square dup * ;
 : cube dup square * ;
-: bump-all [> x | x 1 + :] map ;
+: bump-all [: x | x 1 + :] map ;
 variable counter   42 to counter
 symbol red
 variable lst   [( 1 2 3 null )] to lst

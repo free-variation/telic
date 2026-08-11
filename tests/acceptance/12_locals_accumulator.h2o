@@ -1,4 +1,4 @@
-: weighted-total | >items total i n |
+: weighted-total | items |
 	0 to total
 	0 to i
 	items size to n

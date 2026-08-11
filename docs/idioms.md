@@ -63,14 +63,42 @@ through consumption to its destination — a `to name`, a store, a print, an
   the body's paragraphs — guard, work, result.
 - An analysis file carries section banners — `\ ---- title ----` — each
   section a sequence of checked sentences.
+- The head names what a word **receives**; its working values are declared
+  where they are first assigned. A `to` on a free name makes a local, so the
+  head shrinks to the inputs and a word that takes none writes no head at all.
+  The opening bar is optional — `| data n-bins |` and `data n-bins |` are the
+  same head, and the longer form is the one to write when the head shares a
+  line with a stack comment:
+
+  ```forth
+  : histogram-table | data n-bins |
+      data as-column drop-nans to data
+      data num-elements to n-values
+      data min to low
+      data max to high
+      high low - n-bins / to bin-width
+      ...
+  ```
+
 - A name a sentence stores into must be free of the dictionary, because `to`
-  refuses to shadow a word: `to m` and `to log` both fail, `m` being the metre
-  unit and `log` the base-10 logarithm. The short nouns are largely spoken
-  for — `m` `s` `kg` `day` `week` are units, and `log` `min` `max` `sum`
-  `mean` `size` `count` `first` `last` are words — so a variable
-  takes a name that says what it holds: `price-column`, `daily-totals`.
-  Locals live in their own scope and may shadow freely, but the compiler
-  flags a scratch local that shadows a word when it is read before any store.
+  on an existing word means that word: `to m` and `to log` both fail, `m`
+  being the metre unit and `log` the base-10 logarithm. The short nouns are
+  largely spoken for — `m` `s` `kg` `day` `week` are units, and `log` `min`
+  `max` `sum` `mean` `size` `count` `first` `last` are words — so a value
+  takes a name that says what it holds: `price-column`, `daily-totals`. A
+  local that does need a taken name is declared in the head, where the
+  shadowing is deliberate and visible.
+
+- A body that assigns a **global** names it `^global` in the head. `to`, `++`,
+  `--`, `f++` and `f--` all refuse a bare global name, because the same name
+  with no marker would have declared a local:
+
+  ```forth
+  variable tests-failed
+  : record-failure | reason ^tests-failed |
+      reason . cr
+      ++ tests-failed ;
+  ```
 
 ## Control structures compile
 
@@ -131,9 +159,9 @@ two interoperate — a `db-query` result is already relation-shaped.
   Prolog's append, verbatim (tests/074):
 
   ```forth
-  : lappend | >A >B >R |
-    A B R [> a b r | a null ~ drop r b ~ drop :] 3 ncurry
-    A B R [: | >a >b >r ?H ?T ?R1 |
+  : lappend | A B R |
+    A B R [: a b r | a null ~ drop r b ~ drop :] 3 ncurry
+    A B R [: a b r ?H ?T ?R1 |
       a H T cons ~ drop
       r H R1 cons ~ drop
       T b R1 lappend :] 3 ncurry
@@ -155,7 +183,7 @@ two interoperate — a `db-query` result is already relation-shaped.
   `matches?` under `filter` (logic.h2o):
 
   ```forth
-  pattern [> row pattern | pattern row matches? :] curry filter
+  pattern [: row pattern | pattern row matches? :] curry filter
   ```
 
 - Keep a result past backtracking by snapshotting: `copy` (fresh variables)
@@ -204,7 +232,7 @@ quotation under them dispatches straight into the body.
   ```forth indexed-fill
   variable xs
   4 double-segment to xs
-  [: | >i sxi |
+  [: i |
      i fsin to sxi
      xs i sxi !i drop
   :] 4 i-times

@@ -16,7 +16,7 @@
 [: :] [: . :] gen-each .s cr
 
 \ -- 5: producer with its own local state, yielded sequentially
-: triple-from |> n | n yield n 1 + yield n 2 + yield ;
+: triple-from | n | n yield n 1 + yield n 2 + yield ;
 [: 100 triple-from :] [: . :] gen-each cr
 
 \ -- 6: consumer transforms; producer with locals
@@ -26,10 +26,10 @@
 [: 5 yield 6 yield 7 yield :] 2 gen-take .
 
 \ -- 8: gen-take over an unbounded locals producer
-: nats |> n | begin n yield n 1 + to n again ;
+: nats | n | begin n yield n 1 + to n again ;
 [: 0 nats :] 5 gen-take .
 
 \ -- 9: two generators driven independently keep separate state
-: nats2 |> n | begin n yield n 1 + to n again ;
+: nats2 | n | begin n yield n 1 + to n again ;
 [: 10 nats2 :] 3 gen-take .
 [: 100 nats2 :] 3 gen-take .

@@ -1172,7 +1172,7 @@ void p_2curry(DISPATCH_ARGS) {
 }
 
 int push_prompt(Interpreter *interp, int kind) {
-	Val mark = make_tagged(T_MARK, (interp->next_mark_id++ << 1) | kind);
+	Val mark = make_tagged(T_MARK, (interp->next_mark_id++ << 2) | kind);
 	rpush(interp, mark);
 
 	return (int)VAL_DATA(mark);
@@ -1203,7 +1203,7 @@ int prompt_index(Interpreter *interp, int kind) {
 		}
 
 		Val frame = interp->return_stack[i];
-		if (VAL_TAG(frame) == T_MARK && (VAL_DATA(frame) & 1) == kind)
+		if (VAL_TAG(frame) == T_MARK && (VAL_DATA(frame) & PROMPT_KIND_MASK) == kind)
 			return i;
 	}
 

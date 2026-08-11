@@ -2,7 +2,7 @@
 \ as { :counts (n-bins x 1) :low :bin-width }. NaNs are dropped; the top value
 \ lands in the last bin; a constant vector takes the range value +/- 1.
 : histogram-table
-	| >data >n-bins low high bin-width counts n-values |
+	| data n-bins |
 	n-bins 1 < if n-bins "histogram-table: expected at least 1 bin; got {0}" format throw then
 	data as-column drop-nans to data
 	data num-elements to n-values
@@ -13,7 +13,7 @@
 	high low - n-bins / to bin-width
 	n-bins 1 0-matrix to counts
 	data counts low bin-width n-bins
-	[: | >i >data >counts >low >bin-width >n-bins bin tally |
+	[: i data counts low bin-width n-bins |
 		data i @e low - bin-width / round-down to bin
 		bin n-bins 1 - > if n-bins 1 - to bin then
 		counts bin @e 1+ to tally
@@ -23,7 +23,7 @@
 
 ( v -- xs ys ) \ empirical CDF: finite elements sorted ascending, cumulative fractions (i+1)/n
 : ecdf
-	| >v n |
+	| v |
 	v as-column drop-nans to v
 	v num-elements to n
 	n 0= if "ecdf: no finite values" throw then
@@ -33,19 +33,19 @@
 ( y p -- dev ) \ binomial deviance -2 sum[y ln p + (1-y) ln(1-p)]; p clamped to
 \ [1e-12, 1-1e-12] so overconfidence scores badly instead of dropping ln 0 terms
 : binomial-deviance
-	| >y >p |
+	| y p |
 	p dup 1e-12 < 1e-12 mesh  dup 1 1e-12 - > 1 1e-12 - mesh to p
 	y p ln *  1 y -  1 p - ln  *  +  sum  -2 * ;
 
 ( units n-folds -- folds ) \ round-robin deal in the given order: [ [train test] .. ]
 : cv-folds
-	| >units >n-folds fold-ids |
+	| units n-folds |
 	n-folds 2 < if n-folds "cross-validate: expected at least 2 folds; got {0}" format throw then
 	units size n-folds < if units size n-folds "cross-validate: {0} folds exceed {1} units" format throw then
 	units size iota vector n-folds mod to fold-ids
 	n-folds iota
 	fold-ids units
-	[> f fold-ids units |
+	[: f fold-ids units |
 		fold-ids f eq  1 swap -  where  units swap select-rows
 		fold-ids f eq  where  units swap select-rows
 		2 array :]
@@ -57,10 +57,10 @@
 \ both stack-complete; answers the per-fold losses as an n-folds vector (mean it for
 \ the CV estimate, std for the standard error the 1-SE rule needs)
 : cross-validate
-	| >units >n-folds >fit >score |
+	| units n-folds fit score |
 	units n-folds cv-folds
 	fit score
-	[> fold fit score |
+	[: fold fit score |
 		fold 0 @i fit execute
 		fold 1 @i score execute :]
 	2curry map vector ;
@@ -69,7 +69,7 @@
 : std var sqrt ; inline
 
 ( matrix -- float ) \ standard error of the mean: s / sqrt(n), n the non-NaN count
-: se |> mat | mat var mat nonmissing-count / sqrt ;
+: se | mat | mat var mat nonmissing-count / sqrt ;
 
 ( matrix -- float) \ median
 : median 0.5 quantile ; inline
@@ -82,7 +82,7 @@
 
 ( v -- fr ) \ { :min :q1 :median :mean :q3 :max } of the finite elements; :missing when any
 : vector-summary
-	| >v n-finite n-missing |
+	| v |
 	v nonmissing-count to n-finite
 	v num-elements n-finite - to n-missing
 	n-finite 0 > if
@@ -110,7 +110,7 @@
 
 ( cells -- fr ) \ distinct non-missing values of a text column; :missing when any
 : text-summary
-	| >cells n-missing |
+	| cells |
 	cells size 0= if { } exit then
 	cells nan? sum to n-missing
 	{ :distinct cells [: none? not :] filter array>set size }
@@ -122,7 +122,7 @@
 
 ( dataset -- fr ) \ per-column summaries keyed by column name
 : dataset-summary
-	| >dataset unfit-columns |
+	| dataset |
 	dataset  dataset keys
 	[: 2 pick swap @ dup numeric-column? swap array? or not :] filter  nip to unfit-columns
 	unfit-columns size 0 > if
@@ -143,7 +143,7 @@
 
 ( matrix level -- low high ) \ percentile CI: level e.g. 0.95 -> [q(0.025), q(0.975)]
 : ci
-	| >mat >level tail |
+	| mat level |
 	1 level - 2 / to tail
 
 	mat tail quantile
@@ -160,11 +160,11 @@
 \ a generator seeded by run-seed + i, so resampling parallelizes and results
 \ are identical regardless of worker scheduling. No resample outlives its fit.
 : bootstrap-with
-	| >data >fit-xt >replications >fit-mapper run-seed |
+	| data fit-xt replications fit-mapper |
 	2147483647 random-int to run-seed
 
 	replications iota
-	fit-xt [> i run-seed data fit |
+	fit-xt [: i run-seed data fit |
 		data  dup n-observations  run-seed i +  resample-indices-ext  select-rows
 		fit execute :] curry
 	data swap curry
@@ -178,7 +178,7 @@
 \ (the reference); levels in val_cmp order, as column>set lists them; a
 \ missing cell lands in no column
 : column>indicators
-	| >column levels |
+	| column |
 	column column>array [: none? not :] filter array>set sort to levels
 	levels size 2 < if "column>indicators: needs at least 2 distinct values" throw then
 	column  levels 1 skip
@@ -188,12 +188,12 @@
 ( design column sym -- design ) \ add one 0/1 column per non-reference level to a
 \ design dataset, keyed sym=level; levels and keys derive from the same data
 : indicators!
-	| >design >column >prefix levels |
+	| design column prefix |
 	column column>array [: none? not :] filter array>set sort to levels
 	levels size 2 < if "indicators!: needs at least 2 distinct values" throw then
 	levels 1 skip
 	design prefix column
-	[> level design prefix column |
+	[: level design prefix column |
 		design  prefix level "{1}={0}" format string>symbol  column level eq  ! :]
 	3 ncurry map drop
 	design ;
@@ -216,13 +216,13 @@
 
 ( betas replications j -- column )
 : coefficient-column
-	|> betas replications j |
+	| betas replications j |
 
-	betas j [> b j | b j 0 @i,j :] curry map replications 1 matrix ; internal
+	betas j [: b j | b j 0 @i,j :] curry map replications 1 matrix ; internal
 
 ( beta betas replications j -- frame )
 : coefficient-summary
-	| >beta >betas >replications >j column low high |
+	| beta betas replications j |
 
 	betas replications j coefficient-column to column
 	column 0.95 ci to high to low
@@ -238,7 +238,7 @@
 \ response, point-estimate with fit on the full data, then bootstrap-resample
 \ rows and refit for per-coefficient SE/CI/bias. The fit picks linear vs logistic.
 : regress-with
-	| >dataset >predictors >response >replications >fit x y data beta betas |
+	| dataset predictors response replications fit |
 	dataset predictors dataset>matrix with-intercept to x
 	dataset response 1 array dataset>matrix to y
 	x y augment to data
@@ -247,12 +247,12 @@
 	data fit replications bootstrap to betas
 	0 beta size 1- range
 	beta betas replications
-	[> j beta betas replications | beta betas replications j coefficient-summary :]
+	[: j beta betas replications | beta betas replications j coefficient-summary :]
 	3 ncurry map ;
 
 ( xs ys -- xs' ys' ) \ drop pairs where either element is NaN; magnitudes taken
 : complete-cases
-	| >xs >ys keep |
+	| xs ys |
 	xs magnitude as-column to xs
 	ys magnitude as-column to ys
 	xs nan? ys nan? + 0 eq where to keep
@@ -261,7 +261,7 @@
 
 ( xs ys -- r ) \ Pearson correlation coefficient over the complete pairs
 : correlation-pearson
-	| >xs >ys centered-xs centered-ys |
+	| xs ys |
 	xs ys complete-cases to ys to xs
 	xs as-column dup mean - to centered-xs
 	ys as-column dup mean - to centered-ys
@@ -275,7 +275,7 @@
 
 ( vector -- ranks ) \ 0-based midranks as nx1: tied values share the mean of their positions; NaNs rank last in index order
 : ranks
-	| >values order sorted-values midranks n run-value run-start run-end mid |
+	| values |
 	values magnitude as-column to values
 	values argsort to order
 	values order select-rows to sorted-values
@@ -303,32 +303,32 @@
 \ negative), ties counted half. outcomes n×1 in {0,1}, scores n×1 real; a NaN score drops its
 \ row (outcomes stay aligned); both classes must be present
 : auc
-	| >outcomes >scores positives negatives |
+	| outcomes scores |
 	outcomes scores complete-cases to scores to outcomes
 	outcomes 0.5 > where scores swap select-rows to positives
 	outcomes 0.5 < where scores swap select-rows to negatives
 	positives num-elements 0 = negatives num-elements 0 = or if
 		"auc: both a positive and a negative outcome required" throw then
 	positives matrix>array negatives
-	[> positive-score negatives |
+	[: positive-score negatives |
 		negatives positive-score < sum  negatives positive-score <= sum + :]
 	curry map vector sum
 	0.5 *  positives num-elements negatives num-elements * / ;
 
 ( outcomes probabilities -- f ) \ Brier score: mean squared error of probabilities against 0/1
 \ outcomes; NaN elements are skipped by mean
-: brier |> outcomes probabilities | probabilities outcomes - dup * mean ;
+: brier | outcomes probabilities | probabilities outcomes - dup * mean ;
 
 ( tail-deviate -- z ) \ qnorm tail expansion at sqrt(-2 ln p); signed for the lower tail
 : qnorm-tail
-	|> tail-deviate |
+	| tail-deviate |
 	-7.784894002430293e-3 tail-deviate * -0.3223964580411365 + tail-deviate * -2.400758277161838 + tail-deviate * -2.549732539343734 + tail-deviate * 4.374664141464968 + tail-deviate * 2.938163982698783 +
 	7.784695709041462e-3 tail-deviate * 0.3224671290700398 + tail-deviate * 2.445134137142996 + tail-deviate * 3.754408661907416 + tail-deviate * 1 +
 	/ ; internal
 
 ( probability -- z ) \ standard normal quantile (inverse CDF); Acklam's rational approximation
 : qnorm
-	| >probability median-deviation squared-deviation |
+	| probability |
 	probability 0 > probability 1 < and not if probability "qnorm: expected a probability in (0, 1); got {0}" format throw then
 	probability 0.02425 < if probability ln -2 * sqrt qnorm-tail exit then
 	probability 0.97575 > if 1 probability - ln -2 * sqrt qnorm-tail negate exit then
@@ -341,11 +341,11 @@
 
 (  xs ys correlation-xt replications -- corr-summary ) \ bootstrap CI for a correlation
 : correlate-with
-	| >xs >ys >correlation-xt >replications estimate replicate-estimates low high |
+	| xs ys correlation-xt replications |
 	xs ys correlation-xt execute to estimate
 	
 	xs ys complete-cases augment
-	correlation-xt [> resample xt | resample 0 @j resample 1 @j xt execute :] curry
+	correlation-xt [: resample xt | resample 0 @j resample 1 @j xt execute :] curry
 	replications pbootstrap vector to replicate-estimates
 
 
@@ -363,7 +363,7 @@
 
 ( tree features i -- prediction ) \ walk row i from the root to a leaf
 : predict-row
-	| >tree >features >i node column |
+	| tree features i |
 	tree to node
 	begin node :feature has? while
 		features node :feature @ @ to column
@@ -385,7 +385,7 @@
 \ frame keyed as at training; a numeric node sends value <= :threshold left, a
 \ categorical node sends value in :categories left (an unseen value goes right)
 : predict
-	| >tree >features n |
+	| tree features |
 	features dup keys first @ size to n
 	tree features  n iota
 	[: 3 pick 3 pick rot predict-row :] map  nip nip
@@ -397,7 +397,7 @@
 ( accumulator node -- accumulator ) \ add each internal node's squared-error
 \ reduction (weighted-square of the children minus the node) to accumulator[:feature]
 : accumulate-gain
-	| >accumulator >node feature gain |
+	| accumulator node |
 	node :feature has? not if accumulator exit then
 	node :feature @ to feature
 	node :left @ weighted-square  node :right @ weighted-square  +  node weighted-square  -  to gain
@@ -409,13 +409,13 @@
 ( tree -- fr ) \ { feature-symbol -> normalized impurity-reduction importance } over
 \ the features the tree splits on (summing to 1); a stump with no splits gives { }
 : feature-importance
-	| >tree accumulator total |
+	| tree |
 	{ } tree accumulate-gain to accumulator
 	accumulator keys size 0 > if
 		accumulator values vector sum to total
 		accumulator keys
 		accumulator total
-		[> key accumulator total | accumulator key  accumulator key @ total /  ! drop :]
+		[: key accumulator total | accumulator key  accumulator key @ total /  ! drop :]
 		2curry each
 	then
 	accumulator ;
@@ -423,9 +423,7 @@
 ( alpha node -- node gain leaves ) \ prune node's subtree bottom-up under cost-complexity
 \ threshold alpha; answer the pruned node, its total split-gain, and its leaf count
 : prune-subtree
-	| >alpha >node
-	  left-node left-gain left-leaves right-node right-gain right-leaves
-	  subtree-gain subtree-leaves |
+	| alpha node |
 	node :feature has? not if node 0 1 exit then
 
 	alpha node :left @  prune-subtree  to left-leaves to left-gain to left-node
@@ -451,7 +449,7 @@
 ( node acc -- gain leaves ) \ add node's subtree effective-alpha (gain per extra leaf) to
 \ the set acc, and answer the subtree's total gain and leaf count
 : collect-alphas
-	| >node >acc left-gain left-leaves right-gain right-leaves gain leaves |
+	| node acc |
 	node :feature has? not if 0 1 exit then
 	node :left @  acc collect-alphas  to left-leaves to left-gain
 	node :right @ acc collect-alphas  to right-leaves to right-gain
@@ -464,7 +462,7 @@
 ( tree -- alphas ) \ the weakest-link cost-complexity alphas as a sorted set, with 0 (the
 \ full tree) included; pruning at each yields the nested sequence of candidate subtrees
 : alpha-sequence
-	| >tree acc |
+	| tree |
 	[< 0 >] to acc
 	tree acc collect-alphas 2drop
 	acc ; internal
@@ -473,12 +471,12 @@
 \ of a tree grown on each fold's train rows and pruned at alpha; features/y/params/alpha
 \ are curried into the fit and score quotations so they carry values, not local references
 : cv-alpha
-	|> features y params alpha units n-folds |
+	| features y params alpha units n-folds |
 	units n-folds
-	[> train features y params alpha |
+	[: train features y params alpha |
 		features train select-rows  y train select-rows  params fit-tree  alpha prune :]
 		alpha swap curry  params swap curry  y swap curry  features swap curry
-	[> model test features y |
+	[: model test features y |
 		model  features test select-rows  predict   y test select-rows  - dup * mean :]
 		y swap curry  features swap curry
 	cross-validate ; internal
@@ -487,7 +485,7 @@
 \ 1-SE rule selects: the largest alpha (smallest tree) whose mean k-fold CV error is within
 \ one standard error of the minimum. :folds in params sets k (default 5)
 : prune-cv
-	| >features >y >params n-folds full-tree alphas units stats best threshold |
+	| features y params |
 	params :folds 5 @or to n-folds
 	features y params fit-tree to full-tree
 	full-tree alpha-sequence to alphas
@@ -495,7 +493,7 @@
 
 	alphas
 	features y params units n-folds
-	[> alpha features y params units n-folds |
+	[: alpha features y params units n-folds |
 		alpha
 		features y params alpha units n-folds cv-alpha  dup mean  swap std n-folds sqrt /
 		3 array :]
@@ -510,7 +508,7 @@
 
 ( node depth -- ) \ print node's subtree as indented split rules, left branch first; internal
 : draw-node
-	|> node depth |
+	| node depth |
 	node :feature has? not if
 		depth 2 * spaces  node :prediction @  node :n_rows @  "{2}predict {1}  (n {0})" format . cr
 		exit
@@ -533,6 +531,5 @@
 
 ( values probs -- quantiles )
 : quantiles
-	|> values probabilities |
-	values probabilities [: 2 pick swap quantile :] map nip
+	[: 2 pick swap quantile :] map nip
 	vector ;

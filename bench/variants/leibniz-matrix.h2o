@@ -13,7 +13,7 @@
 
 variable t0
 
-: leibniz-matrix
+: leibniz-matrix ^t0 |
   now to t0
   rounds -2.0 f* 1.0 f+       \ start = -2*rounds + 1
   rounds 2.0 f*                \ end   = 2*rounds

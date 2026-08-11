@@ -17,14 +17,13 @@ num-cores 16 * to domain
 
 ( seed -- result )  \ a long, allocation-free float mill
 : crunch
-	|> seed |
+	| seed |
 	seed  seed 1.0 +
 	[: over + 0.5 * :] iters times
 	nip ;
 
 ( -- )  \ loop rounds times; each round is a full-core pmap over every work item
-: stress
-	| i |
+: stress ^t0 |
 	0 to i
 	begin i rounds < while
 		now to t0

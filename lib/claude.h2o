@@ -1,21 +1,21 @@
 "claude-opus-4-8" to claude-model
 65536 to claude-max-tokens
 
-: user-message ( content -- message ) |> content | { :role "user" :content content } ;
+: user-message ( content -- message ) | content | { :role "user" :content content } ;
 
-: assistant-message ( content -- message )  |> content | { :role "assistant" :content content } ;
+: assistant-message ( content -- message )  | content | { :role "assistant" :content content } ;
 
 : request-body ( prompt -- json )
-  |> messages |
+  | messages |
   {	:model claude-model
 	:max_tokens claude-max-tokens
 	:messages messages
   }
   frame>json ;
 
-\ Build the curl argv array that POSTs one prompt to the API.
-: build-curl-argv ( prompt -- argv )
-  |> body |
+( body -- argv ) \ the curl argv array that POSTs one request body to the API
+: build-curl-argv
+  | body |
   [ "curl" "-s" "https://api.anthropic.com/v1/messages"
     "-H" "x-api-key: " "ANTHROPIC_API_KEY" env +
     "-H" "anthropic-version: 2023-06-01"
@@ -23,8 +23,7 @@
     "-d" body ] ;
 
 : call-once ( messages -- result )
-	|> messages |
-	messages request-body build-curl-argv run-result ;
+	request-body build-curl-argv run-result ;
 
 : response-ok? ( result -- bool )
 	dup :status @ 0 = if
@@ -55,7 +54,7 @@
 	then ;
 
 : elicit-with-retries ( messages -- answer )
-	| attempts >messages |
+	| messages |
 	3 to attempts
 	begin
 		messages ' try-call curry catch
@@ -67,7 +66,7 @@
 
 ( prompts -- answer ) \ prompts: array of user-message strings
 : run-cot 
-	| history answer prompt i n-prompts >prompts |
+	| prompts |
 	[ ] to history
 	prompts size to n-prompts
 	0 to i
@@ -101,15 +100,14 @@
 
 ( model -- price ) \ the { :input :output } rate frame for a model string
 : model-price
-  | sym >model |
+  | model |
   model string>symbol to sym
   claude-prices sym has? not if "no price for model: " model + throw then
   claude-prices sym @ ;
 
 ( result -- $ ) \ actual cost of one call, from its usage and model
 : response-cost
-  | body usage price >result |
-  result :out @ json>frame to body
+  :out @ json>frame to body
   body :usage has? not if 0 $ exit then
   body :usage @ to usage
   body :model @ model-price to price

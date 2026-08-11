@@ -11,12 +11,12 @@
 
 ( xt n -- total )  \ sum of xt ( i -- term ) over i in 0..n-1
 : sum-times
-  |> xt n |
+  | xt n |
   0 xt ' f+ n fold-times ;
 
 ( xt n -- product )  \ product of xt ( i -- term ) over i in 0..n-1
 : product-times
-  |> xt n |
+  | xt n |
   1 xt ' f* n fold-times ;
 
 ( items pred -- flag )  \ does any element satisfy pred?

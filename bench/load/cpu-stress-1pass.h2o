@@ -12,7 +12,7 @@ num-cores 128 * to domain
 
 ( seed -- result )  \ a long, allocation-free float mill (2 FLOPs/iter)
 : crunch
-	|> seed |
+	| seed |
 	seed  seed 1.0 +
 	[: over + 0.5 * :] iters times
 	nip ;

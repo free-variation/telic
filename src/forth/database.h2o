@@ -27,12 +27,11 @@
 \ NULL), declared date/time -> instant vector in s, text -> array; an empty
 \ column declared numeric stays typed as an empty vector
 : db-query>dataset
-	| dataset types |
 	(db-query>dataset) to types to dataset
 
 	dataset keys
 	dataset values types values
-	[> column declaration |
+	[: column declaration |
 		declaration declared-instant? if column column>instants exit then
 
 		column array? column size 0= and declaration declared-numeric? and if
@@ -45,7 +44,7 @@
 ( names types table -- statement ) 
 : create-table-statement
 	>r
-	[> name type | name sql-identifier type :real = if " REAL" else " TEXT" then + :] 2 nmap
+	[: name type | name sql-identifier type :real = if " REAL" else " TEXT" then + :] 2 nmap
 	", " join
 
 	r> sql-identifier "CREATE TABLE {0} ({1})" format ; internal
@@ -69,7 +68,7 @@
 ( name type dataset db table -- info ) \ one column's entry in the import report
 \ the context trails the mapped values, so ncurry can bind it
 : column-info
-	|> name type dataset db table |
+	| name type dataset db table |
 	type :real = if
 		{ :name name string>symbol
 		  :type type
@@ -84,7 +83,7 @@
 ( tsv-path db table -- info ) \ imports a tsv. header row names the columns, types inferred by column
 \ the dataset, connection and table name are parked below the combinators' sources
 : tsv>db
-	| >tsv-path >db >table rows names dataset types statement columns |
+	| tsv-path db table |
 	tsv-path load-tsv to rows
 	rows size 0= if tsv-path "tsv>db: {0} has no header row" format throw then
 

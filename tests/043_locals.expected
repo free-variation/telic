@@ -1,35 +1,31 @@
 25 
 25 
+30 
+30 
 [ 110 120 130 ] 
 85 
 120 
 21 
 35 
 42 
-25 
-25 
 123 
-720 
 [ 110 120 130 ] 
-21 
-123 
-7590 
-2480 
-1800 
+25 
+9 
+7 
+770 
 error: x is not bound in this quotation; pass it in or use pick
-error: x is not bound in this quotation; pass it in or use pick
-in to
 error: a is not bound in this quotation; pass it in or use pick
-error: |: locals are declared in one list; mark individual receive slots with a > prefix (| >a b c |)
+error: |: locals are declared in one list; `to` declares the rest
 in |
 error: |: locals must be declared at the head of the body
 in |
-error: local 'x' is read but never assigned
-in ;
-error: local 'keys' is read but never assigned (a word of that name exists)
-in ;
-error: local 'x' is read but never assigned
-in ;
-error: local 'y' is read but never assigned
-in :]
-5 
+error: |: empty locals list; omit it
+in |
+error: unknown word: never-stored
+error: to: tally is a global; declare it in the locals list as ^tally to assign it here, or rename the local
+in :
+error: to: tally is a global; declare it in the locals list as ^tally to assign it here, or rename the local
+in :
+error: to: tally is a global; declare it in the locals list as ^tally to assign it here, or rename the local
+in |

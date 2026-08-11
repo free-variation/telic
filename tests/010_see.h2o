@@ -35,38 +35,38 @@ variable b  4.0 to b
 ' a see-compiled
 
 \ local-operand arithmetic fusion: <local> <local> op
-: ll-arith |> a b | a b f+  a b f-  a b f* ;
+: ll-arith | a b | a b f+  a b f-  a b f* ;
 ' ll-arith see-compiled
 
 \ local-literal arithmetic fusion: <local> <literal> op
-: lit-arith |> a | a 2.0 f+  a 2.0 f-  a 2.0 f* ;
+: lit-arith | a | a 2.0 f+  a 2.0 f-  a 2.0 f* ;
 ' lit-arith see-compiled
 
 \ literal-local: commutative <lit> <local> reuse (+, *) and reversed subtract
-: rev-arith |> a | 2.0 a f+  2.0 a f*  2.0 a f- ;
+: rev-arith | a | 2.0 a f+  2.0 a f*  2.0 a f- ;
 ' rev-arith see-compiled
 
 \ @i index fusion: local index, literal index, and local-array + literal index
-: at-local-idx |> i | [ 10 20 30 ] i @i ;
+: at-local-idx | i | [ 10 20 30 ] i @i ;
 ' at-local-idx see-compiled
 : at-lit-idx  [ 10 20 30 ] 1 @i ;
 ' at-lit-idx see-compiled
-: at-lit-of-local |> arr | arr 1 @i ;
+: at-lit-of-local | arr | arr 1 @i ;
 ' at-lit-of-local see-compiled
 
 \ fusion fires inside a quotation on its own (depth-0) locals
-[: | >a >b | a b f* :] see-compiled
+[: | a b | a b f* :] see-compiled
 
 clear
 \ see-tree expands each colon-word call inline (indented two spaces),
 \ recursively, down to primitives; recursive calls print as `name ...`.
 
-: leaf |> a b | a b f* a b f+ ;
-: mid  |> x | x x leaf ;
+: leaf | a b | a b f* a b f+ ;
+: mid  | x | x x leaf ;
 ' mid see-tree
 
 \ recursion is guarded: a self-call prints as a leaf, no infinite expansion
-: rec |> n | n 1.0 f- rec ;
+: rec | n | n 1.0 f- rec ;
 ' rec see-tree
 
 \ non-colon target reports itself
@@ -99,8 +99,8 @@ uses-plain-inline . cr
 clear
 \ parked-array + stack-index fuses: `<n> pick swap @i` is one op, the form a
 \ quotation uses now that it cannot name the word's local
-: at-swap-pick | arr | to arr  arr swap [: 2 pick swap @i :] map nip ;
+: at-swap-pick | arr | arr swap [: 2 pick swap @i :] map nip ;
 ' at-swap-pick see-compiled
 [ 2 0 ] [ 10 20 30 ] at-swap-pick . cr    \ [ 30 10 ]
-: at-swap-deeper |> arr indices | arr indices [: 2 pick swap @i :] map nip ;
+: at-swap-deeper | arr indices | arr indices [: 2 pick swap @i :] map nip ;
 ' at-swap-deeper see-compiled

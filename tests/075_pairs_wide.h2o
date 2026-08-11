@@ -6,7 +6,7 @@
 \ a kept pair survives heavy pair churn plus a collection
 variable kept
 [( 7 8 9 null )] to kept
-[: |> i | [( i i 1+ null )] drop :] 200000 i-times
+[: | i | [( i i 1+ null )] drop :] 200000 i-times
 gc
 kept . cr                                          \ [( 7 8 9 null )]
 

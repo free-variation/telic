@@ -1,97 +1,90 @@
-\ Word-local variables: | name ... | declaration, to assignment, bare-name read.
-\ Covers single/multiple locals, nested-scope depth, shadowing, recursion,
-\ and interaction with delimited continuations (shift/resume).
+\ Word locals: the head list names what the body receives from the stack, and
+\ everything else is declared where `to` first assigns it. Covers capture order,
+\ implicit declaration, per-scope frames, the redundant spellings, `?` logic-var
+\ slots, and interaction with delimited continuations (shift/resume).
 
-\ -- 1: single local, square via x*x
-: sq | x | to x  x x * ;
+\ -- 1: one capture
+: sq | x | x x * ;
 5 sq . cr
 
-\ -- 2: two locals, assignment order (to b to a binds in declaration order)
-: hyp | a b | to b to a  a a * b b * + ;
+\ -- 2: two captures, leftmost deepest
+: hyp | a b | a a * b b * + ;
 3 4 hyp . cr
 
-\ -- 3: a quotation cannot name an outer local; park the value and pick it up
-: nest | x | to x  x [ 10 20 30 ] [: 2 pick + :] map nip ;
+\ -- 3: no head at all — the first `to` opens the frame
+: staged 10 to origin  origin 3 * ;
+staged . cr
+
+\ -- 4: captures in the head, working values declared in the body
+: scaled | factor | 10 to amount  amount factor * ;
+3 scaled . cr
+
+\ -- 5: a quotation cannot name an outer local; park the value and pick it up
+: nest | x | x [ 10 20 30 ] [: 2 pick + :] map nip ;
 100 nest . cr
 
-\ -- 4: inner quotation's own local shadows the outer one
-: shadow | x | to x  [: | x | to x  x x * :] 9 swap execute  x + ;
+\ -- 6: an inner quotation's own capture shadows the outer one
+: shadow | x | [: | x | x x * :] 9 swap execute  x + ;
 4 shadow . cr
 
-\ -- 5: recursion — each call gets its own frame
-: fact | n | to n  n 1 < if 1 else n  n 1 - fact * then ;
+\ -- 7: recursion — each call gets its own frame
+: fact | n | n 1 < if 1 else n  n 1 - fact * then ;
 5 fact . cr
 
-\ -- 6: a local set before shift is read after resume (frame relocation)
+\ -- 8: a local set before shift is read after resume (frame relocation)
 : shifter shift ;
-: worker | x | to x  shifter  x * ;
+: worker | x | shifter  x * ;
 : ex reset 7 worker ;
 ex 3 swap resume . cr
 
-\ -- 7: multi-shot — the same continuation resumed twice, local intact each time
+\ -- 9: multi-shot — the same continuation resumed twice, local intact each time
 ex dup  5 swap resume . cr
         6 swap resume . cr
 
-\ -- 8: |> single local, receives from stack at the bar
-: sq2 |> x | x x * ;
-5 sq2 . cr
-
-\ -- 9: |> two locals — slot order matches declaration (a, then b)
-: hyp2 |> a b | a a * b b * + ;
-3 4 hyp2 . cr
-
-\ -- 10: |> three locals — verifies (a b c -- ...) order
-: combo |> a b c | a 100 *  b 10 *  c  + + ;
+\ -- 10: three captures — verifies (a b c -- ...) order
+: combo | a b c | a 100 *  b 10 *  c  + + ;
 1 2 3 combo . cr
 
-\ -- 11: |> inside a recursion (own frame per call)
-: fact2 |> n | n 1 < if 1 else n  n 1 - fact2 * then ;
-6 fact2 . cr
-
-\ -- 12: |> the same, through a receiving quotation that takes it as an argument
-: nest2 |> x | [ 10 20 30 ] x [> element outer | element outer + :] curry map ;
+\ -- 11: [: receives into a quotation's own slots
+: nest2 | x | [ 10 20 30 ] x [: element outer | element outer + :] curry map ;
 100 nest2 . cr
 
-\ -- 13: |> across a shift/resume (frame relocation)
-: worker2 |> x | shifter  x * ;
-: ex2 reset 7 worker2 ;
-ex2 3 swap resume . cr
+\ -- 12: the opening bar is optional when names precede the closing one
+: sq2 x | x x * ;
+5 sq2 . cr
 
-\ -- 14: >] marker on every local — same as |>
-: all-recv | >a >b >c | a 100 *  b 10 *  c + + ;
-1 2 3 all-recv . cr
+\ -- 13: ^ names a global the body assigns; without it the name would be a local
+variable tally
+: bump | amount ^tally | tally amount + to tally ;
+0 to tally  4 bump  5 bump  tally . cr
 
-\ -- 15: mixed — only middle local receives
-: only-mid | x >y z | 7 to x  9 to z  x 1000 *  y 100 *  z 10 * + + ;
-5 only-mid . cr
+\ -- 14: a ? slot is not received — it holds a fresh logic variable per call
+: unify-fresh | ?q n | q n ~ drop  q ? ;
+7 unify-fresh . cr
 
-\ -- 16: mixed — first and last receive, middle local set later
-: first-last | >a b >c | 4 to b  a 1000 *  b 100 *  c 10 * + + ;
-2 8 first-last . cr
-
-\ -- 17: mixed op inlined into caller body
-: inlinee | x >y z | 10 to x  30 to z  x 100 *  y 10 *  z + + ;
+\ -- 15: inlined into the caller's body
+: inlinee | a b | a 100 *  b 10 * + ;
 inline
-: outer-inline  77 inlinee ;
+: outer-inline  7 7 inlinee ;
 outer-inline . cr
 
 clear
 \ === errors: an outer local is not in scope inside a quotation ===
-: read-outer | x | 5 to x [: x + :] map ;        \ (a read of the word's local)
-: write-outer | x | 0 to x [: 1 to x :] 3 times ; \ (a write, caught at `to`)
-: read-outer-quotation |> n | [> a | [: a n + :] map :] map ;  \ (the enclosing quotation's local)
+: read-outer | x | [: x + :] map ;               \ (a read of the word's local)
+: read-outer-quotation | n | [: a | [: a n + :] map :] map ;  \ (the enclosing quotation's local)
 
 clear
-\ === errors: a locals list is declared once, at the head of the body ===
-: two-lists |> items | | total i | 0 to total ;  \ (a second list; the > prefix is the mixed form)
-: mid-body 1 . | x | 5 to x x ;                  \ (a first list, but after code)
+\ === errors: the head is one list, at the head, and never empty ===
+: two-lists | items | | total | 0 to total ;     \ (a second list)
+: mid-body 1 . | x | x ;                         \ (a list, but after code)
+: empty-head | | 1 ;                             \ (nothing to declare)
 
 clear
-\ === errors: a scratch local fetched but stored nowhere holds garbage ===
-\ (grouped at the end; batch keeps running after each aborted definition)
-: read-unassigned | x | x . ;         \ (local 'x' is read but never assigned)
-: shadows-a-word | keys | keys . ;    \ (names a dictionary word — flagged as such)
-: incr-unassigned | x | ++ x ;        \ (++/f++ count as reads, so x is still unstored)
-[: | y | y . :]                       \ (the check fires at :] as well as ;)
-: store-clears-it | x | 5 to x x ;    \ (a store anywhere in the scope makes it legal)
-store-clears-it . cr                  \ 5
+\ === errors: a name must be declared before it is read ===
+: reads-unknown never-stored . ;                 \ (only `to` declares)
+
+clear
+\ === errors: assigning a global needs ^, in either head spelling ===
+: writes-global 1 to tally ;                     \ (no head at all)
+: writes-global-barless n | n to tally ;         \ (barless head)
+: writes-global-barred | n | n to tally ;        \ (leading-bar head)

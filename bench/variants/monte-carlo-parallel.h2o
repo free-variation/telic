@@ -21,7 +21,7 @@ variable t0
   0.0
   [: random random fsq swap fsq f+ 1.0 > 0= if 1.0 f+ then :] chunk times ;
 
-: pmonte
+: pmonte ^chunk ^t0 ^est |
   samples workers / to chunk
   12345 seed
   now to t0

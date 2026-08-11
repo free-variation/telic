@@ -11,8 +11,7 @@
 
 variable c-real  variable c-imag  variable zr  variable zi  variable escaped
 
-: setup
-  | ones-col ones-row cr-row ci-col |
+: setup ^c-real ^c-imag ^zr ^zi ^escaped |
   1.0 n array-of vector to ones-col
   1.0 n array-of 1 n matrix to ones-row
   0.0 n 1.0 f- 1.0 matrix-range 2.0 * n / 1.5 - to cr-row
@@ -21,8 +20,7 @@ variable c-real  variable c-imag  variable zr  variable zi  variable escaped
   1.0 ci-col ones-row 0.0 n n 0-matrix dgemm-nn to c-imag
   n n 0-matrix to zr  n n 0-matrix to zi  n n 0-matrix to escaped ;
 
-: step
-  | zr2 zi2 |
+: step ^zr |
   zr zr * to zr2
   zi zi * to zi2
   escaped  zr2 zi2 + 4.0 >  +! drop

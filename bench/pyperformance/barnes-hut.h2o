@@ -32,18 +32,18 @@ variable particles  variable pfill
 variable tpidx  variable tpx  variable tpy  variable tpmass
 
 : make-node ( bx by bw bh -- node )
-  | >bx >by >bw >bh |
+  | bx by bw bh |
   [ bx by bw bh 0.0  0.0 0.0 0.0  0.0  0.0 0.0 0.0 0.0  null null null null ] ;
 
 : contains? ( node px py -- f )
-  | >node >px >py |
+  | node px py |
   px  node 0 @i node 2 @i f-  < 0=
   px  node 0 @i node 2 @i f+  <        and
   py  node 1 @i node 3 @i f-  < 0=     and
   py  node 1 @i node 3 @i f+  <        and ;
 
 : update-mass ( node pidx -- )
-  | >node >pidx p pmass px py tm tnew |
+  | node pidx |
   particles pidx @i to p
   p 6 @i to pmass  p 0 @i to px  p 1 @i to py
   node 7 @i to tm
@@ -55,7 +55,7 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
   node 7 tnew !i drop ;
 
 : insert ( node pidx -- placed? )
-  | >node >pidx p px py x y w h oldn |
+  | node pidx |
   particles pidx @i to p  p 0 @i to px  p 1 @i to py
   node px py contains? 0= if 0.0 exit then
   node 8 @i 4.0 <  node 4 @i 0= and if
@@ -73,7 +73,7 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
      node 4 1.0 !i drop
      node 8 @i to oldn
      node
-     [: | >k pid |
+     [: k |
         dup 9.0 k f+ @i to pid
         dup 13 @i pid insert drop
         dup 14 @i pid insert drop
@@ -90,7 +90,7 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
   0.0 ;
 
 : calc-force ( node -- fx fy )
-  | >node dx dy dist f fxacc fyacc nodemass |
+  | node |
   node 7 @i to nodemass
   nodemass 0.0 f= if 0.0 0.0 exit then
   node 8 @i 1.0 f=  node 9 @i tpidx f= and if 0.0 0.0 exit then
@@ -111,13 +111,13 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
   fxacc fyacc ;
 
 : add-particle ( px py mass -- )
-  | >px >py >mass |
+  | px py mass ^pfill |
   particles pfill [ px py 0.0 0.0 0.0 0.0 mass ] !i drop
   pfill 1.0 f+ to pfill ;
 
 ( i bulge -- ) \ one bulge particle
 : place-bulge-particle
-  | >i >bulge df r angle x y mass |
+  | i bulge |
   i bulge f/ to df
   radius 5.0 f/ df f* to r
   2.0 PI f* i f* bulge f/ 7.0 f* to angle
@@ -128,11 +128,11 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
 
 ( i arm per-arm -- ) \ one arm particle
 : place-arm-particle
-  | >i >arm >per-arm df dist angle x y mass base |
-  2.0 PI f* arm f* 2.0 f/ to base
+  | i arm per-arm |
+  2.0 PI f* arm f* 2.0 f/ to arm-angle
   i per-arm f/ to df
   radius  0.2 0.8 df f* f+  f* to dist
-  base  spiral dist f* f+  0.2 i 0.1 f* fsin f* f+ to angle
+  arm-angle  spiral dist f* f+  0.2 i 0.1 f* fsin f* f+ to angle
   cx dist angle fcos f* f+ to x
   cy dist angle fsin f* f+ to y
   1.0  9.0 1.0 df f- f*  f+ to mass
@@ -140,12 +140,12 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
 
 ( arm per-arm -- ) \ one spiral arm
 : place-arm
-  |> arm per-arm |
+  | arm per-arm |
   arm per-arm ' place-arm-particle 2 ncurry  per-arm i-times ; internal
 
 ( i remaining -- ) \ one halo particle
 : place-halo-particle
-  | >i >remaining angle dist x y |
+  | i remaining |
   2.0 PI f* i f* remaining f/ to angle
   radius 0.5 f* to dist
   cx dist angle fcos f* f+ to x
@@ -154,7 +154,7 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
 
 ( i -- ) \ give particle i its orbital velocity
 : orbit-particle
-  | >i p dx dy dist perpx perpy orbv |
+  | i |
   particles i @i to p
   p 0 @i cx f- to dx
   p 1 @i cy f- to dy
@@ -167,8 +167,7 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
      p 3  perpy orbv f*  !i drop
   then ; internal
 
-: create-galaxy
-  | bulge arm-particles per-arm remaining |
+: create-galaxy ^particles ^pfill |
   0.0 n array-of to particles
   0.0 to pfill
   n 0.3 f* ftruncate to bulge
@@ -182,7 +181,7 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
 
 ( total j i -- total' ) \ subtract the (i, j) pair potential once per unordered pair
 : add-pair-energy
-  | >total >j >i pi pj dx dy dist |
+  | total j i |
   j i > 0= if total exit then
   particles i @i to pi  particles j @i to pj
   pi 0 @i pj 0 @i f- to dx
@@ -193,12 +192,11 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
 
 ( total i -- total' ) \ particle i's potentials against every later particle
 : add-row-energy
-  |> total i |
-  total  i ' add-pair-energy curry  n i-times ; internal
+  ' add-pair-energy curry  n i-times ; internal
 
 ( total i -- total' ) \ particle i's kinetic energy
 : add-kinetic-energy
-  | >total >i p v2 |
+  | total i |
   particles i @i to p
   p 2 @i p 2 @i f*  p 3 @i p 3 @i f* f+ to v2
   total  0.5 p 6 @i f* v2 f*  f+ ; internal
@@ -209,12 +207,12 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
 
 ( i root -- ) \ insert particle i into the tree
 : insert-particle
-  |> i root |
+  | i root |
   root i insert drop ; internal
 
 ( i root -- ) \ accumulate the force on particle i from the tree
 : force-particle
-  | >i >root p fx fy |
+  | i root  ^tpidx ^tpx ^tpy ^tpmass |
   particles i @i to p
   i to tpidx  p 0 @i to tpx  p 1 @i to tpy  p 6 @i to tpmass
   root calc-force to fy to fx
@@ -223,7 +221,7 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
 
 ( i -- ) \ integrate particle i one time step
 : step-particle
-  | >i p |
+  | i |
   particles i @i to p
   p 2  p 2 @i  p 4 @i time-step f* f+  !i drop
   p 3  p 3 @i  p 5 @i time-step f* f+  !i drop
@@ -232,7 +230,6 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
   p 4 0.0 !i drop  p 5 0.0 !i drop ; internal
 
 : advance-system
-  | root |
   width 2.0 f/  height 2.0 f/  width 2.0 f/  height 2.0 f/  make-node to root
   root ' insert-particle curry  n i-times
   root ' force-particle curry   n i-times
@@ -244,7 +241,6 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
   ' advance-system  iterations i-times ; internal
 
 : barnes-bench
-  | t0 ie fe |
   create-galaxy
   system-energy to ie
   now to t0

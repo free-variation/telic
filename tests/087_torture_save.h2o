@@ -10,7 +10,7 @@ variable g2   7 to g2
 : inc   1 + ;
 inline
 : dbl   dup + ;
-: poly  |> x |  x dbl inc ;
+: poly  | x |  x dbl inc ;
 : sumto dup 0 > if dup 1 - sumto + then ;
 
 \ logic seam: a bound logic var, and a pair sharing a bound var (reify must

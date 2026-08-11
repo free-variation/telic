@@ -3,6 +3,12 @@
 
 static void enter_compile_scope(Interpreter *interp);
 static void leave_compile_scope(Interpreter *interp);
+static void compile_locals_decl(Interpreter *interp);
+static int barless_locals_follow(void);
+static void hoist_assigned_locals(Interpreter *interp);
+static int explicit_head_follows(void);
+static int global_declared(const char *token);
+static int declare_local_in_scope(Interpreter *interp, const char *token);
 static void rewrite_tail_calls(int body_start, int body_end);
 
 void rollback_partial_definition(void) {
@@ -20,6 +26,9 @@ void rollback_partial_definition(void) {
 	compiler.local_names_pool_here = 0;
 	compiler.loop_begin = 0;
 	compiler.leave_chain = 0;
+	compiler.conditional_depth = 0;
+	compiler.n_declared_globals = 0;
+	compiler.declared_globals_pool_here = 0;
 }
 
 static int check_locals_assigned(Interpreter *interp) {
@@ -47,7 +56,7 @@ static int check_locals_assigned(Interpreter *interp) {
 void p_semicolon(DISPATCH_ARGS) {
 	if (compiler.compiling_src_start > 0 && compiler.n_local_scopes > 1) {
 		rollback_partial_definition();
-		fail(interp, "; : unterminated quotation (a [: or [> has no matching :])");
+		fail(interp, "; : unterminated quotation (a [: has no matching :])");
 		return;
 	}
 	if (compiler.loop_begin != 0) {
@@ -129,6 +138,7 @@ void p_if(DISPATCH_ARGS) {
 		emit_call(interp, vocab.zbranch_cfa);
 	push(interp, make_float((double)vocab.here));
 	emit(interp, 0);
+	compiler.conditional_depth++;
 
 	DISPATCH(interp);
 }
@@ -142,6 +152,7 @@ void p_qif(DISPATCH_ARGS) {
 	emit_call(interp, vocab.qzbranch_cfa);
 	push(interp, make_float((double)vocab.here));
 	emit(interp, 0);
+	compiler.conditional_depth++;
 
 	DISPATCH(interp);
 }
@@ -164,6 +175,8 @@ void p_then(DISPATCH_ARGS) {
 		return;
 	vocab.dict[slot] = (vocab.here - slot);
 	compiler.fuse_floor = vocab.here;
+	if (compiler.conditional_depth > 0)
+		compiler.conditional_depth--;
 
 	DISPATCH(interp);
 }
@@ -306,6 +319,13 @@ static void open_quotation(Interpreter *interp) {
 
 void p_qcolon(DISPATCH_ARGS) {
 	open_quotation(interp);
+	if (barless_locals_follow()) {
+		compile_locals_decl(interp);
+		if (interp->error_flag)
+			DISPATCH(interp);
+	}
+	if (!explicit_head_follows())
+		hoist_assigned_locals(interp);
 
 	DISPATCH(interp);
 }
@@ -433,6 +453,10 @@ static void enter_compile_scope(Interpreter *interp) {
 
 	compiler.local_scope_starts[compiler.n_local_scopes] = compiler.n_local_names;
 	compiler.local_scope_dict_starts[compiler.n_local_scopes] = vocab.here;
+	compiler.local_scope_entry_cells[compiler.n_local_scopes] = -1;
+	compiler.local_scope_global_starts[compiler.n_local_scopes] = compiler.n_declared_globals;
+	compiler.local_scope_saved_conditionals[compiler.n_local_scopes] = compiler.conditional_depth;
+	compiler.conditional_depth = 0;
 	compiler.n_local_scopes++;
 }
 
@@ -441,10 +465,18 @@ static void leave_compile_scope(Interpreter *interp) {
 		return;
 
 	compiler.n_local_scopes--;
+	compiler.conditional_depth = compiler.local_scope_saved_conditionals[compiler.n_local_scopes];
+	compiler.n_declared_globals = compiler.local_scope_global_starts[compiler.n_local_scopes];
+	compiler.declared_globals_pool_here = compiler.n_declared_globals > 0
+		? compiler.declared_global_offsets[compiler.n_declared_globals - 1]
+			+ (int)strlen(&compiler.declared_globals_pool[compiler.declared_global_offsets[compiler.n_declared_globals - 1]]) + 1
+		: 0;
 	int saved_n_names = compiler.local_scope_starts[compiler.n_local_scopes];
 	int n_locals_in_scope = compiler.n_local_names - saved_n_names;
 
-	if (n_locals_in_scope > 0) {
+	int entry_cell = compiler.local_scope_entry_cells[compiler.n_local_scopes];
+	if (entry_cell >= 0) {
+		vocab.dict[entry_cell + 1] = (cell)n_locals_in_scope;
 		emit_call(interp, vocab.leave_locals_cfa);
 		emit(interp, (cell)n_locals_in_scope);
 	}
@@ -457,6 +489,145 @@ static void leave_compile_scope(Interpreter *interp) {
 			(int)strlen(&compiler.local_names_pool[last_offset]) + 1;
 	}
 	compiler.n_local_names = saved_n_names;
+}
+
+static int barless_locals_follow(void) {
+	int saved_position = compiler.input_buffer_pos;
+	int saved_line = compiler.input_line;
+	int found = 0;
+	int names = 0;
+
+	while (1) {
+		skip_whitespace_and_comments();
+		char *token = next_token();
+		if (!token) {
+			if (refill_input())
+				continue;
+			break;
+		}
+		if (strcmp(token, "|") == 0) {
+			found = names > 0;
+			break;
+		}
+		if (strcmp(token, ";") == 0 || strcmp(token, ":]") == 0
+				|| strcmp(token, "[:") == 0)
+			break;
+
+		double ignored;
+		if (token[0] == '"' || parse_float(token, &ignored))
+			break;
+
+		names++;
+	}
+
+	compiler.input_buffer_pos = saved_position;
+	compiler.input_line = saved_line;
+	return found;
+}
+
+static int explicit_head_follows(void) {
+	int saved_position = compiler.input_buffer_pos;
+	int saved_line = compiler.input_line;
+
+	skip_whitespace_and_comments();
+	char *token = next_token();
+	int explicit_head = token && strcmp(token, "|") == 0;
+
+	compiler.input_buffer_pos = saved_position;
+	compiler.input_line = saved_line;
+	return explicit_head;
+}
+
+static const char *in_place_update_word(const char *token) {
+	if (strcmp(token, "++") == 0)
+		return "++";
+	if (strcmp(token, "--") == 0)
+		return "--";
+	if (strcmp(token, "f++") == 0)
+		return "f++";
+	if (strcmp(token, "f--") == 0)
+		return "f--";
+	return NULL;
+}
+
+static void hoist_assigned_locals(Interpreter *interp) {
+	int saved_position = compiler.input_buffer_pos;
+	int saved_line = compiler.input_line;
+	int scope_idx = compiler.n_local_scopes - 1;
+	int scope_start = compiler.local_scope_starts[scope_idx];
+	int depth = 0;
+
+	for (;;) {
+		skip_whitespace_and_comments();
+		if (compiler.input_buffer_pos >= compiler.input_buffer_len)
+			break;
+		if (compiler.input_buffer[compiler.input_buffer_pos] == '"') {
+			if (read_string_literal() < 0)
+				break;
+			continue;
+		}
+
+		char *token = next_token();
+		if (!token)
+			break;
+
+		if (strcmp(token, "[:") == 0) {
+			depth++;
+			continue;
+		}
+		if (strcmp(token, ":]") == 0) {
+			if (depth == 0)
+				break;
+			depth--;
+			continue;
+		}
+		if (strcmp(token, ";") == 0 && depth == 0)
+			break;
+		if (depth != 0)
+			continue;
+
+		int declares_local = strcmp(token, "to") == 0;
+		const char *assigning_word = declares_local ? "to" : in_place_update_word(token);
+		if (!assigning_word)
+			continue;
+
+		skip_whitespace_and_comments();
+		char *name = next_token();
+		if (!name)
+			break;
+		if (global_declared(name))
+			continue;
+
+		int existing_cfa = find(name);
+		if (existing_cfa && (cfa_handler)vocab.dict[existing_cfa] == dovar) {
+			compiler.input_buffer_pos = saved_position;
+			compiler.input_line = saved_line;
+			fail(interp, "%s: %s is a global; declare it in the locals list as ^%s to assign it here, or rename the local", assigning_word, name, name);
+			return;
+		}
+
+		if (!declares_local)
+			continue;
+
+		int already = 0;
+		for (int i = scope_start; i < compiler.n_local_names; i++)
+			if (strcmp(name, &compiler.local_names_pool[compiler.local_name_offsets[i]]) == 0)
+				already = 1;
+		if (already)
+			continue;
+
+		if (declare_local_in_scope(interp, name) < 0)
+			break;
+	}
+
+	compiler.input_buffer_pos = saved_position;
+	compiler.input_line = saved_line;
+
+	if (compiler.n_local_names > scope_start && compiler.local_scope_entry_cells[scope_idx] < 0) {
+		compiler.local_scope_entry_cells[scope_idx] = vocab.here;
+		emit_call(interp, vocab.enter_locals_cfa);
+		emit(interp, 0);
+	}
 }
 
 void p_colon(DISPATCH_ARGS) {
@@ -478,6 +649,14 @@ void p_colon(DISPATCH_ARGS) {
 	compiler.leave_chain = 0;
 
 	compiler.compiling_src_start = compiler.input_buffer_pos;
+
+	if (barless_locals_follow()) {
+		compile_locals_decl(interp);
+		if (interp->error_flag)
+			DISPATCH(interp);
+	}
+	if (!explicit_head_follows())
+		hoist_assigned_locals(interp);
 
 	DISPATCH(interp);
 }
@@ -761,9 +940,40 @@ static void rewrite_tail_calls(int body_start, int body_end) {
 }
 			
 
-static void compile_locals_decl(Interpreter *interp, const char *opener, int force_all_receive) {
+static int global_declared(const char *token) {
+	for (int i = 0; i < compiler.n_declared_globals; i++)
+		if (strcmp(token, &compiler.declared_globals_pool[compiler.declared_global_offsets[i]]) == 0)
+			return 1;
+
+	return 0;
+}
+
+static int declare_global_in_scope(Interpreter *interp, const char *token) {
+	int target_cfa = find(token);
+	if (!target_cfa || (cfa_handler)vocab.dict[target_cfa] != dovar) {
+		fail(interp, "|: ^%s names no global variable", token);
+		return 0;
+	}
+
+	int name_len = (int)strlen(token);
+	if (compiler.declared_globals_pool_here + name_len + 1 > LOCAL_NAMES_POOL_SIZE
+			|| compiler.n_declared_globals >= MAX_LOCAL_NAMES) {
+		fail(interp, "|: too many declared globals");
+		return 0;
+	}
+
+	int offset = compiler.declared_globals_pool_here;
+	memcpy(&compiler.declared_globals_pool[offset], token, (size_t)name_len);
+	compiler.declared_globals_pool[offset + name_len] = 0;
+	compiler.declared_globals_pool_here += name_len + 1;
+	compiler.declared_global_offsets[compiler.n_declared_globals++] = offset;
+
+	return 1;
+}
+
+static void compile_locals_decl(Interpreter *interp) {
 	if (!compiler.compiling || compiler.n_local_scopes <= 0) {
-		fail(interp, "%s: only valid inside a colon definition or quotation", opener);
+		fail(interp, "|: only valid inside a colon definition or quotation");
 		return;
 	}
 
@@ -771,9 +981,9 @@ static void compile_locals_decl(Interpreter *interp, const char *opener, int for
 	int scope_dict_start = compiler.local_scope_dict_starts[scope_idx];
 	if (vocab.here != scope_dict_start) {
 		if (compiler.n_local_names > compiler.local_scope_starts[scope_idx])
-			fail(interp, "%s: locals are declared in one list; mark individual receive slots with a > prefix (| >a b c |)", opener);
+			fail(interp, "|: locals are declared in one list; `to` declares the rest");
 		else
-			fail(interp, "%s: locals must be declared at the head of the body", opener);
+			fail(interp, "|: locals must be declared at the head of the body");
 		return;
 	}
 
@@ -782,6 +992,7 @@ static void compile_locals_decl(Interpreter *interp, const char *opener, int for
 	int n_received = 0;
 	int lvar_slots[MAX_LOCAL_NAMES];
 	int n_lvars = 0;
+	int n_globals = 0;
 
 	while (1) {
 		skip_whitespace_and_comments();
@@ -789,41 +1000,40 @@ static void compile_locals_decl(Interpreter *interp, const char *opener, int for
 		if (!token) {
 			if (refill_input())
 				continue;
-			fail(interp, "%s: unterminated locals declaration (no closing |)", opener);
+			fail(interp, "|: unterminated locals declaration (no closing |)");
 			return;
 		}
 		if (strcmp(token, "|") == 0)
 			break;
 
-		int has_receive_marker = 0;
-		if (token[0] == '>' && token[1] != 0) {
-			has_receive_marker = 1;
-			token++;
+		if (token[0] == '^' && token[1] != 0) {
+			if (!declare_global_in_scope(interp, token + 1))
+				return;
+			n_globals++;
+			continue;
 		}
+
 		int has_lvar_marker = 0;
 		if (token[0] == '?' && token[1] != 0) {
 			has_lvar_marker = 1;
 			token++;
 		}
-		if (has_lvar_marker && (has_receive_marker || (token[0] == '>' && token[1] != 0))) {
-			fail(interp, "%s: '?' cannot combine with '>' (a received slot is not a fresh logic var)", opener);
-			return;
-		}
+		int has_receive_marker = !has_lvar_marker;
 
 		for (int i = scope_start; i < compiler.n_local_names; i++) {
 			if (strcmp(token, &compiler.local_names_pool[compiler.local_name_offsets[i]]) == 0) {
-				fail(interp, "%s: local '%s' declared twice", opener, token);
+				fail(interp, "|: local '%s' declared twice", token);
 				return;
 			}
 		}
 
 		int name_len = (int)strlen(token);
 		if (compiler.local_names_pool_here + name_len + 1 > LOCAL_NAMES_POOL_SIZE) {
-			fail(interp, "%s: local names pool full", opener);
+			fail(interp, "|: local names pool full");
 			return;
 		}
 		if (compiler.n_local_names >= MAX_LOCAL_NAMES) {
-			fail(interp, "%s: too many local names (max %d)", opener, MAX_LOCAL_NAMES);
+			fail(interp, "|: too many local names (max %d)", MAX_LOCAL_NAMES);
 			return;
 		}
 
@@ -844,15 +1054,9 @@ static void compile_locals_decl(Interpreter *interp, const char *opener, int for
 	}
 
 	int n_declared = compiler.n_local_names - scope_start;
-	if (n_declared == 0)
-		return;
-
-	if (force_all_receive && n_received > 0) {
-		fail(interp, "%s: do not use > markers; %s already implies all-receive", opener, opener);
-		return;
-	}
-	if (force_all_receive && n_lvars > 0) {
-		fail(interp, "%s: no '?' markers; %s receives every slot, so none can hold a fresh logic var", opener, opener);
+	if (n_declared == 0) {
+		if (n_globals == 0)
+			fail(interp, "|: empty locals list; omit it");
 		return;
 	}
 
@@ -860,12 +1064,12 @@ static void compile_locals_decl(Interpreter *interp, const char *opener, int for
 		compiler.local_stored[scope_start + receive_slots[i]] = 1;
 	for (int i = 0; i < n_lvars; i++)
 		compiler.local_stored[scope_start + lvar_slots[i]] = 1;
-	if (force_all_receive)
-		for (int slot = 0; slot < n_declared; slot++)
-			compiler.local_stored[scope_start + slot] = 1;
 
-	if (force_all_receive || n_received == n_declared) {
+	compiler.local_scope_entry_cells[scope_idx] = vocab.here;
+
+	if (n_received == n_declared) {
 		emit_call(interp, vocab.enter_locals_to_cfa);
+		emit(interp, (cell)n_declared);
 		emit(interp, (cell)n_declared);
 	} else if (n_received == 0) {
 		emit_call(interp, vocab.enter_locals_cfa);
@@ -889,20 +1093,9 @@ static void compile_locals_decl(Interpreter *interp, const char *opener, int for
 }
 
 void p_bar(DISPATCH_ARGS) {
-	compile_locals_decl(interp, "|", 0);
-
-	DISPATCH(interp);
-}
-
-void p_bar_to(DISPATCH_ARGS) {
-	compile_locals_decl(interp, "|>", 1);
-
-	DISPATCH(interp);
-}
-
-void p_bracket_bar_to(DISPATCH_ARGS) {
-	open_quotation(interp);
-	compile_locals_decl(interp, "[>", 1);
+	compile_locals_decl(interp);
+	if (!interp->error_flag)
+		hoist_assigned_locals(interp);
 
 	DISPATCH(interp);
 }
@@ -924,6 +1117,47 @@ int reject_outer_local(Interpreter *interp, const char *token) {
 	return 1;
 }
 
+static void emit_local_store(Interpreter *interp, int local_depth, int local_slot_idx) {
+	if (try_fuse_local_acc(interp, local_depth, local_slot_idx))
+		return;
+	if (try_fuse_local_arith_store(interp, local_depth, local_slot_idx))
+		return;
+	if (try_fuse_stack_local_store(interp, local_depth, local_slot_idx))
+		return;
+
+	if (local_depth == 0) {
+		emit_call(interp, vocab.local_store_0depth_cfa);
+		emit(interp, (cell)local_slot_idx);
+	} else {
+		emit_call(interp, vocab.local_store_cfa);
+		emit(interp, (cell)local_depth);
+		emit(interp, (cell)local_slot_idx);
+	}
+}
+
+static int declare_local_in_scope(Interpreter *interp, const char *token) {
+	int name_len = (int)strlen(token);
+
+	if (compiler.local_names_pool_here + name_len + 1 > LOCAL_NAMES_POOL_SIZE) {
+		fail(interp, "to: local names pool full");
+		return -1;
+	}
+	if (compiler.n_local_names >= MAX_LOCAL_NAMES) {
+		fail(interp, "to: too many local names (max %d)", MAX_LOCAL_NAMES);
+		return -1;
+	}
+
+	int offset = compiler.local_names_pool_here;
+	memcpy(&compiler.local_names_pool[offset], token, (size_t)name_len);
+	compiler.local_names_pool[offset + name_len] = 0;
+	compiler.local_names_pool_here += name_len + 1;
+	compiler.local_fetched[compiler.n_local_names] = 0;
+	compiler.local_stored[compiler.n_local_names] = 1;
+	compiler.local_name_offsets[compiler.n_local_names++] = offset;
+
+	return compiler.n_local_names - 1 - compiler.local_scope_starts[compiler.n_local_scopes - 1];
+}
+
 void p_to(DISPATCH_ARGS) {
 	char *token = next_token();
 	if (!token) {
@@ -937,20 +1171,7 @@ void p_to(DISPATCH_ARGS) {
 			if (reject_outer_local(interp, token))
 				return;
 			compiler.local_stored[compiler.found_local_name_idx] = 1;
-			if (try_fuse_local_acc(interp, local_depth, local_slot_idx))
-				return;
-			if (try_fuse_local_arith_store(interp, local_depth, local_slot_idx))
-				return;
-			if (try_fuse_stack_local_store(interp, local_depth, local_slot_idx))
-				return;
-			if (local_depth == 0) {
-				emit_call(interp, vocab.local_store_0depth_cfa);
-				emit(interp, (cell)local_slot_idx);
-			} else {
-				emit_call(interp, vocab.local_store_cfa);
-				emit(interp, (cell)local_depth);
-				emit(interp, (cell)local_slot_idx);
-			}
+			emit_local_store(interp, local_depth, local_slot_idx);
 			return;
 		}
 	}
@@ -958,8 +1179,25 @@ void p_to(DISPATCH_ARGS) {
 	int target_cfa = find(token);
 	if (!target_cfa) {
 		if (compiler.compiling) {
-			fail(interp, "to: unknown variable: %s; declare it with variable", token);
-		return;
+			int scope_idx = compiler.n_local_scopes - 1;
+
+			if (compiler.local_scope_entry_cells[scope_idx] < 0) {
+				if (compiler.conditional_depth > 0 || compiler.loop_begin != 0) {
+					fail(interp, "to: %s is this body's first local and sits inside a branch; assign it before the branch", token);
+					return;
+				}
+
+				compiler.local_scope_entry_cells[scope_idx] = vocab.here;
+				emit_call(interp, vocab.enter_locals_cfa);
+				emit(interp, 0);
+			}
+
+			int declared_slot = declare_local_in_scope(interp, token);
+			if (declared_slot < 0)
+				return;
+
+			emit_local_store(interp, 0, declared_slot);
+			return;
 		}
 		target_cfa = create_variable(interp, token);
 	}

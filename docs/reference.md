@@ -36,7 +36,7 @@ insignificant). `make test` extracts and verifies every pair, and
 
 Tokens are whitespace-delimited, with self-delimiting punctuation: `;`, `]`,
 and `}` always end a token and `[` and `{` always start one (the two-char
-openers `[:` `[(` `[>` `[<` and closers `:]` `)]` `>]` stay whole), so
+openers `[:` `[(` `[<` and closers `:]` `)]` `>]` stay whole), so
 `[1 2 3]`, `{:a 1}`, and `dup *;` parse without inner spaces. A path literal's
 predicate brackets (`/a[x>3]`) are kept whole by bracket balance. `<` `>` `<=`
 `>=` are ordinary comparison words; set literals `[< … >]` still need spaces
@@ -1482,10 +1482,8 @@ closers are self-delimiting tokens (see the note in the introduction).
 | `>]` | — | Close a set literal |
 | `[(` | — | Open a cons-list literal; `)]` closes it |
 | `)]` | — | Close a cons-list literal |
-| `:]` | — | Close a quotation (either `[:` / `[>` form; `[:` itself is under Defining) |
-| `[>` | — | Open a quotation whose locals list receives every slot from the stack |
-| `\|` | — | Declare word-locals at a definition's head: `\| x y \|` |
-| `\|>` | — | Locals list in which every slot receives from the stack |
+| `:]` | — | Close a quotation (`[:` itself is under Defining) |
+| `\|` | — | Close a body's locals head, and open it when no name precedes: `\| x y \|` and `x y \|` both receive x and y (see Locals) |
 
 ```forth [
 [ 1 2 3 ] . cr
@@ -1550,27 +1548,15 @@ closers are self-delimiting tokens (see the note in the introduction).
 10
 ```
 
-```forth [>
-3 4 [> a b | a b - :] execute . cr
-```
-```output
--1
-```
-
 ```forth |
-: hyp | a b | to b to a a a * b b * + sqrt ; 3 4 hyp . cr
-: discounted | >price rate | 0.2 to rate price price rate * - ; 100 discounted . cr
+: hyp | a b | a a * b b * + sqrt ; 3 4 hyp . cr
+: discounted | price | 0.2 to rate price price rate * - ; 100 discounted . cr
+: staged 10 to start-value  start-value 3 * to scaled  start-value scaled + ; staged . cr
 ```
 ```output
 5
 80
-```
-
-```forth |>
-: diff |> a b | a b - ; 10 3 diff . cr
-```
-```output
-7
+40
 ```
 
 ## Defining and compiling words
@@ -1584,7 +1570,7 @@ These parse following tokens and/or compile code. Costs are dominated by compila
 | `recurse` | — | Compile a call to the innermost definition being compiled — the enclosing quotation, else the enclosing colon word — so an anonymous quotation can self-call. An ordinary recursive call (grows the return stack); compile error outside a definition |
 | `variable` | — | Read the following name; declare a global variable initialized to `0.0` |
 | `constant` | `( val -- )` | Pop a value and read the following name; define an inline word that pushes it as a literal, so call sites fold to the literal with no run-time fetch. Fixed at definition — `to` cannot reassign it |
-| `to` | `( val -- )` | Assign to the named local (in a definition) or global. At interpreted top level — the REPL, a program file, a `load`ed file — it auto-creates an absent global. In a compiled body, a colon definition or a quotation alike, the global must already exist: `to: unknown variable: <name>; declare it with variable`. The name must also be free: `to` refuses to shadow an existing word, `to: <name> is already a word, not a variable` — `to m` fails because `m` is the metre unit. May trigger superword store-fusion while compiling. |
+| `to` | `( val -- )` | Assign to the named local (in a definition) or global. At interpreted top level — the REPL, a program file, a `load`ed file — it auto-creates an absent global. In a compiled body, a colon definition or a quotation alike, a free name declares a local in that body's frame and stores into it (see Locals), so the head names only what the body receives and a body needs no head at all. Assigning an existing global from inside a body needs `^name` in the head; without it `to` reports that the name is a global. An existing word that is not a variable is never a target, at top level or in a body — `to m` fails because `m` is the metre unit. May trigger superword store-fusion while compiling. |
 | `symbol` | — | Read the following name; declare a word that pushes a specific interned symbol |
 | `defer` | `( "name" -- )` | Read the following name; declare a forward-referenced word with no target. Calling it before a target is installed throws `unresolved deferred word`. Enables mutual recursion and late binding; set the target with `embodies` or `embodies!` |
 | `embodies` | `( xt "name" -- )` | Pop an xt (a colon word or quotation) and read the following name; install it as the named deferred word's target. Retargetable — each later call re-reads it — so a call to the deferred word forwards through one dispatch. Top-level only |
@@ -1775,50 +1761,56 @@ lookup sqrt 9 swap execute . cr
 
 ### Locals
 
-Declared only at the **head** of a definition or quotation body, and in a **single list**: a receive list followed by a scratch list — `|> items | | total i |` — is a compile error, `locals are declared in one list; mark individual receive slots with a > prefix (| >a b c |)`. A body mixing received and uninitialized slots writes one list with `>` on the names that receive, as the mixed row below shows. Live on the return stack: up to 128 names across up to 64 nested scopes. A body reads the locals **it declares itself** and nothing else: a reference to a name declared in an enclosing definition or an enclosing quotation is a compile error — `x is not bound in this quotation; pass it in or use pick` — and the partial definition rolls back. Values reach a quotation three ways: received into its own slots (`[>` receive-all, `[: | >x |` selective), parked on the stack below the combinator's operands and read by depth with `pick`, or bound into a curried token by `curry`/`2curry`/`ncurry`.
+The **head** of a definition or quotation body names what that body receives from the stack, rightmost from the top: `| a b c |` takes c from the top, then b, then a. The opening bar is optional, so `: hypotenuse a b | …` and `[: element index | … :]` are the same heads as `| a b |` and `| element index |`. There is one head and it stands at the head: a second list, or a list after code, is a compile error, and an empty `| |` is one too — a body that receives nothing omits the head entirely.
+
+Everything else the body needs is declared where it is first assigned. A `to` on a name that is neither already a local of this body nor an existing word declares a local and stores into it. The compiler collects those names before compiling the body, so a name declared by a `to` anywhere in the body is a local of the whole body — a name means one thing throughout, whichever branch or loop assigns it, and the head list carries only what arrives on the stack. A *read* of a name nothing declares is still an unknown word.
+
+A name in the head that would otherwise resolve outward carries a marker. `^name` names an enclosing **global** the body assigns rather than a local shadowing it: without it, `to name`, `++ name`, `-- name`, `f++ name` and `f-- name` on an existing global are a compile error naming the marker to add. `?name` is a slot holding a fresh logic variable per call, received from nothing. An unmarked name is a capture.
+
+Locals live on the return stack: up to 128 names across up to 64 nested scopes. A body reads the locals **it declares itself** and nothing else: a reference to a name declared in an enclosing definition or an enclosing quotation is a compile error — `x is not bound in this quotation; pass it in or use pick` — and the partial definition rolls back. Values reach a quotation three ways: received into its own head, parked on the stack below the combinator's operands and read by depth with `pick`, or bound into a curried token by `curry`/`2curry`/`ncurry`.
 
 The mechanism: a local reference compiles to the **slot index** in the frame that declares it, always the innermost locals-bearing scope, and the op reads `local_base + slot` with no frame walk. Names are discarded after compilation and no value is bound then. Because every reference is depth 0, a quotation's meaning does not depend on which frames happen to be live when it runs — it reads the same slots under `map`, under `i-times`, through `execute`, inside another word's frame, or after a continuation capture and resume. The rejected alternative was resolving a reference as `(frames-up, slot)` against the live frame chain, which made a quotation's reads depend on its caller's frames and silently returned another word's slots when it travelled.
 
 | Syntax | Behavior |
 |--------|----------|
-| `\| x y z \|` | Declare x, y, z, **uninitialized** (slots keep stale return-stack contents — deliberately no per-call zeroing; assign with `to` before reading — at `;`/`:]` the compiler rejects a slot fetched but stored nowhere, naming a shadowed word when one exists); read by bare name |
-| `\|> x y z \|` | Declare and receive from the stack: z ← top, y ← second, x ← third |
-| `\| x >y z \|` | Mixed: a `>` prefix marks an individual name as a receive slot; the rest are uninitialized |
-| `\| ?x \|` | A `?` prefix marks a slot initialized with a fresh logic variable per call; read by bare name. Cannot combine with `>`, and not allowed in the all-receive `\|>` / `[>` forms |
-| `[> x y z \| … :]` | Lambda sugar for the receive-all case: `[>` fuses `[:` and `\|>`, so x, y, z are received from the stack |
+| `\| x y z \|` | Receive x, y, z from the stack: z ← top, y ← second, x ← third; read by bare name |
+| `x y z \| … ;` | The opening bar is optional: names before the closing bar, at the head of the body, are the same head |
+| `\| ^g \|` | `g` is the enclosing global, which the body may assign with `to`, `++`, `--`, `f++` or `f--`; without the marker those report that `g` is a global |
+| `\| ?x \|` | A slot holding a fresh logic variable per call, received from nothing; read by bare name |
+| `[: x y \| … :]` | A quotation head, the same in every respect: x and y are received from the stack |
 
 These compile-time words read a following local name and emit a single fused depth-0 instruction:
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `++` | `( -- )` | Increment the named local or global variable by 1 in place; only inside a colon definition; errors on an unknown or non-variable name | 1 | none | O(1) |
-| `--` | `( -- )` | Decrement the named local or global variable by 1 in place; only inside a colon definition; errors on an unknown or non-variable name | 1 | none | O(1) |
-| `f++` | `( -- )` ⚠ | Unsafe float increment: raw `.number` mutation, no tag check, for a local known to hold a float | 1 | none | O(1) |
-| `f--` | `( -- )` ⚠ | Unsafe float decrement: raw `.number` mutation, no tag check | 1 | none | O(1) |
+| `++` | `( -- )` | Increment the named local or global variable by 1 in place; only inside a colon definition; a global target is declared `^name` in the head; errors on an unknown or non-variable name | 1 | none | O(1) |
+| `--` | `( -- )` | Decrement the named local or global variable by 1 in place; only inside a colon definition; a global target is declared `^name` in the head; errors on an unknown or non-variable name | 1 | none | O(1) |
+| `f++` | `( -- )` ⚠ | Unsafe float increment: raw `.number` mutation, no tag check, for a local known to hold a float; a global target is declared `^name` in the head | 1 | none | O(1) |
+| `f--` | `( -- )` ⚠ | Unsafe float decrement: raw `.number` mutation, no tag check; a global target is declared `^name` in the head | 1 | none | O(1) |
 
 ```forth ++
-: count-up | n | 0 to n ++ n ++ n n ; count-up . cr
+: count-up 0 to n ++ n ++ n n ; count-up . cr
 ```
 ```output
 2
 ```
 
 ```forth --
-: count-down | n | 5 to n -- n n ; count-down . cr
+: count-down 5 to n -- n n ; count-down . cr
 ```
 ```output
 4
 ```
 
 ```forth f++
-: fast-up | x | 1.5 to x f++ x x ; fast-up . cr
+: fast-up 1.5 to x f++ x x ; fast-up . cr
 ```
 ```output
 2.5
 ```
 
 ```forth f--
-: fast-down | x | 1.5 to x f-- x x ; fast-down . cr
+: fast-down 1.5 to x f-- x x ; fast-down . cr
 ```
 ```output
 0.5
@@ -2140,7 +2132,7 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `[< v… >]` | `( -- set )` | Set literal; `[<` pushes a mark, `>]` gathers everything above it in one sort-and-dedup pass, like `set` | n log n | `1o` + realloc | O(n log n) |
+| `[< v… ]` | `( -- set )` | Set literal; `[<` pushes a mark, `>]` gathers everything above it in one sort-and-dedup pass, like `set` | n log n | `1o` + realloc | O(n log n) |
 | `set` | `( v₀ … vₙ₋₁ n -- set )` | Gather the top n values into a new set (the set analog of `array`) | 2 + n log n | `1o` + reallocs | O(n log n) |
 | `union` | `( set₁ set₂ -- set₃ )` | Union into a new set, merging the two sorted arrays | m+n | `1o` + reallocs | O(m+n) |
 | `intersection` | `( set₁ set₂ -- set₃ )` | Intersection into a new set, merging the two sorted arrays | m+n | `1o` + reallocs | O(m+n) |
@@ -2539,14 +2531,14 @@ Symbol-keyed sorted maps; binary-search lookup. A **path** is an array of steps;
 ```
 
 ```forth name@key
-: price-of |> row | row@price ; { :price 9 } price-of . cr
+: price-of row | row@price ; { :price 9 } price-of . cr
 ```
 ```output
 9
 ```
 
 ```forth name!key
-: mark-sold |> row | 0 row!price row ; { :price 9 } mark-sold frame>array . cr
+: mark-sold row | 0 row!price row ; { :price 9 } mark-sold frame>array . cr
 ```
 ```output
 [ :price 0 ]
@@ -3047,9 +3039,9 @@ keep NaN in place.
 | `augment` | `( a b -- mat )` | Concatenate two matrices column-wise; errors unless row counts match | 2 + r·c | `1m(r×c)` | O(r·c) |
 | `vstack` | `( a b -- mat )` | Stack two matrices row-wise (a on top of b); errors unless column counts match | 2 + r·c | `1m(r×c)` | O(r·c) |
 | `hstack` | `( a b -- mat )` | matrix.h2o: `augment` under its numpy name (inlined) | 2 + r·c | `1m(r×c)` | O(r·c) |
-| `submatrix` | `( mat rs re cs ce -- mat )` | Copy the half-open block rows [rs,re) × cols [cs,ce); errors out of bounds or start > end | 5 + r·c | `1m(r×c)` | O(r·c) |
+| `submatrix` | `( mat rs re cs ce -- mat )` | Copy the half-open block rows [rs,re) × cols [cs,ce); errors out of bounds or start  end | 5 + r·c | `1m(r×c)` | O(r·c) |
 | `select-rows` | `( mat/dataset/arr idx -- same )` | New matrix of the rows named by `idx` — a float index array or an index vector (nx1 or 1xn, as `where`/`argsort` return); a dimensioned matrix keeps its unit; errors on a non-float or out-of-range index. datasets.h2o extends it to a dataset (every column gathered by the same indices — matrix and dimensioned columns through the matrix path, array columns element-wise) and to a bare array (elements gathered by index) | 2 + k·c | `1m(k×c)`; dataset one column each; array `1a(k)` | O(k·c) |
-| `mesh` | `( v mask b -- v' )` | Masked substitution: element i of the result is `b`'s where `mask[i]` is a definite nonzero, `v`'s where it is 0 **or NaN** (an unknown mask cell changes nothing). `v` is a matrix, dimensioned matrix, or array; the mask a bare matrix of `v`'s shape (element count, for an array). `b` is shape-matched same-representation, or broadcasts: a float, `null` (→ NaN), a quantity, or — for an array subject — any single value. Units reconcile as `+`: `b` rescales into `v`'s unit, which the result keeps; a quantity against a bare number errors. Conditional-mutate idioms: `dup nan? 0 mesh` fills NaNs, `dup -1 eq null mesh` turns a sentinel into NaN, `dup 100 > 100 mesh` caps | 3 + n | `1m(r×c)` / `1a(n)` | O(n) |
+| `mesh` | `( v mask b -- v' )` | Masked substitution: element i of the result is `b`'s where `mask[i]` is a definite nonzero, `v`'s where it is 0 **or NaN** (an unknown mask cell changes nothing). `v` is a matrix, dimensioned matrix, or array; the mask a bare matrix of `v`'s shape (element count, for an array). `b` is shape-matched same-representation, or broadcasts: a float, `null` (→ NaN), a quantity, or — for an array subject — any single value. Units reconcile as `+`: `b` rescales into `v`'s unit, which the result keeps; a quantity against a bare number errors. Conditional-mutate idioms: `dup nan? 0 mesh` fills NaNs, `dup -1 eq null mesh` turns a sentinel into NaN, `dup 100  100 mesh` caps | 3 + n | `1m(r×c)` / `1a(n)` | O(n) |
 | `argsort` | `( v -- v' )` or `( arr -- arr )` | The sorting permutation of a vector, shape preserved: element i is the source index of the i-th smallest value; ties keep index order, NaNs go last in index order. An array operand answers the permutation under `val_cmp` (structural, so mixed types order), ties in index order, as a float-index array | 1 + n log n | `1m(n)` + `malloc(16n)`; array `1a(n)` + `malloc(4n)` | O(n log n); vectors above 8k elements O(n) radix |
 | `ranks` | `( v -- v' )` | statistics.h2o: 0-based midranks as nx1 — tied values share the mean of their sorted positions, NaNs rank last in index order; one `argsort`, a gather, and a linear run walk | n log n + 2n | `3m(n)` + `malloc(16n)` | O(n log n) |
 | `where` | `( mat -- v )` | Flat row-major indices of the nonzero elements, as a k×1 index vector (1×k for a 1×n mask); composes with the `<`/`>` masks and `select-rows` | 1 + n | `1m(k)` | O(n) |
@@ -4265,9 +4257,9 @@ A producer drops nothing after `yield`. The word does not consume the value it e
 
 ```forth yield
 : nums 1 yield 2 yield ; ' nums 2 gen-take . cr
-: countdown-gen | n | 3 to n begin n 0 > while n yield n 1- to n repeat ;
+: countdown-gen 3 to n begin n 0 > while n yield n 1- to n repeat ;
 ' countdown-gen 3 gen-take . cr
-: naturals | n | 0 to n begin n yield n 1+ to n again ;
+: naturals 0 to n begin n yield n 1+ to n again ;
 ' naturals 4 gen-take . cr
 ```
 ```output

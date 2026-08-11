@@ -18,7 +18,7 @@ wall-now epoch>date :year @ 2025 > . cr                 \ 1
 2147483648 s epoch>date :year @ . cr                     \ 2038 (past 32-bit time_t)
 
 \ weekday cycles 4 5 6 0 1 2 3 over the epoch week
-[> i | i day epoch>date :weekday @ . :] 7 i-times cr
+[: i | i day epoch>date :weekday @ . :] 7 i-times cr
 
 \ === date>epoch: composition and defaults ==================================
 { :year 1970 } date>epoch . cr                           \ 0 s
@@ -67,7 +67,7 @@ epoch>date :second @ . cr                                \ 56.5
 { :year 2024 :month 2 :day 29 } date>epoch epoch>date :day @ . cr        \ 29
 
 \ all twelve months of 2026
-[> m | 2026 m 1 + days-in-month . :] 12 i-times cr
+[: m | 2026 m 1 + days-in-month . :] 12 i-times cr
 
 \ === format-time / parse-time ==============================================
 0 s time>iso . cr                                        \ 1970-01-01T00:00:00Z

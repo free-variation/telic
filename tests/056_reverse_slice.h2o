@@ -1,7 +1,7 @@
 \ In-place reversal through the general strided slice!: source and target the
 \ same array, step -1, ends aligned ( arr offset n -- arr ).
 
-: rev! | >arr >off >n |
+: rev! | arr off n |
   arr off  arr off n f+ f1-  -1 n slice! ;
 
 variable nums

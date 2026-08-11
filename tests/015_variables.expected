@@ -26,4 +26,6 @@ name  type    value
   :value :blue
   :type :symbol
 }
+error: ++: counter is a global; declare it in the locals list as ^counter to assign it here, or rename the local
+in :
 6 7 6 

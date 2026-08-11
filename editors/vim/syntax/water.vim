@@ -23,7 +23,6 @@ syn match   waterFrameKey "[@!]\@<=\k\+"
 syn keyword waterDefine : variable constant symbol to forget inline internal ' lookup
 syn match   waterDefine ";"
 syn match   waterDefine "\[:"
-syn match   waterDefine "\[>"
 syn match   waterDefine ":\]"
 syn match   waterDefName "\%(^\|\s\):\s\+\zs\k\+"
 
@@ -40,7 +39,7 @@ syn match   waterDelimiter "\[("
 syn match   waterDelimiter ")\]"
 syn match   waterDelimiter "\[<"
 syn match   waterDelimiter ">\]"
-syn match   waterDelimiter "\%(^\|\s\)\zs|>\=\ze\%(\s\|$\)"
+syn match   waterDelimiter "\%(^\|\s\)\zs|\ze\%(\s\|$\)"
 
 syn keyword waterBuiltin +! -! *! /! ++ -- f++ f-- f1+ f1- f+ f-
 syn keyword waterBuiltin f* f/ f^ 1+ 1- 0= + - * / % ^

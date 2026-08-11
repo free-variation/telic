@@ -11,7 +11,7 @@
 \ relationship -> integer labels 0..K-1 by sorted-distinct position
 adult :relationship @ column>array to rel
 rel array>set [: :] map to classes
-rel [> cell | classes cell eq where 0 @e :] map vector to y
+rel [: cell | classes cell eq where 0 @e :] map vector to y
 classes size to K
 
 \ design: numeric columns + income (already 0/1) + one-hot sex + intercept
@@ -27,7 +27,7 @@ X y 0 200 1e-6 1.0 fit-multinomial-ridge to beta
 beta X 0 predict-multinomial to probs
 
 \ mean probability the model assigns to each row's true class
-K iota [> k | probs k @j  y k eq  * :] map 0 [: + :] reduce mean to mean-true-prob
+K iota [: k | probs k @j  y k eq  * :] map 0 [: + :] reduce mean to mean-true-prob
 
 \ === checks (stable: counts and thresholds, not the raw fitted floats) ===
 "6 relationship levels detected"    [: K 6 expect= :] test

@@ -1,7 +1,7 @@
 #ifndef WATER_H
 #define WATER_H
 
-#define VERSION "0.26.0"
+#define VERSION "0.27.0"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,7 +49,7 @@ typedef int64_t cell;
 #define SLOTS_PER_CLAIM (1 << 10)
 #define HEAP_GC_FLOOR ((size_t)1 << 28)
 #define MAX_GC_ROOTS (1 << 6)
-#define COPY_SPINE_MAX (1 << 24)
+#define LIST_SPINE_MAX (1 << 24)
 #define PAIR_TABLE_DEPTH (1 << 20)
 #define MAX_WORKER_THREADS (1 << 6)
 #define REGION_CLAIMS_PER_WORKER (1 << 6)
@@ -58,6 +58,7 @@ typedef int64_t cell;
 #define LVAR_STACK_DEPTH (1 << 16)
 #define PROMPT_EXCEPTION 0
 #define PROMPT_CHOICE 1
+#define PROMPT_KIND_MASK 3
 #define REGEX_CACHE_SIZE (1 << 10)
 #define JSON_MAX_DEPTH (1 << 10)
 #define SELECT_MAX_DEPTH JSON_MAX_DEPTH
@@ -567,6 +568,7 @@ typedef struct {
 	int interactive;
 	int definition_redefined;
 	int compiling_src_start;
+	int compiling_src_line;
 
 	int fuse_prev_var, fuse_prev2_var;
 	int fuse_prev_cmp;
@@ -586,6 +588,18 @@ typedef struct {
 	int n_local_names;
 	int local_scope_starts[MAX_LOCAL_SCOPES];
 	int local_scope_dict_starts[MAX_LOCAL_SCOPES];
+	int local_scope_entry_cells[MAX_LOCAL_SCOPES];
+	char declared_globals_pool[LOCAL_NAMES_POOL_SIZE];
+	int declared_global_offsets[MAX_LOCAL_NAMES];
+	int declared_globals_pool_here;
+	int n_declared_globals;
+	int local_scope_global_starts[MAX_LOCAL_SCOPES];
+	int local_scope_saved_conditionals[MAX_LOCAL_SCOPES];
+	int conditional_depth;
+	char pending_locals_pool[LOCAL_NAMES_POOL_SIZE];
+	int pending_local_offsets[MAX_LOCAL_NAMES];
+	int pending_locals_pool_here;
+	int n_pending_locals;
 	int n_local_scopes;
 	void *handler_registry[MAX_HANDLERS];
 	int n_handlers;
@@ -1287,9 +1301,7 @@ void p_zeq_zbranch(DISPATCH_ARGS);
 
 void p_again(DISPATCH_ARGS);
 void p_bar(DISPATCH_ARGS);
-void p_bar_to(DISPATCH_ARGS);
 void p_begin(DISPATCH_ARGS);
-void p_bracket_bar_to(DISPATCH_ARGS);
 void p_colon(DISPATCH_ARGS);
 void p_constant(DISPATCH_ARGS);
 void p_continue(DISPATCH_ARGS);

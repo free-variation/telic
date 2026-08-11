@@ -67,7 +67,7 @@ inline
 
 ( year month -- days )
 : days-in-month
-	| >y >m |
+	| y m |
 	{ :year y :month m 1 + } date>epoch
 	{ :year y :month m } date>epoch
 	-  1 day / ;
@@ -76,7 +76,7 @@ inline
 \ calendar with the day clamped to the target month; :weeks :days :hours
 \ :minutes :seconds add exactly
 : date-shift
-	| date months year month day-of-month >instant >delta |
+	| instant delta |
 	delta :years 0 @or 12 *
 	delta :months 0 @or + to months
 	months 0 = not if

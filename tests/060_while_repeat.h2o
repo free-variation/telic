@@ -6,7 +6,7 @@
 count5 cr
 
 \ sum 1..10 = 55
-: sum10 | i s | 0 to s 1 to i begin i 11 < while i s + to s i 1+ to i repeat s ;
+: sum10 0 to total 1 to i begin i 11 < while i total + to total i 1+ to i repeat total ;
 sum10 . cr
 
 \ body skipped when the condition is false on entry

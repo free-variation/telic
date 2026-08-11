@@ -24,16 +24,16 @@ cr \ @e / !e: flat row-major element read and store; !i,j: the (row,column) stor
 2 2 0-matrix 0 1 7 !i,j 1 0 8 !i,j . cr     \ (row, column) stores chain
 
 \ === fused stores: compiled words pin the rewritten shapes and their behavior ===
-: element-into | >target >position >element | target position element !e drop ;
+: element-into | target position element | target position element !e drop ;
 ' element-into see-compiled
 [ 0 0 0 ] vector to fused-target
 fused-target 1 42 element-into  fused-target . cr    \ 42 at index 1 via (!e.lll0)
 
-: double-into | >target >position | target position  position 2 *  !e drop ;
+: double-into | target position | target position  position 2 *  !e drop ;
 ' double-into see-compiled
 fused-target 2 double-into  fused-target . cr        \ 4 at index 2 via (!e-drop)
 
-: corner-nine | >target | target 0 1 9 !i,j drop ;
+: corner-nine | target | target 0 1 9 !i,j drop ;
 ' corner-nine see-compiled
 2 2 0-matrix to fused-block
 fused-block corner-nine  fused-block . cr            \ 9 at (0,1) via (!i,j-drop)

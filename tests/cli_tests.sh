@@ -81,7 +81,8 @@ has   "load echoes the file's own defs"  ''  "new word: zzz-mine"  0 -i "$lf"
 hasnt "load hides nested-load defs"      ''  "new word: figure"    0 -i "$lf"
 rm -f "$lf"
 # ++ / -- increment a local or global variable in place; unknown/non-variable/top-level errors
-has   "++ increments a global"          'variable c 5 to c : b ++ c ; b b c . cr'  "7"  0 -b
+has   "++ increments a global"          'variable c 5 to c : b ^c | ++ c ; b b c . cr'  "7"  0 -b
+has   "++ needs ^ for a global"         'variable c : b ++ c ;'  "c is a global; declare it in the locals list as ^c"  0 -b
 has   "++ rejects an unknown name"      ': u ++ nope ;'  "unknown variable: nope"  0 -b
 has   "++ rejects a non-variable"       ': v ++ dup ;'   "dup is not a variable"   0 -b
 has   "++ needs a colon definition"     '++ c'           "only valid inside a colon definition"  0 -b

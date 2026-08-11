@@ -16,17 +16,17 @@ variable check
 \ a long-running program reclaims; the per-round gc keeps RSS flat. pmap-reduce
 \ returns a scalar, so the rewind alone bounds it, but it gcs too for uniformity.
 
-: stress-pmap
+: stress-pmap ^t0 |
   now to t0
   [: domain workers claim [: "{0}" format size :] pmap-ext drop gc :] rounds times
   now t0 - "pmap         {0}s" format . cr ;
 
-: stress-pfilter
+: stress-pfilter ^t0 |
   now to t0
   [: domain workers claim [: "{0}" format size 3 > :] pfilter-ext drop gc :] rounds times
   now t0 - "pfilter      {0}s" format . cr ;
 
-: stress-pmap-reduce
+: stress-pmap-reduce ^t0 ^check |
   now to t0
   [: domain workers claim 0.0 [: "{0}" format size :] [: + :] pmap-reduce-ext to check gc :] rounds times
   now t0 - "pmap-reduce  {0}s" format . cr

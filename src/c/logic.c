@@ -76,12 +76,25 @@ static int unify_depth(Interpreter *interp, Val left_val, Val right_val, int dep
 	}
 
 	if (VAL_TAG(left_val) == T_PAIR && VAL_TAG(right_val) == T_PAIR) {
-		Pair *left = &pairs.table[VAL_DATA(left_val)];
-		Pair *right = &pairs.table[VAL_DATA(right_val)];
+		int spine_len = 0;
 
-		if (!unify_depth(interp, left->head, right->head, depth + 1))
-			return 0;
-		MUSTTAIL return unify_depth(interp, left->tail, right->tail, depth + 1);
+		while (VAL_TAG(left_val) == T_PAIR && VAL_TAG(right_val) == T_PAIR) {
+			if (spine_len++ > LIST_SPINE_MAX) {
+				fail(interp, "list too long or cyclic");
+				return 0;
+			}
+
+			int left_slot = (int)VAL_DATA(left_val);
+			int right_slot = (int)VAL_DATA(right_val);
+
+			if (!unify_depth(interp, pairs.table[left_slot].head, pairs.table[right_slot].head, depth + 1))
+				return 0;
+
+			left_val = deref(interp, pairs.table[left_slot].tail);
+			right_val = deref(interp, pairs.table[right_slot].tail);
+		}
+
+		MUSTTAIL return unify_depth(interp, left_val, right_val, depth);
 	}
 
 	if (VAL_TAG(left_val) == T_FRAME && VAL_TAG(right_val) == T_FRAME) {

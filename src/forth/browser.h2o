@@ -2,7 +2,6 @@
 
 ( -- path|none ) \ WATER_BROWSER if it resolves to a runnable browser, else none
 : env-browser
-	| browser resolved |
 	"WATER_BROWSER" env to browser
 	browser none? if
 		null exit
@@ -31,7 +30,7 @@
 ( -- [paths] ) \ Chromium-family app binaries on macOS, preference order
 : mac-browsers
 	[ "Vivaldi" "Opera" "Brave Browser" "Google Chrome" "Chromium" "Microsoft Edge" ]
-	[> n | "/Applications/" n + ".app/Contents/MacOS/" + n + :] map ; internal
+	[: n | "/Applications/" n + ".app/Contents/MacOS/" + n + :] map ; internal
 
 ( -- [names] ) \ Chromium-family executables on Linux, preference order
 : linux-browsers
@@ -55,7 +54,7 @@
 ( path -- ) \ open path in a frameless --app window when a browser is found, else the
 \ platform default handler (a normal tab); a relative path resolves against cwd
 : open-app-window
-	| >path browser url |
+	| path |
 	find-browser to browser
 	browser none? if
 		[ "open" path ] run-result :status @ 0 = not if

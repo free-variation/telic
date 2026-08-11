@@ -10,7 +10,7 @@
 
 \ === regression: recover y = 2*x1 - 1 on a tiny exact-fit dataset ===
 "xgb regression recovers the exact-fit predictions" [:
-	| features booster preds |
+
 	[ 1 2  2 3  3 4  4 5 ] 4 2 matrix to features
 	features  [ 3 5 7 9 ] 4 1 matrix
 	{ :objective "reg:squarederror" :rounds 40 :max_depth 3 :eta 0.3
@@ -24,7 +24,7 @@
 \ y = 2*x0 + x1, x2 constant. The integer ranking and the exactly-0 unused feature
 \ are version-stable; the gain magnitudes are not, so they are not asserted.
 "xgb importance ranks features; the unused feature scores 0" [:
-	| features booster gain |
+
 	[ 0 0 0  0 1 0  1 0 0  1 1 0  2 0 0  2 1 0 ] 6 3 matrix to features
 	features  [ 0 1 2 3 4 5 ] 6 1 matrix
 	{ :objective "reg:squarederror" :rounds 40 :max_depth 3 :eta 0.3

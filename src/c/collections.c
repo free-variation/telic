@@ -313,7 +313,7 @@ void p_cons_to_array(DISPATCH_ARGS) {
 	int count = 1;
 	Val cur = deref(interp, list_val);
 	while (VAL_TAG(cur) == T_PAIR) {
-		if (count > COPY_SPINE_MAX) {
+		if (count > LIST_SPINE_MAX) {
 			fail(interp, "list too long or cyclic");
 			return;
 		}

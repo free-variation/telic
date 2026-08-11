@@ -20,11 +20,11 @@ variable pi-est
 variable x
 variable t0
 
-: leibniz
+: leibniz ^pi-est ^x ^t0 |
   1.0 to pi-est
   1.0 to x
   now to t0
-  [: ( idx -- )
+  [: ( idx -- ) ^x ^pi-est |
      x fnegate to x
      2.0 3.0 f*+        \ idx*2 + 3 = divisor
      x 1 pick f/        \ X / divisor; `1 pick f/` fuses to one op, where `swap f/`

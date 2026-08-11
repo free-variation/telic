@@ -4,16 +4,16 @@
 \ quotation), for f+ f- f* f/. Values must match the unfused sequence.
 
 \ depth 0
-: a0 | s | 0 to s 1 s f+ to s 2 s f+ to s 3 s f+ to s s ;
+: a0 0 to acc 1 acc f+ to acc 2 acc f+ to acc 3 acc f+ to acc acc ;
 a0 . cr                       \ 0->1->3->6
 
-: m0 | s | 1 to s 2 s f* to s 3 s f* to s 4 s f* to s s ;
+: m0 1 to acc 2 acc f* to acc 3 acc f* to acc 4 acc f* to acc acc ;
 m0 . cr                       \ 1->2->6->24
 
-: s0 | s | 2 to s 5 s f- to s 10 s f- to s s ;
+: s0 2 to acc 5 acc f- to acc 10 acc f- to acc acc ;
 s0 . cr                       \ value - acc: 2->3->7
 
-: d0 | s | 2 to s 12 s f/ to s 18 s f/ to s s ;
+: d0 2 to acc 12 acc f/ to acc 18 acc f/ to acc acc ;
 d0 . cr                       \ value / acc: 2->6->3
 
 \ an enclosing scope's accumulator is out of reach from a quotation, so the fold
@@ -21,9 +21,8 @@ d0 . cr                       \ value / acc: 2->6->3
 : q1  5 iota 0 ' + reduce ;
 q1 . cr                       \ sum 0..4 = 10
 
-: q2  4 iota 1 [> product i | i 1+ product * :] reduce ;
+: q2  4 iota 1 [: product i | i 1+ product * :] reduce ;
 q2 . cr                       \ 1*2*3*4 = 24
 
 clear
 \ === errors ===
-: q-outer | s | 0 to s [: |> i | i s f+ to s :] 5 i-times s ;  \ (accumulator in the enclosing frame)

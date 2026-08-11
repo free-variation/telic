@@ -17,9 +17,9 @@
 
 \ === each ==================================================================
 0 to total
-[ 1 2 3 4 ] [: total + to total :] each
+[ 1 2 3 4 ] [: ^total | total + to total :] each
 total . cr                                       \ 10
-[ ] [: total + to total :] each
+[ ] [: ^total | total + to total :] each
 total . cr                                       \ 10  (no elements, no calls)
 
 \ === flat-map ==============================================================
@@ -47,6 +47,6 @@ total . cr                                       \ 10  (no elements, no calls)
 \ (the direct-dispatch loop path: exit stops at the run floor, no frame)
 [ 1 2 3 ] [: dup 2 = if drop 99 exit then 1+ :] map . cr   \ [ 2 99 4 ]
 [: 7 :] 2 times . . cr                                     \ 7 7
-[ 1 2 3 ] [: | x | to x x 2 = if 0 exit then x :] map . cr   \ [ 1 0 3 ] scratch frame
+[ 1 2 3 ] [: to x x 2 = if 0 exit then x :] map . cr   \ [ 1 0 3 ] scratch frame
 
 bye

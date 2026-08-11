@@ -33,27 +33,27 @@ variable rng-seed
 
 ( running i probs out -- running' ) \ out[i] = running + probs[i]
 : accumulate-into
-  |> running i probs out |
+  | running i probs out |
   running  probs i @i  +
   dup  out i rot  !i drop ; internal
 
 \ running cumulative sum of probabilities (matches CPython make_cumulative)
 : cumulative ( probs -- cumulative )
-  | >probs n out acc |
-  probs size to n
-  0.0 n array-of to out
+  | probs |
+  probs size to n-probs
+  0.0 n-probs array-of to out
   0.0 to acc
-  0  probs out ' accumulate-into 2 ncurry  n i-times  drop
+  0  probs out ' accumulate-into 2 ncurry  n-probs i-times  drop
   out ;
 
 \ advance the LCG, return seed / 139968 in [0, 1)
-: next-u ( -- u )
+: next-u ( -- u ) ^rng-seed |
   rng-seed 3877.0 *  29573.0 +  139968.0 mod  dup to rng-seed
   139968.0 / ;
 
 \ first index whose cumulative probability exceeds u (bisect_right)
 : bisect ( u cum -- i )
-  |> u cum |
+  | u cum |
   0
   begin
     dup cum swap @i  u >  0=
@@ -63,39 +63,39 @@ variable rng-seed
 
 \ one random character
 : draw ( cum chars -- char )
-  |> cum chars |
+  | cum chars |
   next-u cum bisect
   chars swap @i ;
 
 ( i out cum chars -- ) \ out[i] = one random character
 : draw-into
-  |> i out cum chars |
+  | i out cum chars |
   out i  cum chars draw  !i drop ; internal
 
 \ n random characters as one string, in draw order
 : random-content ( cum chars n -- string )
-  | >cum >chars >n out |
+  | cum chars n |
   "" n array-of to out
   out cum chars ' draw-into 3 ncurry  n i-times
   out "" join ;
 
 \ src tiled/truncated to exactly len characters
 : tile ( src len -- string )
-  |> src len |
+  | src len |
   src
   begin dup size len < while dup + repeat
   0 len substring ;
 
 ( i out s width slen -- ) \ out[i] = the i-th width-wide line of s, newline-terminated
 : wrap-line
-  |> i out s width slen |
+  | i out s width slen |
   out i
     s  i width *  dup width +  dup slen > if drop slen then  substring  nl +
   !i drop ; internal
 
 \ break s into width-wide lines, each ending in a newline
 : wrap ( s width -- wrapped )
-  | >s >width slen lines out i |
+  | s width |
   s size to slen
   slen width +  1-  width quotient  to lines
   "" lines array-of to out
@@ -107,8 +107,7 @@ variable rng-seed
 
 \ assemble the FASTA: headers + three wrapped blocks. The IUB block draws
 \ before the Homo block, so the shared rng-seed threads correctly.
-: build-fasta ( -- seq )
-  | seq |
+: build-fasta ( -- seq ) ^iub-cum ^homo-cum ^rng-seed |
   iub-base  cumulative to iub-cum
   homo-base cumulative to homo-cum
   42.0 to rng-seed
@@ -127,8 +126,7 @@ variable rng-seed
 
 \ the timed phase — strip, 9 counts, 11 substitutions; results discarded
 : work ( seq -- )
-  | >seq stripped |
-  seq  ">.*\n|\n"  "" replace  to stripped
+  ">.*\n|\n"  "" replace  to stripped
   stripped "agggtaaa|tttaccct"          count-matches drop
   stripped "[cgt]gggtaaa|tttaccc[acg]"  count-matches drop
   stripped "a[act]ggtaaa|tttacc[agt]t"  count-matches drop
@@ -154,7 +152,7 @@ variable rng-seed
 
 \ same phase, printing one verification line: result: ilen clen <9 counts> flen
 : report ( seq -- )
-  | >seq stripped |
+  | seq |
   "result:" .
   seq size .
   seq  ">.*\n|\n"  "" replace  to stripped
@@ -185,7 +183,7 @@ variable rng-seed
 
 \ one timed run of the phase, in seconds
 : timed ( seq -- seconds )
-  | >seq t0 |
+  | seq |
   now to t0
   seq work
   now t0 - ;

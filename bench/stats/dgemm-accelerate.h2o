@@ -6,11 +6,11 @@
 42 seed
 
 ( n -- m ) \ n x n uniform random matrix
-: rand-matrix | >n | n n * iota [: drop random :] map n n matrix ;
+: rand-matrix | n | n n * iota [: drop random :] map n n matrix ;
 
 ( n -- seconds )
 : bench-builtin
-	| >n a b elapsed |
+	| n |
 	n rand-matrix to a
 	n rand-matrix to b
 	now
@@ -19,7 +19,7 @@
 	elapsed ;
 
 ( n-rows n-cols -- m ) \ exact small-integer matrix, for bit-exact comparison
-: int-matrix | >n-rows >n-cols | n-rows n-cols * iota [: 97 mod 3 - :] map n-rows n-cols matrix ;
+: int-matrix | n-rows n-cols | n-rows n-cols * iota [: 97 mod 3 - :] map n-rows n-cols matrix ;
 
 4 3 int-matrix to check-a
 3 5 int-matrix to check-b
@@ -30,7 +30,7 @@
 
 ( n -- seconds )
 : bench-accel
-	| >n a b elapsed |
+	| n |
 	n rand-matrix to a
 	n rand-matrix to b
 	now
@@ -42,6 +42,6 @@
 2 check-a check-b 3 check-c dgemm-nn builtin-product = . cr
 
 "n seconds-builtin seconds-accel" . cr
-[ 256 1024 4096 ] [: |> n |
+[ 256 1024 4096 ] [: | n |
 	n . n bench-builtin . n bench-accel . cr
 :] each

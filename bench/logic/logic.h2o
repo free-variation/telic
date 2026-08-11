@@ -8,8 +8,8 @@
 \ therefore measures unify + bind + deref + undo, not term construction.
 
 \ --- builders: a depth-d spine, var per level vs. ground per level ---------
-: nest-vars    | >d |  d 0= if lvar  else lvar  d 1- nest-vars  2 array then ;
-: nest-ground  | >d |  d 0= if 0     else d     d 1- nest-ground 2 array then ;
+: nest-vars    | d |  d 0= if lvar  else lvar  d 1- nest-vars  2 array then ;
+: nest-ground  | d |  d 0= if 0     else d     d 1- nest-ground 2 array then ;
 
 variable dv  variable dg          \ deep spine: depth 250 -> 251 logic vars
 250 nest-vars to dv
@@ -43,7 +43,7 @@ now t0 - "elapsed: {0} s" format . cr
 
 \ --- 4. long amb search: explore a 2^27 tree of failing leaves ------------
 : leaf  fail ;
-: tree  | >d |  d 0= if leaf exit then  d 1-  [: dup tree :] [: dup tree :] amb  drop ;
+: tree  | d |  d 0= if leaf exit then  d 1-  [: dup tree :] [: dup tree :] amb  drop ;
 now [: [: 27 tree :] [: :] amb :] 1 times
 now swap - "amb-tree     (2^27 leaves):       {0} s" format . cr
 

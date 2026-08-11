@@ -17,8 +17,8 @@ clear
 clear
 
 \ === a curried quotation survives another word's locals frame ===
-: mapper-word |> items quotation | items quotation map ; internal
-[ 4 9 16 ] ' sqrt [> element xt | element xt execute :] curry mapper-word .a cr  \ [ 2 3 4 ]
+: mapper-word | items quotation | items quotation map ; internal
+[ 4 9 16 ] ' sqrt [: element xt | element xt execute :] curry mapper-word .a cr  \ [ 2 3 4 ]
 
 clear
 
@@ -36,7 +36,7 @@ clear
 10 3 ' - 2curry execute . cr          \ 7   (order preserved: 10 3 -, not 3 10 -)
 10 3 ' - curry curry execute . cr     \ 7   (same result as chained curry)
 
-: weighted-sum |> a b | a 2 * b 3 * + ; internal
+: weighted-sum | a b | a 2 * b 3 * + ; internal
 4 5 ' weighted-sum 2curry execute . cr        \ 23  (both reach the target: 4*2 + 5*3)
 
 clear

@@ -144,50 +144,29 @@ or inferred from whether interning happens during compilation.
 
 ## FastCGI service
 
-Run Water as a long-lived FastCGI application behind a standard web
-server (nginx, Caddy, lighttpd, Apache). The web server owns everything HTTP —
-TLS termination, HTTP/1.1–3, request parsing, static files, timeouts, rate
-limiting, access logs, load balancing — and forwards each request over a Unix or
-TCP socket as FastCGI records. Water never sees a raw HTTP byte: it decodes
-the records, runs a handler, writes the response.
+Run Water as a long-lived FastCGI application behind a web server, decoding
+records off a Unix or TCP socket, running a handler, writing the response.
 
-Depends on symbol collection: a long-lived worker parsing request JSON mints
-symbols from unbounded request keys, so without collection the worker leaks
-until restart. Untrusted request bodies also make fuzzing `json>frame` (and
-`load-image`, if images are ever sent) a prerequisite — mutate a seed corpus
-into the ASan build and fix the crashes it triggers.
-
-**Instrumentation needed** — less than an in-process server, since the web server
-keeps the HTTP work:
+Blocked on symbol collection: a long-lived worker mints symbols from unbounded
+request keys. Fuzz `json>frame` and `load-image` against a mutated seed corpus in
+the ASan build before accepting untrusted bodies.
 
 - `accept ( listen-stream -- conn-stream )` — accept a forwarded connection as a
-  `T_STREAM`. By convention the web server passes the listen socket on fd 0
+  `T_STREAM`; small C. The listen socket arrives on fd 0
   (`FCGI_LISTENSOCK_FILENO`), so `bind`/`listen` may be unnecessary.
-- `read-n ( stream n -- s )` — read exactly `n` bytes. A slurp-to-EOF read never
-  terminates on a persistent FastCGI connection; records are length-framed, so a
-  bounded read is required. `read-line` arrives first with the MCP stdio server
-  (RELEASE-PLAN.md, MCP stdio server); `read-n` shares its buffered-stream plumbing.
-- A FastCGI record codec — decode `BEGIN_REQUEST` / `PARAMS` (the CGI environment
-  → a request frame) / `STDIN` (body → a string), and encode `STDOUT` +
-  `END_REQUEST`. The framing is simple: embedded forth over `read-n`/`write` plus byte
-  arithmetic, with maybe a tiny C helper for the 2/4-byte length fields.
-
-**Serve loop.** A plain sequential `accept → decode → handle → respond` loop in
-library forth, each handler wrapped in `try-catch` so a bad request can't kill the
-worker; per-request allocations are reclaimed by GC. No threads.
-
-**Worker processes.** Run N worker processes all accepting on the same socket
-(the kernel load-balances) under a process manager (e.g. systemd template units)
-that respawns on crash. One request per worker isolates failures; the web server
-retries elsewhere.
-
-**SQLite.** Each worker opens its own connection; enable WAL once
-(`PRAGMA journal_mode=WAL`) plus a `busy_timeout`, so concurrent reads across
-workers don't block and writes serialize safely (single host).
-
-**Cost:** `accept` + `read-n` are small C; the FastCGI codec is library forth (plus an
-optional tiny C codec for the integer fields); the serve loop and response
-builders are library forth.
+- `read-n ( stream n -- s )` — read exactly `n` bytes; small C, over the
+  buffered-stream plumbing `read-line` introduces (RELEASE-PLAN.md, MCP stdio
+  server). Records are length-framed, so a slurp-to-EOF read never terminates.
+- FastCGI record codec — decode `BEGIN_REQUEST` / `PARAMS` (CGI environment → a
+  request frame) / `STDIN` (body → a string); encode `STDOUT` + `END_REQUEST`.
+  Library forth over `read-n`/`write`, with an optional C helper for the 2- and
+  4-byte length fields.
+- Serve loop — sequential `accept → decode → handle → respond` in library forth,
+  each handler in `try-catch`.
+- Worker processes — N workers accepting on the same socket under a process
+  manager that respawns on crash.
+- SQLite — one connection per worker, `PRAGMA journal_mode=WAL` and a
+  `busy_timeout`.
 
 ---
 
@@ -211,51 +190,17 @@ dedicated `read` ( s -- v ) word is wanted.
 
 ---
 
-## Guaranteed cleanup across every exit
+## Handle release on collection
 
-**`dynamic-wind ( before body after -- )`** runs `before`, then `body`, then
-`after`, where `after` runs on every exit from `body` and `before` re-runs on
-every re-entry. No `catch`-style wrapper gives this: a `fail` unwinds to the
-nearest choice prompt, past `catch`'s exception prompt, and a region re-entered
-by `resume` needs its setup run per entry, not once. Without it a `db`/stream/FFI
-handle — a registry slot with no GC finalization — leaks when a backtrack or a
-resumed continuation unwinds past its close.
+`T_DB`, `T_STREAM` and `T_PTR` are tagged immediates with no `ObjectKind`, so a
+dropped handle holds its slot and its OS resource until the process exits.
 
-Semantics:
-
-- `after` runs on normal return, `throw`, an interpreter error caught by `catch`,
-  a `fail` backtrack, and a `shift` capture; when nested regions unwind together,
-  the innermost `after` runs first.
-- `before` runs on the initial call and on every `resume` re-entry, outermost
-  first. `resume` may run the pair repeatedly (multi-shot); that is intended.
-- `before` and `after` run on the region's live data stack.
-- On an unwind, `after` runs with locals and the trail already rewound to just
-  outside its region.
-
-Mechanism — a wind mark. `dynamic-wind` runs `before`, then pushes three
-return-stack cells (the `after` xt, the `before` xt, and a mark of a new wind
-kind — the mark's kind field widens from one bit to two), and increments a
-`wind_depth` counter. On a normal `body` return it runs `after`, pops the three
-cells, and decrements the counter. Abnormal exits are handled where the unwind
-happens:
-
-- `unwind_to` (used by `throw`, `fail`, `shift-with`, and the `catch` path) today
-  truncates the return stack to the target prompt in one assignment. When
-  `wind_depth` is zero it still does exactly that. When it is nonzero it walks
-  from `rsp` down to the target and, at each wind mark, rewinds locals and the
-  trail to that level and runs its `after`. Running `after` re-enters the
-  interpreter, so `unwinding` and `unwind_target` are saved and restored around
-  each call.
-- `shift` truncates directly rather than through `unwind_to`; it walks the slice
-  it is about to capture and runs each `after`, innermost first. The wind marks
-  stay in the captured slice, so both xts travel with the continuation.
-- `resume`, after splicing the captured slice back, walks it and runs each
-  `before`, outermost first, before jumping to the resume point.
-
-Performance: the per-instruction path — dispatch, calls, `exit`, `tailcall` — is
-untouched. The one unconditional addition is the `if (wind_depth == 0)` test in
-`unwind_to`; with no wind region on the stack, `throw`/`fail`/`shift` keep their
-current one-assignment cost. The frame walk runs only while a region is live.
+- Mark registry slots from those three tags in the mark phase; close each open
+  slot the sweep leaves unmarked.
+- Record interpreter-opened descriptors at creation, so the stream sweep skips
+  `stdin`/`stdout`/`stderr` and descriptors it did not open.
+- Fix `ensure`: a throw crossing an outer `catch` leaves its cleanup xt on the
+  data stack.
 
 ---
 
@@ -417,6 +362,9 @@ live here instead. File and function name each invariant's home.
 - `call_open_callable` roots the token for the whole combinator call: the
   invocation slice holds only its handle, which GC does not scan (core.c,
   `call_open_callable`).
+- Unify walks a cons spine in a loop bounded by `LIST_SPINE_MAX`; only head
+  recursion carries the nesting counter, so list length is not capped by
+  `MAX_NESTING_DEPTH` (logic.c, `unify_depth`).
 - A local reference resolves only in the innermost locals-bearing scope:
   name resolution rejects an outer reference before emitting, so no op
   receives a frame depth above 0 (compiler.c, `reject_outer_local`).

@@ -16,7 +16,7 @@ variable pi-est
 variable t0
 
 : partial ( j -- partialsum )
-  | >j acc sign k0 step |
+  | j |
   0.0 to acc
   1.0 to sign
   j chunk-size f* to k0
@@ -31,7 +31,7 @@ variable t0
   repeat
   acc ;
 
-: pleibniz
+: pleibniz ^t0 ^pi-est |
   now to t0
   0 chunks 1- range
   chunks 1 ' partial pmap-ext

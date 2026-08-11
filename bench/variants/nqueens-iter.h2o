@@ -7,21 +7,21 @@ variable board
 variable cycles
 
 : bswap ( a b -- )
-  |> a b |
+  | a b |
   board a @i
   board a  board b @i  !i drop
   board b  rot         !i drop ;
 
 : valid?
-  [< [> i | board i @i i + :] queens i-times >] size queens =
-  [< [> i | board i @i i - :] queens i-times >] size queens =
+  [< [: i | board i @i i + :] queens i-times >] size queens =
+  [< [: i | board i @i i - :] queens i-times >] size queens =
   * ;
 
-: check-perm
+: check-perm ^solutions |
   valid? if f++ solutions then ;
 
 : rotate-left ( i -- )
-  | >i tmp j |
+  | i |
   i queens 1 - = if
     \ single-element rotate is a no-op
   else
@@ -35,14 +35,13 @@ variable cycles
     board queens 1 -  tmp  !i drop
   then ;
 
-: init-arrays
+: init-arrays ^board ^cycles |
   0 queens array-of to board
-  [> k | board k k !i drop :] queens i-times
+  [: k | board k k !i drop :] queens i-times
   0 queens array-of to cycles
-  [> k | cycles k  queens k -  !i drop :] queens i-times ;
+  [: k | cycles k  queens k -  !i drop :] queens i-times ;
 
 : permute-all
-  | i j yielded done inner-done |
   init-arrays
   check-perm
   0 to done
@@ -70,8 +69,7 @@ variable cycles
     done
   until ;
 
-: nqueens-run
-  | t0 |
+: nqueens-run ^solutions |
   0 to solutions
   now to t0
   permute-all

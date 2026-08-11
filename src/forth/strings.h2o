@@ -18,10 +18,10 @@
 
 ( s width -- s' )  \ s left-padded with spaces to width
 : pad-left
-	|> text width |
+	| text width |
 	[ width text size - 0 max2 spaces text ] "" join ;
 
 ( s width -- s' )  \ s right-padded with spaces to width
 : pad-right
-	|> text width |
+	| text width |
 	[ text width text size - 0 max2 spaces ] "" join ;

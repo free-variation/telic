@@ -2,5 +2,14 @@
 9 
 [ 1 2 3 ] 
 5 
-error: to: unknown variable: undeclared; declare it with variable
-in to
+42 
+5 
+1 
+1 
+21 
+10 
+1 
+7 
+4 
+10 
+error: unknown word: never-set

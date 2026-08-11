@@ -2,19 +2,19 @@
 
 ( rows header? -- keys start) \ keys from row 0, or synthesized :col1 ..; start = first data-row index
 : tsv-keys
-	| >rows >header? keys |
+	| rows header? |
 
 	header? if
-		rows 0 @i [: string>symbol :] map to keys
-		keys 1
+		rows 0 @i [: string>symbol :] map to column-keys
+		column-keys 1
 	else
-		rows 0 @i size 1 swap range [: "col{0}" format string>symbol :] map to keys
-		keys 0
+		rows 0 @i size 1 swap range [: "col{0}" format string>symbol :] map to column-keys
+		column-keys 0
 	then ; internal
 
 ( cells -- column ) \ vector when uniformly numeric (none -> NaN) or one-unit quantities
 : column-from-cells
-	|> cells |
+	| cells |
 	cells size 0= if
 		cells exit
 	then
@@ -38,16 +38,16 @@
 ( rows header? -- dataset) \ column frame, each column typed by column-from-cells:
 \ uniformly numeric cells become an nx1 vector (none -> NaN), else the cell array
 : rows>dataset
-	| >rows >header? keys start n-rows |
+	| rows header? |
 
 	rows size 0= if { } exit then
 
-	rows header? tsv-keys to start to keys
-	rows size start - to n-rows
+	rows header? tsv-keys to start to column-keys
+	rows size start - to n-data-rows
 
-	keys
-	n-rows 0= if
-		keys size iota [: drop [ ] :] map
+	column-keys
+	n-data-rows 0= if
+		column-keys size iota [: drop [ ] :] map
 	else
 		rows  start rows size 1- range select-rows  transpose
 		' column-from-cells map
@@ -59,15 +59,15 @@
 
 ( rows index-cols header? -- relation ) \ rows to deduped relation, indexed on index-cols
 : rows>relation
-	| >rows >index-cols >header? keys start n-rows row-indices row-frames |
+	| rows index-cols header? |
 
 	rows size 0= if index-cols relation exit then
 
-	rows header? tsv-keys to start to keys
-	rows size start - to n-rows
-	n-rows 0= if [ ] else start rows size 1- range then to row-indices
+	rows header? tsv-keys to start to column-keys
+	rows size start - to n-data-rows
+	n-data-rows 0= if [ ] else start rows size 1- range then to row-indices
 
-	keys  rows row-indices select-rows  [: 2 pick swap frame :] map  nip to row-frames
+	column-keys  rows row-indices select-rows  [: 2 pick swap frame :] map  nip to row-frames
 	index-cols  row-frames
 	[: 2 pick swap [: [: string>symbol :] update-at :] reduce :] map  nip to row-frames
 
@@ -83,7 +83,7 @@
 
 ( n -- [indices] ) \ row indices drawn from [0, n) with replacement
 : resample-indices
-	| >n |
+	| n |
 	n iota n true sample ;
 
 ( arr -- arr ) \ new array, elements uniformly permuted; input untouched
@@ -107,7 +107,7 @@
 ( dataset -- rows ) \ the inverse of true rows>dataset: row-arrays led by a header
 \ row of the column names, columns in key order, cells through column>array
 : dataset>rows
-	| >dataset |
+	| dataset |
 	dataset keys dup size 0= if drop [ ] exit then
 
 	[: "{0}" format :] map 1 array
@@ -125,7 +125,7 @@
 \ dataset and indices are parked below the key array the map peeks, so the
 \ quotation reaches them at depths 3 and 2
 : dataset-select-rows
-	| >dataset >indices column-names |
+	| dataset indices |
 	dataset keys to column-names
 
 	dataset indices column-names
@@ -143,10 +143,10 @@
 
 ( dataset -- rows columns ) \ rows from the first columns length, columns from key count
 : dataset-dim 
-	| >dataset n-columns |
-	dataset keys size to n-columns
-	n-columns 0= if 0 0 exit then
-	dataset dup keys 0 @i @ size n-columns ; internal
+	| dataset |
+	dataset keys size to column-count
+	column-count 0= if 0 0 exit then
+	dataset dup keys 0 @i @ size column-count ; internal
 
 ( dataset/matrix -- rows columns ) \ dimensions of a matrix or dataset
 : dim
@@ -181,10 +181,10 @@
 
 ( pairs value -- pairs ) \ extend the last run when the value repeats, else start one
 : extend-run
-	| >pairs >value last |
-	pairs pairs size 1- @i to last
-	last 0 @i value = if
-		last 1  last 1 @i 1+  !i drop
+	| pairs value |
+	pairs pairs size 1- @i to last-pair
+	last-pair 0 @i value = if
+		last-pair 1  last-pair 1 @i 1+  !i drop
 	else
 		pairs [ value 1 ] add-last! drop
 	then
@@ -193,7 +193,7 @@
 ( sorted -- pairs ) \ [ value n-values ] runs over a val_cmp-sorted array
 \ the run being counted is the last pair, so the fold needs no state of its own
 : value-runs
-	| >sorted |
+	| sorted |
 	sorted size 0= if [ ] exit then
 
 	sorted 1 skip
@@ -204,7 +204,7 @@
 ( state run -- state ) \ state is [ pairs offset permutation ]: the run's indices are
 \ the next run-length of the permutation, and the offset advances past them
 : take-run
-	| >state >run pairs offset permutation length indices |
+	| state run |
 	state 0 @i to pairs
 	state 1 @i to offset
 	state 2 @i to permutation
@@ -217,7 +217,7 @@
 	[ pairs  offset length +  permutation ] ; internal
 
 : group-indices
-	| >column permutation |
+	| column |
 	column column>array to column
 	column argsort to permutation
 
@@ -229,7 +229,7 @@
 \ the column names are parked below the transposed rows, so the quotation keying
 \ each row reaches them at depth 2 under map
 : dataset-rows
-	| >dataset column-names |
+	| dataset |
 	dataset keys to column-names
 	column-names size 0= if [ ] exit then
 
@@ -253,7 +253,7 @@
 
 ( dataset xt -- dataset) \ keep the rows whose filter satisfies xt ( row -- bool)
 : dataset-filter
-	|> dataset predicate |
+	| dataset predicate |
 	dataset dataset-rows 
 	predicate map vector
 	where
@@ -269,7 +269,7 @@
 
 ( rows -- dataset ) \ uniform-key row frames as a dataset, keys from row 0
 : frames>dataset
-	| >rows |
+	| rows |
 	rows size 0= if { } exit then
 
 	rows ' keys map array>set size 1= not if
@@ -306,7 +306,7 @@
 ( dataset sym pred replacement -- ) \ replaces the column's cells passing pred, in place
 \ read, mesh, store back — what update-at did, without a quotation reaching outward
 : replace-where
-	|> dataset column-name predicate replacement |
+	| dataset column-name predicate replacement |
 	dataset column-name
 	dataset column-name @  dup predicate execute  replacement mesh
 	! drop ;
@@ -314,7 +314,7 @@
 
 ( dataset key -- strings right? ) \ header + rendered cells; numeric columns align right
 : column-cells
-	| >dataset >key column-kind |
+	| dataset key |
 	dataset key column-type to column-kind
 	dataset key @ column>array
 	column-kind :datetime = if ' time>iso else ' render then map
@@ -323,7 +323,7 @@
 
 ( dataset leading-columns -- columns ) \ the leading columns first in the given order, then the remaining columns alphabetical by name; empty leading-columns orders all columns alphabetically
 : ordered-columns
-	| >dataset >leading-columns |
+	| dataset leading-columns |
 	leading-columns
 	dataset keys array>set  leading-columns array>set  difference  set>array
 	[: "{0}" format :] sort-by
@@ -332,8 +332,7 @@
 ( dataset key -- strings ) \ header and cells of one column, each padded to the widest
 \ the width and the alignment flag are parked below the string array the map peeks
 : padded-column
-	| >dataset >key strings right? width |
-	dataset key column-cells to right? to strings
+	column-cells to right? to strings
 	strings ' size map 0 ' max2 reduce to width
 
 	width right? strings
@@ -343,7 +342,7 @@
 ( dataset n leading-columns -- ) \ print the first n rows as an aligned table; leading columns appear first in the given order, the rest alphabetical by name; empty leading-columns orders all columns alphabetically
 \ the dataset is parked below the key array, and the padded columns below the row loop
 : headn
-	| >dataset >n >leading-columns columns ordered |
+	| dataset n leading-columns |
 	dataset keys size 0= if exit then
 	dataset n-rows n min2 to n
 	dataset n iota select-rows to dataset

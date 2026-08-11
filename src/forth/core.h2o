@@ -70,7 +70,7 @@ inline
 ( -- arr ) \ one { :name :value :type } frame per global, oldest first
 : variables
 	(globals)
-	[: | >binding value |
+	[: binding |
 	   binding 1 @i to value
 	   { :name binding 0 @i :value value :type value type-of } :]
 	map ;

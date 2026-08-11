@@ -13,14 +13,13 @@ variable rm  variable ri  variable rj
 2147483647.0 constant m1
 4.656612875245797e-10 constant dm1
 
-: rng-init
+: rng-init ^rm ^ri ^rj |
   [ 253932.0 731212090.0 468995992.0 1775900326.0 1784309764.0 636090706.0
     606937648.0 841957950.0 1453856540.0 1744446058.0 305151944.0 1494977238.0
     896709940.0 1989340290.0 810774624.0 217839726.0 200215116.0 ] to rm
   4 to ri  16 to rj ;
 
-: rng-next ( -- d )
-  | k |
+: rng-next ( -- d ) ^ri ^rj |
   rm ri @i  rm rj @i  f-  to k
   k 0 < if  k m1 f+ to k  then
   rm rj k !i drop
@@ -29,34 +28,33 @@ variable rm  variable ri  variable rj
   dm1 k f* ;
 
 : build-empty ( n -- a )
-  | n | to n
+   to n
   n  n iota  [: drop 0 2 pick array-of :] map  nip ;
 
 ( i a n -- ) \ fill row i of a with n random doubles
 : fill-row
-  |> i a n |
+  | i a n |
   a i @i
   [: over swap rng-next !i drop :] n i-times
   drop ;
 
 : build-filled ( n -- a )
-  | n a | to n  n build-empty to a
+   to n  n build-empty to a
   a n ' fill-row 2 ncurry  n i-times
   a ;
 
 ( i src dst n -- ) \ copy n elements of row i, element by element
 : copy-row
-  |> i src dst n |
+  | i src dst n |
   dst i @i  src i @i
   [: 2 pick swap  dup 3 pick swap @i  !i drop :] n i-times
   drop drop ;
 
 : copy-into ( src dst n -- )
-  | src dst n | to n to dst to src
+   to n to dst to src
   src dst n ' copy-row 3 ncurry  n i-times ;
 
 : lu-factor ( a n -- )
-  | a n j jp t i recp ii jj aiij aj aii rowj |
   to n  to a  0 to j
   begin j n < while
     j to jp
@@ -87,21 +85,21 @@ variable rm  variable ri  variable rj
 
 ( sum i a n -- sum' ) \ add row i's n elements to the running sum
 : add-row
-  |> sum i a n |
+  | sum i a n |
   a i @i  sum
   [: 2 pick swap @i f+ :] n i-times
   nip ;
 
 : checksum ( a n -- s )
-  | a n | to n to a
+   to n to a
   0  a n ' add-row 2 ncurry  n i-times ;
 
 ( a lu n -- ) \ one measured round: refresh lu from a, then factor it
 : lu-round
-  |> a lu n | a lu n copy-into  lu n lu-factor ;
+  | a lu n | a lu n copy-into  lu n lu-factor ;
 
 : lu-bench ( n cycles -- )
-  | n cycles a lu t0 | to cycles to n
+   to cycles to n
   rng-init  n build-filled to a  n build-empty to lu
   now to t0
   a lu n ' lu-round 3 ncurry  cycles times

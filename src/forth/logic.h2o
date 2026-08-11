@@ -7,27 +7,27 @@ inline
 
 ( list cont -- )  \ run cont with each element of list in turn; commit to the first element for which cont succeeds, fail if none do
 : choose
-	| head tail >list >cont |
+	| list cont |
 	list null = if fail exit then
-	list head-tail to tail to head
-	tail null = if
-		head cont execute
+	list head-tail to list-tail to list-head
+	list-tail null = if
+		list-head cont execute
 	else
-		head cont ' execute 2curry
-		tail cont ' choose 2curry
+		list-head cont ' execute 2curry
+		list-tail cont ' choose 2curry
 		amb
 	then ;
 
 \ Fact database
 ( [cols] -- rel ) \ empty relation; cols is an array of symbols to index
 : relation
-	{ } [> index col | index col { } ! :] reduce
+	{ } [: { } ! :] reduce
 	>side
 	{ :rows [< >] :index side> } ;
 
 ( column-index indexed-value row -- ) \ add row to the value's bucket in one column's index, creating the bucket if absent
 : bucket-add!
-	|> column-index indexed-value row |
+	| column-index indexed-value row |
 	column-index indexed-value has? not if
 		column-index indexed-value [< >] ! drop
 	then
@@ -35,7 +35,7 @@ inline
 
 ( column-index indexed-value row -- ) \ remove row from the value's bucket in one column's index
 : bucket-remove!
-	|> column-index indexed-value row |
+	| column-index indexed-value row |
 	column-index indexed-value has? if
 		column-index indexed-value @ row set-remove! drop
 	then ; internal
@@ -44,11 +44,11 @@ inline
 \ the row and the bucket operation are bound into the combiner, which receives
 \ them after the accumulator and the column name
 : update-row!
-	|> row set-op bucket-op |
+	| row set-op bucket-op |
 	dup :rows @ row set-op execute drop
 	dup :index @ keys swap
 	row bucket-op
-	[> rel col row bucket-op | rel :index @ col @  row col @  row bucket-op execute  rel :]
+	[: rel col row bucket-op | rel :index @ col @  row col @  row bucket-op execute  rel :]
 	2curry reduce ; internal
 
 ( rel row -- rel ) \ add row to :rows and to each indexed column's bucket
@@ -61,58 +61,58 @@ inline internal
 
 ( rel pattern col -- bucket ) \ rows bucket for pattern's value in column col, empty if that value was never asserted
 : bucket-of
-	|> rel pattern col |
+	| rel pattern col |
 	rel :index @ col @  pattern col @ ?
 	2dup has? if @ else 2drop [< >] then ; internal
 
 ( [sets] -- set ) \ the smallest set in a non-empty array
 : smallest-set
 	dup 0 @i
-	[> smallest candidate | smallest size candidate size < if smallest else candidate then :] reduce ; internal
+	[: smallest candidate | smallest size candidate size < if smallest else candidate then :] reduce ; internal
 
 ( rel pattern -- candidate-rows ) \ :rows narrowed by the grounded indexed columns, intersected smallest-first
 : candidates
-	|> rel pattern |
+	| rel pattern |
 	rel :index @ keys
 	pattern
-	[> col pattern | pattern col has? if pattern col @ ? symbol? else 0 then :]
+	[: col pattern | pattern col has? if pattern col @ ? symbol? else 0 then :]
 	curry filter
 
 	rel pattern
-	[> col rel pattern | rel pattern col bucket-of :]
+	[: col rel pattern | rel pattern col bucket-of :]
 	2curry map
 	dup size 0 = if
 		drop rel :rows @
 	else
-		dup smallest-set [> narrowed bucket | narrowed bucket intersection :] reduce
+		dup smallest-set [: narrowed bucket | narrowed bucket intersection :] reduce
 	then ; internal
 
 ( rel pattern -- flag) \ true when every pattern column is a ground-symbol indexed column -- so the index alone answers the query
 : covering?
-	|> rel pattern |
+	| rel pattern |
 	pattern keys 1
 	rel pattern
-	[> covered? col rel pattern | covered? rel :index @ col has? and pattern col @ ? symbol? and :]
+	[: covered? col rel pattern | covered? rel :index @ col has? and pattern col @ ? symbol? and :]
 	2curry reduce ; internal
 
 ( rel pattern -- [rows] ) \ rows matching pattern; scans :rows
 : query
-	|> rel pattern |
+	| rel pattern |
 	rel pattern candidates
 	rel pattern covering? if
 		dup size take
 	else
-		pattern [> row pattern | pattern row matches? :] curry filter
+		pattern [: row pattern | pattern row matches? :] curry filter
 	then ;
 
 ( rel row -- rel ) \ remove every row matching pattern
 : retract
-	|> rel pattern |
+	| rel pattern |
 	rel pattern query rel ' retract-row reduce ;
 
 ( rel pattern -- n ) \ number of rows matching pattern
 : count-matches
-	|> rel pattern |
+	| rel pattern |
 	rel pattern covering? if
 		rel pattern candidates size
 	else
@@ -121,13 +121,13 @@ inline internal
 
 ( driver probed col -- [rows] ) \ inner join: merge each driver row with each probed row sharing col's value; probed must index col
 : inner-join
-	|> driver probed col |
+	| driver probed col |
 	driver :rows @ null
 	probed col
-	[> joined driver-row probed col |
+	[: joined driver-row probed col |
 		driver-row
 		probed driver-row col bucket-of joined
-		[> joined probed-row | 1 pick probed-row merge joined cons :] reduce
+		[: joined probed-row | 1 pick probed-row merge joined cons :] reduce
 		nip
 	:]
 	2curry reduce
@@ -135,28 +135,28 @@ inline internal
 
  ( rel rows-array -- rel ) \ load all rows: build :rows in one sorted pass, then index each row
 : bulk-load
-	|> rel rows-array |
+	| rel rows-array |
 	rel :rows rows-array array>set !
 	dup :index @ keys
 	rel rows-array
-	[> col rel rows-array | rel :index @ col  rows-array col group-by  ! :]
+	[: col rel rows-array | rel :index @ col  rows-array col group-by  ! :]
 	2curry map drop ;
 
 ( rel rows-array -- rel ) \ like bulk-load, but :rows stays a bag (array); only the index is built
 : load-bag
-	|> rel rows-array |
+	| rel rows-array |
 	rel :rows rows-array !
 	dup :index @ keys
 	rel rows-array
-	[> col rel rows-array | rel :index @ col  rows-array col group-by  ! :]
+	[: col rel rows-array | rel :index @ col  rows-array col group-by  ! :]
 	2curry map drop ;
 
 ( rel cols -- rel ) \ index rel on cols: intern each indexed column's value to a symbol, then build the index
 : create-index
-	|> rel cols |
+	| rel cols |
 	rel :rows @
 	cols
-	[> row cols | cols row [> acc col | acc col [: string>symbol :] update-at :] reduce :]
+	[: row cols | cols row [: [: string>symbol :] update-at :] reduce :]
 	curry map
 
 	cols relation swap load-bag ;

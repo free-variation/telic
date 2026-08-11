@@ -42,9 +42,9 @@ clear
 \ a receiving quotation whose body under-produces drives the data stack empty:
 \ the loop-refill underflow is caught, not a buffer overflow (ASan-verified)
 clear
-1 [> a | :] 3 times
+1 [: a | :] 3 times
 clear
-1 [: | a >b | :] 3 times
+1 [: | a b | :] 3 times
 
 \ wrong types
 [: drop :] -1 i-times

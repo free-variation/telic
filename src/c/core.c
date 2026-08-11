@@ -1519,8 +1519,8 @@ void call_open(Interpreter *interp, int cfa, CallContext *context) {
 		n_locals = (int)vocab.dict[cfa + 2];
 
 		if (enter == p_enter_locals_to) {
-			n_received = n_locals;
-			body_start = cfa + 3;
+			n_received = (int)vocab.dict[cfa + 3];
+			body_start = cfa + 4;
 		} else if (enter == p_enter_locals_mixed) {
 			n_received = (int)vocab.dict[cfa + 3];
 			slots_ip = cfa + 4;
@@ -2190,42 +2190,43 @@ void p_enter_locals(DISPATCH_ARGS) {
 
 void p_enter_locals_to(DISPATCH_ARGS) {
 	int n_locals = (int)chain_ip[0];
+	int n_received = (int)chain_ip[1];
 
 	if (interp->loop_local_refill) {
 		interp->loop_local_refill = 0;
-		if (unlikely(chain_sp - n_locals < interp->data_stack)) {
-			SYNC_REGISTERS(interp, chain_ip + 1, chain_sp);
-			fail(interp, "insufficient values on data stack; need %d", n_locals);
+		if (unlikely(chain_sp - n_received < interp->data_stack)) {
+			SYNC_REGISTERS(interp, chain_ip + 2, chain_sp);
+			fail(interp, "insufficient values on data stack; need %d", n_received);
 			return;
 		}
-		Val *incoming = chain_sp - n_locals;
-		for (int i = 0; i < n_locals; i++)
+		Val *incoming = chain_sp - n_received;
+		for (int i = 0; i < n_received; i++)
 			interp->return_stack[interp->local_base + i] = incoming[i];
 
-		DISPATCH_REGISTERS(interp, chain_ip + 1, incoming);
+		DISPATCH_REGISTERS(interp, chain_ip + 2, incoming);
 	}
 
 	if (interp->rsp + n_locals + 1 > RETURN_STACK_DEPTH) {
-		SYNC_REGISTERS(interp, chain_ip + 1, chain_sp);
+		SYNC_REGISTERS(interp, chain_ip + 2, chain_sp);
 		fail(interp, "return stack overflow");
 		return;
 	}
-	if (chain_sp - n_locals < interp->data_stack) {
-		SYNC_REGISTERS(interp, chain_ip + 1, chain_sp);
-		fail(interp, "insufficient values on data stack; need %d", n_locals);
+	if (chain_sp - n_received < interp->data_stack) {
+		SYNC_REGISTERS(interp, chain_ip + 2, chain_sp);
+		fail(interp, "insufficient values on data stack; need %d", n_received);
 		return;
 	}
 
 	interp->return_stack[interp->rsp++] = make_locals_header(interp->local_base, n_locals,
 			(int)((chain_ip - 1) - vocab.dict));
-	Val *incoming = chain_sp - n_locals;
-	for (int i = 0; i < n_locals; i++)
+	Val *incoming = chain_sp - n_received;
+	for (int i = 0; i < n_received; i++)
 		interp->return_stack[interp->rsp + i] = incoming[i];
 
 	interp->local_base = interp->rsp;
 	interp->rsp += n_locals;
 
-	DISPATCH_REGISTERS(interp, chain_ip + 1, incoming);
+	DISPATCH_REGISTERS(interp, chain_ip + 2, incoming);
 }
 
 void p_enter_locals_mixed(DISPATCH_ARGS) {
@@ -2976,7 +2977,7 @@ char *next_token(void) {
 		compiler.input_buffer_pos += 2;
 	} else if (lead == '[') {
 		int two_char_opener = after_lead == ':' || after_lead == '('
-			|| after_lead == '>' || after_lead == '<';
+			|| after_lead == '<';
 		compiler.input_buffer_pos += two_char_opener ? 2 : 1;
 	} else if (lead == '{') {
 		compiler.input_buffer_pos++;
@@ -3894,7 +3895,7 @@ static void copy_value_inner(Interpreter *interp, VarMap *map, Val source_val, V
 						 Val current = source_val;
 
 						 while(VAL_TAG(current) == T_PAIR) {
-							 if (spine_len++ > COPY_SPINE_MAX) {
+							 if (spine_len++ > LIST_SPINE_MAX) {
 								 fail(interp, "list too long or cyclic");
 								 return;
 							 }
@@ -3997,6 +3998,9 @@ int op_cell_count(int cursor) {
 
 	if (handler == vocab.dict[vocab.enter_locals_mixed_cfa])
 		return 3 + (int)dict[cursor + 2];
+
+	if (handler == vocab.dict[vocab.enter_locals_to_cfa])
+		return 3;
 
 	if (handler == (cell)p_load2)
 		return 3;
@@ -5077,8 +5081,6 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "[:", p_qcolon, 1);
 	define_primitive(interp, ":]", p_qsemi, 1);
 	define_primitive(interp, "|", p_bar, 1);
-	define_primitive(interp, "|>", p_bar_to, 1);
-	define_primitive(interp, "[>", p_bracket_bar_to, 1);
 
 	define_primitive(interp, "0-matrix", p_0_matrix, 0);
 	define_primitive(interp, "matrix", p_matrix, 0);

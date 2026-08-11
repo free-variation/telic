@@ -833,8 +833,8 @@
 ] constant replacements
 
 variable search-checksum  variable sub-checksum
-: +search ( b -- )  search-checksum + to search-checksum ;
-: +sub ( n -- )  sub-checksum + to sub-checksum ;
+: +search ( b -- ) ^search-checksum |  search-checksum + to search-checksum ;
+: +sub ( n -- ) ^sub-checksum |  sub-checksum + to sub-checksum ;
 
 : block0 ( -- )
   subjects 0 @i patterns 0 @i has? +search
@@ -25572,7 +25572,7 @@ variable search-checksum  variable sub-checksum
   subjects 385 @i patterns 229 @i has? +search
   ;
 
-: run-v8 ( -- )  0.0 to search-checksum  0.0 to sub-checksum  block0 block1 block2 block3 block4 block5 block6 block7 block8 block9 block10 block11 ;
+: run-v8 ( -- ) ^search-checksum ^sub-checksum |  0.0 to search-checksum  0.0 to sub-checksum  block0 block1 block2 block3 block4 block5 block6 block7 block8 block9 block10 block11 ;
 
 run-v8
 search-checksum sub-checksum + "checksum: {0}" format . cr

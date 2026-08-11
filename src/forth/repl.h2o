@@ -13,7 +13,7 @@
 : print-raw string>codepoints ' emit each ; internal
 
 : help
-	[: | entry examples |
+	[:
 		lookup man to entry
 		entry frame? if
 			entry :examples [ ] @or to examples
@@ -22,7 +22,7 @@
 			entry :ops has? if
 				entry :order @ entry :alloc @ entry :ops @ "{dim}  ops {0}, alloc {1}, {2}{plain}" format print-raw cr
 			then
-			examples [> example |
+			examples [: example |
 				cr
 				example @code "\n" split [: "  {cyan}>{plain} {0}" format print-raw cr :] each
 				example @output "\n" split [: "  " swap + print-raw cr :] each

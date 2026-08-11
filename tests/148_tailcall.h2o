@@ -11,7 +11,7 @@
 1000000 countdown  42 . cr             \ 42
 
 \ === tail recursion with an accumulator local, deep ===
-: sum-to  |> n acc | n 0 = if acc else n 1 - n acc + recurse then ;
+: sum-to  | n acc | n 0 = if acc else n 1 - n acc + recurse then ;
 1000000 0 sum-to . cr                  \ 500000500000
 
 \ === both arms of if/else in tail position become (tailcall) ===
@@ -25,5 +25,5 @@
 ' guarded see-compiled
 
 \ === locals + a quotation disables TCE: the map call stays plain and correct ===
-: bump | k | to k  k [ 10 20 30 ] [: 2 pick + :] map nip ;
+: bump to k  k [ 10 20 30 ] [: 2 pick + :] map nip ;
 100 bump . cr                          \ [ 110 120 130 ]

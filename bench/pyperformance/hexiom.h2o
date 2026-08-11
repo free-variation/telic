@@ -15,7 +15,7 @@
 variable cell-links  variable tiles
 variable solution-sig
 
-: init-data
+: init-data ^cell-links ^tiles |
   [ [ 1.0 3.0 4.0 ]
     [ 2.0 0.0 4.0 5.0 ]
     [ 1.0 5.0 6.0 ]
@@ -40,11 +40,11 @@ variable solution-sig
 \ --- per-cell set helpers (cells = array of 19 candidate-value sets) -------
 : already-done? ( cells i -- f )  @i size 1.0 = ;
 : cell-val      ( cells i -- v )  @i 1.0 take 0.0 @i ;
-: member-cell?  ( cells i v -- f )  | >cells >i >v |  cells i @i v member? ;
+: member-cell?  ( cells i v -- f )  | cells i v |  cells i @i v member? ;
 : set-done      ( cells i v -- )  1.0 set !i drop ;
 
 : cell-remove ( cells i v -- removed? )      \ remove v from cell i; was it present?
-  | >cells >i >v c |
+  | cells i v |
   cells i @i to c
   c v member? if c v set-remove! drop 1.0 else 0.0 then ;
 
@@ -60,11 +60,11 @@ variable unknown  variable neighbour  variable current-value
 
 \ vmin/vmax over cell i's neighbours (done+nonEMPTY bump both, free bumps vmax)
 : nb-vminvmax ( cells i -- vmin vmax )
-  | >board >i |
+  | board i  ^cells ^vmin ^vmax ^links |
   board to cells
   0.0 to vmin  0.0 to vmax
   cell-links i @i to links
-  [: | >k |
+  [: k ^neighbour ^vmin ^vmax |
      links k @i to neighbour
      cells neighbour already-done? if
         cells neighbour cell-val empty = 0= if vmin 1.0 f+ to vmin  vmax 1.0 f+ to vmax then
@@ -73,32 +73,32 @@ variable unknown  variable neighbour  variable current-value
   vmin vmax ;
 
 : count-possible ( cells v -- n )            \ how many cells still allow v
-  | >board >v |
+  | board v  ^cells ^value ^tally |
   board to cells  v to value
   0.0 to tally
-  [: | >i | cells i value member-cell? if tally 1.0 f+ to tally then :] count i-times
+  [: i ^tally | cells i value member-cell? if tally 1.0 f+ to tally then :] count i-times
   tally ;
 
 : remove-unfixed ( cells v -- changed )      \ drop v from every not-yet-fixed cell
-  | >board >v |
+  | board v  ^cells ^value ^changed |
   board to cells  v to value
   0.0 to changed
-  [: | >i | cells i already-done? 0= if cells i value cell-remove if 1.0 to changed then then :] count i-times
+  [: i ^changed | cells i already-done? 0= if cells i value cell-remove if 1.0 to changed then then :] count i-times
   changed ;
 
 \ --- constraint propagation (one pass; returns whether anything changed) ---
 : constraint-pass ( cells last-move -- changed )
-  | >board >move |
+  | board move  ^cells ^last-move ^changed ^left ^freecells ^filledcells |
   board to cells  move to last-move
   0.0 to changed
   tiles copy to left
   last-move -1.0 = if 0.0 count 1.0 f- range else cell-links last-move @i then to freecells
   \ 1. remove values impossible by neighbour counts
-  [: | >fi |
+  [: fi ^cell-index ^vmin ^vmax |
      freecells fi @i to cell-index
      cells cell-index already-done? 0= if
         cells cell-index nb-vminvmax to vmax to vmin
-        [: | >num-index |
+        [: num-index ^changed |
            num-index vmin < num-index vmax > or if
               cells cell-index num-index cell-remove if 1.0 to changed then
            then
@@ -106,27 +106,27 @@ variable unknown  variable neighbour  variable current-value
      then
   :] freecells size i-times
   \ 2. how many of each value remain free
-  [: | >i | cells i already-done? if cells i cell-val to current-value  left current-value  left current-value @i 1.0 f-  !i drop then :] count i-times
+  [: i ^current-value | cells i already-done? if cells i cell-val to current-value  left current-value  left current-value @i 1.0 f-  !i drop then :] count i-times
   \ 3. exhaust or force values
-  [: | >v |
+  [: v ^value ^changed |
      tiles v @i 0.0 >  left v @i 0.0 = and if
         cells v remove-unfixed if 1.0 to changed then
      else
         cells v count-possible tiles v @i = if
            v to value
-           [: | >i | cells i already-done? 0=  cells i value member-cell? and if cells i value set-done 1.0 to changed then :] count i-times
+           [: i ^changed | cells i already-done? 0=  cells i value member-cell? and if cells i value set-done 1.0 to changed then :] count i-times
         then
      then
   :] 8.0 i-times
   \ 4. force empty / non-empty around filled cells
   last-move -1.0 = if 0.0 count 1.0 f- range else [ last-move ] then to filledcells
-  [: | >fi |
+  [: fi ^cell-index ^num ^filled ^unknown ^links |
      filledcells fi @i to cell-index
      cells cell-index already-done? if
         cells cell-index cell-val to num
         0.0 to filled  [ ] to unknown
         cell-links cell-index @i to links
-        [: | >k |
+        [: k ^neighbour ^filled ^unknown |
            links k @i to neighbour
            cells neighbour already-done? if
               cells neighbour cell-val empty = if else filled 1.0 f+ to filled then
@@ -134,9 +134,9 @@ variable unknown  variable neighbour  variable current-value
         :] links size i-times
         unknown size 0.0 > if
            num filled = if
-              [: | >uk | unknown uk @i to neighbour  cells neighbour empty member-cell? if cells neighbour empty set-done 1.0 to changed then :] unknown size i-times
+              [: uk ^neighbour ^changed | unknown uk @i to neighbour  cells neighbour empty member-cell? if cells neighbour empty set-done 1.0 to changed then :] unknown size i-times
            else num filled unknown size f+ = if
-              [: | >uk | unknown uk @i to neighbour  cells neighbour empty cell-remove if 1.0 to changed then :] unknown size i-times
+              [: uk ^neighbour ^changed | unknown uk @i to neighbour  cells neighbour empty cell-remove if 1.0 to changed then :] unknown size i-times
            then then
         then
      then
@@ -144,14 +144,14 @@ variable unknown  variable neighbour  variable current-value
   changed ;
 
 \ --- record the solved board's 19 cell values (id order) ------------------
-: capture-sig ( cells -- )
+: capture-sig ( cells -- ) ^cells ^solution-sig |
   to cells
-  [: | >i | cells i cell-val 48.0 f+ :] count i-times
+  [: i | cells i cell-val 48.0 f+ :] count i-times
   count array codepoints>string to solution-sig ;
 
 \ --- solved? : OPEN=0 SOLVED=1 IMPOSSIBLE=-1 ------------------------------
 : solved ( cells -- status )
-  | >cells left exact all-done sz num vmin vmax i |
+  | cells  ^left ^num ^vmin ^vmax |
   tiles copy to left
   1.0 to exact  1.0 to all-done
   0.0 to i
@@ -176,7 +176,7 @@ variable unknown  variable neighbour  variable current-value
 
 \ --- find moves: FIRST_STRATEGY cell, DESCENDING order --------------------
 : first-cell ( cells -- id )       \ first not-yet-fixed cell, or -1
-  | >cells i |
+  | cells |
   0.0 to i
   begin i count < while
      cells i already-done? 0= if i exit then
@@ -186,7 +186,7 @@ variable unknown  variable neighbour  variable current-value
 
 \ returns ( cell-id moves-array ); moves empty when no free cell
 : find-moves ( cells -- cid moves )
-  | >cells cid c arr moves |
+  | cells |
   cells first-cell to cid
   cid 0.0 < if cid [ ] exit then
   cells cid @i to c
@@ -197,7 +197,7 @@ variable unknown  variable neighbour  variable current-value
 
 \ --- backtracking solver (the timed kernel) ------------------------------
 : solve-step ( cells first? -- status )
-  | >cells >first pos cid moves v new status ret i |
+  | cells first |
   first if cells copy to pos  begin pos -1.0 constraint-pass while repeat
   else cells to pos then
   pos find-moves to moves to cid
@@ -216,13 +216,12 @@ variable unknown  variable neighbour  variable current-value
   repeat
   -1.0 ;
 
-: solve-once
+: solve-once ^cells |
   0.0 count array-of to cells
-  [: | >i | cells i [< 2.0 3.0 4.0 7.0 >] !i drop :] count i-times
+  [: i | cells i [< 2.0 3.0 4.0 7.0 >] !i drop :] count i-times
   cells 1.0 solve-step drop ;
 
 : hexiom-bench
-  | t0 |
   init-data
   now to t0
   [: solve-once :] loops times

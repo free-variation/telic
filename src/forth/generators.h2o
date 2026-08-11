@@ -8,7 +8,7 @@
 
 ( producer count -- array ) \ the first count values the producer yields
 : gen-take
-	|> producer count |
+	| producer count |
 	producer start-generator
 	>side
 	[: side> resume >side :] count 1 - times
@@ -19,7 +19,7 @@
 \ :gen-end sits at the bottom: it is the resume-value the producer ignores, and the
 \ marker left when the producer falls off (a continuation never equals the symbol)
 : gen-each
-	|> producer consumer |
+	| producer consumer |
 	:gen-end producer start-generator
 	begin
 		dup :gen-end = if drop exit then

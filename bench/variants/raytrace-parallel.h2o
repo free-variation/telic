@@ -43,19 +43,19 @@ variable pixw variable pixh
 
 \ --- vector helpers (x y z carried as three cells) -----------------------
 : vnorm ( x y z -- x' y' z' )
-  | >x >y >z mag |
+  | x y z |
   x x f* y y f* f+ z z f* f+ fsqrt to mag
   1.0 mag f/ to mag
   x mag f*  y mag f*  z mag f* ; inline
 
 : vcross ( ax ay az bx by bz -- cx cy cz )
-  |> ax ay az bx by bz |
+  | ax ay az bx by bz |
   ay bz f* az by f* f-
   az bx f* ax bz f* f-
   ax by f* ay bx f* f- ;
 
 : vreflect ( sx sy sz nx ny nz -- rx ry rz )    \ self - 2·(self·n)·n
-  | >sx >sy >sz >nx >ny >nz dotv |
+  | sx sy sz nx ny nz |
   sx nx f* sy ny f* f+ sz nz f* f+ to dotv
   sx  nx dotv f* 2.0 f* f-
   sy  ny dotv f* 2.0 f* f-
@@ -63,7 +63,7 @@ variable pixw variable pixh
 
 \ --- clamp one colour channel to a 0..255 byte ---------------------------
 : clamp-byte ( v -- f )
-  |> v |
+  | v |
   v 255.0 f* ftruncate to v
   v 0.0 < if 0.0 exit then
   v 255.0 > if 255.0 exit then
@@ -76,30 +76,29 @@ variable pixw variable pixh
 \   7 specular  8 lambert  9 ambient
 \   10 11 12 baseColour   13 isChecker   14 15 16 otherColour   17 checkSize
 : sphere-obj ( cx cy cz rad spec lamb br bg bb -- arr )
-  | >cx >cy >cz >rad >spec >lamb >br >bg >bb amb |
-  1.0 spec f- lamb f- to amb
-  [ 0.0 cx cy cz rad rad f* 0.0 0.0 spec lamb amb br bg bb 0.0 0.0 0.0 0.0 1.0 ] ;
+  | cx cy cz rad spec lamb br bg bb |
+  1.0 spec f- lamb f- to ambient
+  [ 0.0 cx cy cz rad rad f* 0.0 0.0 spec lamb ambient br bg bb 0.0 0.0 0.0 0.0 1.0 ] ;
 
 : checker-plane ( -- arr )
-  | amb |
-  1.0 0.2 f- 0.6 f- to amb
-  [ 1.0 0.0 0.0 0.0  0.0 1.0 0.0  0.2 0.6 amb  1.0 1.0 1.0  1.0  0.0 0.0 0.0  1.0 ] ;
+  1.0 0.2 f- 0.6 f- to ambient
+  [ 1.0 0.0 0.0 0.0  0.0 1.0 0.0  0.2 0.6 ambient  1.0 1.0 1.0  1.0  0.0 0.0 0.0  1.0 ] ;
 
-: init-objects
+: init-objects ^objects |
   1.0 3.0 -10.0 2.0  0.2 0.6  1.0 1.0 0.0 sphere-obj
-  [> y |
+  [: y |
      -3.0 y 0.4 f* f-  2.3  -5.0  0.4  0.2 0.6
      y 6.0 f/  1.0 y 6.0 f/ f-  0.5  sphere-obj
   :] 6 i-times
   checker-plane
   8 array to objects ;
 
-: init-lights
+: init-lights ^lights |
   [ 30.0 30.0 10.0 ]  [ -10.0 100.0 30.0 ]  2 array to lights ;
 
 \ --- is a light visible from a surface point along a unit shadow ray? -----
 : light-visible? ( hx hy hz sdx sdy sdz -- flag )
-  | >hx >hy >hz >sdx >sdy >sdz oi obj cx cy cz v disc |
+  | hx hy hz sdx sdy sdz |
   0.0 to oi
   begin oi nobj < while
      objects oi @i to obj
@@ -124,7 +123,7 @@ variable pixw variable pixh
 
 \ --- trace one ray to a colour (specular reflection recurses) -------------
 : ray-colour ( px py pz dx dy dz depth -- r g b )
-  | >px >py >pz >dx >dy >dz >depth oi li found besti bestt obj cx cy cz v disc t hx hy hz nrmx nrmy nrmz br bg bb cr cg cb spec lamb amb lam lf rr rg rb rfx rfy rfz lightarr sdx sdy sdz |
+  | px py pz dx dy dz depth |
   depth 3.0 > if 0.0 0.0 0.0 exit then
   0.0 to found  0.0 to besti  0.0 to bestt  0.0 to oi
   begin oi nobj < while
@@ -149,7 +148,7 @@ variable pixw variable pixh
      f++ oi
   repeat
   found 0= if
-     0.0 to cr 0.0 to cg 0.0 to cb
+     0.0 to red 0.0 to green 0.0 to blue
   else
      objects besti @i to obj
      px dx bestt f* f+ to hx
@@ -172,14 +171,14 @@ variable pixw variable pixh
      else
         obj 10 @i to br obj 11 @i to bg obj 12 @i to bb
      then
-     0.0 to cr 0.0 to cg 0.0 to cb
+     0.0 to red 0.0 to green 0.0 to blue
      obj 7 @i to spec
      spec 0.0 > if
         dx dy dz nrmx nrmy nrmz vreflect vnorm to rfz to rfy to rfx
         hx hy hz rfx rfy rfz depth 1+ ray-colour to rb to rg to rr
-        spec rr f* to cr
-        spec rg f* to cg
-        spec rb f* to cb
+        spec rr f* to red
+        spec rg f* to green
+        spec rb f* to blue
      then
      obj 8 @i to lamb
      lamb 0.0 > if
@@ -198,21 +197,23 @@ variable pixw variable pixh
         repeat
         lam 1.0 > if 1.0 to lam then
         lamb lam f* to lf
-        cr lf br f* f+ to cr
-        cg lf bg f* f+ to cg
-        cb lf bb f* f+ to cb
+        red lf br f* f+ to red
+        green lf bg f* f+ to green
+        blue lf bb f* f+ to blue
      then
-     obj 9 @i to amb
-     amb 0.0 > if
-        cr amb br f* f+ to cr
-        cg amb bg f* f+ to cg
-        cb amb bb f* f+ to cb
+     obj 9 @i to ambient
+     ambient 0.0 > if
+        red ambient br f* f+ to red
+        green ambient bg f* f+ to green
+        blue ambient bb f* f+ to blue
      then
   then
-  cr cg cb ;
+  red green blue ;
 
 \ --- camera setup (matches Scene.render's eye/viewport math) --------------
 : setup-eye
+  | ^epx ^epy ^epz  ^evx ^evy ^evz  ^rx ^ry ^rz  ^ux ^uy ^uz
+    ^fovr ^halfw ^halfh  ^pixw ^pixh |
   0.0 to epx 1.8 to epy 10.0 to epz
   0.0 0.0 f-  3.0 1.8 f-  0.0 10.0 f-  vnorm to evz to evy to evx
   evx evy evz 0.0 1.0 0.0 vcross vnorm to rz to ry to rx
@@ -225,7 +226,7 @@ variable pixw variable pixh
 
 \ --- render one frame: rows in parallel, each returning its byte sum ------
 : render-row ( y -- rowbytes )
-  | >y x sx sy rdx rdy rdz pr pg pb rowbytes |
+  | y |
   y pixh f* halfh f- to sy
   0.0 to rowbytes  0.0 to x
   begin x width < while
@@ -240,11 +241,11 @@ variable pixw variable pixh
   repeat
   rowbytes ;
 
-: render-frame
+: render-frame ^checksum |
   height iota  0.0  ' render-row  [: f+ :]  pmap-reduce to checksum ;
 
 : raytrace-run ( frames -- )
-  | >frames t0 |
+  | frames |
   init-objects
   init-lights
   setup-eye

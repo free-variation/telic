@@ -15,7 +15,7 @@ variable xs  variable ys  variable zs
 variable maxx variable maxy variable maxz
 
 : build-points
-  [: | >i sxi |
+  [: i |
      i fsin to sxi
      xs i sxi !i drop
      ys i  i fcos 3.0 f*  !i drop
@@ -23,23 +23,23 @@ variable maxx variable maxy variable maxz
   :] points i-times ;
 
 : normalize-points
-  [: | >i xi yi zi norm |
+  [: i |
      xs i @i to xi  ys i @i to yi  zs i @i to zi
-     xi xi f* yi yi f* f+ zi zi f* f+ fsqrt to norm
-     xs i  xi norm f/  !i drop
-     ys i  yi norm f/  !i drop
-     zs i  zi norm f/  !i drop
+     xi xi f* yi yi f* f+ zi zi f* f+ fsqrt to length
+     xs i  xi length f/  !i drop
+     ys i  yi length f/  !i drop
+     zs i  zi length f/  !i drop
   :] points i-times ;
 
-: maximize-points
+: maximize-points ^maxx ^maxy ^maxz |
   xs 0 @i to maxx  ys 0 @i to maxy  zs 0 @i to maxz
-  [: | >i xi |
+  [: i ^maxx ^maxy ^maxz |
      xs i @i to xi  xi maxx >= if xi to maxx then
      ys i @i to xi  xi maxy >= if xi to maxy then
      zs i @i to xi  xi maxz >= if xi to maxz then
   :] points i-times ;
 
-: float-once
+: float-once ^xs ^ys ^zs |
   points double-segment to xs
   points double-segment to ys
   points double-segment to zs
@@ -48,7 +48,6 @@ variable maxx variable maxy variable maxz
   maximize-points ;
 
 : float-run
-  | t0 |
   now to t0
   [: float-once :] repeats times
   now t0 - to t0

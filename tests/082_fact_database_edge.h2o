@@ -70,7 +70,7 @@ people cities :city inner-join 0 @i :country @ . cr    \ :usa  merged in from th
 \ === scale: single index, build / count / retract / recount ===
 [ :cat ] relation to r
 [ :w :x :y :z ] to people                              \ reuse 'people' var as a value table
-[: |> i | r { :id i :cat people i 4 mod @i } assert drop :] 1000 i-times
+[: | i | r { :id i :cat people i 4 mod @i } assert drop :] 1000 i-times
 r :rows @ size . cr                                    \ 1000
 r { :cat :w } count-matches . cr                       \ 250
 r { :cat :w } retract drop
@@ -82,7 +82,7 @@ r :index @ :cat @ :w @ size . cr                       \ 0     bucket cleared by
 \ === scale: two indexes, intersection narrowing at size ===
 [ :cat :tag ] relation to r
 [ :w :x :y :z ] to people
-[: |> i | r { :id i :cat people i 4 mod @i :tag people i 2 mod @i } assert drop :] 1000 i-times
+[: | i | r { :id i :cat people i 4 mod @i :tag people i 2 mod @i } assert drop :] 1000 i-times
 r :rows @ size . cr                                    \ 1000
 r { :cat :w } count-matches . cr                       \ 250   i mod 4 = 0
 r { :cat :w :tag :w } count-matches . cr               \ 250   i mod 4 = 0 implies i mod 2 = 0 (tag :w)
@@ -114,7 +114,7 @@ bl { :cat :x :tag :p } count-matches . cr              \ 1
 
 \ bulk-load builds a usable index: scale, then query/retract
 [ :g ] relation to bl
-bl  0 1999 range [: |> i | { :id i :g [ :p :q :r :s ] i 4 mod @i } :] map  bulk-load drop
+bl  0 1999 range [: | i | { :id i :g [ :p :q :r :s ] i 4 mod @i } :] map  bulk-load drop
 bl :rows @ size . cr                                   \ 2000
 bl { :g :p } count-matches . cr                        \ 500
 bl { :g :p } retract drop

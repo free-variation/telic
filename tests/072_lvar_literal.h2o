@@ -30,7 +30,7 @@ lvar to Fk
 { :k Fk } { :k "v" :x 9 } ~ drop   Fk ? "v" = . cr     \ 1
 
 \ === | ?x | is a fresh local logic var, bound per call ===
-: bindit  | ?X >n |  X n ~ drop  X ? ;
+: bindit  | ?X n |  X n ~ drop  X ? ;
 3 bindit . cr                              \ 3
 7 bindit . cr                              \ 7   fresh X each call; no clash with 3
 
@@ -38,7 +38,7 @@ lvar to Fk
 twovars                                    \ 8 9
 
 \ === a receive local keeps its received value (not a fresh lvar) ===
-: idr  | >R |  R ;
+: idr  | R |  R ;
 42 idr . cr                                \ 42
 
 \ === ? locals work inside a quotation ===

@@ -16,7 +16,7 @@ spin
 [: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 0 % :] execute
 
 \ locals regions are skipped, not misread as frames
-: haslocals | a b | 3 to a 4 to b a b + 0 % ;
+: haslocals 3 to a 4 to b a b + 0 % ;
 : top haslocals ;
 top
 
@@ -55,5 +55,5 @@ forget f1
 
 \ a fault inside a quotation names the fused op as its innermost frame,
 \ identically on native and wasm (span-classified body walk)
-: gather-one | >column >indices | column indices [: 2 pick swap @i :] map nip ;
+: gather-one | column indices | column indices [: 2 pick swap @i :] map nip ;
 [ 1 2 ] [ 5 ] gather-one
