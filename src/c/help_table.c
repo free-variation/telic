@@ -352,6 +352,9 @@ const HelpEntry help_entries[] = {
 	{ "gc", "( -- )", "Force a mark-sweep now", "walks stacks + dict + roots, frees unmarked", "none", "O(objects + dict)", 29 },
 	{ "gen-each", "( producer consumer -- )", "generators.h2o: run consumer on each value the producer yields until the producer falls off (a :gen-end sentinel marks exhaustion)", "—", "cont/step", "O(values · consumer)", 25 },
 	{ "gen-take", "( producer count -- array )", "generators.h2o: the first count values the producer yields, collected into an array", "—", "1a(count) + cont/step", "O(count · L)", 25 },
+	{ "gpd-draw", "( shape scale -- draw )", "statistics.h2o: one exceedance drawn from the tail by inverse transform — random gpd-quantile (inlined), and random's [0, 1) is gpd-quantile's domain. Draws from the shared stream, so seed fixes the sequence", "7", "none", "O(1)", 18 },
+	{ "gpd-fit", "( exceedances -- shape scale )", "statistics.h2o: maximum-likelihood generalized-Pareto fit to threshold exceedances (a vector of positive amounts by which observations pass a threshold), by grid refinement — four rounds of a 9×9 grid over (shape, ln scale), each centred on the previous best with both spans halved. The search starts at shape 0.3 with span 0.6, so it reaches roughly [−0.8, 1.4] and resolves shape to about 0.02; a fit that lands on an endpoint is at the edge of that range, not at an optimum. shape above 0 is a heavy unbounded tail, 0 exponential, below 0 a tail ending at −scale/shape", "324n", "4m(n) per grid point", "O(n)", 18 },
+	{ "gpd-quantile", "( shape scale p -- q )", "statistics.h2o: the generalized-Pareto quantile — scale/shape · ((1−p)^−shape − 1), and the exponential limit −scale · ln(1−p) when |shape| < 1e-9; errors unless p is in [0, 1)", "6", "none", "O(1)", 18 },
 	{ "group-by", "( array col -- frame )", "Group an array of frames by their symbol-valued col into a frame from each value to a set of the matching rows; one sorted pass, distinct values sorted", "n log n", "frame + sets", "O(n log n)", 13 },
 	{ "group-indices", "( column -- pairs )", "datasets.h2o: [ [ value [indices] ] … ] per distinct value in val_cmp order — each index array holds the value's row positions, ascending (one argsort, the permutation cut at run boundaries); count's shape with positions instead of tallies, so one pass replaces a per-value eq where scan", "2n log n", "permutation + one pair and array per value", "O(n log n)", 22 },
 	{ "group-with", "( items xt -- fr )", "arrays.h2o: group elements into { key → set } by the symbol key xt ( element -- sym ) computes — the quotation-keyed kin of group-by", "n·(xt + log n)", "frame + sets", "O(n·xt + n log n)", 23 },
@@ -693,7 +696,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "C primitive alias of unify, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 26 },
 };
 
-const int help_entry_count = 643;
+const int help_entry_count = 646;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } /a/b 5 ! /a/b @ . cr", "5" },
@@ -1001,6 +1004,9 @@ const HelpExample help_examples[] = {
 	{ "gc", "gc \"collected\" . cr", "collected" },
 	{ "gen-each", ": pair-gen 10 yield 20 yield ; ' pair-gen [: . :] gen-each cr", "10 20" },
 	{ "gen-take", ": odds 1 yield 3 yield 5 yield ; ' odds 3 gen-take . cr", "[ 1 3 5 ]" },
+	{ "gpd-draw", "42 seed\n0.25 2 gpd-draw . cr\n0.25 2 gpd-draw . cr", "0.177111\n1.01184" },
+	{ "gpd-fit", "[ 0.2 0.5 0.9 1.4 2.1 3.5 6.0 12.0 ] vector gpd-fit\nswap \"shape {0}\" format . cr\n\"scale {0}\" format . cr", "shape 0.225\nscale 2.63029" },
+	{ "gpd-quantile", "0.2 1.5 0.9 gpd-quantile . cr\n0 2 0.5 gpd-quantile . cr", "4.3867\n1.38629" },
 	{ "group-by", "[ { :name \"ann\" :team :red } { :name \"bo\" :team :blue } { :name \"cy\" :team :red } ] :team group-by /red @ size . cr", "2" },
 	{ "group-indices", "[ :x :y :x ] group-indices . cr", "[ [ :x\n    [ 0 2 ] ]\n  [ :y\n    [ 1 ] ] ]" },
 	{ "group-with", "[ 1 2 3 4 ] [: 2 mod 0= if :even else :odd then :] group-with frame>array . cr", "[ :even [< 2 4 >] :odd [< 1 3 >] ]" },
@@ -1342,4 +1348,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 644;
+const int help_example_count = 647;

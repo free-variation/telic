@@ -302,6 +302,9 @@ ftruncate
 gc
 gen-each
 gen-take
+gpd-draw
+gpd-fit
+gpd-quantile
 group-by
 group-indices
 group-with

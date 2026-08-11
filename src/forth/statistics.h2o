@@ -533,3 +533,64 @@
 : quantiles
 	[: 2 pick swap quantile :] map nip
 	vector ;
+
+\ ---- generalized Pareto tail (peaks over threshold) ----
+\ Exceedances are the amounts by which observations pass a threshold, so they
+\ are positive and measured from zero.
+
+( shape scale exceedances -- nll ) \ negative log-likelihood; 1e10 where the parameters put an exceedance outside the support
+: gpd-nll
+	| shape scale exceedances |
+	shape abs 1e-9 < if 1e10 exit then
+	exceedances shape * scale / 1 + to scaled
+	scaled min 0 <= if 1e10 exit then
+	scaled ln sum 1 1 shape / + *
+	exceedances num-elements scale ln * + ; internal
+
+( exceedances -- shape scale ) \ maximum likelihood over a refining (shape, ln scale) grid
+: gpd-fit
+	| exceedances |
+	0.3 to center-shape
+	exceedances mean ln to center-lnscale
+	0.6 to shape-span
+	1.5 to lnscale-span
+	center-shape to best-shape
+	center-lnscale to best-lnscale
+	1e10 to best-nll
+	0 to round-i
+	begin round-i 4 < while
+		\ a quotation cannot write this frame: the best triple and the grid index
+		\ thread through it, the centres, spans and exceedances park below
+		exceedances center-shape center-lnscale shape-span lnscale-span
+		best-nll best-shape best-lnscale 0
+		[: nll shape lnscale i |
+			3 pick  i 9 / ftruncate 4 - 4 /  3 pick *  +  to trial-shape
+			2 pick  i 9 mod         4 - 4 /  2 pick *  +  to trial-lnscale
+			trial-shape  trial-lnscale exp  6 pick  gpd-nll to trial-nll
+			trial-nll nll < if trial-nll trial-shape trial-lnscale
+			else               nll shape lnscale then
+			i 1 + :]
+		81 times
+		drop to best-lnscale to best-shape to best-nll
+		2drop 2drop drop
+		best-shape to center-shape
+		best-lnscale to center-lnscale
+		shape-span 2 / to shape-span
+		lnscale-span 2 / to lnscale-span
+		f++ round-i
+	repeat
+	best-shape best-lnscale exp ;
+
+( shape scale p -- q ) \ the exceedance at probability p; shape 0 gives the exponential tail
+: gpd-quantile
+	| shape scale p |
+	p 0 < p 1 >= or if
+		p "gpd-quantile: expected a probability in [0, 1); got {0}" format throw
+	then
+	shape abs 1e-9 < if
+		1 p - ln negate scale * exit
+	then
+	1 p - shape negate ^ 1 - scale * shape / ;
+
+( shape scale -- draw ) \ one exceedance drawn from the tail, by inverse transform
+: gpd-draw random gpd-quantile ; inline

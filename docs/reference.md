@@ -3073,6 +3073,9 @@ keep NaN in place.
 | `correlate-with` | `( xs ys xt B -- fr )` | statistics.h2o: bootstrap 95% CI for the correlation word at xt — resamples (x, y) pairs jointly, B refits via a curried fit through `pbootstrap`, as `{ :estimate :se :bias :ci-low :ci-high }`; deterministic under a fixed seed | B·(n + xt) | pairs matrix + per-worker resample + `1fr` | O(B·(n + xt) / cores) |
 | `cor` | `( xs ys -- fr )` | statistics.h2o: `correlation-kendall` with a 500-replicate bootstrap CI — `' correlation-kendall 500 correlate-with` (inlined) | as `correlate-with` | as `correlate-with` | as `correlate-with` |
 | `qnorm` | `( p -- z )` | statistics.h2o: standard normal quantile (inverse CDF), Acklam's rational approximation — relative error below 1.15e-9, matching R's qnorm to 1e-8 over both tails; errors unless p strictly inside (0, 1) | 30 | none | O(1) |
+| `gpd-fit` | `( exceedances -- shape scale )` | statistics.h2o: maximum-likelihood generalized-Pareto fit to threshold exceedances (a vector of positive amounts by which observations pass a threshold), by grid refinement — four rounds of a 9×9 grid over (shape, ln scale), each centred on the previous best with both spans halved. The search starts at shape 0.3 with span 0.6, so it reaches roughly [−0.8, 1.4] and resolves shape to about 0.02; a fit that lands on an endpoint is at the edge of that range, not at an optimum. `shape` above 0 is a heavy unbounded tail, 0 exponential, below 0 a tail ending at −scale/shape | 324n | `4m(n)` per grid point | O(n) |
+| `gpd-quantile` | `( shape scale p -- q )` | statistics.h2o: the generalized-Pareto quantile — `scale/shape · ((1−p)^−shape − 1)`, and the exponential limit `−scale · ln(1−p)` when \|shape\| < 1e-9; errors unless p is in [0, 1) | 6 | none | O(1) |
+| `gpd-draw` | `( shape scale -- draw )` | statistics.h2o: one exceedance drawn from the tail by inverse transform — `random gpd-quantile` (inlined), and `random`'s [0, 1) is `gpd-quantile`'s domain. Draws from the shared stream, so `seed` fixes the sequence | 7 | none | O(1) |
 | `sample-without-replacement` | `( arr n -- arr )` | statistics.h2o: `false sample` (inlined) | n | as `sample` | O(n) |
 | `sample-with-replacement` | `( arr n -- arr )` | statistics.h2o: `true sample` (inlined) | n | as `sample` | O(n) |
 | `bootstrap` | `( data fit-xt B -- arr )` | statistics.h2o: B refits of fit-xt over resamples of data — dataset/matrix rows, or an array's elements. One serial draw sets the run seed; replicate i draws its indices via `resample-indices-ext` at run-seed + i, so no resample outlives its fit and results don't depend on scheduling — deterministic under a fixed seed | B(n + fit) | per-fit resample + `1a(B)` | O(B·(n + fit)) |
@@ -3355,6 +3358,35 @@ keep NaN in place.
 ```
 ```output
 1.95996
+```
+
+```forth gpd-fit
+[ 0.2 0.5 0.9 1.4 2.1 3.5 6.0 12.0 ] vector gpd-fit
+swap "shape {0}" format . cr
+"scale {0}" format . cr
+```
+```output
+shape 0.225
+scale 2.63029
+```
+
+```forth gpd-quantile
+0.2 1.5 0.9 gpd-quantile . cr
+0 2 0.5 gpd-quantile . cr
+```
+```output
+4.3867
+1.38629
+```
+
+```forth gpd-draw
+42 seed
+0.25 2 gpd-draw . cr
+0.25 2 gpd-draw . cr
+```
+```output
+0.177111
+1.01184
 ```
 
 ```forth sample-without-replacement
