@@ -899,7 +899,7 @@ to aes
 	:width figure@ :height figure@
 	"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 {1} {0}'>{nl}" format
 	0 0 :width figure@ :height figure@ :canvas-fill figure@ "none" 0 rect-element + nl +
-	:parts figure@ [: render-mark :] map [: size 0 > :] filter nl join +
+	:parts figure@ ' render-mark map [: size 0 > :] filter nl join +
 	"{nl}</svg>{nl}" format + ;
 
 ( title -- html ) \ carousel viewer: discover N.svg by probing, < > navigate, delete hides from view

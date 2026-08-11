@@ -184,10 +184,10 @@
 { :n 5 } [ ] [: 1 + :] update-at . cr
 
 \ update-at : symbol form
-{ :a 5 } :a [: 1+ :] update-at . cr
+{ :a 5 } :a ' 1+ update-at . cr
 
 \ update-at : chained symbol form
-{ :a 1 :b 2 } :a [: 1+ :] update-at :b [: 1- :] update-at . cr
+{ :a 1 :b 2 } :a ' 1+ update-at :b ' 1- update-at . cr
 
 \ update-at : dynamic symbol
 { :k 0 } "k" string>symbol [: 42 + :] update-at . cr

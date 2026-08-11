@@ -3,7 +3,7 @@
 	dup matrix? if drop :real exit then
 	[: none? not :] filter
 	dup size 0= if drop :text exit then
-	[: float? :] all? if :real else :text then ; internal
+	' float? all? if :real else :text then ; internal
 
 ( name -- quoted ) \ sql identifier: embedded quotes doubled, wrapped in quotes
 : sql-identifier

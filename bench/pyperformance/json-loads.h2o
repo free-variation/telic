@@ -22,4 +22,4 @@ jt json>frame frame>json size +
 jg json>frame frame>json size +
 "bytes: {0}" format . cr
 
-now [: run-loads :] 3700 times now swap - "elapsed: {0} s" format . cr
+now ' run-loads 3700 times now swap - "elapsed: {0} s" format . cr

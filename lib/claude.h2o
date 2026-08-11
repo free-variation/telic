@@ -83,7 +83,7 @@
 ( conversations -- answers ) \ conversations: array of prompt-arrays; run in parallel, failed ones yield null 
 : run-cots
 	[:
-		[: run-cot :]
+		' run-cot
 		[: drop null :]
 		try-catch
 	:]

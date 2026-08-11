@@ -56,8 +56,8 @@ variable sols   variable done
   o 49.0 = if -51.0 exit then
   -49.0 ;
 
-: rotate-list ( a -- a' )  [: rotate-dir :] map ;
-: flip-list   ( a -- a' )  [: flip-dir :] map ;
+: rotate-list ( a -- a' )  ' rotate-dir map ;
+: flip-list   ( a -- a' )  ' flip-dir map ;
 
 \ permute one piece's incremental-direction list into all orientations,
 \ matching the reference order (rotations, then flips of each); is-c2 truncates
@@ -125,7 +125,7 @@ variable sols   variable done
 ( pi -- ) \ store piece pi's converted permutations
 : convert-piece
   | pi |
-  pieces pi @i  pi 3.0 =  permute  [: convert :] map
+  pieces pi @i  pi 3.0 =  permute  ' convert map
   pieces pi rot !i drop ; internal
 
 : init-pieces ^pieces |
@@ -242,7 +242,7 @@ variable sols   variable done
 : meteor-bench
   init-board init-pieces init-fps get-footprints get-senh
   now to t0
-  [: solve-once :] loops times
+  ' solve-once loops times
   now t0 - to t0
   "solutions: " . sols size . cr
   sols size nsols = "match: {0}" format . cr

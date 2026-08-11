@@ -25576,4 +25576,4 @@ variable search-checksum  variable sub-checksum
 
 run-v8
 search-checksum sub-checksum + "checksum: {0}" format . cr
-now [: run-v8 :] 100 times now swap - "elapsed: {0} s" format . cr
+now ' run-v8 100 times now swap - "elapsed: {0} s" format . cr

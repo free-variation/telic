@@ -27,7 +27,7 @@ num-cores 16 * to domain
 	0 to i
 	begin i rounds < while
 		now to t0
-		seeds workers 1 [: crunch :] pmap-ext 0.0 [: + :] reduce
+		seeds workers 1 ' crunch pmap-ext 0.0 [: + :] reduce
 		i 1 + now t0 - "  round {1}: {0} s   cksum {2}" format . cr
 		++ i
 	repeat ;

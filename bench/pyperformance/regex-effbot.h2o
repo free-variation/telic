@@ -64,4 +64,4 @@ count-matches "matches: {0}" format . cr
 
 \ warm the compiled-pattern cache (21 patterns, all stay cached), then time
 search-all
-now [: search-all :] 1000 times now swap - "elapsed: {0} s" format . cr
+now ' search-all 1000 times now swap - "elapsed: {0} s" format . cr

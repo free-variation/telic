@@ -26,4 +26,4 @@ variable dc
 \ verification: a deep copy equals its original, expect 1
 a copy a = "equal: {0}" format . cr
 
-now [: run-deepcopy :] 20000 times now swap - "elapsed: {0} s" format . cr
+now ' run-deepcopy 20000 times now swap - "elapsed: {0} s" format . cr

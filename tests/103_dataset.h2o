@@ -213,13 +213,13 @@ clear
 { :rep_touches [ 3 -1 7 ] vector :name [ "a" null "c" ] } to editable
 editable :rep_touches [: -1 eq :] null replace-where
 editable :rep_touches @ transpose . cr          \ 3 nan 7
-editable :rep_touches [: nan? :] 0 replace-where
+editable :rep_touches ' nan? 0 replace-where
 editable :rep_touches @ transpose . cr          \ 3 0 7
-editable :name [: nan? :] "?" replace-where
+editable :name ' nan? "?" replace-where
 editable :name @ . cr                           \ [ "a" "?" "c" ]
 { :price [ 12 8 ] vector $ } to shop
 shop :price [: 10 $ < :] 5 $ replace-where
 shop :price @ transpose . cr                    \ 12 5, unit kept
 
 \ errors
-editable :missing [: nan? :] 0 replace-where    \ (no key :missing)
+editable :missing ' nan? 0 replace-where    \ (no key :missing)

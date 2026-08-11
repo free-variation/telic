@@ -29,7 +29,7 @@ variable c-real  variable c-imag  variable zr  variable zi  variable escaped
 
 setup
 now to t0
-[: step :] max-iter times
+' step max-iter times
 escaped 0.0 eq sum to checksum
 now t0 - to elapsed
 "elapsed: " . elapsed . " s" . cr

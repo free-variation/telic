@@ -156,7 +156,7 @@ inline internal
 	| rel cols |
 	rel :rows @
 	cols
-	[: row cols | cols row [: [: string>symbol :] update-at :] reduce :]
+	[: row cols | cols row [: ' string>symbol update-at :] reduce :]
 	curry map
 
 	cols relation swap load-bag ;

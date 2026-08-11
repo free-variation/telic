@@ -67,7 +67,7 @@ variable zero-col
   to n_loops
   prep
   now to t0
-  [: one-loop :] n_loops times
+  ' one-loop n_loops times
   "elapsed: " . now t0 - . "s" . cr
 
   0  ' add-uv  n i-times  to vBv

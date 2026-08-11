@@ -248,7 +248,7 @@ variable pixw variable pixh
   init-lights
   setup-eye
   now to t0
-  [: render-frame :] frames times
+  ' render-frame frames times
   now t0 - to t0
   "checksum: " . checksum . cr
   "elapsed: " . t0 . " s" . cr ;

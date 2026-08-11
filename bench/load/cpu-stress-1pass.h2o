@@ -22,7 +22,7 @@ domain iters "  {1} items x {0} float-iters in a single region" format . cr
 cr
 
 now to t0
-seeds workers 1 [: crunch :] pmap-ext 0.0 [: + :] reduce to check
+seeds workers 1 ' crunch pmap-ext 0.0 [: + :] reduce to check
 now t0 - to elapsed
 
 elapsed "elapsed   : {0} s" format . cr

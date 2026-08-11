@@ -1474,6 +1474,11 @@ void call_open_callable(Interpreter *interp, Val callable, CallContext *context)
 	vocab.dict[interp->trampoline_base + 2] = vocab.dict[vocab.stop_cfa];
 }
 
+static void trampoline_stop(DISPATCH_ARGS) {
+	interp->running = 0;
+	interp->ip = interp->trampoline_base + 2;
+}
+
 void call_open(Interpreter *interp, int cfa, CallContext *context) {
 	cfa_handler handler = (cfa_handler)vocab.dict[cfa];
 
@@ -1569,7 +1574,8 @@ void call_open(Interpreter *interp, int cfa, CallContext *context) {
 	} else {
 		vocab.dict[interp->trampoline_base] = (cell)handler;
 		vocab.dict[interp->trampoline_base + 1] = stop_handler;
-		vocab.dict[interp->trampoline_base + 2] = stop_handler;
+		vocab.dict[interp->trampoline_base + 2] = (cell)&trampoline_stop;
+		interp->ip = interp->trampoline_base + 2;
 	}
 }
 

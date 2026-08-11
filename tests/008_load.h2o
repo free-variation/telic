@@ -5,7 +5,7 @@
 
 ": double 2 * ;
 : square dup * ;
-[< 1 2 3 >] [: square :] map .
+[< 1 2 3 >] ' square map .
 " "/tmp/water_008_loadable.h2o" write-file
 
 "/tmp/water_008_loadable.h2o" load

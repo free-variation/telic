@@ -9,5 +9,5 @@
 variable shared
 [ 0 ] to shared
 1 1 range 1 1 [: drop shared 0 1234 "{0}" format !i drop shared :] pmap-ext drop
-[: drop 5678 "{0}" format drop :] 3000 i-times
+[: 5678 "{0}" format drop :] 3000 times
 shared 0 @i . cr

@@ -28,9 +28,9 @@ total . cr                                       \ 10  (no elements, no calls)
 [ 1 3 ] [: dup 1 + range :] flat-map . cr        \ [ 1 2 3 4 ]
 
 \ === sort-by ===============================================================
-[ "ccc" "a" "bb" ] [: size :] sort-by . cr       \ [ "a" "bb" "ccc" ]
-[ 3 1 4 1 5 9 2 6 ] [: negate :] sort-by . cr    \ descending
-[ ] [: negate :] sort-by . cr                    \ [ ]
+[ "ccc" "a" "bb" ] ' size sort-by . cr           \ [ "a" "bb" "ccc" ]
+[ 3 1 4 1 5 9 2 6 ] ' negate sort-by . cr        \ descending
+[ ] ' negate sort-by . cr                        \ [ ]
 [ { :n 2 } { :n 1 } ] [: :n @ :] sort-by . cr    \ frames by field
 
 \ === partition =============================================================

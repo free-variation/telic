@@ -16,7 +16,7 @@
 "a runtime error becomes the reason" [: { :a 1 } :missing @ :] test
 
 \ === test-report tallies and throws on any failure ===
-[: test-report :] [: drop :] try-catch
+' test-report [: drop :] try-catch
 
 \ === new-tests zeroes the counters, so the next report covers only what follows ===
 new-tests

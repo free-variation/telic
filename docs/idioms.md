@@ -100,6 +100,14 @@ through consumption to its destination — a `to name`, a store, a print, an
       ++ tests-failed ;
   ```
 
+- A combinator argument that is one existing word is that word's xt, not a
+  quotation around it: `' size sort-by`, not `[: size :] sort-by`. Write a
+  quotation when the body is a literal, several words, or needs a head. The two
+  are not only styled differently — a quotation is a compiled body the
+  combinator dispatches into, an xt is called directly — and `fold-times`
+  distinguishes them, taking a primitive combiner without touching the data
+  stack and a quotation combiner as `( acc term -- acc' )`.
+
 ## Control structures compile
 
 `if`/`else`/`then`, `begin`/`while`/`repeat`/`until`/`again`, and

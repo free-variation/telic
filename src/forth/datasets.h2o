@@ -5,7 +5,7 @@
 	| rows header? |
 
 	header? if
-		rows 0 @i [: string>symbol :] map to column-keys
+		rows 0 @i ' string>symbol map to column-keys
 		column-keys 1
 	else
 		rows 0 @i size 1 swap range [: "col{0}" format string>symbol :] map to column-keys
@@ -69,7 +69,7 @@
 
 	column-keys  rows row-indices select-rows  [: 2 pick swap frame :] map  nip to row-frames
 	index-cols  row-frames
-	[: 2 pick swap [: [: string>symbol :] update-at :] reduce :] map  nip to row-frames
+	[: 2 pick swap [: ' string>symbol update-at :] reduce :] map  nip to row-frames
 
 	index-cols relation row-frames bulk-load ;
 

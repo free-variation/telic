@@ -183,7 +183,7 @@
 	levels size 2 < if "column>indicators: needs at least 2 distinct values" throw then
 	column  levels 1 skip
 	[: 2 pick swap eq :] map  nip
-	dup 0 @i swap 1 skip swap [: augment :] reduce ;
+	dup 0 @i swap 1 skip swap ' augment reduce ;
 
 ( design column sym -- design ) \ add one 0/1 column per non-reference level to a
 \ design dataset, keyed sym=level; levels and keys derive from the same data

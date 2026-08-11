@@ -335,7 +335,7 @@ drop
 			' cv-ridge-cell curry curry curry curry :]
 		2curry map :]
 	2curry map flatten-array
-	[: execute :] mapper execute
+	' execute mapper execute
 	vector lambdas size n-folds reshape row-means to losses
 	{ :lambdas lambdas
 	  :deviances losses
@@ -372,7 +372,7 @@ drop
 		exit
 	then drop
 
-	mac-xgboost-libs linux-xgboost-libs concat [: file-exists? :] find-first
+	mac-xgboost-libs linux-xgboost-libs concat ' file-exists? find-first
 	dup none? if
 		drop "libxgboost.so"
 	then ; internal

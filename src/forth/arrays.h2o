@@ -24,7 +24,7 @@
 inline
 
 ( items pred -- flag )  \ do all elements satisfy pred?
-: all?  map 1 [: * :] reduce ;
+: all?  map 1 ' * reduce ;
 
 ( items xt -- items' )  \ xt maps an element to an array; results concatenated
 : flat-map  map flatten-array ;

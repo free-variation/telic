@@ -33,7 +33,7 @@ variable maxx variable maxy variable maxz
 
 : maximize-points ^maxx ^maxy ^maxz |
   xs 0 @i to maxx  ys 0 @i to maxy  zs 0 @i to maxz
-  [: i ^maxx ^maxy ^maxz |
+  [: i |
      xs i @i to xi  xi maxx >= if xi to maxx then
      ys i @i to xi  xi maxy >= if xi to maxy then
      zs i @i to xi  xi maxz >= if xi to maxz then
@@ -49,7 +49,7 @@ variable maxx variable maxy variable maxz
 
 : float-run
   now to t0
-  [: float-once :] repeats times
+  ' float-once repeats times
   now t0 - to t0
   "result: " . [ maxx maxy maxz ] frame>json . cr
   "elapsed: " . t0 . " s" . cr ;

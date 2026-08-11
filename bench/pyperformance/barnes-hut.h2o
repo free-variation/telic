@@ -235,16 +235,11 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
   root ' force-particle curry   n i-times
   ' step-particle  n i-times ;
 
-( lp -- ) \ one measured pass: advance, then re-measure the energy
-: bench-pass
-  drop
-  ' advance-system  iterations i-times ; internal
-
 : barnes-bench
   create-galaxy
   system-energy to ie
   now to t0
-  ' bench-pass  loops i-times
+  [: ' advance-system iterations i-times :]  loops times
   system-energy to fe
   now t0 - to t0
   "initial energy: " . [ ie ] frame>json . cr

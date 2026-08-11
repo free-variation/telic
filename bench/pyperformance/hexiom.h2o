@@ -64,7 +64,7 @@ variable unknown  variable neighbour  variable current-value
   board to cells
   0.0 to vmin  0.0 to vmax
   cell-links i @i to links
-  [: k ^neighbour ^vmin ^vmax |
+  [: k ^neighbour |
      links k @i to neighbour
      cells neighbour already-done? if
         cells neighbour cell-val empty = 0= if vmin 1.0 f+ to vmin  vmax 1.0 f+ to vmax then
@@ -98,7 +98,7 @@ variable unknown  variable neighbour  variable current-value
      freecells fi @i to cell-index
      cells cell-index already-done? 0= if
         cells cell-index nb-vminvmax to vmax to vmin
-        [: num-index ^changed |
+        [: num-index |
            num-index vmin < num-index vmax > or if
               cells cell-index num-index cell-remove if 1.0 to changed then
            then
@@ -108,13 +108,13 @@ variable unknown  variable neighbour  variable current-value
   \ 2. how many of each value remain free
   [: i ^current-value | cells i already-done? if cells i cell-val to current-value  left current-value  left current-value @i 1.0 f-  !i drop then :] count i-times
   \ 3. exhaust or force values
-  [: v ^value ^changed |
+  [: v ^value |
      tiles v @i 0.0 >  left v @i 0.0 = and if
         cells v remove-unfixed if 1.0 to changed then
      else
         cells v count-possible tiles v @i = if
            v to value
-           [: i ^changed | cells i already-done? 0=  cells i value member-cell? and if cells i value set-done 1.0 to changed then :] count i-times
+           [: i | cells i already-done? 0=  cells i value member-cell? and if cells i value set-done 1.0 to changed then :] count i-times
         then
      then
   :] 8.0 i-times
@@ -126,7 +126,7 @@ variable unknown  variable neighbour  variable current-value
         cells cell-index cell-val to num
         0.0 to filled  [ ] to unknown
         cell-links cell-index @i to links
-        [: k ^neighbour ^filled ^unknown |
+        [: k ^neighbour |
            links k @i to neighbour
            cells neighbour already-done? if
               cells neighbour cell-val empty = if else filled 1.0 f+ to filled then
@@ -134,9 +134,9 @@ variable unknown  variable neighbour  variable current-value
         :] links size i-times
         unknown size 0.0 > if
            num filled = if
-              [: uk ^neighbour ^changed | unknown uk @i to neighbour  cells neighbour empty member-cell? if cells neighbour empty set-done 1.0 to changed then :] unknown size i-times
+              [: uk ^neighbour | unknown uk @i to neighbour  cells neighbour empty member-cell? if cells neighbour empty set-done 1.0 to changed then :] unknown size i-times
            else num filled unknown size f+ = if
-              [: uk ^neighbour ^changed | unknown uk @i to neighbour  cells neighbour empty cell-remove if 1.0 to changed then :] unknown size i-times
+              [: uk ^neighbour | unknown uk @i to neighbour  cells neighbour empty cell-remove if 1.0 to changed then :] unknown size i-times
            then then
         then
      then
@@ -224,7 +224,7 @@ variable unknown  variable neighbour  variable current-value
 : hexiom-bench
   init-data
   now to t0
-  [: solve-once :] loops times
+  ' solve-once loops times
   now t0 - to t0
   "signature: " . solution-sig . cr
   "elapsed: " . t0 . " s" . cr ;

@@ -26,7 +26,7 @@ variable gf-exp  variable gf-log  variable sbox  variable acc
   0 256 array-of to gf-exp
   0 256 array-of to gf-log
   1 to acc
-  [: i ^acc |
+  [: i |
      gf-exp i acc !i drop
      gf-log acc i !i drop
      acc gmul3 to acc

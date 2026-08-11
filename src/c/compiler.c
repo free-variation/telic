@@ -1329,10 +1329,14 @@ void p_symbol(DISPATCH_ARGS) {
 }
 
 void p_string_to_symbol(DISPATCH_ARGS) {
-	POP_STRING(string, "string>symbol");
-	push(interp, make_symbol(intern_symbol(interp, string->bytes)));
+	PEEK_STRING_AT(string, 0, "string>symbol");
+	int symbol_cfa = intern_symbol(interp, string->bytes);
+	if (interp->error_flag)
+		return;
 
-	DISPATCH(interp);
+	chain_sp[-1] = make_symbol(symbol_cfa);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
 
 void p_internal(DISPATCH_ARGS) {

@@ -44,7 +44,7 @@ num-cores 0 > . cr
 1 100 range dup [: dup * 1 + :] map swap [: dup * 1 + :] pmap = . cr
 
 \ claim 1, max contention, 500 elements == map
-1 500 range dup [: sq :] map swap 8 1 [: sq :] pmap-ext = . cr
+1 500 range dup ' sq map swap 8 1 ' sq pmap-ext = . cr
 
 \ allocating quotation: a fresh string per element == map
 1 200 range dup [: "{0}" format :] map swap [: "{0}" format :] pmap = . cr

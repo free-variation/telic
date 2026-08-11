@@ -106,7 +106,7 @@
 [ 2 2 1 ] vector ecdf . . cr                     \ ties: xs [1 2 2], ys rise through them
 [ 4 null 2 ] vector ecdf . . cr                  \ NaN excluded from points and n: [2 4], [0.5 1]
 [ 5 7 9 11 ] vector ecdf nip dup num-elements 1- @e . cr   \ 1  the last fraction is exactly 1
-[ null ] vector [: ecdf :] catch . . cr          \ 1 then the no-finite-values message
+[ null ] vector ' ecdf catch . . cr          \ 1 then the no-finite-values message
 
 \ binomial-deviance ( y p -- dev ): -2 log-likelihood; p clamped away from 0 and 1
 [ 1 0 ] vector [ 0.5 0.5 ] vector binomial-deviance . cr    \ 2.77259  ( -2*2*ln 0.5 )
@@ -137,7 +137,7 @@
 [ 1 2 3 2 1 ] vector column>indicators . cr      \ 5x2: level-2 and level-3 columns
 [ "b" "a" "b" "c" ] column>indicators . cr       \ 4x2: "b" and "c" columns, "a" reference
 [ 2 null 3 ] vector column>indicators . cr       \ 3x1: null is no level; missing row all zero
-[ 1 1 1 ] vector [: column>indicators :] catch . . cr   \ 1 then the single-level message
+[ 1 1 1 ] vector ' column>indicators catch . . cr   \ 1 then the single-level message
 
 \ indicators! ( design column sym -- design ): keyed 0/1 level columns
 { } [ "b" "a" "b" "c" ] :kind indicators! keys . cr        \ [ :kind=b :kind=c ]
@@ -147,7 +147,7 @@
 \ with-intercept ( X/design -- X'/design ): ones column, prepended or keyed
 [ 5 6 7 ] 3 1 matrix with-intercept . cr   \ [[1 5][1 6][1 7]]
 { :x [ 5 6 7 ] vector } with-intercept dup keys . :intercept @ . cr   \ [ :intercept :x ] then 3x1 ones
-{ } [: with-intercept :] catch . . cr      \ 1 then the empty-design message
+{ } ' with-intercept catch . . cr      \ 1 then the empty-design message
 
 \ sigmoid ( m -- m' ): elementwise logistic; 0 -> 0.5, symmetric
 [ 0 ] 1 1 matrix sigmoid . cr                    \ 0.5

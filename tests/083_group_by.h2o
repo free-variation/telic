@@ -24,7 +24,7 @@ dup keys . cr                                  \ [ :a ]
 [ { :v :a } { :v :b } { :v :c } ] :v group-by keys size . cr   \ 3
 
 \ === aggregation: group, then map each bucket to its size (count per group) ===
-[ { :id 1 :c :x } { :id 2 :c :y } { :id 3 :c :x } { :id 4 :c :x } ] :c group-by values [: size :] map . cr   \ count per group: x->3, y->1
+[ { :id 1 :c :x } { :id 2 :c :y } { :id 3 :c :x } { :id 4 :c :x } ] :c group-by values ' size map . cr   \ count per group: x->3, y->1
 
 \ === keys arriving out of order still group correctly (the pass sorts by key
 \ so each key inserts in order, but the grouping is independent of row order) ===
