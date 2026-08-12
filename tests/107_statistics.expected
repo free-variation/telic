@@ -6,6 +6,8 @@
 3.5 3.5 3.5 
 error: needs at least 2 non-NaN elements; got 1
 in var
+0.00999999 
+0.5 
 1 
 10 
 5.5 

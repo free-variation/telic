@@ -1630,12 +1630,15 @@ void p_update_at(DISPATCH_ARGS) {
 				fail(interp, "no key :%s", &vocab.symbol_pool[leaf]);
 				return;
 			}
+			gc_root_push(interp, parent);
+			if (interp->error_flag) return;
 			push(interp, parent_obj->frame.values[at]);
 			push_curried_bindings(interp, xt);
-			if (interp->error_flag) return;
+			if (interp->error_flag) { gc_root_pop(interp); return; }
 			execute_xt(interp, callable_cfa(xt));
-			if (interp->error_flag) return;
+			if (interp->error_flag) { gc_root_pop(interp); return; }
 			frame_put(parent_obj, leaf, pop(interp));
+			gc_root_pop(interp);
 			interp->dsp -= 2;
 			});
 
@@ -2323,6 +2326,11 @@ static void json_write_byte(JSONWriter *writer, char byte) {
 static void json_write_number(JSONWriter *writer, double number) {
 	char text[32];
 	int n;
+
+	if (!isfinite(number)) {
+		json_write_bytes(writer, "null", 4);
+		return;
+	}
 
 	if (number == (double)(int64_t)number && number > -1e15 && number < 1e15) {
 		n = snprintf(text, sizeof text, "%lld", (long long)number);

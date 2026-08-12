@@ -46,21 +46,34 @@ static int date_frame_from_calendar(Interpreter *interp, struct tm *calendar, do
 	return handle;
 }
 
+static int epoch_to_calendar(double epoch, int wants_local_time, struct tm *calendar) {
+	double whole = floor(epoch);
+	if (!(whole >= -9223372036854775808.0 && whole < 9223372036854775808.0))
+		return 0;
+
+	time_t moment = (time_t)whole;
+	struct tm *converted;
+	if (wants_local_time) {
+		refresh_timezone();
+		converted = localtime_r(&moment, calendar);
+	} else
+		converted = gmtime_r(&moment, calendar);
+
+	return converted != NULL;
+}
+
 static void epoch_to_date_frame(Interpreter *interp, Val *chain_sp, int wants_local_time) {
 	Val epoch_val = chain_sp[-1];
 	REQUIRE_CHAIN_TAG(epoch_val, T_FLOAT, "epoch>date", "a float epoch");
 
 	double epoch = VAL_NUMBER(epoch_val);
-	double whole = floor(epoch);
-	time_t moment = (time_t)whole;
 	struct tm calendar;
-	if (wants_local_time) {
-		refresh_timezone();
-		localtime_r(&moment, &calendar);
-	} else
-		gmtime_r(&moment, &calendar);
+	if (!epoch_to_calendar(epoch, wants_local_time, &calendar)) {
+		fail(interp, "epoch out of range");
+		return;
+	}
 
-	int handle = date_frame_from_calendar(interp, &calendar, epoch - whole);
+	int handle = date_frame_from_calendar(interp, &calendar, epoch - floor(epoch));
 	if (handle < 0)
 		return;
 
@@ -113,7 +126,13 @@ static int date_field(Interpreter *interp, Object *date, const char *key,
 		return 0;
 	}
 
-	*out = VAL_NUMBER(value);
+	double number = VAL_NUMBER(value);
+	if (!isfinite(number) || fabs(number) > 1e9) {
+		fail(interp, ":%s out of range; got %g", key, number);
+		return 0;
+	}
+
+	*out = number;
 	return 1;
 }
 
@@ -198,16 +217,18 @@ static int format_time_at(Interpreter *interp, Val *stack_top, int local) {
 	}
 
 	Object *format = OBJECT_AT(VAL_DATA(format_val));
-	time_t moment = (time_t)floor(VAL_NUMBER(epoch_val));
 	struct tm calendar;
-	if (local) {
-		refresh_timezone();
-		localtime_r(&moment, &calendar);
-	} else
-		gmtime_r(&moment, &calendar);
+	if (!epoch_to_calendar(VAL_NUMBER(epoch_val), local, &calendar)) {
+		fail(interp, "epoch out of range");
+		return 0;
+	}
 
 	char rendered[512];
 	size_t length = strftime(rendered, sizeof(rendered), format->bytes, &calendar);
+	if (length == 0 && format->len != 0) {
+		fail(interp, "formatted time too long (max %zu bytes)", sizeof(rendered) - 1);
+		return 0;
+	}
 
 	int handle = object_new_string(interp, rendered, (int)length);
 	if (interp->error_flag)

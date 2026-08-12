@@ -5,6 +5,8 @@
 1 
 108894 
 1 
+error: : command not found
+in start-process
 error: expected a stream; got a float
 in read
 1 

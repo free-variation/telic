@@ -587,7 +587,8 @@ void p_unit(DISPATCH_ARGS) {
 
 	int redefined = find(name) != 0;
 	int cfa = create_header(interp, name, 0);
-	units[unit].name = WORD_NAME(cfa);
+	if (units[unit].name == UNIT_UNNAMED)
+		units[unit].name = WORD_NAME(cfa);
 	if (base_dimension != DIMENSION_UNNAMED)
 		dimension_names[base_dimension] = WORD_NAME(cfa);
 

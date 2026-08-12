@@ -27,6 +27,7 @@ false
 1 
 1 
 1 
+{"a": null, "b": null, "c": 2.5} 
 error: cannot serialize a set
 in frame>json
 error: cannot serialize a non-boolean symbol

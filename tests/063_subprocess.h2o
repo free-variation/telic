@@ -22,6 +22,10 @@
 \ the :err stream is readable too
 [ "sh" "-c" "printf oops >&2" ] start-process :err @ read  "oops" =  . cr  \ 1
 
+\ error: a name that resolves to a directory (here the empty name, which builds
+\ "<dir>/" for each PATH entry) is not an executable, so it is not found
+[ "" ] start-process
+
 \ error: read on a non-stream
 5 read
 

@@ -42,8 +42,15 @@ epoch>date :second @ . cr                                \ 56.5
 \ === errors are catchable ==================================================
 [: { :month 7 } date>epoch :] catch nip . cr             \ 1 (no :year)
 [: { :year 2026 :month "july" } date>epoch :] catch nip . cr    \ 1
+[: { :year 2000 :month 1e300 } date>epoch :] catch nip . cr     \ 1 (field out of castable range)
 [: 42 epoch>date :] catch nip . cr                       \ 1 (bare float is not an instant)
 [: "nope" iso>time :] catch nip . cr                     \ 1
+[: 1e30 s epoch>date :] catch nip . cr                   \ 1 (epoch beyond time_t range)
+[: -1e30 s epoch>date :] catch nip . cr                  \ 1
+[: 1e30 s "%Y" format-time :] catch nip . cr             \ 1 (same range guard in format-time)
+\ a format whose output overruns the render buffer errors instead of silently
+\ returning an empty string (256 copies of %Y expand to ~1KB)
+[: "%Y" dup + dup + dup + dup + dup + dup + dup + dup + 0 s swap format-time :] catch nip . cr   \ 1 (too long)
 
 \ === units integration =====================================================
 1 week 7 day = . cr                                      \ 1

@@ -21,6 +21,12 @@
 \ var needs at least two elements
 [ 7 ] 1 1 matrix var . cr
 
+\ numerical stability: a large mean with a tiny spread. The one-pass
+\ sum-of-squares formula cancels catastrophically (it returned a negative
+\ variance); the two-pass mean-deviation form stays accurate.
+[ 1000000000.1 1000000000.2 1000000000.3 ] 3 1 matrix var . cr
+[ 1000000000 1000000001 ] 2 1 matrix var . cr   \ 0.5
+
 \ quantile ( m p -- f ): sort the values, then linearly interpolate at p*(n-1).
 \ p=0 is the min, p=1 the max, p=0.5 the median.
 [ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix 0 quantile . cr      \ 1     min

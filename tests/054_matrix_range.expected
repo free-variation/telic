@@ -14,3 +14,7 @@ error: step sign does not match start/end direction
 in matrix-range
 error: too many elements
 in matrix-range
+error: start, end, and step must be finite
+in matrix-range
+error: start, end, and step must be finite
+in matrix-range

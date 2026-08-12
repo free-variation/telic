@@ -2337,7 +2337,7 @@ static int rational_of_double(double value, int *numerator, int *denominator) {
 	for (int candidate = 1; candidate <= 64; candidate++) {
 		double scaled = value * candidate;
 		double rounded = round(scaled);
-		if (fabs(scaled - rounded) < 1e-9) {
+		if (rounded >= (double)INT_MIN && rounded <= (double)INT_MAX && fabs(scaled - rounded) < 1e-9) {
 			*numerator = (int)rounded;
 			*denominator = candidate;
 			return 1;

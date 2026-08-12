@@ -3,6 +3,7 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
 
 void *platform_reserve(size_t requested, size_t *reserved_out) {
 	size_t reservation = requested ? requested : ARENA_RESERVE;
@@ -318,7 +319,9 @@ static char *resolve_program_path(const char *name) {
 		candidate[dir_len] = '/';
 		memcpy(candidate + dir_len + 1, name, name_len + 1);
 
-		if (access(candidate, X_OK) == 0)
+		struct stat candidate_stat;
+		if (stat(candidate, &candidate_stat) == 0 && S_ISREG(candidate_stat.st_mode)
+				&& access(candidate, X_OK) == 0)
 			return candidate;
 		free(candidate);
 
@@ -359,10 +362,14 @@ void p_start_process(DISPATCH_ARGS) {
 		return;
 	}
 
-	int in_pipe[2];
-	int out_pipe[2];
-	int err_pipe[2];
+	int in_pipe[2] = { -1, -1 };
+	int out_pipe[2] = { -1, -1 };
+	int err_pipe[2] = { -1, -1 };
 	if (pipe(in_pipe) < 0 || pipe(out_pipe) < 0 || pipe(err_pipe) < 0) {
+		int opened[6] = { in_pipe[0], in_pipe[1], out_pipe[0], out_pipe[1], err_pipe[0], err_pipe[1] };
+		for (int i = 0; i < 6; i++)
+			if (opened[i] >= 0)
+				close(opened[i]);
 		free(argv);
 		free(program_path);
 		fail(interp, "pipe failed");
@@ -375,6 +382,8 @@ void p_start_process(DISPATCH_ARGS) {
 
 	pid_t pid = fork();
 	if (pid < 0) {
+		for (int i = 0; i < 6; i++)
+			close(pipe_fds[i]);
 		free(argv);
 		free(program_path);
 		fail(interp, "fork failed");

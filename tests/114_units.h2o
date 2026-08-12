@@ -72,6 +72,8 @@ base unit ml
 3 m 2 +
 3 m 2 m ^
 3 m 0.01 ^
+3 m 1e30 ^                              \ (exponent overflows a 32-bit rational)
+3 m -1e30 ^                             \ (negative exponent overflows too)
 3 m sin
 base unit foo
 1 foo 2 sqrt / unit irrational
@@ -109,3 +111,13 @@ clear
 [ ] vector s unit-of 1 s = . cr         \ 1     (empty typed column keeps its unit)
 10 m unit-of 1 s = . cr                 \ 0
 7 m 7 m unit-of * . cr                  \ 7 m^2 (attach a unit by multiplying)
+
+clear
+\ ---- a new name for an already-named unit is a synonym, not a rename: the
+\ existing unit keeps its name and the alias renders under it ----
+1 m unit meter
+5 m . cr                                \ 5 m      (m is not renamed)
+5 meter . cr                            \ 5 m      (the alias resolves to m)
+5 meter 3 m + . cr                      \ 8 m      (interconvertible)
+1 1 s / unit hz2
+5 hertz . cr                            \ 5 hertz  (hertz is not renamed)

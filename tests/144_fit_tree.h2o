@@ -105,6 +105,16 @@ tree { :x [ null ] vector } predict matrix>array . cr  \ [ 5 ]
 tree :default @ . cr                                   \ :left  (missing y=1 matches left)
 tree { :x [ null ] vector } predict matrix>array . cr  \ [ 1 ]
 { :x [ 1 2 3 4 ] vector } [ 1 1 5 5 ] vector { :max-depth 1 } fit-tree :default has? . cr  \ 0  (no missing)
+
+\ a split that routes missing left must partition the sibling columns counting
+\ the missing rows; a deeper split otherwise reads corrupted columns (this once
+\ produced an impossible negative leaf, since every response is in {1,2,5}).
+{ :x [ 1 2 3 4 null null ] vector :b [ 10 20 30 40 10 20 ] vector } [ 1 2 5 5 1 2 ] vector { :max-depth 2 } fit-tree to tree
+tree :feature @ . tree :default @ . cr        \ :x :left
+tree /left/feature @ . cr                     \ :b   (left child splits on b, not garbage)
+tree /left/left/prediction @ . cr             \ 1
+tree /left/right/prediction @ . cr            \ 2
+tree /right/prediction @ . cr                 \ 5
 clear
 
 \ === prune: cost-complexity collapse; prune-cv picks alpha by CV + 1-SE ===

@@ -23,3 +23,8 @@
 
 \ Element count overflows int (M3) — must error, not cast a huge double to int
 0.0 1e18 0.001 matrix-range
+
+\ Non-finite bounds rejected: inf/inf would make (end-start)/step a NaN that
+\ slips past the count guard and casts NaN to int
+inf inf 1.0 matrix-range
+0.0 inf 1.0 matrix-range

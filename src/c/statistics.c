@@ -59,23 +59,30 @@ typedef struct {
 double matrix_variance_overall(Object *source, size_t *n_nonmissing_out) {
 	size_t n = (size_t)(source->matrix.rows * source->matrix.columns);
 	const double * restrict elements = source->matrix.elements;
-	double sum = 0.0;
-	double sum_of_squares = 0.0;
+	double reference = 0.0;
+	int have_reference = 0;
+	double sum_shifted = 0.0;
+	double sum_shifted_squares = 0.0;
 	size_t n_nonmissing = 0;
 
 	for (size_t i = 0; i < n; i++) {
 		double value = elements[i];
 		if (value != value)
 			continue;
+		if (!have_reference) {
+			reference = value;
+			have_reference = 1;
+		}
+		double shifted = value - reference;
 		n_nonmissing++;
-		sum += value;
-		sum_of_squares += value * value;
+		sum_shifted += shifted;
+		sum_shifted_squares += shifted * shifted;
 	}
 
 	*n_nonmissing_out = n_nonmissing;
 	if (n_nonmissing < 2)
 		return NAN;
-	return (sum_of_squares - sum * sum/(double)n_nonmissing) / (double)(n_nonmissing - 1);
+	return (sum_shifted_squares - sum_shifted * sum_shifted / (double)n_nonmissing) / (double)(n_nonmissing - 1);
 }
 
 void p_variance(DISPATCH_ARGS) {
@@ -707,11 +714,16 @@ static void partition_node(CARTSample *sample, CARTPartition *partition,
 				partition->row_index, node_start, node_end, sample->response,
 				split->n_left, category_stats, partition->branch);
 
+	int total_left = split->n_left + (split->missing_left ? split->missing_count : 0);
+	int split_column_needs_repartition = split->missing_left && split->missing_count > 0;
+
 	for (int f = 0; f < sample->n_features; f++) {
-		if (sample->features[f].kind != FEATURE_NUMERIC || f == split->feature)
+		if (sample->features[f].kind != FEATURE_NUMERIC)
+			continue;
+		if (f == split->feature && !split_column_needs_repartition)
 			continue;
 		partition_column(&sample->features[f].numeric, node_start, node_end,
-				split->n_left, partition->branch, partition->staged_entries, partition->staged_rows);
+				total_left, partition->branch, partition->staged_entries, partition->staged_rows);
 	}
 
 	partition_row_index(partition->row_index, node_start, node_end, partition->branch);

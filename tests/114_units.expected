@@ -35,6 +35,10 @@ error: exponent must be a number; got a quantity
 in ^
 error: exponent must be a simple rational
 in ^
+error: exponent must be a simple rational
+in ^
+error: exponent must be a simple rational
+in ^
 error: expected a float or a matrix; got a quantity
 in sin
 error: scale must be a positive simple rational of the base unit; got 0.707107
@@ -70,3 +74,7 @@ in *
 1 
 0 
 7 m^2 
+5 m 
+5 m 
+8 m 
+5 hertz 

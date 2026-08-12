@@ -427,6 +427,8 @@ typedef uint64_t __attribute__((may_alias)) sort_key;
 } while (0)
 #else
 #define GC_ASSERT(cond, msg) ((void)0)
+#endif
+
 #define GROW_OBJECT_TABLE(new_cap) do { \
 	int grow_old = arena.object_space.cap; \
 	int grow_new = (new_cap); \
@@ -1689,7 +1691,5 @@ Val frame_walk(Interpreter *interp, Val node, Object *path,
 	if (found) *found = 1;
 	return node;
 }
-
-#endif
 
 #endif

@@ -1475,6 +1475,11 @@ void p_matrix_range(DISPATCH_ARGS) {
 	double end = VAL_NUMBER(end_val);
 	double step = VAL_NUMBER(step_val);
 
+	if (!isfinite(start) || !isfinite(end) || !isfinite(step)) {
+		fail(interp, "start, end, and step must be finite");
+		return;
+	}
+
 	if (step == 0.0) {
 		fail(interp, "step cannot be zero");
 		return;
