@@ -922,8 +922,8 @@ void print_val(FILE *out, Interpreter *interp, Val value) {
 						break;
 					}
 		case T_ADDR: fprintf(out, "<addr %lld>", (long long)VAL_DATA(value)); break;
-		case T_STREAM: fprintf(out, "<stream %lld>", (long long)VAL_DATA(value)); break;
-		case T_DB: fprintf(out, "<database %lld>", (long long)VAL_DATA(value)); break;
+		case T_STREAM: fprintf(out, "<stream %d>", stream_fd(value)); break;
+		case T_DB: fprintf(out, "<database %lld>", (long long)(VAL_DATA(value) & 0xFF)); break;
 		case T_PTR: fprintf(out, "<ptr %lld>", (long long)VAL_DATA(value)); break;
 		case T_SEGMENT: {
 							Object *segment = OBJECT_AT(VAL_DATA(value));

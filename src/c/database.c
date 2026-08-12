@@ -1,9 +1,24 @@
 #include "water.h"
 #include "sqlite3.h"
 
+#define DB_SLOT_BITS 8
+#define DB_SLOT_MASK ((1 << DB_SLOT_BITS) - 1)
+
+static int db_slot(Val db_val) {
+	return (int)(VAL_DATA(db_val) & DB_SLOT_MASK);
+}
+
+static sqlite3 *db_connection(Interpreter *interp, Val db_val) {
+	int slot = db_slot(db_val);
+	if ((int)(VAL_DATA(db_val) >> DB_SLOT_BITS) != interp->database_generation[slot])
+		return NULL;
+
+	return interp->databases[slot];
+}
+
 #define POP_DB(name, op) \
       POP_TYPED(name, op, T_DB); \
-      sqlite3 *name = interp->databases[VAL_DATA(name##_val)]
+      sqlite3 *name = db_connection(interp, name##_val)
 
 void p_db_open(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
@@ -34,7 +49,7 @@ void p_db_open(DISPATCH_ARGS) {
 	if (slot >= interp->n_databases)
 		interp->n_databases = slot + 1;
 
-	chain_sp[-1] = make_db(slot);
+	chain_sp[-1] = make_db(slot | (interp->database_generation[slot] << DB_SLOT_BITS));
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
@@ -43,11 +58,12 @@ void p_db_close(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	Val db_val = chain_sp[-1];
 	REQUIRE_CHAIN_TAG(db_val, T_DB, "db-close", "a database");
-	sqlite3 *db = interp->databases[VAL_DATA(db_val)];
+	sqlite3 *db = db_connection(interp, db_val);
 
 	if (db) {
 		sqlite3_close(db);
-		interp->databases[(int)VAL_DATA(db_val)] = NULL;
+		interp->databases[db_slot(db_val)] = NULL;
+		interp->database_generation[db_slot(db_val)]++;
 	}
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
@@ -132,7 +148,7 @@ void p_db_exec(DISPATCH_ARGS) {
 	Object *statement = OBJECT_AT(VAL_DATA(statement_val));
 	Val db_val = chain_sp[-3];
 	REQUIRE_CHAIN_TAG(db_val, T_DB, "db-exec", "a database");
-	sqlite3 *db = interp->databases[VAL_DATA(db_val)];
+	sqlite3 *db = db_connection(interp, db_val);
 
 	sqlite3_stmt *prepared = db_prepare_bound(interp, db, statement, params);
 	if (!prepared)
@@ -203,7 +219,7 @@ static int relation_consume_row(Interpreter *interp, sqlite3_stmt *statement, vo
 	REQUIRE_CHAIN_TAG(query_val, T_STRING, word, "a string"); \
 	Val db_val = chain_sp[-3]; \
 	REQUIRE_CHAIN_TAG(db_val, T_DB, word, "a database"); \
-	sqlite3 *db = interp->databases[VAL_DATA(db_val)]; \
+	sqlite3 *db = db_connection(interp, db_val); \
 	\
 	sqlite3_stmt *statement = db_prepare_bound(interp, db, \
 			OBJECT_AT(VAL_DATA(query_val)), OBJECT_AT(VAL_DATA(params_val))); \

@@ -63,6 +63,9 @@ typedef int64_t cell;
 #define JSON_MAX_DEPTH (1 << 10)
 #define SELECT_MAX_DEPTH JSON_MAX_DEPTH
 #define MAX_DATABASES (1 << 8)
+#define STREAM_FD_MAX (1 << 12)
+#define STREAM_FD_BITS 16
+#define STREAM_FD_MASK ((1 << STREAM_FD_BITS) - 1)
 #define ERROR_TRACE_SIZE 1024
 #define TRACE_SNIPPET_MAX 48
 #define TRACE_FRAMES_FIRST 10
@@ -163,7 +166,6 @@ static inline Val make_matrix(int handle) { return make_tagged(T_MATRIX, handle)
 static inline Val make_xt(int cfa) { return make_tagged(T_XT, cfa); }
 static inline Val make_curried(int handle) { return make_tagged(T_CURRIED, handle); }
 static inline Val make_addr(int cell_index) { return make_tagged(T_ADDR, cell_index); }
-static inline Val make_stream(int file_descriptor) {return make_tagged(T_STREAM, file_descriptor); }
 static inline Val make_db(int handle) { return make_tagged(T_DB, handle); }
 static inline Val make_pointer(int handle) { return make_tagged(T_PTR, handle); }
 static inline Val make_segment(int handle) { return make_tagged(T_SEGMENT, handle); }
@@ -542,6 +544,7 @@ typedef struct Interpreter {
 	int regex_cache_next;
 
 	void *databases[MAX_DATABASES];
+	int database_generation[MAX_DATABASES];
 	int n_databases;
 
 	int unwinding, unwind_target, next_mark_id;
@@ -1334,6 +1337,10 @@ void p_to_var(DISPATCH_ARGS);
 void p_until(DISPATCH_ARGS);
 void p_variable(DISPATCH_ARGS);
 void p_while(DISPATCH_ARGS);
+
+int stream_fd(Val stream);
+int stream_is_open(Val stream);
+Val stream_value(int file_descriptor);
 
 void p_append_file(DISPATCH_ARGS);
 void p_binary_dir(DISPATCH_ARGS);

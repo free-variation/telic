@@ -403,9 +403,9 @@ void p_start_process(DISPATCH_ARGS) {
 
 	NEW_FRAME(proc_handle, proc);
 	frame_put(proc, intern_symbol(interp, "pid"), make_float((double)pid));
-	frame_put(proc, intern_symbol(interp, "in"), make_stream(in_pipe[1]));
-	frame_put(proc, intern_symbol(interp, "out"), make_stream(out_pipe[0]));
-	frame_put(proc, intern_symbol(interp, "err"), make_stream(err_pipe[0]));
+	frame_put(proc, intern_symbol(interp, "in"), stream_value(in_pipe[1]));
+	frame_put(proc, intern_symbol(interp, "out"), stream_value(out_pipe[0]));
+	frame_put(proc, intern_symbol(interp, "err"), stream_value(err_pipe[0]));
 
 	chain_sp[-1] = make_frame(proc_handle);
 

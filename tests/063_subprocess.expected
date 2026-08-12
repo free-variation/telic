@@ -12,7 +12,7 @@ in read
 1 
 error: cannot change to /no/such/dir
 in cd
-error: Bad file descriptor
+error: stream is closed
 in read
 1 
 1 

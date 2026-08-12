@@ -1,9 +1,8 @@
 # Water — 1.0-alpha release plan
 
 The gate for 1.0-alpha, in priority order; an entry vanishes as its item
-completes. Item 2 has a PLAN.md entry. Optional, if the three
-items finish early: `upcase`/`downcase` in the ASCII-first cut (PLAN.md,
-String operations).
+completes. Optional, if the two items finish early: `upcase`/`downcase` in
+the ASCII-first cut (PLAN.md, String operations).
 
 ---
 
@@ -64,60 +63,7 @@ String operations).
 
 ---
 
-## 2. `dynamic-wind`
-
-### Semantics
-
-As specified in PLAN.md ("Guaranteed cleanup across every exit"),
-normative for the release:
-
-1. `dynamic-wind ( before body after -- )`: `after` runs on every exit
-   from `body` — normal return, `throw`, an interpreter error caught by
-   `catch`, a `fail` backtrack, and a `shift` capture; innermost `after`
-   first when nested regions unwind together.
-2. `before` runs on the initial call and on every `resume` re-entry,
-   outermost first; multi-shot `resume` runs the pair repeatedly by
-   design.
-3. Both run on the region's live data stack; on an unwind, `after` runs
-   with locals and the trail already rewound to just outside its region.
-4. `ensure`, `with-db`, and `with-stream` re-base onto `dynamic-wind`
-   with no interface change.
-
-### Implementation
-
-1. Wind mark on the return stack: three cells (`after` xt, `before` xt,
-   a mark of a new wind kind — the mark's kind field widens from one bit
-   to two) plus a `wind_depth` counter.
-2. `unwind_to` keeps its one-assignment truncation when `wind_depth` is
-   zero; otherwise it walks from `rsp` down to the target, rewinding
-   locals and the trail at each wind mark and running its `after`,
-   saving and restoring `unwinding`/`unwind_target` around the re-entry.
-3. `shift` runs each captured `after` innermost-first before truncating;
-   the marks stay in the captured slice so both xts travel with the
-   continuation. `resume` runs each spliced `before` outermost-first
-   before jumping to the resume point.
-4. Per-instruction dispatch, calls, `exit`, and `tailcall` gain no
-   instructions; the one unconditional addition is the
-   `wind_depth == 0` test in `unwind_to`.
-5. Reference rows for `dynamic-wind`, `ensure`, `with-db`, `with-stream`;
-   golden tests; PLAN.md entry shrinks to residuals.
-
-### Acceptance
-
-1. Goldens covering all five exit paths of Semantics 1, plus nested
-   regions (inner `after` observed before outer) and a multi-shot
-   `resume` (before/after pair count equals entry count).
-2. Discriminating case: `with-db` around a body that `fail`s to an
-   enclosing `amb` — the connection must be closed after the backtrack
-   (observable via `db-close` idempotence or a probe word); the current
-   `catch`-based `ensure` gives the opposite answer.
-3. Benchmark suite before/after shows no regression on the
-   non-continuation rows.
-4. Both native and wasm suites pass.
-
----
-
-## 3. Release mechanics
+## 2. Release mechanics
 
 ### Implementation
 

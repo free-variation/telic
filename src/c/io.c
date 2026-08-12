@@ -1,6 +1,25 @@
 
 #include "water.h"
 
+static int stream_generation[STREAM_FD_MAX];
+
+int stream_fd(Val stream) {
+	return (int)(VAL_DATA(stream) & STREAM_FD_MASK);
+}
+
+Val stream_value(int file_descriptor) {
+	int generation = file_descriptor < STREAM_FD_MAX ? stream_generation[file_descriptor] : 0;
+	return make_tagged(T_STREAM, file_descriptor | ((int64_t)generation << STREAM_FD_BITS));
+}
+
+int stream_is_open(Val stream) {
+	int file_descriptor = stream_fd(stream);
+	if (file_descriptor >= STREAM_FD_MAX)
+		return 1;
+
+	return (int)(VAL_DATA(stream) >> STREAM_FD_BITS) == stream_generation[file_descriptor];
+}
+
 void p_env(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	Val name_val = chain_sp[-1];
@@ -347,7 +366,11 @@ void p_write(DISPATCH_ARGS) {
 	PEEK_AT(stream_val, 0, "write");
 	REQUIRE_CHAIN_TAG(stream_val, T_STREAM, "write", "a stream");
 	PEEK_TYPE_AT(string_val, 1, "write", T_STRING);
-	int file_descriptor = (int)VAL_DATA(stream_val);
+	if (!stream_is_open(stream_val)) {
+		fail(interp, "stream is closed");
+		return;
+	}
+	int file_descriptor = stream_fd(stream_val);
 	Object *string = OBJECT_AT(VAL_DATA(string_val));
 
 	int total_written = 0;
@@ -368,7 +391,11 @@ void p_write(DISPATCH_ARGS) {
 void p_read(DISPATCH_ARGS) {
 	PEEK_AT(stream_val, 0, "read");
 	REQUIRE_CHAIN_TAG(stream_val, T_STREAM, "read", "a stream");
-	int file_descriptor = (int)VAL_DATA(stream_val);
+	if (!stream_is_open(stream_val)) {
+		fail(interp, "stream is closed");
+		return;
+	}
+	int file_descriptor = stream_fd(stream_val);
 
 	int length = 0;
 	int capacity = 1 << 16;
@@ -417,15 +444,20 @@ void p_read(DISPATCH_ARGS) {
 void p_close(DISPATCH_ARGS) {
 	PEEK_AT(stream_val, 0, "close");
 	REQUIRE_CHAIN_TAG(stream_val, T_STREAM, "close", "a stream");
-	close((int)VAL_DATA(stream_val));
+	if (stream_is_open(stream_val)) {
+		int file_descriptor = stream_fd(stream_val);
+		close(file_descriptor);
+		if (file_descriptor < STREAM_FD_MAX)
+			stream_generation[file_descriptor]++;
+	}
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 }
 
 
-void p_stdin(DISPATCH_ARGS)  { push(interp, make_stream(0)); DISPATCH(interp); }
-void p_stdout(DISPATCH_ARGS) { push(interp, make_stream(1)); DISPATCH(interp); }
-void p_stderr(DISPATCH_ARGS) { push(interp, make_stream(2)); DISPATCH(interp); }
+void p_stdin(DISPATCH_ARGS)  { push(interp, stream_value(0)); DISPATCH(interp); }
+void p_stdout(DISPATCH_ARGS) { push(interp, stream_value(1)); DISPATCH(interp); }
+void p_stderr(DISPATCH_ARGS) { push(interp, stream_value(2)); DISPATCH(interp); }
 
 void p_tty(DISPATCH_ARGS) {
 	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);
