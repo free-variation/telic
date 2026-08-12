@@ -332,7 +332,6 @@ Symbol-keyed nested maps — the associative type, and the compound term the log
 - **Interactive REPL** with full isocline line editing: theme-adaptive **syntax highlighting**, **matching-brace** highlighting, **inline hints** and **Tab completion** (word names from the live dictionary, filenames inside string literals), persistent history (`.water_history`), and **multi-line editing** — `Ctrl+J` inserts a line, `Enter` submits the whole buffer. Each entry answers `ok`, followed by `count|top` (stack depth and the compressed top value) when the stack is non-empty, or the error message and trace on failure. A definition prints `new word: X`, or `redefined word: X` when the name already existed. A failed entry leaves the data stack as it was before the entry (the stack is snapshotted per entry and restored on error; in-place mutations of heap objects persist). `.` pretty-prints a nested array across lines with the opening brackets aligned; strings print quoted inside a collection and in `.s`, raw when printed bare.
 - **`load`** runs a source file as if typed.
 - **`save`** writes the user's vocabulary as a re-loadable `.h2o` source file.
-- **`save-image`** / **`load-image`** — binary image with full state preservation (dictionary, objects, stacks, continuations).
 - **`reload`** truncates user state and re-runs every file `load`ed this session, in order.
 - **`read-file`** / **`write-file`** / **`append-file`** — read a whole file as one (byte-safe) string; write or append a string's bytes to a path.
 - **`file-exists?`** — whether a path exists (`access`, `F_OK`); follows symlinks, any file type.
@@ -434,8 +433,7 @@ frame prints as its source snippet (`in [: 1 0 % :]`, long ones truncated),
 same-site recursion collapses to one frame (`in spin ×65536`), and deep chains
 elide the middle (`… ← …+3 ← …`). A caught error prints none. The trace costs
 nothing until an error happens — capture is a return-stack walk at failure
-time — and quotation spans ride along in `save-image`, so frames resolve across
-a `load-image`.
+time.
 
 An unknown word names the nearest dictionary word or in-scope local when one is
 within edit distance 2 — `unknown word: filtr (did you mean filter?)`. Distance
@@ -480,7 +478,6 @@ src/c/words.c          — arithmetic, stack ops, printing words, delimited cont
 src/c/time.c           — clocks and calendar: wall-now, epoch↔date, strftime/strptime
 src/c/compiler.c       — compile-time words: colon/quotation definition, control flow, locals, to/constant/variable/symbol, forget
 src/c/io.c             — file, TSV, stream, and environment I/O
-src/c/image.c          — binary save-image / load-image serialization
 src/c/collections.c    — sets, arrays, and frames
 src/c/indexing.c       — polymorphic element access: @i/!i and their fused forms, over arrays/segments/matrices
 src/c/matrix.c         — matrix words and numeric kernels

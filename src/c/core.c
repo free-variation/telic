@@ -4840,8 +4840,6 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "gc", p_gc, 0);
 	define_primitive(interp, "load", p_load, 0);
 	define_primitive(interp, "save", p_save, 0);
-	define_primitive(interp, "save-image", p_save_image, 0);
-	define_primitive(interp, "load-image", p_load_image, 0);
 	define_primitive(interp, "reload", p_reload, 0);
 	define_primitive(interp, ">r", p_tor, 0);
 	define_primitive(interp, "r>", p_rfrom, 0);

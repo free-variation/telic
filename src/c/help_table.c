@@ -394,7 +394,6 @@ const HelpEntry help_entries[] = {
 	{ "ln", "( a -- ln a )", "log — natural log", "2", "matrix 1m(r×c)", "same", 3 },
 	{ "load", "( str -- )", "Run a source file as if typed; record it for reload. Resolves the path as given (relative to the current directory, or absolute); if that open fails, retries relative to the directory of the file that ran the load. An error raised while loading is prefixed file:line:  (the line of the failing token); a nested load locates to the innermost file", "file read + run", "input buffer", "O(file)", 30 },
 	{ "load-bag", "( rel rows-array -- rel )", "Like bulk-load, but :rows stays a **bag** (the array, duplicates kept) rather than a deduped set; only :index is built", "n", "frame + sets", "O(n)", 27 },
-	{ "load-image", "( str -- )", "Restore a binary snapshot, replacing current state", "deserialize all", "reallocates all objects", "O(objects)", 30 },
 	{ "load-library", "( name -- )", "core.h2o: load lib/<name> from beside the water binary (binary-dir), so \"plot\" load-library works from any cwd; a name without .h2o gains it", "file read + run", "input buffer", "O(file)", 30 },
 	{ "load-tsv", "( path -- rows )", "Read a TSV file into an array of row-arrays; an empty cell → none, a numeric cell → float, else a string. No header handling", "1 + bytes", "1a(r) + one array per row + a string per text cell", "O(bytes)", 22 },
 	{ "log", "( a -- log₁₀ a )", "log10", "2", "matrix 1m(r×c)", "same", 3 },
@@ -537,7 +536,6 @@ const HelpEntry help_entries[] = {
 	{ "sample-without-replacement", "( arr n -- arr )", "statistics.h2o: false sample (inlined)", "n", "as sample", "O(n)", 18 },
 	{ "save", "( str -- )", "Write all user words as re-loadable .h2o source", "dict scan + write", "file I/O", "O(|user dict|)", 30 },
 	{ "save-figure", "( name -- )", "Render the current figure as the next version images-<name>/N.svg (creating the directory); native-only (mkdir via a subprocess)", NULL, NULL, NULL, 41 },
-	{ "save-image", "( str -- )", "Binary snapshot of full state (dict, objects, stacks, continuations)", "serialize all", "file I/O", "O(objects + dict)", 30 },
 	{ "save-tsv", "( rows path -- )", "Write an array of row-arrays as TSV; none → empty, a whole-number float → integer, strings raw; errors on a tab/newline inside a string or a non-array row", "2 + r·c", "none (to file)", "O(r·c)", 22 },
 	{ "scatter", "( xs ys -- )", "Scatter markers at the point pairs; aes :point-fill :point-stroke :point-radius; errors on unequal lengths", NULL, NULL, NULL, 41 },
 	{ "scatter-plot", "( xs ys -- svg )", "Complete scatter plot in one call — 640×480 figure, axes, scatter, rendered", NULL, NULL, NULL, 41 },
@@ -696,7 +694,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "C primitive alias of unify, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 26 },
 };
 
-const int help_entry_count = 646;
+const int help_entry_count = 644;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } /a/b 5 ! /a/b @ . cr", "5" },
@@ -1046,7 +1044,6 @@ const HelpExample help_examples[] = {
 	{ "ln", "E ln . cr", "1" },
 	{ "load", "\": loaded-word 11 ;\" \"/tmp/docs-load.h2o\" write-file \"/tmp/docs-load.h2o\" load loaded-word . cr", "11" },
 	{ "load-bag", "[ :k ] relation [ { :k :a :n 1 } { :k :a :n 2 } { :k :b :n 3 } ] load-bag { :k :a } count-matches . cr", "2" },
-	{ "load-image", "\"/tmp/docs-image.img\" load-image", "" },
 	{ "load-library", "\"plot\" load-library ' scatter xt? . cr", "1" },
 	{ "load-tsv", "[ [ \"a\" \"b\" ] [ 1 2 ] ] \"/tmp/docs-example.tsv\" save-tsv \"/tmp/docs-example.tsv\" load-tsv . cr", "[ [ \"a\" \"b\" ]\n  [ 1 2 ] ]" },
 	{ "log", "100 log . cr", "2" },
@@ -1189,7 +1186,6 @@ const HelpExample help_examples[] = {
 	{ "sample-without-replacement", "42 seed [ 1 2 3 4 5 ] 2 sample-without-replacement . cr", "[ 3 4 ]" },
 	{ "save", ": keep-me 5 ; \"/tmp/docs-save.h2o\" save \"/tmp/docs-save.h2o\" read-file \": keep-me\" has? . cr", "1" },
 	{ "save-figure", "\"plot\" load-library\n320 240 figure [ 1 2 ] vector [ 3 4 ] vector scatter \"my-plot\" save-figure", "" },
-	{ "save-image", "\"/tmp/docs-image.img\" save-image \"/tmp/docs-image.img\" file-exists? . cr", "1" },
 	{ "save-tsv", "[ [ \"a\" \"b\" ] [ 1 2 ] ] \"/tmp/docs-example.tsv\" save-tsv \"/tmp/docs-example.tsv\" load-tsv . cr", "[ [ \"a\" \"b\" ]\n  [ 1 2 ] ]" },
 	{ "scatter", "\"plot\" load-library\n320 240 figure [ 1 2 3 ] vector [ 4 5 6 ] vector scatter figure>svg \"<circle\" has? . cr", "1" },
 	{ "scatter-plot", "\"plot\" load-library\n[ 1 2 3 ] vector [ 2 4 6 ] vector scatter-plot \"<circle\" has? . cr", "1" },
@@ -1348,4 +1344,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 647;
+const int help_example_count = 645;

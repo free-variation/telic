@@ -108,13 +108,9 @@ clear
 
 clear
 
-\ === a token survives a binary image round trip, held in a global and in an
-\ array; the reloaded token still executes ===
+\ === a curried token held in a global and in an array still executes ===
 6 ' + curry constant add-six
 [ 3 ' * curry ] constant held-in-array
-"/tmp/lf_curried.img" save-image
-"/tmp/lf_curried.img" load-image
-gc
 4 add-six execute . cr                               \ 10
 5 held-in-array 0 @i execute . cr                    \ 15
 

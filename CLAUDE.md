@@ -49,8 +49,6 @@ by file in SRCS order. What each file is:
   family).
 - strings.c — PCRE2 regex (match/split/replace), substrings, codepoints.
 - io.c — files, env, cwd, TSV, stream read/write, stdin/stdout/stderr.
-- image.c — binary image save/load (dictionary relocation, object
-  serialization).
 - logic.c — logic variables, unify, the trail, amb/backtracking (the
   fact database is forth: src/forth/logic.h2o).
 - database.c — SQLite (db-open/db-exec/db-query).
@@ -117,15 +115,14 @@ by file in SRCS order. What each file is:
   RETARGET_OP(generic) + MUSTTAIL on mismatch; the generic retargets to
   them at the matching branch. Register each as an internal primitive
   named "(word.tag)" beside the (@i.array) block in core.c — that covers
-  the image format and see-compiled. Same operand width as the generic,
-  always.
+  see-compiled. Same operand width as the generic, always.
 - int for lengths, indices, handles; size_t only as explicit casts at
   malloc/memcpy sites; int64_t to guard overflow before clamping. All
   casts explicit.
 - Grow by doubling from a small constant through a checked realloc temp;
   GROW_IF_FULL for arena arrays, GROW_IF_FULL_SYS for malloc-owned.
 - Cleanup is inline per error path (free/fclose/finalize/gc_root_pop
-  before return); no goto outside image.c.
+  before return); no goto.
 - Message formats: "expected X; got %s" (literal type phrase); half-open
   ranges "[%d, %d) out of bounds for length %d"; "(max %d)".
 - Printing words fflush(stdout) before DISPATCH. Unused params silenced

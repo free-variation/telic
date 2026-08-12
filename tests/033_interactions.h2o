@@ -54,17 +54,12 @@ side> .  cr                 \ [ 1 2 3 4 5 ]
 : recoverable reset 5 ouch + ;
 recoverable . cr            \ 47   (5 + 42, with ouch "returning" 42 via resume)
 
-\ -- 8: continuation survives multiple save/load cycles, can still be
-\        resumed (and multi-shot resumed) after each round trip.
+\ -- 8: a captured continuation is multi-shot — resumable repeatedly.
 : shifter shift ;
 : ex2 reset 99 shifter 2 * ;
 ex2 swap drop                                       \ leaves k on stack
-"/tmp/lf-multi.image" save-image
-"/tmp/lf-multi.image" load-image
 dup 3 swap resume . cr                              \ 6
 dup 5 swap resume . cr                              \ 10
-"/tmp/lf-multi.image" save-image
-"/tmp/lf-multi.image" load-image
 7 swap resume . cr                                  \ 14
 
 \ -- 9: GC during a captured continuation's lifetime. After capture,

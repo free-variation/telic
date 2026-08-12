@@ -81,12 +81,7 @@ base unit foo
 [ 1 2 3 4 ] 2 2 matrix m  [ 1 1 1 1 ] 2 2 matrix m  + . cr
 [ 4 6 8 10 ] 2 2 matrix m  2 m /  . cr
 
-\ ---- image round-trip: define units, push a quantity, save, clobber, reload ----
-42 newton
-"/tmp/water-units.image" save-image
-base unit clobber
-"/tmp/water-units.image" load-image
-. cr
+\ ---- named and compound units render ----
 10 m . cr
 5 newton . cr
 1 dollar 50 cent + . cr

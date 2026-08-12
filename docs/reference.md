@@ -1237,8 +1237,7 @@ A unit word is postfix — it attaches its unit to the number before it (`10 m`,
 
 Printing shows magnitude then unit: a named unit prints its name (`3 newton`); an
 unnamed compound prints its dimensional form with the scale folded into the
-magnitude (`10 m 2 s / → 5 m.s^-1`), positive exponents first. Quantities,
-units, and unit words round-trip through `save-image`/`load-image`.
+magnitude (`10 m 2 s / → 5 m.s^-1`), positive exponents first.
 
 The matrix statistics accept a dimensioned matrix and keep its unit: `sum`
 `mean` `max` `min` `quantile` (so `median` `percentile` `iqr` `ci`) `row-sums`
@@ -4903,8 +4902,6 @@ woke
 | `load-library` | `( name -- )` | core.h2o: `load` `lib/<name>` from beside the water binary (`binary-dir`), so `"plot" load-library` works from any cwd; a name without `.h2o` gains it | file read + run | input buffer | O(file) |
 | `reload` | `( -- )` | Truncate user state, re-run every loaded file in order | forget + N loads | — | O(Σ files) |
 | `save` | `( str -- )` | Write all user words as re-loadable `.h2o` source | dict scan + write | file I/O | O(\|user dict\|) |
-| `save-image` | `( str -- )` | Binary snapshot of full state (dict, objects, stacks, continuations) | serialize all | file I/O | O(objects + dict) |
-| `load-image` | `( str -- )` | Restore a binary snapshot, replacing current state | deserialize all | reallocates all objects | O(objects) |
 
 ```forth load
 ": loaded-word 11 ;" "/tmp/docs-load.h2o" write-file "/tmp/docs-load.h2o" load loaded-word . cr
@@ -4925,19 +4922,6 @@ woke
 ```
 ```output
 1
-```
-
-```forth save-image
-"/tmp/docs-image.img" save-image "/tmp/docs-image.img" file-exists? . cr
-```
-```output
-1
-```
-
-```forth-noexec load-image
-"/tmp/docs-image.img" load-image
-```
-```output
 ```
 
 ```forth-noexec reload

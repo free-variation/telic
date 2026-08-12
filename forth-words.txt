@@ -344,7 +344,6 @@ linear-regression
 ln
 load
 load-bag
-load-image
 load-library
 load-tsv
 log
@@ -487,7 +486,6 @@ sample-with-replacement
 sample-without-replacement
 save
 save-figure
-save-image
 save-tsv
 scatter
 scatter-plot

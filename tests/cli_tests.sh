@@ -124,36 +124,6 @@ printf '2 . \n' > "$prog"
 exact "-e composes with files in argument order"  ''  "1 2 3 "  0 -e '1 .' "$prog" -e '3 . cr'
 rm -f "$prog"
 
-# a truncated image must fail cleanly (no crash) and leave the interpreter
-# usable: load-image errors, then the next line still computes 2 3 + = 5
-img=$(mktemp "${TMPDIR:-/tmp}/lf_img.XXXXXX")
-printf ': sq dup * ; variable v [< 1 2 3 >] to v [ 10 20 30 ] "%s" save-image\n' "$img" | "$bin" -b >/dev/null 2>&1
-imgsize=$(wc -c < "$img")
-trunc=$(mktemp "${TMPDIR:-/tmp}/lf_trunc.XXXXXX")
-head -c $((imgsize / 2)) "$img" > "$trunc"
-out=$(printf '"%s" load-image\n[< 9 8 7 >] gc 2 3 + . cr\n' "$trunc" | "$bin" -b 2>&1)
-code=$?
-case "$out" in
-    *error:*5*) ok "truncated image: clean error + recovery" ;;
-    *) bad "truncated image: clean error + recovery" "want an error then 5 (exit 0)" "got (exit $code): [$out]" ;;
-esac
-rm -f "$img" "$trunc"
-
-# a single flipped byte anywhere in a saved image is caught by the whole-file
-# checksum: a clean error, never a crash or the execution of corrupted code.
-# The interpreter recovers and still computes 2 3 + = 5.
-img2=$(mktemp "${TMPDIR:-/tmp}/lf_img2.XXXXXX")
-printf ': sq dup * ; variable v [< 1 2 3 >] to v [ 10 20 30 ] "%s" save-image\n' "$img2" | "$bin" -b >/dev/null 2>&1
-corrupt=$(mktemp "${TMPDIR:-/tmp}/lf_corrupt.XXXXXX")
-python3 -c "import sys; d=bytearray(open('$img2','rb').read()); d[len(d)//2]^=0xFF; open('$corrupt','wb').write(d)"
-out=$(printf '"%s" load-image\n2 3 + . cr\n' "$corrupt" | "$bin" -b 2>&1)
-code=$?
-case "$out" in
-    *"checksum mismatch"*5*) ok "corrupt image: checksum caught + recovery" ;;
-    *) bad "corrupt image: checksum caught + recovery" "want checksum mismatch then 5 (exit 0)" "got (exit $code): [$out]" ;;
-esac
-rm -f "$img2" "$corrupt"
-
 # a string of bare UTF-8 continuation bytes must decode without a heap overflow:
 # the codepoint buffer once used the codepoint count (which skips continuation
 # bytes) for its size but was filled one int per byte. 100000 such bytes decode

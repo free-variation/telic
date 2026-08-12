@@ -873,9 +873,6 @@ void parallel_for(int n_items, int n_threads, int items_per_claim,
 		void (*kernel)(int start_index, int end_index, void *context), void *context);
 int cpu_count(void);
 
-void write_u8 (FILE *f, uint8_t v);
-int read_u8 (FILE *f, uint8_t *v);
-
 typedef enum { WALK_ERROR, WALK_VIVIFY, WALK_PROBE } FrameWalkMode;
 
 #define LOWER_BOUND(count, probe, less, at) \
@@ -1020,14 +1017,6 @@ int reject_outer_local(Interpreter *interp, const char *token);
 void rollback_partial_definition(void);
 void truncate_quotation_spans(void);
 
-int read_i32(FILE *f, int32_t *v);
-int read_i64(FILE *f, int64_t *v);
-int read_u32(FILE *f, uint32_t *v);
-int read_val(FILE *f, Val *v);
-void write_i32(FILE *f, int32_t v);
-void write_i64(FILE *f, int64_t v);
-void write_val(FILE *f, Val value);
-
 int array_argsort_copy(Interpreter *interp, Object *source);
 int array_sorted_copy(Interpreter *interp, Object *source);
 int build_set_from_values(Interpreter *interp, const Val *values, int count);
@@ -1094,8 +1083,6 @@ Val ffi_pointer_owner_of(int index);
 void apply_unit(Interpreter *interp, int cfa);
 void dimension_freeze(void);
 void dimension_init();
-int dimension_load(FILE *file);
-void dimension_save(FILE *file);
 void push_quantity(Interpreter *interp, Val magnitude, int unit);
 Val quantity_of(Interpreter *interp, Val magnitude, int unit);
 int quantity_truthy(Val quantity);
@@ -1361,9 +1348,6 @@ void p_stdout(DISPATCH_ARGS);
 void p_tty(DISPATCH_ARGS);
 void p_write(DISPATCH_ARGS);
 void p_write_file(DISPATCH_ARGS);
-
-void p_load_image(DISPATCH_ARGS);
-void p_save_image(DISPATCH_ARGS);
 
 void p_add_last(DISPATCH_ARGS);
 void p_array(DISPATCH_ARGS);

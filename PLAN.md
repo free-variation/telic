@@ -135,10 +135,9 @@ string matches a name already pinned, the pinned symbol wins, so a collectible
 symbol never shares a name with a pinned one.
 
 To settle: how symbols are represented (dictionary entries vs a separate
-interned pool) and therefore how a slot is retired and reused; how `save-image`
-serializes a collectible symbol (by name, re-interned on load, since its index
-is not stable); whether pinned-vs-collectible is decided at the intern call site
-or inferred from whether interning happens during compilation.
+interned pool) and therefore how a slot is retired and reused; whether
+pinned-vs-collectible is decided at the intern call site or inferred from
+whether interning happens during compilation.
 
 ---
 
@@ -148,8 +147,8 @@ Run Water as a long-lived FastCGI application behind a web server, decoding
 records off a Unix or TCP socket, running a handler, writing the response.
 
 Blocked on symbol collection: a long-lived worker mints symbols from unbounded
-request keys. Fuzz `json>frame` and `load-image` against a mutated seed corpus in
-the ASan build before accepting untrusted bodies.
+request keys. Fuzz `json>frame` against a mutated seed corpus in the ASan build
+before accepting untrusted bodies.
 
 - `accept ( listen-stream -- conn-stream )` — accept a forwarded connection as a
   `T_STREAM`; small C. The listen socket arrives on fd 0
@@ -371,35 +370,24 @@ live here instead. File and function name each invariant's home.
 - `forget_user` frees only objects above `object_space.init`; below it
   sit literals baked into the compiled-in vocabulary (e.g. `run`'s
   `" +"`), which must survive every reset (core.c, `forget_user`).
-- Images save only above the `init_*` watermarks: the embedded library is rebuilt
-  every process and is not user state. Anything that grows the watermark
-  set must grow all of it — here, latest_cfa, names, sources, symbols,
-  objects, pairs, dimensions, quotation spans (core.c,
-  `construct_vocabulary`; image.c).
-- Image op translation: dovar/dosym call cells carry a trailing
-  target-cfa operand that `op_cell_count` does not include;
-  `image_op_cells` accounts for it (image.c).
 - A `docol` cell is one cell as a quotation header, two as a colon-word
   call; the only platform-independent discriminator is
   `quotation_starts_at` (wasm function pointers are small table indices,
   so "the next cell looks like a handler/cfa" heuristics fail there).
   Every body walker — `running_op_name`, `see_compiled_body`,
-  `see_tree_body`, `inline_word_body`, `mark_body`, the image saver —
-  classifies through it; new walkers must too. This makes span coverage
-  a correctness invariant: every quotation header must have a recorded
-  span, so `record_quotation_span` fails loudly at the table cap instead
-  of dropping, the image format persists spans, and `inline_word_body`
-  declines to splice a quotation-bearing body (emits a plain call)
-  rather than copy headers to span-less addresses (core.c, compiler.c,
-  image.c).
+  `see_tree_body`, `inline_word_body`, `mark_body` — classifies through
+  it; new walkers must too. This makes span coverage a correctness
+  invariant: every quotation header must have a recorded span, so
+  `record_quotation_span` fails loudly at the table cap instead of
+  dropping, and `inline_word_body` declines to splice a
+  quotation-bearing body (emits a plain call) rather than copy headers
+  to span-less addresses (core.c, compiler.c).
 - `op_cell_count` must list every op that carries operand cells; the
   body walkers step by it, so an op missing from the list desyncs them
   on both platforms — a skipped literal in `mark_body` means premature
   collection. A new primitive that emits operands after its handler
   cell gets a matching entry in the same change (core.c,
-  `op_cell_count`; image.c, `image_op_cells` for dovar/dosym/dounit).
-- `save-image`'s per-word cfa array is `static` to keep ~4MB off the
-  call stack (image.c, `p_save_image`).
+  `op_cell_count`).
 - The overall matrix reductions unroll into four accumulators so
   non-associative float addition still vectorizes; associative ops
   tolerate it. Collapsing to one accumulator kills the vectorization
@@ -435,10 +423,9 @@ live here instead. File and function name each invariant's home.
   1×k against n×k), not only scalars; the reference documents only the
   scalar case — a doc gap to close (matrix.c,
   `MATRIX_ELEMENTWISE_OP`).
-- `dodefer` is a two-cell op of the `dovar` family (body walkers advance by two,
-  `image_op_cells` returns 2), and `defer` reserves four cells with zeroed pads so
-  `embodies!` overwrites the word in place as a `docol` forwarder (core.c,
-  compiler.c, image.c).
+- `dodefer` is a two-cell op of the `dovar` family (body walkers advance by two),
+  and `defer` reserves four cells with zeroed pads so `embodies!` overwrites the
+  word in place as a `docol` forwarder (core.c, compiler.c).
 - `(tailcall)` is a two-cell op (target cfa operand, `op_cell_count` returns 2);
   `rewrite_tail_calls` at `;`/`:]` converts only `docol` tail calls, never when
   `body_has_tail_hazard` holds (`>r`/`r>`/`r@`/`reset`/`shift`/`shift-with`/`fail`,
