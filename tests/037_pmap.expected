@@ -22,3 +22,9 @@ error: pmap: quotation must leave exactly one value per element, but changed the
 in pmap-ext ← pmap
 error: pmap: quotation must leave exactly one value per element, but changed the stack by 2
 in pmap-ext ← pmap
+error: cannot run inside a parallel worker; use serial map/filter/reduce
+in pmap-ext ← pmap
+error: cannot run inside a parallel worker; use serial map/filter/reduce
+in pmap-ext ← pmap
+error: cannot run inside a parallel worker; use serial map/filter/reduce
+in pmap-ext ← pmap

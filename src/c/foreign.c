@@ -28,6 +28,7 @@ typedef struct {
 } FFIBinding;
 
 static void **ffi_pointers;
+static Val *ffi_pointer_owner;
 static int ffi_pointers_count;
 static int ffi_pointers_cap;
 static int *ffi_pointers_free;
@@ -77,9 +78,15 @@ static int ffi_pointer_intern(void *pointer) {
 	if (ffi_pointers_free_count > 0) {
 		index = ffi_pointers_free[--ffi_pointers_free_count];
 		ffi_pointers[index] = pointer;
+		ffi_pointer_owner[index] = make_tagged(T_NONE, 0);
 	} else {
-		GROW_IF_FULL_SYS(ffi_pointers_count, ffi_pointers_cap, ffi_pointers);
+		if (ffi_pointers_count == ffi_pointers_cap) {
+			ffi_pointers_cap = ffi_pointers_cap ? ffi_pointers_cap * 2 : 8;
+			ffi_pointers = realloc(ffi_pointers, sizeof(*ffi_pointers) * (size_t)ffi_pointers_cap);
+			ffi_pointer_owner = realloc(ffi_pointer_owner, sizeof(*ffi_pointer_owner) * (size_t)ffi_pointers_cap);
+		}
 		ffi_pointers[ffi_pointers_count] = pointer;
+		ffi_pointer_owner[ffi_pointers_count] = make_tagged(T_NONE, 0);
 		index = ffi_pointers_count++;
 	}
 
@@ -90,10 +97,26 @@ static int ffi_pointer_intern(void *pointer) {
 	return index;
 }
 
+static int ffi_pointer_intern_owned(void *pointer, Val owner) {
+	int index = ffi_pointer_intern(pointer);
+	pthread_mutex_lock(&ffi_pointers_lock);
+	ffi_pointer_owner[index] = owner;
+	pthread_mutex_unlock(&ffi_pointers_lock);
+	return index;
+}
+
+Val ffi_pointer_owner_of(int index) {
+	if (index < 0 || index >= ffi_pointers_count || !ffi_pointer_owner)
+		return make_tagged(T_NONE, 0);
+	return ffi_pointer_owner[index];
+}
+
 static void ffi_pointer_release(int index) {
 	void *pointer = ffi_pointers[index];
 	if (!pointer)
 		return;
+
+	ffi_pointer_owner[index] = make_tagged(T_NONE, 0);
 
 	int base = (int)(ffi_pointer_hash(pointer) & (FFI_POINTER_INDEX_SIZE - 1));
 	for (int probe = 0; probe < FFI_POINTER_PROBE_WINDOW; probe++) {
@@ -166,6 +189,10 @@ static void make_ffi_binding(Interpreter *interp, Val library_val, Object *funct
 	}
 
 	void *library = ffi_pointers[VAL_DATA(library_val)];
+	if (!library) {
+		fail(interp, "library handle is null (freed?)");
+		return;
+	}
 	void *function = dlsym(library, function_name->bytes);
 	if (!function) {
 		fail(interp, "symbol %s not found", function_name->bytes);
@@ -395,7 +422,7 @@ void p_matrix_to_pointer(DISPATCH_ARGS) {
 	Val matrix_val = chain_sp[-1];
 	REQUIRE_CHAIN_TAG(matrix_val, T_MATRIX, "matrix>pointer", "a matrix");
 
-	chain_sp[-1] = make_pointer(ffi_pointer_intern(OBJECT_AT(VAL_DATA(matrix_val))->matrix.elements));
+	chain_sp[-1] = make_pointer(ffi_pointer_intern_owned(OBJECT_AT(VAL_DATA(matrix_val))->matrix.elements, matrix_val));
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
@@ -405,7 +432,7 @@ void p_segment_to_pointer(DISPATCH_ARGS) {
 	Val segment_val = chain_sp[-1];
 	REQUIRE_CHAIN_TAG(segment_val, T_SEGMENT, "segment>pointer", "a segment");
 
-	chain_sp[-1] = make_pointer(ffi_pointer_intern(OBJECT_AT(VAL_DATA(segment_val))->segment.data));
+	chain_sp[-1] = make_pointer(ffi_pointer_intern_owned(OBJECT_AT(VAL_DATA(segment_val))->segment.data, segment_val));
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
@@ -427,6 +454,10 @@ void p_pointer_deref(DISPATCH_ARGS) {
 	REQUIRE_CHAIN_TAG(cell_val, T_PTR, "pointer-deref", "a pointer");
 
 	void *cell = ffi_pointers[VAL_DATA(cell_val)];
+	if (!cell) {
+		fail(interp, "cannot read through a null pointer");
+		return;
+	}
 	void *loaded = *(void **)cell;
 
 	chain_sp[-1] = make_pointer(ffi_pointer_intern(loaded));
@@ -455,7 +486,12 @@ void p_pointer_long(DISPATCH_ARGS) {
 	Val cell_val = chain_sp[-1];
 	REQUIRE_CHAIN_TAG(cell_val, T_PTR, "pointer-long", "a pointer");
 
-	int64_t value = *(int64_t *)ffi_pointers[VAL_DATA(cell_val)];
+	void *cell = ffi_pointers[VAL_DATA(cell_val)];
+	if (!cell) {
+		fail(interp, "cannot read through a null pointer");
+		return;
+	}
+	int64_t value = *(int64_t *)cell;
 	if (value >= ((int64_t)1 << 53)) {
 		fail(interp, "value exceeds 2^53; not float-exact");
 		return;
@@ -479,6 +515,10 @@ void p_floats_to_matrix(DISPATCH_ARGS) {
 	}
 
 	const float *source = ffi_pointers[VAL_DATA(pointer_val)];
+	if (!source) {
+		fail(interp, "cannot read through a null pointer");
+		return;
+	}
 
 	int matrix_handle = object_new_matrix(interp, n_elements, 1);
 	if (interp->error_flag)
@@ -506,6 +546,10 @@ void p_pointer_string_at(DISPATCH_ARGS) {
 	}
 
 	const char *const *string_table = ffi_pointers[VAL_DATA(pointer_val)];
+	if (!string_table) {
+		fail(interp, "cannot read through a null pointer");
+		return;
+	}
 	const char *item = string_table[index];
 	int string_handle = object_new_string(interp, item, (int)strlen(item));
 	if (interp->error_flag)

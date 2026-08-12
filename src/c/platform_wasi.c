@@ -80,3 +80,8 @@ WASM_UNSUPPORTED(p_pointer_to_address, "pointer>address")
 int ffi_register_call_cfa(int cfa) {
 	return cfa;
 }
+
+Val ffi_pointer_owner_of(int index) {
+	(void)index;
+	return make_tagged(T_NONE, 0);
+}

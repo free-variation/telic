@@ -63,3 +63,9 @@ num-cores 0 > . cr
 \ stack (an arity-0 body once read data_stack[dsp-1] below the stack)
 [ 1 2 3 ] [: drop :] pmap                       \ net 0: leaves nothing
 [ 1 2 3 ] [: dup :] pmap                         \ net 2: leaves too many
+
+\ starting a parallel region inside a worker is an error, not a crash from
+\ reusing the shared, non-reentrant worker pool
+[ 1 2 3 ] [: drop [ 4 5 ] [: 1 + :] pmap :] pmap                 \ nested pmap
+[ 1 2 3 ] [: drop [ 4 5 ] [: 4 > :] pfilter :] pmap             \ nested pfilter
+[ 1 2 3 ] [: drop [ 4 5 ] 0 [: :] [: + :] pmap-reduce :] pmap   \ nested pmap-reduce

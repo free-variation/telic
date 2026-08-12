@@ -2,7 +2,7 @@
 #include "water.h"
 
 #define IMAGE_MAGIC "LF4I"
-#define IMAGE_VERSION ((uint32_t)7)
+#define IMAGE_VERSION ((uint32_t)8)
 
 #define HANDLER_DOCOL 1
 #define HANDLER_DOVAR 2
@@ -60,6 +60,20 @@ int read_i32(FILE *file, int32_t *out_value) { return fread(out_value, 4, 1, fil
 
 int read_i64(FILE *file, int64_t *out_value) { return fread(out_value, 8, 1, file) == 1; }
 
+static uint64_t image_checksum(FILE *file, long from) {
+	uint64_t hash = 14695981039346656037ULL;
+	if (fseek(file, from, SEEK_SET) != 0)
+		return hash;
+	unsigned char buffer[65536];
+	size_t got;
+	while ((got = fread(buffer, 1, sizeof buffer, file)) > 0)
+		for (size_t i = 0; i < got; i++) {
+			hash ^= buffer[i];
+			hash *= 1099511628211ULL;
+		}
+	return hash;
+}
+
 int read_val(FILE *file, Val *out_value) {
 	int32_t tag;
 	int64_t data;
@@ -88,7 +102,7 @@ void p_save_image(DISPATCH_ARGS) {
 	const char *filename = OBJECT_AT(VAL_DATA(filename_val))->bytes;
 	SYNC_REGISTERS(interp, chain_ip, chain_sp - 1);
 
-	FILE *file = fopen(filename, "wb");
+	FILE *file = fopen(filename, "wb+");
 	if (!file) {
 		fail(interp, "cannot create %s", filename);
 		return;
@@ -108,6 +122,8 @@ void p_save_image(DISPATCH_ARGS) {
 
 	fwrite(IMAGE_MAGIC, 1, 4, file);
 	write_i32(file, (int32_t)IMAGE_VERSION);
+	long checksum_pos = ftell(file);
+	write_i64(file, 0);
 
 	int32_t user_dict_cells = vocab.here - vocab.init_here;
 	int32_t user_namepool_bytes = vocab.names_here - vocab.init_names_here;
@@ -259,6 +275,11 @@ void p_save_image(DISPATCH_ARGS) {
 	write_vals(file, interp->lvar_stack, interp->lvar_top);
 	write_vals(file, interp->data_stack, interp->dsp);
 
+	fflush(file);
+	uint64_t checksum = image_checksum(file, checksum_pos + 8);
+	fseek(file, checksum_pos, SEEK_SET);
+	write_i64(file, (int64_t)checksum);
+
 	fclose(file);
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
@@ -315,6 +336,39 @@ static int validate_loaded(Interpreter *interp) {
 	return 1;
 }
 
+static int cfa_is_user_word(const int *sorted_cfas, int count, cell cfa) {
+	int low = 0;
+	int high = count - 1;
+	while (low <= high) {
+		int mid = (low + high) / 2;
+		if ((cell)sorted_cfas[mid] == cfa)
+			return 1;
+		if ((cell)sorted_cfas[mid] < cfa)
+			low = mid + 1;
+		else
+			high = mid - 1;
+	}
+	return 0;
+}
+
+static int validate_loaded_dictionary(const int *sorted_cfas, int count, int latest_cfa) {
+	if (latest_cfa != vocab.init_latest_cfa && !cfa_is_user_word(sorted_cfas, count, latest_cfa))
+		return 0;
+	for (int i = 0; i < count; i++) {
+		int cfa = sorted_cfas[i];
+		cell link = WORD_LINK(cfa);
+		if (link != vocab.init_latest_cfa && !cfa_is_user_word(sorted_cfas, count, link))
+			return 0;
+		cell name = WORD_NAME(cfa);
+		if (name < 0 || name >= vocab.names_here)
+			return 0;
+		cell source = WORD_SOURCE(cfa);
+		if (source < 0 || source >= vocab.source_here)
+			return 0;
+	}
+	return 1;
+}
+
 void p_load_image(DISPATCH_ARGS) {
 	POP_STRING(filename_obj, "load-image");
 
@@ -345,6 +399,20 @@ void p_load_image(DISPATCH_ARGS) {
 		fclose(file);
 		return;
 	}
+
+	int64_t stored_checksum;
+	if (!read_i64(file, &stored_checksum)) {
+		fail(interp, "%s: truncated checksum", filename);
+		fclose(file);
+		return;
+	}
+	long body_start = ftell(file);
+	if ((uint64_t)stored_checksum != image_checksum(file, body_start)) {
+		fail(interp, "%s: checksum mismatch (corrupt image)", filename);
+		fclose(file);
+		return;
+	}
+	fseek(file, body_start, SEEK_SET);
 
 	int32_t user_dict_cells, user_namepool_bytes, user_sourcepool_bytes, user_symbolpool_bytes;
 	int32_t saved_latest_cfa, saved_dsp, saved_n_objects;
@@ -622,6 +690,10 @@ void p_load_image(DISPATCH_ARGS) {
 											  fail(interp, "%s: truncated continuation local_base_offset", filename);
 											  goto done;
 										  }
+										  if (local_base_offset >= RETURN_STACK_DEPTH) {
+											  fail(interp, "%s: continuation local_base_offset out of range", filename);
+											  goto done;
+										  }
 										  obj->continuation.local_base_offset = local_base_offset;
 										  break;
 									  }
@@ -700,13 +772,18 @@ void p_load_image(DISPATCH_ARGS) {
 		goto done;
 	}
 
+	if (!validate_loaded_dictionary(load_cfas, user_word_count, saved_latest_cfa)) {
+		fail(interp, "%s: image dictionary is corrupt", filename);
+		goto done;
+	}
+
 	vocab.latest_cfa = saved_latest_cfa;
 
 done:
 	fclose(file);
 
 	if (interp->error_flag) {
-		arena.object_space.n = saved_n_objects;
+		arena.object_space.n = MIN(saved_n_objects, arena.object_space.cap);
 		forget_user(interp);
 		interp->lvar_top = 0;
 		interp->bind_trail_top = 0;

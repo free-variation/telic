@@ -3745,6 +3745,11 @@ static void mark_value_at(Interpreter *interp, Val value, int depth) {
 			continue;
 		}
 
+		if (VAL_TAG(value) == T_PTR) {
+			value = ffi_pointer_owner_of((int)VAL_DATA(value));
+			continue;
+		}
+
 		if (VAL_TAG(value) != T_STRING &&
 				VAL_TAG(value) != T_SET &&
 				VAL_TAG(value) != T_ARRAY &&

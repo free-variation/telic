@@ -22,3 +22,15 @@ tagged cr
 ?if "unreachable" . then
 begin 1 until
 5 5 + . cr
+
+\ an unterminated conditional (an if/else with no matching then) fails at
+\ compile time and discards the half-built word, instead of compiling a branch
+\ with an unpatched offset that dispatches through a null handler at runtime;
+\ the system keeps compiling afterward
+: bad-if 0 if 5 ;
+bad-if
+: bad-else 1 if 2 else 3 ;
+bad-else
+: bad-qif [: 0 if 5 :] execute ;
+bad-qif
+6 7 + . cr

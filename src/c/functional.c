@@ -570,6 +570,10 @@ static void pfilter_kernel(int start_index, int end_index, void *context) {
 }
 
 void p_pfilter(DISPATCH_ARGS) {
+	if (in_parallel) {
+		fail(interp, "cannot run inside a parallel worker; use serial map/filter/reduce");
+		return;
+	}
 	POP_CALLABLE(predicate, "pfilter-ext");
 	POP_INT(items_per_claim, "pfilter-ext", "items per claim");
 	POP_INT(worker_count, "pfilter", "worker count");
@@ -660,6 +664,10 @@ static void debug_check_no_old_to_young(int object_base, int pair_base, int imag
 #endif
 
 void p_pmap(DISPATCH_ARGS) {
+	if (in_parallel) {
+		fail(interp, "cannot run inside a parallel worker; use serial map/filter/reduce");
+		return;
+	}
 	POP_CALLABLE(function, "pmap-ext");
 	POP_INT(items_per_claim, "pmap-ext", "items per claim");
 	POP_INT(worker_count, "pmap", "worker count");
@@ -752,6 +760,10 @@ static void pmap_reduce_kernel(int start_index, int end_index, void *context) {
 }
 
 void p_pmap_reduce(DISPATCH_ARGS) {
+	if (in_parallel) {
+		fail(interp, "cannot run inside a parallel worker; use serial map/filter/reduce");
+		return;
+	}
 	POP_CALLABLE(combine_function, "pmap-reduce-ext");
 	POP_CALLABLE(map_function, "pmap-reduce-ext");
 	POP(identity);

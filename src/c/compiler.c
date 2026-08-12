@@ -64,6 +64,11 @@ void p_semicolon(DISPATCH_ARGS) {
 		fail(interp, "; : unterminated loop (a begin has no until/again/repeat)");
 		return;
 	}
+	if (compiler.conditional_depth > 0) {
+		rollback_partial_definition();
+		fail(interp, "; : unterminated conditional (an if has no matching then)");
+		return;
+	}
 	if (!check_locals_assigned(interp))
 		return;
 	leave_compile_scope(interp);
@@ -362,6 +367,10 @@ void truncate_quotation_spans(void) {
 void p_qsemi(DISPATCH_ARGS) {
 	if (compiler.loop_begin != 0) {
 		fail(interp, ":] : unterminated loop (a begin has no until/again/repeat)");
+		return;
+	}
+	if (compiler.conditional_depth > 0) {
+		fail(interp, ":] : unterminated conditional (an if has no matching then)");
 		return;
 	}
 	if (!check_locals_assigned(interp))

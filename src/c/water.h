@@ -1089,6 +1089,7 @@ Val deref(Interpreter *interp, Val value);
 void trail_undo_to(Interpreter *interp, int mark);
 
 int ffi_register_call_cfa(int cfa);
+Val ffi_pointer_owner_of(int index);
 
 void apply_unit(Interpreter *interp, int cfa);
 void dimension_freeze(void);

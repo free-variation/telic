@@ -33,3 +33,19 @@ libm "modf" [ :double :ptr ] :double ffi-function modf
 1 double-segment to part
 3.75 part segment>pointer modf . cr   \ 0.75  (fractional part, returned)
 part 0 @i . cr                        \ 3     (integer part, written into the segment)
+
+clear
+\ === pointer lifetime ===
+\ matrix>pointer aliases the live element buffer; a GC while the handle is held
+\ must keep the matrix reachable, not free the buffer the handle points into.
+3 3 0-matrix matrix>pointer gc pointer-long . cr   \ 0
+
+clear
+\ === error cases ===
+pointer-cell dup ffi-free pointer-deref            \ (read through a freed pointer)
+clear
+pointer-cell dup ffi-free pointer-long             \ (read through a freed pointer)
+clear
+pointer-cell dup ffi-free 1 floats>matrix          \ (read through a freed pointer)
+clear
+pointer-cell dup ffi-free 0 pointer-string-at      \ (read through a freed pointer)

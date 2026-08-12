@@ -139,6 +139,35 @@ case "$out" in
 esac
 rm -f "$img" "$trunc"
 
+# a single flipped byte anywhere in a saved image is caught by the whole-file
+# checksum: a clean error, never a crash or the execution of corrupted code.
+# The interpreter recovers and still computes 2 3 + = 5.
+img2=$(mktemp "${TMPDIR:-/tmp}/lf_img2.XXXXXX")
+printf ': sq dup * ; variable v [< 1 2 3 >] to v [ 10 20 30 ] "%s" save-image\n' "$img2" | "$bin" -b >/dev/null 2>&1
+corrupt=$(mktemp "${TMPDIR:-/tmp}/lf_corrupt.XXXXXX")
+python3 -c "import sys; d=bytearray(open('$img2','rb').read()); d[len(d)//2]^=0xFF; open('$corrupt','wb').write(d)"
+out=$(printf '"%s" load-image\n2 3 + . cr\n' "$corrupt" | "$bin" -b 2>&1)
+code=$?
+case "$out" in
+    *"checksum mismatch"*5*) ok "corrupt image: checksum caught + recovery" ;;
+    *) bad "corrupt image: checksum caught + recovery" "want checksum mismatch then 5 (exit 0)" "got (exit $code): [$out]" ;;
+esac
+rm -f "$img2" "$corrupt"
+
+# a string of bare UTF-8 continuation bytes must decode without a heap overflow:
+# the codepoint buffer once used the codepoint count (which skips continuation
+# bytes) for its size but was filled one int per byte. 100000 such bytes decode
+# to 100000 codepoints and the interpreter keeps computing (40 2 + = 42).
+cont=$(mktemp "${TMPDIR:-/tmp}/lf_cont.XXXXXX")
+head -c 100000 /dev/zero | tr '\000' '\200' > "$cont"
+out=$(printf '"%s" read-file string>codepoints size .  40 2 + . cr\n' "$cont" | "$bin" -b 2>&1)
+code=$?
+case "$out" in
+    "100000 42 ") ok "continuation-byte string: no overflow + recovery" ;;
+    *) bad "continuation-byte string: no overflow + recovery" "want [100000 42 ] (exit 0)" "got (exit $code): [$out]" ;;
+esac
+rm -f "$cont"
+
 # `load` resolves the path as given, then falls back to the loading file's own
 # directory; an unresolved path still reports the original name.
 lfdir=$(mktemp -d "${TMPDIR:-/tmp}/lf_dir.XXXXXX")

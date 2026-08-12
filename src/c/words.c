@@ -867,7 +867,7 @@ void p_roll(DISPATCH_ARGS) {
 	REQUIRE_CHAIN_TAG(depth_val, T_FLOAT, "roll", "a float depth");
 	int n = (int)VAL_NUMBER(depth_val);
 	Val *rolled_top = chain_sp - 1;
-	if (n < 0 || rolled_top - n < interp->data_stack) {
+	if (n < 0 || rolled_top - 1 - n < interp->data_stack) {
 		SYNC_REGISTERS(interp, chain_ip, rolled_top);
 		fail(interp, "depth %d out of range (stack has %d below it)", n, (int)(rolled_top - interp->data_stack));
 		return;

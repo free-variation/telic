@@ -37,6 +37,10 @@ clear
 clear
 1 2 -1 pick                     \ (negative depth)
 clear
+1 2 3 3 roll                    \ (depth 3 with only 3 values below the count)
+clear
+1 2 -1 roll                     \ (negative depth)
+clear
 0 [: :] -1 fold-times           \ (negative fold-times count)
 clear
 5 >side side-peek . side-depth . side-drop cr

@@ -575,16 +575,15 @@ STRING_EXPLODE_OP(p_string_to_chars, produce_char_string)
 int *decoded_codepoints(Interpreter *interp, const char *bytes, int byte_len, int *count_out) {
 	*count_out = 0;
 
-	int count = utf8_codepoint_count(bytes, byte_len);
 	int *codepoints;
-	MALLOC_OR_FAIL_RETURNING(interp, codepoints, sizeof(int) * (size_t)(count > 0 ? count : 1), NULL);
+	MALLOC_OR_FAIL_RETURNING(interp, codepoints, sizeof(int) * (size_t)(byte_len > 0 ? byte_len : 1), NULL);
 
 	int offset = 0;
 	int index = 0;
 	while (offset < byte_len)
 		offset += utf8_decode(bytes + offset, byte_len - offset, &codepoints[index++]);
 
-	*count_out = count;
+	*count_out = index;
 	return codepoints;
 }
 

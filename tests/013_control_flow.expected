@@ -19,3 +19,13 @@ in ?if
 error: begin: only valid inside a colon definition or quotation
 in begin
 10 
+error: ; : unterminated conditional (an if has no matching then)
+in ;
+error: unknown word: bad-if
+error: ; : unterminated conditional (an if has no matching then)
+in ;
+error: unknown word: bad-else
+error: :] : unterminated conditional (an if has no matching then)
+in :]
+error: unknown word: bad-qif
+13 

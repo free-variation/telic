@@ -5,3 +5,12 @@ hello from ffi variadic
 0 
 0.75 
 3 
+0 
+error: cannot read through a null pointer
+in pointer-deref
+error: cannot read through a null pointer
+in pointer-long
+error: cannot read through a null pointer
+in floats>matrix
+error: cannot read through a null pointer
+in pointer-string-at
