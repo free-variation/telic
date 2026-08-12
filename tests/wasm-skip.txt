@@ -15,6 +15,7 @@
 900_docs_foreign_function_interface   ffi: excluded from the wasm build
 901_docs_idioms                       run in the resource-brackets pair: no fork/exec on WASI
 117_with_stream     start-process: no fork/exec on WASI
+156_stream_identity start-process: no fork/exec on WASI
 098_reload_literals start-process: no fork/exec on WASI
 099_ffi             ffi excluded from the wasm build
 100_ffi_lapacke     ffi/LAPACKE excluded from the wasm build

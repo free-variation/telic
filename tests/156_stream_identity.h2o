@@ -1,0 +1,19 @@
+\ A closed stream handle stays closed. The descriptor it names is reissued by
+\ the OS to the next stream, so without identity the old handle would silently
+\ read the new one; each handle carries a generation and a stale one reports
+\ closed instead. The same property for databases is 155_handle_identity.
+
+[ "printf" "AAA" ] start-process to producer
+producer :out @ to output
+output read . cr                                     \ AAA
+output close
+producer :in @ close  producer :err @ close  producer :pid @ wait drop
+
+\ this start-process typically receives the same descriptor number back
+[ "printf" "BBB" ] start-process to successor
+[: output read :] catch drop :message @ . cr         \ stream is closed
+successor :out @ read . cr                           \ BBB
+
+output close                                         \ idempotent on a stale handle
+successor :in @ close  successor :err @ close  successor :out @ close
+successor :pid @ wait drop
