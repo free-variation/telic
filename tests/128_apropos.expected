@@ -1,3 +1,0 @@
-frobenius-norm   ( mat -- f )             Euclidean (L2) norm: √(Σ aᵢⱼ²) over all elements — a vector's length; for a matrix the Frobenius (entrywise 2-)norm, not the spectral norm
-norm             ( mat -- f )             matrix.h2o: frobenius-norm under the short name (inlined)
-zork-test                                 defined this session

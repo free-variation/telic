@@ -1,3 +1,5 @@
+\ ==== quotations ====
+
 [: 5 :] execute .
 : f [: 6 :] execute ;
 f .
@@ -5,3 +7,14 @@ f .
 g .
 : h [: [: 7 :] execute :] execute ;
 h .
+
+clear
+
+\ ==== tick execute ====
+
+: square dup * ;
+6 ' square execute .
+3 4 ' + execute .
+' dup 7 swap execute . .
+
+clear

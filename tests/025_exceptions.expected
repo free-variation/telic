@@ -1,0 +1,35 @@
+0 7 
+1 99 
+42 
+caught  99 
+110 
+outer  88 
+caught  50 
+outer got  15 
+
+2 1 
+got  boom 
+got  :oops 
+outer got  10 
+11 
+L2 
+L1 inner-xt threw 
+1 {
+  :message division by zero
+  :trace in / ← [: 1 0 / :]
+}
+
+caught: division by zero 
+after 
+inner caught 
+error: uncaught exception: 42
+in throw
+error: uncaught exception: { :code 7 }
+in throw
+error: uncaught exception: "histogram-table: expected at least 1 bin; got 0"
+in throw ← histogram-table
+clean  5 
+cleaned  caught  boom 
+on-error  recovered 
+42 
+db-caught  kaboom 

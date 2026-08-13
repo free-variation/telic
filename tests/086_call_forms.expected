@@ -1,0 +1,59 @@
+120 
+0 
+1 
+720 
+6 
+55 
+error: recurse: only inside a definition or quotation
+in recurse
+42 
+500000500000 
+: split   \ 14 cells
+ 0: dup
+ 1: (lit) 0
+ 3: (=0branch) 6
+ 5: drop
+ 6: (tailcall) leg1
+ 8: (branch) 4
+ 10: drop
+ 11: (tailcall) leg2
+ 13: exit
+;
+: guarded   \ 19 cells
+ 0: dup
+ 1: (lit) 0
+ 3: (=0branch) 4
+ 5: drop
+ 6: (branch) 11
+ 8: (lit) 5
+ 10: >r
+ 11: r>
+ 12: drop
+ 13: (lit) 1
+ 15: -
+ 16: guarded
+ 18: exit
+;
+[ 110 120 130 ] 
+1 
+0 
+1 
+0 
+hi 
+bye 
+42 
+7 
+12 
+error: unresolved deferred word: unset
+error: embodies: unknown word: nope-xyz
+in embodies
+error: embodies: not a deferred word: plain
+in embodies
+error: expected an execution token; got a float
+in embodies
+error: embodies: target must be a colon word or quotation
+in embodies
+error: embodies: only at top level
+in embodies
+error: embodies: not a deferred word: d3
+in embodies

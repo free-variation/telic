@@ -444,6 +444,7 @@ ranks
 read
 read-err
 read-file
+read-line
 read-out
 read-tsv
 rect-at
@@ -538,6 +539,7 @@ std
 stderr
 stdin
 stdout
+stdout>string
 stop
 stream?
 string>chars

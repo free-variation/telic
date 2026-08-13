@@ -1,0 +1,37 @@
+\ ==== path keys ====
+
+{ /addr/city 1 } /addr/city @ . cr
+{ /addr/city 1 /addr/zip 2 } /addr/zip @ . cr
+{ /a/b/c 42 } :a @ :b @ frame>json . cr
+[ /p/q 7 :z 9 ] array>frame /p/q @ . cr
+[ /p/q 7 :z 9 ] array>frame :z @ . cr
+\ error: empty path key in a literal
+{ [ ] 5 } . cr
+\ error: non-symbol element in a path key
+{ [ 1 2 ] 5 } . cr
+\ error: key that is neither symbol nor path
+{ 42 5 } . cr
+\ error: empty path key via array>frame (op name threads through)
+[ [ ] 5 ] array>frame . cr
+\ error: non-symbol path element via array>frame
+[ [ 1 2 ] 5 ] array>frame . cr
+
+clear
+
+\ ==== select values ====
+
+{ :a { :x 1 :y 2 } } /a/* select-values . cr
+{ :a { :x 1 } :b { :x 2 } } /*/x select-values . cr
+{ :a 1 } /a select-values . cr
+{ :a 1 } /z select-values . cr
+{ :a { :b { :city 1 } } :x { :city 2 } } //city select-values . cr
+{ :a { :city 1 } } /a//city select-values . cr
+{ :a { :x 1 } :b { :x 2 :y 3 } } //* select-values . cr
+{ } dup :self swap ! //x select-values . cr
+
+\ malformed predicate steps must error, not read past a short array (M2):
+\ an empty-array step has no op/key; a comparison op with no value misses items[2].
+{ :a 1 } [ :a [ ] ] select-values . cr
+{ :a 1 } [ [ 1 :a ] ] select-values . cr
+
+clear

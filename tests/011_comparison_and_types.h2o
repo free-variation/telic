@@ -1,0 +1,154 @@
+\ ==== comparison ====
+
+3 3 = .
+3 4 = .
+2 3 < .
+4 3 < .
+4 3 > .
+3 4 > .
+0 0= .
+1 0= .
+"abc" "abc" = .
+"abc" "abd" = .
+[< 1 2 >] [< 1 2 >] = .
+[< 1 2 >] [< 1 3 >] = .
+
+\ 1= tests equality with one
+1 1= . cr
+5 1= . cr
+1.0 1= . cr
+"x" 1= . cr
+
+\ === array operands mask element-wise (val_cmp per element) ===
+[ "a" "b" "a" ] "a" eq . cr                     \ 1 0 1
+[ 1 2 3 ] 2 eq . cr                             \ 0 1 0
+2 [ 1 2 3 ] < . cr                             \ 0 0 1  (scalar on either side)
+[ 1 2 3 ] [ 3 2 1 ] > . cr                     \ 0 0 1  (pairwise)
+[ "b" "a" "c" ] "b" < . cr                     \ 0 1 0  (lexicographic)
+[ 1 null 2 ] null eq . cr                       \ 0 1 0  (null matches null)
+[ "x" "y" "x" ] "x" eq where . cr               \ indices 0 2
+
+\ === <= / >= (<=, >=): equality holds, unlike </>; plus the unsafe float forms ===
+2 3 <= . 3 3 <= . 4 3 <= . cr                \ 1 1 0
+2 3 >= . 3 3 >= . 4 3 >= . cr                \ 0 1 1
+2.0 2.0 f<= . 3.0 2.0 f<= . cr                \ 1 0
+2.0 2.0 f>= . 2.0 3.0 f>= . cr                \ 1 0
+[ 1 2 3 ] 2 <= . cr                            \ 1 1 0  (array, equality element)
+[ 1 2 3 ] 2 >= . cr                            \ 0 1 1
+
+\ <=/>= fuse with a following branch into (<=0branch)/(>=0branch)
+: le-branch 5 <= if 1 else 0 then ;
+' le-branch see-compiled>string "(<=0branch)" has? . cr    \ 1
+: ge-branch 5 >= if 1 else 0 then ;
+' ge-branch see-compiled>string "(>=0branch)" has? . cr    \ 1
+
+\ errors
+[ 1 2 ] [ 1 2 3 ] eq                            \ (length mismatch)
+
+clear
+
+\ ==== matrix compare ====
+
+\ = is structural on matrices (shape then contents); </> are element-wise.
+
+\ = : identical matrices are equal
+[ 1 2 3 4 ] 2 2 matrix [ 1 2 3 4 ] 2 2 matrix = . cr       \ 1
+\ = : differing element -> not equal
+[ 1 2 3 4 ] 2 2 matrix [ 1 2 3 5 ] 2 2 matrix = . cr       \ 0
+\ = : differing shape -> not equal
+[ 1 2 3 4 ] 2 2 matrix [ 1 2 3 4 5 6 ] 2 3 matrix = . cr   \ 0
+
+\ </> : element-wise, a 1.0/0.0 matrix
+[ 1 5 3 ] 1 3 matrix [ 2 4 3 ] 1 3 matrix < .            \ [1 0 0]
+[ 1 5 3 ] 1 3 matrix [ 2 4 3 ] 1 3 matrix > .            \ [0 1 0]
+\ scalar broadcast
+[ 1 2 3 4 ] 2 2 matrix 3 < .                             \ matrix [< scalar -> [[1 1][0 0]]
+2 [ 1 2 3 4 ] 2 2 matrix < .                            \ scalar [< matrix -> [[0 0][1 1]]
+[ 1 2 3 4 ] 2 2 matrix 2 > .                            \ matrix >] scalar -> [[0 0][1 1]]
+\ mismatched shapes -> error
+[ 1 2 ] 1 2 matrix [ 1 2 3 ] 1 3 matrix < .             \ error: shapes differ
+
+\ matrices still order for set membership (via val_cmp, not the < word)
+[ 1 2 3 4 ] 2 2 matrix [ 1 2 3 5 ] 2 2 matrix 2 set size . cr  \ 2
+[ 1 2 3 4 ] 2 2 matrix [ 1 2 3 4 ] 2 2 matrix 2 set size . cr  \ 1
+
+clear
+
+\ ==== logical ====
+
+\ Logical ops on truthiness. True is -1, false is 0.
+\ Any non-zero float (and any non-empty object) is truthy.
+
+\ and
+1 1 and . cr        \ -1
+1 0 and . cr        \ 0
+0 1 and . cr        \ 0
+0 0 and . cr        \ 0
+
+\ or
+1 1 or . cr         \ -1
+1 0 or . cr         \ -1
+0 1 or . cr         \ -1
+0 0 or . cr         \ 0
+
+\ not
+0 not . cr          \ -1
+1 not . cr          \ 0
+5 not . cr          \ 0
+-3 not . cr         \ 0
+
+\ truthiness of non-1 values
+42 7 and . cr       \ -1  (both non-zero)
+0 0= . cr           \ -1  (0= agrees with not on 0)
+
+\ composition
+1 0 or  0 not  and . cr     \ (1 or 0) and (not 0) = -1 and -1 = -1
+1 1 and not . cr            \ not (1 and 1) = 0
+
+clear
+
+\ ==== type of ====
+
+\ type-of ( a -- sym ): the value's type as a symbol. A bound logic var
+\ reports the type of its binding; an unbound one is :lvar.
+
+1.5 type-of . cr                       \ :float
+"s" type-of . cr                       \ :string
+:k type-of . cr                        \ :symbol
+[ 1 ] type-of . cr                     \ :array
+[< 1 >] type-of . cr                     \ :set
+[( 1 2 )] type-of . cr                 \ :pair
+{ :a 1 } type-of . cr                  \ :frame
+[ 1 2 3 4 ] 2 2 matrix type-of . cr    \ :matrix
+10 m type-of . cr                      \ :quantity
+' dup type-of . cr                     \ :xt
+[: 1 :] type-of . cr                   \ :xt (a quotation is an xt)
+3 double-segment type-of . cr          \ :segment
+":memory:" db-open dup type-of . cr db-close   \ :db
+null type-of . cr                      \ :none
+_ type-of . cr                         \ :wildcard
+
+\ logic vars: unbound reports :lvar, bound reports the binding's type
+lvar type-of . cr                      \ :lvar
+lvar to x   x 5 ~ drop   x type-of . cr        \ :float
+lvar to y   y "hi" ~ drop  y type-of . cr      \ :string
+
+\ a continuation
+: sh shift ;
+: ex reset 9 sh ;
+ex nip type-of . cr                    \ :continuation
+
+\ the result is an ordinary symbol
+1 type-of :float = . cr                \ 1
+"s" type-of symbol? . cr               \ 1
+
+\ one lib predicate per type; each is type-of against the matching symbol
+1 float? . "s" string? . :k symbol? . [ ] array? . [< >] set? . [( 1 2 )] pair? . cr   \ 1 1 1 1 1 1
+{ } frame? . [ 1 ] 1 1 matrix matrix? . 10 m quantity? . ' dup xt? . cr             \ 1 1 1 1
+3 double-segment segment? . null none? . _ wildcard? . lvar lvar? . cr              \ 1 1 1 1
+1 string? . "s" float? . :k lvar? . cr                                              \ 0 0 0
+y string? . cr                         \ 1   bound var answers as its value
+
+bye
+
+clear

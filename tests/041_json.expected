@@ -1,0 +1,89 @@
+1 
+1 
+1 
+1 
+1 
+1 
+1 
+1 
+1 
+1 
+1 
+1 
+1 
+5 
+1 
+1 
+1 
+1 
+1 
+1 
+1 
+1 
+1 
+1 
+2 
+4 
+3 
+0 
+3 
+3 
+[ :1 null 5 ] 
+1 
+0 
+1 
+1 
+error: invalid literal
+in json>frame
+error: invalid literal
+in json>frame
+error: unexpected end of input
+in json>frame
+error: unterminated string
+in json>frame
+error: invalid number
+in json>frame
+error: unterminated array
+in json>frame
+error: unterminated object
+in json>frame
+error: trailing content after value
+in json>frame
+error: truncated \u escape
+in json>frame
+error: unsupported string escape
+in json>frame
+null 
+true 
+false 
+0 
+42 
+-7 
+3.5 
+412317970704 
+"hi" 
+"" 
+"a\"b" 
+"a\\b" 
+"a\nb" 
+"a\tb" 
+"a\rb" 
+"a\bb" 
+"a\fb" 
+"a\u0001b" 
+[] 
+[1, 2, 3] 
+[[1], [2, 3]] 
+[true, null, "x"] 
+{} 
+{"a": 1} 
+{"a": 1, "b": 2} 
+{"x": [1, 2], "y": {"z": null}} 
+1 
+1 
+1 
+{"a": null, "b": null, "c": 2.5} 
+error: cannot serialize a set
+in frame>json
+error: cannot serialize a non-boolean symbol
+in frame>json

@@ -1,0 +1,50 @@
+<matrix 2x2>
+          2          2
+          2          2
+error: division by zero (matrix element 1)
+in /
+error: division by zero (matrix element 0)
+in /
+error: division by zero
+in /
+2 -5 3 0 <matrix 2x2>
+         -1          2
+         -3          4
+<matrix 1x2>
+         -5          6
+<matrix 1x3>
+          1          2          3
+error: expected a float or a matrix; got a string
+in negate
+error: expected a float or a matrix; got a set
+in negate
+<matrix 2x2>
+         11         12
+         13         14
+<matrix 2x2>
+          5         15
+         25         35
+<matrix 2x2>
+          3          6
+          9         12
+<matrix 2x2>
+          1          2
+          3          4
+<matrix 2x2>
+         11         12
+         13         14
+<matrix 2x2>
+         99         98
+         97         96
+<matrix 1x3>
+          4          2          1
+<matrix 2x2>
+         11         22
+         33         44
+<matrix 2x2>
+          9         18
+         27         36
+error: matrix shapes differ (1x2 vs 1x3)
+in +!
+error: expected a matrix operand; got a float and a float
+in +!

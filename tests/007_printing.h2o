@@ -1,3 +1,5 @@
+\ ==== printing ====
+
 [ 1 2 3 4 5 ] .
 [ 1 2 3 4 5 6 7 8 9 10 ] .
 [ 1 2 3 4 5 6 7 8 9 10 11 12 13 ] .
@@ -116,3 +118,25 @@ clear
 [ 1.0 3.0 / 2.0 3.0 / ] .a cr   \ [ 0.33333333333333331 0.66666666666666663 ]
 42.0 .a cr                      \ 42   (integer-valued floats stay integral)
 [ 1.0 3.0 / 2.0 3.0 / ] vector .a cr
+
+clear
+
+\ ==== io ====
+
+72 emit 105 emit cr
+65 emit 66 emit 67 emit cr
+46 emit
+46 emit
+46 emit cr
+\ multibyte: emit UTF-8 encodes codepoints above ASCII
+233 emit cr
+128512 emit cr
+9731 emit cr
+
+\ standard streams: T_STREAM over fds 0/1/2, composing with read/write/close
+stdin . cr                \ <stream 0>
+stdout . cr               \ <stream 1>
+stderr . cr               \ <stream 2>
+"piped" stdout write cr   \ write to fd 1 (appears in stdout)
+
+clear

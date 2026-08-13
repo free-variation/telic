@@ -2,7 +2,10 @@
 # Golden-output test harness for the WASM/WASI build of water.
 #
 # Mirrors run.sh but runs water.wasm under a WASI runtime instead of
-# the native binary. Uses the same <name>.h2o / <name>.expected pairs.
+# the native binary. Uses the same <name>.h2o / <name>.expected pairs, and the
+# same <name>.stdin convention: with that file present the program goes in as a
+# file argument (resolved inside the preopened root) and <name>.stdin is fed on
+# stdin, so a test that reads stdin has something to read.
 #
 # A test may be skipped ONLY when it exercises a feature WASI lacks
 # (database, ffi, interactive REPL) — list it in wasm-skip.txt as
@@ -58,7 +61,11 @@ for input in "$here"/*.h2o; do
     # the .expected files were captured by the native harness. Preopen the repo
     # root (guest ".") for relative loads and /tmp for scratch files, so file
     # I/O tests get the same access the native harness has.
-    (cd "$root" && $exec_cmd "$module" -b < "$input") > "$actual" 2>&1
+    if [ -f "$here/$name.stdin" ]; then
+        (cd "$root" && $exec_cmd "$module" -b "tests/$name.h2o" < "$here/$name.stdin") > "$actual" 2>&1
+    else
+        (cd "$root" && $exec_cmd "$module" -b < "$input") > "$actual" 2>&1
+    fi
     # A <name>.sed file normalizes both sides before the diff, as in run.sh.
     expected_cmp="$expected"
     actual_cmp="$actual"

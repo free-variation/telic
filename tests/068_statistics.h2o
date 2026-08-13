@@ -1,0 +1,335 @@
+\ ==== bootstrap ====
+
+\ bootstrap ( data fit-xt B -- [estimates] ): B refits of fit-xt over row-resamples
+\ of data. Serial bootstrap is deterministic under a fixed seed; pbootstrap gives
+\ the identical distribution (serial resampling + pure fit), so going parallel is a
+\ speed-only choice. Estimate distributions converge to the data statistic.
+
+\ exact distribution under a fixed seed: 8 resampled column means of 1..10
+1 seed [ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix ' mean 8 bootstrap . cr
+
+\ B controls the number of replicates
+1 seed [ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix ' mean 50 bootstrap size . cr
+
+\ pbootstrap is byte-identical to bootstrap (same seed -> same resamples; pure fit)
+1 seed [ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix ' mean 30 bootstrap
+1 seed [ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix ' mean 30 pbootstrap
+= . cr
+
+\ the fit-xt is arbitrary: here the column sum rather than the mean
+1 seed [ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix ' sum 5 bootstrap . cr
+
+\ a wider matrix: fit reads one column (sepal-like). resample keeps rows intact.
+1 seed [ 1 10  2 20  3 30  4 40 ] 4 2 matrix [: 0 @j mean :] 6 bootstrap . cr
+
+\ convergence: mean of 5000 bootstrapped means approaches the true mean 5.5
+1 seed [ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix ' mean 5000 bootstrap dup size 1 matrix mean . cr
+
+\ B = 1 is a single resample; B = 0 yields an empty distribution
+1 seed [ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix ' mean 1 bootstrap size . cr
+1 seed [ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix ' mean 0 bootstrap size . cr
+
+clear
+
+\ ==== statistics ====
+
+\ Embedded statistics (src/forth/statistics.h2o, wasm-capable). Reductions
+\ first: var (C primitive) and the std / se one-liners built on it.
+\ Deterministic on fixed inputs, so values are golden.
+
+\ 1..10 : var is the sample variance (n-1); std = sqrt(var); se = std / sqrt(n)
+[ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix var . cr   \ 9.16667
+[ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix std . cr   \ 3.02765
+[ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix se . cr    \ 0.957427
+
+\ std is exactly sqrt(var) (same computation, so bit-identical)
+[ 2 4 6 8 ] 4 1 matrix dup var sqrt swap std = . cr   \ 1
+
+\ a constant vector has zero spread
+[ 5 5 5 5 5 ] 5 1 matrix dup dup var . swap std . se . cr   \ 0 0 0
+
+\ var depends only on the values, not the shape (1..6 as row, column, block)
+[ 1 2 3 4 5 6 ] 1 6 matrix var .
+[ 1 2 3 4 5 6 ] 6 1 matrix var .
+[ 1 2 3 4 5 6 ] 2 3 matrix var . cr
+
+\ var needs at least two elements
+[ 7 ] 1 1 matrix var . cr
+
+\ numerical stability: a large mean with a tiny spread. The one-pass
+\ sum-of-squares formula cancels catastrophically (it returned a negative
+\ variance); the two-pass mean-deviation form stays accurate.
+[ 1000000000.1 1000000000.2 1000000000.3 ] 3 1 matrix var . cr
+[ 1000000000 1000000001 ] 2 1 matrix var . cr   \ 0.5
+
+\ quantile ( m p -- f ): sort the values, then linearly interpolate at p*(n-1).
+\ p=0 is the min, p=1 the max, p=0.5 the median.
+[ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix 0 quantile . cr      \ 1     min
+[ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix 1 quantile . cr      \ 10    max
+[ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix 0.5 quantile . cr    \ 5.5   median (interpolated)
+[ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix 0.25 quantile . cr   \ 3.25  interpolated quartile
+[ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix 0.75 quantile . cr   \ 7.75
+
+\ odd vs even count: exact middle vs average of the two middles
+[ 1 3 5 7 9 ] 5 1 matrix 0.5 quantile . cr                \ 5
+[ 1 2 3 4 ] 4 1 matrix 0.5 quantile . cr                  \ 2.5
+
+\ input need not be sorted; quantile sorts a copy internally
+[ 5 1 3 2 4 ] 5 1 matrix 0.5 quantile . cr                \ 3
+
+\ a single element: every quantile is that element
+[ 42 ] 1 1 matrix 0.3 quantile . cr                       \ 42
+
+\ duplicates are kept (not deduped like a set)
+[ 2 2 2 8 ] 4 1 matrix 0.5 quantile . cr                  \ 2
+
+\ shape doesn't matter: quantile is over all elements (a 3x4 block)
+[ 1 2 3 4 5 6 7 8 9 10 11 12 ] 3 4 matrix 0.5 quantile . cr   \ 6.5
+
+\ misuse errors: p out of [0,1], non-float p, empty matrix
+[ 1 2 3 ] 3 1 matrix 1.5 quantile . cr
+[ 1 2 3 ] 3 1 matrix :x quantile . cr
+0 0 0-matrix 0.5 quantile . cr
+
+\ quantiles ( m probs -- v ): quantile at each probability in the probs array,
+\ returned as a vector in that order (R's quantile(x, probs), type 7)
+[ 1 2 3 4 ] 4 1 matrix [ 0.25 0.5 0.75 ] quantiles transpose . cr             \ 1.75 2.5 3.25
+[ 3 1 4 1 5 9 2 6 ] 8 1 matrix [ 0 0.25 0.5 0.75 1 ] quantiles transpose . cr \ 1 1.75 3.5 5.25 9
+[ 1 2 3 4 ] 4 1 matrix [ 0.5 ] quantiles transpose . cr                       \ 2.5   single prob == median
+[ 1 2 3 4 ] 4 1 matrix [ ] quantiles size . cr                               \ 0     empty probs -> empty vector
+[ 1 2 3 4 ] 4 1 matrix [ 0.25 1.5 ] quantiles . cr                           \ error: p 1.5 out of range
+
+\ median ( m -- f ): the 0.5 quantile
+[ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix median . cr   \ 5.5
+[ 1 2 3 4 5 6 7 8 9 ] 9 1 matrix median . cr       \ 5
+[ 1 2 3 4 ] 4 1 matrix median . cr                 \ 2.5  even -> interpolated
+[ 42 ] 1 1 matrix median . cr                      \ 42
+[ 7 2 9 4 ] 4 1 matrix dup median swap 0.5 quantile = . cr   \ 1  median == quantile 0.5
+
+\ percentile ( m pct -- f ): pct in [0,100]
+[ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix 0 percentile . cr     \ 1
+[ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix 100 percentile . cr   \ 10
+[ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix 50 percentile . cr    \ 5.5
+[ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix 25 percentile . cr    \ 3.25
+[ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix 90 percentile . cr    \ 9.1
+[ 3 1 4 1 5 ] 5 1 matrix dup 50 percentile swap median = . cr   \ 1  percentile 50 == median
+[ 1 2 3 ] 3 1 matrix 150 percentile . cr                   \ error: pct 150 -> p 1.5
+
+\ iqr ( m -- f ): Q3 - Q1
+[ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix iqr . cr      \ 4.5
+[ 1 2 3 4 5 6 7 8 9 ] 9 1 matrix iqr . cr          \ 4
+[ 5 5 5 5 ] 4 1 matrix iqr . cr                    \ 0  constant -> no spread
+
+\ ci ( m level -- lo hi ): percentile interval, gathered into [ lo hi ]
+[ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix 0.95 ci 2 array . cr   \ [ 1.225 9.775 ]
+[ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix 0.90 ci 2 array . cr   \ [ 1.45 9.55 ]
+[ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix 1 ci 2 array . cr      \ [ 1 10 ]  full range at level 1
+
+\ summary ( v/dataset -- fr ): { :min :q1 :median :mean :q3 :max }; :missing when any NaN
+[ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix summary . cr              \ 1 3.25 5.5 5.5 7.75 10
+[ 1 2 3 4 100 ] 5 1 matrix summary . cr                        \ skew: median 3, mean 22
+[ 2 null 4 6 null 8 ] 6 1 matrix summary . cr                  \ stats of [ 2 4 6 8 ] plus :missing 2
+[ 42 ] 1 1 matrix summary . cr                                 \ every statistic 42
+[ 3 1 4 1 5 ] 1 5 matrix summary
+[ 3 1 4 1 5 ] 5 1 matrix summary = . cr                        \ 1  shape-independent
+[ null null ] 2 1 matrix summary . cr                          \ all missing: { :missing 2 }
+0 1 0-matrix summary . cr                                      \ empty: { }
+
+\ dataset summary: numeric columns get the stats frame, text columns :distinct,
+\ instant columns (unit exactly s) render as ISO; :missing per column when any
+{ :x [ 1 2 null 4 ] vector
+  :name [ "a" "b" "a" null ]
+  :when [ "2020-01-03T00:00:00Z" "2020-01-01T00:00:00Z" ] [: iso>time 1 s / :] map vector s } summary . cr
+[: { :bad 42 } summary :] catch . . cr                         \ 1 then the guard message
+
+\ ecdf ( v -- xs ys ): sorted finite values, cumulative fractions (i+1)/n
+[ 3 1 2 ] vector ecdf . . cr                     \ ys [0.333 0.667 1], xs [1 2 3]
+[ 2 2 1 ] vector ecdf . . cr                     \ ties: xs [1 2 2], ys rise through them
+[ 4 null 2 ] vector ecdf . . cr                  \ NaN excluded from points and n: [2 4], [0.5 1]
+[ 5 7 9 11 ] vector ecdf nip dup num-elements 1- @e . cr   \ 1  the last fraction is exactly 1
+[ null ] vector ' ecdf catch . . cr          \ 1 then the no-finite-values message
+
+\ binomial-deviance ( y p -- dev ): -2 log-likelihood; p clamped away from 0 and 1
+[ 1 0 ] vector [ 0.5 0.5 ] vector binomial-deviance . cr    \ 2.77259  ( -2*2*ln 0.5 )
+[ 1 ] vector [ 0 ] vector binomial-deviance . cr            \ 55.262   ( -2*ln 1e-12 )
+
+\ cv-folds ( units n-folds -- folds ): round-robin deal, [ train test ] per fold
+[ :a :b :c :d :e ] 2 cv-folds . cr    \ fold 0 tests a c e, fold 1 tests b d
+[ 1 2 3 4 5 6 ] 3 cv-folds . cr       \ every third unit tests in its own fold
+
+\ cross-validate ( units n-folds fit score -- fold-losses ): round-robin folds in order
+[ 1 2 3 4 5 6 ] 3 [: vector mean :] [: vector mean - abs :] cross-validate mean . cr   \ 1
+[: [ 1 2 3 ] 5 [: vector mean :] [: vector mean - abs :] cross-validate :] catch . . cr   \ 1 then the folds-exceed-units message
+
+\ ks-distance ( a b -- d ): two-sample Kolmogorov-Smirnov statistic
+[ 1 2 3 ] vector [ 1 2 3 ] vector ks-distance . cr             \ 0  identical samples
+[ 1 2 ] vector [ 3 4 ] vector ks-distance . cr                 \ 1  disjoint samples
+[ 1 2 3 4 ] vector [ 2 3 ] vector ks-distance . cr             \ 0.25
+[ 1 5 7 ] vector [ 2 3 4 ] vector ks-distance . cr             \ 0.666667  largest gap after t=4
+[ 1 null 2 ] vector [ 1 2 ] vector ks-distance . cr            \ 0  NaN excluded
+[ 1 5 7 ] vector [ 2 3 4 ] vector 2dup ks-distance rot rot swap ks-distance = . cr   \ 1  symmetric
+[ null null ] vector [ 1 ] vector ks-distance . cr             \ error: no finite values
+
+\ bootstrap on array data: the elements resample with replacement, seeded
+7 seed
+[ 10 20 30 40 ] [: vector sum :] 4 bootstrap . cr
+
+\ column>indicators ( column -- m ): one indicator column per level above the reference
+[ 1 2 3 2 1 ] vector column>indicators . cr      \ 5x2: level-2 and level-3 columns
+[ "b" "a" "b" "c" ] column>indicators . cr       \ 4x2: "b" and "c" columns, "a" reference
+[ 2 null 3 ] vector column>indicators . cr       \ 3x1: null is no level; missing row all zero
+[ 1 1 1 ] vector ' column>indicators catch . . cr   \ 1 then the single-level message
+
+\ indicators! ( design column sym -- design ): keyed 0/1 level columns
+{ } [ "b" "a" "b" "c" ] :kind indicators! keys . cr        \ [ :kind=b :kind=c ]
+{ } [ 1 2 3 2 1 ] vector :t indicators! dup keys . :t=3 @ . cr   \ [ :t=2 :t=3 ] then the 3-mask
+{ } [ 1 1 ] vector [: :t indicators! :] catch . . cr       \ 1 then the single-level message
+
+\ with-intercept ( X/design -- X'/design ): ones column, prepended or keyed
+[ 5 6 7 ] 3 1 matrix with-intercept . cr   \ [[1 5][1 6][1 7]]
+{ :x [ 5 6 7 ] vector } with-intercept dup keys . :intercept @ . cr   \ [ :intercept :x ] then 3x1 ones
+{ } ' with-intercept catch . . cr      \ 1 then the empty-design message
+
+\ sigmoid ( m -- m' ): elementwise logistic; 0 -> 0.5, symmetric
+[ 0 ] 1 1 matrix sigmoid . cr                    \ 0.5
+[ -2 0 2 ] 1 3 matrix sigmoid . cr               \ [0.119.. 0.5 0.880..]
+
+clear
+
+\ ==== correlations ====
+
+\ correlation-pearson ( xs ys -- r ), correlation-spearman ( xs ys -- rho ),
+\ correlation-kendall ( xs ys -- tau ), ranks ( vector -- ranks ).
+\ Pearson is the centered dot-product ratio; spearman is pearson on the ranks;
+\ kendall is tau-b (tie-corrected) via one (x,y) sort + merge exchange count.
+
+\ === correlation-pearson ===
+[ 1 2 3 4 5 ] vector [ 2 4 6 8 10 ] vector correlation-pearson . cr     \ 1
+[ 1 2 3 4 5 ] vector [ 10 8 6 4 2 ] vector correlation-pearson . cr     \ -1
+[ 1 2 3 4 5 ] vector [ 2 1 4 3 5 ] vector correlation-pearson . cr      \ 0.8
+[ 1 2 3 ] vector [ 4 5 6 ] 1 3 matrix correlation-pearson . cr          \ 1 (row and column mix)
+[ 1 2 3 4 5 ] vector [ 1 4 9 16 25 ] vector correlation-pearson . cr    \ 0.981105 (nonlinear, below 1)
+[ 3 3 3 ] vector [ 1 2 3 ] vector correlation-pearson . cr              \ null (constant x, as R's NA)
+
+clear
+
+\ === ranks ===
+[ 30 10 20 40 ] vector ranks print                                      \ 2 0 1 3 as 4x1
+[ 5 4 3 ] 1 3 matrix ranks print                                        \ 2 1 0 as 3x1 (row input)
+[ 10 20 20 30 ] vector ranks print                                      \ 0 1.5 1.5 3 (ties midranked)
+
+clear
+
+\ === correlation-spearman ===
+\ tied cases cross-checked against R 4.5.3 cor(x, y, method = "spearman")
+[ 1 2 3 4 5 ] vector [ 1 4 9 16 25 ] vector correlation-spearman . cr   \ 1 (monotone nonlinear)
+[ 1 2 3 4 5 ] vector [ 25 16 9 4 1 ] vector correlation-spearman . cr   \ -1
+[ 1 2 3 4 5 ] vector [ 2 1 4 3 5 ] vector correlation-spearman . cr     \ 0.8 (ranks equal values here)
+[ 1 2 2 3 ] vector [ 1 3 2 4 ] vector correlation-spearman . cr         \ 0.948683 (R: 0.9486833)
+[ 1 1 2 2 3 3 ] vector [ 1 2 3 4 5 6 ] vector correlation-spearman . cr \ 0.956183 (R: 0.9561829)
+[ 2 2 2 2 ] vector [ 1 2 3 4 ] vector correlation-spearman . cr         \ null (constant x; R: NA)
+
+clear
+
+\ === correlation-kendall ===
+[ 1 2 3 4 5 ] vector [ 1 4 9 16 25 ] vector correlation-kendall . cr    \ 1 (monotone nonlinear)
+[ 1 2 3 4 5 ] vector [ 10 8 6 4 2 ] vector correlation-kendall . cr     \ -1
+[ 1 2 3 4 5 ] vector [ 2 1 4 3 5 ] vector correlation-kendall . cr      \ 0.6 (two discordant pairs)
+[ 12 2 1 12 2 ] vector [ 1 4 7 1 0 ] vector correlation-kendall . cr    \ -0.471405 (ties; scipy's example)
+[ 1 2 3 ] vector [ 4 5 6 ] 1 3 matrix correlation-kendall . cr          \ 1 (row and column mix)
+[ 1 1 1 ] vector [ 1 2 3 ] vector correlation-kendall nan? . cr         \ 1 (all x tied gives nan)
+
+clear
+
+\ === correlate-with (bootstrap 95% CI; seeded) ===
+7 seed
+[ 1 2 3 4 5 6 7 8 9 10 ] vector [ 2 1 4 3 5 7 6 9 8 10 ] vector
+' correlation-pearson 500 correlate-with . cr    \ estimate 0.9515, se 0.027, ci [0.894, 0.983]
+7 seed
+[ 1 2 3 4 5 6 7 8 9 10 ] vector [ 2 1 4 3 5 7 6 9 8 10 ] vector
+' correlation-kendall 500 correlate-with . cr    \ estimate 0.822, se 0.109, ci [0.595, 1]
+7 seed
+[ 1 2 3 4 5 6 7 8 9 10 ] vector [ 2 1 4 3 5 7 6 9 8 10 ] vector
+cor . cr                                         \ same frame: cor is kendall + 500 bootstraps
+
+clear
+
+\ === errors (thrown; caught here to show the message) ===
+[: [ 1 2 3 ] vector [ 1 2 ] vector correlation-kendall :] [: . cr :] try-catch   \ (length mismatch)
+[: [ 1 ] vector [ 2 ] vector correlation-kendall :] [: . cr :] try-catch         \ (fewer than 2 elements)
+[: 5 [ 1 2 ] vector correlation-kendall :] [: . cr :] try-catch                  \ (not a matrix)
+
+clear
+
+\ ==== qnorm ====
+
+\ qnorm ( p -- z ), the standard normal quantile (inverse CDF): Acklam's
+\ rational approximation, three regions split at 0.02425 and 0.97575;
+\ errors unless p is strictly inside (0, 1).
+
+\ === central region ===
+0.5 qnorm . cr                \ 0
+0.3 qnorm . cr                \ -0.524401
+0.7 qnorm . cr                \ 0.524401
+0.025 qnorm . cr              \ -1.95996
+0.975 qnorm . cr              \ 1.95996
+
+clear
+
+\ === tails (outside the 0.02425 / 0.97575 region breaks) ===
+0.01 qnorm . cr               \ -2.32635
+0.99 qnorm . cr               \ 2.32635
+0.001 qnorm . cr              \ -3.09023
+0.999 qnorm . cr              \ 3.09023
+1e-10 qnorm . cr              \ -6.36134
+
+clear
+
+\ === symmetry: qnorm(p) = -qnorm(1-p) ===
+0.42 qnorm 0.58 qnorm + abs 1e-12 < . cr    \ 1 (central)
+0.02 qnorm 0.98 qnorm + abs 1e-12 < . cr    \ 1 (tails)
+
+clear
+
+\ === errors (thrown; caught here to show the message) ===
+[: 0 qnorm :] [: . cr :] try-catch           \ (p = 0)
+[: 1 qnorm :] [: . cr :] try-catch           \ (p = 1)
+[: -0.5 qnorm :] [: . cr :] try-catch        \ (negative)
+[: 2 qnorm :] [: . cr :] try-catch           \ (above 1)
+
+clear
+
+\ ==== auc ====
+
+\ auc ( outcomes scores -- f ), brier ( outcomes probabilities -- f ),
+\ complete-cases ( xs ys -- xs' ys' ): ROC AUC = P(a random positive scores
+\ above a random negative), ties counted half and so order-independent, NaN
+\ scores dropping their row, both classes required; Brier mean squared error,
+\ NaN-skipping; and paired complete-case filtering.
+
+\ === auc: basic ordering ===
+[ 1 1 0 ] 3 1 matrix  [ 3 1 2 ] 3 1 matrix  auc . cr        \ 0.5
+[ 1 0 ] 2 1 matrix    [ 2 1 ] 2 1 matrix    auc . cr        \ 1
+[ 1 0 ] 2 1 matrix    [ 1 2 ] 2 1 matrix    auc . cr        \ 0
+[ 0 0 1 1 ] 4 1 matrix  [ 1 2 3 4 ] 4 1 matrix  auc . cr    \ 1 (perfect)
+
+\ === auc: ties counted half; equal scores give 0.5 in any row order ===
+[ 1 0 ] 2 1 matrix      [ 2 2 ] 2 1 matrix        auc . cr  \ 0.5 (one cross-class tie)
+[ 1 1 0 0 ] 4 1 matrix  [ 5 5 5 5 ] 4 1 matrix    auc . cr  \ 0.5 (all tied)
+[ 0 1 0 1 ] 4 1 matrix  [ 5 5 5 5 ] 4 1 matrix    auc . cr  \ 0.5 (same, reordered)
+
+\ === auc: a NaN score drops its row, outcomes stay aligned ===
+[ 1 1 0 ] 3 1 matrix  [ 3 nan 2 ] 3 1 matrix  auc . cr      \ 1 (row 2 dropped -> pos{3} neg{2})
+
+\ === brier: mean squared error, NaN elements skipped ===
+[ 1 1 0 ] 3 1 matrix  [ 3 1 2 ] 3 1 matrix     brier . cr   \ 2.66667
+[ 1 0 ] 2 1 matrix    [ 0.9 0.1 ] 2 1 matrix   brier . cr   \ 0.01
+[ 1 1 0 ] 3 1 matrix  [ 0.8 nan 0.2 ] 3 1 matrix brier . cr \ 0.04 (NaN skipped)
+
+\ === complete-cases: drop paired NaN rows, aligned ===
+[ 1 nan 2 ] 3 1 matrix  [ 4 5 6 ] 3 1 matrix  complete-cases . cr . cr
+
+\ === errors (reason parenthesized) ===
+[ 1 1 ] 2 1 matrix  [ 3 1 ] 2 1 matrix  auc                 \ (single class: no negative)
+
+clear

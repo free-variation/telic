@@ -8,15 +8,15 @@ Two kinds of runnable documentation, both extracted here:
    a section calling load-library routes to tests/lib/ (external
    dependencies, run by make test-libs):
 
-     tests/154_readme_taste.h2o          (make test; committed .expected)
-     tests/lib/154_readme_taste_fit.h2o  (make test-libs; committed .expected)
+     tests/090_readme_taste.h2o          (make test; committed .expected)
+     tests/lib/090_readme_taste_fit.h2o  (make test-libs; committed .expected)
 
    The .expected files are committed goldens, regenerated deliberately
    and inspected line by line:
-     ./water -b < tests/154_readme_taste.h2o > tests/154_readme_taste.expected
-     ./water tests/lib/154_readme_taste_fit.h2o \\
-         > tests/lib/154_readme_taste_fit.expected
-   tests/154_readme_taste.sed (hand-written, committed) normalizes the
+     ./water -b < tests/090_readme_taste.h2o > tests/090_readme_taste.expected
+     ./water tests/lib/090_readme_taste_fit.h2o \\
+         > tests/lib/090_readme_taste_fit.expected
+   tests/090_readme_taste.sed (hand-written, committed) normalizes the
    wall-now timestamp before run.sh diffs.
 
 2. Example fences — a ``forth <word>`` fence paired with an ``output``
@@ -68,8 +68,8 @@ DOC_EXAMPLE_SOURCES = [
     os.path.join("docs", "idioms.md"),
 ]
 
-MAIN_TEST = os.path.join("tests", "154_readme_taste.h2o")
-LIB_TEST = os.path.join("tests", "lib", "154_readme_taste_fit.h2o")
+MAIN_TEST = os.path.join("tests", "090_readme_taste.h2o")
+LIB_TEST = os.path.join("tests", "lib", "090_readme_taste_fit.h2o")
 
 FENCE = re.compile(r"^(\s*)```(.*)$")
 EXAMPLE_TAG = re.compile(r"^forth(-noexec)?\s+(\S+)\s*$")

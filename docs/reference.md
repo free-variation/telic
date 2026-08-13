@@ -5031,10 +5031,12 @@ A stream (`T_STREAM`) wraps an OS file descriptor — a pipe to a child process.
 | `run-result` | `( argv -- frame )` | subprocess.h2o: run `argv` to completion and return `{ :out :err :status }`, closing the streams and reaping the child | fork + drain | `1fr` + output strings | O(output) |
 | `write` | `( str stream -- )` | Write the string's bytes to the stream; loops over partial writes, retries `EINTR` | write syscalls | none | O(\|s\|) |
 | `read` | `( stream -- str )` | Read the stream to EOF into one string | read syscalls | `1o` + buffer growth | O(bytes) |
+| `read-line` | `( stream -- str \| none )` | Read up to and including the next `\n` and answer the line without that terminator; a `\r` before it is content and stays, as it does under `"\n" split`. Bytes after the terminator are left in the stream, so `read` on the same stream answers the rest — the word holds no buffer and costs one `read` syscall per byte, for line protocols rather than bulk input. At end of input with nothing accumulated it answers `none`; a final unterminated run of bytes answers as a line, and the call after it answers `none`. Retries `EINTR` | bytes | `1o` + buffer growth | O(bytes) |
 | `close` | `( stream -- )` | Close the fd; closing a child's `:in` sends it EOF. Idempotent, and a handle closed here is stale for good — reading or writing it reports `stream is closed` even after the descriptor number is reissued to another stream. A dropped handle holds its descriptor until process exit; `with-stream` scopes one | 1 syscall | none | O(1) |
 | `stdin` | `( -- stream )` | Standard input as a `T_STREAM` over fd 0; `stdin read` slurps it. (Conflicts with the REPL reading its own program from stdin — for file-loaded programs.) | 1 | none | O(1) |
 | `stdout` | `( -- stream )` | Standard output as a `T_STREAM` over fd 1; `s stdout write` emits | 1 | none | O(1) |
 | `stderr` | `( -- stream )` | Standard error as a `T_STREAM` over fd 2; composes with `write`/`close` like any stream | 1 | none | O(1) |
+| `stdout>string` | `( xt -- str )` | Run xt with descriptor 1 redirected to an unlinked temporary file, restore the descriptor, and answer everything xt wrote — a raw `stdout write` included, the redirect being at the descriptor rather than in the printing words. Whatever xt leaves on the stack stays, the string on top; `stderr` is untouched, and a child from `start-process` writes to its own pipe, not this capture. Captures nest, each call saving its own descriptor. An error or `throw` out of xt restores the descriptor, discards the captured text, and propagates. Native-only: the wasm build errors, WASI having no temporary files | 2 + xt + bytes | `1o` + the temporary file | O(xt + bytes) |
 | `wait` | `( pid -- status )` | Block until the child exits; return its exit code, or `128 + signo` if it was killed by a signal | blocks | none | O(1) |
 | `stop` | `( pid -- status )` | `SIGKILL` the child then reap it (137 = 128+9, or its code if it had already exited) | 2 syscalls | none | O(1) |
 | `running?` | `( pid -- bool )` | Non-blocking liveness via `waitid`+`WNOHANG`+`WNOWAIT`; true while running, false once exited. Non-reaping, so a later `wait` still returns the status | 1 syscall | none | O(1) |
@@ -5046,7 +5048,9 @@ A stream (`T_STREAM`) wraps an OS file descriptor — a pipe to a child process.
 | `end-process` | `( proc -- )` | subprocess.h2o: the teardown mirror of `start-process` — close `:in`/`:out`/`:err` and `wait` `:pid` (graceful, blocks until exit) | 3 closes + wait | none | O(1) |
 | `parallel-run` | `( commands width -- results )` | subprocess.h2o: run each argv array in `commands` as a subprocess, at most `width` at once; collect `{ :out :err :status }` per command in input order, refilling a slot as each child finishes | fork per command + poll | `1a` + per-child frames/streams | O(critical path) |
 
-Line access is `read "\n" split`.
+Line access is `read-line` one line at a time, or `read "\n" split` for a
+stream already in hand; both cut at `\n` and leave a `\r` before it in the
+line.
 
 ```forth start-process
 [ "echo" "hi" ] start-process dup read-out trim . :pid @ wait . cr
@@ -5076,6 +5080,14 @@ ping
 data
 ```
 
+```forth read-line
+[ "printf" "first\nsecond\n" ] start-process :out @
+dup read-line . dup read-line . read-line . cr
+```
+```output
+first second null
+```
+
 ```forth close
 [ "cat" ] start-process dup :in @ "ping" swap write dup :in @ close dup read-out trim . :pid @ wait drop cr
 ```
@@ -5102,6 +5114,13 @@ stderr stream? . cr
 ```
 ```output
 1
+```
+
+```forth stdout>string
+[: "quiet" . :] stdout>string "|" + . cr
+```
+```output
+quiet |
 ```
 
 ```forth wait

@@ -1,0 +1,14 @@
+10 
+99 
+6 
+8 
+100 
+8 
+100 1001 
+12 
+103 
+9 
+error: no enclosing reset on the return stack
+in shift
+99 
+42 

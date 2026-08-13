@@ -1,0 +1,50 @@
+\ ==== gc pressure ====
+
+variable s
+"" to s
+: g ^s | 1500 begin s "x" + to s 1 - dup 0 = until drop ;
+g
+s size .
+
+clear
+
+\ ==== quoted string gc ====
+
+\ Regression: a string literal inside an anonymous quotation must survive GC.
+\ The quotation's CFA and body are emitted inline inside the enclosing word's
+\ compiled body, between a (branch) that skips them at run time and a
+\ (literal) that publishes the xt. mark_body must walk into the embedded body
+\ cell by cell so the (dostr) op marks the template string.
+\
+\ A previous bug treated the embedded docol cell as a 2-cell call site and
+\ skipped the first body cell of the quotation. When that first cell was a
+\ (dostr) op, the template went unmarked, got swept, and the next invocation
+\ of the quotation dereferenced a NULL Object and segfaulted.
+
+: msg-xt  [: "msg" :] ;
+
+msg-xt execute drop
+gc
+msg-xt execute drop
+gc
+.s
+
+clear
+
+\ ==== gc deep list ====
+
+\ Marking a long cons list must not recurse on the native C stack: a
+\ length-N list once recursed N deep down the tail and overflowed under
+\ gc. mark_value walks the tail spine iteratively, so a 1M-deep list
+\ survives a collection instead of crashing. Reverting to recursive
+\ tail-marking turns this into a SIGSEGV.
+1 1000000 range array>cons gc 42 . cr
+
+\ Non-tail nesting: each array holds the deeper one in element 0, not the
+\ tail, so the tail loop cannot absorb it. Recursive marking on non-tail
+\ children overflowed the C stack. mark descends a bounded number of C
+\ frames, then defers deeper children to an explicit worklist, so arbitrary
+\ nesting survives a collection instead of crashing.
+[ 0 ] [: 0 2 array :] 200000 times gc 43 . cr
+
+clear

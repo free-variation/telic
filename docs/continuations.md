@@ -7,7 +7,7 @@ This document is a primer on delimited continuations and how Water implements th
 - How four primitives (`reset`, `shift`, `shift-with`, `resume`) work mechanically
 - How exceptions, coroutines, generators, restarts, backtracking, green threads, async I/O, and cooperative schedulers all fall out of those four primitives as small library words
 
-The implementation is spread across a few C files. The continuation primitives (`push_prompt`, `p_reset`, `find_prompt`, `capture_continuation`, `p_shift`, `p_shift_with`, `p_resume`, plus the backtracking `backtrack` and `p_fail`) live in `src/c/words.c`; the inner loop and trampoline (`run_inner`, `execute_cfa`, `p_exit`, `object_new_continuation`) are in `src/c/core.c`; and `p_amb` is in `src/c/logic.c`. The library words are in `src/forth/exceptions.h2o` (`catch`, `try-catch`, `ensure`) and `src/forth/generators.h2o` (`yield` and the generator drivers). Tests demonstrating each pattern are in `tests/030_continuations.h2o`, `tests/032_exceptions.h2o`, and `tests/033_interactions.h2o` — once you understand the model, those are worth reading alongside this document.
+The implementation is spread across a few C files. The continuation primitives (`push_prompt`, `p_reset`, `find_prompt`, `capture_continuation`, `p_shift`, `p_shift_with`, `p_resume`, plus the backtracking `backtrack` and `p_fail`) live in `src/c/words.c`; the inner loop and trampoline (`run_inner`, `execute_cfa`, `p_exit`, `object_new_continuation`) are in `src/c/core.c`; and `p_amb` is in `src/c/logic.c`. The library words are in `src/forth/exceptions.h2o` (`catch`, `try-catch`, `ensure`) and `src/forth/generators.h2o` (`yield` and the generator drivers). Tests demonstrating each pattern are in `tests/024_continuations.h2o`, `tests/025_exceptions.h2o`, and `tests/026_interactions.h2o` — once you understand the model, those are worth reading alongside this document.
 
 The document moves in roughly three arcs. Parts 1–4 motivate continuations and lay out the runtime substrate. Parts 5–9 cover the four primitives and the unwinding mechanism that makes exception-style flow work. Parts 10–17 build the major patterns (exceptions, coroutines, generators, restarts, backtracking, green threads, async I/O) on top of those primitives, with full traces and stack diagrams. Parts 18–20 collect reference material: a primitive table, the C-side surface area, and pointers into the source.
 
@@ -1405,9 +1405,9 @@ If you want to read the library code:
 
 If you want to read tests:
 
-- **`tests/030_continuations.h2o`** — basic shift / resume patterns, including multi-shot.
-- **`tests/032_exceptions.h2o`** — every exception case worth knowing about.
-- **`tests/033_interactions.h2o`** — the interesting interactions: catch inside a captured continuation, handler-resumes (restarts), side stack discipline, GC interactions.
+- **`tests/024_continuations.h2o`** — basic shift / resume patterns, including multi-shot.
+- **`tests/025_exceptions.h2o`** — every exception case worth knowing about.
+- **`tests/026_interactions.h2o`** — the interesting interactions: catch inside a captured continuation, handler-resumes (restarts), side stack discipline, GC interactions.
 
 If you want to see the model in action: open the REPL, try the examples in this document, modify them, see what breaks. Continuations are abstract; running them concretely is the fastest way to build intuition.
 

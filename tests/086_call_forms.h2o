@@ -1,0 +1,119 @@
+\ ==== recurse ====
+
+\ recurse ( -- ): compile a call to the innermost definition being compiled --
+\ the enclosing quotation if inside one, else the enclosing colon word. Lets an
+\ anonymous quotation self-call. An ordinary recursive call (pushes a return
+\ frame per level); compile error outside a definition.
+
+\ === anonymous quotation self-calls: factorial ===
+[: dup 1 > if dup 1 - recurse * then :] to fact-q
+5 fact-q execute . cr                   \ 120
+0 fact-q execute . cr                   \ 0
+1 fact-q execute . cr                   \ 1
+
+\ === recurse in a colon word body ===
+: fact  dup 1 > if dup 1 - recurse * then ;
+6 fact . cr                             \ 720
+
+\ === a quotation nested in a colon word: recurse targets the quotation ===
+: sumdown  [: dup 0 = if else dup 1 - recurse + then :] execute ;
+3 sumdown . cr                          \ 6
+10 sumdown . cr                         \ 55
+
+\ === errors (reason parenthesized) ===
+recurse                                 \ (outside any definition)
+
+clear
+
+\ ==== tailcall ====
+
+\ Tail-call elimination: a call whose only continuation is the terminal exit
+\ (directly, or through unconditional branches and the trailing leave-locals) is
+\ compiled to (tailcall), which reuses the current return frame -- so tail
+\ recursion runs in constant return-stack space. Disabled when the body uses the
+\ return stack or a prompt (>r r> r@ reset shift fail), or has locals and builds a
+\ quotation (which could capture a local the tail-callee outlives). amb needs no
+\ exclusion -- it removes its own choice mark before returning.
+
+\ === deep self tail recursion runs in constant space (overflows without TCE) ===
+: countdown  dup 0 = if drop else 1 - recurse then ;
+1000000 countdown  42 . cr             \ 42
+
+\ === tail recursion with an accumulator local, deep ===
+: sum-to  | n acc | n 0 = if acc else n 1 - n acc + recurse then ;
+1000000 0 sum-to . cr                  \ 500000500000
+
+\ === both arms of if/else in tail position become (tailcall) ===
+: leg1  1 + ;
+: leg2  2 + ;
+: split  dup 0 = if drop leg1 else drop leg2 then ;
+' split see-compiled
+
+\ === a return-stack word (>r) disables TCE: the self-call stays plain ===
+: guarded  dup 0 = if drop else 5 >r r> drop 1 - recurse then ;
+' guarded see-compiled
+
+\ === locals + a quotation disables TCE: the map call stays plain and correct ===
+: bump to k  k [ 10 20 30 ] [: 2 pick + :] map nip ;
+100 bump . cr                          \ [ 110 120 130 ]
+
+clear
+
+\ ==== defer ====
+
+\ defer ( "name" -- ), embodies ( xt "name" -- ), embodies! ( xt "name" -- ):
+\ defer declares a forward-referenced word with no target; embodies installs a
+\ target xt (a colon word or quotation), retargetable through one forwarding
+\ dispatch; embodies! finalizes -- it rewrites every existing call site to call
+\ the target directly and turns the deferred word into an ordinary word. Targets
+\ are colon words or quotations; both embodies words are top-level only.
+
+\ === mutual recursion across a forward reference ===
+defer even?
+: odd?  dup 0 = if drop false else 1 - even? then ;
+[: dup 0 = if drop true else 1 - odd? then :] embodies even?
+10 even? . cr                           \ 1
+7 even? . cr                            \ 0
+7 odd? . cr                             \ 1
+0 odd? . cr                             \ 0
+
+\ === embodies retargets: the newest target wins ===
+defer greet
+[: "hi" :] embodies greet
+greet . cr                              \ hi
+[: "bye" :] embodies greet
+greet . cr                              \ bye
+
+\ === embodies! finalizes; the recursion keeps working, now with direct calls ===
+defer pick
+: use-pick  pick 1 + ;
+[: 41 :] embodies! pick
+use-pick . cr                           \ 42
+
+\ === a xt captured before embodies! still resolves, through the forwarder ===
+defer late
+' late
+[: 7 :] embodies! late
+execute . cr                            \ 7
+
+\ === errors (reason parenthesized) ===
+clear
+defer unset
+defer plus-five
+5 ' + curry embodies plus-five
+7 plus-five . cr                        \ 12  a curried token materializes into the deferred target
+
+5 unset                                 \ (call before a target is installed)
+[: 1 :] embodies nope-xyz               \ (embodies on an unknown word)
+: plain 1 ;
+[: 1 :] embodies plain                  \ (embodies on a non-deferred word)
+defer d1
+5 embodies d1                           \ (target is not an execution token)
+' + embodies d1                         \ (target is a primitive, not a colon word/quotation)
+defer d2
+: bad-embodies  [: 1 :] embodies d2 ;   \ (embodies inside a definition)
+defer d3
+[: 1 :] embodies! d3
+[: 2 :] embodies d3                     \ (re-embodying a now-ordinary word)
+
+clear

@@ -5189,10 +5189,12 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "start-process", p_start_process, 0);
 	define_primitive(interp, "write", p_write, 0);
 	define_primitive(interp, "read", p_read, 0);
+	define_primitive(interp, "read-line", p_read_line, 0);
 	define_primitive(interp, "close", p_close, 0);
 	define_primitive(interp, "stdin", p_stdin, 0);
 	define_primitive(interp, "stdout", p_stdout, 0);
 	define_primitive(interp, "stderr", p_stderr, 0);
+	define_primitive(interp, "stdout>string", p_stdout_to_string, 0);
 	define_primitive(interp, "tty?", p_tty, 0);
 	define_primitive(interp, "db-open", p_db_open, 0);
 	define_primitive(interp, "ffi-open", p_ffi_open, 0);

@@ -1,0 +1,134 @@
+\ ==== control flow ====
+
+: classify dup 0 > if "+" . else dup 0 < if "-" . else "z" . then then drop ;
+5 classify cr
+-5 classify cr
+0 classify cr
+: countdown 0 begin 1 + dup . dup 3 = until drop cr ;
+countdown
+: tagged 0 begin 1 + dup . dup 4 = if drop exit then again ;
+tagged cr
+
+\ a closer with no matching opener errors instead of patching an arbitrary
+\ dictionary cell (a bare `200 then` once silently wrote dict[200]); each line
+\ is its own REPL entry, and the dictionary stays intact afterward
+200 then
+200 else
+200 until
+200 200 repeat
+3 4 + . cr
+
+\ an opener outside a definition or quotation errors instead of silently
+\ emitting nothing (the guarded body used to run regardless of the test)
+0 if "unreachable" . then
+?if "unreachable" . then
+begin 1 until
+5 5 + . cr
+
+\ an unterminated conditional (an if/else with no matching then) fails at
+\ compile time and discards the half-built word, instead of compiling a branch
+\ with an unpatched offset that dispatches through a null handler at runtime;
+\ the system keeps compiling afterward
+: bad-if 0 if 5 ;
+bad-if
+: bad-else 1 if 2 else 3 ;
+bad-else
+: bad-qif [: 0 if 5 :] execute ;
+bad-qif
+6 7 + . cr
+
+clear
+
+\ ==== qif ====
+
+\ ?if : peek-if. Enters body when top is non-zero (truthy); branches over
+\ body when top is zero. Value stays on the stack — not popped.
+
+\ basic truthy / falsy
+: maybe-yes ?if "yes" . then ;
+3 maybe-yes drop cr               \ yes
+0 maybe-yes drop cr               \ (nothing, just newline)
+
+\ value preserved inside body — common use: act on the value conditionally
+: doubled ?if 2 * then ;
+3 doubled . cr                    \ 6
+0 doubled . cr                    \ 0
+
+\ ?if … else … then works (else uses the same slot mechanism)
+: truthy ?if "truthy" . else "falsy" . then drop ;
+1 truthy cr                       \ truthy
+0 truthy cr                       \ falsy
+
+\ peek semantics: body sees the original value still on top
+: keeps ?if dup * then ;
+4 keeps . cr                      \ 16
+0 keeps . cr                      \ 0
+
+\ empty stack underflow when executing body
+: oops ?if 99 . then ;
+oops
+
+clear
+
+\ ==== while repeat ====
+
+\ begin <cond> while <body> repeat — test-at-top loop. The condition is tested
+\ each pass before the body; the body is skipped entirely if it's false at entry.
+
+\ count 0..4
+: count5 0 begin dup 5 < while dup . 1+ repeat drop ;
+count5 cr
+
+\ sum 1..10 = 55
+: sum10 0 to total 1 to i begin i 11 < while i total + to total i 1+ to i repeat total ;
+sum10 . cr
+
+\ body skipped when the condition is false on entry
+: skip 0 begin dup 0 > while drop 99 repeat ;
+skip . cr
+
+\ countdown 3 2 1
+: down 3 begin dup 0 > while dup . 1- repeat drop ;
+down cr
+
+clear
+
+\ ==== leave continue ====
+
+\ leave exits a begin/again loop
+: countup 0 begin 1 + dup 5 = if leave then again ;
+countup . cr
+
+\ leave exits a begin/until loop before its test would
+: early 0 begin 1 + dup 3 = if leave then dup 100 = until ;
+early . cr
+
+\ continue in a while loop re-runs the test; even values skip the print
+: odds 0 begin dup 10 < while 1 + dup 2 mod 0= if continue then dup . repeat drop cr ;
+odds
+
+\ continue in an until loop jumps to begin, skipping the trailing test:
+\ the `1 until` exits on the first iteration that does not continue
+: skiptest 0 begin 1 + dup 3 < if continue then 1 until ;
+skiptest . cr
+
+\ nested loops: each leave exits its own loop
+: nested 0 begin 1 + begin 10 + dup 40 > if leave then again dup 63 > if leave then again ;
+nested . cr
+
+\ several leaves in one loop all patch to the loop end; each start exercises one
+: exits begin 1 + dup 7 = if leave then dup 3 = if leave then again ;
+0 exits . cr
+5 exits . cr
+
+\ leave outside any loop is a compile error
+leave
+
+\ a quotation boundary hides the enclosing loop
+: hidden begin [: leave :] drop again ;
+
+\ an unterminated begin fails at ; and the definition rolls back
+: unclosed begin 1 + ;
+unclosed
+
+clear

@@ -1,0 +1,113 @@
+\ ==== matrix basics ====
+
+2 3 0-matrix .
+[ 1 2 3 4 ] 2 2 matrix .
+[ 1 2 3 4 ] 2 2 matrix dim . . cr
+[ 1 2 3 4 ] 2 2 matrix [ 10 20 30 40 ] 2 2 matrix + .
+[ 1 2 ] 1 2 matrix [ 3 4 ] 1 2 matrix * .
+[ 10 20 30 40 ] 2 2 matrix [ 1 2 3 4 ] 2 2 matrix - .
+[ 8 16 ] 1 2 matrix [ 2 4 ] 1 2 matrix / .
+
+clear
+[ 1 2 3 4 5 6 7 8 9 10 11 12 13 ] 1 13 matrix .
+[ 1 2 3 4 5 6 7 8 9 10 11 12 13 14 ] 1 14 matrix .
+[ 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 ] 1 20 matrix .
+
+clear
+
+\ ==== diagonal ====
+
+\ diagonal-matrix, identity-matrix, and diagonal extraction
+5 3 diagonal-matrix .
+1 4 diagonal-matrix .
+0 2 diagonal-matrix .
+7 1 diagonal-matrix .
+3 3 diagonal-matrix transpose .
+1 3 diagonal-matrix dim . . cr
+
+3 identity-matrix .
+1 identity-matrix .
+5 identity-matrix .
+4 identity-matrix transpose .
+3 identity-matrix dim . . cr
+[ 1 2 3 4 ] 2 2 matrix 2 identity-matrix * .
+
+[ 1 2 3 4 ] 2 2 matrix diagonal .
+[ 1 2 3 4 5 6 7 8 9 ] 3 3 matrix diagonal .
+[ 1 2 3 4 5 6 ] 2 3 matrix diagonal .
+[ 1 2 3 4 5 6 ] 3 2 matrix diagonal .
+[ 7 ] 1 1 matrix diagonal .
+3 identity-matrix diagonal .
+5 4 0-matrix diagonal .
+[ 1 2 3 4 ] 2 2 matrix transpose diagonal .
+3 3 diagonal-matrix diagonal .
+
+clear
+
+\ ==== matrix poly ====
+
+\ one-arg form: cols computed from array length and rows
+[ 1 2 3 4 5 6 ] 2 matrix .
+[ 1 2 3 4 5 6 ] 3 matrix .
+[ 1 2 3 4 5 6 ] 6 matrix .
+[ 1 2 3 4 5 6 ] 1 matrix .
+
+\ one-arg with a single-element array
+[ 42 ] 1 matrix .
+
+\ two-arg form still works (unchanged behavior)
+[ 1 2 3 4 5 6 ] 2 3 matrix .
+[ 1 2 3 4 ] 2 2 matrix .
+
+\ same matrix from one-arg and two-arg forms
+[ 10 20 30 40 ] 2 matrix .
+[ 10 20 30 40 ] 2 2 matrix .
+
+\ composes with other matrix words
+[ 1 2 3 4 ] 2 matrix transpose .
+[ 1 2 3 4 5 6 ] 2 matrix dim . .
+
+\ failures
+[ 1 2 3 4 5 ] 2 matrix
+[ 1 2 3 ] 0 matrix
+[ 1 2 3 ] -1 matrix
+"x" 2 matrix
+5 matrix
+matrix
+
+clear
+
+\ ==== matrix range ====
+
+\ matrix-range: build a 1xN matrix from start/end/step.
+
+\ Basic ascending sequence
+1.0 5.0 1.0 matrix-range .
+
+\ Ascending with non-unit step
+0.0 10.0 2.5 matrix-range .
+
+\ Descending sequence
+10.0 0.0 -2.0 matrix-range .
+
+\ Single-element matrix (start = end)
+3.0 3.0 1.0 matrix-range .
+
+\ End not on an exact step boundary — last element is [< end
+0.0 10.0 3.0 matrix-range .
+
+\ Step zero rejected
+1.0 5.0 0.0 matrix-range
+
+\ Step sign / direction mismatch rejected
+1.0 5.0 -1.0 matrix-range
+
+\ Element count overflows int (M3) — must error, not cast a huge double to int
+0.0 1e18 0.001 matrix-range
+
+\ Non-finite bounds rejected: inf/inf would make (end-start)/step a NaN that
+\ slips past the count guard and casts NaN to int
+inf inf 1.0 matrix-range
+0.0 inf 1.0 matrix-range
+
+clear

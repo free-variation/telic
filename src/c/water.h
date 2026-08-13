@@ -1343,6 +1343,7 @@ void p_file_exists(DISPATCH_ARGS);
 void p_load_tsv(DISPATCH_ARGS);
 void p_read(DISPATCH_ARGS);
 void p_read_file(DISPATCH_ARGS);
+void p_read_line(DISPATCH_ARGS);
 void p_save_tsv(DISPATCH_ARGS);
 void p_stderr(DISPATCH_ARGS);
 void p_stdin(DISPATCH_ARGS);
@@ -1546,6 +1547,7 @@ void p_segment_to_pointer(DISPATCH_ARGS);
 
 void p_running(DISPATCH_ARGS);
 void p_start_process(DISPATCH_ARGS);
+void p_stdout_to_string(DISPATCH_ARGS);
 void p_stop_process(DISPATCH_ARGS);
 void p_wait(DISPATCH_ARGS);
 

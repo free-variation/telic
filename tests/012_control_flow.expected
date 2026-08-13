@@ -1,0 +1,59 @@
++ 
+- 
+z 
+1 2 3 
+1 2 3 4 
+error: then: no matching control-flow opener
+in then
+error: else: no matching control-flow opener
+in else
+error: until: no matching control-flow opener
+in until
+error: repeat: no matching control-flow opener
+in repeat
+7 
+error: if: only valid inside a colon definition or quotation
+in if
+error: ?if: only valid inside a colon definition or quotation
+in ?if
+error: begin: only valid inside a colon definition or quotation
+in begin
+10 
+error: ; : unterminated conditional (an if has no matching then)
+in ;
+error: unknown word: bad-if
+error: ; : unterminated conditional (an if has no matching then)
+in ;
+error: unknown word: bad-else
+error: :] : unterminated conditional (an if has no matching then)
+in :]
+error: unknown word: bad-qif
+13 
+yes 
+
+6 
+0 
+truthy 
+falsy 
+16 
+0 
+error: stack underflow
+in (?0branch) ← oops
+0 1 2 3 4 
+55 
+0 
+3 2 1 
+5 
+3 
+1 3 5 7 9 
+3 
+74 
+3 
+7 
+error: leave: not inside a loop
+in leave
+error: leave: not inside a loop
+in leave
+error: ; : unterminated loop (a begin has no until/again/repeat)
+in ;
+error: unknown word: unclosed

@@ -150,7 +150,7 @@ two interoperate — a `db-query` result is already relation-shaped.
 
 - Unify for its bindings: `~ drop` asserts a structural equation and keeps
   only the side effects. A variable buried anywhere in the term comes out
-  bound (tests/074):
+  bound (tests/050_pairs):
 
   ```forth buried-bind
   lvar to A
@@ -164,7 +164,7 @@ two interoperate — a `db-query` result is already relation-shaped.
 - A relation is clauses under `amb`: each clause is a quotation with fresh
   `?`-locals for its own variables, the arguments bound in by `ncurry`,
   alternatives tried in order. `[( H T )]` under unify is Prolog's `[H|T]`.
-  Prolog's append, verbatim (tests/074):
+  Prolog's append, verbatim (tests/050_pairs):
 
   ```forth
   : lappend | A B R |

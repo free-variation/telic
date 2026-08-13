@@ -489,6 +489,64 @@ void p_stop_process(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
 
+void p_stdout_to_string(DISPATCH_ARGS) {
+	POP_CALLABLE(xt, "stdout>string");
+
+	FILE *captured = tmpfile();
+	if (captured == NULL) {
+		fail(interp, "cannot open a capture file");
+		return;
+	}
+
+	fflush(stdout);
+	int saved_stdout = dup(1);
+	if (saved_stdout < 0 || dup2(fileno(captured), 1) < 0) {
+		if (saved_stdout >= 0)
+			close(saved_stdout);
+		fclose(captured);
+		fail(interp, "%s", strerror(errno));
+		return;
+	}
+
+	push_curried_bindings(interp, xt_val);
+	if (!interp->error_flag)
+		execute_xt(interp, xt);
+
+	fflush(stdout);
+	dup2(saved_stdout, 1);
+	close(saved_stdout);
+
+	if (interp->error_flag || interp->unwinding) {
+		fclose(captured);
+		return;
+	}
+
+	fseek(captured, 0, SEEK_END);
+	long size = ftell(captured);
+	rewind(captured);
+	if (size < 0 || size > INT_MAX) {
+		fclose(captured);
+		fail(interp, "captured output exceeds %d bytes", INT_MAX);
+		return;
+	}
+
+	int handle = object_new_string_uninit(interp, (int)size);
+	if (interp->error_flag) {
+		fclose(captured);
+		return;
+	}
+
+	Object *text = OBJECT_AT(handle);
+	size_t read_back = fread(text->bytes, 1, (size_t)size, captured);
+	fclose(captured);
+	text->len = (int)read_back;
+	text->bytes[read_back] = 0;
+
+	push(interp, make_string(handle));
+
+	DISPATCH(interp);
+}
+
 void p_running(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	Val pid_val = chain_sp[-1];

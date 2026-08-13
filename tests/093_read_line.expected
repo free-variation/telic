@@ -1,0 +1,13 @@
+alpha 
+beta 
+0 0 
+x 
+5 
+5 
+one 
+two
+three
+ 
+1 
+stream is closed 
+expected a stream; got a float 

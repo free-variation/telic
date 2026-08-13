@@ -4,7 +4,7 @@
 \ reference exactly, and val and x are left zero as bench_SparseMatMult leaves
 \ them, so this measures loop throughput and the checksum (sum of the result
 \ vector) is 0; the matvec arithmetic on seeded data is checked by
-\ tests/152_scimark_kernels.h2o. Build is untimed; only the cycles sweeps are
+\ tests/089_scimark_kernels.h2o. Build is untimed; only the cycles sweeps are
 \ measured.
 
 500 to cycles

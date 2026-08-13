@@ -2,7 +2,7 @@
 Random and SparseCompRow_matmult are verbatim from pyperformance, and val/x are
 left zero as bench_SparseMatMult leaves them, so this measures loop throughput
 and the checksum (sum of y) is 0. The arithmetic on seeded data is checked by
-tests/152_scimark_kernels.h2o instead. Cycles from argv."""
+tests/089_scimark_kernels.h2o instead. Cycles from argv."""
 
 from array import array
 

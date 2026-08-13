@@ -1,0 +1,54 @@
+[ ] 
+0 42 99 hello [< 1 2 3 >] 
+[ { :name :x :value 99 :type :float } { :name :y :value [< 1 2 3 >] :type :set } ] [ :x :y ] 
+2 
+name  type    value       
+:x    :float  99          
+:y    :set    [< 1 2 3 >] 
+:z    :array  [ 1 2 3 ]   
+{
+  :name :x
+  :value 99
+  :type :float
+}
+{
+  :name :y
+  :value [< 1 2 3 >]
+  :type :set
+}
+{
+  :name :z
+  :value [ 1 2 3 ]
+  :type :array
+}
+{
+  :name :hue
+  :value :blue
+  :type :symbol
+}
+error: ++: counter is a global; declare it in the locals list as ^counter to assign it here, or rename the local
+in :
+6 7 6 
+4 
+9 
+[ 1 2 3 ] 
+5 
+42 
+5 
+1 
+1 
+21 
+10 
+1 
+7 
+4 
+10 
+error: unknown word: never-set
+5 
+15 
+abc 
+: scale   \ 5 cells
+ 0: (lit) 5
+ 2: (lf*) 3
+ 4: exit
+;

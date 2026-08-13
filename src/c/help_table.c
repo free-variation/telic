@@ -494,6 +494,7 @@ const HelpEntry help_entries[] = {
 	{ "read", "( stream -- str )", "Read the stream to EOF into one string", "read syscalls", "1o + buffer growth", "O(bytes)", 32 },
 	{ "read-err", "( proc -- str )", "subprocess.h2o: read the child's :err stream to EOF", "read syscalls", "1o + buffer growth", "O(bytes)", 32 },
 	{ "read-file", "( path -- str )", "Read a whole file as one string (byte-safe); errors if it can't be opened", "file read", "1o + buffer", "O(file)", 31 },
+	{ "read-line", "( stream -- str | none )", "Read up to and including the next \\n and answer the line without that terminator; a \\r before it is content and stays, as it does under \"\\n\" split. Bytes after the terminator are left in the stream, so read on the same stream answers the rest — the word holds no buffer and costs one read syscall per byte, for line protocols rather than bulk input. At end of input with nothing accumulated it answers none; a final unterminated run of bytes answers as a line, and the call after it answers none. Retries EINTR", "bytes", "1o + buffer growth", "O(bytes)", 32 },
 	{ "read-out", "( proc -- str )", "subprocess.h2o: read the child's :out stream to EOF", "read syscalls", "1o + buffer growth", "O(bytes)", 32 },
 	{ "read-tsv", "( path -- dataset )", "datasets.h2o: a TSV file with a header row as a column-oriented dataset (load-tsv true rows>dataset, inlined), columns typed as rows>dataset types them; a headerless file goes through load-tsv + rows>dataset", "bytes + 2·r·c", "rows + one array per column + 1m per numeric column + 1fr", "O(bytes + r·c)", 22 },
 	{ "rect-at", "( x1 y1 x2 y2 -- )", "Rectangle between two data-space corners, mapped through the domain; current :fill :stroke :stroke-width (the data-space analog of svg-rect)", NULL, NULL, NULL, 41 },
@@ -588,6 +589,7 @@ const HelpEntry help_entries[] = {
 	{ "stderr", "( -- stream )", "Standard error as a T_STREAM over fd 2; composes with write/close like any stream", "1", "none", "O(1)", 32 },
 	{ "stdin", "( -- stream )", "Standard input as a T_STREAM over fd 0; stdin read slurps it. (Conflicts with the REPL reading its own program from stdin — for file-loaded programs.)", "1", "none", "O(1)", 32 },
 	{ "stdout", "( -- stream )", "Standard output as a T_STREAM over fd 1; s stdout write emits", "1", "none", "O(1)", 32 },
+	{ "stdout>string", "( xt -- str )", "Run xt with descriptor 1 redirected to an unlinked temporary file, restore the descriptor, and answer everything xt wrote — a raw stdout write included, the redirect being at the descriptor rather than in the printing words. Whatever xt leaves on the stack stays, the string on top; stderr is untouched, and a child from start-process writes to its own pipe, not this capture. Captures nest, each call saving its own descriptor. An error or throw out of xt restores the descriptor, discards the captured text, and propagates. Native-only: the wasm build errors, WASI having no temporary files", "2 + xt + bytes", "1o + the temporary file", "O(xt + bytes)", 32 },
 	{ "stop", "( pid -- status )", "SIGKILL the child then reap it (137 = 128+9, or its code if it had already exited)", "2 syscalls", "none", "O(1)", 32 },
 	{ "stream?", "( a -- bool )", "core.h2o: type-of :stream = (inlined)", "5", "none", "O(1)", 4 },
 	{ "string>chars", "( str -- [ char… ] )", "Array of one-character strings, one per codepoint", "n", "1a + 1o/char", "O(n)", 12 },
@@ -694,7 +696,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "C primitive alias of unify, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 26 },
 };
 
-const int help_entry_count = 644;
+const int help_entry_count = 646;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } /a/b 5 ! /a/b @ . cr", "5" },
@@ -1144,6 +1146,7 @@ const HelpExample help_examples[] = {
 	{ "read", "[ \"echo\" \"data\" ] start-process :out @ read trim . cr", "data" },
 	{ "read-err", "[ \"sh\" \"-c\" \"echo oops >&2\" ] start-process read-err trim . cr", "oops" },
 	{ "read-file", "\"hello\" \"/tmp/docs-file.txt\" write-file \"/tmp/docs-file.txt\" read-file . cr", "hello" },
+	{ "read-line", "[ \"printf\" \"first\\nsecond\\n\" ] start-process :out @\ndup read-line . dup read-line . read-line . cr", "first second null" },
 	{ "read-out", "\"echo hi\" run read-out trim . cr", "hi" },
 	{ "read-tsv", "[ [ \"x\" ] [ 1 ] [ 2 ] ] true rows>dataset \"/tmp/docs-example2.tsv\" write-tsv \"/tmp/docs-example2.tsv\" read-tsv :x @ mean . cr", "1.5" },
 	{ "rect-at", "\"plot\" load-library\n320 240 figure [ 0 3 ] vector [ 0 3 ] vector data-domain 1 1 2 2 rect-at figure>svg \"<rect\" has? . cr", "1" },
@@ -1238,6 +1241,7 @@ const HelpExample help_examples[] = {
 	{ "stderr", "stderr stream? . cr", "1" },
 	{ "stdin", "stdin read size . cr", "42" },
 	{ "stdout", "\"direct\" stdout write cr", "direct" },
+	{ "stdout>string", "[: \"quiet\" . :] stdout>string \"|\" + . cr", "quiet |" },
 	{ "stop", "[ \"sleep\" \"5\" ] start-process :pid @ stop . cr", "137" },
 	{ "stream?", "stdout stream? . cr", "1" },
 	{ "string>chars", "\"abc\" string>chars . cr", "[ \"a\" \"b\" \"c\" ]" },
@@ -1344,4 +1348,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 645;
+const int help_example_count = 647;

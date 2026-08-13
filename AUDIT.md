@@ -28,8 +28,4 @@
   (`p_amb`), `collections.c:289` (`p_array_to_cons`), `:173` (`p_frameclose`),
   `:952` (`p_array_to_frame`). Needs 64 live roots at entry.
 
-### Minor
-- `string_codepoint_count` capacity race under `pmap`: `strings.c:14-20` —
-  memoizes by writing `string->capacity`; concurrent workers write the same
-  value (benign torn write).
 

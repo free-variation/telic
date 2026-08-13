@@ -4,7 +4,7 @@
 \
 \ G is allocated per outer iteration and left all-zero, as bench_SOR does, so
 \ this measures loop throughput and the checksum is 0; the stencil arithmetic on
-\ seeded data is checked by tests/152_scimark_kernels.h2o. Outer repeat count
+\ seeded data is checked by tests/089_scimark_kernels.h2o. Outer repeat count
 \ comes from iterations; the inner relaxation runs cycles sweeps, as in the
 \ reference (cycles = 10).
 

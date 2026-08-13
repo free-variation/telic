@@ -1,4 +1,0 @@
-: square dup * ;
-6 ' square execute .
-3 4 ' + execute .
-' dup 7 swap execute . .

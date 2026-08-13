@@ -5,6 +5,10 @@
 #   <name>.h2o        — input piped to the REPL on stdin
 #   <name>.expected  — exact stdout the REPL should produce
 #
+# A third file, <name>.stdin, marks a test that reads stdin itself: the program
+# is passed as a file argument and <name>.stdin is fed on stdin, since piping
+# the program would leave the test nothing to read.
+#
 # Tests run in alphabetical order. The exit code is 0 if every test
 # passes, 1 otherwise — suitable for CI.
 
@@ -30,7 +34,11 @@ for input in "$here"/*.h2o; do
     actual=$(mktemp "${TMPDIR:-/tmp}/water.XXXXXX")
     # Batch mode (-b): no banner, no per-line prompt — just the program's own
     # output (and errors), so expected files hold exactly what the script prints.
-    "$bin" -b < "$input" > "$actual" 2>&1
+    if [ -f "$here/$name.stdin" ]; then
+        "$bin" -b "$input" < "$here/$name.stdin" > "$actual" 2>&1
+    else
+        "$bin" -b < "$input" > "$actual" 2>&1
+    fi
     # A <name>.sed file normalizes nondeterministic output (a wall-clock
     # timestamp) on both sides before the diff.
     expected_cmp="$expected"

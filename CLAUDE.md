@@ -229,7 +229,7 @@ new inline that calls functions → the tail.
   hand-edit a generated file: help_table.c,
   forth-words.txt, repl_highlight_groups.h,
   editors/vim/syntax/water.vim, editors/vscode/syntaxes/water.tmLanguage.json,
-  tests/154_readme_taste.h2o, tests/lib/154_readme_taste_fit.h2o,
+  tests/090_readme_taste.h2o, tests/lib/090_readme_taste_fit.h2o,
   water-pack.md, llms.txt.
   The rest of editors/ (vim indent/, ftplugin/, ftdetect/, and vscode's
   package.json, language-configuration.json, README.md) has no generator and
@@ -246,6 +246,9 @@ new inline that calls functions → the tail.
 - Golden pairs in tests/ (see run.sh); regenerate with ./water -b <
   tests/NNN_name.h2o > tests/NNN_name.expected — inspect every changed
   line before accepting.
+- A test that reads stdin adds tests/NNN_name.stdin; both runners then pass
+  the program as a file argument and feed that file, so regenerate with
+  ./water -b tests/NNN_name.h2o < tests/NNN_name.stdin > tests/NNN_name.expected.
 - Tests that `load` a lib/ library needing external deps (LAPACK, xgboost)
   live in tests/lib/ and run via `make test-libs` (tests/run-libs.sh),
   native-only and excluded from `make test` so the core suite builds without

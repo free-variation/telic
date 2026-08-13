@@ -441,6 +441,74 @@ void p_read(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
 
+void p_read_line(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val stream_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(stream_val, T_STREAM, "read-line", "a stream");
+	if (!stream_is_open(stream_val)) {
+		fail(interp, "stream is closed");
+		return;
+	}
+	int file_descriptor = stream_fd(stream_val);
+
+	int length = 0;
+	int capacity = 256;
+	char *line;
+	MALLOC_OR_FAIL(interp, line, (size_t)capacity);
+
+	int saw_newline = 0;
+	while (1) {
+		char byte;
+		ssize_t bytes_read = read(file_descriptor, &byte, 1);
+		if (bytes_read < 0) {
+			if (errno == EINTR)
+				continue;
+			free(line);
+			fail(interp, "%s", strerror(errno));
+			return;
+		}
+
+		if (bytes_read == 0)
+			break;
+		if (byte == '\n') {
+			saw_newline = 1;
+			break;
+		}
+
+		if (length == capacity) {
+			if (capacity > INT_MAX / 2) {
+				free(line);
+				fail(interp, "line exceeds %d bytes", INT_MAX);
+				return;
+			}
+			capacity *= 2;
+			char *grown = realloc(line, (size_t)capacity);
+			if (!grown) {
+				free(line);
+				fail(interp, "out of memory");
+				return;
+			}
+			line = grown;
+		}
+
+		line[length++] = byte;
+	}
+
+	if (!saw_newline && length == 0) {
+		free(line);
+		chain_sp[-1] = make_tagged(T_NONE, 0);
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+	}
+
+	int handle = object_new_string(interp, line, length);
+	free(line);
+	if (interp->error_flag) return;
+
+	chain_sp[-1] = make_string(handle);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
+
 void p_close(DISPATCH_ARGS) {
 	PEEK_AT(stream_val, 0, "close");
 	REQUIRE_CHAIN_TAG(stream_val, T_STREAM, "close", "a stream");

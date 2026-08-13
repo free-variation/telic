@@ -1,0 +1,108 @@
+10 m 
+6 newton 
+20 volt 
+1.5 km 
+2.5 hour 
+7 $ 
+1.5 $ 
+3 £ 
+2 € 
+<matrix 2x2> km
+          2          4
+          6          8
+
+error: unit mismatch
+in +
+3.14159 2.71828 6.28319 1.61803 
+1 
+0 
+299792458 m.s^-1 
+6.6743e-11 m^3.s^-2.kg^-1 
+6.62607e-34 m^2.kg.s^-1 
+1.05457e-34 m^2.kg.s^-1 
+1.38065e-23 m^2.kg.s^-2.kelvin^-1 6.02214e+23 mol^-1 1.60218e-19 coulomb 
+4.14195e-21 joule 
+8.98755e+16 joule 
+1 
+error: to: PI is already a word, not a variable
+in to
+10 m 
+3 kg 
+10 m 
+12 m^2 
+20 m 
+20 m 
+5 m.s^-1 
+5 
+3 newton 
+6 newton 
+7 m 
+7 m 
+9 m^2 
+8 m^3 
+9 m 
+9 m 
+-3 m 
+3 m 
+0 
+1 
+1 
+3 dollar 
+5 cent 
+1.5 dollar 
+150 cent 
+1 
+1 
+0 
+500 ml.s^-1 
+error: unit mismatch
+in +
+error: cannot add a quantity and a plain number
+in +
+error: exponent must be a number; got a quantity
+in ^
+error: exponent must be a simple rational
+in ^
+error: exponent must be a simple rational
+in ^
+error: exponent must be a simple rational
+in ^
+error: expected a float or a matrix; got a quantity
+in sin
+error: scale must be a positive simple rational of the base unit; got 0.707107
+in unit
+<matrix 2x2> m
+          1          2
+          3          4
+
+<matrix 2x2> m
+          2          3
+          4          5
+
+<matrix 2x2>
+          2          3
+          4          5
+
+10 m 
+5 newton 
+1.5 dollar 
+60 
+1 
+1 
+5 
+1 
+3600 
+error: unit scale or exponent overflow
+in *
+1 m 
+1 m 
+1 m.s^-1 
+1 
+1 m 
+1 
+0 
+7 m^2 
+5 m 
+5 m 
+8 m 
+5 hertz 

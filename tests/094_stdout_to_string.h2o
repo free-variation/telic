@@ -1,0 +1,39 @@
+\ stdout>string ( xt -- str ): run xt with descriptor 1 redirected, restore it,
+\ answer what xt printed. Native-only (WASI has no temporary file), so this test
+\ is skipped under WASI via wasm-skip.txt — which is also why read-line's
+\ pipe-only cases sit at the end of this file rather than in 157_read_line.h2o,
+\ a pipe needing the fork/exec WASI lacks.
+
+\ === what the quotation prints is the string, not terminal output ===
+[: "captured" . :] stdout>string "|" + . cr          \ captured |
+
+\ === nothing leaks; ambient printing keeps its order around the capture ===
+"before " . [: "inside " . :] stdout>string "after " . . cr   \ before after inside
+
+\ === the quotation's own stack results survive, the string on top ===
+[: 1 2 "printed " . :] stdout>string . . . cr        \ printed  2 1
+
+\ === the redirect is at the descriptor, so a raw stream write is captured ===
+[: "raw" stdout write :] stdout>string . cr          \ raw
+
+\ === captures nest: each call saves its own descriptor ===
+[: "outer " . [: "inner " . :] stdout>string . :] stdout>string . cr   \ outer inner
+
+\ === an empty quotation answers the empty string ===
+[: :] stdout>string byte-size . cr                   \ 0
+
+\ === errors: the descriptor is restored and the captured text is dropped ===
+[: [: "discarded " . 1 0 / :] stdout>string :] catch drop :message @ . cr  \ (division by zero)
+[: [: "discarded " . "boom" throw :] stdout>string :] catch drop . cr      \ (a throw crossing the capture)
+[: 3 stdout>string :] catch drop :message @ . cr                           \ (not an execution token)
+"terminal alive" . cr
+
+clear
+
+\ === read-line over a pipe: an unterminated final run is a line of its own ===
+[ "printf" "head\ntail" ] start-process to partial
+partial :out @ to partial-source
+partial-source read-line . cr                        \ head
+partial-source read-line . cr                        \ tail
+partial-source read-line none? . cr                  \ 1
+partial-source close  partial :in @ close  partial :err @ close  partial :pid @ wait drop

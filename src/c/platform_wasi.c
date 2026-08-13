@@ -60,6 +60,7 @@ void platform_qsort_r(void *base, size_t n, size_t size, void *thunk,
 	}
 
 WASM_UNSUPPORTED(p_start_process, "start-process")
+WASM_UNSUPPORTED(p_stdout_to_string, "stdout>string")
 WASM_UNSUPPORTED(p_wait, "wait")
 WASM_UNSUPPORTED(p_stop_process, "stop")
 WASM_UNSUPPORTED(p_running, "running?")

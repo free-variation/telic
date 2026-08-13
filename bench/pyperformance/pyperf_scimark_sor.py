@@ -2,7 +2,7 @@
 Array2D, Random, and SOR_execute are verbatim from pyperformance, and the timed
 loop allocates G per iteration and leaves it zero exactly as bench_SOR does, so
 this measures loop throughput and the checksum is 0. The arithmetic on seeded
-data is checked by tests/152_scimark_kernels.h2o instead. Outer loops from argv."""
+data is checked by tests/089_scimark_kernels.h2o instead. Outer loops from argv."""
 
 from array import array
 
