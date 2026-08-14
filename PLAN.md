@@ -162,6 +162,12 @@ interpreters, and a poll loop over stdin and every busy child.
   both eras means answering `initialize` with the negotiated older revision and
   keeping per-request `_meta` for modern ones; decide from what real clients
   send, not in advance.
+- Writing back to a client that has stopped reading blocks the server: once the
+  response pipe fills, `write` waits, and the loop stops polling children while
+  it does. A client sending without reading can therefore stall the whole
+  server. Answering it needs the same treatment the read side already has —
+  poll for writability and hold unsent responses per session — so the server
+  never waits on one descriptor.
 
 ---
 
@@ -209,8 +215,8 @@ Missing is a representation that reads back through the Water reader for
 
 To settle: how a value with no source form (an unbound logic var, continuation,
 stream, db, or ptr) reprs — an error, or a `reify`-style canonical placeholder;
-whether `repr` then `load`-style evaluation is the intended round-trip path or a
-dedicated `read` ( s -- v ) word is wanted.
+whether `repr` then `evaluate` is the intended round-trip path, which leaves the
+value on the stack, or a dedicated `read` ( s -- v ) word is wanted.
 
 ---
 
@@ -369,6 +375,22 @@ semantics of record.
 The C sources carry no comments; constraints a future change must honor
 live here instead. File and function name each invariant's home.
 
+- The reader has one input buffer, so every nested run of source text goes
+  through `run_input_text`: it saves the buffer, its length, its position and
+  `need_more`, runs, and restores them. `load_file` and `p_evaluate` both call
+  it — a second path that swaps the buffer itself would truncate whatever
+  input the caller had left (core.c, `run_input_text`).
+- Handle-shaped tags compare by payload, not by tag alone: `T_STREAM`,
+  `T_DB`, `T_PTR` and `T_CONT` sit with `T_SYMBOL`/`T_XT` in the
+  payload-comparison branch. A new handle tag left to the `default` case
+  compares equal to every other value carrying that tag, which makes `=`
+  useless for it and collapses a set of them to one element (core.c,
+  `val_cmp_depth`).
+- `read-available` polls with a zero timeout before it reads, so it answers
+  `""` rather than blocking, and `wait-readable` counts any `revents` — end of
+  input included — so a stream whose writer has exited comes back ready and the
+  read that follows answers `none` instead of waiting forever (io.c,
+  `p_read_available`, `p_wait_readable`).
 - `execute_xt` pushes a return frame aimed at the immortal stop cell
   before running a body, so continuations captured inside see the same
   return-stack shape as a trampoline call. Changing either call path

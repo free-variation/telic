@@ -46,7 +46,9 @@ the ASCII-first cut (PLAN.md, String operations).
 ### Acceptance
 
 1. From a clean checkout: `make && make test && make test-wasm &&
-   make bench && make pack` all succeed.
+   make bench && make pack` all succeed, and `make test-libs` on a host
+   with LAPACK and libxgboost — it holds the MCP server's test, which
+   covers a 1.0 feature the core suite never runs.
 2. Copy the installed set to a directory outside the repo; `water`
    starts from any cwd, `"statistics" load-library` and
    `"plot" load-library` load, and `help` answers.
