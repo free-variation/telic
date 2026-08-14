@@ -22,7 +22,12 @@ endif
 ifeq ($(findstring clang,$(CC)),)
 LDLIBS_CC = -static-libgcc
 endif
-CFLAGS = -O3 -march=native -Wall -Wextra -pthread -D_GNU_SOURCE
+# -fno-common: a tentative definition becomes an ordinary .bss definition rather
+# than a common symbol. Mach-O gathers commons into __DATA,__common and asks for
+# an alignment the segment cannot hold ("reducing alignment ... from 0x8000"),
+# and a global tentatively defined in two translation units is a link error here
+# instead of being silently merged into one.
+CFLAGS = -O3 -march=native -Wall -Wextra -pthread -D_GNU_SOURCE -fno-common
 ifneq ($(UNAME),Darwin)
 CFLAGS += -flto
 endif
