@@ -1,0 +1,193 @@
+\ Load test for lib/mcp.h2o: many calls across many sessions through one server
+\ process, checking that every answer comes back exactly once and correct while
+\ measuring throughput, overlap, and the cost of session churn.
+\
+\ The server is driven the way a client drives it — a bounded number of calls
+\ outstanding, then their answers read — rather than by sending everything first.
+\ A client that keeps writing without reading can deadlock: once the server's
+\ response pipe fills (64 KB) the server blocks in write, and if the client is
+\ itself blocked writing requests neither side moves. Nothing in the protocol
+\ prevents that; it is the client's business to keep reading.
+\
+\ Scale with the counts below.
+
+8 to session-count
+50 to rounds
+100 to queue-depth
+4 to churn-cap
+40 to churn-sessions
+0.5 to overlap-seconds
+num-cores to core-count
+600000000 to work-iterations
+
+variable server
+{ } to expected
+0 to answered
+
+( cap -- proc ) \ a server child holding at most cap live sessions
+\ the cap is set after the library loads, since the library assigns its own
+: start-server
+  | cap |
+  [ binary-dir "/water" + "-e"
+	cap """mcp"" load-library {0:d} to mcp-max-sessions mcp-serve" format ] start-process ;
+
+( -- fr ) \ the _meta every request carries
+: request-meta
+  { :io.modelcontextprotocol/protocolVersion "2026-07-28"
+	:io.modelcontextprotocol/clientCapabilities { }
+  } ;
+
+( id session code -- ) \ send one water-eval call and remember what it should answer
+: send-eval
+  | id session code |
+  { :jsonrpc "2.0"
+	:id id
+	:method "tools/call"
+	:params { :name "water-eval"
+			  :arguments { :session session :code code }
+			  :_meta request-meta }
+  } frame>json "{0}{nl}" format server :in @ write ;
+
+( id text -- ) \ what a call's answer must be
+: expect-answer
+  | id text |
+  expected id string>symbol text ! drop ;
+
+( -- ) \ read one answer, check it against what was expected, and count it
+: take-answer
+  | ^answered |
+  [ server :out @ ] 30 wait-readable size 0 = if
+	"the server stopped answering" throw
+  then
+
+  server :out @ read-line json>frame to answer
+  answer :id @ string>symbol to key
+  expected key has? not if answer frame>json "an answer nobody asked for: " swap + throw then
+
+  answer /result/content @ 0 @i :text @  expected key @  expect=
+  expected key delete-at drop
+  ++ answered ;
+
+( session round -- ) \ one arithmetic call, its answer known from its operands
+: send-round-call
+  | session round |
+  round session "s{0:d}-r{1:d}" format to id
+  id round session + "{0:d} " format expect-answer
+  id session "s{0:d}" format round session "{1:d} {0:d} + . cr" format send-eval ;
+
+\ ---- one server, sessions spawned on first use ----
+
+\ the cap has to exceed the session names this test uses at once, or a call
+\ arrives to find every live session busy and is refused rather than run
+core-count session-count max2 4 + start-server to server
+
+now to started
+[: i | i 0 send-round-call :] session-count i-times
+' take-answer session-count times
+now started - to spawn-seconds
+
+session-count "{0:d} sessions spawned and answered their first call" format print cr
+spawn-seconds "  {0:.3f} s total" format print cr
+spawn-seconds session-count / "  {0:.4f} s per session" format print cr
+
+\ ---- rounds: one call per session outstanding, answers read each round ----
+
+now to started
+\ the round number reaches the inner body through curry: a quotation reads the
+\ locals it declares itself, never the enclosing quotation's
+[: round |
+   round 1+ ' send-round-call curry session-count i-times
+   ' take-answer session-count times
+:] rounds i-times
+now started - to round-seconds
+
+rounds session-count * to round-calls
+round-calls "{0:d} calls over the live sessions" format print cr
+round-seconds "  {0:.3f} s total" format print cr
+round-calls round-seconds / "  {0:.0f} calls per second" format print cr
+
+\ ---- queue depth: one session, many calls outstanding, answered in order ----
+
+now to started
+[: i | i "q-c{0:d}" format to id
+       id i "{0:d} " format expect-answer
+       id "queue" i "{0:d} 0 + . cr" format send-eval :] queue-depth i-times
+' take-answer queue-depth times
+now started - to queue-seconds
+
+queue-depth "{0:d} calls queued on one session" format print cr
+queue-seconds "  {0:.3f} s total" format print cr
+queue-depth queue-seconds / "  {0:.0f} calls per second" format print cr
+
+\ ---- overlap: one slow call per session at once ----
+
+now to started
+[: i | i "slow-{0:d}" format to id
+       id "999 " expect-answer
+       id i "s{0:d}" format overlap-seconds "{0:g} sleep 999 . cr" format send-eval :] session-count i-times
+' take-answer session-count times
+now started - to overlap-elapsed
+
+session-count overlap-seconds * to serial-seconds
+session-count overlap-seconds "{1:d} calls sleeping {0:g} s each" format print cr
+overlap-elapsed "  {0:.3f} s together" format print cr
+serial-seconds "  {0:.3f} s had they run one after another" format print cr
+serial-seconds overlap-elapsed / "  {0:.1f}x overlap" format print cr
+
+\ every session ran its sleep at the same time, so the batch cost about one sleep
+overlap-elapsed serial-seconds 2 / < expect
+
+\ ---- every core busy: one compute-bound call per core, all at once ----
+
+( id session -- ) \ a call that spends its time computing rather than sleeping
+: send-work
+  | id session |
+  id session work-iterations "0 [: dup f* :] ' f+ {0:d} fold-times drop 42 . cr" format send-eval ;
+
+now to started
+"work-solo" "42 " expect-answer
+"work-solo" "solo" send-work
+' take-answer 1 times
+now started - to solo-seconds
+
+now to started
+[: i | i "work-{0:d}" format to id
+       id "42 " expect-answer
+       id i "core{0:d}" format send-work :] core-count i-times
+' take-answer core-count times
+now started - to pegged-seconds
+
+core-count "{0:d} compute-bound calls, one per core, at the same time" format print cr
+solo-seconds "  {0:.3f} s for one such call alone" format print cr
+pegged-seconds "  {0:.3f} s for all of them together" format print cr
+core-count solo-seconds * "  {0:.3f} s had they run one after another" format print cr
+core-count  core-count solo-seconds * pegged-seconds /
+  "  {0:.1f}x speedup, against {1:d} cores" format print cr
+
+server end-process
+
+\ ---- churn: more session names than the cap, so every call evicts and respawns ----
+
+churn-cap start-server to server
+
+now to started
+[: i | i "churn-c{0:d}" format to id
+       id i 2 * "{0:d} " format expect-answer
+       id i "churn{0:d}" format i "{0:d} dup + . cr" format send-eval
+       take-answer :] churn-sessions i-times
+now started - to churn-seconds
+
+churn-sessions churn-cap "{1:d} sessions through a cap of {0:d}" format print cr
+churn-seconds "  {0:.3f} s total" format print cr
+churn-seconds churn-sessions / "  {0:.4f} s per session, spawn included" format print cr
+
+server end-process
+
+\ ---- every call answered exactly once, and nothing was left outstanding ----
+
+answered
+  round-calls session-count + queue-depth + session-count +
+  core-count 1+ + churn-sessions + expect=
+expected size 0 expect=
+
+answered "{0:d} calls answered, none missing, none duplicated" format print cr

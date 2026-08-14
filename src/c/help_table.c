@@ -262,6 +262,7 @@ const HelpEntry help_entries[] = {
 	{ "epoch>date", "( instant -- date )", "Decompose an instant into a date frame, UTC", "40", "1o", "O(1)", 21 },
 	{ "epoch>date-local", "( instant -- date )", "Decompose in the process's timezone", "40", "1o", "O(1)", 21 },
 	{ "eq", "( a b -- bool ) or ( mat/arr x -- mat )", "equality; element-wise 1/0 mask on matrix and array operands (scalar broadcast; val_cmp per array element) — the mask-producing twin of =, which stays structural on collections. NaN elements equal nothing", "3 (float)", "matrix 1m(r×c)", "same; matrix O(r×c)", 4 },
+	{ "evaluate", "( str -- )", "Run the string's characters as source, as if they had been typed at that point: the reader takes its tokens, compile-time words act, definitions enter the dictionary, and the code runs against the same stacks. load's counterpart with a string rather than a file, so nothing is recorded for reload and an error names only the failing word instead of carrying a file:line: prefix. A colon definition works here, where one inside a quotation does not. Errors on an unterminated string literal or definition in the text, and on text at or above the input buffer size", "text + run", "input buffer copy", "O(text + run)", 30 },
 	{ "execute", "( xt -- … )", "Call the word at xt", NULL, NULL, NULL, 10 },
 	{ "exit", "( -- )", "Return early from the current definition (this one runs at run time)", NULL, NULL, NULL, 8 },
 	{ "exp", "( a -- eᵃ )", "exp", "2", "matrix 1m(r×c)", "same", 3 },
@@ -703,7 +704,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "C primitive alias of unify, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 26 },
 };
 
-const int help_entry_count = 652;
+const int help_entry_count = 653;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } /a/b 5 ! /a/b @ . cr", "5" },
@@ -920,6 +921,7 @@ const HelpExample help_examples[] = {
 	{ "epoch>date", "0 s epoch>date :year @ . cr", "1970" },
 	{ "epoch>date-local", "\"TZ\" \"UTC\" env! 0 s epoch>date-local :year @ . cr", "1970" },
 	{ "eq", "\"ab\" \"ab\" eq . cr\n[ 1 2 1 ] vector 1 eq matrix>array . cr", "1\n[ 1 0 1 ]" },
+	{ "evaluate", "\": doubled 2 * ;\" evaluate\n21 doubled . cr", "42" },
 	{ "execute", "7 ' 1+ execute . cr", "8" },
 	{ "exit", ": early dup 0 < if drop \"neg\" . cr exit then drop \"pos\" . cr ; -3 early", "neg" },
 	{ "exp", "0 exp . cr", "1" },
@@ -1361,4 +1363,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 653;
+const int help_example_count = 654;

@@ -3593,6 +3593,64 @@ void record_loaded_file(Interpreter *interp, const char *filename) {
 	compiler.n_loaded_files++;
 }
 
+static void run_input_text(Interpreter *interp, const char *text, int length, const char *origin) {
+	char *saved_contents = xmalloc((size_t)compiler.input_buffer_len + 1);
+	memcpy(saved_contents, compiler.input_buffer, (size_t)compiler.input_buffer_len);
+	int saved_len = compiler.input_buffer_len;
+	int saved_pos = compiler.input_buffer_pos;
+	int saved_need_more = compiler.need_more;
+
+	memcpy(compiler.input_buffer, text, (size_t)length);
+	compiler.input_buffer[length] = 0;
+	compiler.input_buffer_len = length;
+	compiler.input_buffer_pos = 0;
+	compiler.need_more = 0;
+
+	run_outer(interp);
+
+	if (!interp->error_flag && compiler.need_more)
+		fail(interp, "unterminated string literal");
+
+	if (!interp->error_flag && compiler.compiling) {
+		fail(interp, "unterminated definition");
+		compiler.compiling = 0;
+	}
+
+	if (interp->error_flag) {
+		rollback_partial_definition();
+		if (origin && !compiler.error_located) {
+			int line = 1;
+			for (int i = 0; i < compiler.input_buffer_pos && i < compiler.input_buffer_len; i++)
+				if (compiler.input_buffer[i] == '\n')
+					line++;
+			char located[sizeof interp->error_message];
+			snprintf(located, sizeof located, "%s:%d: %s", origin, line, interp->error_message);
+			memcpy(interp->error_message, located, sizeof interp->error_message);
+			compiler.error_located = 1;
+		}
+	}
+
+	memcpy(compiler.input_buffer, saved_contents, (size_t)saved_len);
+	compiler.input_buffer[saved_len] = 0;
+	compiler.input_buffer_len = saved_len;
+	compiler.input_buffer_pos = saved_pos;
+	compiler.need_more = saved_need_more;
+	free(saved_contents);
+}
+
+void p_evaluate(DISPATCH_ARGS) {
+	POP_STRING(source, "evaluate");
+
+	if (source->len >= INPUT_BUFFER_SIZE) {
+		fail(interp, "source too large (%d bytes, max %d)", source->len, INPUT_BUFFER_SIZE - 1);
+		return;
+	}
+
+	run_input_text(interp, source->bytes, source->len, NULL);
+
+	DISPATCH(interp);
+}
+
 void load_file(Interpreter *interp, const char *filename) {
 	char resolved_path[PATH_MAX];
 	const char *resolved = filename;
@@ -3619,18 +3677,10 @@ void load_file(Interpreter *interp, const char *filename) {
 		return;
 	}
 
-	char *saved_inbuf_contents = xmalloc((size_t)compiler.input_buffer_len + 1);
-	memcpy(saved_inbuf_contents, compiler.input_buffer, (size_t)compiler.input_buffer_len);
-	int saved_inbuf_len = compiler.input_buffer_len;
-	int saved_inbuf_pos = compiler.input_buffer_pos;
-	int saved_need_more = compiler.need_more;
-
-	size_t bytes_read = fread(compiler.input_buffer, 1, (size_t)file_size, file);
+	char *contents = xmalloc((size_t)file_size + 1);
+	size_t bytes_read = fread(contents, 1, (size_t)file_size, file);
 	fclose(file);
-	compiler.input_buffer[bytes_read] = 0;
-	compiler.input_buffer_len = (int)bytes_read;
-	compiler.input_buffer_pos = 0;
-	compiler.need_more = 0;
+	contents[bytes_read] = 0;
 
 	char resolved_dir[PATH_MAX];
 	const char *last_slash = strrchr(resolved, '/');
@@ -3648,38 +3698,13 @@ void load_file(Interpreter *interp, const char *filename) {
 	const char *saved_load_dir = compiler.current_load_dir;
 	compiler.current_load_dir = resolved_dir;
 	compiler.load_depth++;
-	run_outer(interp);
+
+	run_input_text(interp, contents, (int)bytes_read, resolved);
+
 	compiler.load_depth--;
 	compiler.current_load_dir = saved_load_dir;
 	current_unit = saved_unit;
-
-	if (!interp->error_flag && compiler.need_more) {
-		fail(interp, "unterminated string literal");
-	}
-	if (!interp->error_flag && compiler.compiling) {
-		fail(interp, "unterminated definition");
-		compiler.compiling = 0;
-	}
-	if (interp->error_flag) {
-		rollback_partial_definition();
-		if (!compiler.error_located) {
-			int line = 1;
-			for (int i = 0; i < compiler.input_buffer_pos && i < compiler.input_buffer_len; i++)
-				if (compiler.input_buffer[i] == '\n')
-					line++;
-			char located[sizeof interp->error_message];
-			snprintf(located, sizeof located, "%s:%d: %s", resolved, line, interp->error_message);
-			memcpy(interp->error_message, located, sizeof interp->error_message);
-			compiler.error_located = 1;
-		}
-	}
-
-	memcpy(compiler.input_buffer, saved_inbuf_contents, (size_t)saved_inbuf_len);
-	compiler.input_buffer[saved_inbuf_len] = 0;
-	compiler.input_buffer_len = saved_inbuf_len;
-	compiler.input_buffer_pos = saved_inbuf_pos;
-	compiler.need_more = saved_need_more;
-	free(saved_inbuf_contents);
+	free(contents);
 }
 
 void p_load(DISPATCH_ARGS) {
@@ -4839,6 +4864,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "bye", p_bye, 0);
 	define_primitive(interp, "clear", p_clear, 0);
 	define_primitive(interp, "gc", p_gc, 0);
+	define_primitive(interp, "evaluate", p_evaluate, 0);
 	define_primitive(interp, "load", p_load, 0);
 	define_primitive(interp, "save", p_save, 0);
 	define_primitive(interp, "reload", p_reload, 0);

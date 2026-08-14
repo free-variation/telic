@@ -211,6 +211,7 @@ env!
 epoch>date
 epoch>date-local
 eq
+evaluate
 execute
 exit
 exp

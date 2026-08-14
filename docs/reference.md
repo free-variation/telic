@@ -4906,10 +4906,19 @@ woke
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
+| `evaluate` | `( str -- )` | Run the string's characters as source, as if they had been typed at that point: the reader takes its tokens, compile-time words act, definitions enter the dictionary, and the code runs against the same stacks. `load`'s counterpart with a string rather than a file, so nothing is recorded for `reload` and an error names only the failing word instead of carrying a `file:line:` prefix. A colon definition works here, where one inside a quotation does not. Errors on an unterminated string literal or definition in the text, and on text at or above the input buffer size | text + run | input buffer copy | O(text + run) |
 | `load` | `( str -- )` | Run a source file as if typed; record it for `reload`. Resolves the path as given (relative to the current directory, or absolute); if that open fails, retries relative to the directory of the file that ran the `load`. An error raised while loading is prefixed `file:line: ` (the line of the failing token); a nested `load` locates to the innermost file | file read + run | input buffer | O(file) |
 | `load-library` | `( name -- )` | core.h2o: `load` `lib/<name>` from beside the water binary (`binary-dir`), so `"plot" load-library` works from any cwd; a name without `.h2o` gains it | file read + run | input buffer | O(file) |
 | `reload` | `( -- )` | Truncate user state, re-run every loaded file in order | forget + N loads | — | O(Σ files) |
 | `save` | `( str -- )` | Write all user words as re-loadable `.h2o` source | dict scan + write | file I/O | O(\|user dict\|) |
+
+```forth evaluate
+": doubled 2 * ;" evaluate
+21 doubled . cr
+```
+```output
+42
+```
 
 ```forth load
 ": loaded-word 11 ;" "/tmp/docs-load.h2o" write-file "/tmp/docs-load.h2o" load loaded-word . cr

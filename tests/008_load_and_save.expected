@@ -5,3 +5,12 @@ survived
 /tmp/lf141b.h2o:2: division by zero 
 /tmp/lf141c.h2o:2: unterminated definition 
 /tmp/lf141inner.h2o:1: unknown word: oops (did you mean cons?) 
+42 
+7 
+15 
+9 
+unknown word: nosuchword 
+unterminated definition 
+division by zero 
+expected a string; got a float 
+still here 

@@ -81,3 +81,29 @@ bogus drop
 [: "/tmp/lf141outer.h2o" load :] [: :message @ . cr :] try-catch   \ ...lf141inner.h2o:1: unknown word: oops
 
 clear
+
+\ ==== evaluate ====
+
+\ evaluate ( str -- ): run a string's characters as source, as if typed there.
+
+\ === a definition in the text enters the dictionary ===
+": doubled 2 * ;" evaluate
+21 doubled . cr                                      \ 42
+
+\ === the text runs against the same stacks ===
+"3 4 +" evaluate . cr                                \ 7
+
+\ === newlines in the text are ordinary source ===
+": tripled 3 * ;{nl}5 tripled . cr" format evaluate  \ 15
+
+\ === evaluated text may itself evaluate ===
+"""9 . cr"" evaluate" evaluate                       \ 9
+
+\ === errors ===
+[: "nosuchword" evaluate :] catch drop :message @ . cr    \ (no file prefix, unlike load)
+[: ": broken 1" evaluate :] catch drop :message @ . cr    \ (unterminated definition)
+[: "1 0 /" evaluate :] catch drop :message @ . cr         \ (the failure inside the text)
+[: 42 evaluate :] catch drop :message @ . cr              \ (not a string)
+"still here" . cr
+
+clear

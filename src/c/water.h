@@ -1114,6 +1114,7 @@ void p_enter_locals_to(DISPATCH_ARGS);
 void p_exit(DISPATCH_ARGS);
 void p_leave_locals(DISPATCH_ARGS);
 void p_literal(DISPATCH_ARGS);
+void p_evaluate(DISPATCH_ARGS);
 void p_load(DISPATCH_ARGS);
 void p_load2(DISPATCH_ARGS);
 void p_load3(DISPATCH_ARGS);

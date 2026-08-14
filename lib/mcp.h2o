@@ -140,11 +140,13 @@
 
   fresh ; internal
 
-( path marker -- line ) \ the one line of source that runs a call and marks its end
-: mcp-eval-line
-  | path marker |
-  [ mcp-quote path mcp-quote
-	" ' load [: dup frame? if :message @ then . cr "
+( code marker -- source ) \ what a child is sent for one call: the code, then its end marker
+\ The code travels as a string literal for the child to evaluate, so each quote
+\ in it is doubled — that is the only escape a Water string has.
+: mcp-eval-source
+  | code marker |
+  [ mcp-quote  code mcp-quote mcp-quote mcp-quote + replace  mcp-quote
+	" ' evaluate curry [: dup frame? if :message @ then . cr "
 	mcp-quote mcp-error-mark mcp-quote
 	" stdout write cr :] try-catch "
 	mcp-quote marker mcp-quote
@@ -161,20 +163,18 @@
 : mcp-start-call
   | state id code ^mcp-eval-counter |
   ++ mcp-eval-counter
-  mcp-eval-counter "/tmp/water-mcp-{0:d}.h2o" format to path
-  mcp-eval-counter "<<mcp-end-{0:d}>>" format to marker
-
-  code path write-file
+  \ the random part keeps evaluated code that prints the marker text from ending
+  \ its own call early; the counter alone would be guessable
+  mcp-eval-counter random 1e9 * round "<<mcp-end-{1:d}-{0:d}>>" format to marker
 
   id state!request-id
   marker state!marker
-  "" state!buffer
   [ ] state!output
   false state!failed
   now mcp-call-seconds + state!expiry
   now state!used
 
-  path marker mcp-eval-line state@child :in @ write ; internal
+  code marker mcp-eval-source state@child :in @ write ; internal
 
 ( state -- ) \ answer the call in flight and nothing more; the child may be gone
 : mcp-answer-call
@@ -209,15 +209,22 @@
 
   mcp-sessions state@session string>symbol delete-at drop ; internal
 
-( line state -- bool ) \ act on one complete line; true at the end marker, which stops the walk
+( line state -- ) \ act on one complete line
+\ The marker is matched as the tail of a line rather than as a whole line: code
+\ that prints without a trailing newline leaves the marker on the same line as
+\ its output, and the text before it is that call's last output.
 : mcp-take-line
   | line state |
-  line state@marker = if state mcp-finish-call true exit then
+  line state@marker has? if
+	line state@marker split 0 @i to printed
+	printed byte-size 0 > if state@output printed add-last! drop then
+	state mcp-finish-call
+	exit
+  then
 
-  line mcp-error-mark = if true state!failed false exit then
+  line mcp-error-mark = if true state!failed exit then
 
-  state@output line add-last! drop
-  false ; internal
+  state@output line add-last! drop ; internal
 
 ( state -- ) \ read what a child has written and act on every complete line
 : mcp-drain
@@ -239,7 +246,10 @@
   pieces size 1- to n-complete
   pieces n-complete @i state!buffer
 
-  pieces n-complete take  state ' mcp-take-line curry  find-first drop ; internal
+  \ every complete line is acted on, not only up to the first marker: finishing a
+  \ call dispatches the next one queued for this session, and the child may have
+  \ answered it already inside this same chunk
+  pieces n-complete take  state ' mcp-take-line curry  each ; internal
 
 ( state -- ) \ a call that overran its deadline: kill the child, say so, drop the session
 : mcp-expire
@@ -253,13 +263,12 @@
   state mcp-forget-session ; internal
 
 ( word -- text failed ) \ what help prints for a word, read back rather than sent to the client
+\ help parses the word after it from the input, so the name is evaluated as
+\ source; the caller has already refused a name carrying whitespace, which is
+\ what keeps this to the single token help reads
 : mcp-help-text
-  | word ^mcp-eval-counter |
-  ++ mcp-eval-counter
-  mcp-eval-counter "/tmp/water-mcp-help-{0:d}.h2o" format to path
-  "help " word + mcp-newline + path write-file
-
-  path ' load curry  ' stdout>string curry  catch if
+  | word |
+  "help " word +  ' evaluate curry  ' stdout>string curry  catch if
 	dup frame? if :message @ then true exit
   then
 
