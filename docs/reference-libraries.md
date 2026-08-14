@@ -654,3 +654,80 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 ```output
 1
 ```
+
+## MCP server (lib/mcp.h2o)
+
+An MCP server over stdio, protocol revision 2026-07-28, modern era only: every
+request declares its version in `params._meta` under
+`io.modelcontextprotocol/protocolVersion`, there is no `initialize` handshake,
+and `server/discover` reports the versions, capabilities and identity of the
+server. Two tools are exposed. `water-eval` takes `code` and a `session` name
+and answers what the code printed; a session is a child interpreter that keeps
+its definitions, loaded data, database handles and fitted models between calls,
+so a table is read once and queried in later calls. `water-help` takes a `word`
+and answers that word's reference entry, needing no session. An error in
+evaluated code comes back as a tool result with `isError` true, carrying the
+message and trace, never as a protocol error.
+
+The server answers requests one at a time but never waits on one child: it polls
+stdin together with every busy session, so sessions compute at the same time and
+each answer is written when its own call finishes. Two calls naming one session
+run in arrival order, the second queued behind the first. A call that runs
+longer than `mcp-call-seconds` (300 by default) has its session killed and
+answers `isError` saying so; the next call naming it starts a fresh interpreter.
+At most `mcp-max-sessions` (8) sessions are live at once, the least recently
+used idle one being closed to make room, and a call arriving when all of them
+are busy answers `isError` rather than waiting. Native-only: sessions need
+`start-process` and the tool output is captured with `stdout>string`.
+
+Remote access is a bridge rather than Water code: run this stdio server behind a
+stdio-to-Streamable-HTTP gateway such as mcp-proxy or Supergateway, one child
+process per client session.
+
+A host program adds tools of its own before serving. `mcp-add-tool` takes the
+definition frame a client sees — `:name`, optional `:title` and `:description`,
+and an `:inputSchema` that is a JSON Schema object — together with the word that
+runs the tool. A handler is `( id arguments -- )`: it receives the request id and
+the parsed arguments frame, and answers by calling `mcp-tool-result`, which keeps
+the JSON-RPC envelope, `resultType` and `isError` in the library's hands. Because
+a handler answers through that word rather than by returning, it may answer
+later, which is how `water-eval` waits for its child. A handler runs inside the
+server loop, so slow work belongs in a session; a handler that computes for a
+minute holds up every other session for that minute. `tools/list` reports
+definitions in registration order, the two built-in tools first.
+
+| Word | Stack effect | Summary |
+| --- | --- | --- |
+| `mcp-serve` | `( -- )` | Serve MCP over stdin and stdout until end of input, then close every session and reap its child. stdout carries protocol messages only, which is why evaluated output is captured rather than printed. Reads requests as whole lines, so a partial line is held until its newline arrives; a malformed line answers JSON-RPC −32700 |
+| `mcp-add-tool` | `( definition handler -- )` | Register a tool: the definition frame a client sees and the `( id arguments -- )` word that runs it. Call it before `mcp-serve`. A name already registered is not replaced — two entries with one name would make `tools/call` answer the first |
+| `mcp-tool-result` | `( id text failed -- )` | Answer a tools/call with one text content block, `failed` setting `isError`. The only way a handler should answer, since writing to stdout directly would corrupt the protocol stream |
+
+```forth-noexec mcp-serve
+water -e '"mcp" load-library mcp-serve'
+```
+```output
+```
+
+```forth-noexec mcp-add-tool
+\ a host program's own tool, registered before serving
+: greet-tool | id arguments |
+  id "hello " arguments :who @ + false mcp-tool-result ;
+
+{ :name "greet"
+  :title "Greet someone"
+  :description "Answer a greeting"
+  :inputSchema { :type "object"
+                 :properties { :who { :type "string" } }
+                 :required [ "who" ] }
+} ' greet-tool mcp-add-tool
+
+mcp-serve
+```
+```output
+```
+
+```forth-noexec mcp-tool-result
+id "hello " arguments :who @ + false mcp-tool-result
+```
+```output
+```

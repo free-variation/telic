@@ -1,0 +1,59 @@
+\ wait-readable ( streams seconds -- ready ): wait for readable streams, answer
+\ those that are, empty when the wait expires. read-available ( stream -- str ):
+\ the bytes already waiting, without blocking. The two are used together, and the
+\ cases need a pipe from a live child that stays silent, so this test is skipped
+\ under WASI (no fork/exec) via wasm-skip.txt; 093_read_line covers the portable
+\ cases over stdin.
+
+[ "printf" "hello" ] start-process to talker
+[ "sleep" "30" ] start-process to sleeper
+
+\ === a silent stream is not readable, and the wait expires ===
+[ sleeper :out @ ] 0.2 wait-readable size . cr        \ 0
+
+\ === a stream with bytes waiting comes back ===
+[ talker :out @ ] 5 wait-readable size . cr           \ 1
+
+\ === only the readable one of several comes back ===
+[ sleeper :out @ talker :out @ ] 5 wait-readable 0 @i talker :out @ = . cr   \ 1
+
+\ === end of input counts as readable, so the read after it answers none ===
+talker :out @ read-line . cr                          \ hello
+[ talker :out @ ] 5 wait-readable size . cr           \ 1
+talker :out @ read-line none? . cr                    \ 1
+
+\ === zero seconds polls without waiting ===
+[ sleeper :out @ ] 0 wait-readable size . cr          \ 0
+
+sleeper :pid @ stop drop
+sleeper :in @ close  sleeper :out @ close  sleeper :err @ close
+talker end-process
+
+clear
+
+\ === errors ===
+[: [ 3 ] 1 wait-readable :] catch drop :message @ . cr        \ (not a stream)
+[: stdin 1 wait-readable :] catch drop :message @ . cr        \ (not an array)
+[: [ ] "x" wait-readable :] catch drop :message @ . cr        \ (seconds is not a float)
+[ "printf" "x" ] start-process to spent
+spent :out @ close
+[: [ spent :out @ ] 1 wait-readable :] catch drop :message @ . cr   \ (a closed stream)
+spent :in @ close  spent :err @ close  spent :pid @ wait drop
+
+clear
+
+\ === read-available takes what is waiting and never blocks ===
+[ "printf" "chunk" ] start-process to talker
+[ "sleep" "30" ] start-process to quiet
+
+quiet :out @ read-available dup byte-size . none? . cr   \ 0 0  (nothing waiting)
+[ talker :out @ ] 5 wait-readable drop
+talker :out @ read-available . cr                        \ chunk
+[ talker :out @ ] 5 wait-readable drop
+talker :out @ read-available none? . cr                  \ 1  (end of input)
+
+quiet :pid @ stop drop
+quiet :in @ close  quiet :out @ close  quiet :err @ close
+talker end-process
+
+[: 3 read-available :] catch drop :message @ . cr        \ (not a stream)

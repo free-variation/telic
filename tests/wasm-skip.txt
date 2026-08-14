@@ -15,6 +15,7 @@
 901_docs_idioms                       run in the resource-brackets pair: no fork/exec on WASI
 072_with_stream     start-process: no fork/exec on WASI
 092_stream_identity start-process: no fork/exec on WASI
+095_wait_readable      start-process: a silent pipe needs fork/exec on WASI
 094_stdout_to_string  stdout>string: no temporary files on WASI; carries read-line's pipe cases
 061_load_native  start-process and binary-dir: no fork/exec or executable path on WASI
 062_ffi             ffi excluded from the wasm build

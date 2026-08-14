@@ -1,5 +1,6 @@
 
 #include "water.h"
+#include <poll.h>
 
 static int stream_generation[STREAM_FD_MAX];
 
@@ -507,6 +508,135 @@ void p_read_line(DISPATCH_ARGS) {
 	chain_sp[-1] = make_string(handle);
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
+
+#define READ_AVAILABLE_MAX (1 << 16)
+
+void p_read_available(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val stream_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(stream_val, T_STREAM, "read-available", "a stream");
+	if (!stream_is_open(stream_val)) {
+		fail(interp, "stream is closed");
+		return;
+	}
+	int file_descriptor = stream_fd(stream_val);
+
+	struct pollfd watched;
+	watched.fd = file_descriptor;
+	watched.events = POLLIN;
+	watched.revents = 0;
+
+	int n_ready;
+	do {
+		n_ready = poll(&watched, 1, 0);
+	} while (n_ready < 0 && errno == EINTR);
+
+	if (n_ready < 0) {
+		fail(interp, "%s", strerror(errno));
+		return;
+	}
+
+	if (n_ready == 0) {
+		int empty = object_new_string(interp, "", 0);
+		if (interp->error_flag)
+			return;
+		chain_sp[-1] = make_string(empty);
+
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+	}
+
+	char waiting[READ_AVAILABLE_MAX];
+	ssize_t bytes_read;
+	do {
+		bytes_read = read(file_descriptor, waiting, sizeof waiting);
+	} while (bytes_read < 0 && errno == EINTR);
+
+	if (bytes_read < 0) {
+		fail(interp, "%s", strerror(errno));
+		return;
+	}
+
+	if (bytes_read == 0) {
+		chain_sp[-1] = make_tagged(T_NONE, 0);
+
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+	}
+
+	int handle = object_new_string(interp, waiting, (int)bytes_read);
+	if (interp->error_flag)
+		return;
+	chain_sp[-1] = make_string(handle);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
+
+void p_wait_readable(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
+	Val seconds_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(seconds_val, T_FLOAT, "wait-readable", "a float");
+	Val streams_val = chain_sp[-2];
+	REQUIRE_CHAIN_TAG(streams_val, T_ARRAY, "wait-readable", "an array");
+
+	Object *streams = OBJECT_AT(VAL_DATA(streams_val));
+	int n_streams = streams->len;
+	if (n_streams > POLL_STREAMS_MAX) {
+		fail(interp, "%d streams exceeds the %d this call can watch", n_streams, POLL_STREAMS_MAX);
+		return;
+	}
+
+	struct pollfd watched[POLL_STREAMS_MAX];
+	for (int i = 0; i < n_streams; i++) {
+		Val stream = streams->items[i];
+		if (VAL_TAG(stream) != T_STREAM) {
+			fail(interp, "expected a stream; got %s", tag_name(VAL_TAG(stream)));
+			return;
+		}
+		if (!stream_is_open(stream)) {
+			fail(interp, "stream is closed");
+			return;
+		}
+		watched[i].fd = stream_fd(stream);
+		watched[i].events = POLLIN;
+		watched[i].revents = 0;
+	}
+
+	double seconds = VAL_NUMBER(seconds_val);
+	int milliseconds = -1;
+	if (seconds >= 0) {
+		double bounded = seconds * 1000.0;
+		milliseconds = bounded > (double)INT_MAX ? INT_MAX : (int)bounded;
+	}
+
+	int n_ready;
+	do {
+		n_ready = poll(watched, (nfds_t)n_streams, milliseconds);
+	} while (n_ready < 0 && errno == EINTR);
+
+	if (n_ready < 0) {
+		fail(interp, "%s", strerror(errno));
+		return;
+	}
+
+	int n_readable = 0;
+	for (int i = 0; i < n_streams; i++)
+		if (watched[i].revents)
+			n_readable++;
+
+	int handle = object_new_array(interp, n_readable);
+	if (interp->error_flag)
+		return;
+
+	Object *readable = OBJECT_AT(handle);
+	streams = OBJECT_AT(VAL_DATA(streams_val));
+	int next = 0;
+	for (int i = 0; i < n_streams; i++)
+		if (watched[i].revents)
+			readable->items[next++] = streams->items[i];
+
+	chain_sp[-2] = make_array(handle);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 }
 
 void p_close(DISPATCH_ARGS) {

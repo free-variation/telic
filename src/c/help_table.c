@@ -43,9 +43,10 @@ const char *const help_section_names[] = {
 	"Generalized linear models (lib/statistics.h2o)",
 	"Gradient boosting (lib/statistics.h2o)",
 	"Plotting (lib/plot.h2o)",
+	"MCP server (lib/mcp.h2o)",
 };
 
-const int help_section_count = 42;
+const int help_section_count = 43;
 
 const HelpEntry help_entries[] = {
 	{ "!", "( fr sym/path val -- fr )", "Set by key or path, vivifying intermediates; mutates fr; errors on a search path", "d log n", "realloc on growth; 1o per vivified frame", "O(d log n) amortized", 16 },
@@ -84,7 +85,7 @@ const HelpEntry help_entries[] = {
 	{ ";", "—", "End a colon definition; emit exit; store the source text for see. Self-delimiting: dup *; parses", NULL, NULL, NULL, 10 },
 	{ "<", "( a b -- bool ) or ( mat/arr x -- mat )", "less-than; element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (val_cmp per element, n×1)", "3 (float)", "matrix 1m(r×c)", "same; matrix O(r×c)", 4 },
 	{ "<=", "( a b -- bool ) or ( mat/arr x -- mat )", "less-than-or-equal (≤); element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (val_cmp per element, n×1)", "3 (float)", "matrix 1m(r×c)", "same; matrix O(r×c)", 4 },
-	{ "=", "( a b -- bool )", "structural equality", "3 (float)", "none", "float O(1); string O(|s|); array/set O(n); frame O(n); matrix O(r×c)", 4 },
+	{ "=", "( a b -- bool )", "structural equality; handles — a stream, database, C pointer, continuation, execution token or symbol — compare by identity, so two open connections are unequal and a handle equals only itself", "3 (float)", "none", "float O(1); string O(|s|); array/set O(n); frame O(n); matrix O(r×c)", 4 },
 	{ ">", "( a b -- bool ) or ( mat/arr x -- mat )", "greater-than; element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (val_cmp per element, n×1)", "3 (float)", "matrix 1m(r×c)", "same; matrix O(r×c)", 4 },
 	{ ">=", "( a b -- bool ) or ( mat/arr x -- mat )", "greater-than-or-equal (≥); element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (val_cmp per element, n×1)", "3 (float)", "matrix 1m(r×c)", "same; matrix O(r×c)", 4 },
 	{ ">]", "—", "Close a set literal", NULL, NULL, NULL, 9 },
@@ -416,6 +417,9 @@ const HelpEntry help_entries[] = {
 	{ "matrix?", "( a -- bool )", "core.h2o: type-of :matrix = (inlined)", "5", "none", "O(1)", 4 },
 	{ "max", "( mat -- f )", "Maximum element", "1 + r×c", "none", "O(r×c)", 18 },
 	{ "max2", "( a b -- larger )", "the val_cmp-ordered greater, min2's twin; a NaN operand answers the other value", "3 (float)", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 1 },
+	{ "mcp-add-tool", "( definition handler -- )", "Register a tool: the definition frame a client sees and the ( id arguments -- ) word that runs it. Call it before mcp-serve. A name already registered is not replaced — two entries with one name would make tools/call answer the first", NULL, NULL, NULL, 42 },
+	{ "mcp-serve", "( -- )", "Serve MCP over stdin and stdout until end of input, then close every session and reap its child. stdout carries protocol messages only, which is why evaluated output is captured rather than printed. Reads requests as whole lines, so a partial line is held until its newline arrives; a malformed line answers JSON-RPC −32700", NULL, NULL, NULL, 42 },
+	{ "mcp-tool-result", "( id text failed -- )", "Answer a tools/call with one text content block, failed setting isError. The only way a handler should answer, since writing to stdout directly would corrupt the protocol stream", NULL, NULL, NULL, 42 },
 	{ "mean", "( mat -- f )", "matrix.h2o: sum ÷ element count", "r×c", "none", "O(r×c)", 18 },
 	{ "median", "( mat -- f )", "statistics.h2o: 0.5 quantile (inlined)", "n log n", "malloc(n)", "O(n log n)", 18 },
 	{ "member?", "( set v -- bool )", "Binary-search membership", "3 + log n", "none", "O(log n)", 13 },
@@ -492,6 +496,7 @@ const HelpEntry help_entries[] = {
 	{ "range", "( from to -- arr )", "Inclusive integer range, step ±1", "3 + n", "1a(n)", "O(n)", 14 },
 	{ "ranks", "( v -- v' )", "statistics.h2o: 0-based midranks as nx1 — tied values share the mean of their sorted positions, NaNs rank last in index order; one argsort, a gather, and a linear run walk", "n log n + 2n", "3m(n) + malloc(16n)", "O(n log n)", 18 },
 	{ "read", "( stream -- str )", "Read the stream to EOF into one string", "read syscalls", "1o + buffer growth", "O(bytes)", 32 },
+	{ "read-available", "( stream -- str )", "The bytes already waiting on the stream, without blocking: up to 65536 of them as a string, \"\" when none are waiting, none at end of input. A zero-timeout poll decides, then one read. The partner of wait-readable when one thread serves several streams: read-line blocks until its newline arrives, so a writer that flushes a partial line and then computes would stall every other stream, while this word takes what is there and leaves the caller to assemble lines", "1 + bytes", "1o", "O(bytes)", 32 },
 	{ "read-err", "( proc -- str )", "subprocess.h2o: read the child's :err stream to EOF", "read syscalls", "1o + buffer growth", "O(bytes)", 32 },
 	{ "read-file", "( path -- str )", "Read a whole file as one string (byte-safe); errors if it can't be opened", "file read", "1o + buffer", "O(file)", 31 },
 	{ "read-line", "( stream -- str | none )", "Read up to and including the next \\n and answer the line without that terminator; a \\r before it is content and stays, as it does under \"\\n\" split. Bytes after the terminator are left in the stream, so read on the same stream answers the rest — the word holds no buffer and costs one read syscall per byte, for line protocols rather than bulk input. At end of input with nothing accumulated it answers none; a final unterminated run of bytes answers as a line, and the call after it answers none. Retries EINTR", "bytes", "1o + buffer growth", "O(bytes)", 32 },
@@ -668,8 +673,10 @@ const HelpEntry help_entries[] = {
 	{ "vvf-", "vvf- a b", "Load variables a and b, subtract (a−b), push the result", NULL, NULL, NULL, 28 },
 	{ "vvf/", "vvf/ a b", "Load variables a and b, divide (a/b), push the result", NULL, NULL, NULL, 28 },
 	{ "wait", "( pid -- status )", "Block until the child exits; return its exit code, or 128 + signo if it was killed by a signal", "blocks", "none", "O(1)", 32 },
+	{ "wait-readable", "( streams seconds -- ready )", "Wait until at least one of streams has bytes to read, and answer a new array of those that do — empty when the wait expires first. seconds is a float with sub-second granularity: 0 polls without waiting, a negative value waits indefinitely. End of input counts as readable, so a stream whose writer has exited comes back and the read that follows answers none instead of blocking. poll(2) underneath, retrying EINTR; errors on a non-stream element, a closed stream, or more than 256 streams", "1 + n", "1a(k)", "O(n)", 32 },
 	{ "wall-now", "( -- instant )", "units.h2o: CLOCK_REALTIME epoch seconds as a quantity in s; steps when the system clock is adjusted, so time intervals with now", "2", "1 pair", "O(1)", 21 },
 	{ "water", "( -- )", "Print the water logo and the interpreter version", "print", "none", "O(1)", 29 },
+	{ "water-version", "( -- str )", "The interpreter version as a string, the same one water prints — for a program that reports its runtime or hands it to a peer (lib/mcp.h2o puts it in serverInfo)", "1", "1s", "O(1)", 29 },
 	{ "where", "( mat -- v )", "Flat row-major indices of the nonzero elements, as a k×1 index vector (1×k for a 1×n mask); composes with the </> masks and select-rows", "1 + n", "1m(k)", "O(n)", 18 },
 	{ "while", "( flag -- )", "Exit the loop forward if flag is falsy (begin … while … repeat)", NULL, NULL, NULL, 8 },
 	{ "wildcard?", "( a -- bool )", "core.h2o: type-of :wildcard = (inlined)", "5", "none", "O(1)", 4 },
@@ -696,7 +703,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "C primitive alias of unify, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 26 },
 };
 
-const int help_entry_count = 646;
+const int help_entry_count = 652;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } /a/b 5 ! /a/b @ . cr", "5" },
@@ -1068,6 +1075,9 @@ const HelpExample help_examples[] = {
 	{ "matrix?", "[ 1 ] vector matrix? . cr", "1" },
 	{ "max", "[ 1 2 3 4 ] 2 2 matrix max . cr", "4" },
 	{ "max2", "3 7 max2 . cr", "7" },
+	{ "mcp-add-tool", "\\ a host program's own tool, registered before serving\n: greet-tool | id arguments |\n  id \"hello \" arguments :who @ + false mcp-tool-result ;\n\n{ :name \"greet\"\n  :title \"Greet someone\"\n  :description \"Answer a greeting\"\n  :inputSchema { :type \"object\"\n                 :properties { :who { :type \"string\" } }\n                 :required [ \"who\" ] }\n} ' greet-tool mcp-add-tool\n\nmcp-serve", "" },
+	{ "mcp-serve", "water -e '\"mcp\" load-library mcp-serve'", "" },
+	{ "mcp-tool-result", "id \"hello \" arguments :who @ + false mcp-tool-result", "" },
 	{ "mean", "[ 2 4 6 ] vector mean . cr", "4" },
 	{ "median", "[ 1 2 3 4 ] vector median . cr", "2.5" },
 	{ "member?", "[< 1 2 3 >] 2 member? . [< 1 2 3 >] 9 member? . cr", "1 0" },
@@ -1144,6 +1154,7 @@ const HelpExample help_examples[] = {
 	{ "range", "3 7 range . cr", "[ 3 4 5 6 7 ]" },
 	{ "ranks", "[ 10 20 20 30 ] vector ranks matrix>array . cr", "[ 0 1.5 1.5 3 ]" },
 	{ "read", "[ \"echo\" \"data\" ] start-process :out @ read trim . cr", "data" },
+	{ "read-available", "[ \"printf\" \"chunk\" ] start-process to talker\n[ talker :out @ ] 5 wait-readable drop\ntalker :out @ read-available . cr\ntalker end-process\n[ \"sleep\" \"5\" ] start-process to quiet\nquiet :out @ read-available byte-size . cr\nquiet :pid @ stop drop\nquiet :in @ close  quiet :out @ close  quiet :err @ close", "chunk\n0" },
 	{ "read-err", "[ \"sh\" \"-c\" \"echo oops >&2\" ] start-process read-err trim . cr", "oops" },
 	{ "read-file", "\"hello\" \"/tmp/docs-file.txt\" write-file \"/tmp/docs-file.txt\" read-file . cr", "hello" },
 	{ "read-line", "[ \"printf\" \"first\\nsecond\\n\" ] start-process :out @\ndup read-line . dup read-line . read-line . cr", "first second null" },
@@ -1320,8 +1331,10 @@ const HelpExample help_examples[] = {
 	{ "vvf-", "variable a 3 to a variable b 4 to b\n: diff-ab vvf- a b ; diff-ab . cr", "-1" },
 	{ "vvf/", "variable a 3 to a variable b 4 to b\n: quot-ab vvf/ a b ; quot-ab . cr", "0.75" },
 	{ "wait", "[ \"true\" ] start-process :pid @ wait . cr", "0" },
+	{ "wait-readable", "[ \"printf\" \"now\" ] start-process to source\n[ source :out @ ] 5 wait-readable size . cr\nsource :out @ read-line . cr\nsource end-process", "1\nnow" },
 	{ "wall-now", "wall-now time>iso . cr", "2026-08-06T23:14:09Z" },
 	{ "water", "water", "                                          water 0.26.0\n                              https://github.com/free-variation/water" },
+	{ "water-version", "water-version \"\\d+\\.\\d+\\.\\d+\" has? . cr", "1" },
 	{ "where", "[ 5 0 7 ] vector where matrix>array . cr", "[ 0 2 ]" },
 	{ "while", ": halves begin dup 0 > while dup . 2 quotient repeat drop cr ; 20 halves", "20 10 5 2 1" },
 	{ "wildcard?", "_ wildcard? . cr", "1" },
@@ -1348,4 +1361,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 647;
+const int help_example_count = 653;

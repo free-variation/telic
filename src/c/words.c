@@ -1452,6 +1452,16 @@ void p_water(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
 
+void p_water_version(DISPATCH_ARGS) {
+	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);
+	int handle = object_new_string(interp, VERSION, (int)strlen(VERSION));
+	if (interp->error_flag)
+		return;
+	*chain_sp = make_string(handle);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
+}
+
 void p_size(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	int unit;

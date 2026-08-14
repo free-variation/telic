@@ -366,6 +366,9 @@ matrix>pointer
 matrix?
 max
 max2
+mcp-add-tool
+mcp-serve
+mcp-tool-result
 mean
 median
 member?
@@ -442,6 +445,7 @@ random-int
 range
 ranks
 read
+read-available
 read-err
 read-file
 read-line
@@ -618,8 +622,10 @@ vvf+
 vvf-
 vvf/
 wait
+wait-readable
 wall-now
 water
+water-version
 where
 while
 wildcard?

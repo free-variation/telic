@@ -64,6 +64,7 @@ typedef int64_t cell;
 #define SELECT_MAX_DEPTH JSON_MAX_DEPTH
 #define MAX_DATABASES (1 << 8)
 #define STREAM_FD_MAX (1 << 12)
+#define POLL_STREAMS_MAX 256
 #define STREAM_FD_BITS 16
 #define STREAM_FD_MASK ((1 << STREAM_FD_BITS) - 1)
 #define ERROR_TRACE_SIZE 1024
@@ -1288,6 +1289,7 @@ void p_tor(DISPATCH_ARGS);
 void p_truncate(DISPATCH_ARGS);
 void p_type_of(DISPATCH_ARGS);
 void p_water(DISPATCH_ARGS);
+void p_water_version(DISPATCH_ARGS);
 void p_words(DISPATCH_ARGS);
 void p_zeq(DISPATCH_ARGS);
 void p_zeq_zbranch(DISPATCH_ARGS);
@@ -1342,6 +1344,7 @@ void p_env_set(DISPATCH_ARGS);
 void p_file_exists(DISPATCH_ARGS);
 void p_load_tsv(DISPATCH_ARGS);
 void p_read(DISPATCH_ARGS);
+void p_read_available(DISPATCH_ARGS);
 void p_read_file(DISPATCH_ARGS);
 void p_read_line(DISPATCH_ARGS);
 void p_save_tsv(DISPATCH_ARGS);
@@ -1349,6 +1352,7 @@ void p_stderr(DISPATCH_ARGS);
 void p_stdin(DISPATCH_ARGS);
 void p_stdout(DISPATCH_ARGS);
 void p_tty(DISPATCH_ARGS);
+void p_wait_readable(DISPATCH_ARGS);
 void p_write(DISPATCH_ARGS);
 void p_write_file(DISPATCH_ARGS);
 

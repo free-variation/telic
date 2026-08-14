@@ -17,3 +17,17 @@ successor :out @ read . cr                           \ BBB
 output close                                         \ idempotent on a stale handle
 successor :in @ close  successor :err @ close  successor :out @ close
 successor :pid @ wait drop
+
+clear
+
+\ === the standard streams are three distinct handles ===
+stdout stdout = . cr                                 \ 1
+stderr stdout = . cr                                 \ 0
+stdin stdout = . cr                                  \ 0
+
+\ === a child's pipe is not any of them ===
+[ "printf" "x" ] start-process to child
+child :out @ stdin = . cr                            \ 0
+child :out @ child :out @ = . cr                     \ 1
+child :out @ child :err @ = . cr                     \ 0
+child end-process

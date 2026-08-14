@@ -592,6 +592,7 @@ int val_cmp_depth(Interpreter *interp, Val left, Val right, int depth) {
 							 return val_cmp_depth(interp, left_magnitude, right_magnitude, depth + 1);
 						 }
 		case T_SYMBOL: case T_XT: case T_CURRIED: case T_ADDR: case T_LOGIC_VAR:
+		case T_STREAM: case T_DB: case T_PTR: case T_CONT:
 
 					  if (VAL_DATA(left) < VAL_DATA(right))
 					  	return -1;
@@ -4957,6 +4958,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "(globals)", p_globals, 4);
 	define_primitive(interp, "apropos", p_apropos, 0);
 	define_primitive(interp, "water", p_water, 0);
+	define_primitive(interp, "water-version", p_water_version, 0);
 	define_primitive(interp, "see", p_see, 0);
 	define_primitive(interp, "see>string", p_see_to_string, 0);
 	define_primitive(interp, "man", p_man, 0);
@@ -5189,7 +5191,9 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "start-process", p_start_process, 0);
 	define_primitive(interp, "write", p_write, 0);
 	define_primitive(interp, "read", p_read, 0);
+	define_primitive(interp, "read-available", p_read_available, 0);
 	define_primitive(interp, "read-line", p_read_line, 0);
+	define_primitive(interp, "wait-readable", p_wait_readable, 0);
 	define_primitive(interp, "close", p_close, 0);
 	define_primitive(interp, "stdin", p_stdin, 0);
 	define_primitive(interp, "stdout", p_stdout, 0);

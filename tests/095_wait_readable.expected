@@ -1,0 +1,15 @@
+0 
+1 
+1 
+hello 
+1 
+1 
+0 
+expected a stream; got a float 
+expected an array; got a stream 
+expected a float; got a string 
+stream is closed 
+0 0 
+chunk 
+1 
+expected a stream; got a float 

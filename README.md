@@ -395,6 +395,10 @@ Call C functions in any shared library at runtime via `libffi` — no per-librar
 - **`matrix>pointer`** / **`segment>pointer`** — intern a matrix's or segment's element buffer as a `T_PTR` (no copy, aliasing the live buffer) to pass dense numeric data to a `:ptr` parameter.
 - Examples: `"/usr/lib/libcurl.4.dylib" ffi-open` plus a few declarations drives a real libcurl HTTPS request in-process, no subprocess; the statistics library drives LAPACK's `dgesvd`/`dgelsd` the same way (matrices in via `matrix>pointer`). FFI is unsafe — a wrong signature corrupts or crashes; arg *count* is checked, types are the caller's responsibility.
 
+### MCP server
+
+`lib/mcp.h2o` serves the Model Context Protocol over stdio — `water -e '"mcp" load-library mcp-serve'` — at revision 2026-07-28, declaring the protocol version per request rather than through an `initialize` handshake. Two tools: `water-eval` runs Water source in a named session, a child interpreter that keeps its definitions, data, database handles and fitted models between calls, and `water-help` answers a word's reference entry. Sessions compute at the same time as one another, a call that overruns its deadline has its session stopped, and evaluated failures come back as tool errors rather than protocol errors. Remote access is a bridge, not Water code: put the stdio server behind a stdio-to-Streamable-HTTP gateway such as mcp-proxy.
+
 ### Delimited continuations
 
 A four-primitive substrate the rest of the control story is built on. See `docs/continuations.md` for the full treatment.

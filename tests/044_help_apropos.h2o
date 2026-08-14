@@ -88,3 +88,13 @@ clear
 "qqqqxyzzy" apropos
 
 clear
+
+\ ==== water version ====
+
+\ water-version ( -- str ): the interpreter version, the string `water` prints.
+
+water-version string? . cr                           \ 1
+water-version "^\d+\.\d+\.\d+$" has? . cr            \ 1
+water-version water-version = . cr                   \ 1
+
+clear

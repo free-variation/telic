@@ -866,7 +866,7 @@ Result is `1.0` (true) or `0.0` (false), with a float fast path. `=` uses `val_c
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `=` | `( a b -- bool )` | structural equality | 3 (float) | none | float O(1); string O(\|s\|); array/set O(n); frame O(n); matrix O(r×c) |
+| `=` | `( a b -- bool )` | structural equality; handles — a stream, database, C pointer, continuation, execution token or symbol — compare by identity, so two open connections are unequal and a handle equals only itself | 3 (float) | none | float O(1); string O(\|s\|); array/set O(n); frame O(n); matrix O(r×c) |
 | `<` | `( a b -- bool )` or `( mat/arr x -- mat )` | less-than; element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (`val_cmp` per element, n×1) | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
 | `<=` | `( a b -- bool )` or `( mat/arr x -- mat )` | less-than-or-equal (≤); element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (`val_cmp` per element, n×1) | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
 | `true` | `( -- bool )` | core.h2o: pushes 1 (inline) | 1 | none | O(1) |
@@ -4706,6 +4706,7 @@ variable b 4 to b variable c 10 to c
 | `variables` | `( -- arr )` | core.h2o: one `{ :name :value :type }` frame per global (`variable`-declared or `to`-auto-created), oldest first — the name symbol, the live value (shared reference for collections), and its `type-of` symbol. `variables [: :name @ :] map` is the name list; `variables frames>dataset head` a table | dict scan | `1a` + one frame per global | O(\|dict\|) |
 | `vars` | `( -- )` | repl.h2o: pretty-print every global, one `variables` frame per block (`variables ' print each`) | dict scan + print | `1a` + frames | O(\|dict\|) |
 | `water` | `( -- )` | Print the water logo and the interpreter version | print | none | O(1) |
+| `water-version` | `( -- str )` | The interpreter version as a string, the same one `water` prints — for a program that reports its runtime or hands it to a peer (`lib/mcp.h2o` puts it in `serverInfo`) | 1 | `1s` | O(1) |
 | `apropos` | `( str -- )` | Print every word whose name or reference summary contains s (case-insensitive): name, stack effect, summary per line; session-defined words match by name | table scan | none | O(entries) |
 | `see` | `( xt -- )` | Print a word's source (`: name … ;`), a quotation's `[: … :]` text from its recorded span, or `variable`/`symbol`/primitive form; a curried token prints its bound values, then its target | dict scan | none | O(\|dict\|) |
 | `see>string` | `( xt -- str )` | The text `see` would print, returned as a string (trailing newline stripped) | dict scan | `1o` | O(\|dict\|) |
@@ -4757,6 +4758,13 @@ water
 ```output
                                           water 0.26.0
                               https://github.com/free-variation/water
+```
+
+```forth water-version
+water-version "\d+\.\d+\.\d+" has? . cr
+```
+```output
+1
 ```
 
 ```forth-noexec apropos
@@ -5032,6 +5040,8 @@ A stream (`T_STREAM`) wraps an OS file descriptor — a pipe to a child process.
 | `write` | `( str stream -- )` | Write the string's bytes to the stream; loops over partial writes, retries `EINTR` | write syscalls | none | O(\|s\|) |
 | `read` | `( stream -- str )` | Read the stream to EOF into one string | read syscalls | `1o` + buffer growth | O(bytes) |
 | `read-line` | `( stream -- str \| none )` | Read up to and including the next `\n` and answer the line without that terminator; a `\r` before it is content and stays, as it does under `"\n" split`. Bytes after the terminator are left in the stream, so `read` on the same stream answers the rest — the word holds no buffer and costs one `read` syscall per byte, for line protocols rather than bulk input. At end of input with nothing accumulated it answers `none`; a final unterminated run of bytes answers as a line, and the call after it answers `none`. Retries `EINTR` | bytes | `1o` + buffer growth | O(bytes) |
+| `read-available` | `( stream -- str )` | The bytes already waiting on the stream, without blocking: up to 65536 of them as a string, `""` when none are waiting, `none` at end of input. A zero-timeout `poll` decides, then one `read`. The partner of `wait-readable` when one thread serves several streams: `read-line` blocks until its newline arrives, so a writer that flushes a partial line and then computes would stall every other stream, while this word takes what is there and leaves the caller to assemble lines | 1 + bytes | `1o` | O(bytes) |
+| `wait-readable` | `( streams seconds -- ready )` | Wait until at least one of `streams` has bytes to read, and answer a new array of those that do — empty when the wait expires first. `seconds` is a float with sub-second granularity: `0` polls without waiting, a negative value waits indefinitely. End of input counts as readable, so a stream whose writer has exited comes back and the read that follows answers `none` instead of blocking. `poll(2)` underneath, retrying `EINTR`; errors on a non-stream element, a closed stream, or more than 256 streams | 1 + n | `1a(k)` | O(n) |
 | `close` | `( stream -- )` | Close the fd; closing a child's `:in` sends it EOF. Idempotent, and a handle closed here is stale for good — reading or writing it reports `stream is closed` even after the descriptor number is reissued to another stream. A dropped handle holds its descriptor until process exit; `with-stream` scopes one | 1 syscall | none | O(1) |
 | `stdin` | `( -- stream )` | Standard input as a `T_STREAM` over fd 0; `stdin read` slurps it. (Conflicts with the REPL reading its own program from stdin — for file-loaded programs.) | 1 | none | O(1) |
 | `stdout` | `( -- stream )` | Standard output as a `T_STREAM` over fd 1; `s stdout write` emits | 1 | none | O(1) |
@@ -5086,6 +5096,32 @@ dup read-line . dup read-line . read-line . cr
 ```
 ```output
 first second null
+```
+
+```forth read-available
+[ "printf" "chunk" ] start-process to talker
+[ talker :out @ ] 5 wait-readable drop
+talker :out @ read-available . cr
+talker end-process
+[ "sleep" "5" ] start-process to quiet
+quiet :out @ read-available byte-size . cr
+quiet :pid @ stop drop
+quiet :in @ close  quiet :out @ close  quiet :err @ close
+```
+```output
+chunk
+0
+```
+
+```forth wait-readable
+[ "printf" "now" ] start-process to source
+[ source :out @ ] 5 wait-readable size . cr
+source :out @ read-line . cr
+source end-process
+```
+```output
+1
+now
 ```
 
 ```forth close

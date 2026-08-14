@@ -20,3 +20,12 @@ replacement "SELECT x FROM t" [ ] db-query :rows @ 0 @i :x @ . cr          \ fro
 
 original db-close                                                          \ idempotent on a stale handle
 replacement db-close
+
+clear
+
+\ === handles compare by identity, not by kind ===
+":memory:" db-open to first-connection
+":memory:" db-open to second-connection
+first-connection first-connection = . cr             \ 1
+first-connection second-connection = . cr            \ 0
+first-connection db-close  second-connection db-close

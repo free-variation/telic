@@ -6,6 +6,9 @@
 
 stdin to requests
 
+\ === wait-readable over stdin: bytes are already waiting ===
+[ requests ] 5 wait-readable size . cr               \ 1
+
 \ === lines arrive one per call, terminator dropped ===
 requests read-line . cr                              \ alpha
 requests read-line . cr                              \ beta
@@ -24,6 +27,9 @@ requests read . cr                                   \ two, three, each on its o
 
 \ === end of input is none ===
 requests read-line none? . cr                        \ 1
+
+\ === read-available at end of input answers none too ===
+requests read-available none? . cr                   \ 1
 
 \ === errors ===
 requests close

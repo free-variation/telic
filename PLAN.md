@@ -141,6 +141,30 @@ whether interning happens during compilation.
 
 ---
 
+## MCP server — follow-ups
+
+`lib/mcp.h2o` serves revision 2026-07-28 with two tools, sessions as child
+interpreters, and a poll loop over stdin and every busy child.
+
+- Progress — a call carrying `_meta.progressToken` gets no
+  `notifications/progress`. The child's output already arrives line by line, so
+  emit each line as progress and keep the collected text as the result.
+- Cancellation — confirm what this revision defines for cancelling an in-flight
+  request, then route it to the kill path `mcp-expire` already uses, answering
+  the cancelled call rather than leaving the client waiting.
+- `tools/list` pagination and caching — the result may carry `nextCursor`,
+  `ttlMs` and `cacheScope`; a two-tool server needs none of it, a host that
+  registers many tools does.
+- Structured results — a tool may declare `outputSchema` and answer
+  `structuredContent` beside its text block, which suits a tool answering a
+  dataset or a fit rather than printed output.
+- Legacy clients — a client that opens with `initialize` is refused. Serving
+  both eras means answering `initialize` with the negotiated older revision and
+  keeping per-request `_meta` for modern ones; decide from what real clients
+  send, not in advance.
+
+---
+
 ## FastCGI service
 
 Run Water as a long-lived FastCGI application behind a web server, decoding
@@ -153,9 +177,10 @@ before accepting untrusted bodies.
 - `accept ( listen-stream -- conn-stream )` — accept a forwarded connection as a
   `T_STREAM`; small C. The listen socket arrives on fd 0
   (`FCGI_LISTENSOCK_FILENO`), so `bind`/`listen` may be unnecessary.
-- `read-n ( stream n -- s )` — read exactly `n` bytes; small C, over the
-  buffered-stream plumbing `read-line` introduces (RELEASE-PLAN.md, MCP stdio
-  server). Records are length-framed, so a slurp-to-EOF read never terminates.
+- `read-n ( stream n -- s )` — read exactly `n` bytes; small C. Records are
+  length-framed, so a slurp-to-EOF read never terminates. `read-line` holds no
+  buffer and `read-available` answers only what is already waiting, so this word
+  accumulates across reads itself, waiting on `wait-readable` between them.
 - FastCGI record codec — decode `BEGIN_REQUEST` / `PARAMS` (CGI environment → a
   request frame) / `STDIN` (body → a string); encode `STDOUT` + `END_REQUEST`.
   Library forth over `read-n`/`write`, with an optional C helper for the 2- and
