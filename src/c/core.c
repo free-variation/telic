@@ -1552,6 +1552,8 @@ void call_open(Interpreter *interp, int cfa, CallContext *context) {
 			interp->local_base = interp->rsp;
 			interp->loop_local_base = interp->rsp;
 			interp->rsp += n_locals;
+			for (int i = 0; i < n_locals; i++)
+				interp->return_stack[interp->local_base + i] = make_tagged(T_NONE, 0);
 			context->reuses_locals = 1;
 
 			if (context->hoisted)
@@ -2191,6 +2193,8 @@ void p_enter_locals(DISPATCH_ARGS) {
 			(int)((chain_ip - 1) - vocab.dict));
 	interp->rsp += n_locals;
 	interp->local_base = interp->rsp - n_locals;
+	for (int i = 0; i < n_locals; i++)
+		interp->return_stack[interp->local_base + i] = make_tagged(T_NONE, 0);
 
 	DISPATCH_REGISTERS(interp, chain_ip + 1, chain_sp);
 }
@@ -2232,6 +2236,8 @@ void p_enter_locals_to(DISPATCH_ARGS) {
 
 	interp->local_base = interp->rsp;
 	interp->rsp += n_locals;
+	for (int i = n_received; i < n_locals; i++)
+		interp->return_stack[interp->local_base + i] = make_tagged(T_NONE, 0);
 
 	DISPATCH_REGISTERS(interp, chain_ip + 2, incoming);
 }
@@ -2270,6 +2276,8 @@ void p_enter_locals_mixed(DISPATCH_ARGS) {
 			(int)((chain_ip - 1) - vocab.dict));
 	interp->local_base = interp->rsp;
 	interp->rsp += n_locals;
+	for (int i = 0; i < n_locals; i++)
+		interp->return_stack[interp->local_base + i] = make_tagged(T_NONE, 0);
 
 	Val *incoming = chain_sp - n_received;
 	for (int i = 0; i < n_received; i++)
@@ -2999,7 +3007,7 @@ void inbuf_reset(void) {
 }
 
 int refill_input(void) {
-	if (compiler.load_depth > 0)
+	if (compiler.load_depth > 0 || compiler.nested_input_depth > 0)
 		return 0;
 
 	int chunk = platform_read_chunk(compiler.input_buffer + compiler.input_buffer_len,
@@ -3655,7 +3663,9 @@ static void run_input_text(Interpreter *interp, const char *text, int length, co
 	compiler.input_buffer_pos = 0;
 	compiler.need_more = 0;
 
+	compiler.nested_input_depth++;
 	run_outer(interp);
+	compiler.nested_input_depth--;
 
 	if (!interp->error_flag && compiler.need_more)
 		fail(interp, "unterminated string literal");

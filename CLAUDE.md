@@ -177,7 +177,8 @@ new inline that calls functions → the tail.
   binding makes partial masking useless). The word's golden runs native
   (masked) and wasm (unmasked) and must agree, pinning both copies.
 - Locals: `>name` receives from the stack at entry, bare names are
-  uninitialized scratch; quotations receive with `|> a b |`.
+  scratch that reads as null until assigned; quotations receive with
+  `|> a b |`.
 - Counted loops inside a definition are `start limit delta do k … loop`:
   the body compiles inline, so it reads and writes the enclosing word's
   locals, and the per-iteration bookkeeping is one instruction. `times` /

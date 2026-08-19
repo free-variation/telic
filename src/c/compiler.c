@@ -677,6 +677,10 @@ static int explicit_head_follows(void) {
 
 	skip_whitespace_and_comments();
 	char *token = next_token();
+	while (!token && refill_input()) {
+		skip_whitespace_and_comments();
+		token = next_token();
+	}
 	int explicit_head = token && strcmp(token, "|") == 0;
 
 	compiler.input_buffer_pos = saved_position;
@@ -705,17 +709,28 @@ static void hoist_assigned_locals(Interpreter *interp) {
 
 	for (;;) {
 		skip_whitespace_and_comments();
-		if (compiler.input_buffer_pos >= compiler.input_buffer_len)
+		if (compiler.input_buffer_pos >= compiler.input_buffer_len) {
+			if (refill_input())
+				continue;
 			break;
+		}
 		if (compiler.input_buffer[compiler.input_buffer_pos] == '"') {
-			if (read_string_literal() < 0)
+			if (read_string_literal() < 0) {
+				if (refill_input()) {
+					compiler.need_more = 0;
+					continue;
+				}
 				break;
+			}
 			continue;
 		}
 
 		char *token = next_token();
-		if (!token)
+		if (!token) {
+			if (refill_input())
+				continue;
 			break;
+		}
 
 		if (strcmp(token, "[:") == 0) {
 			depth++;
@@ -727,7 +742,7 @@ static void hoist_assigned_locals(Interpreter *interp) {
 			depth--;
 			continue;
 		}
-		if (strcmp(token, ";") == 0 && depth == 0)
+		if (strcmp(token, ";") == 0)
 			break;
 		if (depth != 0)
 			continue;

@@ -1,0 +1,48 @@
+\ Locals read as null before their first assignment, and body hoisting sees
+\ the whole definition regardless of input chunking (this file arrives on
+\ stdin line by line, so every multi-line definition exercises the refill).
+
+\ === null before first assignment ===
+
+: dead-branch 0 if 5 to x then x ;
+dead-branch . cr                               \ null
+dead-branch none? . cr                         \ 1
+
+: taken-branch 1 if 5 to x then x ;
+taken-branch . cr                              \ 5
+
+: zero-trip-index 7 5 1 do k loop k ;
+zero-trip-index . cr                           \ 7 ((do) stores the index even when the loop runs zero times)
+
+: headless-scratch [ 1 2 3 ] [: drop y 5 to y :] map ;
+headless-scratch . cr                          \ [ null null null ] (fresh frame per iteration)
+
+: head-scratch [ 1 2 3 ] [: i | i drop y 5 to y :] map ;
+head-scratch . cr                              \ [ null 5 5 ] (head quotations keep one frame across the loop)
+
+clear
+\ === hoisting across chunk boundaries ===
+
+: shadow-to
+  5 to max
+  max ;
+shadow-to . cr                                 \ 5 (to on a word name shadows, same as file-loaded)
+
+: shadow-do
+  0 2 1 do min
+    min .
+  loop cr ;
+shadow-do                                      \ 0 1
+
+: branch-first-local
+  dup if 3 to hx then
+  0= if "none" . else hx . then cr ;
+1 branch-first-local                           \ 3
+0 branch-first-local                           \ none
+
+clear
+\ === evaluate never refills from the input stream ===
+
+": eval-word 1 to ex ex 1 + ;" evaluate
+eval-word . cr                                 \ 2
+[: ": partial 1 to" evaluate :] catch . :message @ . cr   \ 1 to: expected a name

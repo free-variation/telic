@@ -610,7 +610,7 @@ Let's trace `[: 42 throw :] catch`:
 3. `reset` pushes a MARK (id=N) onto the return stack.
 4. `(execute-catching)` pops the xt and invokes it.
 5. The xt runs: `42` pushes 42 onto the data stack; `throw` runs.
-6. `throw` finds the nearest exception MARK on the return stack (skipping locals regions — an uninitialized local slot can hold stale bytes that look like a mark).
+6. `throw` finds the nearest exception MARK on the return stack (skipping locals regions, so a local slot is never read as a mark).
 7. It unwinds the return stack to just above the MARK, keeping the MARK in place, and pushes `1`, leaving `[42, 1]`.
 8. `throw` sets `unwinding = 1`.
 9. The unwinding cascade begins. Inner-loop levels break and propagate up until reaching the level that owns the MARK.

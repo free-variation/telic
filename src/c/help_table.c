@@ -627,7 +627,7 @@ const HelpEntry help_entries[] = {
 	{ "test-report", "( -- )", "test.h2o: print <n> passed, <m> failed; throw when any failed so a program-file run exits nonzero", "—", "prints", "O(1)", 24 },
 	{ "text-anchor", "( anchor -- )", "Set the current text anchor: \"start\", \"middle\", or \"end\"", NULL, NULL, NULL, 41 },
 	{ "then", "—", "Close an if/if…else; patches the forward branch", NULL, NULL, NULL, 8 },
-	{ "throw", "( exc -- )", "Unwind to the nearest exception prompt, leaving exc 1 (what catch consumes); with no enclosing prompt it is an interpreter error, uncaught exception: <value>, the trace captured at the throw site. The prompt search skips locals regions, so stale bytes in uninitialized local slots are never read as prompts", "L", "none", "O(L)", 24 },
+	{ "throw", "( exc -- )", "Unwind to the nearest exception prompt, leaving exc 1 (what catch consumes); with no enclosing prompt it is an interpreter error, uncaught exception: <value>, the trace captured at the throw site. The prompt search skips locals regions, so local slots are never read as prompts", "L", "none", "O(L)", 24 },
 	{ "time>iso", "( instant -- string )", "units.h2o: \"%Y-%m-%dT%H:%M:%SZ\" format-time", "len", "1s", "O(1)", 21 },
 	{ "timed", "( xt -- … )", "Run xt, print its elapsed now (CLOCK_MONOTONIC) seconds, then pass through whatever it left on the stack", "2 + xt + print", "none", "O(xt)", 29 },
 	{ "times", "( xt n -- )", "Run xt n times, no index pushed", "2 + n·xt", "none", "O(n·xt)", 23 },

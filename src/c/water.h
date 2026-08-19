@@ -1,7 +1,7 @@
 #ifndef WATER_H
 #define WATER_H
 
-#define VERSION "0.27.2"
+#define VERSION "0.27.3"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -616,6 +616,7 @@ typedef struct {
 	int n_handlers;
 	char *loaded_files[MAX_LOADED_FILES];
 	int n_loaded_files, load_depth;
+	int nested_input_depth;
 	const char *current_load_dir;
 	int error_located;
 

@@ -386,6 +386,13 @@ live here instead. File and function name each invariant's home.
 - A `do` loop's counter and delta are ordinary body locals whose names embed
   a space ("do counter"), so no token can resolve to them; the `(do)`/`(loop)`
   operand cells are depth-0 slot indices (compiler.c, `p_do`).
+- Locals frames are none-filled at creation (the three enter ops and
+  `call_open`'s reuse frame); the per-iteration refill path deliberately does
+  not re-fill (core.c, `p_enter_locals`).
+- `hoist_assigned_locals` refills across input chunks so name resolution never
+  depends on how source arrives; `refill_input` is fenced by `load_depth` and
+  `nested_input_depth`, so a `load` or `evaluate` never reads stdin
+  (compiler.c, core.c `refill_input`).
 - Handle-shaped tags compare by payload, not by tag alone: `T_STREAM`,
   `T_DB`, `T_PTR` and `T_CONT` sit with `T_SYMBOL`/`T_XT` in the
   payload-comparison branch. A new handle tag left to the `default` case
