@@ -6,7 +6,7 @@ in ;
 error: unknown word: bad2 (did you mean base?)
 3 13 [ 1 4 9 ] 
 error: unknown word: no-such-word
-error: unknown word: loopy (did you mean copy?)
+error: unknown word: loopy (did you mean loop?)
 3 
 1 
 {

@@ -178,11 +178,12 @@ new inline that calls functions → the tail.
   (masked) and wasm (unmasked) and must agree, pinning both copies.
 - Locals: `>name` receives from the stack at entry, bare names are
   uninitialized scratch; quotations receive with `|> a b |`.
-- Counted loops are `times` / `i-times` over a quotation. Reach for
-  `0 to i begin i n < while ... f++ i repeat` only when the body updates
-  the enclosing word's locals — a quotation cannot write a frame it does
-  not own, and moving that state to a heap cell to satisfy `i-times`
-  costs more than the loop saves (subprocess.h2o, `parallel-run`).
+- Counted loops inside a definition are `start limit delta do k … loop`:
+  the body compiles inline, so it reads and writes the enclosing word's
+  locals, and the per-iteration bookkeeping is one instruction. `times` /
+  `i-times` over a quotation serve the top level and xt-shaped drivers.
+  `begin`/`while` remains for loops whose trip count is not fixed at
+  entry (a fixpoint pass, a bit scan).
 - Quotations: write them bare (`[: ... :]`); receive into locals
   (`[>`/`[: |`) when a value is reused past a `dup` or the quotation
   crosses `curry`. Measured: bare is the fastest form — under

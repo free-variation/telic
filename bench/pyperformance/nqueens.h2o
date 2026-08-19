@@ -18,17 +18,13 @@ inline
 
 : valid? ( -- flag )
   -1 to ok
-  0 to i
-  begin
-    i f1+ to j
-    begin
+  0 queens 1 - 1 do i
+    i f1+ queens 1 do j
       board i @i  board j @i  -  abs   j i -  =  not   ok and to ok
-      f++ j
-      j queens =  ok not  or
-    until
-    f++ i
-    i queens 1 - =  ok not  or
-  until
+      ok not if leave then
+    loop
+    ok not if leave then
+  loop
   ok ;
 
 : permute
@@ -36,19 +32,16 @@ inline
   start queens 1 - = if
     valid? if  f++ solutions  then
   else
-    start to i
-    begin
+    start queens 1 do i
       start i bswap
       start f1+ permute
       start i bswap
-      f++ i
-      i queens =
-    until
+    loop
   then ;
 
 : nqueens-run ^board ^solutions |
   0 queens array-of to board
-  [: dup board swap rot !i drop :] queens i-times
+  0 queens 1 do i  board i i !i drop  loop
   0 to solutions
   now to t0
   0 permute

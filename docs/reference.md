@@ -1368,16 +1368,22 @@ Immediate words that emit branch instructions into the current definition. Outsi
 | `again` | — | Unconditional branch back to `begin` |
 | `while` | `( flag -- )` | Exit the loop forward if flag is falsy (`begin … while … repeat`) |
 | `repeat` | — | Branch back to `begin`; patches the `while` exit |
+| `do` | `( start limit delta -- )` | Open a counted loop over a named index local: `do` parses the following name and declares it a local of the enclosing body — reusing the slot when the name is already this body's local, shadowing a word's name for the body as a `to`-local does, erroring on a global variable's name. Pops the triple (the operand order of `matrix-range`) and fixes the trip count at entry, `max(0, ceil((limit − start) / delta))` — equal or crossed bounds run zero times, a negative delta counts down. The index starts at `start` and steps by `delta`, fixed at entry; a zero delta errors, operands must be floats, and a trip count at or above 2^53 errors. Each loop takes three of the body's 128 local slots (the index and two bookkeeping slots) ⚠ the index step is a raw float add |
+| `loop` | — | Close a `do`: one fused instruction steps the index, counts the iteration off, and branches back. After the loop the index still reads — `start + count·delta` on normal exit, the current value after `leave` |
 | `leave` | — | Branch past the innermost loop's closing word; conditional form is `if leave then` |
-| `continue` | — | Branch back to the innermost loop's `begin`: a `while` loop re-runs its test; an `until` loop skips its trailing test and repeats unconditionally |
+| `continue` | — | Branch to the innermost loop's next iteration: a `while` loop re-runs its test, an `until` loop skips its trailing test and repeats unconditionally, and a `do` loop steps its index and counts the iteration (so it terminates) |
 | `exit` | `( -- )` | Return early from the current definition (this one runs at run time) |
 
 `leave` and `continue` are plain compiled branches — zero runtime cost. Both
 are compile errors outside a loop, and a quotation opens its own frame, so a
 `[: leave :]` inside a loop body does not see that loop. A `begin` with no
-`until`/`again`/`repeat` is a compile error at `;` or `:]` (an unpatched
-`leave` would otherwise be a wild branch); the partial definition rolls back.
-In `times` / `i-times` quotations, `exit` already ends the current iteration.
+`until`/`again`/`repeat`, or a `do` with no `loop`, is a compile error at `;`
+or `:]` (an unpatched `leave` would otherwise be a wild branch); the partial
+definition rolls back. In `times` / `i-times` quotations, `exit` already ends
+the current iteration.
+
+Nested `do` loops read any index by its name; an inner `do` reusing an
+enclosing `do`'s live index name is a compile error.
 
 ```forth if
 : absolute dup 0 < if negate then ; -7 absolute . cr
@@ -1441,6 +1447,28 @@ big done
 ```
 ```output
 1 2 4 8 16 32 64
+```
+
+```forth do
+: squares 0 5 1 do k k k * . loop cr ; squares
+: countdown 5 0 -1 do k k . loop cr ; countdown
+: count-evens 0 to n_evens 0 10 1 do k k 2 mod 0= if ++ n_evens then loop n_evens . cr ; count-evens
+```
+```output
+0 1 4 9 16
+5 4 3 2 1
+5
+```
+
+```forth loop
+: tenths 0 0.3 0.1 do k k . loop cr ; tenths
+: skip-one 0 4 1 do k k 1 = if continue then k . loop cr ; skip-one
+: find-cutoff 0 100 1 do k k k * 50 > if leave then loop k . cr ; find-cutoff
+```
+```output
+0 0.1 0.2
+0 2 3
+8
 ```
 
 ```forth leave

@@ -191,6 +191,7 @@ diagonal
 diagonal-matrix
 difference
 dim
+do
 dot
 double-segment
 draw-tree
@@ -350,6 +351,7 @@ load-tsv
 log
 logistic-regression
 lookup
+loop
 lowest-bit
 lshift
 lvar

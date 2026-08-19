@@ -1,0 +1,40 @@
+0 1 4 9 16 
+ran-zero 
+ran-zero 
+5 4 3 2 1 
+0 3 6 9 
+0 0.1 0.2 
+4 
+3 
+0 1 5 6 7 
+0 1 2 
+0 1 
+0 1 
+5 
+30 
+0 2 4 
+8 
+0 1 2 10 11 12 
+0 1 2 
+0 1 0 1 
+2 3 
+0 1 
+none 
+error: expected a nonzero delta; got 0
+in (do) ← zero-delta
+error: expected float start, limit, and delta; got a string
+in (do) ← bad-operand
+error: do: only valid inside a colon definition or quotation
+in do
+error: loop: no matching do
+in loop
+error: until: no matching control-flow opener
+in until
+error: ; : unterminated loop (a begin has no until/again/repeat, or a do no loop)
+in ;
+error: do: k is already the index of an enclosing do
+in do
+error: do: g is a global; pick another index name
+in :
+0 1 
+error: k is not bound in this quotation; pass it in or use pick

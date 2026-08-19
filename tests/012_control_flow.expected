@@ -54,6 +54,6 @@ error: leave: not inside a loop
 in leave
 error: leave: not inside a loop
 in leave
-error: ; : unterminated loop (a begin has no until/again/repeat)
+error: ; : unterminated loop (a begin has no until/again/repeat, or a do no loop)
 in ;
 error: unknown word: unclosed

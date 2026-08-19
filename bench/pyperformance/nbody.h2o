@@ -77,13 +77,11 @@ variable b2-targets
 : offset-momentum
   0 to px  0 to py  0 to pz
   bodies 0 @i to sun-body
-  0 to i
-  begin i 5 < while
+  0 5 1 do i
      bodies i @i 3 @i  bodies i @i 6 @i *  px + to px
      bodies i @i 4 @i  bodies i @i 6 @i *  py + to py
      bodies i @i 5 @i  bodies i @i 6 @i *  pz + to pz
-     f++ i
-  repeat
+  loop
   sun-body 3  px negate solar-mass /  !i drop
   sun-body 4  py negate solar-mass /  !i drop
   sun-body 5  pz negate solar-mass /  !i drop ;
@@ -102,20 +100,13 @@ variable b2-targets
   b1 6 @i b2 6 @i *  swap /  negate ;
 
 \ the kinetic sum consumes bodies, so it folds; the pair sum needs both indices
-\ and runs twice per program, so it stays a loop
 : energy ( -- e )
   bodies 0 [: kinetic + :] reduce to e
-  0 to i
-  begin i 5 < while
-     0 to j
-     begin j 5 < while
-        i j < if
-          bodies i @i  bodies j @i  pair-potential  e + to e
-        then
-        f++ j
-     repeat
-     f++ i
-  repeat
+  0 5 1 do i
+     i 1+ 5 1 do j
+        bodies i @i  bodies j @i  pair-potential  e + to e
+     loop
+  loop
   e ;
 
 \ pair-force: load both bodies into globals via destruct-to,

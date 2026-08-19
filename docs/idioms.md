@@ -218,11 +218,48 @@ two interoperate — a `db-query` result is already relation-shaped.
 
 ## Counted iteration and folds
 
-`times`, `i-times`, and `fold-times` are the default loop forms; a bare
-quotation under them dispatches straight into the body.
+`do`/`loop` is the counted loop inside a definition: the body compiles
+inline, so it reads and writes the enclosing word's locals, and the named
+index reaches any nesting depth. `times`, `i-times`, and `fold-times` are the
+quotation forms — for the top level, for an xt in hand, and for map-folds.
 
-- Counted accumulation is `fold-times` — the accumulator never touches the
-  data stack, and a primitive combiner runs with no dispatch:
+- Indexed fill — initialize a segment or array by index (the shape of
+  bench/float.h2o's `build-points`):
+
+  ```forth indexed-fill
+  variable xs
+  4 double-segment to xs
+  : fill-xs
+    0 4 1 do i
+       i fsin to sxi
+       xs i sxi !i drop
+    loop ;
+  fill-xs
+  xs 1 @i . cr
+  ```
+  ```output
+  0.841471
+  ```
+
+- Nested counted loops read both indices by name, and the loop's own
+  accumulation writes the word's locals directly (bench/nbody.h2o, `energy`):
+
+  ```forth nested-do
+  : upper-pairs
+    0 to n_pairs
+    0 4 1 do i
+       i 1+ 4 1 do j  ++ n_pairs  loop
+    loop
+    n_pairs ;
+  upper-pairs . cr
+  ```
+  ```output
+  6
+  ```
+
+- Counted accumulation with a quotation in hand is `fold-times` — the
+  accumulator never touches the data stack, and a primitive combiner runs
+  with no dispatch:
 
   ```forth fold-times-sum
   0 [: dup f* :] ' f+ 5 fold-times . cr \ sum of squares 0..4
@@ -233,26 +270,6 @@ quotation under them dispatches straight into the body.
 
   The stack-accumulator form `0 swap [: + :] swap i-times` is the fallback
   when the body already leaves values.
-
-- Indexed fill — initialize a segment or array by index (the shape of
-  bench/float.h2o's `build-points`):
-
-  ```forth indexed-fill
-  variable xs
-  4 double-segment to xs
-  [: i |
-     i fsin to sxi
-     xs i sxi !i drop
-  :] 4 i-times
-  xs 1 @i . cr
-  ```
-  ```output
-  0.841471
-  ```
-
-- `begin i n < while … f++ i repeat` is the exception, reached only when the
-  body must write the enclosing word's locals — a quotation cannot write a
-  frame it does not own (bench/nbody.h2o, `energy`).
 
 - First-element-as-init fold over a pairwise word (lib/statistics.h2o,
   `hstack-all`):

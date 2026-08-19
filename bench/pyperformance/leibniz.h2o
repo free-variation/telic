@@ -13,6 +13,9 @@
 \ Loop index i ranges 2..rounds+2, so rounds+1 iterations. In lforth
 \ we use i-times with idx 0..rounds, and the divisor is 2*idx + 3
 \ (= 2*(idx+2) - 1). The compound op f*+ collapses the multiply-add.
+\ i-times over the bare quotation, not do/loop: the body consumes the
+\ index from the stack once, so the do form's (local@0) fetch costs more
+\ than its one-op bookkeeping saves — measured 8.38s vs 8.60s.
 
 1000000000 constant rounds
 

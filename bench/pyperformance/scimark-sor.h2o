@@ -22,13 +22,10 @@ variable g
   nn double-segment to g ;
 
 : sor-execute
-  0.0 to cycle
-  begin cycle cycles < while
-     1.0 to y
-     begin y nm1 < while
+  0 cycles 1 do cycle
+     1 nm1 1 do y
         y n f* to rowbase
-        1.0 to x
-        begin x nm1 < while
+        1 nm1 1 do x
            rowbase x f+ to idx
            g idx n f- @i
            g idx n f+ @i f+
@@ -37,23 +34,20 @@ variable g
            omega-over-four f*
            one-minus-omega  g idx @i f*  f+  to nv
            g idx nv !i drop
-           x 1.0 f+ to x
-        repeat
-        y 1.0 f+ to y
-     repeat
-     f++ cycle
-  repeat ;
+        loop
+     loop
+  loop ;
 
 : sor-checksum ( -- s )
 
   0.0
-  [: g swap @i f+ :] nn i-times
+  0 nn 1 do i0  g i0 @i f+  loop
   to total
   total ;
 
 : sor-bench
   now to t0
-  [: build-g sor-execute :] iterations times
+  0 iterations 1 do r  build-g sor-execute  loop
   now t0 - to t0
   "elapsed: " . t0 . " s" . cr
   sor-checksum "checksum: {0}" format . cr ;

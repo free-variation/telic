@@ -26,6 +26,8 @@ void rollback_partial_definition(void) {
 	compiler.local_names_pool_here = 0;
 	compiler.loop_begin = 0;
 	compiler.leave_chain = 0;
+	compiler.do_continue_chain = 0;
+	compiler.n_active_do_loops = 0;
 	compiler.conditional_depth = 0;
 	compiler.n_declared_globals = 0;
 	compiler.declared_globals_pool_here = 0;
@@ -61,7 +63,7 @@ void p_semicolon(DISPATCH_ARGS) {
 	}
 	if (compiler.loop_begin != 0) {
 		rollback_partial_definition();
-		fail(interp, "; : unterminated loop (a begin has no until/again/repeat)");
+		fail(interp, "; : unterminated loop (a begin has no until/again/repeat, or a do no loop)");
 		return;
 	}
 	if (compiler.conditional_depth > 0) {
@@ -244,6 +246,15 @@ void p_continue(DISPATCH_ARGS) {
 		fail(interp, "continue: not inside a loop");
 		return;
 	}
+
+	if (compiler.loop_begin < 0) {
+		emit_call(interp, vocab.branch_cfa);
+		emit(interp, (cell)compiler.do_continue_chain);
+		compiler.do_continue_chain = vocab.here - 1;
+
+		DISPATCH(interp);
+	}
+
 	emit_call(interp, vocab.branch_cfa);
 	emit(interp, compiler.loop_begin - vocab.here);
 
@@ -295,6 +306,132 @@ void p_repeat(DISPATCH_ARGS) {
 	emit(interp, back - vocab.here);
 	vocab.dict[exit_slot] = (vocab.here - exit_slot);
 	close_loop(interp);
+
+	DISPATCH(interp);
+}
+
+void p_do(DISPATCH_ARGS) {
+	if (!compiler.compiling) {
+		fail(interp, "do: only valid inside a colon definition or quotation");
+		return;
+	}
+
+	char *token = next_token();
+	if (!token) {
+		fail(interp, "do: expected an index name");
+		return;
+	}
+
+	int scope_idx = compiler.n_local_scopes - 1;
+	int index_slot;
+	int local_depth;
+	int local_slot_idx;
+	(void)local_depth;
+	if (find_local(token, &local_depth, &local_slot_idx)) {
+		if (reject_outer_local(interp, token))
+			return;
+		for (int i = 0; i < compiler.n_active_do_loops; i++) {
+			if (compiler.do_index_scopes[i] == scope_idx
+					&& compiler.do_index_slots[i] == local_slot_idx) {
+				fail(interp, "do: %s is already the index of an enclosing do", token);
+				return;
+			}
+		}
+		compiler.local_stored[compiler.found_local_name_idx] = 1;
+		index_slot = local_slot_idx;
+	} else {
+		int existing_cfa = find(token);
+		if (existing_cfa && (cfa_handler)vocab.dict[existing_cfa] == dovar) {
+			fail(interp, "do: %s is a global; pick another index name", token);
+			return;
+		}
+
+		if (compiler.local_scope_entry_cells[scope_idx] < 0) {
+			if (compiler.conditional_depth > 0 || compiler.loop_begin != 0) {
+				fail(interp, "do: %s is this body's first local and sits inside a branch; assign a local before the branch", token);
+				return;
+			}
+			compiler.local_scope_entry_cells[scope_idx] = vocab.here;
+			emit_call(interp, vocab.enter_locals_cfa);
+			emit(interp, 0);
+		}
+		index_slot = declare_local_in_scope(interp, token);
+		if (index_slot < 0)
+			return;
+	}
+
+	if (compiler.n_active_do_loops >= MAX_LOCAL_SCOPES) {
+		fail(interp, "do: loops nested deeper than %d", MAX_LOCAL_SCOPES);
+		return;
+	}
+
+	int counter_slot = declare_local_in_scope(interp, "do counter");
+	if (counter_slot < 0)
+		return;
+	int delta_slot = declare_local_in_scope(interp, "do delta");
+	if (delta_slot < 0)
+		return;
+
+	compiler.do_index_scopes[compiler.n_active_do_loops] = scope_idx;
+	compiler.do_index_slots[compiler.n_active_do_loops] = index_slot;
+	compiler.n_active_do_loops++;
+
+	emit_call(interp, vocab.do_enter_cfa);
+	emit(interp, (cell)index_slot);
+	emit(interp, (cell)counter_slot);
+	emit(interp, (cell)delta_slot);
+	int forward_slot = vocab.here;
+	emit(interp, 0);
+
+	push(interp, make_float((double)compiler.loop_begin));
+	push(interp, make_float((double)compiler.leave_chain));
+	push(interp, make_float((double)compiler.do_continue_chain));
+	push(interp, make_float((double)-forward_slot));
+	compiler.loop_begin = -vocab.here;
+	compiler.leave_chain = 0;
+	compiler.do_continue_chain = 0;
+	compiler.fuse_floor = vocab.here;
+
+	DISPATCH(interp);
+}
+
+void p_loop(DISPATCH_ARGS) {
+	POP(marker_val);
+	int marker = (int)VAL_NUMBER(marker_val);
+	if (marker >= 0) {
+		fail(interp, "loop: no matching do");
+		return;
+	}
+
+	int forward_slot = -marker;
+	if (!valid_patch_slot(interp, forward_slot, "loop"))
+		return;
+
+	cell index_slot = vocab.dict[forward_slot - 3];
+	cell counter_slot = vocab.dict[forward_slot - 2];
+	cell delta_slot = vocab.dict[forward_slot - 1];
+
+	int loop_op = vocab.here;
+	for (int slot = compiler.do_continue_chain; slot != 0; ) {
+		int prior_slot = (int)vocab.dict[slot];
+		vocab.dict[slot] = loop_op - slot;
+		slot = prior_slot;
+	}
+
+	emit_call(interp, vocab.do_loop_cfa);
+	emit(interp, index_slot);
+	emit(interp, counter_slot);
+	emit(interp, delta_slot);
+	emit(interp, (cell)(forward_slot + 1 - vocab.here));
+
+	vocab.dict[forward_slot] = vocab.here - forward_slot;
+
+	POP(continue_chain_val);
+	compiler.do_continue_chain = (int)VAL_NUMBER(continue_chain_val);
+	close_loop(interp);
+	if (compiler.n_active_do_loops > 0)
+		compiler.n_active_do_loops--;
+	compiler.fuse_floor = vocab.here;
 
 	DISPATCH(interp);
 }
@@ -366,7 +503,7 @@ void truncate_quotation_spans(void) {
 
 void p_qsemi(DISPATCH_ARGS) {
 	if (compiler.loop_begin != 0) {
-		fail(interp, ":] : unterminated loop (a begin has no until/again/repeat)");
+		fail(interp, ":] : unterminated loop (a begin has no until/again/repeat, or a do no loop)");
 		return;
 	}
 	if (compiler.conditional_depth > 0) {
@@ -595,8 +732,10 @@ static void hoist_assigned_locals(Interpreter *interp) {
 		if (depth != 0)
 			continue;
 
-		int declares_local = strcmp(token, "to") == 0;
-		const char *assigning_word = declares_local ? "to" : in_place_update_word(token);
+		int declares_index = strcmp(token, "do") == 0;
+		int declares_local = declares_index || strcmp(token, "to") == 0;
+		const char *assigning_word = declares_index ? "do"
+			: declares_local ? "to" : in_place_update_word(token);
 		if (!assigning_word)
 			continue;
 
@@ -611,7 +750,10 @@ static void hoist_assigned_locals(Interpreter *interp) {
 		if (existing_cfa && (cfa_handler)vocab.dict[existing_cfa] == dovar) {
 			compiler.input_buffer_pos = saved_position;
 			compiler.input_line = saved_line;
-			fail(interp, "%s: %s is a global; declare it in the locals list as ^%s to assign it here, or rename the local", assigning_word, name, name);
+			if (declares_index)
+				fail(interp, "do: %s is a global; pick another index name", name);
+			else
+				fail(interp, "%s: %s is a global; declare it in the locals list as ^%s to assign it here, or rename the local", assigning_word, name, name);
 			return;
 		}
 

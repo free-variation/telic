@@ -193,7 +193,7 @@ const HelpEntry help_entries[] = {
 	{ "cons>array", "( list -- arr )", "Walk a cons chain into an array, **dereferencing** the spine and each element and including the terminal (works on relational results)", "n", "1a(n)", "O(n)", 15 },
 	{ "constant", "( val -- )", "Pop a value and read the following name; define an inline word that pushes it as a literal, so call sites fold to the literal with no run-time fetch. Fixed at definition — to cannot reassign it", NULL, NULL, NULL, 10 },
 	{ "continuation?", "( a -- bool )", "core.h2o: type-of :continuation = (inlined)", "5", "none", "O(1)", 4 },
-	{ "continue", "—", "Branch back to the innermost loop's begin: a while loop re-runs its test; an until loop skips its trailing test and repeats unconditionally", NULL, NULL, NULL, 8 },
+	{ "continue", "—", "Branch to the innermost loop's next iteration: a while loop re-runs its test, an until loop skips its trailing test and repeats unconditionally, and a do loop steps its index and counts the iteration (so it terminates)", NULL, NULL, NULL, 8 },
 	{ "copy", "( a -- a' )", "Deep copy of any value, copy_term-style: dereferences bound logic vars to their values and gives each unbound var a fresh shared var; recurses into frames, arrays, matrices, strings, sets, continuations, pairs; identity for scalars. Defined generally, not frame-specific.", "tree size", "one object per node", "O(tree size)", 16 },
 	{ "cor", "( xs ys -- fr )", "statistics.h2o: correlation-kendall with a 500-replicate bootstrap CI — ' correlation-kendall 500 correlate-with (inlined)", "as correlate-with", "as correlate-with", "as correlate-with", 18 },
 	{ "correlate-with", "( xs ys xt B -- fr )", "statistics.h2o: bootstrap 95% CI for the correlation word at xt — resamples (x, y) pairs jointly, B refits via a curried fit through pbootstrap, as { :estimate :se :bias :ci-low :ci-high }; deterministic under a fixed seed", "B·(n + xt)", "pairs matrix + per-worker resample + 1fr", "O(B·(n + xt) / cores)", 18 },
@@ -242,6 +242,7 @@ const HelpEntry help_entries[] = {
 	{ "diagonal-matrix", "( fill n -- mat )", "n×n matrix with fill on the diagonal", "2 + n", "1m(n×n)", "O(n)", 18 },
 	{ "difference", "( set₁ set₂ -- set₃ )", "set₁ − set₂ into a new set, merging the two sorted arrays", "m+n", "1o + reallocs", "O(m+n)", 13 },
 	{ "dim", "( mat/dataset -- r c )", "Push rows then columns; datasets.h2o extends it to a dataset — rows from the first column's length, columns from the key count", "3", "none", "O(1)", 18 },
+	{ "do", "( start limit delta -- )", "Open a counted loop over a named index local: do parses the following name and declares it a local of the enclosing body — reusing the slot when the name is already this body's local, shadowing a word's name for the body as a to-local does, erroring on a global variable's name. Pops the triple (the operand order of matrix-range) and fixes the trip count at entry, max(0, ceil((limit − start) / delta)) — equal or crossed bounds run zero times, a negative delta counts down. The index starts at start and steps by delta, fixed at entry; a zero delta errors, operands must be floats, and a trip count at or above 2^53 errors. Each loop takes three of the body's 128 local slots (the index and two bookkeeping slots) ⚠ the index step is a raw float add", NULL, NULL, NULL, 8 },
 	{ "dot", "( v w -- f )", "matrix.h2o: inner product (* sum, inlined); shapes must broadcast, so match the vectors", "2 + 2n", "1m(n)", "O(n)", 18 },
 	{ "double-segment", "( n -- seg )", "n-element double segment, zero-filled; errors if n < 0", "1", "1seg(n)", "O(n)", 19 },
 	{ "draw-tree", "( tree -- )", "statistics.h2o: print a fit-tree tree as indented split rules — each internal node's condition (feature <= threshold, or feature in <categories>), left (condition-true) branch first, and each leaf's predict <value> (n <rows>)", "nodes", "strings", "O(nodes)", 18 },
@@ -401,6 +402,7 @@ const HelpEntry help_entries[] = {
 	{ "log", "( a -- log₁₀ a )", "log10", "2", "matrix 1m(r×c)", "same", 3 },
 	{ "logistic-regression", "( dataset predictors response replications -- summaries )", "Firth logistic with the bootstrap per-coefficient summaries of linear-regression", NULL, NULL, NULL, 38 },
 	{ "lookup", "( \"name\" -- xt )", "Parse the following word at run time and push its xt — the non-immediate counterpart of '", NULL, NULL, NULL, 10 },
+	{ "loop", "—", "Close a do: one fused instruction steps the index, counts the iteration off, and branches back. After the loop the index still reads — start + count·delta on normal exit, the current value after leave", NULL, NULL, NULL, 8 },
 	{ "lowest-bit", "( a -- i )", "0-indexed position of the lowest set bit (-1 if a is 0)", "1", "none", "O(1)", 4 },
 	{ "lshift", "( a n -- f )", "left shift a by n bits", "2", "none", "O(1)", 4 },
 	{ "lvar", "( -- v )", "Push a fresh, unbound logic variable", "2", "1 lvar", "O(1)", 26 },
@@ -704,7 +706,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "C primitive alias of unify, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 26 },
 };
 
-const int help_entry_count = 653;
+const int help_entry_count = 655;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } /a/b 5 ! /a/b @ . cr", "5" },
@@ -901,6 +903,7 @@ const HelpExample help_examples[] = {
 	{ "diagonal-matrix", "7 2 diagonal-matrix render print cr", "<matrix 2x2>\n          7          0\n          0          7" },
 	{ "difference", "[< 1 2 3 >] [< 2 >] difference . cr", "[< 1 3 >]" },
 	{ "dim", "[ 1 2 3 4 5 6 ] 2 3 matrix dim swap . . cr", "2 3" },
+	{ "do", ": squares 0 5 1 do k k k * . loop cr ; squares\n: countdown 5 0 -1 do k k . loop cr ; countdown\n: count-evens 0 to n_evens 0 10 1 do k k 2 mod 0= if ++ n_evens then loop n_evens . cr ; count-evens", "0 1 4 9 16\n5 4 3 2 1\n5" },
 	{ "dot", "[ 1 2 3 ] vector [ 4 5 6 ] vector dot . cr", "32" },
 	{ "double-segment", "2 double-segment 0 1.5 !i 0 @i . cr", "1.5" },
 	{ "draw-tree", "{ :x [ 1 2 3 4 ] vector } [ 10 10 20 20 ] vector { } fit-tree draw-tree", "x <= 2.5\n  predict 10  (n 2)\nx > 2.5\n  predict 20  (n 2)" },
@@ -1060,6 +1063,7 @@ const HelpExample help_examples[] = {
 	{ "log", "100 log . cr", "2" },
 	{ "logistic-regression", "\"statistics\" load-library\n42 seed [ [ \"x\" \"y\" ] [ 0 0 ] [ 1 1 ] [ 2 0 ] [ 3 1 ] [ 4 1 ] [ 5 0 ] [ 6 1 ] [ 7 1 ] ] true rows>dataset [ :x ] :y 50 logistic-regression first :estimate @ . cr", "-0.521648" },
 	{ "lookup", "lookup sqrt 9 swap execute . cr", "3" },
+	{ "loop", ": tenths 0 0.3 0.1 do k k . loop cr ; tenths\n: skip-one 0 4 1 do k k 1 = if continue then k . loop cr ; skip-one\n: find-cutoff 0 100 1 do k k k * 50 > if leave then loop k . cr ; find-cutoff", "0 0.1 0.2\n0 2 3\n8" },
 	{ "lowest-bit", "12 lowest-bit . cr", "2" },
 	{ "lshift", "1 10 lshift . cr", "1024" },
 	{ "lvar", "lvar dup 5 ~ drop ? . cr", "5" },
@@ -1363,4 +1367,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 654;
+const int help_example_count = 656;

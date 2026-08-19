@@ -22,32 +22,33 @@ variable row  variable col  variable val  variable x  variable y
   n double-segment to x
   n double-segment to y
   row 0.0 0.0 !i drop
-  [: r |
+  0 n 1 do r
      row r @i to rowr
      row r 1.0 f+  rowr nr f+  !i drop
      r nr / ftruncate to step
      step 1.0 < if 1.0 to step then
-     rowr step
-     [: dup 3 pick f+  col swap  rot 3 pick f*  !i drop :] nr i-times
-     drop drop
-  :] n i-times ;
+     0 nr 1 do k
+        col  rowr k f+  k step f*  !i drop
+     loop
+  loop ;
 
 : sparse-matmult
-  [:
-     [: r |
+  0 cycles 1 do c
+     0 n 1 do r
         row r @i to lo
         row r 1.0 f+ @i to hi
-        lo 0.0
-        [: k | 1 pick k f+ to i  x col i @i @i  val i @i f*  f+ :] hi lo f- i-times
-        nip
+        0.0
+        lo hi 1 do i0
+           x col i0 @i @i  val i0 @i f*  f+
+        loop
         y r rot !i drop
-     :] n i-times
-  :] cycles times ;
+     loop
+  loop ;
 
 : sparse-checksum ( -- s )
 
   0.0
-  [: y swap @i f+ :] n i-times
+  0 n 1 do i0  y i0 @i f+  loop
   to total
   total ;
 

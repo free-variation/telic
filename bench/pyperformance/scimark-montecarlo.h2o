@@ -24,14 +24,12 @@ variable rand-m  variable ri  variable rj
   seed 65536.0 mod to j0
   seed 65536.0 f/ to j1
   17.0 double-segment to rand-m
-  0 to slot
-  begin slot 17 < while
+  0 17 1 do slot
      j0 k0 f* to jseed
      jseed 65536.0 f/  j0 k1 f* f+  j1 k0 f* f+  32768.0 fmod to j1
      jseed 65536.0 mod to j0
      rand-m slot  j0 65536.0 j1 f* f+  !i drop
-     f++ slot
-  repeat
+  loop
   4.0 to ri  16.0 to rj ;
 
 : next-double ( -- d ) ^ri ^rj |

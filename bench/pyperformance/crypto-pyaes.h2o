@@ -26,11 +26,11 @@ variable gf-exp  variable gf-log  variable sbox  variable acc
   0 256 array-of to gf-exp
   0 256 array-of to gf-log
   1 to acc
-  [: i |
+  0 255 1 do i
      gf-exp i acc !i drop
      gf-log acc i !i drop
      acc gmul3 to acc
-  :] 255 i-times ;
+  loop ;
 
 : ginv ( x -- inv )
   | x |  x 0 = if 0 else  gf-exp  255 gf-log x @i -  255 mod  @i  then ;
@@ -42,7 +42,7 @@ variable gf-exp  variable gf-log  variable sbox  variable acc
 : build-sbox ^sbox |
   build-gf
   0 256 array-of to sbox
-  [: i | sbox i  i ginv affine  !i drop :] 256 i-times ;
+  0 256 1 do i  sbox i  i ginv affine  !i drop  loop ;
 
 \ --- T-tables: T1[a]=[2s,s,s,3s] (s=sbox[a]); T2..T4 are byte-rotations --------
 variable tab1  variable tab2  variable tab3  variable tab4
@@ -59,7 +59,7 @@ variable tab1  variable tab2  variable tab3  variable tab4
 : build-ttables ^tab1 ^tab2 ^tab3 ^tab4 |
   0 256 array-of to tab1  0 256 array-of to tab2
   0 256 array-of to tab3  0 256 array-of to tab4
-  ' build-ttable-row  256 i-times ;
+  0 256 1 do a  a build-ttable-row  loop ;
 
 \ --- key schedule: 16-byte key -> 44 round-key words (ke[round*4 + i]) -------
 [ 1 2 4 8 16 32 64 128 27 54 ] constant rcon
@@ -77,8 +77,7 @@ variable ke
   0 44 array-of to ke
   key 0 be-word to tk0  key 4 be-word to tk1  key 8 be-word to tk2  key 12 be-word to tk3
   ke 0 tk0 !i drop  ke 1 tk1 !i drop  ke 2 tk2 !i drop  ke 3 tk3 !i drop
-  0 to slot
-  begin slot 10 < while
+  0 10 1 do slot
      tk3 to tt
      tk0
        sbox tt 16 rshift byte @i 24 lshift
@@ -93,8 +92,7 @@ variable ke
      dup 1 + tk1 ke rot rot !i drop
      dup 2 + tk2 ke rot rot !i drop
          3 + tk3 ke rot rot !i drop
-     slot 1 + to slot
-  repeat ;
+  loop ;
 
 \ --- table-driven block encrypt: 16 input bytes -> 16 output bytes ------------
 : encrypt-block ( in out -- )
@@ -103,16 +101,14 @@ variable ke
   in 4  be-word ke 1 @i bit-xor to t1
   in 8  be-word ke 2 @i bit-xor to t2
   in 12 be-word ke 3 @i bit-xor to t3
-  0 to turn
-  begin turn 9 < while
+  0 9 1 do turn
      turn 1 + 4 * to key-slot
      tab1 t0 24 rshift byte @i  tab2 t1 16 rshift byte @i bit-xor  tab3 t2 8 rshift byte @i bit-xor  tab4 t3 byte @i bit-xor  ke key-slot @i bit-xor to a0
      tab1 t1 24 rshift byte @i  tab2 t2 16 rshift byte @i bit-xor  tab3 t3 8 rshift byte @i bit-xor  tab4 t0 byte @i bit-xor  ke key-slot 1 + @i bit-xor to a1
      tab1 t2 24 rshift byte @i  tab2 t3 16 rshift byte @i bit-xor  tab3 t0 8 rshift byte @i bit-xor  tab4 t1 byte @i bit-xor  ke key-slot 2 + @i bit-xor to a2
      tab1 t3 24 rshift byte @i  tab2 t0 16 rshift byte @i bit-xor  tab3 t1 8 rshift byte @i bit-xor  tab4 t2 byte @i bit-xor  ke key-slot 3 + @i bit-xor to a3
      a0 to t0  a1 to t1  a2 to t2  a3 to t3
-     f++ turn
-  repeat
+  loop
   out 0   sbox t0 24 rshift byte @i  ke 40 @i 24 rshift bit-xor byte  !i drop
   out 1   sbox t1 16 rshift byte @i  ke 40 @i 16 rshift bit-xor byte  !i drop
   out 2   sbox t2 8 rshift  byte @i  ke 40 @i 8 rshift  bit-xor byte  !i drop
@@ -142,18 +138,14 @@ variable ke
   | in out nbytes |
   nbytes 15 + 16 / ftruncate to nblk
   0 16 array-of to ctr  0 16 array-of to ks
-  0 to block
-  begin block nblk < while
+  0 nblk 1 do block
      ctr 12 block 1 + put-be32
      ctr ks encrypt-block
-     0 to j
-     begin j 16 < while
+     0 16 1 do j
         block 16 * j + to idx
         idx nbytes < if  out idx  in idx @i  ks j @i  bit-xor  !i drop  then
-        f++ j
-     repeat
-     f++ block
-  repeat ;
+     loop
+  loop ;
 
 \ --- verification: FIPS-197 AES-128 known-answer test ------------------------
 variable katout
@@ -173,10 +165,7 @@ variable msg  variable ct  variable back  variable msg-bytes
   0 msg-bytes array-of to ct
   0 msg-bytes array-of to back ;
 
-( sum i arr -- sum' ) \ add arr[i]
-: add-byte  | sum i arr |  arr i @i  sum + ; internal
-
-: cksum ( arr -- s )  | arr |  0  arr ' add-byte curry  arr size i-times ;
+: cksum ( arr -- s )  | arr |  0  0 arr size 1 do i  arr i @i +  loop ;
 
 : aes-bench
   build-sbox  build-ttables

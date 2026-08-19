@@ -1,0 +1,99 @@
+\ do / loop ( start limit delta -- ) — counted loop over a named index local.
+\ do parses the index name; the trip count is fixed at entry as
+\ max(0, ceil((limit - start) / delta)); the body compiles inline.
+
+\ === trip counts and index values ===
+
+: squares 0 5 1 do k k k * . loop cr ;
+squares                                        \ 0 1 4 9 16
+
+: empty-equal 5 5 1 do k k . loop "ran-zero" . cr ;
+empty-equal                                    \ ran-zero
+
+: empty-reversed 7 5 1 do k k . loop "ran-zero" . cr ;
+empty-reversed                                 \ ran-zero
+
+: countdown 5 0 -1 do k k . loop cr ;
+countdown                                      \ 5 4 3 2 1
+
+: stepped 0 10 3 do k k . loop cr ;
+stepped                                        \ 0 3 6 9
+
+: tenths 0 0.3 0.1 do k k . loop cr ;
+tenths                                         \ 0 0.1 0.2
+
+clear
+\ === the index is a local of the whole body ===
+
+: after-exit 0 4 1 do k loop k ;
+after-exit . cr                                \ 4
+
+: after-leave 0 100 1 do k k 3 = if leave then loop k ;
+after-leave . cr                               \ 3
+
+: reused-index 0 2 1 do k k . loop 5 8 1 do k k . loop cr ;
+reused-index                                   \ 0 1 5 6 7
+
+: head-as-index | m | 0 3 1 do m m . loop cr ;
+9 head-as-index                                \ 0 1 2
+
+: word-as-index 0 2 1 do max max . loop cr ;
+word-as-index                                  \ 0 1 (max shadowed for the body, as a to-local shadows)
+
+: word-as-index-headed | x | 0 2 1 do max max . loop cr ;
+0 word-as-index-headed                         \ 0 1 (same shadowing in a headed body)
+
+clear
+\ === the body reads and writes enclosing locals ===
+
+: count-evens 0 to n_evens 0 10 1 do k k 2 mod 0= if ++ n_evens then loop n_evens ;
+count-evens . cr                               \ 5
+
+: sum-squares 0 to total 0 5 1 do k total k k f* f+ to total loop total ;
+sum-squares . cr                               \ 30
+
+clear
+\ === continue steps the index; leave exits ===
+
+: skip-odd 0 6 1 do k k 2 mod if continue then k . loop cr ;
+skip-odd                                       \ 0 2 4
+
+: first-past 0 100 1 do k k k * 50 > if leave then loop k . cr ;
+first-past                                     \ 8
+
+clear
+\ === nesting: indices read by name, no positional I/J ===
+
+: pairs-out 0 2 1 do i 0 3 1 do j i 10 * j + . loop loop cr ;
+pairs-out                                      \ 0 1 2 10 11 12
+
+: begin-inside-do 0 3 1 do k 0 to n begin n k < while f++ n repeat n . loop cr ;
+begin-inside-do                                \ 0 1 2
+
+: do-inside-begin 0 to round begin round 2 < while 0 2 1 do k round k . loop f++ round repeat cr ;
+do-inside-begin                                \ 0 1 0 1
+
+: continue-in-inner-begin 0 2 1 do k 0 to n begin n 2 < while f++ n n 1 = if continue then repeat k n + . loop cr ;
+continue-in-inner-begin                        \ 2 3
+
+clear
+\ === do inside a conditional (index hoisted like a to-local) ===
+
+: branchy dup if 0 2 1 do k k . loop then 0= if "none" . then cr ;
+1 branchy                                      \ 0 1
+0 branchy                                      \ none
+
+clear
+\ === errors (each reason parenthesized) ===
+
+: zero-delta 0 5 0 do k loop ; zero-delta      \ (delta must be nonzero)
+: bad-operand "x" 5 1 do k loop ; bad-operand  \ (operands must be floats)
+0 5 1 do k                                     \ (do outside a definition)
+: no-do begin 1 loop ;                         \ (loop without do)
+: wrong-closer 0 5 1 do k until ;              \ (until cannot close a do)
+: unterminated 0 5 1 do k ;                    \ (do with no loop)
+: same-index 0 2 1 do k 0 2 1 do k loop loop ; \ (nested reuse of a live index)
+variable g
+: global-index 0 2 1 do g loop ;               \ (a global cannot be the index)
+[: 0 2 1 do k k . loop :] execute cr           \ quotations take do loops too: 0 1
+: capture 0 2 1 do k [: k :] drop loop ;       \ (a quotation cannot read the index)

@@ -380,6 +380,12 @@ live here instead. File and function name each invariant's home.
   `need_more`, runs, and restores them. `load_file` and `p_evaluate` both call
   it — a second path that swaps the buffer itself would truncate whatever
   input the caller had left (core.c, `run_input_text`).
+- `compiler.loop_begin` is negative while a `do` compiles (the negated loop
+  top marks the loop as a `do`); code testing it must handle both signs
+  (compiler.c, `p_do`).
+- A `do` loop's counter and delta are ordinary body locals whose names embed
+  a space ("do counter"), so no token can resolve to them; the `(do)`/`(loop)`
+  operand cells are depth-0 slot indices (compiler.c, `p_do`).
 - Handle-shaped tags compare by payload, not by tag alone: `T_STREAM`,
   `T_DB`, `T_PTR` and `T_CONT` sit with `T_SYMBOL`/`T_XT` in the
   payload-comparison branch. A new handle tag left to the `default` case

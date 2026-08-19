@@ -2357,6 +2357,55 @@ void p_local_store_0depth(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip + 1, chain_sp - 1);
 }
 
+void p_do_enter(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip + 4, chain_sp, 3);
+	Val start_val = chain_sp[-3];
+	Val limit_val = chain_sp[-2];
+	Val delta_val = chain_sp[-1];
+	if (VAL_TAG(start_val) != T_FLOAT || VAL_TAG(limit_val) != T_FLOAT
+			|| VAL_TAG(delta_val) != T_FLOAT) {
+		Val offending = VAL_TAG(start_val) != T_FLOAT ? start_val
+			: VAL_TAG(limit_val) != T_FLOAT ? limit_val : delta_val;
+		SYNC_REGISTERS(interp, chain_ip + 4, chain_sp);
+		fail(interp, "expected float start, limit, and delta; got %s", tag_name(VAL_TAG(offending)));
+		return;
+	}
+
+	double delta = VAL_NUMBER(delta_val);
+	if (delta == 0.0) {
+		SYNC_REGISTERS(interp, chain_ip + 4, chain_sp);
+		fail(interp, "expected a nonzero delta; got 0");
+		return;
+	}
+
+	double trip_count = ceil((VAL_NUMBER(limit_val) - VAL_NUMBER(start_val)) / delta);
+	if (trip_count >= 9007199254740992.0) {
+		SYNC_REGISTERS(interp, chain_ip + 4, chain_sp);
+		fail(interp, "loop would run %.3g times (max 2^53)", trip_count);
+		return;
+	}
+
+	Val *locals = interp->return_stack + interp->local_base;
+	locals[(int)chain_ip[0]] = start_val;
+	locals[(int)chain_ip[1]] = make_float(trip_count);
+	locals[(int)chain_ip[2]] = delta_val;
+
+	cell *continue_ip = trip_count > 0.0 ? chain_ip + 4 : chain_ip + 3 + (int)chain_ip[3];
+
+	DISPATCH_REGISTERS(interp, continue_ip, chain_sp - 3);
+}
+
+void p_do_loop(DISPATCH_ARGS) {
+	Val *locals = interp->return_stack + interp->local_base;
+	locals[(int)chain_ip[0]].number += locals[(int)chain_ip[2]].number;
+	double remaining = locals[(int)chain_ip[1]].number - 1.0;
+	locals[(int)chain_ip[1]].number = remaining;
+
+	cell *continue_ip = remaining > 0.0 ? chain_ip + 3 + (int)chain_ip[3] : chain_ip + 4;
+
+	DISPATCH_REGISTERS(interp, continue_ip, chain_sp);
+}
+
 #define LOCAL_ARITH_0DEPTH(name, word_name, expr) \
 	void name(DISPATCH_ARGS) { \
 		Val *p = &interp->return_stack[interp->local_base + (int)chain_ip[0]]; \
@@ -4036,6 +4085,9 @@ int op_cell_count(int cursor) {
 	if (handler == vocab.dict[vocab.enter_locals_mixed_cfa])
 		return 3 + (int)dict[cursor + 2];
 
+	if (handler == (cell)p_do_enter || handler == (cell)p_do_loop)
+		return 5;
+
 	if (handler == vocab.dict[vocab.enter_locals_to_cfa])
 		return 3;
 
@@ -5017,6 +5069,8 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	vocab.enter_locals_to_cfa = define_primitive(interp, "(enter-locals-to)", p_enter_locals_to, 4);
 	vocab.enter_locals_mixed_cfa = define_primitive(interp, "(enter-locals-mixed)", p_enter_locals_mixed, 4);
 	vocab.leave_locals_cfa = define_primitive(interp, "(leave-locals)", p_leave_locals, 4);
+	vocab.do_enter_cfa = define_primitive(interp, "(do)", p_do_enter, 4);
+	vocab.do_loop_cfa = define_primitive(interp, "(loop)", p_do_loop, 4);
 	vocab.local_fetch_cfa = define_primitive(interp, "(local@)", p_local_fetch, 4);
 	vocab.local_store_cfa = define_primitive(interp, "(local!)", p_local_store, 4);
 	vocab.local_fetch_0depth_cfa = define_primitive(interp, "(local@0)", p_local_fetch_0depth, 4);
@@ -5113,6 +5167,8 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "again", p_again, 1);
 	define_primitive(interp, "while", p_while, 1);
 	define_primitive(interp, "repeat", p_repeat, 1);
+	define_primitive(interp, "do", p_do, 1);
+	define_primitive(interp, "loop", p_loop, 1);
 	define_primitive(interp, "leave", p_leave, 1);
 	define_primitive(interp, "continue", p_continue, 1);
 	define_primitive(interp, "[:", p_qcolon, 1);
@@ -5485,6 +5541,8 @@ int main(int argc, char **argv) {
 			rollback_partial_definition();
 			compiler.loop_begin = 0;
 			compiler.leave_chain = 0;
+			compiler.do_continue_chain = 0;
+			compiler.n_active_do_loops = 0;
 			compiler.compiling = 0;
 			if (interp->entry_snapshot_depth > 0)
 				memcpy(interp->data_stack, interp->entry_snapshot,

@@ -1,7 +1,7 @@
 #ifndef WATER_H
 #define WATER_H
 
-#define VERSION "0.27.1"
+#define VERSION "0.27.2"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -469,6 +469,7 @@ typedef struct Vocabulary {
 
 	int exit_cfa, literal_cfa, branch_cfa, zbranch_cfa, dostr_cfa, stop_cfa, to_var_cfa, tailcall_cfa;
 	int enter_locals_cfa, enter_locals_to_cfa, enter_locals_mixed_cfa, leave_locals_cfa, local_fetch_cfa, local_store_cfa;
+	int do_enter_cfa, do_loop_cfa;
 	int frame_get_inline_key_cfa, frame_set_inline_key_cfa;
 	int local_fetch_0depth_cfa, local_store_0depth_cfa;
 	int local_incr_0depth_cfa, local_decr_0depth_cfa, inc_cfa, dec_cfa;
@@ -582,6 +583,10 @@ typedef struct {
 	int loadn_at;
 	int loop_begin;
 	int leave_chain;
+	int do_continue_chain;
+	int n_active_do_loops;
+	int do_index_slots[MAX_LOCAL_SCOPES];
+	int do_index_scopes[MAX_LOCAL_SCOPES];
 
 	char local_names_pool[LOCAL_NAMES_POOL_SIZE];
 
@@ -1106,6 +1111,8 @@ void dovar(DISPATCH_ARGS);
 void p_0branch(DISPATCH_ARGS);
 void p_branch(DISPATCH_ARGS);
 void p_copy(DISPATCH_ARGS);
+void p_do_enter(DISPATCH_ARGS);
+void p_do_loop(DISPATCH_ARGS);
 void p_dostr(DISPATCH_ARGS);
 void p_enter_curried(DISPATCH_ARGS);
 void p_enter_locals(DISPATCH_ARGS);
@@ -1303,6 +1310,7 @@ void p_constant(DISPATCH_ARGS);
 void p_continue(DISPATCH_ARGS);
 void p_decrement(DISPATCH_ARGS);
 void p_defer(DISPATCH_ARGS);
+void p_do(DISPATCH_ARGS);
 void p_else(DISPATCH_ARGS);
 void p_embodies(DISPATCH_ARGS);
 void p_embodies_final(DISPATCH_ARGS);
@@ -1315,6 +1323,7 @@ void p_inline(DISPATCH_ARGS);
 void p_internal(DISPATCH_ARGS);
 void p_leave(DISPATCH_ARGS);
 void p_lookup(DISPATCH_ARGS);
+void p_loop(DISPATCH_ARGS);
 void p_qcolon(DISPATCH_ARGS);
 void p_qif(DISPATCH_ARGS);
 void p_qsemi(DISPATCH_ARGS);
