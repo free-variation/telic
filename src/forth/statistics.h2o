@@ -12,13 +12,12 @@
 	high low = if low 1 - high 1 + to high to low then
 	high low - n-bins / to bin-width
 	n-bins 1 0-matrix to counts
-	data counts low bin-width n-bins
-	[: i data counts low bin-width n-bins |
+	0 n-values 1 do i
 		data i @e low - bin-width / round-down to bin
 		bin n-bins 1 - > if n-bins 1 - to bin then
 		counts bin @e 1+ to tally
 		counts bin tally !e drop
-	:] 5 ncurry n-values i-times
+	loop
 	{ :counts counts :low low :bin-width bin-width } ;
 
 ( v -- xs ys ) \ empirical CDF: finite elements sorted ascending, cumulative fractions (i+1)/n
@@ -289,10 +288,10 @@
 			f++ run-end
 		repeat
 		run-start run-end f+ 1.0 f- 2.0 f/ to mid
-		begin run-start run-end f< while
-			midranks  order run-start @e  mid !e drop
-			f++ run-start
-		repeat
+		run-start run-end 1 do run-index
+			midranks  order run-index @e  mid !e drop
+		loop
+		run-end to run-start
 	repeat
 	midranks ;
 
@@ -557,28 +556,22 @@
 	center-shape to best-shape
 	center-lnscale to best-lnscale
 	1e10 to best-nll
-	0 to round-i
-	begin round-i 4 < while
-		\ a quotation cannot write this frame: the best triple and the grid index
-		\ thread through it, the centres, spans and exceedances park below
-		exceedances center-shape center-lnscale shape-span lnscale-span
-		best-nll best-shape best-lnscale 0
-		[: nll shape lnscale i |
-			3 pick  i 9 / ftruncate 4 - 4 /  3 pick *  +  to trial-shape
-			2 pick  i 9 mod         4 - 4 /  2 pick *  +  to trial-lnscale
-			trial-shape  trial-lnscale exp  6 pick  gpd-nll to trial-nll
-			trial-nll nll < if trial-nll trial-shape trial-lnscale
-			else               nll shape lnscale then
-			i 1 + :]
-		81 times
-		drop to best-lnscale to best-shape to best-nll
-		2drop 2drop drop
+	0 4 1 do round-i
+		0 81 1 do grid-i
+			center-shape    grid-i 9 / ftruncate 4 - 4 /  shape-span *  +  to trial-shape
+			center-lnscale  grid-i 9 mod         4 - 4 /  lnscale-span *  +  to trial-lnscale
+			trial-shape  trial-lnscale exp  exceedances  gpd-nll to trial-nll
+			trial-nll best-nll < if
+				trial-nll to best-nll
+				trial-shape to best-shape
+				trial-lnscale to best-lnscale
+			then
+		loop
 		best-shape to center-shape
 		best-lnscale to center-lnscale
 		shape-span 2 / to shape-span
 		lnscale-span 2 / to lnscale-span
-		f++ round-i
-	repeat
+	loop
 	best-shape best-lnscale exp ;
 
 ( shape scale p -- q ) \ the exceedance at probability p; shape 0 gives the exponential tail
