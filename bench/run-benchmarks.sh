@@ -362,6 +362,27 @@ pyver=$("$python" --version 2>&1 | awk '{print $2}')
 today=$(date +%Y-%m-%d)
 uname_s=$(uname -sr)
 
+if [ "$(uname -s)" = "Darwin" ]; then
+	cpu_brand=$(sysctl -n machdep.cpu.brand_string 2>/dev/null)
+	cpu_model=$(sysctl -n hw.model 2>/dev/null)
+	cpu_p=$(sysctl -n hw.perflevel0.logicalcpu 2>/dev/null)
+	cpu_e=$(sysctl -n hw.perflevel1.logicalcpu 2>/dev/null)
+	cpu_total=$(sysctl -n hw.ncpu 2>/dev/null)
+	mem_gb=$(( $(sysctl -n hw.memsize 2>/dev/null) / 1073741824 ))
+	if [ -n "$cpu_p" ] && [ -n "$cpu_e" ]; then
+		cpu_cores="$cpu_total cores (${cpu_p}P + ${cpu_e}E)"
+	else
+		cpu_cores="$cpu_total cores"
+	fi
+	cpu_line="$cpu_brand, $cpu_cores"
+	[ -n "$cpu_model" ] && cpu_line="$cpu_line, $cpu_model"
+else
+	cpu_brand=$(awk -F': ' '/^model name/ {print $2; exit}' /proc/cpuinfo 2>/dev/null)
+	cpu_total=$(nproc 2>/dev/null)
+	mem_gb=$(( $(awk '/^MemTotal/ {print $2; exit}' /proc/meminfo 2>/dev/null) / 1048576 ))
+	cpu_line="${cpu_brand:-unknown CPU}, ${cpu_total:-?} cores"
+fi
+
 emit() { printf '%s\n' "$*"; }
 
 emit "# Benchmark report"
@@ -371,6 +392,8 @@ emit ""
 emit "## Environment"
 emit ""
 emit "- **Host**: $uname_s"
+emit "- **CPU**: $cpu_line"
+emit "- **Memory**: ${mem_gb} GB"
 emit "- **Compiler**: \`clang -O3 -march=native -Wall -Wextra\`"
 emit "- **Python**: CPython $pyver (\`$python\`)"
 if [ "$have_numpy" = 1 ]; then

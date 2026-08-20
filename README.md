@@ -153,48 +153,52 @@ dup "insert into t values (?)" [ 42 ] db-exec drop
 
 `make bench` runs `bench/run-benchmarks.sh`, which builds the binary, runs each
 port five times against three CPython runs, and reports medians with a
-verification table pairing every result against its reference. The run below is
-CPython 3.14.6 and numpy 2.5.1 on Darwin 25.5.0, `clang -O3 -march=native`. The
-`-matrix` rows are vectorized and answer to numpy, the `-parallel` rows to a
-process pool of the same width, and both time pool creation as telic times
-spawning its threads.
+verification table pairing every result against its reference. The `-matrix`
+rows are vectorized and answer to numpy, the `-parallel` rows to a process pool
+of the same width, and both time pool creation as telic times spawning its
+threads. Refresh the table below from a report with
+`python3 tools/update-readme-bench.py <report.md>`; never edit a cell by hand.
+
+<!-- bench:begin -->
+Medians of 5 telic reps against 3 CPython reps (2026-08-21): Apple M4 Max, 16 cores (12P + 4E), Mac16,5, 128 GB memory, Darwin 25.5.0, `clang -O3 -march=native -Wall -Wextra`, CPython 3.14.6, numpy 2.5.1.
 
 | benchmark | size | telic | python | py / telic |
 |:----------|:-----|-----------:|-------:|--------:|
-| leibniz | 1000000000 iterations | 8.494 s | 42.258 s | 4.98× |
-| leibniz-matrix | 1000000000, vectorized vs numpy | 0.7628 s | 1.810 s | 2.37× |
-| leibniz-matrix | 1000000000, vectorized vs R 4.5.2 `sum(4 / seq.int(...))` | 0.7628 s | 1.720 s | 2.25× |
-| leibniz-parallel | 1000000000, pmap vs pool of 16 | 1.276 s | 3.420 s | 2.68× |
-| nqueens | N = 8 | 0.0128 s | 0.0420 s | 3.29× |
-| nqueens-iter | N = 8 | 0.0257 s | 0.0420 s | 1.64× |
-| nbody | 20000 steps | 0.0195 s | 0.0524 s | 2.68× |
-| raytrace | 10× 100×100 | 0.1398 s | 1.296 s | 9.27× |
-| raytrace-parallel | 10× 100×100, pmap vs pool | 0.0124 s | 0.2634 s | ~21× |
-| float | 100000 pts × 20 | 0.2502 s | 0.6272 s | 2.51× |
-| crypto-pyaes | 23000 B, 10× enc+dec | 0.0744 s | 0.3772 s | 5.07× |
-| fannkuch | N = 9 | 0.0993 s | 0.1787 s | 1.80× |
-| binary-trees | depth 16 | 0.3127 s | 0.6893 s | 2.20× |
-| mandelbrot | N = 1000 | 0.4050 s | 1.318 s | 3.25× |
-| mandelbrot-matrix | N = 1000, vectorized vs numpy | 0.0868 s | 0.0958 s | 1.10× |
-| mandelbrot-parallel | N = 1000, pmap vs numpy pool | 0.0327 s | 0.1761 s | 5.38× |
-| spectral-norm | N = 130, 50× | 0.6625 s | 2.588 s | 3.91× |
-| spectral-norm-matrix | N = 260, 1000× vs numpy | 0.0817 s | 0.0808 s | 0.99× |
-| scimark-lu | N=100, 100× | 0.5135 s | 5.696 s | ~11× |
-| scimark-sparse | N=1000, 500× | 0.3662 s | 1.085 s | 2.96× |
-| scimark-fft | N=1024, 5×50 | 0.2053 s | 0.7077 s | 3.45× |
-| barnes-hut | 200 bodies, 2×50 | 0.1669 s | 0.4415 s | 2.65× |
-| scimark-sor | N=100, 10 cyc × 100 | 0.3605 s | 5.736 s | ~16× |
-| scimark-montecarlo | 1000000 × 3 | 0.3571 s | 0.9266 s | 2.59× |
-| montecarlo-parallel | 20000000 samples, pmap 10w vs pool 10w | 0.0414 s | 0.2096 s | 5.06× |
-| meteor | 10 solves | 0.2176 s | 0.5373 s | 2.47× |
-| hexiom | level 25, 50 solves | 0.1137 s | 0.1612 s | 1.42× |
-| regex-dna | 100K → 1M | 0.0334 s | 0.1001 s | 3.00× |
-| regex-compile | 239 patterns, cold | 0.0010 s | 0.0070 s | 7.01× |
-| regex-effbot | 21 pat × 0..10k | 2.739 s | 15.653 s | 5.71× |
-| regex-v8 | 12 blocks, browser trace | 0.3924 s | 1.103 s | 2.81× |
-| deepcopy | N=20000, 60 copies/N | 0.1193 s | 2.330 s | ~20× |
-| json-loads | 222k parses | 0.5293 s | 0.9694 s | 1.83× |
-| json-dumps | EMPTY/SIMPLE/NESTED/HUGE ×250 | 0.3627 s | 1.290 s | 3.56× |
+| leibniz | 1000000000 iterations | 8.356 s | 42.258 s | 5.06× |
+| leibniz-matrix | 1000000000, vectorized vs numpy | 0.7186 s | 1.830 s | 2.55× |
+| leibniz-matrix | 1000000000, vectorized vs R 4.5.2 `sum(4 / seq.int(...))` | 0.7186 s | 1.720 s | 2.39× |
+| leibniz-parallel | 1000000000, pmap vs pool of 16 | 1.223 s | 3.234 s | 2.64× |
+| nqueens | N = 8 | 0.0125 s | 0.0406 s | 3.25× |
+| nqueens-iter | N = 8 | 0.0250 s | 0.0406 s | 1.62× |
+| nbody | 20000 steps | 0.0203 s | 0.0481 s | 2.37× |
+| raytrace | 10× 100×100 | 0.1384 s | 1.309 s | 9.46× |
+| raytrace-parallel | 10× 100×100, pmap vs pool | 0.0125 s | 0.2460 s | ~20× |
+| float | 100000 pts × 20 | 0.2489 s | 0.6285 s | 2.53× |
+| crypto-pyaes | 23000 B, 10× enc+dec | 0.0724 s | 0.3697 s | 5.11× |
+| fannkuch | N = 9 | 0.1024 s | 0.1791 s | 1.75× |
+| binary-trees | depth 16 | 0.3151 s | 0.6889 s | 2.19× |
+| mandelbrot | N = 1000 | 0.3457 s | 1.308 s | 3.78× |
+| mandelbrot-matrix | N = 1000, vectorized vs numpy | 0.0858 s | 0.0950 s | 1.11× |
+| mandelbrot-parallel | N = 1000, pmap vs numpy pool | 0.0328 s | 0.1773 s | 5.40× |
+| spectral-norm | N = 130, 50× | 0.6302 s | 2.589 s | 4.11× |
+| spectral-norm-matrix | N = 260, 1000× vs numpy | 0.0817 s | 0.0805 s | 0.99× |
+| scimark-lu | N=100, 100× | 0.4105 s | 5.668 s | ~14× |
+| scimark-sparse | N=1000, 500× | 0.2847 s | 1.089 s | 3.83× |
+| scimark-fft | N=1024, 5×50 | 0.1860 s | 0.7009 s | 3.77× |
+| barnes-hut | 200 bodies, 2×50 | 0.1687 s | 0.4441 s | 2.63× |
+| scimark-sor | N=100, 10 cyc × 100 | 0.3245 s | 5.698 s | ~18× |
+| scimark-montecarlo | 1000000 × 3 | 0.3610 s | 0.9235 s | 2.56× |
+| montecarlo-parallel | 20000000 samples, pmap 10w vs pool 10w | 0.0419 s | 0.2039 s | 4.87× |
+| meteor | 10 solves | 0.1872 s | 0.5352 s | 2.86× |
+| hexiom | level 25, 50 solves | 0.1116 s | 0.1580 s | 1.42× |
+| regex-dna | 100K → 1M | 0.0334 s | 0.1023 s | 3.06× |
+| regex-compile | 239 patterns, cold | 0.0010 s | 0.0070 s | 6.85× |
+| regex-effbot | 21 pat × 0..10k | 2.667 s | 15.486 s | 5.81× |
+| regex-v8 | 12 blocks, browser trace | 0.3814 s | 1.057 s | 2.77× |
+| deepcopy | N=20000, 60 copies/N | 0.1180 s | 2.280 s | ~19× |
+| json-loads | 222k parses | 0.5214 s | 0.9469 s | 1.82× |
+| json-dumps | EMPTY/SIMPLE/NESTED/HUGE ×250 | 0.3630 s | 1.266 s | 3.49× |
+<!-- bench:end -->
 
 The ports live in `bench/pyperformance/` beside the CPython sources they answer
 to, and `bench/variants/` holds the vectorized and parallel forms. Where a port
