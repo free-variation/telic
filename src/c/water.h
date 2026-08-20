@@ -1,7 +1,7 @@
 #ifndef WATER_H
 #define WATER_H
 
-#define VERSION "0.28.1"
+#define VERSION "0.28.2"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,6 +59,8 @@ typedef int64_t cell;
 #define PROMPT_EXCEPTION 0
 #define PROMPT_CHOICE 1
 #define PROMPT_KIND_MASK 3
+#define MAX_UNIT_TERMS (1 << 4)
+#define NAME_MAX_LENGTH (1 << 8)
 #define REGEX_CACHE_SIZE (1 << 10)
 #define JSON_MAX_DEPTH (1 << 10)
 #define SELECT_MAX_DEPTH JSON_MAX_DEPTH
@@ -1114,6 +1116,11 @@ void render_unit(FILE *out, int unit);
 void render_unit_description(FILE *out, Interpreter *interp, Val target);
 int unit_conversion(int from, int to, double *factor);
 int unit_conversion_ratio(int from, int to, long long *numerator, long long *denominator);
+int unit_declare(Interpreter *interp, const char *unit_name,
+		const char **term_dimensions, const int *power_numerators, const int *power_denominators,
+		int n_terms, int scale_numerator, int scale_denominator);
+int unit_description(int unit, const char **unit_name, const char **term_dimensions,
+		int *power_numerators, int *power_denominators, int *scale_numerator, int *scale_denominator);
 int unit_divide_ratio(Interpreter *interp, int left, int right, long long *numerator, long long *denominator);
 int unit_id_valid(int unit);
 int unit_is_named(int unit);
@@ -1643,6 +1650,9 @@ Val exact_unary(Interpreter *interp, Val value, int op);
 int object_new_exact(Interpreter *interp, int sign, const uint32_t *numerator, int n_numerator,
 		const uint32_t *denominator, int n_denominator);
 int parse_exact_literal(Interpreter *interp, const char *token, Val *out);
+void p_bytes_to_value(DISPATCH_ARGS);
+void p_value_to_bytes(DISPATCH_ARGS);
+
 void p_denominator(DISPATCH_ARGS);
 void p_exact_to_float(DISPATCH_ARGS);
 void p_float_to_exact(DISPATCH_ARGS);

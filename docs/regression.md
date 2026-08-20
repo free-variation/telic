@@ -363,7 +363,10 @@ estimate, then bootstrap. `resample-indices` draws a fresh set of row indices wi
 replacement; `select-rows` gathers those rows; the chosen fit (`fit-linear` for
 `linear-regression`, the IRLS `fit-logistic` for `logistic-regression`) reruns on
 each resample; and the per-coefficient standard error, percentile interval, and
-bias are summarized from the collected `β*`.
+bias are summarized from the collected `β*`. What comes back is a model frame:
+the coefficient summaries under `:coefficients`, the point estimate
+`:estimates`, the predictor names in design-column order, and the
+complete-case `:design` and `:responses` the fit saw — so the model applies to new rows and stores as one value.
 
 The decisive structural fact: each resample's fit is **independent** of the others
 — no shared state, no ordering — so the bootstrap is embarrassingly parallel. That
@@ -436,7 +439,7 @@ set to zero: `Σ (yᵢ − c) = 0`, so `c` is the **mean** of the region's outco
 That is the whole prediction rule — a tree is a piecewise-constant function
 whose pieces are the leaves and whose values are leaf means. `fit-tree` records
 exactly this: every node carries `:prediction` (the mean of its rows) and
-`:n_rows`.
+`:n-rows`.
 
 ### The split criterion
 

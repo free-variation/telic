@@ -398,6 +398,14 @@ live here instead. File and function name each invariant's home.
 - `compiler.case_chain` is 0 outside a `case`, -1 inside one with no `endof`
   yet, else the endof-branch chain head; quotations save and zero it
   (compiler.c, `p_case`).
+- A serial tag's meaning never changes; a new type takes the next tag and
+  bumps SERIAL_VERSION (serialize.c, `write_value`).
+- Serialized numbers are little-endian whatever the host; every new numeric
+  field converts through `little_endian_32`/`little_endian_64`. Build with
+  -DSERIAL_PRETEND_BIG_ENDIAN to exercise the swap path (serialize.c).
+- Loading a value never redefines a word (dimension.c, `unit_declare`).
+- Sets and frames are rebuilt by insertion on load, never from stored order
+  (serialize.c, `read_collection`).
 - Printing never allocates GC objects; an exact magnitude under an unnamed
   scaled unit folds the scale in arena temporaries (core.c,
   `print_exact_magnitude_scaled`).

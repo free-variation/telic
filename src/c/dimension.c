@@ -277,6 +277,95 @@ static int unit_canonicalize(DimTerm *terms, int n_terms) {
 	return n_kept_terms;
 }
 
+static int dimension_named(const char *name) {
+	for (int dimension = 0; dimension < n_dimensions; dimension++)
+		if (dimension_names[dimension] != DIMENSION_UNNAMED
+				&& strcmp(&vocab.name_pool[dimension_names[dimension]], name) == 0)
+			return dimension;
+	return -1;
+}
+
+static int unit_word_define(Interpreter *interp, const char *name, int unit) {
+	int cfa = create_header(interp, name, 0);
+	if (interp->error_flag)
+		return -1;
+
+	emit(interp, (cell)dounit);
+	emit(interp, (cell)unit);
+	return cfa;
+}
+
+int unit_declare(Interpreter *interp, const char *unit_name,
+		const char **term_dimensions, const int *power_numerators, const int *power_denominators,
+		int n_terms, int scale_numerator, int scale_denominator) {
+	if (n_terms > MAX_UNIT_TERMS) {
+		fail(interp, "unit has %d dimensions (max %d)", n_terms, MAX_UNIT_TERMS);
+		return -1;
+	}
+
+	DimTerm terms[MAX_UNIT_TERMS];
+	for (int i = 0; i < n_terms; i++) {
+		int dimension = dimension_named(term_dimensions[i]);
+		if (dimension < 0) {
+			if (find(term_dimensions[i]) != 0) {
+				fail(interp, "cannot declare dimension %s; that name is already a word", term_dimensions[i]);
+				return -1;
+			}
+
+			dimension = new_dimension();
+			int base = unit_of_dimension(interp, dimension);
+			if (interp->error_flag)
+				return -1;
+
+			int cfa = unit_word_define(interp, term_dimensions[i], base);
+			if (cfa < 0)
+				return -1;
+			units[base].name = WORD_NAME(cfa);
+			dimension_names[dimension] = WORD_NAME(cfa);
+		}
+
+		terms[i].dimension = dimension;
+		terms[i].power = make_rational(power_numerators[i], power_denominators[i]);
+	}
+
+	int n_kept = unit_canonicalize(terms, n_terms);
+	int unit = unit_intern(interp, terms, n_kept, make_rational(scale_numerator, scale_denominator));
+	if (interp->error_flag)
+		return -1;
+
+	if (unit_name[0] && units[unit].name == UNIT_UNNAMED) {
+		if (find(unit_name) != 0) {
+			fail(interp, "cannot declare unit %s; that name is already a word", unit_name);
+			return -1;
+		}
+
+		int cfa = unit_word_define(interp, unit_name, unit);
+		if (cfa < 0)
+			return -1;
+		units[unit].name = WORD_NAME(cfa);
+	}
+
+	return unit;
+}
+
+int unit_description(int unit, const char **unit_name, const char **term_dimensions,
+		int *power_numerators, int *power_denominators, int *scale_numerator, int *scale_denominator) {
+	Unit *described = &units[unit];
+
+	*unit_name = described->name == UNIT_UNNAMED ? "" : &vocab.name_pool[described->name];
+	for (int i = 0; i < described->n_terms; i++) {
+		int dimension = described->terms[i].dimension;
+		term_dimensions[i] = dimension_names[dimension] == DIMENSION_UNNAMED
+			? "" : &vocab.name_pool[dimension_names[dimension]];
+		power_numerators[i] = described->terms[i].power.numerator;
+		power_denominators[i] = described->terms[i].power.denominator;
+	}
+
+	*scale_numerator = described->scale.numerator;
+	*scale_denominator = described->scale.denominator;
+	return described->n_terms;
+}
+
 int unit_conversion(int from, int to, double *factor) {
 	Unit *source = &units[from];
 	Unit *target = &units[to];

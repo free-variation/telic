@@ -67,22 +67,32 @@ plotting library is pure forth (no FFI) and works under wasm; only its
 The derivation behind these words — the mathematics, step by step, connected
 to the word performing each step — is docs/regression.md.
 
+`linear-regression` and `logistic-regression` answer a model frame:
+`:coefficients` (one `{ :estimate :se :bias :ci-low :ci-high }` frame per
+coefficient, in design-column order), `:estimates` (the k×1 point estimate),
+`:predictors` (`:intercept` then the caller's symbols), `:response`,
+`:design` and `:responses` (the complete-case rows the fit saw, incomplete
+rows already dropped), `:n-rows`, and `:replications`. Everything in it is data, so
+the frame applies to new rows and stores whole; `:design delete-at` drops the
+bulk when only the coefficients are wanted.
+
 | Word | Stack effect | Summary |
 | --- | --- | --- |
-| `linear-regression` | `( dataset predictors response replications -- summaries )` | OLS with nonparametric bootstrap inference: a `{ :estimate :se :bias :ci-low :ci-high }` frame per coefficient over `replications` refits |
+| `linear-regression` | `( dataset predictors response replications -- model )` | OLS with nonparametric bootstrap inference; the model frame is described below the table |
 | `fit-logistic` | `( X y max-iterations tolerance -- beta )` | Binary logistic regression by Firth-penalized IRLS (estimates stay finite under separation); `X` includes the intercept column, `y` in {0,1} |
 | `fit-logistic-ridge` | `( X y max-iterations tolerance lambda -- beta )` | L2-penalized logistic by IRLS; `lambda` penalizes ‖beta‖²/2 with the intercept column unpenalized, `lambda` 0 the plain MLE (no Firth). Each step appends sqrt(`lambda`)·I rows to the weighted design and solves that least-squares system by Householder QR (`dgels`); a design `dgels` reports rank-deficient falls back to `dgelsd`, which answers a minimum-norm solution. The normal equations are not used: squaring the design costs about half the digits, which floors the beta step near 1e-6 at small `lambda` and prevents convergence at a 1e-8 tolerance |
 | `fit-augmented-logistic` | `( augmented -- beta )` | Firth logistic fit of an `[X | y]` block |
-| `logistic-regression` | `( dataset predictors response replications -- summaries )` | Firth logistic with the bootstrap per-coefficient summaries of `linear-regression` |
+| `logistic-regression` | `( dataset predictors response replications -- model )` | Firth logistic with the bootstrap inference and model frame of `linear-regression` |
 | `cv-logistic-ridge` | `( X y units lambdas n-folds -- fr )` | k-fold cross-validation of ridge logistic over a `lambdas` grid, returning `{ :lambdas :deviances :best }`; `X` excludes the intercept (added internally, unpenalized), `units` index rows so per-cluster index arrays give cluster CV |
 | `pcv-logistic-ridge` | `( X y units lambdas n-folds -- fr )` | `cv-logistic-ridge` with the (lambda, fold) cells evaluated under `pmap`; results are identical, the cells being deterministic |
 
 ```forth linear-regression
 "statistics" load-library
-42 seed [ [ "x" "y" ] [ 1 3 ] [ 2 5 ] [ 3 7 ] [ 4 9.1 ] [ 5 10.9 ] ] true rows>dataset [ :x ] :y 50 linear-regression first :estimate @ . cr
+42 seed [ [ "x" "y" ] [ 1 3 ] [ 2 5 ] [ 3 7 ] [ 4 9.1 ] [ 5 10.9 ] ] true rows>dataset [ :x ] :y 50 linear-regression
+dup :coefficients @ first :estimate @ . :predictors @ . cr
 ```
 ```output
-1.03
+1.03 [ :intercept :x ]
 ```
 
 ```forth fit-logistic
@@ -111,7 +121,7 @@ to the word performing each step — is docs/regression.md.
 
 ```forth logistic-regression
 "statistics" load-library
-42 seed [ [ "x" "y" ] [ 0 0 ] [ 1 1 ] [ 2 0 ] [ 3 1 ] [ 4 1 ] [ 5 0 ] [ 6 1 ] [ 7 1 ] ] true rows>dataset [ :x ] :y 50 logistic-regression first :estimate @ . cr
+42 seed [ [ "x" "y" ] [ 0 0 ] [ 1 1 ] [ 2 0 ] [ 3 1 ] [ 4 1 ] [ 5 0 ] [ 6 1 ] [ 7 1 ] ] true rows>dataset [ :x ] :y 50 logistic-regression :coefficients @ first :estimate @ . cr
 ```
 ```output
 -0.521648
@@ -226,6 +236,8 @@ to the word performing each step — is docs/regression.md.
 | `fit-xgb` | `( X y fit-params -- booster )` | Train an XGBoost booster on features `X` (n×k) and response `y` (n×1); `fit-params` are keyed by xgboost parameter name, `:rounds` drives the boosting loop (default 100). Native-only (libxgboost via FFI) |
 | `xgb-predict` | `( booster X -- predictions )` | n×1 scores for an n×k feature matrix; the booster is not freed |
 | `xgb-free` | `( booster -- )` | Free a booster handle |
+| `xgb-save` | `( booster path -- )` | Write the booster in xgboost's own model format; the path extension picks it, `.json` or `.ubj`. The model reads back in Python and R |
+| `xgb-load` | `( path -- booster )` | Read a booster from a saved model file into a fresh handle; free it with `xgb-free` |
 | `xgb-importance` | `( booster importance-type -- scores )` | k×1 per-feature importance, row i is feature i; `importance-type` is `"gain"`, `"weight"`, `"cover"`, `"total_gain"`, or `"total_cover"`. Rank with `matrix>array argsort reverse` |
 
 ```forth fit-xgb
@@ -258,6 +270,26 @@ to the word performing each step — is docs/regression.md.
 ```
 ```output
 freed
+```
+
+```forth xgb-save
+"statistics" load-library
+[ 0 1 2 3 4 5 6 7 ] 8 1 matrix [ 0 1 2 3 4 5 6 7 ] vector { :rounds 5 :nthread 1 } fit-xgb
+dup "/tmp/docs-xgb.json" xgb-save xgb-free
+"/tmp/docs-xgb.json" file-exists? . cr
+```
+```output
+1
+```
+
+```forth xgb-load
+"statistics" load-library
+[ 0 1 2 3 4 5 6 7 ] 8 1 matrix [ 0 1 2 3 4 5 6 7 ] vector { :rounds 5 :nthread 1 } fit-xgb
+dup "/tmp/docs-xgb.json" xgb-save xgb-free
+"/tmp/docs-xgb.json" xgb-load dup [ 7 ] 1 1 matrix xgb-predict matrix>array [: 100 * round :] map . xgb-free cr
+```
+```output
+[ 548 ]
 ```
 
 ## Plotting (lib/plot.h2o)

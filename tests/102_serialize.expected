@@ -1,0 +1,66 @@
+1 1 1 1 
+1 1 1 1 
+1 1 1 
+1 1e+308 
+1 
+[ 65 0 66 ] 
+3 
+1 
+0 
+[ 1 2 3 ] 
+42 
+1 1 
+1 1 1 
+12345678901234567890123456789012345678901234567890/7 7 
+1 1 1 
+1/2 5 
+1 
+[ 1 null 3 ] 
+2 3 
+0 0 
+7 0 
+1.5 
+1 1 
+1 
+1 newton 
+[ 1 m 2 m 3 m ] 
+1 $ 
+5 volt 
+2.66667 m.kg.s^-1 
+5.01667 hour 
+[ 99 2 3 ] 
+7 
+5 
+1 
+42 
+1 2 3 
+7 200 200 
+320014 
+20000 19999 
+[( 1999 3998 )] 
+row19999 
+0.375 
+1 
+[ 10 20 ] 
+[ :x ] 
+[< 1 2 3 >] 
+error: cannot serialize an execution token
+in value>bytes
+error: cannot serialize an execution token
+in value>bytes
+error: cannot serialize an execution token
+in value>bytes
+error: cannot serialize a logic variable
+in value>bytes
+error: cannot serialize a stream
+in value>bytes
+error: cannot serialize a database
+in value>bytes
+error: cannot serialize an execution token
+in value>bytes
+error: not Water value data
+in bytes>value
+error: truncated value data
+in bytes>value
+error: expected a string; got a float
+in bytes>value

@@ -2907,6 +2907,67 @@ null 1
 
 ---
 
+## Value serialization
+
+A whole value graph as bytes and back: matrices, datasets, fitted trees,
+regression models — anything built from floats, strings, symbols, `null`, `_`,
+arrays, sets, frames, pairs, matrices, segments, exacts, complexes, and
+quantities, nested to any depth. Shared substructure is written once and
+referenced, so an object reachable twice comes back as one object and a cyclic
+frame round-trips. A bound logic variable travels as its value.
+
+Refused, each naming the type: an execution token or curried token (compiled
+code, and an anonymous quotation has no name to resolve), a continuation, a
+stream, a database handle, a C pointer, and an unbound logic variable. A
+model held behind the FFI is refused for the same reason — `xgb-save` writes
+those in XGBoost's own format.
+
+A quantity travels by unit name and base-dimension names, so it reloads in a
+session that never declared the unit: missing dimensions and the unit are
+declared on the spot. A name already taken by an ordinary word errors rather
+than redefining it, so loading data cannot change what a word means.
+
+The bytes carry a magic and a version; unknown bytes and truncated input error
+rather than answering a damaged value. Doubles and counts are little-endian.
+
+| Word | Stack effect | Behavior | Ops | Alloc | O |
+|------|-------------|----------|-----|-------|---|
+| `value>bytes` | `( v -- str )` | Serialize a value graph to a byte string | n | `1o` + buffer growth | O(n) |
+| `bytes>value` | `( str -- v )` | Rebuild the value a `value>bytes` string holds; errors on damaged or truncated data | n | one object per node | O(n) |
+| `save-value` | `( v path -- )` | io.h2o: `value>bytes` then `write-file` | n + file write | as `value>bytes` | O(n) |
+| `load-value` | `( path -- v )` | io.h2o: `read-file` then `bytes>value` | file read + n | as `bytes>value` | O(n) |
+
+```forth value>bytes
+[ 1 2 3 4 ] 2 2 matrix value>bytes bytes>value matrix>array . cr
+```
+```output
+[ 1 2 3 4 ]
+```
+
+```forth bytes>value
+{ :name "ann" :scores [ 1 2 3 ] vector } value>bytes bytes>value :scores @ mean . cr
+```
+```output
+2
+```
+
+```forth save-value
+{ :x [ 1 2 3 4 ] vector } [ 10 10 20 20 ] vector { } fit-tree "/tmp/docs-tree.bin" save-value
+"/tmp/docs-tree.bin" load-value { :x [ 1 4 ] vector } predict matrix>array . cr
+```
+```output
+[ 10 20 ]
+```
+
+```forth load-value
+[< 1 2 3 >] "/tmp/docs-set.bin" save-value "/tmp/docs-set.bin" load-value . cr
+```
+```output
+[< 1 2 3 >]
+```
+
+---
+
 ## Matrices
 
 Row-major `double` storage. `r` rows, `c` columns.
@@ -3311,11 +3372,11 @@ keep NaN in place.
 | `indicators!` | `( design column sym -- design )` | statistics.h2o: `column>indicators` for a design dataset (a frame of columns): adds one 0/1 column per distinct value above the first (the reference), keyed `sym=level`, mutating and returning the frame — keys and columns derive from the same data, so a level change grows both together; `keys` then names the design and `dataset>matrix` over them is the aligned matrix; errors on fewer than 2 distinct values | n·k + n log n | level masks + frame growth | O(n·k + n log n) |
 | `with-intercept` | `( X/design -- X'/design )` | statistics.h2o: a matrix gets a prepended column of ones, so a fit's beta[0] is the intercept; a design dataset gets an `:intercept` ones column keyed like any term (errors on an empty design — the rows are read from it) | r×c | matrix `1m(r×(c+1))`; design `1m(r×1)` | O(r×c) |
 | `sigmoid` | `( mat -- mat' )` | statistics.h2o: elementwise logistic 1/(1+e⁻ˣ), mapping reals to (0,1) | 4n | `1m(r×c)` | O(n) |
-| `regress-with` | `( dataset predictors response B fit-xt -- arr )` | statistics.h2o: the shared regression pipeline — design matrix with intercept, point estimate, then B bootstrap refits for per-coefficient `{ :estimate :se :bias :ci-low :ci-high }` frames; the loadable statistics library's `linear-regression`/`logistic-regression` pass the fit | fit + B·fit | matrices + B refits + `1a(k)` | O(B·fit) |
+| `regress-with` | `( dataset predictors response B fit-xt -- model )` | statistics.h2o: the shared regression pipeline — design matrix with intercept, point estimate, then B bootstrap refits. The model frame carries `:coefficients` (a `{ :estimate :se :bias :ci-low :ci-high }` frame each), `:estimates` (the point-estimate vector), `:predictors`, `:response`, the complete-case `:design` and `:responses`, `:n-rows`, and `:replications`; the loadable statistics library's `linear-regression`/`logistic-regression` pass the fit | fit + B·fit | matrices + B refits + `1fr` | O(B·fit) |
 | `norm` | `( mat -- f )` | matrix.h2o: `frobenius-norm` under the short name (inlined) | 1 + n | none | O(n) |
 | `dot` | `( v w -- f )` | matrix.h2o: inner product (`* sum`, inlined); shapes must broadcast, so match the vectors | 2 + 2n | `1m(n)` | O(n) |
 | `frobenius-norm` | `( mat -- f )` | Euclidean (L2) norm: √(Σ aᵢⱼ²) over all elements — a vector's length; for a matrix the Frobenius (entrywise 2-)norm, not the spectral norm | 1 + n | none | O(n) |
-| `fit-tree` | `( features y params -- tree )` | CART regression tree. `features` is a frame of typed columns — a numeric vector splits at a midpoint `:threshold`, an array column is categorical and splits on a mean-ordered subset stored as `:categories`; `y` is a numeric response vector. Returns a nested frame: every node carries `:prediction` (mean of its rows) and `:n_rows`, an internal node adds `:feature` and either `:threshold` or `:categories` plus `:left`/`:right`, a leaf optionally carries `:responses`. Splits maximize S_L²/n_L + S_R²/n_R (squared-error reduction), each numeric column presorted once. Params frame: `:max-depth` (default unlimited), `:min-samples` (minimum rows on each side of a split, default 1), `:store-leaf-responses` (default off). A numeric split learns a default direction for rows missing that feature (NaN): the side that maximizes the split criterion, stored on the node as `:default` (`:left`/`:right`) — present only when the node saw missing rows | features·n·depth | `malloc(24n)` per numeric column + node buffer + tree frame | O(features·n·depth) |
+| `fit-tree` | `( features y params -- tree )` | CART regression tree. `features` is a frame of typed columns — a numeric vector splits at a midpoint `:threshold`, an array column is categorical and splits on a mean-ordered subset stored as `:categories`; `y` is a numeric response vector. Returns a nested frame: every node carries `:prediction` (mean of its rows) and `:n-rows`, an internal node adds `:feature` and either `:threshold` or `:categories` plus `:left`/`:right`, a leaf optionally carries `:responses`. Splits maximize S_L²/n_L + S_R²/n_R (squared-error reduction), each numeric column presorted once. Params frame: `:max-depth` (default unlimited), `:min-samples` (minimum rows on each side of a split, default 1), `:store-leaf-responses` (default off). A numeric split learns a default direction for rows missing that feature (NaN): the side that maximizes the split criterion, stored on the node as `:default` (`:left`/`:right`) — present only when the node saw missing rows | features·n·depth | `malloc(24n)` per numeric column + node buffer + tree frame | O(features·n·depth) |
 | `predict` | `( tree features -- yhat )` | statistics.h2o: apply a `fit-tree` tree to a features frame keyed as at training, walking each row from the root to a leaf — a `:threshold` node sends value ≤ threshold left, a `:categories` node sends set membership left (an unseen value goes right), a NaN feature value follows the node's `:default` (left when the node has none) — and answer the leaf `:prediction`s as an n×1 vector | n·depth | `1a(n)` + `1m(n)` | O(n·depth) |
 | `feature-importance` | `( tree -- fr )` | statistics.h2o: normalized impurity-reduction importance from a `fit-tree` tree — each split's squared-error reduction (`n_L·pred_L² + n_R·pred_R² − n_P·pred_P²`) summed per `:feature` and scaled to sum 1, as a frame keyed by feature symbol over the features actually split on; a stump gives `{ }` | nodes | `1fr` | O(nodes) |
 | `prune` | `( tree alpha -- tree )` | statistics.h2o: cost-complexity prune in place — collapse every subtree whose total split-gain per extra leaf is at most `alpha` (bottom-up, so each collapse sees already-pruned children); `alpha` 0 leaves the tree unchanged, large `alpha` reduces it to the root stump. Mutates the input tree | nodes | leaf frames | O(nodes) |
@@ -3683,7 +3744,7 @@ scale 2.63029
 adult [ :age :education-num ] :income 200 ' fit-linear regress-with
 ```
 ```output
-[ per-coefficient { :estimate :se :bias :ci-low :ci-high } frames ]
+{ :coefficients … :estimates … :predictors [ :intercept :age :education-num ] … }
 ```
 
 ```forth norm
@@ -5199,6 +5260,10 @@ reload
 | `binary-dir` | `( -- str )` | The directory holding the running water binary, symlinks resolved (`realpath`), so an installation's resources are reachable from any cwd; errors on the wasm build (no executable path) | 1 | `1o` | O(\|path\|) |
 | `cd` | `( path -- )` | Change the interpreter's working directory (`chdir`); process-wide, so it moves the base for relative file I/O and is inherited by subsequent `start-process` children | 1 | none | O(1) |
 | `find-executable` | `( name -- path\|none )` | `io.h2o`: the absolute path of `name` on `$PATH` (first directory holding it), or the none value if unset or not found; a name containing `/` matches no bare `PATH` entry, so it answers the none value | split + probe | `1o` per candidate | O(dirs) |
+
+`read-file` and `write-file` carry bytes, NUL and invalid UTF-8 included, so
+they hold binary as well as text; `save-value` and `load-value` (see Value
+serialization) put a whole value graph through them.
 
 ```forth read-file
 "hello" "/tmp/docs-file.txt" write-file "/tmp/docs-file.txt" read-file . cr

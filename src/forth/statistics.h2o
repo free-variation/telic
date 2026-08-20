@@ -232,10 +232,12 @@
 	  :ci-high high 
 	} ; internal
 
-( dataset predictors response replications fit-augmented-xt -- [coefficient-summaries] )
+( dataset predictors response replications fit-augmented-xt -- model )
 \ Shared regression pipeline: build the design matrix (with intercept) and the
 \ response, point-estimate with fit on the full data, then bootstrap-resample
 \ rows and refit for per-coefficient SE/CI/bias. The fit picks linear vs logistic.
+\ The model frame carries the complete-case design and response it fitted, so it
+\ applies and serializes on its own.
 : regress-with
 	| dataset predictors response replications fit |
 	dataset predictors dataset>matrix with-intercept to x
@@ -247,7 +249,18 @@
 	0 beta size 1- range
 	beta betas replications
 	[: j beta betas replications | beta betas replications j coefficient-summary :]
-	3 ncurry map ;
+	3 ncurry map to coefficients
+
+	data n-rows to fitted-rows
+	data n-columns 1- to n-terms
+	{ :coefficients coefficients
+	  :estimates beta
+	  :predictors [ :intercept ] predictors concat
+	  :response response
+	  :design data 0 fitted-rows 0 n-terms submatrix
+	  :responses data 0 fitted-rows n-terms n-terms 1+ submatrix
+	  :n-rows fitted-rows
+	  :replications replications } ;
 
 ( xs ys -- xs' ys' ) \ drop pairs where either element is NaN; magnitudes taken
 : complete-cases
@@ -390,8 +403,8 @@
 	[: 3 pick 3 pick rot predict-row :] map  nip nip
 	vector ;
 
-( node -- weighted-square ) \ S²/n for the node, = prediction² · n_rows
-: weighted-square dup :prediction @ dup * swap :n_rows @ * ; internal
+( node -- weighted-square ) \ S²/n for the node, = prediction² · n-rows
+: weighted-square dup :prediction @ dup * swap :n-rows @ * ; internal
 
 ( accumulator node -- accumulator ) \ add each internal node's squared-error
 \ reduction (weighted-square of the children minus the node) to accumulator[:feature]
@@ -434,7 +447,7 @@
 
 	subtree-gain  alpha subtree-leaves 1 - *  > not if
 		{ :prediction node :prediction @ 
-		  :n_rows node :n_rows @ 
+		  :n-rows node :n-rows @
 		}  0  1
 	else
 		node :left left-node !  :right right-node !
@@ -509,7 +522,7 @@
 : draw-node
 	| node depth |
 	node :feature has? not if
-		depth 2 * spaces  node :prediction @  node :n_rows @  "{2}predict {1}  (n {0})" format . cr
+		depth 2 * spaces  node :prediction @  node :n-rows @  "{2}predict {1}  (n {0})" format . cr
 		exit
 	then
 	node :threshold has? if

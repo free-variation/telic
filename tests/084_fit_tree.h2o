@@ -1,7 +1,7 @@
 \ fit-tree ( features y params -- tree ) — CART regression tree.
 \ Numeric columns (vectors) split at a midpoint :threshold; categorical columns
 \ (arrays) split on a mean-ordered subset stored as :categories. Every node
-\ carries :prediction (mean of its rows) and :n_rows; an internal node adds
+\ carries :prediction (mean of its rows) and :n-rows; an internal node adds
 \ :feature and either :threshold or :categories plus :left and :right; a leaf
 \ optionally carries :responses. Params frame: :max-depth (default unlimited),
 \ :min-samples (minimum rows on each side of a split, default 1),
@@ -12,10 +12,10 @@
 tree :prediction @ . cr             \ 3
 tree :feature @ . cr                \ :x
 tree :threshold @ . cr              \ 2.5
-tree :n_rows @ . cr                 \ 4
+tree :n-rows @ . cr                 \ 4
 tree /left/prediction @ . cr        \ 1
 tree /right/prediction @ . cr       \ 5
-tree /left/n_rows @ . cr            \ 2
+tree /left/n-rows @ . cr            \ 2
 clear
 
 \ === max-depth 0 is a stump ===
@@ -47,7 +47,7 @@ tree :feature @ . cr                \ :c
 tree :categories @ . cr             \ [< :c :a >]
 tree /left/prediction @ . cr        \ 1.5
 tree /right/prediction @ . cr       \ 10
-tree /right/n_rows @ . cr           \ 2
+tree /right/n-rows @ . cr           \ 2
 clear
 
 \ === store-leaf-responses attaches :responses to leaves only ===

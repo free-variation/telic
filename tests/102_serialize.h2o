@@ -1,0 +1,129 @@
+\ value>bytes ( v -- str ) / bytes>value ( str -- v ): a whole value graph as
+\ bytes and back, with save-value / load-value writing it to a file. Shared
+\ substructure is written once and referenced, so identity and cycles survive.
+\ Unserializable values (compiled code, handles, unbound logic vars) are
+\ refused by type. Quantities carry their unit and base dimensions by name.
+
+: round-trip value>bytes bytes>value ;                  \ ( v -- v' )
+: survives dup round-trip = ;                           \ ( v -- bool )
+
+\ === scalars and empties ===
+
+3.5 survives . -0 survives . 1e308 survives . 5e-324 survives . cr   \ 1 1 1 1
+null survives . _ survives . :sym survives . "" survives . cr        \ 1 1 1 1
+[ ] survives . [< >] survives . { } survives . cr                    \ 1 1 1
+0.1 round-trip 0.1 = . 1e308 round-trip .a cr                        \ 1 1e+308 (exact bits, not a decimal detour)
+
+clear
+\ === strings hold arbitrary bytes ===
+
+"héllo ☃" survives . cr                       \ 1
+[ 65 0 66 ] codepoints>string round-trip string>codepoints . cr   \ [ 65 0 66 ] (NUL is content)
+[ 65 0 66 ] codepoints>string round-trip byte-size . cr           \ 3
+
+clear
+\ === collections, nesting, mixed element types ===
+
+[ 1 "two" :three [ 4 5 ] { :a 1 } [< 1 2 >] null _ ] survives . cr   \ 1
+[< 3 1 "s" :y 2/4 >] survives . cr            \ 1
+{ :a { :b { :c { :d [ 1 2 3 ] } } } } round-trip /a/b/c/d @ . cr     \ [ 1 2 3 ]
+[ [ [ [ [ 42 ] ] ] ] ] round-trip 0 @i 0 @i 0 @i 0 @i 0 @i . cr      \ 42
+[( 1 2 3 null )] survives . 1 2 cons survives . cr                   \ 1 1
+
+clear
+\ === numeric types ===
+
+1/3 survives . -6/8 survives . 9007199254740993 survives . cr        \ 1 1 1
+12345678901234567890123456789012345678901234567890/7 round-trip dup . denominator . cr
+\ 12345678901234567890123456789012345678901234567890/7 7
+3+4i survives . -1.5-2i survives . 0+0i survives . cr                \ 1 1 1
+1/3 round-trip 1/6 + . 3+4i round-trip abs . cr                      \ 1/2 5 (they compute after reload)
+
+clear
+\ === matrices, NaN, shapes, segments ===
+
+[ 1 2 3 4 5 6 ] 2 3 matrix survives . cr      \ 1
+[ 1 null 3 ] vector round-trip matrix>array . cr        \ [ 1 null 3 ] (NaN elements survive)
+[ 1 2 3 4 5 6 ] 2 3 matrix round-trip dim swap . . cr   \ 2 3
+0 0 0-matrix round-trip dim swap . . cr                 \ 0 0
+4 int-segment dup 2 7 !i round-trip dup 2 @i . 0 @i . cr   \ 7 0
+3 double-segment dup 1 1.5 !i round-trip 1 @i . cr         \ 1.5
+
+clear
+\ === dimensions: units, compound units, exotic magnitudes ===
+
+10 km survives . 3 newton survives . cr       \ 1 1
+10 m 2 s / survives . cr                      \ 1 (unnamed compound unit)
+1 kg 1 m * 1 s / 1 s / round-trip . cr        \ 1 newton (interns back to the named unit)
+[ 1 2 3 ] vector m round-trip matrix>array . cr         \ [ 1 m 2 m 3 m ]
+1/2 $ round-trip 50/1 ¢ + . cr                \ 1 $ (exact magnitude keeps computing)
+3+4i volt round-trip abs . cr                 \ 5 volt
+2 m 3 s / 4 kg * round-trip . cr              \ 2.66667 m.kg.s^-1 (three dimensions, one unit)
+5 hour round-trip 1 minute + . cr             \ 5.01667 hour (scaled unit reloads at its scale)
+
+clear
+\ === sharing and cycles ===
+
+[ 1 2 3 ] to shared
+[ shared shared ] round-trip to two
+two 0 @i 0 99 !i drop
+two 1 @i . cr                                 \ [ 99 2 3 ] (one object, not two copies)
+
+{ :tag 5 } to cyclic
+cyclic :self cyclic ! drop
+cyclic round-trip to restored
+restored :self @ :n 7 ! drop
+restored :n @ . cr                            \ 7 (:self is the frame itself)
+restored :self @ :self @ :self @ :tag @ . cr  \ 5
+
+{ :a [ 1 2 ] } to inner
+{ :x inner :y inner } round-trip to twice-inner
+twice-inner :x @ :marker 1 ! drop
+twice-inner :y @ :marker @ . cr               \ 1 (shared frame stays shared)
+
+clear
+\ === a bound logic variable travels as its value; frames rebuild by key ===
+
+lvar to bound-var
+bound-var 42 ~ drop
+[ bound-var ] round-trip 0 @i . cr            \ 42
+
+{ :zebra 1 :apple 2 :mango 3 } round-trip dup :zebra @ . dup :apple @ . :mango @ . cr   \ 1 2 3
+
+clear
+\ === large values ===
+
+200 200 0-matrix dup 0 0 7 !i,j drop to big-matrix
+big-matrix round-trip dup 0 0 @i,j . dim swap . . cr    \ 7 200 200
+big-matrix value>bytes byte-size . cr                   \ 320014 (8 bytes an element plus the header)
+20000 iota round-trip dup size . 19999 @i . cr          \ 20000 19999
+2000 iota [: dup 2 * cons :] map round-trip 1999 @i . cr   \ [( 1999 3998 )]
+20000 iota [: "row{0}" format :] map round-trip 19999 @i . cr   \ row19999 (20000 strings)
+[ [ "id" "score" ] [ 1 0.5 ] [ 2 0.25 ] ] true rows>dataset round-trip :score @ mean . cr  \ 0.375
+
+clear
+\ === files: save-value / load-value ===
+
+{ :x [ 1 2 3 4 ] vector } [ 10 10 20 20 ] vector { :store-leaf-responses 1 } fit-tree to model
+model "/tmp/water-test-model.bin" save-value
+"/tmp/water-test-model.bin" load-value to reloaded
+reloaded model = . cr                         \ 1
+reloaded { :x [ 1 4 ] vector } predict matrix>array . cr    \ [ 10 20 ]
+reloaded feature-importance keys . cr         \ [ :x ]
+
+[< 1 2 3 >] "/tmp/water-test-set.bin" save-value
+"/tmp/water-test-set.bin" load-value . cr     \ [< 1 2 3 >]
+
+clear
+\ === errors (each reason parenthesized) ===
+
+' dup value>bytes                             \ (compiled code has no data form)
+[: 1 2 + :] value>bytes                       \ (a quotation is compiled code too)
+1 ' + curry value>bytes                       \ (a curried token carries an xt)
+lvar value>bytes                              \ (an unbound logic variable has no value)
+stdout value>bytes                            \ (a stream is an OS handle)
+":memory:" db-open value>bytes                \ (a database is a connection)
+{ :model ' dup } value>bytes                  \ (refusal reaches inside a frame)
+"not water data at all" bytes>value           \ (no magic)
+"H2OV" bytes>value                            \ (magic but no version byte)
+5 bytes>value                                 \ (bytes>value takes a string)

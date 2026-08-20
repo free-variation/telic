@@ -5310,6 +5310,8 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "float>exact", p_float_to_exact, 0);
 	define_primitive(interp, "exact>float", p_exact_to_float, 0);
 	define_primitive(interp, "rationalize", p_rationalize, 0);
+	define_primitive(interp, "value>bytes", p_value_to_bytes, 0);
+	define_primitive(interp, "bytes>value", p_bytes_to_value, 0);
 	define_primitive(interp, "complex", p_complex, 0);
 	define_primitive(interp, "real-part", p_real_part, 0);
 	define_primitive(interp, "imaginary-part", p_imaginary_part, 0);

@@ -118,6 +118,7 @@ bulk-load
 bye
 byte-size
 byte-substring
+bytes>value
 case
 catch
 cd
@@ -356,6 +357,7 @@ load
 load-bag
 load-library
 load-tsv
+load-value
 log
 logistic-regression
 lookup
@@ -507,6 +509,7 @@ sample-without-replacement
 save
 save-figure
 save-tsv
+save-value
 scatter
 scatter-plot
 se
@@ -610,6 +613,7 @@ unit
 unit-of
 until
 update-at
+value>bytes
 values
 var
 variable
@@ -657,7 +661,9 @@ write-tsv
 x-label
 xgb-free
 xgb-importance
+xgb-load
 xgb-predict
+xgb-save
 xml-escape
 xt?
 y-categories

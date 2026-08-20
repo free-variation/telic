@@ -967,7 +967,7 @@ static void cart_fill_frame(Interpreter *interp, const CART *tree,
 	Object *frame = OBJECT_AT(frame_handle);
 
 	frame_put(frame, intern_symbol(interp, "prediction"), make_float(node->prediction));
-	frame_put(frame, intern_symbol(interp, "n_rows"), make_float((double)node->n_rows));
+	frame_put(frame, intern_symbol(interp, "n-rows"), make_float((double)node->n_rows));
 
 	if (node->left_child < 0) {
 		if (store_leaf_responses) {

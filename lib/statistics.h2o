@@ -388,6 +388,8 @@ dup "XGBoosterPredictFromDMatrix"   [ :ptr :ptr :string :ptr :ptr :ptr ] :int ff
 dup "XGBoosterFree"                 [ :ptr ]                          :int    ffi-function (xgb-booster-free)
 dup "XGBoosterFeatureScore"         [ :ptr :string :ptr :ptr :ptr :ptr :ptr ] :int ffi-function (xgb-feature-score)
 dup "XGBoosterGetNumFeature"        [ :ptr :ptr ]                     :int    ffi-function (xgb-num-feature)
+dup "XGBoosterSaveModel"            [ :ptr :string ]                  :int    ffi-function (xgb-save-model)
+dup "XGBoosterLoadModel"            [ :ptr :string ]                  :int    ffi-function (xgb-load-model)
 dup "XGBGetLastError"               [ ]                               :string ffi-function (xgb-last-error)
 drop
 
@@ -456,6 +458,20 @@ drop
 
 ( booster -- ) \ free a booster handle
 : xgb-free (xgb-booster-free) xgb-check ;
+
+( booster path -- ) \ write the booster; the path extension picks the format, ".json" or ".ubj"
+: xgb-save (xgb-save-model) xgb-check ;
+
+( path -- booster ) \ read a booster written by xgb-save or by xgboost elsewhere
+: xgb-load
+	| path |
+	pointer-cell to no-matrices
+	pointer-cell to booster-cell
+	no-matrices 0 booster-cell (xgb-create) xgb-check
+	booster-cell pointer-deref to booster
+	booster path (xgb-load-model) xgb-check
+	no-matrices ffi-free booster-cell ffi-free
+	booster ;
 
 ( booster importance-type -- scores ) \ k×1 per-feature importance, row i is feature i
 \ importance-type is "gain" "weight" "cover" "total_gain" or "total_cover"; a feature
