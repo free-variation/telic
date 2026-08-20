@@ -44,8 +44,8 @@ around their contents.
 
 Allocation note: an object slot is a pointer bump into the object table, which
 grows on demand (doubling) up to a 64M-entry ceiling; when the ceiling is
-reached, a mark-sweep GC runs and the allocation retries. There is no
-incremental collection.
+reached, a mark-sweep GC runs and the allocation retries; every collection
+is a full pass.
 
 ---
 
@@ -65,8 +65,8 @@ incremental collection.
 | `clear` | `( … -- )` | Reset data stack depth to 0 | 1 | none | O(1) |
 | `2dup` | `( a b -- a b a b )` | core.h2o: `over over` (inlined) | 10 | none | O(1) |
 | `2drop` | `( a b -- )` | core.h2o: `drop drop` (inlined) | 2 | none | O(1) |
-| `identity` | `( a -- a )` | core.h2o: the value unchanged (inlined) — the no-op xt for a higher-order word that expects a transform when none is wanted | 1 | none | O(1) |
-| `nip` | `( a b -- b )` | Drop the second item, keeping the top — one op, not `swap drop` | 1 | none | O(1) |
+| `identity` | `( a -- a )` | core.h2o: the value unchanged (inlined) — the no-op xt for higher-order words | 1 | none | O(1) |
+| `nip` | `( a b -- b )` | Drop the second item, keeping the top | 1 | none | O(1) |
 
 ```forth dup
 3 dup * . cr
@@ -290,7 +290,7 @@ concat
 
 ### In-place matrix arithmetic
 
-Mutate the left operand and return it; no allocation. Programmer is responsible for uniqueness (no implicit refcounting).
+Mutate the left operand and return it; no allocation. The caller ensures the matrix is unshared.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
@@ -716,7 +716,7 @@ matrix (`@i,j`, `@e`) surfaces as `null` the same way.
 | `exp` | `( a -- eᵃ )` | `exp` | 2 | matrix `1m(r×c)` | same |
 | `log` | `( a -- log₁₀ a )` | `log10` | 2 | matrix `1m(r×c)` | same |
 | `ln` | `( a -- ln a )` | `log` — natural log | 2 | matrix `1m(r×c)` | same |
-| `lgamma` | `( a -- ln Γ(a) )` | `lgamma` — log of the gamma function, which extends the factorial (`5 lgamma` is `ln 4!`). The log form is what count-model likelihoods use, since Γ overflows a double past 171 while `171 lgamma` is 706.57. Defined for positive arguments: it is `+inf` at zero and the negative integers, and for negative non-integers libm returns ln \|Γ(a)\| with the sign held in a global this word does not expose | 2 | matrix `1m(r×c)` | same |
+| `lgamma` | `( a -- ln Γ(a) )` | `lgamma` — log of the gamma function, which extends the factorial (`5 lgamma` is `ln 4!`). Γ overflows a double past 171, while `171 lgamma` is 706.57. Defined for positive arguments: it is `+inf` at zero and the negative integers, and for negative non-integers libm returns ln \|Γ(a)\| and the sign is discarded | 2 | matrix `1m(r×c)` | same |
 | `sin` | `( a -- sin a )` | sine (radians) | 2 | matrix `1m(r×c)` | same |
 | `cos` | `( a -- cos a )` | cosine (radians) | 2 | matrix `1m(r×c)` | same |
 | `tan` | `( a -- tan a )` | tangent (radians) | 2 | matrix `1m(r×c)` | same |
@@ -864,7 +864,7 @@ PI cos . cr
 
 ## Comparison and logic
 
-Result is `1.0` (true) or `0.0` (false), with a float fast path. `=` uses `val_cmp` (structural): matrices compare by shape then row-major contents, so they order for set membership. `<`/`>` are structural too, **except on matrices**, where they compare element-wise and return a 1.0/0.0 matrix (same shape, or a scalar broadcasts over the matrix). A dimensioned matrix on either side of `<`/`>`/`eq` also masks element-wise: the right operand rescales into the left's unit (`prices 10 $ <` works whether prices are in `$` or `¢`), the mask comes back bare, and a quantity against a plain number or a different dimension errors. An array operand masks element-wise too: each element compares by `val_cmp` against the other operand (or pairwise against an equal-length array — unequal lengths error), yielding an n×1 mask, so `names "ann" eq where` filters a text column and string order is lexicographic. Directly before `if`/`while`/`until` a comparison fuses into a compare-and-branch, which stays structural — branching on a matrix result isn't meaningful.
+Result is `1.0` (true) or `0.0` (false), with a float fast path. `=` uses `val_cmp` (structural): matrices compare by shape then row-major contents, so they order for set membership. `<`/`>` are structural too, **except on matrices**, where they compare element-wise and return a 1.0/0.0 matrix (same shape, or a scalar broadcasts over the matrix). A dimensioned matrix on either side of `<`/`>`/`eq` also masks element-wise: the right operand rescales into the left's unit (`prices 10 $ <` works whether prices are in `$` or `¢`), the mask comes back bare, and a quantity against a plain number or a different dimension errors. An array operand masks element-wise too: each element compares by `val_cmp` against the other operand (or pairwise against an equal-length array — unequal lengths error), yielding an n×1 mask, so `names "ann" eq where` filters a text column and string order is lexicographic. Directly before `if`/`while`/`until` a comparison fuses into a compare-and-branch, which stays structural.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
@@ -876,7 +876,7 @@ Result is `1.0` (true) or `0.0` (false), with a float fast path. `=` uses `val_c
 | `>` | `( a b -- bool )` or `( mat/arr x -- mat )` | greater-than; element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (`val_cmp` per element, n×1) | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
 | `>=` | `( a b -- bool )` or `( mat/arr x -- mat )` | greater-than-or-equal (≥); element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (`val_cmp` per element, n×1) | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
 | `eq` | `( a b -- bool )` or `( mat/arr x -- mat )` | equality; element-wise 1/0 mask on matrix and array operands (scalar broadcast; `val_cmp` per array element) — unlike `=`, which stays structural on collections. NaN elements equal nothing | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
-| `nan?` | `( v -- bool )` or `( mat/arr -- mat )` | NaN test: 1/0 mask over a matrix's elements; an array answers an n×1 mask marking `none` elements (a text column's missing cells), composing with `where`/`select-rows`; `1` on `null` itself (a scalar NaN *is* `null`), `0` on any float or exact. The only mask route to NaNs — they compare false under `<`/`>`/`eq` | 2 | `1m(r×c)` | O(1); matrix/array O(n) |
+| `nan?` | `( v -- bool )` or `( mat/arr -- mat )` | NaN test: 1/0 mask over a matrix's elements; an array answers an n×1 mask marking `none` elements (a text column's missing cells), composing with `where`/`select-rows`; `1` on `null` itself (a scalar NaN *is* `null`), `0` on any float or exact. NaNs compare false under `<`/`>`/`eq`, so this is the word that masks them | 2 | `1m(r×c)` | O(1); matrix/array O(n) |
 | `0=` | `( a -- bool )` | `!truthy(a)`; any type | 2 | none | O(1) |
 | `1=` | `( a -- bool )` | core.h2o: `1 =` (inlined) | 5 | none | O(1) |
 | `type-of` | `( a -- sym )` | The value's type as a symbol: `:float` `:string` `:symbol` `:array` `:set` `:pair` `:frame` `:matrix` `:quantity` `:xt` `:continuation` `:stream` `:db` `:ptr` `:segment` `:none` `:wildcard` `:lvar` `:exact`. A bound logic var reports its value's type; an unbound one is `:lvar` | 2 | none | O(1) |
@@ -1214,8 +1214,8 @@ A quantity is a magnitude (a float or a matrix) carrying a unit. Units are
 rational-exponent vectors over user-declared base dimensions, each with a
 rational scale relative to its dimension's base; arithmetic propagates and
 checks them. Same-dimension units at any rational scale coexist and convert
-(`$`/`¢`, `kg`/`g`, `inch`/`cm`). What's excluded is affine offsets — `°C`/`°F`
-need an added zero, not just a scale factor.
+(`$`/`¢`, `kg`/`g`, `inch`/`cm`). A unit is a pure scale factor; `°C`/`°F`,
+which need an added zero as well, cannot be declared.
 
 Declare with `base` and `unit`:
 
@@ -1280,7 +1280,7 @@ temperature `kelvin`, amount `mol`; derived `hertz` `newton` `pascal` `joule`
 An exact is a fraction of two arbitrarily large integers, always reduced to
 lowest terms; an integer is the case with denominator 1. `1/3`, `-7/2`, and
 `5/1` are literals, and a plain integer literal too large for a float to hold
-exactly (a 19-digit id) reads as an exact instead of rounding silently. The
+exactly (a 19-digit id) reads as an exact, keeping every digit. The
 same rule applies to `json>frame` integers and SQLite INTEGER columns;
 `frame>json` and `db-exec`/`db-query` parameters write integer exacts back
 without loss (a non-integer exact errors there).
@@ -1439,8 +1439,8 @@ Immediate words that emit branch instructions into the current definition. Outsi
 | `again` | — | Unconditional branch back to `begin` |
 | `while` | `( flag -- )` | Exit the loop forward if flag is falsy (`begin … while … repeat`) |
 | `repeat` | — | Branch back to `begin`; patches the `while` exit |
-| `do` | `( start limit delta -- )` | Open a counted loop over a named index local: parses the name, pops the triple (`matrix-range`'s operand order), and computes the number of iterations once at entry — zero when start is already at or past limit, so the loop body may never run; a negative delta counts down; a zero delta errors; operands are floats ⚠ the index step is a raw float add |
-| `loop` | — | Close a `do`: one instruction adds delta to the index, decrements the remaining-iteration count, and branches back while iterations remain. After the loop the index still reads — start plus delta times the iteration count on normal exit, the current value after `leave` |
+| `do` | `( start limit delta -- )` | Take start, limit, delta from the stack and read the next token as the index name; the body runs with the index at start, start+delta, …, while the value is short of limit ⚠ |
+| `loop` | — | End a `do` loop |
 | `leave` | — | Branch past the innermost loop's closing word; conditional form is `if leave then` |
 | `continue` | — | Branch to the innermost loop's next iteration: a `while` loop re-runs its test, an `until` loop skips its trailing test and repeats unconditionally, and a `do` loop steps its index and counts the iteration (so it terminates) |
 | `exit` | `( -- )` | Return early from the current definition (this one runs at run time) |
@@ -1453,6 +1453,11 @@ or `:]` (an unpatched `leave` would otherwise be a wild branch); the partial
 definition rolls back. In `times` / `i-times` quotations, `exit` already ends
 the current iteration.
 
+A `do` loop whose start is already at or past limit runs zero times; a zero
+delta errors. Writing to the index inside the body does not change how many
+times the loop runs. `do` pops its triple in `matrix-range`'s operand order.
+The operands are floats, and the index step is a raw float add. The index is
+still readable after the loop.
 A `do` index name resolves as a `to` target does: an existing local of the
 body reuses its slot, a word's name shadows it for the body, a global
 variable's name errors. Each loop takes three of the body's 128 local slots —
@@ -1863,7 +1868,7 @@ lookup sqrt 9 swap execute . cr
 
 ### Locals
 
-The **head** of a definition or quotation body names what that body receives from the stack, rightmost from the top: `| a b c |` takes c from the top, then b, then a. The opening bar is optional, so `: hypotenuse a b | …` and `[: element index | … :]` are the same heads as `| a b |` and `| element index |`. There is one head and it stands at the head: a second list, or a list after code, is a compile error, and an empty `| |` is one too — a body that receives nothing omits the head entirely.
+The **head** of a definition or quotation body names what that body receives from the stack, rightmost from the top: `| a b c |` takes c from the top, then b, then a. The opening bar is optional, so `: hypotenuse a b | …` and `[: element index | … :]` are the same heads as `| a b |` and `| element index |`. A body has at most one head, and it comes first: a second list, or a list after code, is a compile error, and an empty `| |` is one too — a body that receives nothing omits the head entirely.
 
 Everything else the body needs is declared where it is first assigned. A `to` on a name that is neither already a local of this body nor an existing word declares a local and stores into it. The compiler collects those names before compiling the body, so a name declared by a `to` anywhere in the body is a local of the whole body — a name means one thing throughout, whichever branch or loop assigns it, and the head list carries only what arrives on the stack. A *read* of a name nothing declares is still an unknown word.
 
@@ -1871,7 +1876,7 @@ A name in the head that would otherwise resolve outward carries a marker. `^name
 
 Locals live on the return stack: up to 128 names across up to 64 nested scopes. A slot reads as `null` before its first assignment. A body reads the locals **it declares itself** and nothing else: a reference to a name declared in an enclosing definition or an enclosing quotation is a compile error — `x is not bound in this quotation; pass it in or use pick` — and the partial definition rolls back. Values reach a quotation three ways: received into its own head, parked on the stack below the combinator's operands and read by depth with `pick`, or bound into a curried token by `curry`/`2curry`/`ncurry`.
 
-The mechanism: a local reference compiles to the **slot index** in the frame that declares it, always the innermost locals-bearing scope, and the op reads `local_base + slot` with no frame walk. Names are discarded after compilation and no value is bound then. Because every reference is depth 0, a quotation's meaning does not depend on which frames happen to be live when it runs — it reads the same slots under `map`, under `i-times`, through `execute`, inside another word's frame, or after a continuation capture and resume. The rejected alternative was resolving a reference as `(frames-up, slot)` against the live frame chain, which made a quotation's reads depend on its caller's frames and silently returned another word's slots when it travelled.
+The mechanism: a local reference compiles to the **slot index** in the frame that declares it, always the innermost locals-bearing scope, and the op reads `local_base + slot` with no frame walk. Names are discarded after compilation and no value is bound then. Because every reference is depth 0, a quotation's meaning does not depend on which frames happen to be live when it runs — it reads the same slots under `map`, under `i-times`, through `execute`, inside another word's frame, or after a continuation capture and resume.
 
 | Syntax | Behavior |
 |--------|----------|
@@ -1936,7 +1941,7 @@ These compile-time words read a following local name and emit a single fused dep
 | `emit` | `( code -- )` | Print the character with codepoint `code`, UTF-8 encoded (1–4 bytes); range-checked `[0, 0x10FFFF]` | 1 | none | O(1) |
 | `tty?` | `( -- bool )` | Whether stdout is a terminal (`isatty`) — printing words branch on it to emit styling only for a person at a terminal, so piped and batch output stays plain (`help` dims its prose this way) | 1 | none | O(1) |
 
-String literals `"…"` are **raw**: bytes between the quotes are copied verbatim and an embedded newline is kept; the only escape is a doubled `""`, which yields one `"` (a lone `"` closes the string). There is no `{n}` substitution — a regex `\d{3}` literal is safe, and template-filling is the explicit word `format` (in String operations below).
+String literals `"…"` are **raw**: bytes between the quotes are copied verbatim and an embedded newline is kept; the only escape is a doubled `""`, which yields one `"` (a lone `"` closes the string). A `{n}` in a literal is ordinary text — a regex `\d{3}` stays intact — and template-filling is the explicit word `format` (in String operations below).
 
 ```forth .
 PI . cr
@@ -2058,7 +2063,7 @@ A placeholder may carry a format spec after a colon — `{n:spec}` — a printf-
 
 A float or integer conversion requires a float operand; a non-float operand, an unknown conversion letter, or trailing characters in the spec is an error. With no colon, `{n}` renders the value in its default form.
 
-`first match` and `findall` are spelled `match` and `match-all`; there is no separate search/match/fullmatch split. Anchor with `^`/`$` (or `\A`/`\z`) when you need it.
+`match` finds the leftmost match anywhere in the subject; anchor with `^`/`$` (or `\A`/`\z`).
 
 ```forth match
 "x=42" "(\w+)=(\d+)" match . cr
@@ -2356,7 +2361,7 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 | `slice!` | `( arr tstart src sstart sstep slen -- arr )` | Copy `slen` elements `src[sstart], src[sstart+sstep], …` into `arr[tstart…]` in place | 6 + slen | self-overlap may malloc slen | O(slen) |
 | `to-slice!` | `( v₀ … vₙ₋₁ arr offset n -- arr )` | Store the n values just below `arr` into `arr[offset…offset+n)`; leaves arr | 2 + n | none | O(n) |
 | `last` | `( arr n -- arr )` | arrays.h2o: `swap reverse swap take reverse` | 3n | 3×`1a(n)` | O(n) |
-| `first` | `( arr/pair -- v )` | core.h2o: element 0 of an array, or a cons's head — reads pairs-shaped results (`count`, `group-indices`) and logic pairs alike | 9 | none | O(1) |
+| `first` | `( arr/pair -- v )` | core.h2o: element 0 of an array, or a cons's head — works on `count`/`group-indices` results and logic lists alike | 9 | none | O(1) |
 | `second` | `( arr/pair -- v )` | core.h2o: element 1 of an array, or a cons's tail (`5 6 cons second` → 6; on a list literal the rest, not the next element) | 9 | none | O(1) |
 | `skip` | `( arr n -- arr )` | arrays.h2o: `over size swap - swap reverse swap take reverse` | 3n | 3×`1a(n)` | O(n) |
 | `sort` | `( arr/set/v -- arr/v )` | Sorted copy: an array orders by `val_cmp`; a set projects its already-ordered elements to an array; an nx1 or 1xn vector sorts ascending with NaNs last (other matrix shapes error) | 1 + n log n | `1a(n)` / `1m(n)` | O(n log n); vectors above 8k elements O(n) radix |
@@ -2973,7 +2978,7 @@ Row-major `double` storage. `r` rows, `c` columns.
 
 ### Multiplication and reductions
 
-`dgemm` variants do real matrix multiply; element-wise `*` does not.
+`dgemm` variants do real matrix multiply; `*` on matrices is element-wise.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
@@ -3141,9 +3146,9 @@ keep NaN in place.
 | `augment` | `( a b -- mat )` | Concatenate two matrices column-wise; errors unless row counts match | 2 + r·c | `1m(r×c)` | O(r·c) |
 | `vstack` | `( a b -- mat )` | Stack two matrices row-wise (a on top of b); errors unless column counts match | 2 + r·c | `1m(r×c)` | O(r·c) |
 | `hstack` | `( a b -- mat )` | matrix.h2o: `augment` under its numpy name (inlined) | 2 + r·c | `1m(r×c)` | O(r·c) |
-| `submatrix` | `( mat rs re cs ce -- mat )` | Copy the half-open block rows [rs,re) × cols [cs,ce); errors out of bounds or start  end | 5 + r·c | `1m(r×c)` | O(r·c) |
+| `submatrix` | `( mat rs re cs ce -- mat )` | Copy the half-open block rows [rs,re) × cols [cs,ce); errors out of bounds or start > end | 5 + r·c | `1m(r×c)` | O(r·c) |
 | `select-rows` | `( mat/dataset/arr idx -- same )` | New matrix of the rows named by `idx` — a float index array or an index vector (nx1 or 1xn, as `where`/`argsort` return); a dimensioned matrix keeps its unit; errors on a non-float or out-of-range index. datasets.h2o extends it to a dataset (every column gathered by the same indices — matrix and dimensioned columns through the matrix path, array columns element-wise) and to a bare array (elements gathered by index) | 2 + k·c | `1m(k×c)`; dataset one column each; array `1a(k)` | O(k·c) |
-| `mesh` | `( v mask b -- v' )` | Masked substitution: element i of the result is `b`'s where `mask[i]` is a definite nonzero, `v`'s where it is 0 **or NaN** (an unknown mask cell changes nothing). `v` is a matrix, dimensioned matrix, or array; the mask a bare matrix of `v`'s shape (element count, for an array). `b` is shape-matched same-representation, or broadcasts: a float, `null` (→ NaN), a quantity, or — for an array subject — any single value. Units reconcile as `+`: `b` rescales into `v`'s unit, which the result keeps; a quantity against a bare number errors. Conditional-mutate idioms: `dup nan? 0 mesh` fills NaNs, `dup -1 eq null mesh` turns a sentinel into NaN, `dup 100  100 mesh` caps | 3 + n | `1m(r×c)` / `1a(n)` | O(n) |
+| `mesh` | `( v mask b -- v' )` | Masked substitution: element i of the result is `b`'s where `mask[i]` is a definite nonzero, `v`'s where it is 0 **or NaN** (an unknown mask cell changes nothing). `v` is a matrix, dimensioned matrix, or array; the mask a bare matrix of `v`'s shape (element count, for an array). `b` is shape-matched same-representation, or broadcasts: a float, `null` (→ NaN), a quantity, or — for an array subject — any single value. Units reconcile as `+`: `b` rescales into `v`'s unit, which the result keeps; a quantity against a bare number errors. Conditional-mutate idioms: `dup nan? 0 mesh` fills NaNs, `dup -1 eq null mesh` turns a sentinel into NaN, `dup 100 > 100 mesh` caps at 100 | 3 + n | `1m(r×c)` / `1a(n)` | O(n) |
 | `argsort` | `( v -- v' )` or `( arr -- arr )` | The sorting permutation of a vector, shape preserved: element i is the source index of the i-th smallest value; ties keep index order, NaNs go last in index order. An array operand answers the permutation under `val_cmp` (structural, so mixed types order), ties in index order, as a float-index array | 1 + n log n | `1m(n)` + `malloc(16n)`; array `1a(n)` + `malloc(4n)` | O(n log n); vectors above 8k elements O(n) radix |
 | `ranks` | `( v -- v' )` | statistics.h2o: 0-based midranks as nx1 — tied values share the mean of their sorted positions, NaNs rank last in index order; one `argsort`, a gather, and one linear pass over the runs of tied values | n log n + 2n | `3m(n)` + `malloc(16n)` | O(n log n) |
 | `where` | `( mat -- v )` | Flat row-major indices of the nonzero elements, as a k×1 index vector (1×k for a 1×n mask); composes with the `<`/`>` masks and `select-rows` | 1 + n | `1m(k)` | O(n) |
@@ -3154,7 +3159,7 @@ keep NaN in place.
 | `quantiles` | `( mat probs -- v )` | statistics.h2o: `quantile` at each probability in the `probs` array, as a vector in that order — R's `quantile(x, probs)` (type 7). Sorts a copy per probability | k·(2 + n log n) | `1a(k)` + `1m(k)` | O(k·n log n) |
 | `histogram-table` | `( v n-bins -- fr )` | statistics.h2o: equal-width bin counts over a vector's value range, as `{ :counts (n-bins×1) :low :bin-width }`. NaNs dropped, the maximum value is counted in the last bin, a constant vector takes the range value ± 1; errors on n-bins < 1 or no finite values | n + n-bins | `1m(n-bins)` + `1fr` | O(n + n-bins) |
 | `ecdf` | `( v -- xs ys )` | statistics.h2o: the empirical CDF as two n×1 vectors — the finite elements sorted ascending, and the cumulative fractions (i+1)/n, so `ys` at index i is F(`xs` at i). Ties stay as consecutive points; NaNs are excluded from the points and from n; errors when no finite values remain | 2n log n | `2m(n)` + `1a(n)` | O(n log n) |
-| `binomial-deviance` | `( y p -- dev )` | statistics.h2o: −2 Σ[y ln p + (1−y) ln(1−p)] over n×1 vectors — the proper scoring rule for probability models; p is clamped to [1e-12, 1−1e-12], so an overconfident prediction scores finitely bad rather than losing its ln 0 term to `sum`'s NaN skipping | 10n | clamp + term vectors | O(n) |
+| `binomial-deviance` | `( y p -- dev )` | statistics.h2o: −2 Σ[y ln p + (1−y) ln(1−p)] over n×1 vectors — the proper scoring rule for probability models; p is clamped to [1e-12, 1−1e-12], so an overconfident prediction scores a large finite penalty and its ln 0 term never reaches `sum`'s NaN skipping | 10n | clamp + term vectors | O(n) |
 | `brier` | `( outcomes probabilities -- f )` | statistics.h2o: Brier score — mean of (probability − outcome)² over n×1 vectors; NaN elements are skipped by `mean` | 3n | `2m(n)` | O(n) |
 | `auc` | `( outcomes scores -- f )` | statistics.h2o: area under the ROC curve = P(a random positive scores above a random negative), ties counted half (Mann–Whitney). outcomes n×1 in {0,1}, scores real; a NaN score drops its row (outcomes stay aligned); throws if either class is absent. Ties are handled exactly, so the result is independent of row order | n_pos·n_neg | index vectors + per-positive masks | O(n_pos·n_neg) |
 | `cv-folds` | `( units n-folds -- folds )` | statistics.h2o: deal `units` round-robin into `n-folds` `[ train test ]` index-array pairs in the given order — the split `cross-validate` runs on; errors on n-folds < 2 or fewer units than folds | n | fold index arrays | O(n) |
@@ -4021,7 +4026,7 @@ The quotation/predicate cost dominates; `xt` denotes one call.
 | `sum-times` | `( xt n -- total )` | arrays.h2o: `fold-times` with 0 and `' f+` — the sum of `xt` `( i -- term )` over i in 0..n-1 | 3 + n·(1+xt) | none | O(n·xt) |
 | `product-times` | `( xt n -- product )` | arrays.h2o: `fold-times` with 1 and `' f*` — the product of `xt` `( i -- term )` over i in 0..n-1 | 3 + n·(1+xt) | none | O(n·xt) |
 | `i-times` | `( xt n -- )` | Run xt n times, pushing index 0..n-1 first | 2 + n·(1+xt) | none | O(n·xt) |
-| `fold-times` | `( acc map-xt combine-xt n -- acc' )` | Counted map-fold, the serial counterpart of `pmap-reduce`: for i in 0..n-1 push i, run `map-xt` `( i -- term )`, then combine the accumulator with the term. The accumulator never appears on the data stack — with `' f+`, `' f-`, `' f*`, `' f/` or their polymorphic counterparts the arithmetic runs inside the loop with no dispatch, and any other combiner is invoked as `( acc term -- acc' )`. `0 [: dup f* :] ' f+ 5 fold-times` answers 30; values the body needs beyond the index are parked below and read with `pick`. Per element it costs slightly less than `i-times` with an equivalent body, since the combine step consumes each term inside the loop where an `i-times` body would end in a dispatched `drop` | 4 + n·(1+xt) | none | O(n·xt) |
+| `fold-times` | `( acc map-xt combine-xt n -- acc' )` | Counted map-fold, the serial counterpart of `pmap-reduce`: for i in 0..n-1 push i, run `map-xt` `( i -- term )`, then combine the accumulator with the term. The accumulator never appears on the data stack — with `' f+`, `' f-`, `' f*`, `' f/` or their polymorphic counterparts the arithmetic runs inside the loop with no dispatch, and any other combiner is invoked as `( acc term -- acc' )`. `0 [: dup f* :] ' f+ 5 fold-times` answers 30; values the body needs beyond the index are parked below and read with `pick` | 4 + n·(1+xt) | none | O(n·xt) |
 | `find-first` | `( items pred -- element )` | The first element for which pred is truthy, or the none value; short-circuits at the first hit (does not run pred over the rest) | n·xt | none | O(n·xt) |
 | `any?` | `( items pred -- bool )` | arrays.h2o: `find-first none? not` — short-circuits, since `find-first` stops at the first hit | n·xt | none | O(n·xt) |
 | `all?` | `( items pred -- bool )` | arrays.h2o: `map 1 [: * :] reduce` — true when every element satisfies pred, vacuously true on empty. Runs pred over **every** element (it maps then folds), so it does not short-circuit and a side-effecting pred runs n times | 2n·xt | `1a(n)` | O(n·xt) |
@@ -4029,7 +4034,7 @@ The quotation/predicate cost dominates; `xt` denotes one call.
 | `flat-map` | `( items xt -- arr )` | arrays.h2o: `map flatten-array`; xt returns an array per element, results concatenated | n·xt + total | `1a(n)` + `1a(total)` | O(n·xt + total) |
 | `sort-by` | `( items xt -- arr )` | arrays.h2o: sorted by the key xt `( element -- key )` extracts, one evaluation per element; the keys are `argsort`ed and the elements gathered by that permutation, so equal keys keep index order | n·xt + n log n | 3×`1a(n)` + `malloc(4n)` | O(n·xt + n log n) |
 | `partition` | `( items pred -- matches rest )` | arrays.h2o: the elements satisfying pred and the others, one pass, input order kept | n·xt | 2 arrays + the curried predicate token | O(n·xt) |
-| `group-with` | `( items xt -- fr )` | arrays.h2o: group elements into `{ key → set }` by the symbol key xt `( element -- sym )` computes — the quotation-keyed kin of `group-by` | n·(xt + log n) | frame + sets | O(n·xt + n log n) |
+| `group-with` | `( items xt -- fr )` | arrays.h2o: group elements into `{ key → set }` by the symbol key xt `( element -- sym )` computes — `group-by` with a computed key | n·(xt + log n) | frame + sets | O(n·xt + n log n) |
 
 ```forth map
 [ 1 2 3 ] [: dup * :] map . cr
@@ -4427,7 +4432,7 @@ A producer drops nothing after `yield`. The word does not consume the value it e
 
 ## Logic
 
-Logic variables, unification, and committed choice, built on the trail and a `PROMPT_CHOICE` prompt. The primer behind these words — unknowns and substitutions, unification, the trail, search, reification, and the fact database as a worked application — is docs/logic.md. A logic var is always created explicitly: `lvar` pushes a fresh one, `lvar to x` names a persistent global (`to` auto-creates the global at the top level), and a `?` prefix in a locals list (`| ?x |`) declares a fresh per-call local. Capitalizing logic-var names (`X`, `Hs`) is stylistic convention, not syntax — case carries no meaning. `unify` records every binding on the trail; a `unify` mismatch or an explicit `fail` backtracks to the nearest `amb`. Lists are cons pairs (see Pairs): `[( H T )]` is the `[H|T]` head/tail pattern under `unify`. To keep a result past backtracking, snapshot it with `copy` (fresh vars) or `reify` (canonical `:_N`). A logic var prints by the name of a variable that holds it — `?x` while free (the `?` marks it unbound, matching the `| ?x |` declaration form), `x=value` once bound — or `_N` when anonymous; an anonymous bound var prints its value.
+Logic variables, unification, and committed choice, built on the trail and a `PROMPT_CHOICE` prompt. The primer behind these words — unknowns and substitutions, unification, the trail, search, reification, and the fact database as a worked application — is docs/logic.md. A logic var is always created explicitly: `lvar` pushes a fresh one, `lvar to x` names a persistent global (`to` auto-creates the global at the top level), and a `?` prefix in a locals list (`| ?x |`) declares a fresh per-call local. Capitalizing logic-var names (`X`, `Hs`) is stylistic convention; case carries no meaning. `unify` records every binding on the trail; a `unify` mismatch or an explicit `fail` backtracks to the nearest `amb`. Lists are cons pairs (see Pairs): `[( H T )]` is the `[H|T]` head/tail pattern under `unify`. To keep a result past backtracking, snapshot it with `copy` (fresh vars) or `reify` (canonical `:_N`). A logic var prints by the name of a variable that holds it — `?x` while free (the `?` marks it unbound, matching the `| ?x |` declaration form), `x=value` once bound — or `_N` when anonymous; an anonymous bound var prints its value.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
@@ -4440,7 +4445,7 @@ Logic variables, unification, and committed choice, built on the trail and a `PR
 | `amb` | `( xt1 xt2 -- … )` | Run xt1; if it fails (a `unify` mismatch or `fail`), roll its bindings back through the trail and run xt2. Commits to the first branch that succeeds. | xt1 | none | O(xt1 + xt2) |
 | `fail` | `( -- )` | Backtrack to the nearest enclosing `amb`, failing the current branch; with no enclosing `amb`, an error | 1 | none | O(L) |
 | `choose` | `( list cont -- )` | logic.h2o: run cont with each element of a cons list in turn, committing to the first for which it succeeds; `fail` if none do (n-way `amb` over a list) | n·cont | none | O(n·cont) |
-| `matches?` | `( a b -- flag )` | Non-destructive unify test: mark the trail, unify a and b, roll the trail back, push whether they unified. Leaves no bindings and never backtracks (so it composes in straight-line code, unlike `unify`) | n | none | O(n) |
+| `matches?` | `( a b -- flag )` | Non-destructive unify test: mark the trail, unify a and b, roll the trail back, push whether they unified. Leaves no bindings and never backtracks, so it composes in straight-line code | n | none | O(n) |
 
 ```forth lvar
 lvar dup 5 ~ drop ? . cr
@@ -4516,7 +4521,7 @@ fallback
 
 ## Fact database
 
-A relational store built entirely from frames and sets — no new type. A **relation** is `{ :rows <set of rows> :index <index> }`; a **row** is a frame keyed by column name; a **database**, if you want several relations, is just a frame keyed by relation name (`db :father @` reaches one — no words of its own). A SQLite query result has the same layout, so a fetched table and a hand-built relation are interchangeable (see the SQLite section below).
+A relational store built entirely from frames and sets. A **relation** is `{ :rows <set of rows> :index <index> }`; a **row** is a frame keyed by column name; a **database** holding several relations is a frame keyed by relation name (`db :father @` reads one); the frame words serve it. A SQLite query result has the same layout, so a fetched table and a hand-built relation are interchangeable (see the SQLite section below).
 
 Rows live in a set, so an identical row asserted twice dedups to one (a relation is a set of tuples). A caller-supplied `:id` column keeps otherwise-identical rows distinct. Indexed columns are declared at creation and must be symbol-valued; `:index` maps each to a `{ value → <rows> }` frame whose buckets share the row frames in `:rows`.
 
@@ -4635,9 +4640,9 @@ These are normally produced by the compiler's auto-fuser rather than typed by ha
 
 The auto-fuser also collapses a comparison immediately before a branch — `= if`, `> while`, `0= until` — into a single compare-and-branch instruction (shown by `see-compiled` as `(=0branch)`, `(>0branch)`, and the like). These are internal and never typed; the source stays the plain comparison followed by the control word.
 
-Stack reads fuse too, which is what makes a body reading parked values cost the same as one reading locals. A literal depth before `pick` becomes one op (`(pick.n) 2`); a `pick` immediately before an unsafe float op becomes a depth-addressed arithmetic op that reads the slot in place (`2 pick f+` → `(f+.d) 2`, and `over f+` → `(f+.d) 1`); and two picks feeding `@i` become a single indexed read (`3 pick 2 pick @i` → `(@i.dd) 3 1`, the index operand adjusted for the copy the first pick would have pushed). `see-compiled` shows all three, and they are what a `times` / `i-times` / `fold-times` body compiles to when it reads values a caller parked below the combinator's operands.
+Stack reads fuse too, so a body reading parked values costs the same as one reading locals. A literal depth before `pick` becomes one op (`(pick.n) 2`); a `pick` immediately before an unsafe float op becomes a depth-addressed arithmetic op that reads the slot in place (`2 pick f+` → `(f+.d) 2`, and `over f+` → `(f+.d) 1`); and two picks feeding `@i` become a single indexed read (`3 pick 2 pick @i` → `(@i.dd) 3 1`, the index operand adjusted for the copy the first pick would have pushed). `see-compiled` shows all three, and they are what a `times` / `i-times` / `fold-times` body compiles to when it reads values a caller parked below the combinator's operands.
 
-Word-locals fuse the same way, which is what makes a locals-based numeric loop compile tightly. A float op over two locals, or a local and a float literal, becomes one instruction that reads the slots directly (`(ll*0)`, `(ll.lit+0)`); a following `to name` fuses into it, so `zr zr f* to zr2` is a single instruction that reads two slots and writes a third (`(ll*0!)`). An op taking one operand from the stack and one from a local fuses with its store the same way — `ci f+ to zi` is one instruction (`(sl+!0)`) — and when the destination is also the operand, `total x f+ to total` becomes an accumulate (`(acc+0)`). `++ name` / `f++ name` are the one-instruction forms of incrementing a local, so `iter 1+ to iter` written as `f++ iter` compiles to `(local f+!0)`. Sources are read before the destination is written, so a slot may be both.
+Word-locals fuse the same way. A float op over two locals, or a local and a float literal, becomes one instruction that reads the slots directly (`(ll*0)`, `(ll.lit+0)`); a following `to name` fuses into it, so `zr zr f* to zr2` is a single instruction that reads two slots and writes a third (`(ll*0!)`). An op taking one operand from the stack and one from a local fuses with its store the same way — `ci f+ to zi` is one instruction (`(sl+!0)`) — and when the destination is also the operand, `total x f+ to total` becomes an accumulate (`(acc+0)`). `++ name` / `f++ name` are the one-instruction forms of incrementing a local, so `iter 1+ to iter` written as `f++ iter` compiles to `(local f+!0)`. Sources are read before the destination is written, so a slot may be both.
 
 ```forth vvf+
 variable a 3 to a variable b 4 to b
@@ -4809,7 +4814,7 @@ variable b 4 to b variable c 10 to c
 | `variables` | `( -- arr )` | core.h2o: one `{ :name :value :type }` frame per global (`variable`-declared or `to`-auto-created), oldest first — the name symbol, the live value (shared reference for collections), and its `type-of` symbol. `variables [: :name @ :] map` is the name list; `variables frames>dataset head` a table | dict scan | `1a` + one frame per global | O(\|dict\|) |
 | `vars` | `( -- )` | repl.h2o: pretty-print every global, one `variables` frame per block (`variables ' print each`) | dict scan + print | `1a` + frames | O(\|dict\|) |
 | `water` | `( -- )` | Print the water logo and the interpreter version | print | none | O(1) |
-| `water-version` | `( -- str )` | The interpreter version as a string, the same one `water` prints — for a program that reports its runtime or hands it to a peer (`lib/mcp.h2o` puts it in `serverInfo`) | 1 | `1s` | O(1) |
+| `water-version` | `( -- str )` | The interpreter version as a string, the same one `water` prints — for a program that reports its runtime (`lib/mcp.h2o` puts it in `serverInfo`) | 1 | `1s` | O(1) |
 | `apropos` | `( str -- )` | Print every word whose name or reference summary contains s (case-insensitive): name, stack effect, summary per line; session-defined words match by name | table scan | none | O(entries) |
 | `see` | `( xt -- )` | Print a word's source (`: name … ;`), a quotation's `[: … :]` text from its recorded span, or `variable`/`symbol`/primitive form; a curried token prints its bound values, then its target | dict scan | none | O(\|dict\|) |
 | `see>string` | `( xt -- str )` | The text `see` would print, returned as a string (trailing newline stripped) | dict scan | `1o` | O(\|dict\|) |
@@ -4954,7 +4959,7 @@ help nip
 ```
 ```output
 nip ( a b -- b )
-  Drop the second item, keeping the top — one op, not swap drop
+  Drop the second item, keeping the top
   ops 1, alloc none, O(1)
 
   > 1 2 nip . cr
@@ -5065,7 +5070,7 @@ reload
 | `cwd` | `( -- path )` | The interpreter's current working directory as a string (`getcwd`) | 1 | `1o` | O(\|path\|) |
 | `binary-dir` | `( -- str )` | The directory holding the running water binary, symlinks resolved (`realpath`), so an installation's resources are reachable from any cwd; errors on the wasm build (no executable path) | 1 | `1o` | O(\|path\|) |
 | `cd` | `( path -- )` | Change the interpreter's working directory (`chdir`); process-wide, so it moves the base for relative file I/O and is inherited by subsequent `start-process` children | 1 | none | O(1) |
-| `find-executable` | `( name -- path\|none )` | `io.h2o`: the absolute path of `name` on `$PATH` (first directory holding it), or the none value if unset or not found; a name containing `/` is not special-cased (it just won't match a bare `PATH` entry) | split + probe | `1o` per candidate | O(dirs) |
+| `find-executable` | `( name -- path\|none )` | `io.h2o`: the absolute path of `name` on `$PATH` (first directory holding it), or the none value if unset or not found; a name containing `/` matches no bare `PATH` entry, so it answers the none value | split + probe | `1o` per candidate | O(dirs) |
 
 ```forth read-file
 "hello" "/tmp/docs-file.txt" write-file "/tmp/docs-file.txt" read-file . cr
@@ -5154,8 +5159,8 @@ A stream (`T_STREAM`) wraps an OS file descriptor — a pipe to a child process.
 | `read-line` | `( stream -- str \| none )` | Read up to and including the next `\n` and answer the line without that terminator; a `\r` before it is content and stays, as it does under `"\n" split`. Bytes after the terminator are left in the stream, so `read` on the same stream answers the rest — the word holds no buffer and costs one `read` syscall per byte, for line protocols rather than bulk input. At end of input with nothing accumulated it answers `none`; a final unterminated run of bytes answers as a line, and the call after it answers `none`. Retries `EINTR` | bytes | `1o` + buffer growth | O(bytes) |
 | `read-available` | `( stream -- str )` | The bytes already waiting on the stream, without blocking: up to 65536 of them as a string, `""` when none are waiting, `none` at end of input. A zero-timeout `poll` decides, then one `read`. Used with `wait-readable` when one thread serves several streams: `read-line` blocks until its newline arrives, so a writer that flushes a partial line and then computes would stall every other stream, while this word takes what is there and leaves the caller to assemble lines | 1 + bytes | `1o` | O(bytes) |
 | `wait-readable` | `( streams seconds -- ready )` | Wait until at least one of `streams` has bytes to read, and answer a new array of those that do — empty when the wait expires first. `seconds` is a float with sub-second granularity: `0` polls without waiting, a negative value waits indefinitely. End of input counts as readable, so a stream whose writer has exited comes back and the read that follows answers `none` instead of blocking. `poll(2)` underneath, retrying `EINTR`; errors on a non-stream element, a closed stream, or more than 256 streams | 1 + n | `1a(k)` | O(n) |
-| `close` | `( stream -- )` | Close the fd; closing a child's `:in` sends it EOF. Idempotent, and a handle closed here is stale for good — reading or writing it reports `stream is closed` even after the descriptor number is reissued to another stream. A dropped handle holds its descriptor until process exit; `with-stream` scopes one | 1 syscall | none | O(1) |
-| `stdin` | `( -- stream )` | Standard input as a `T_STREAM` over fd 0; `stdin read` reads it whole. (Conflicts with the REPL reading its own program from stdin — for file-loaded programs.) | 1 | none | O(1) |
+| `close` | `( stream -- )` | Close the fd; closing a child's `:in` sends it EOF. Idempotent; a closed handle stays stale — reading or writing it reports `stream is closed` even after the descriptor number is reissued to another stream. A dropped handle holds its descriptor until process exit; `with-stream` scopes one | 1 syscall | none | O(1) |
+| `stdin` | `( -- stream )` | Standard input as a `T_STREAM` over fd 0; `stdin read` reads it whole. (The REPL reads its own program from stdin, so this word suits file-loaded programs.) | 1 | none | O(1) |
 | `stdout` | `( -- stream )` | Standard output as a `T_STREAM` over fd 1; `s stdout write` emits | 1 | none | O(1) |
 | `stderr` | `( -- stream )` | Standard error as a `T_STREAM` over fd 2; composes with `write`/`close` like any stream | 1 | none | O(1) |
 | `stdout>string` | `( xt -- str )` | Run xt with descriptor 1 redirected to an unlinked temporary file, restore the descriptor, and answer everything xt wrote — a raw `stdout write` included, the redirect being at the descriptor rather than in the printing words. Whatever xt leaves on the stack stays, the string on top; `stderr` is untouched, and a child from `start-process` writes to its own pipe, not this capture. Captures nest, each call saving its own descriptor. An error or `throw` out of xt restores the descriptor, discards the captured text, and propagates. Native-only: the wasm build errors, WASI having no temporary files | 2 + xt + bytes | `1o` + the temporary file | O(xt + bytes) |
@@ -5349,13 +5354,13 @@ Embedded relational storage via the vendored SQLite amalgamation, built into the
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
 | `db-open` | `( path -- db )` | Open (creating if absent) the database file at `path` and push a handle; `":memory:"` is a private in-memory database. Errors if it can't be opened | open | 1 connection (not GC'd) | O(1)+ |
-| `db-close` | `( db -- )` | Close the connection and free its registry slot. Idempotent — closing an already-closed handle is a no-op. A closed handle stays stale for good: using it reports `database is closed` even after the slot is reissued to another database. A handle that is dropped without closing holds the connection until process exit; `with-db` scopes one | 1 syscall | none | O(1) |
+| `db-close` | `( db -- )` | Close the connection and free its registry slot. Idempotent — closing an already-closed handle is a no-op. A closed handle stays stale: using it reports `database is closed` even after the slot is reissued to another database. A handle that is dropped without closing holds the connection until process exit; `with-db` scopes one | 1 syscall | none | O(1) |
 | `db-exec` | `( db statement params -- n )` | Bind `params` to the statement's `?` placeholders and run it with no result set (INSERT / UPDATE / DELETE / CREATE / …); return the affected-row count as a float (0 for DDL). One statement per call. On a bad statement, errors with SQLite's message | per statement | none | O(statement) |
 | `db-query` | `( db query params -- rel )` | Bind `params` to the query's `?` placeholders and run it; return an index-less relation `{ :rows <array of row frames> :index { } }`. Each row is a frame keyed by column-name symbols, with INTEGER/REAL → float, TEXT → string, NULL → `null`, BLOB → string of raw bytes. `:rows` is a **bag** — duplicates kept, in result order. On a bad query, errors with SQLite's message | n·c | `1o` relation + `1a(n)` + `1o`/row + a string per text/blob cell | O(n·c) |
 | `db-query>dataset` | `( db query params -- dataset )` | database.h2o: the same query, returned as a column-oriented dataset with **typed columns**: a column whose every cell is numeric or NULL becomes an n×1 vector (NULL → NaN), a column declared DATE/DATETIME/TIMESTAMP becomes a vector of instants in `s` (numeric cells read as epoch seconds, text cells parsed as ISO Z), and anything else stays an array with `none` for NULL. An empty column declared numeric stays an empty vector, so the type survives an empty result; a repeated column name keeps its last occurrence. The C primitive `(db-query>dataset)` returns the raw columns plus each column's declared type from the same prepared statement | n·c | `1o` frame + `1a`/column + `1m` per numeric column + a string per text cell | O(n·c) |
 | `tsv>db` | `( tsv-path db table -- info )` | database.h2o: import a TSV file into a new table. The header row names the columns (identifiers quoted, so any header text works); a column whose every non-empty cell is numeric is REAL, else TEXT; empty cells insert as NULL; all rows go in one transaction. `info` is `{ :n-rows N :columns [ … ] }` — a `:real` column carries `{ :name :type :summary }` with a `:summary` from `summary`, a `:text` column `{ :name :type :distinct }` with `COUNT(DISTINCT)` (NULLs uncounted). Errors before creating anything on a missing or ragged file; an existing table errors on the CREATE, leaving it untouched | r·c | rows + dataset + `1s`/statement | O(r·c) |
 
-Using a closed handle errors (`database is closed`). Do selection, projection, and joins in the SQL itself; Water materializes the result. Indexing a result is a separate, explicit step — `create-index` (see Fact database) — because it interns the indexed columns to symbols, which only makes sense for low-cardinality categorical columns you choose.
+Using a closed handle errors (`database is closed`). Do selection, projection, and joins in the SQL itself; Water materializes the result. Indexing a result is a separate, explicit step — `create-index` (see Fact database) — because it interns the indexed columns to symbols, which suits low-cardinality categorical columns.
 
 ```forth db-open
 ":memory:" db-open db? . cr
@@ -5420,7 +5425,7 @@ Call C functions in any shared library at runtime via `libdl` + `libffi` — no 
 | `ffi-variadic` | `( lib symbol arg-types ret-type n-fixed -- ) <name>` | Like `ffi-function` for a variadic C function: `n-fixed` leading arguments use the fixed convention, the rest the variadic one (`ffi_prep_cif_var`). Variadic argument types are fixed per binding, so declare one word per type combination (e.g. a `:string` `setopt` and a `:long` `setopt`) | dlsym + prep_cif_var | 1 binding | O(argc) |
 | `ffi-free` | `( ptr -- )` | `free` a C buffer held as a `T_PTR` (e.g. from `malloc`) and clear its registry slot. Not for library handles | free | none | O(1) |
 
-A defined FFI word pops its arguments, marshals each per the declared signature, calls through libffi, and pushes the marshalled return (`:void` pushes nothing). The build links `-lffi`; `dlopen` is in libSystem. Callbacks (C → Water), struct-by-value, varargs-per-call, and finer numeric types (`float`, unsigned) are not yet supported.
+A defined FFI word pops its arguments, marshals each per the declared signature, calls through libffi, and pushes the marshalled return (`:void` pushes nothing). The build links `-lffi`; `dlopen` is in libSystem.
 
 ```forth ffi-open
 "" ffi-open "cos" [ :double ] :double ffi-function c-cos 0 c-cos . cr
@@ -5512,7 +5517,9 @@ freed
 | `T_PAIR` | cons cell in the dense, GC'd pair table; `{head, tail}`. Lists are `null`-terminated chains |
 | `T_FRAME` | heap object; parallel keys (`cell[]`) and values (`Val[]`) ordered by symbol id — interning order, not alphabetical — for binary-search lookup |
 | `T_MATRIX` | heap object; r×c row-major `double[]` |
+| `T_SEGMENT` | heap object; flat fixed-length numeric buffer (`double[]`, calloc'd off the arena); see Segments |
 | `T_QUANTITY` | a magnitude (float or matrix) plus a unit id, in a pair-table slot `{magnitude, unit}`; see Dimensioned quantities. Dimensionless results collapse away, so a live quantity always carries a real unit |
+| `T_EXACT` | heap object; a reduced fraction — sign plus numerator and denominator as 32-bit-limb magnitudes in one buffer; see Exact rationals |
 | `T_XT` | execution token (dict index); first-class callable |
 | `T_CURRIED` | heap object; a curried token — `items[0]` is the target xt, `items[1..]` the bound values pushed at invocation. Accepted wherever `T_XT` is, and `type-of` calls both `:xt` |
 | `T_ADDR` | dict index; used internally for return-stack frames |
@@ -5540,4 +5547,6 @@ Most heap values use one slot in the `objects[]` table (pointer-bump, grown on d
 | Set | 4 × `sizeof(Val)` initial, doubles on overflow |
 | Frame | 4 × (`sizeof(cell)` keys + `sizeof(Val)` values), doubles on overflow |
 | Matrix | `r × c × sizeof(double)` (calloc, zero-filled) |
+| Segment | `n × sizeof(double)` (calloc, zero-filled) |
+| Exact | `(numerator limbs + denominator limbs) × 4` bytes |
 | Continuation | `max(L,1) × sizeof(Val)` |
