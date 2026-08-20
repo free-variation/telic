@@ -13,7 +13,7 @@
 \ 50-digit string and that string reversed. The precompute (board, pieces,
 \ footprints, SE-nh) is untimed; only the solve loop is measured. loops solves run.
 
-10 to loops
+30 to loops
 variable board  variable cti  variable pieces  variable fps  variable se-nh
 variable sols   variable done
 60.0 constant nsols

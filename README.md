@@ -164,40 +164,40 @@ Medians of 5 telic reps against 3 CPython reps (2026-08-21): Apple M4 Max, 16 co
 
 | benchmark | size | telic | python | py / telic |
 |:----------|:-----|-----------:|-------:|--------:|
-| leibniz | 1000000000 iterations | 8.356 s | 42.258 s | 5.06× |
-| leibniz-matrix | 1000000000, vectorized vs numpy | 0.7186 s | 1.830 s | 2.55× |
-| leibniz-matrix | 1000000000, vectorized vs R 4.5.2 `sum(4 / seq.int(...))` | 0.7186 s | 1.720 s | 2.39× |
-| leibniz-parallel | 1000000000, pmap vs pool of 16 | 1.223 s | 3.234 s | 2.64× |
-| nqueens | N = 8 | 0.0125 s | 0.0406 s | 3.25× |
-| nqueens-iter | N = 8 | 0.0250 s | 0.0406 s | 1.62× |
-| nbody | 20000 steps | 0.0203 s | 0.0481 s | 2.37× |
-| raytrace | 10× 100×100 | 0.1384 s | 1.309 s | 9.46× |
-| raytrace-parallel | 10× 100×100, pmap vs pool | 0.0125 s | 0.2460 s | ~20× |
-| float | 100000 pts × 20 | 0.2489 s | 0.6285 s | 2.53× |
-| crypto-pyaes | 23000 B, 10× enc+dec | 0.0724 s | 0.3697 s | 5.11× |
-| fannkuch | N = 9 | 0.1024 s | 0.1791 s | 1.75× |
-| binary-trees | depth 16 | 0.3151 s | 0.6889 s | 2.19× |
-| mandelbrot | N = 1000 | 0.3457 s | 1.308 s | 3.78× |
-| mandelbrot-matrix | N = 1000, vectorized vs numpy | 0.0858 s | 0.0950 s | 1.11× |
-| mandelbrot-parallel | N = 1000, pmap vs numpy pool | 0.0328 s | 0.1773 s | 5.40× |
-| spectral-norm | N = 130, 50× | 0.6302 s | 2.589 s | 4.11× |
-| spectral-norm-matrix | N = 260, 1000× vs numpy | 0.0817 s | 0.0805 s | 0.99× |
-| scimark-lu | N=100, 100× | 0.4105 s | 5.668 s | ~14× |
-| scimark-sparse | N=1000, 500× | 0.2847 s | 1.089 s | 3.83× |
-| scimark-fft | N=1024, 5×50 | 0.1860 s | 0.7009 s | 3.77× |
-| barnes-hut | 200 bodies, 2×50 | 0.1687 s | 0.4441 s | 2.63× |
-| scimark-sor | N=100, 10 cyc × 100 | 0.3245 s | 5.698 s | ~18× |
-| scimark-montecarlo | 1000000 × 3 | 0.3610 s | 0.9235 s | 2.56× |
-| montecarlo-parallel | 20000000 samples, pmap 10w vs pool 10w | 0.0419 s | 0.2039 s | 4.87× |
-| meteor | 10 solves | 0.1872 s | 0.5352 s | 2.86× |
-| hexiom | level 25, 50 solves | 0.1116 s | 0.1580 s | 1.42× |
-| regex-dna | 100K → 1M | 0.0334 s | 0.1023 s | 3.06× |
-| regex-compile | 239 patterns, cold | 0.0010 s | 0.0070 s | 6.85× |
-| regex-effbot | 21 pat × 0..10k | 2.667 s | 15.486 s | 5.81× |
-| regex-v8 | 12 blocks, browser trace | 0.3814 s | 1.057 s | 2.77× |
-| deepcopy | N=20000, 60 copies/N | 0.1180 s | 2.280 s | ~19× |
-| json-loads | 222k parses | 0.5214 s | 0.9469 s | 1.82× |
-| json-dumps | EMPTY/SIMPLE/NESTED/HUGE ×250 | 0.3630 s | 1.266 s | 3.49× |
+| leibniz | 1000000000 iterations | 8.373 s | 42.258 s | 5.05× |
+| leibniz-matrix | 1000000000, vectorized vs numpy | 0.7167 s | 1.786 s | 2.49× |
+| leibniz-matrix | 1000000000, vectorized vs R 4.5.2 `sum(4 / seq.int(...))` | 0.7167 s | 1.720 s | 2.40× |
+| leibniz-parallel | 1000000000, pmap vs pool of 16 | 1.221 s | 3.335 s | 2.73× |
+| nqueens | N = 8 ×45 | 0.5167 s | 1.841 s | 3.56× |
+| nqueens-iter | N = 8 ×45 | 1.115 s | 1.841 s | 1.65× |
+| nbody | 500000 steps | 0.5178 s | 1.236 s | 2.39× |
+| raytrace | 40× 100×100 | 0.5713 s | 5.350 s | 9.37× |
+| raytrace-parallel | 420× 100×100, pmap vs pool | 0.5149 s | 5.170 s | ~10× |
+| float | 100000 pts × 60 | 0.7669 s | 1.895 s | 2.47× |
+| crypto-pyaes | 23000 B, 70× enc+dec | 0.5119 s | 2.673 s | 5.22× |
+| fannkuch | N = 9 ×6 | 0.6113 s | 1.099 s | 1.80× |
+| binary-trees | depth 16 ×2 | 0.6387 s | 1.397 s | 2.19× |
+| mandelbrot | N = 1000 ×2 | 0.6956 s | 2.628 s | 3.78× |
+| mandelbrot-matrix | N = 1000 ×7, vectorized vs numpy | 0.5685 s | 0.6907 s | 1.21× |
+| mandelbrot-parallel | N = 1000 ×16, pmap vs numpy pool | 0.5438 s | 2.604 s | 4.79× |
+| spectral-norm | N = 130, 50× | 0.6281 s | 2.573 s | 4.10× |
+| spectral-norm-matrix | N = 260, 7000× vs numpy | 0.6062 s | 0.5687 s | 0.94× |
+| scimark-lu | N=100, 200× | 0.8276 s | 11.383 s | ~14× |
+| scimark-sparse | N=1000, 1000× | 0.5684 s | 2.196 s | 3.86× |
+| scimark-fft | N=1024, 5×150 | 0.5529 s | 2.130 s | 3.85× |
+| barnes-hut | 200 bodies, 6×50 | 0.5211 s | 1.373 s | 2.64× |
+| scimark-sor | N=100, 10 cyc × 200 | 0.6641 s | 11.446 s | ~17× |
+| scimark-montecarlo | 1000000 × 6 | 0.7160 s | 1.883 s | 2.63× |
+| montecarlo-parallel | 20000000 samples × 13, pmap 10w vs pool 10w | 0.6124 s | 2.600 s | 4.25× |
+| meteor | 30 solves | 0.5609 s | 1.615 s | 2.88× |
+| hexiom | level 25, 250 solves | 0.5553 s | 0.8110 s | 1.46× |
+| regex-dna | 100K → 1M ×17 | 0.5799 s | 0.0003 s | 0.00× |
+| regex-compile | 239 patterns, cold | 0.0010 s | 0.0071 s | 7.24× |
+| regex-effbot | 21 pat × 0..10k | 2.721 s | 15.767 s | 5.79× |
+| regex-v8 | 12 blocks ×200, browser trace | 0.7663 s | 2.143 s | 2.80× |
+| deepcopy | N=100000, 60 copies/N | 0.5783 s | 11.436 s | ~20× |
+| json-loads | 222k parses | 0.5321 s | 0.9706 s | 1.82× |
+| json-dumps | EMPTY/SIMPLE/NESTED/HUGE ×500 | 0.7272 s | 2.521 s | 3.47× |
 <!-- bench:end -->
 
 The ports live in `bench/pyperformance/` beside the CPython sources they answer

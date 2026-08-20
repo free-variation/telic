@@ -1832,5 +1832,5 @@ def bench_regex_v8(loops):
 
 if __name__ == '__main__':
     print(f"checksum: {checksum()}")
-    elapsed = bench_regex_v8(100)
+    elapsed = bench_regex_v8(200)
     print(f"elapsed: {elapsed:.6f} s")

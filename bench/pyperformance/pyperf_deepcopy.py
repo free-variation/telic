@@ -62,7 +62,7 @@ def verify():
     return int(copy.deepcopy(a) == a)
 
 
-N = 20000
+N = 100000
 
 
 if __name__ == "__main__":

@@ -8,7 +8,7 @@
 \ comes from iterations; the inner relaxation runs cycles sweeps, as in the
 \ reference (cycles = 10).
 
-100 to iterations
+200 to iterations
 
 variable g
 100.0 constant n

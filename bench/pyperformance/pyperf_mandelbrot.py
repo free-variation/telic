@@ -37,7 +37,9 @@ def run_mandelbrot(n):
 
 if __name__ == "__main__":
     n = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_ARG
+    loops = int(sys.argv[2]) if len(sys.argv) > 2 else 1
     t0 = _t.perf_counter()
-    result = run_mandelbrot(n)
+    for _ in range(loops):
+        result = run_mandelbrot(n)
     print(f"elapsed: {_t.perf_counter() - t0:.6f} s")
     print(f"checksum: {result}")

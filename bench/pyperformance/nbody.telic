@@ -5,7 +5,7 @@
 \ Per-field `b1 0 @i` reads in pair-force measured slower than the one
 \ bulk spread + frame fill.
 
-20000 to iterations
+500000 to iterations
 PI PI * 4 * constant solar-mass
 365.24 constant days-per-year
 

@@ -8,6 +8,7 @@
 
 1000 constant n
 50 constant max-iter
+7 constant matrix-loops
 
 variable c-real  variable c-imag  variable zr  variable zi  variable escaped
 
@@ -27,11 +28,17 @@ variable c-real  variable c-imag  variable zr  variable zi  variable escaped
   zi zr *! 2.0 *! c-imag +! drop
   zr2 zi2 -! c-real +! to zr ;
 
-setup
-now to t0
-' step max-iter times
-escaped 0.0 eq sum to checksum
-now t0 - to elapsed
+: mandel-matrix-repeat
+  0.0 to total-elapsed
+  0 matrix-loops 1 do rep
+     setup
+     now to t0
+     ' step max-iter times
+     escaped 0.0 eq sum to result
+     total-elapsed now t0 - f+ to total-elapsed
+  loop
+  result total-elapsed ;
+mandel-matrix-repeat to elapsed to checksum
 "elapsed: " . elapsed . " s" . cr
 "checksum: " . checksum . cr
 bye

@@ -10,7 +10,7 @@
 \ N is twice the scalar port's 130, so each BLAS call moves 4x the data, and the
 \ loop count is high enough that the 40 calls per iteration dominate: what the row
 \ measures is per-call cost, since both sides reach the same platform BLAS.
-1000 to iterations
+7000 to iterations
 260 constant n
 
 variable a-mat

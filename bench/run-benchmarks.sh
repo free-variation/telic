@@ -53,27 +53,37 @@ reps_py=${REPS_PY:-3}
 reps_compile=${REPS_COMPILE:-25}
 skip_leibniz=${SKIP_LEIBNIZ:-0}
 
-nbody_steps=20000
-raytrace_loops=10
+nbody_steps=500000
+raytrace_loops=40
+raytrace_par_loops=420
+spectral_matrix_loops=7000
 float_points=100000
-float_repeat=20
-crypto_loops=10
+float_repeat=60
+crypto_loops=70
 spectral_loops=50
-scimark_lu_cycles=100
+scimark_lu_cycles=200
 nqueens_n=8
+nqueens_loops=45
+regex_dna_loops=17
+montecarlo_par_loops=13
+mandelbrot_matrix_loops=7
+mandelbrot_par_loops=16
 fannkuch_n=9
+fannkuch_loops=6
 binarytrees_depth=16
+binarytrees_loops=2
 mandelbrot_n=1000
-scimark_sor_loops=100
-scimark_sparse_cycles=500
+mandelbrot_loops=2
+scimark_sor_loops=200
+scimark_sparse_cycles=1000
 fft_loops=5
-fft_cycles=50
+fft_cycles=150
 barnes_iterations=50
-barnes_loops=2
+barnes_loops=6
 montecarlo_samples=1000000
-montecarlo_loops=3
-meteor_loops=10
-hexiom_loops=50
+montecarlo_loops=6
+meteor_loops=30
+hexiom_loops=250
 leibniz_rounds=1000000000
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/lfbench.XXXXXX")
@@ -158,17 +168,17 @@ telic_json_loads() { "$bin" < "$here/pyperformance/json-loads.telic"; }
 telic_json_dumps() { "$bin" < "$here/pyperformance/json-dumps.telic"; }
 
 # --- python command wrappers -----------------------------------------------
-py_nqueens()  { "$python" "$here/pyperformance/pyperf_nqueens.py" "$nqueens_n"; }
-py_fannkuch() { "$python" "$here/pyperformance/pyperf_fannkuch.py" "$fannkuch_n"; }
-py_binarytrees() { "$python" "$here/pyperformance/pyperf_binary_trees.py" "$binarytrees_depth"; }
-py_mandelbrot() { "$python" "$here/pyperformance/pyperf_mandelbrot.py" "$mandelbrot_n"; }
+py_nqueens()  { "$python" "$here/pyperformance/pyperf_nqueens.py" "$nqueens_n" "$nqueens_loops"; }
+py_fannkuch() { "$python" "$here/pyperformance/pyperf_fannkuch.py" "$fannkuch_n" "$fannkuch_loops"; }
+py_binarytrees() { "$python" "$here/pyperformance/pyperf_binary_trees.py" "$binarytrees_depth" "$binarytrees_loops"; }
+py_mandelbrot() { "$python" "$here/pyperformance/pyperf_mandelbrot.py" "$mandelbrot_n" "$mandelbrot_loops"; }
 py_nbody()    { "$python" "$here/pyperformance/pyperf_nbody.py" "$nbody_steps"; }
 py_raytrace() { "$python" "$here/pyperformance/pyperf_raytrace.py" "$raytrace_loops"; }
 # references for the pmap variants: the same algorithm in a process pool, timed
 # from pool creation onward, as telic's pmap spawns its threads inside its timing
-py_raytrace_par() { "$python" "$here/variants/parallel_raytrace.py" "$raytrace_loops" 100 100; }
+py_raytrace_par() { "$python" "$here/variants/parallel_raytrace.py" "$raytrace_par_loops" 100 100; }
 py_leibniz_parallel() { "$python" "$here/variants/parallel_leibniz.py" "$leibniz_rounds"; }
-py_montecarlo_par() { "$python" "$here/variants/parallel_montecarlo.py" 20000000; }
+py_montecarlo_par() { "$python" "$here/variants/parallel_montecarlo.py" 20000000 processes 10 "$montecarlo_par_loops"; }
 py_float()    { "$python" "$here/pyperformance/pyperf_float.py" "$float_points" "$float_repeat"; }
 py_crypto()   { "$crypto_python" "$here/pyperformance/pyperf_crypto_pyaes.py" "$crypto_loops"; }
 py_spectral() { "$python" "$here/pyperformance/pyperf_spectral_norm.py" "$spectral_loops"; }
@@ -180,7 +190,7 @@ py_barnes()   { "$python" "$here/pyperformance/pyperf_barnes_hut.py" "$barnes_lo
 py_scimark_mc() { "$python" "$here/pyperformance/pyperf_scimark_montecarlo.py" "$montecarlo_samples" "$montecarlo_loops"; }
 py_meteor()   { "$python" "$here/pyperformance/pyperf_meteor.py" "$meteor_loops"; }
 py_hexiom()   { "$python" "$here/pyperformance/pyperf_hexiom.py" "$hexiom_loops"; }
-py_regex_dna() { "$python" "$here/pyperformance/pyperf_regex_dna.py"; }
+py_regex_dna() { "$python" "$here/pyperformance/pyperf_regex_dna.py" "$regex_dna_loops"; }
 py_regex_compile() { "$python" "$here/pyperformance/pyperf_regex_compile.py"; }
 py_regex_effbot() { "$python" "$here/pyperformance/pyperf_regex_effbot.py"; }
 py_regex_v8() { "$python" "$here/pyperformance/pyperf_regex_v8.py"; }
@@ -190,11 +200,11 @@ py_json_dumps() { "$python" "$here/pyperformance/pyperf_json_dumps.py"; }
 
 # numpy references for the vectorized -matrix variants (same sizes as the .telic).
 np_leibniz()    { "$numpy_python" "$here/variants/numpy_leibniz_matrix.py" "$leibniz_rounds"; }
-np_mandelbrot() { "$numpy_python" "$here/variants/numpy_mandelbrot_matrix.py" "$mandelbrot_n"; }
+np_mandelbrot() { "$numpy_python" "$here/variants/numpy_mandelbrot_matrix.py" "$mandelbrot_n" "$mandelbrot_matrix_loops"; }
 # numpy in a process pool, timed from pool creation onward like the other pool
 # references, since telic's pmap-reduce spawns its threads inside its timing.
-np_mandelbrot_par() { "$numpy_python" "$here/variants/numpy_mandelbrot_parallel.py" "$mandelbrot_n" processes; }
-np_spectral()   { "$numpy_python" "$here/variants/numpy_spectral_norm_matrix.py" 1000 260; }
+np_mandelbrot_par() { BENCH_LOOPS="$mandelbrot_par_loops" "$numpy_python" "$here/variants/numpy_mandelbrot_parallel.py" "$mandelbrot_n" processes; }
+np_spectral()   { "$numpy_python" "$here/variants/numpy_spectral_norm_matrix.py" "$spectral_matrix_loops" 260; }
 
 # Run a wrapper N times, append each run's stdout (with a separator) to a log.
 run_reps() {
@@ -442,36 +452,36 @@ if [ "$have_leibniz" = 1 ]; then
 	[ "$have_leibniz_r" = 1 ] && row "leibniz-matrix" "${leibniz_rounds}, vectorized vs R ${leibniz_r_version} \`sum(4 / seq.int(...))\`" leibniz_matrix_telic "$leibniz_r_elapsed"
 	row "leibniz-parallel" "${leibniz_rounds}, pmap vs pool of 16" leibniz_parallel_telic "$(median_elapsed leibniz_parallel_py)"
 fi
-row "nqueens" "N = $nqueens_n" nqueens_telic "$(median_elapsed nqueens_py)"
-row "nqueens-iter" "N = $nqueens_n" nqueens_iter_telic "$(median_elapsed nqueens_py)"
+row "nqueens" "N = $nqueens_n ×$nqueens_loops" nqueens_telic "$(median_elapsed nqueens_py)"
+row "nqueens-iter" "N = $nqueens_n ×$nqueens_loops" nqueens_iter_telic "$(median_elapsed nqueens_py)"
 row "nbody" "${nbody_steps} steps" nbody_telic "$(median_elapsed nbody_py)"
 row "raytrace" "${raytrace_loops}× 100×100" raytrace_telic "$(median_elapsed raytrace_py)"
-row "raytrace-parallel" "${raytrace_loops}× 100×100, pmap vs pool" raytrace_par_telic "$(median_elapsed raytrace_par_py)"
+row "raytrace-parallel" "${raytrace_par_loops}× 100×100, pmap vs pool" raytrace_par_telic "$(median_elapsed raytrace_par_py)"
 row "float" "${float_points} pts × ${float_repeat}" float_telic "$(median_elapsed float_py)"
 row "crypto-pyaes" "23000 B, ${crypto_loops}× enc+dec" crypto_telic "$(median_elapsed crypto_py)"
-row "fannkuch" "N = $fannkuch_n" fannkuch_telic "$(median_elapsed fannkuch_py)"
-row "binary-trees" "depth ${binarytrees_depth}" binarytrees_telic "$(median_elapsed binarytrees_py)"
-row "mandelbrot" "N = ${mandelbrot_n}" mandelbrot_telic "$(median_elapsed mandelbrot_py)"
-row "mandelbrot-matrix" "N = ${mandelbrot_n}, vectorized vs ${matrix_ref_note}" mandelbrot_matrix_telic "$mandelbrot_matrix_ref"
-row "mandelbrot-parallel" "N = ${mandelbrot_n}, pmap vs ${matrix_ref_note} pool" mandelbrot_par_telic "$mandelbrot_par_ref"
+row "fannkuch" "N = $fannkuch_n ×$fannkuch_loops" fannkuch_telic "$(median_elapsed fannkuch_py)"
+row "binary-trees" "depth ${binarytrees_depth} ×${binarytrees_loops}" binarytrees_telic "$(median_elapsed binarytrees_py)"
+row "mandelbrot" "N = ${mandelbrot_n} ×${mandelbrot_loops}" mandelbrot_telic "$(median_elapsed mandelbrot_py)"
+row "mandelbrot-matrix" "N = ${mandelbrot_n} ×${mandelbrot_matrix_loops}, vectorized vs ${matrix_ref_note}" mandelbrot_matrix_telic "$mandelbrot_matrix_ref"
+row "mandelbrot-parallel" "N = ${mandelbrot_n} ×${mandelbrot_par_loops}, pmap vs ${matrix_ref_note} pool" mandelbrot_par_telic "$mandelbrot_par_ref"
 row "spectral-norm" "N = 130, ${spectral_loops}×" spectral_telic "$(median_elapsed spectral_py)"
-row "spectral-norm-matrix" "N = 260, 1000× vs ${matrix_ref_note}" spectral_matrix_telic "$spectral_matrix_ref"
+row "spectral-norm-matrix" "N = 260, ${spectral_matrix_loops}× vs ${matrix_ref_note}" spectral_matrix_telic "$spectral_matrix_ref"
 row "scimark-lu" "N=100, ${scimark_lu_cycles}×" scimark_lu_telic "$(median_elapsed scimark_lu_py)"
 row "scimark-sparse" "N=1000, ${scimark_sparse_cycles}×" scimark_sparse_telic "$(median_elapsed scimark_sparse_py)"
 row "scimark-fft" "N=1024, ${fft_loops}×${fft_cycles}" scimark_fft_telic "$(median_elapsed scimark_fft_py)"
 row "barnes-hut" "200 bodies, ${barnes_loops}×${barnes_iterations}" barnes_telic "$(median_elapsed barnes_py)"
 row "scimark-sor" "N=100, 10 cyc × ${scimark_sor_loops}" scimark_sor_telic "$(median_elapsed scimark_sor_py)"
 row "scimark-montecarlo" "${montecarlo_samples} × ${montecarlo_loops}" scimark_mc_telic "$(median_elapsed scimark_mc_py)"
-row "montecarlo-parallel" "20000000 samples, pmap 10w vs pool 10w" montecarlo_par_telic "$(median_elapsed montecarlo_par_py)"
+row "montecarlo-parallel" "20000000 samples × ${montecarlo_par_loops}, pmap 10w vs pool 10w" montecarlo_par_telic "$(median_elapsed montecarlo_par_py)"
 row "meteor" "${meteor_loops} solves" meteor_telic "$(median_elapsed meteor_py)"
 row "hexiom" "level 25, ${hexiom_loops} solves" hexiom_telic "$(median_elapsed hexiom_py)"
-row "regex-dna" "100K → 1M" regex_dna_telic "$(median_elapsed regex_dna_py)"
+row "regex-dna" "100K → 1M ×${regex_dna_loops}" regex_dna_telic "$(median_elapsed regex_dna_py)"
 row "regex-compile" "239 patterns, cold" regex_compile_telic "$(median_elapsed regex_compile_py)"
 row "regex-effbot" "21 pat × 0..10k" regex_effbot_telic "$(median_elapsed regex_effbot_py)"
-row "regex-v8" "12 blocks, browser trace" regex_v8_telic "$(median_elapsed regex_v8_py)"
-row "deepcopy" "N=20000, 60 copies/N" deepcopy_telic "$(median_elapsed deepcopy_py)"
+row "regex-v8" "12 blocks ×200, browser trace" regex_v8_telic "$(median_elapsed regex_v8_py)"
+row "deepcopy" "N=100000, 60 copies/N" deepcopy_telic "$(median_elapsed deepcopy_py)"
 row "json-loads" "222k parses" json_loads_telic "$(median_elapsed json_loads_py)"
-row "json-dumps" "EMPTY/SIMPLE/NESTED/HUGE ×250" json_dumps_telic "$(median_elapsed json_dumps_py)"
+row "json-dumps" "EMPTY/SIMPLE/NESTED/HUGE ×500" json_dumps_telic "$(median_elapsed json_dumps_py)"
 emit ""
 
 # ---- verification ----

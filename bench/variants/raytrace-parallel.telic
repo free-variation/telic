@@ -24,7 +24,7 @@
 \ computed as 1 - specular - lambert, matching the reference bit-for-bit
 \ (1.0 - 0.2 - 0.6 is not exactly 0.2 in double precision).
 
-10 to loops
+420 to loops
 variable objects  variable lights
 8.0 constant nobj
 2.0 constant nlights

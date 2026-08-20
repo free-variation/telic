@@ -11,7 +11,7 @@
 \ subdivide is inlined into insert to avoid mutual recursion. Verification is the
 \ total system energy (all-pairs potential + kinetic). Build is untimed.
 
-2 to loops
+6 to loops
 50 to iterations
 6.67430e-11 constant g
 5.0 constant softening

@@ -9,7 +9,7 @@
 \ built on telic's per-worker random stream. samples and loops are set below.
 
 1000000 to samples
-3 to loops
+6 to loops
 variable rand-m  variable ri  variable rj
 2147483647.0 constant m1
 1.0 2147483647.0 f/ constant dm1

@@ -8,7 +8,7 @@
 \ state for seed 7 is hardcoded here (so the matrix matches the reference and
 \ the factorization checksum is verifiable: 633.719856 at N=100).
 
-100 to iterations
+200 to iterations
 variable rm  variable ri  variable rj
 2147483647.0 constant m1
 4.656612875245797e-10 constant dm1

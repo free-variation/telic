@@ -11,7 +11,7 @@
 \ 1 to match pyaes, so the ciphertext checksum equals the reference's.
 \ Words are unsigned 32-bit numbers; bytes are extracted with rshift + (255 bit-and).
 
-variable loops  10 to loops
+variable loops  70 to loops
 
 \ --- GF(2^8) helpers ---------------------------------------------------------
 : byte    ( n -- b )    255 bit-and ; inline

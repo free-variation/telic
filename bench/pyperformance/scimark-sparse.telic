@@ -7,7 +7,7 @@
 \ tests/089_scimark_kernels.telic. Build is untimed; only the cycles sweeps are
 \ measured.
 
-500 to cycles
+1000 to cycles
 
 variable row  variable col  variable val  variable x  variable y
 1000.0 constant n

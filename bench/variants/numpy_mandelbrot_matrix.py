@@ -60,6 +60,10 @@ def run(n, max_iter):
 
 if __name__ == "__main__":
     n = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_N
-    elapsed, checksum = run(n, MAX_ITER)
+    loops = int(sys.argv[2]) if len(sys.argv) > 2 else 1
+    elapsed = 0.0
+    for _ in range(loops):
+        one_elapsed, checksum = run(n, MAX_ITER)
+        elapsed += one_elapsed
     print(f"elapsed: {elapsed:.6f} s")
     print(f"checksum: {checksum}")

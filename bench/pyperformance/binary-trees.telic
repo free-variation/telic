@@ -6,6 +6,7 @@
 \ per-depth batch, matching pyperf_binary_trees.py.
 
 16 constant max-depth
+2 constant trees-loops
 4 constant min-depth
 
 : make-tree ( depth -- tree )
@@ -35,7 +36,8 @@
   total ;
 
 now to t0
-run-trees to checksum
+: run-trees-repeated  0 trees-loops 1 do rep  run-trees to total  loop  total ;
+run-trees-repeated to checksum
 now t0 - to elapsed
 "elapsed: " . elapsed . " s" . cr
 "checksum: " . checksum . cr

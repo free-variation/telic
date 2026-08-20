@@ -58,8 +58,10 @@ def bench_n_queens(queen_count):
 if __name__ == "__main__":
     import sys
     n = int(sys.argv[1]) if len(sys.argv) > 1 else 8
+    loops = int(sys.argv[2]) if len(sys.argv) > 2 else 1
     t0 = _t.perf_counter()
-    sols = list(n_queens(n))
+    for _ in range(loops):
+        sols = list(n_queens(n))
     elapsed = _t.perf_counter() - t0
     print(f"elapsed: {elapsed:.6f} s")
     print(f"solutions: {len(sols)}")

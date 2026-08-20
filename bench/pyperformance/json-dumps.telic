@@ -25,4 +25,4 @@ nested frame>json size +
 huge frame>json size +
 "bytes: {0}" format . cr
 
-now ' run-dumps 250 times now swap - "elapsed: {0} s" format . cr
+now ' run-dumps 500 times now swap - "elapsed: {0} s" format . cr

@@ -5,6 +5,7 @@
 
 1000 constant n
 50 constant max-iter
+16 constant par-loops
 
 : in-set? ( cr ci -- flag )
   | cr ci |
@@ -29,9 +30,13 @@
   repeat
   in-set-count ;
 
-now to t0
-n iota 0.0 ' render-row [: f+ :] pmap-reduce to checksum
-now t0 - to elapsed
+: mandel-par-repeat
+  now to t0
+  0 par-loops 1 do rep
+     n iota 0.0 ' render-row [: f+ :] pmap-reduce to result
+  loop
+  result now t0 - ;
+mandel-par-repeat to elapsed to checksum
 "elapsed: " . elapsed . " s" . cr
 "checksum: " . checksum . cr
 bye

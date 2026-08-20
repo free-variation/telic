@@ -12,6 +12,7 @@
 
 20000000 to samples
 10 to workers
+13 constant mc-loops
 variable chunk
 variable est
 variable t0
@@ -25,10 +26,12 @@ variable t0
   samples workers / to chunk
   12345 seed
   now to t0
-  0 workers 1- range
-  workers 1 ' partial pmap-ext
-  0.0 [: f+ :] reduce
-  samples f/ 4.0 f* to est
+  0 mc-loops 1 do rep
+     0 workers 1- range
+     workers 1 ' partial pmap-ext
+     0.0 [: f+ :] reduce
+     samples f/ 4.0 f* to est
+  loop
   now t0 - "elapsed: {0} s" format . cr
   est "estimate: {0}" format . cr ;
 

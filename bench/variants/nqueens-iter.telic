@@ -2,6 +2,7 @@
 \ algorithm. No recursion; one swap (or one rotate) per generated permutation.
 
 8 constant queens
+45 constant loops
 variable solutions
 variable board
 variable cycles
@@ -70,9 +71,11 @@ variable cycles
   until ;
 
 : nqueens-run ^solutions |
-  0 to solutions
   now to t0
-  permute-all
+  0 loops 1 do rep
+     0 to solutions
+     permute-all
+  loop
   "elapsed: " . now t0 - . "s" . cr
   "solutions: " . solutions . cr ;
 

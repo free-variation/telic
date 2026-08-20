@@ -24,7 +24,7 @@ HUGE = ([NESTED[0]] * 1000, 1)
 
 CASES = ['EMPTY', 'SIMPLE', 'NESTED', 'HUGE']
 
-LOOPS = 250
+LOOPS = 500
 
 
 def bench_json_dumps(data):

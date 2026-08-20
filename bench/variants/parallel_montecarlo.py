@@ -69,7 +69,11 @@ if __name__ == "__main__":
     mode = sys.argv[2] if len(sys.argv) > 2 else "processes"
     workers = int(sys.argv[3]) if len(sys.argv) > 3 else DEFAULT_WORKERS
 
-    elapsed, estimate, setup = run(samples, mode, workers)
+    loops = int(sys.argv[4]) if len(sys.argv) > 4 else 1
+    elapsed = 0.0
+    for _ in range(loops):
+        one_elapsed, estimate, setup = run(samples, mode, workers)
+        elapsed += one_elapsed
     print(f"elapsed: {elapsed:.6f} s")
     print(f"estimate: {estimate:.6f}")
     print(f"pool setup: {setup:.6f} s  mode: {mode}  workers: {workers}")

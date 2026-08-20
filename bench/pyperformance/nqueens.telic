@@ -5,6 +5,7 @@
 \ guarantees rows/columns; the diagonal check is the only validity test.
 
 8 constant queens
+45 constant loops
 
 variable solutions
 variable board
@@ -40,11 +41,13 @@ inline
   then ;
 
 : nqueens-run ^board ^solutions |
-  0 queens array-of to board
-  0 queens 1 do i  board i i !i drop  loop
-  0 to solutions
   now to t0
-  0 permute
+  0 loops 1 do rep
+     0 queens array-of to board
+     0 queens 1 do i  board i i !i drop  loop
+     0 to solutions
+     0 permute
+  loop
   "elapsed: " . now t0 - . "s" . cr
   "solutions: " . solutions . cr ;
 

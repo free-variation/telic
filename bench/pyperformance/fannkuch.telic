@@ -6,6 +6,7 @@
 \ as itertools.permutations).
 
 9 constant n
+6 constant loops
 variable perm1
 variable perm
 variable count
@@ -91,7 +92,7 @@ inline
 
 : fannkuch-run
   now to t0
-  fannkuch
+  0 loops 1 do rep  fannkuch  loop
   "elapsed: " . now t0 - . "s" . cr
   "max flips: " . max-flips . cr ;
 

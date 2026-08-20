@@ -12,6 +12,7 @@
 \   1336326                                  final length
 
 100000 constant n
+17 constant dna-loops
 
 \ a one-character newline string (string literals are raw; the newline is
 \ the literal character between the quotes)
@@ -185,7 +186,7 @@ variable rng-seed
 : timed ( seq -- seconds )
   | seq |
   now to t0
-  seq work
+  0 dna-loops 1 do rep  seq work  loop
   now t0 - ;
 
 variable seq-data

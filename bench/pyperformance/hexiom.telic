@@ -9,7 +9,7 @@
 \ Verification: the solved board's 19 cell values in id order (EMPTY shown as 7)
 \ must equal "3422447777427243727". Only the solve loop is timed (loops solves).
 
-50 to loops
+250 to loops
 19.0 constant count
 7.0 constant empty
 variable cell-links  variable tiles

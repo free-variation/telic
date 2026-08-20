@@ -9,7 +9,7 @@
 \ rounding, accumulated identically in both runtimes). Build is untimed.
 
 5 to loops
-50 to cycles
+150 to cycles
 variable rand-m  variable ri  variable rj
 2147483647.0 constant m1
 1.0 2147483647.0 f/ constant dm1

@@ -114,7 +114,11 @@ if __name__ == "__main__":
     workers = int(sys.argv[3]) if len(sys.argv) > 3 else os.cpu_count()
     chunks = int(sys.argv[4]) if len(sys.argv) > 4 else workers * 2
 
-    elapsed, checksum, setup = run(n, MAX_ITER, mode, workers, chunks)
+    loops = int(os.environ.get("BENCH_LOOPS", "1"))
+    elapsed = 0.0
+    for _ in range(loops):
+        one_elapsed, checksum, setup = run(n, MAX_ITER, mode, workers, chunks)
+        elapsed += one_elapsed
     print(f"elapsed: {elapsed:.6f} s")
     print(f"checksum: {checksum}")
     print(f"pool setup: {setup:.6f} s  mode: {mode}  workers: {workers}  blocks: {chunks}")

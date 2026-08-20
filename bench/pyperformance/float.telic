@@ -9,7 +9,7 @@
 \ measurement; the reported result is the final maximized point.
 
 100000.0 constant points
-20.0 constant repeats
+60.0 constant repeats
 
 variable xs  variable ys  variable zs
 variable maxx variable maxy variable maxz

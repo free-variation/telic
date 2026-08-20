@@ -44,7 +44,9 @@ def run_trees(max_depth):
 if __name__ == "__main__":
     n = int(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_ARG
     sys.setrecursionlimit(10000)
+    loops = int(sys.argv[2]) if len(sys.argv) > 2 else 1
     t0 = _t.perf_counter()
-    result = run_trees(n)
+    for _ in range(loops):
+        result = run_trees(n)
     print(f"elapsed: {_t.perf_counter() - t0:.6f} s")
     print(f"checksum: {result}")

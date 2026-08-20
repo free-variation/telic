@@ -5,6 +5,7 @@
 \ count of in-set pixels (those that never escape), matching pyperf_mandelbrot.py.
 
 1000 constant n
+2 constant mandel-loops
 50 constant max-iter
 
 : in-set? ( cr ci -- flag )
@@ -31,7 +32,8 @@
   in-set-count ;
 
 now to t0
-run-mandelbrot to checksum
+: run-mandelbrot-repeated  0 mandel-loops 1 do rep  run-mandelbrot to total  loop  total ;
+run-mandelbrot-repeated to checksum
 now t0 - to elapsed
 "elapsed: " . elapsed . " s" . cr
 "checksum: " . checksum . cr
