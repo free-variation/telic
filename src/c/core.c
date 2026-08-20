@@ -492,6 +492,18 @@ int object_new_segment(Interpreter *interp, int length, SegmentType element_type
 	return slot;
 }
 
+int object_new_exact(Interpreter *interp, int sign, const uint32_t *numerator, int n_numerator,
+		const uint32_t *denominator, int n_denominator) {
+	NEW_OBJECT(obj, OBJECT_EXACT);
+	obj->exact.sign = sign;
+	obj->exact.n_numerator = n_numerator;
+	obj->exact.n_denominator = n_denominator;
+	obj->exact.limbs = arena_malloc(((size_t)n_numerator + n_denominator) * 4);
+	memcpy(obj->exact.limbs, numerator, (size_t)n_numerator * 4);
+	memcpy(obj->exact.limbs + n_numerator, denominator, (size_t)n_denominator * 4);
+	return slot;
+}
+
 int object_new_logic_var(Interpreter *interp) {
 	alloc_count_lvar++;
 
@@ -570,12 +582,19 @@ int val_cmp_depth(Interpreter *interp, Val left, Val right, int depth) {
 		return 0;
 	}
 
-	if (VAL_TAG(left) != VAL_TAG(right))
+	if (VAL_TAG(left) != VAL_TAG(right)) {
+		if (VAL_TAG(left) == T_EXACT && VAL_TAG(right) == T_FLOAT)
+			return exact_cmp_double(left, VAL_NUMBER(right));
+		if (VAL_TAG(left) == T_FLOAT && VAL_TAG(right) == T_EXACT)
+			return -exact_cmp_double(right, VAL_NUMBER(left));
 		return (int)VAL_TAG(left) - (int)VAL_TAG(right);
+	}
 
 	switch (VAL_TAG(left)) {
 		case T_FLOAT:
 			return compare_double(VAL_NUMBER(left), VAL_NUMBER(right));
+		case T_EXACT:
+			return exact_cmp(interp, left, right);
 		case T_QUANTITY: {
 							 int left_unit  = (int)pairs.table[VAL_DATA(left)].tail.bits;
 							 int right_unit = (int)pairs.table[VAL_DATA(right)].tail.bits;
@@ -946,6 +965,7 @@ void print_val(FILE *out, Interpreter *interp, Val value) {
 						   print_depth_leave();
 						   break;
 					   }
+		case T_EXACT: exact_print(out, value); break;
 		case T_QUANTITY: {
 							 int slot = (int)VAL_DATA(value);
 							 int unit = (int)pairs.table[slot].tail.bits;
@@ -1105,6 +1125,7 @@ void print_val_compact(FILE *out, Interpreter *interp, Val value) {
 						   print_depth_leave();
 						   break;
 					   }
+		case T_EXACT: exact_print(out, value); break;
 		case T_QUANTITY: {
 							 int slot = (int)VAL_DATA(value);
 							 int unit = (int)pairs.table[slot].tail.bits;
@@ -2099,6 +2120,7 @@ const char *tag_name(Tag t) {
 		case T_PTR: return "a pointer";
 		case T_SEGMENT: return "a segment";
 		case T_QUANTITY: return "a quantity";
+		case T_EXACT:  return "an exact";
 		default:       return "an unknown value";
 	}
 }
@@ -3617,6 +3639,14 @@ void run_outer(Interpreter *interp) {
 			continue;
 		}
 
+		Val exact_literal;
+		if (parse_exact_literal(interp, tok, &exact_literal)) {
+			if (interp->error_flag)
+				return;
+			compile_or_push(interp, exact_literal);
+			continue;
+		}
+
 		double parsed_number;
 		if (parse_float(tok, &parsed_number)) {
 			compile_or_push(interp, make_float(parsed_number));
@@ -3844,6 +3874,7 @@ static void mark_value_at(Interpreter *interp, Val value, int depth) {
 				VAL_TAG(value) != T_MATRIX &&
 				VAL_TAG(value) != T_SEGMENT &&
 				VAL_TAG(value) != T_CONT &&
+				VAL_TAG(value) != T_EXACT &&
 				VAL_TAG(value) != T_QUANTITY) return;
 
 		if (VAL_TAG(value) == T_PAIR) {
@@ -4695,6 +4726,7 @@ void p_save(DISPATCH_ARGS) {
 void free_one_object(Object *obj) {
 	switch (obj->kind) {
 		case OBJECT_STRING: arena_free(obj->bytes); break;
+		case OBJECT_EXACT: arena_free(obj->exact.limbs); break;
 		case OBJECT_SET:
 		case OBJECT_ARRAY: arena_free(obj->items); break;
 		case OBJECT_FRAME: arena_free(obj->frame.keys); arena_free(obj->frame.values); break;
@@ -5159,6 +5191,10 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "unit", p_unit, 0);
 	define_primitive(interp, "magnitude", p_magnitude, 0);
 	define_primitive(interp, "unit-of", p_unit_of, 0);
+	define_primitive(interp, "float>exact", p_float_to_exact, 0);
+	define_primitive(interp, "exact>float", p_exact_to_float, 0);
+	define_primitive(interp, "numerator", p_numerator, 0);
+	define_primitive(interp, "denominator", p_denominator, 0);
 	define_primitive(interp, "string>symbol", p_string_to_symbol, 0);
 	define_primitive(interp, "forget", p_forget, 0);
 	define_primitive(interp, "'", p_tick, 1);

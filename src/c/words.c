@@ -207,6 +207,8 @@ void p_add(DISPATCH_ARGS) {
 		BROADCAST_MATRIX_OP_SCALAR(+);
 	else if (VAL_TAG(left) == T_ARRAY && VAL_TAG(right) == T_ARRAY)
 		execute_cfa(interp, find("concat"));
+	else if (exact_binary_word(interp, left, right, EXACT_OP_ADD)) {
+	}
 	else if (!quantity_additive_op(interp, left, right, scalar_add, "+", "add"))
 		fail(interp, "expected two floats, two strings, two sets, two matrices, scalar/matrix, or two arrays; got %s and %s",
 				tag_name(VAL_TAG(left)), tag_name(VAL_TAG(right)));
@@ -243,6 +245,8 @@ void p_sub(DISPATCH_ARGS) {
 		BROADCAST_SCALAR_OP_MATRIX(-);
 	else if (VAL_TAG(left) == T_MATRIX && VAL_TAG(right) == T_FLOAT)
 		BROADCAST_MATRIX_OP_SCALAR(-);
+	else if (exact_binary_word(interp, left, right, EXACT_OP_SUB)) {
+	}
 	else if (!quantity_additive_op(interp, left, right, scalar_sub, "-", "subtract"))
 		fail(interp, "expected two floats, two sets, two matrices, or scalar/matrix; got %s and %s",
 				tag_name(VAL_TAG(left)), tag_name(VAL_TAG(right)));
@@ -279,6 +283,8 @@ void p_mul(DISPATCH_ARGS) {
 		BROADCAST_SCALAR_OP_MATRIX(*);
 	else if (VAL_TAG(left) == T_MATRIX && VAL_TAG(right) == T_FLOAT)
 		BROADCAST_MATRIX_OP_SCALAR(*);
+	else if (exact_binary_word(interp, left, right, EXACT_OP_MUL)) {
+	}
 	else {
 		if (!quantity_multiplicative_op(interp, left, right, scalar_mul, unit_multiply, "*", 0))
 			fail(interp, "expected two floats, two sets, two matrices, or scalar/matrix; got %s and %s",
@@ -326,6 +332,8 @@ void p_div(DISPATCH_ARGS) {
 			return;
 		}
 		BROADCAST_MATRIX_OP_SCALAR(/);
+	}
+	else if (exact_binary_word(interp, left, right, EXACT_OP_DIV)) {
 	}
 	else {
 		if (!quantity_multiplicative_op(interp, left, right, scalar_div, unit_divide, "/", 1))
@@ -627,6 +635,10 @@ void p_nan(DISPATCH_ARGS) {
 			chain_sp[-1] = make_bool(1);
 			DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 	}
+	if (VAL_TAG(chain_sp[-1]) == T_EXACT) {
+			chain_sp[-1] = make_bool(0);
+			DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+	}
 
 	if (VAL_TAG(chain_sp[-1]) == T_ARRAY) {
 		Object *source = OBJECT_AT(VAL_DATA(chain_sp[-1]));
@@ -738,10 +750,10 @@ void p_null(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
 }
 
-int type_of_symbols[T_CURRIED + 1];
+int type_of_symbols[T_EXACT + 1];
 
 void type_of_intern_names(Interpreter *interp) {
-	static const char *names[T_CURRIED + 1] = {
+	static const char *names[T_EXACT + 1] = {
 		[T_NONE] = "none",        [T_SYMBOL] = "symbol",  [T_FLOAT] = "float",
 		[T_STRING] = "string",    [T_SET] = "set",        [T_ARRAY] = "array",
 		[T_PAIR] = "pair",        [T_FRAME] = "frame",    [T_MATRIX] = "matrix",
@@ -749,9 +761,9 @@ void type_of_intern_names(Interpreter *interp) {
 		[T_MARK] = "mark",        [T_STREAM] = "stream",  [T_LOGIC_VAR] = "lvar",
 		[T_UNBOUND] = "wildcard", [T_DB] = "db",          [T_PTR] = "ptr",
 		[T_SEGMENT] = "segment",  [T_QUANTITY] = "quantity",
-		[T_CURRIED] = "xt"
+		[T_CURRIED] = "xt",       [T_EXACT] = "exact"
 	};
-	for (int tag = 0; tag <= T_CURRIED; tag++)
+	for (int tag = 0; tag <= T_EXACT; tag++)
 		type_of_symbols[tag] = intern_symbol(interp, names[tag]);
 }
 
@@ -1930,6 +1942,20 @@ static void interp_render_val(Interpreter *interp, Val value, char **out_buffer,
 			interp_append(interp, out_buffer, capacity, out_length, rendered, n);
 			break;
 		}
+		case T_EXACT: {
+			char *rendered = NULL;
+			size_t rendered_size = 0;
+			FILE *stream = open_memstream(&rendered, &rendered_size);
+			if (!stream) {
+				fail(interp, "out of memory");
+				return;
+			}
+			exact_print(stream, value);
+			fclose(stream);
+			interp_append(interp, out_buffer, capacity, out_length, rendered, (int)rendered_size);
+			free(rendered);
+			break;
+		}
 		default:
 			interp_append(interp, out_buffer, capacity, out_length, "<?>", 3);
 			break;
@@ -2240,7 +2266,16 @@ void unary_op(Interpreter *interp, Val operand, double (*function)(double)) {
 	}
 #define UNARY_MATH_OP(name, func) UNARY_MATH_OP_NAMED(name, func, #name)
 
-#define UNARY_QUANTITY_OP(cname, func, word, result_unit) \
+static void exact_unary_word(Interpreter *interp, Val operand, int exact_op) {
+	gc_root_push(interp, operand);
+	Val result = exact_unary(interp, operand, exact_op);
+	gc_root_pop(interp);
+	if (interp->error_flag)
+		return;
+	push(interp, result);
+}
+
+#define UNARY_QUANTITY_OP(cname, func, word, exact_op, result_unit) \
 	void p_##cname(DISPATCH_ARGS) { \
 		REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1); \
 		if (VAL_TAG(chain_sp[-1]) == T_FLOAT) { \
@@ -2254,14 +2289,16 @@ void unary_op(Interpreter *interp, Val operand, double (*function)(double)) {
 			int unit = (result_unit); \
 			if (interp->error_flag) return; \
 			unary_quantity_op(interp, operand, func, unit); \
-		} else \
+		} else if ((exact_op) >= 0 && VAL_TAG(operand) == T_EXACT) \
+			exact_unary_word(interp, operand, exact_op); \
+		else \
 			unary_op(interp, operand, func); \
 		DISPATCH(interp); \
 	}
 
-UNARY_QUANTITY_OP(neg, scalar_negate, "negate", (int)pairs.table[VAL_DATA(operand)].tail.bits)
-UNARY_QUANTITY_OP(abs, fabs, "abs", (int)pairs.table[VAL_DATA(operand)].tail.bits)
-UNARY_QUANTITY_OP(sqrt, sqrt, "sqrt", unit_pow(interp, (int)pairs.table[VAL_DATA(operand)].tail.bits, 1, 2))
+UNARY_QUANTITY_OP(neg, scalar_negate, "negate", EXACT_OP_NEGATE, (int)pairs.table[VAL_DATA(operand)].tail.bits)
+UNARY_QUANTITY_OP(abs, fabs, "abs", EXACT_OP_ABS, (int)pairs.table[VAL_DATA(operand)].tail.bits)
+UNARY_QUANTITY_OP(sqrt, sqrt, "sqrt", -1, unit_pow(interp, (int)pairs.table[VAL_DATA(operand)].tail.bits, 1, 2))
 UNARY_MATH_OP(exp, exp)
 UNARY_MATH_OP(log, log10)
 UNARY_MATH_OP(ln, log)
@@ -2273,13 +2310,29 @@ UNARY_MATH_OP(tanh, tanh)
 UNARY_MATH_OP(asin, asin)
 UNARY_MATH_OP(acos, acos)
 UNARY_MATH_OP(atan, atan)
-UNARY_MATH_OP(round, round)
-UNARY_MATH_OP(truncate, trunc)
-UNARY_MATH_OP_NAMED(round_up, ceil, "round-up")
-UNARY_MATH_OP_NAMED(round_down, floor, "round-down")
-UNARY_MATH_OP_NAMED(inc_poly, scalar_inc, "1+")
-UNARY_MATH_OP_NAMED(dec_poly, scalar_dec, "1-")
-UNARY_MATH_OP_NAMED(sq_poly, scalar_sq, "sq")
+#define UNARY_MATH_OP_EXACT(cname, func, word, exact_op) \
+	void p_##cname(DISPATCH_ARGS) { \
+		REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1); \
+		if (VAL_TAG(chain_sp[-1]) == T_FLOAT) { \
+			chain_sp[-1] = make_float(func(chain_sp[-1].number)); \
+			DISPATCH_REGISTERS(interp, chain_ip, chain_sp); \
+		} \
+		\
+		SYNC_REGISTERS(interp, chain_ip, chain_sp - 1); \
+		if (VAL_TAG(chain_sp[-1]) == T_EXACT) \
+			exact_unary_word(interp, chain_sp[-1], exact_op); \
+		else \
+			unary_op(interp, chain_sp[-1], func); \
+		DISPATCH(interp); \
+	}
+
+UNARY_MATH_OP_EXACT(round, round, "round", EXACT_OP_ROUND)
+UNARY_MATH_OP_EXACT(truncate, trunc, "truncate", EXACT_OP_TRUNCATE)
+UNARY_MATH_OP_EXACT(round_up, ceil, "round-up", EXACT_OP_ROUND_UP)
+UNARY_MATH_OP_EXACT(round_down, floor, "round-down", EXACT_OP_ROUND_DOWN)
+UNARY_MATH_OP_EXACT(inc_poly, scalar_inc, "1+", EXACT_OP_INCREMENT)
+UNARY_MATH_OP_EXACT(dec_poly, scalar_dec, "1-", EXACT_OP_DECREMENT)
+UNARY_MATH_OP_EXACT(sq_poly, scalar_sq, "sq", EXACT_OP_SQUARE)
 
 static void binary_matrix_op(Interpreter *interp, Val left, Val right, scalar_operator function, const char *name) {
 	if (VAL_TAG(left) == T_MATRIX && VAL_TAG(right) == T_MATRIX) {
@@ -2367,6 +2420,20 @@ void p_power(DISPATCH_ARGS) {
 	}
 
 	interp->dsp -= 2;
+	if (VAL_TAG(left) == T_EXACT) {
+		if (VAL_TAG(right) != T_FLOAT) {
+			fail(interp, "exponent must be a float; got %s", tag_name(VAL_TAG(right)));
+			return;
+		}
+		gc_root_push(interp, left);
+		Val result = exact_power(interp, left, VAL_NUMBER(right));
+		gc_root_pop(interp);
+		if (interp->error_flag)
+			return;
+		push(interp, result);
+		DISPATCH(interp);
+		return;
+	}
 	if (VAL_TAG(left) == T_QUANTITY) {
 		if (VAL_TAG(right) != T_FLOAT) {
 			fail(interp, "exponent must be a number; got %s", tag_name(VAL_TAG(right)));
@@ -2531,6 +2598,9 @@ void p_divmod(DISPATCH_ARGS) {
 		DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 	}
 
+	if (exact_mod_word(interp, left, right, 1))
+		DISPATCH(interp);
+
 	if (divisor_has_zero(right)) {
 		fail(interp, "%%: division by zero");
 		return;
@@ -2556,6 +2626,9 @@ void p_mod(DISPATCH_ARGS) {
 		chain_sp[-2] = make_float(fmod(VAL_NUMBER(dividend), VAL_NUMBER(divisor)));
 		DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 	}
+
+	if (exact_mod_word(interp, dividend, divisor, 0))
+		DISPATCH(interp);
 
 	if (divisor_has_zero(divisor)) {
 		fail(interp, "mod: division by zero");

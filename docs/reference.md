@@ -175,17 +175,17 @@ float fast path first; the heavy cases are captured by the O column.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `+` | `( a b -- a+b )` | float: add. string+string: concat → new string. set+set: union → new set. matrix+matrix: element-wise → new matrix. scalar+matrix / matrix+scalar: broadcast → new matrix. array+array: defers to `concat`. | 3 (float) | float none; string `1s` + temp buffer; set `1o`; matrix `1m(r×c)`; array `1a(m+n)` | float O(1); string O(\|s\|); set O(n log n); matrix O(r×c); array O(m+n) |
-| `-` | `( a b -- a-b )` | float: subtract. set−set: difference. matrix: element-wise. scalar/matrix broadcast. | 3 (float) | as `+` | as `+` |
-| `*` | `( a b -- a*b )` | float: multiply. set∩set: intersection. matrix: element-wise. scalar/matrix broadcast. | 3 (float) | as `+` | as `+` |
-| `/` | `( a b -- a/b )` | float: divide (errors on zero divisor). matrix÷matrix: element-wise (errors on any zero element). scalar/matrix broadcast. | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
-| `%` | `( a b -- remainder quotient )` | truncating division: pushes `a − trunc(a/b)·b` then `trunc(a/b)`; float or matrix element-wise with scalar broadcast, answering a remainder matrix under a quotient matrix; a zero divisor or zero element errors | 4 | none | O(1) |
-| `mod` | `( a b -- remainder )` | remainder with the sign of the dividend (`fmod`); float or matrix element-wise with scalar broadcast; a zero divisor or zero element errors | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
-| `^` | `( a b -- a^b )` | `pow`; float or matrix (element-wise) / scalar broadcast | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
-| `negate` | `( a -- -a )` | float or matrix (element-wise) | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
-| `1+` | `( a -- a+1 )` | float or matrix | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
-| `1-` | `( a -- a-1 )` | float or matrix | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
-| `sq` | `( a -- a² )` | float or matrix | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
+| `+` | `( a b -- a+b )` | float: add. string+string: concat → new string. set+set: union → new set. matrix+matrix: element-wise → new matrix. scalar+matrix / matrix+scalar: broadcast → new matrix. array+array: defers to `concat`. exact+exact: exact sum. | 3 (float) | float none; string `1s` + temp buffer; set `1o`; matrix `1m(r×c)`; array `1a(m+n)` | float O(1); string O(\|s\|); set O(n log n); matrix O(r×c); array O(m+n) |
+| `-` | `( a b -- a-b )` | float: subtract. set−set: difference. matrix: element-wise. scalar/matrix broadcast. exact−exact: exact. | 3 (float) | as `+` | as `+` |
+| `*` | `( a b -- a*b )` | float: multiply. set∩set: intersection. matrix: element-wise. scalar/matrix broadcast. exact×exact: exact. | 3 (float) | as `+` | as `+` |
+| `/` | `( a b -- a/b )` | float: divide (errors on zero divisor). matrix÷matrix: element-wise (errors on any zero element). scalar/matrix broadcast. exact÷exact: exact, closed. | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
+| `%` | `( a b -- remainder quotient )` | truncating division: pushes `a − trunc(a/b)·b` then `trunc(a/b)`; float or matrix element-wise with scalar broadcast, answering a remainder matrix under a quotient matrix, or exact over exacts; a zero divisor or zero element errors | 4 | none | O(1) |
+| `mod` | `( a b -- remainder )` | remainder with the sign of the dividend (`fmod`); float or matrix element-wise with scalar broadcast, or exact over exacts; a zero divisor or zero element errors | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
+| `^` | `( a b -- a^b )` | `pow`; float or matrix (element-wise) / scalar broadcast; an exact base with an integer float exponent stays exact | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
+| `negate` | `( a -- -a )` | float, matrix (element-wise), or exact | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
+| `1+` | `( a -- a+1 )` | float, matrix, or exact | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
+| `1-` | `( a -- a-1 )` | float, matrix, or exact | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
+| `sq` | `( a -- a² )` | float, matrix, or exact | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `min2` | `( a b -- smaller )` | the `val_cmp`-ordered lesser of two values — floats, strings, quantities; NaN orders below every number, so a NaN operand answers NaN. With a matrix operand it is element-wise with scalar broadcast. `min`/`max` reduce one matrix, these order a pair | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `max2` | `( a b -- larger )` | the `val_cmp`-ordered greater, `min2`'s twin; a NaN operand answers the other value | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 
@@ -701,6 +701,8 @@ QE . cr
 ## Unary math (polymorphic: float or matrix)
 
 Tag-checked; safe. Float input → float; matrix input → new matrix, element-wise.
+`abs`, `round`, `truncate`, `round-up`, and `round-down` also take an exact and
+answer exactly (see Exact rationals); the transcendentals reject one.
 A float result that would be NaN (`-1 sqrt`, `-1 ln`) is `null` — NaN-boxing
 reserves NaN bit patterns for tags, so `null` is Water's NaN, and it is falsy,
 `none?`, and `= null`. Matrix buffers hold raw NaN elements untouched
@@ -874,10 +876,10 @@ Result is `1.0` (true) or `0.0` (false), with a float fast path. `=` uses `val_c
 | `>` | `( a b -- bool )` or `( mat/arr x -- mat )` | greater-than; element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (`val_cmp` per element, n×1) | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
 | `>=` | `( a b -- bool )` or `( mat/arr x -- mat )` | greater-than-or-equal (≥); element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (`val_cmp` per element, n×1) | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
 | `eq` | `( a b -- bool )` or `( mat/arr x -- mat )` | equality; element-wise 1/0 mask on matrix and array operands (scalar broadcast; `val_cmp` per array element) — the mask-producing twin of `=`, which stays structural on collections. NaN elements equal nothing | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
-| `nan?` | `( v -- bool )` or `( mat/arr -- mat )` | NaN test: 1/0 mask over a matrix's elements; an array answers an n×1 mask marking `none` elements (a text column's missing cells), composing with `where`/`select-rows`; `1` on `null` itself (a scalar NaN *is* `null`), `0` on any float. The only mask route to NaNs — they compare false under `<`/`>`/`eq` | 2 | `1m(r×c)` | O(1); matrix/array O(n) |
+| `nan?` | `( v -- bool )` or `( mat/arr -- mat )` | NaN test: 1/0 mask over a matrix's elements; an array answers an n×1 mask marking `none` elements (a text column's missing cells), composing with `where`/`select-rows`; `1` on `null` itself (a scalar NaN *is* `null`), `0` on any float or exact. The only mask route to NaNs — they compare false under `<`/`>`/`eq` | 2 | `1m(r×c)` | O(1); matrix/array O(n) |
 | `0=` | `( a -- bool )` | `!truthy(a)`; any type | 2 | none | O(1) |
 | `1=` | `( a -- bool )` | core.h2o: `1 =` (inlined) | 5 | none | O(1) |
-| `type-of` | `( a -- sym )` | The value's type as a symbol: `:float` `:string` `:symbol` `:array` `:set` `:pair` `:frame` `:matrix` `:quantity` `:xt` `:continuation` `:stream` `:db` `:ptr` `:segment` `:none` `:wildcard` `:lvar`. A bound logic var reports its value's type; an unbound one is `:lvar` | 2 | none | O(1) |
+| `type-of` | `( a -- sym )` | The value's type as a symbol: `:float` `:string` `:symbol` `:array` `:set` `:pair` `:frame` `:matrix` `:quantity` `:xt` `:continuation` `:stream` `:db` `:ptr` `:segment` `:none` `:wildcard` `:lvar` `:exact`. A bound logic var reports its value's type; an unbound one is `:lvar` | 2 | none | O(1) |
 | `float?` | `( a -- bool )` | core.h2o: `type-of :float =` (inlined) | 5 | none | O(1) |
 | `string?` | `( a -- bool )` | core.h2o: `type-of :string =` (inlined) | 5 | none | O(1) |
 | `symbol?` | `( a -- bool )` | core.h2o: `type-of :symbol =` (inlined) | 5 | none | O(1) |
@@ -1271,6 +1273,74 @@ temperature `kelvin`, amount `mol`; derived `hertz` `newton` `pascal` `joule`
 ```
 ```output
 1 km
+```
+
+## Exact rationals
+
+An exact is an arbitrary-precision rational: a gcd-reduced fraction of
+unbounded integers, an integer being the denominator-1 case. `1/3`, `-7/2`,
+and `5/1` are literals, and a plain integer literal too large for a float to
+hold exactly (a 19-digit id) reads as an exact instead of rounding silently.
+The same promotion applies to `json>frame` integers and SQLite INTEGER
+columns; `frame>json` and `db-exec`/`db-query` parameters write integer
+exacts back losslessly (a non-integer exact errors there).
+
+The polymorphic words compute exactly on exact operands: `+` `-` `*` `/`
+(closed — `1/3 1/6 +` is `1/2`; `/` errors on an exact zero), `%` `mod`
+`quotient`, `negate` `abs` `1+` `1-` `sq`, `^` with an integer float exponent,
+and `round` `truncate` `round-up` `round-down` (integer exacts). Comparison
+is the one place exact and float meet: `=` `<` `>` `<=` `>=` `min2` `max2`,
+`sort`, and set membership compare the two numerically and exactly
+(`1/2 0.5 =` is true), so mixed collections order and dedup coherently.
+Exact ⊕ float arithmetic errors — convert explicitly. Matrices, segments,
+quantity magnitudes, bitwise, and the ⚠ float words stay float; an exact
+reaching them errors. An exact result allocates one object per operation, so
+exact arithmetic runs an order of magnitude and more above the float fast
+path, which is unchanged.
+
+| Word | Stack effect | Behavior | Ops | Alloc | O |
+|------|-------------|----------|-----|-------|---|
+| `float>exact` | `( f -- x )` | The float's exact value — every float is a dyadic rational, so the conversion is lossless; errors on NaN or an infinity. An exact passes through unchanged | limbs | `1o` | O(limbs) |
+| `exact>float` | `( x -- f )` | The nearest float; a float passes through unchanged | limbs | none | O(limbs) |
+| `numerator` | `( x -- x' )` | The reduced numerator as an integer exact, carrying the sign | limbs | `1o` | O(limbs) |
+| `denominator` | `( x -- x' )` | The reduced denominator as a positive integer exact | limbs | `1o` | O(limbs) |
+| `exact?` | `( a -- bool )` | core.h2o: `type-of :exact =` (inlined) | 5 | none | O(1) |
+
+```forth float>exact
+0.5 float>exact . cr
+0.1 float>exact denominator . cr
+```
+```output
+1/2
+36028797018963968
+```
+
+```forth exact>float
+1/4 exact>float . cr
+```
+```output
+0.25
+```
+
+```forth numerator
+-6/8 numerator . cr
+```
+```output
+-3
+```
+
+```forth denominator
+6/8 denominator . cr
+```
+```output
+4
+```
+
+```forth exact?
+1/2 exact? . 0.5 exact? . cr
+```
+```output
+1 0
 ```
 
 ## Return stack

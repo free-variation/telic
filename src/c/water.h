@@ -97,7 +97,8 @@ typedef enum {
 	T_PTR,
 	T_SEGMENT,
 	T_QUANTITY,
-	T_CURRIED
+	T_CURRIED,
+	T_EXACT
 } Tag;
 
 typedef union {
@@ -171,6 +172,7 @@ static inline Val make_db(int handle) { return make_tagged(T_DB, handle); }
 static inline Val make_pointer(int handle) { return make_tagged(T_PTR, handle); }
 static inline Val make_segment(int handle) { return make_tagged(T_SEGMENT, handle); }
 static inline Val make_quantity(int handle) { return make_tagged(T_QUANTITY, handle); }
+static inline Val make_exact(int handle) { return make_tagged(T_EXACT, handle); }
 static inline Val make_continuation(int handle) { return make_tagged(T_CONT, handle); }
 static inline Val make_logic_var(int handle) { return make_tagged(T_LOGIC_VAR, handle); }
 static inline Val make_mark(void) { return make_tagged(T_MARK, 0); }
@@ -183,7 +185,8 @@ typedef enum {
 	OBJECT_FRAME,
 	OBJECT_MATRIX,
 	OBJECT_CONTINUATION,
-	OBJECT_SEGMENT
+	OBJECT_SEGMENT,
+	OBJECT_EXACT
 } ObjectKind;
 
 typedef enum {
@@ -218,6 +221,12 @@ typedef struct Object {
 			int length;
 			void *data;
 		} segment;
+		struct {
+			int sign;
+			int n_numerator;
+			int n_denominator;
+			uint32_t *limbs;
+		} exact;
 	};
 
 	cell mark_epoch;
@@ -1582,11 +1591,53 @@ void p_now(DISPATCH_ARGS);
 void p_parse_time(DISPATCH_ARGS);
 void p_wall_now(DISPATCH_ARGS);
 
+typedef enum {
+	EXACT_OP_ADD = 0,
+	EXACT_OP_SUB,
+	EXACT_OP_MUL,
+	EXACT_OP_DIV,
+	EXACT_OP_NEGATE,
+	EXACT_OP_ABS,
+	EXACT_OP_INCREMENT,
+	EXACT_OP_DECREMENT,
+	EXACT_OP_SQUARE,
+	EXACT_OP_ROUND,
+	EXACT_OP_TRUNCATE,
+	EXACT_OP_ROUND_UP,
+	EXACT_OP_ROUND_DOWN
+} ExactOp;
+
+Val exact_binary(Interpreter *interp, Val left, Val right, int op);
+int exact_binary_word(Interpreter *interp, Val left, Val right, int op);
+int exact_cmp(Interpreter *interp, Val left, Val right);
+int exact_claim_integer_digits(Interpreter *interp, const char *digits, int n_digits, int negative, Val *out);
+int exact_cmp_double(Val left, double right);
+int exact_fits_int64(Val value, int64_t *out);
+Val exact_from_double(Interpreter *interp, double value);
+Val exact_from_int64(Interpreter *interp, int64_t value);
+int exact_is_integer(Val value);
+int exact_mod_word(Interpreter *interp, Val dividend, Val divisor, int also_quotient);
+Val exact_power(Interpreter *interp, Val base, double exponent);
+void exact_print(FILE *out, Val value);
+double exact_to_double(Val value);
+Val exact_truncated_quotient(Interpreter *interp, Val left, Val right);
+int exact_truthy_value(Val value);
+Val exact_unary(Interpreter *interp, Val value, int op);
+int object_new_exact(Interpreter *interp, int sign, const uint32_t *numerator, int n_numerator,
+		const uint32_t *denominator, int n_denominator);
+int parse_exact_literal(Interpreter *interp, const char *token, Val *out);
+void p_denominator(DISPATCH_ARGS);
+void p_exact_to_float(DISPATCH_ARGS);
+void p_float_to_exact(DISPATCH_ARGS);
+void p_numerator(DISPATCH_ARGS);
+
 static inline int truthy(Val value) {
 	if (VAL_TAG(value) == T_FLOAT)
 		return VAL_NUMBER(value) != 0.0;
 	if (VAL_TAG(value) == T_QUANTITY)
 		return quantity_truthy(value);
+	if (VAL_TAG(value) == T_EXACT)
+		return exact_truthy_value(value);
 	return VAL_DATA(value) != 0;
 }
 

@@ -1,0 +1,47 @@
+1/3 1/2 -3/4 5 0 
+:exact 1 0 
+9007199254740993 :exact 
+:float 
+12345678901234567890 
+1/2 1/6 1/2 2 
+-1/2 7/2 4/3 -2/3 4/9 
+2 2 3 2 
+-2 -2 -2 -3 
+1/1024 1/4 -8/27 
+1 -1 
+2 1 
+2 
+1 3 -3 
+101 
+1/2 1/4 
+0.25 3 
+1 
+1 1 1 0 
+1/2 1/2 
+[ 1/3 0.4 1/2 5 ] 
+[< 1/2 >] 
+1 
+1 0 0 
+0 
+1/3 
+1 
+22/7 
+1/3 of it 
+{"id": 9007199254740993} 
+12345678901234567890 
+9223372036854775807 :exact 
+error: exact and float do not mix; convert with float>exact or exact>float
+in +
+error: division by zero
+in /
+error: exact literal 1/0 has a zero denominator
+error: expected a float or a matrix; got an exact
+in sqrt
+error: exponent must be a float; got an exact
+in ^
+error: element 0 is an exact, expected a float
+in matrix ← vector
+error: expected float start, limit, and delta; got an exact
+in (do) ← bad-index
+error: cannot serialize a non-integer exact as JSON
+in frame>json

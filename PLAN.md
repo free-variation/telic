@@ -393,6 +393,20 @@ live here instead. File and function name each invariant's home.
   depends on how source arrives; `refill_input` is fenced by `load_depth` and
   `nested_input_depth`, so a `load` or `evaluate` never reads stdin
   (compiler.c, core.c `refill_input`).
+- An exact is always canonical — gcd-reduced, denominator ≥ 1, zero as
+  sign 0 with numerator {0} and denominator {1}; every constructor goes
+  through `exact_normalized` (exact.c).
+- Exact kernels compute into raw `arena_malloc` temps and create the result
+  object last, so no GC-visible allocation happens while limb pointers into
+  operand objects are live (exact.c).
+- An integer literal (reader, JSON, SQLite) promotes to exact only when the
+  value does not round-trip through a double — `decimal_lossless_as_double`
+  is the single rule (exact.c).
+- A new heap-referencing tag must join both walkers: `mark_value_at`'s tag
+  filter and `references_region_depth`'s switch — a tag missing from the
+  second has its region objects rewound under a pmap result and reused
+  (the quantity case was latent until exacts crashed there) (core.c,
+  functional.c).
 - Handle-shaped tags compare by payload, not by tag alone: `T_STREAM`,
   `T_DB`, `T_PTR` and `T_CONT` sit with `T_SYMBOL`/`T_XT` in the
   payload-comparison branch. A new handle tag left to the `default` case

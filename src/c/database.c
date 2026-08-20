@@ -94,6 +94,15 @@ static int db_bind(Interpreter *interp, sqlite3_stmt *statement, Object *params)
 			case T_SYMBOL:
 						   sqlite3_bind_text(statement, i + 1, &vocab.symbol_pool[VAL_DATA(value)], -1, SQLITE_TRANSIENT);
 						   break;
+			case T_EXACT: {
+							  int64_t integer;
+							  if (!exact_fits_int64(value, &integer)) {
+								  fail(interp, "cannot bind a non-integer or oversized exact as a parameter");
+								  return -1;
+							  }
+							  sqlite3_bind_int64(statement, i + 1, integer);
+							  break;
+						  }
 			default:
 						   fail(interp, "cannot bind %s as a parameter", tag_name(VAL_TAG(value)));
 						   return -1;
@@ -164,7 +173,12 @@ void p_db_exec(DISPATCH_ARGS) {
 
 static Val db_column_value(Interpreter *interp, sqlite3_stmt *statement, int column) {
 	switch (sqlite3_column_type(statement, column)) {
-		case SQLITE_INTEGER:
+		case SQLITE_INTEGER: {
+					 int64_t integer = sqlite3_column_int64(statement, column);
+					 if (integer > (int64_t)1 << 53 || integer < -((int64_t)1 << 53))
+						 return exact_from_int64(interp, integer);
+					 return make_float((double)integer);
+				 }
 		case SQLITE_FLOAT:
 			return make_float(sqlite3_column_double(statement, column));
 		case SQLITE_NULL:

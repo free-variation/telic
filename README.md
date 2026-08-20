@@ -236,6 +236,10 @@ departs from its pyperformance original the file's header says so.
 - **Comparison** — `=` orders matrices structurally (shape then row-major contents), so matrices work as set members; `<`/`>`/`eq` compare matrices **element-wise**, returning a 1/0 matrix (a scalar broadcasts). An array operand also masks element-wise (`val_cmp` per element, a value broadcasts, equal-length arrays pair up), so `names "ann" eq where` filters a text column. On scalars and strings comparison is structural, `eq` agreeing with `=`.
 - **Sorting and masks** — `sort` (ascending copy of a vector, NaNs last), `argsort` (the sorting permutation of a vector as an index vector, or of an array under structural order as an index array; ties keep index order), `where` (flat indices of a mask's nonzero elements), `nan?` (the NaN mask — NaNs compare false under `<`/`>`/`eq`; an array answers a mask of its `none` elements), `mesh` (masked substitution — keep where the mask is 0 or NaN, replace where it is definitely nonzero; scalars, `null`, and quantities broadcast). Masks serve both selection and alteration: `dup 0 @j 0 < where select-rows` keeps the rows whose first column is negative, `dup nan? 0 mesh` fills a column's NaNs, `dup -1 eq null mesh` turns a sentinel into missing.
 
+### Exact rationals
+
+Arbitrary-precision rationals: gcd-reduced fractions of unbounded integers, integers as the denominator-1 case. `1/3` is a literal; an integer literal, JSON integer, or SQLite INTEGER too large for a float to hold exactly reads as an exact instead of rounding silently, and integer exacts serialize back losslessly. The polymorphic arithmetic, comparison, and rounding words compute exactly on exacts; comparison between an exact and a float is exact, while mixed arithmetic errors (`float>exact` / `exact>float` convert). Matrices, quantities, and the ⚠ tier stay float.
+
 ### Dimensioned quantities
 
 A magnitude (float or matrix) carrying a unit; arithmetic propagates and checks units — dimensional algebra, not unit conversion. Units are rational-exponent vectors over user-declared base dimensions, each with a rational scale.

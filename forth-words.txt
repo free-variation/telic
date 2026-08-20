@@ -177,6 +177,7 @@ db-query>dataset
 db?
 defer
 delete-at
+denominator
 depth
 deref
 destruct
@@ -213,6 +214,8 @@ epoch>date
 epoch>date-local
 eq
 evaluate
+exact>float
+exact?
 execute
 exit
 exp
@@ -276,6 +279,7 @@ flat-map
 flatten
 flatten-array
 fln
+float>exact
 float?
 floats>matrix
 flog
@@ -400,6 +404,7 @@ now
 null
 num-cores
 num-elements
+numerator
 open-app-window
 or
 over

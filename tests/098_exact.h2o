@@ -1,0 +1,75 @@
+\ exact — arbitrary-precision rationals: gcd-reduced fractions of unbounded
+\ integers. Literals p/q; oversized integer literals promote; strict
+\ separation from floats in arithmetic, exact numeric comparison across.
+
+\ === literals and canonical form ===
+
+1/3 . 2/4 . -6/8 . 5/1 . 0/7 . cr             \ 1/3 1/2 -3/4 5 0
+1/3 type-of . 5/1 exact? . 5 exact? . cr      \ :exact 1 0
+9007199254740993 dup . type-of . cr           \ 9007199254740993 :exact (2^53+1 does not fit a float)
+9007199254740992 type-of . cr                 \ :float (2^53 fits exactly)
+12345678901234567890 . cr                     \ 12345678901234567890
+
+clear
+\ === the algebra ===
+
+1/3 1/6 + . 1/3 1/6 - . 2/3 3/4 * . 1/3 1/6 / . cr   \ 1/2 1/6 1/2 2
+1/2 negate . -7/2 abs . 1/3 1+ . 1/3 1- . 2/3 sq . cr \ -1/2 7/2 4/3 -2/3 4/9
+7/3 truncate . 7/3 round . 7/3 round-up . 7/3 round-down . cr  \ 2 2 3 2
+-7/3 truncate . -7/3 round . -7/3 round-up . -7/3 round-down . cr \ -2 -2 -2 -3
+1/2 10 ^ . 2/1 -2 ^ . -2/3 3 ^ . cr           \ 1/1024 1/4 -8/27
+7/1 3/1 mod . -7/1 3/1 mod . cr               \ 1 -1
+7/1 3/1 % . . cr                              \ 2 1 (quotient then remainder)
+7/1 3/1 quotient . cr                         \ 2
+1/3 numerator . 1/3 denominator . -6/8 numerator . cr  \ 1 3 -3
+1/1 [: 1+ :] 100 times . cr                   \ 101 (an exact counter under times)
+
+clear
+\ === conversions ===
+
+0.5 float>exact . 0.25 float>exact . cr       \ 1/2 1/4
+1/4 exact>float . 3/1 exact>float . cr        \ 0.25 3
+9007199254740993 exact>float 9007199254740992 = . cr  \ 1 (nearest float loses the odd unit)
+
+clear
+\ === comparison is exact across float and exact ===
+
+1/2 0.5 = . 5/1 5 = . 1/3 0.5 < . 0.5 1/3 < . cr  \ 1 1 1 0
+1/2 1/3 max2 . 1/2 0.4 max2 . cr              \ 1/2 1/2
+[ 1/3 5 1/2 0.4 ] sort . cr                   \ [ 1/3 0.4 1/2 5 ]
+[< 1/2 2/4 0.5 >] . cr                        \ [< 1/2 >] (normalization and cross-equality dedup)
+10000000000000000001/1 10000000000000000002/1 < . cr  \ 1 (beyond float precision)
+
+clear
+\ === truthiness, logic, structure ===
+
+0/5 not . 1/2 not . 0/5 none? . cr            \ 1 0 0
+1/2 nan? . cr                                 \ 0
+lvar dup 1/3 ~ drop ? . cr                    \ 1/3
+[ 1/2 _ ] [ 1/2 7 ] matches? . cr             \ 1
+{ :r 22/7 } :r @ . cr                         \ 22/7
+1/3 "{0} of it" format . cr                   \ 1/3 of it
+
+clear
+\ === JSON and SQLite round-trips ===
+
+{ :id 9007199254740993/1 } frame>json . cr    \ {"id": 9007199254740993}
+"{""id"": 12345678901234567890}" json>frame :id @ . cr  \ 12345678901234567890
+":memory:" db-open to db
+db "create table t(id integer)" [ ] db-exec drop
+db "insert into t values (?)" [ 9223372036854775807/1 ] db-exec drop
+db "select id from t" [ ] db-query :rows @ 0 @i :id @ dup . type-of . cr  \ 9223372036854775807 :exact
+db db-close
+
+clear
+\ === errors (each reason parenthesized) ===
+
+1/2 1 +                                       \ (exact and float arithmetic does not mix)
+1/2 0/3 /                                     \ (division by zero)
+1/0                                           \ (zero denominator literal)
+1/2 sqrt                                      \ (transcendentals reject exacts)
+1/2 1/2 ^                                     \ (the exponent is a float count)
+[ 1/2 ] vector                                \ (matrices stay float)
+clear
+: bad-index 0/1 5/1 1/1 do k loop ; bad-index \ (do operands stay float)
+{ :third 1/3 } frame>json                     \ (JSON has no fractions)

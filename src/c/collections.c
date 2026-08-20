@@ -2234,6 +2234,23 @@ static void json_parse_value(Interpreter *interp, JSONParser *parser, Val *desti
 		case '-':
 		case '0': case '1': case '2': case '3': case '4':
 		case '5': case '6': case '7': case '8': case '9': {
+			const char *scan = parser->cursor;
+			int negative = *scan == '-';
+			if (negative)
+				scan++;
+			const char *digit_start = scan;
+			while (scan < parser->end && *scan >= '0' && *scan <= '9')
+				scan++;
+			int pure_integer = scan > digit_start
+				&& (scan >= parser->end || (*scan != '.' && *scan != 'e' && *scan != 'E'));
+			if (pure_integer && scan - digit_start >= 16
+					&& exact_claim_integer_digits(interp, digit_start, (int)(scan - digit_start), negative, destination)) {
+				if (interp->error_flag)
+					return;
+				parser->cursor = scan;
+				return;
+			}
+
 			char *number_end;
 			double number = strtod(parser->cursor, &number_end);
 			if (number_end == parser->cursor) {
@@ -2386,6 +2403,24 @@ static void json_write_value(Interpreter *interp, JSONWriter *writer, Val value,
 		case T_FLOAT:
 			json_write_number(writer, VAL_NUMBER(value));
 			return;
+		case T_EXACT: {
+			if (!exact_is_integer(value)) {
+				fail(interp, "cannot serialize a non-integer exact as JSON");
+				return;
+			}
+			char *rendered = NULL;
+			size_t rendered_size = 0;
+			FILE *stream = open_memstream(&rendered, &rendered_size);
+			if (!stream) {
+				fail(interp, "out of memory");
+				return;
+			}
+			exact_print(stream, value);
+			fclose(stream);
+			json_write_bytes(writer, rendered, (int)rendered_size);
+			free(rendered);
+			return;
+		}
 		case T_SYMBOL:
 			if ((int)VAL_DATA(value) == vocab.true_symbol)
 				json_write_bytes(writer, "true", 4);

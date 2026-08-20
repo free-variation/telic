@@ -461,6 +461,7 @@ static int references_region_depth(Val value, ParallelRegion *snapshot, int dept
 		case T_STRING:
 		case T_MATRIX:
 		case T_SEGMENT:
+		case T_EXACT:
 			return VAL_DATA(value) >= snapshot->n_objects;
 		case T_SET:
 		case T_CURRIED:
@@ -501,6 +502,12 @@ static int references_region_depth(Val value, ParallelRegion *snapshot, int dept
 			Pair *pair = &pairs.table[handle];
 			return references_region_depth(pair->head, snapshot, depth + 1)
 					|| references_region_depth(pair->tail, snapshot, depth + 1);
+		}
+		case T_QUANTITY: {
+			int handle = (int)VAL_DATA(value);
+			if (handle >= snapshot->n_pairs)
+				return 1;
+			return references_region_depth(pairs.table[handle].head, snapshot, depth + 1);
 		}
 		case T_LOGIC_VAR:
 			return 1;
