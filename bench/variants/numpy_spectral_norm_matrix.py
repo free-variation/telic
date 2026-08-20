@@ -3,11 +3,11 @@ spectral_norm, matrix-based with numpy — the counterpart of
 bench/variants/spectral-norm-matrix.telic.
 
 A is materialized once as an N x N array, so each AtA product is two BLAS
-calls rather than an interpreted loop: A@x then A.T@(A@x). The water variant
+calls rather than an interpreted loop: A@x then A.T@(A@x). The telic variant
 spells those as dgemm-nn and dgemm-tn over an n x 1 column; here x is 1-D, the
 idiomatic numpy spelling, which reaches dgemv instead of dgemm.
 
-Structure matches the water variant: A is built outside the timed region, and
+Structure matches the telic variant: A is built outside the timed region, and
 each of `loops` iterations restarts u at ones and runs ten u/v round trips.
 """
 

@@ -8,11 +8,11 @@ no per-pixel early exit: all max_iter iterations run for every pixel and
 `escaped` accumulates the escape mask, so a pixel is in-set iff it never
 escaped. That gives the same checksum as the scalar version.
 
-The array ops mirror the water variant one for one, in place where it is in
+The array ops mirror the telic variant one for one, in place where it is in
 place (*!, +!, -!), so the comparison is of the same sequence of kernels.
-Grid setup is outside the timed region, as in the water variant.
+Grid setup is outside the timed region, as in the telic variant.
 
-Escaped pixels overflow to inf and then nan, exactly as in the water variant;
+Escaped pixels overflow to inf and then nan, exactly as in the telic variant;
 the mask has already been counted by then, so the errstate suppression only
 silences the warnings.
 """

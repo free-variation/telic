@@ -1,7 +1,7 @@
 """
 AES-128 CTR benchmark, the reference for crypto-pyaes.telic. The key and cleartext
 are pyperformance bm_crypto_pyaes's, and each loop encrypts then decrypts with a
-fresh CTR object as that benchmark does; the water port uses the same two values,
+fresh CTR object as that benchmark does; the telic port uses the same two values,
 so the comparison and the checksum line up. Uses the pure-Python `pyaes` module
 (pip install pyaes), as bm_crypto_pyaes does.
 """

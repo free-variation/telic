@@ -6,7 +6,7 @@
 \ Python-3 float-division behaviour of the original), so the estimate matches the
 \ reference to the bit. The RNG is a strict lagged sequence, so this kernel is
 \ inherently serial; see variants/monte-carlo-parallel.telic for a pmap version
-\ built on water's per-worker random stream. samples and loops are set below.
+\ built on telic's per-worker random stream. samples and loops are set below.
 
 1000000 to samples
 3 to loops

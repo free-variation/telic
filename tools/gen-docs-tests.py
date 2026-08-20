@@ -24,7 +24,7 @@ Two kinds of runnable documentation, both extracted here:
    contract is in gen-help.py). Each reference section with examples
    becomes one generated trio
 
-     tests/900_docs_<section-slug>.{h2o,expected,sed}
+     tests/900_docs_<section-slug>.{telic,expected,sed}
 
    (tests/lib/ for a section whose examples load the dependency-bearing
    statistics library; a pure-forth library section such as plotting
@@ -42,7 +42,7 @@ Two kinds of runnable documentation, both extracted here:
    text, not a reference word; gen-help never reads these files). All
    of one document's pairs become a single trio
 
-     tests/901_docs_<doc-stem>.{h2o,expected,sed}
+     tests/901_docs_<doc-stem>.{telic,expected,sed}
 
    routed to tests/lib/ when any pair loads the statistics library. A
    bare ``forth`` fence in these documents is display-only (they are

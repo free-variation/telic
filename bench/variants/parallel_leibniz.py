@@ -4,7 +4,7 @@ Leibniz pi, parallel — the counterpart of bench/variants/leibniz-parallel.teli
 The series splits into `chunks` contiguous blocks of terms. Worker j sums the
 terms k in [j*chunk_size, (j+1)*chunk_size) with term k = (-1)^k / (2k+1);
 chunk_size is even, so every block starts on an even k (sign +1). The partial
-sums are added and scaled by 4, exactly as the water variant's pmap-ext /
+sums are added and scaled by 4, exactly as the telic variant's pmap-ext /
 reduce pair does.
 
 Two modes, since the tool decides what parallelism CPython gets:
@@ -16,7 +16,7 @@ Two modes, since the tool decides what parallelism CPython gets:
 
 Workers receive two ints and return a float, so nothing large crosses a process
 boundary. The reported elapsed time covers pool creation as well as compute,
-because water's pmap-ext spawns its OS threads inside its own timed region;
+because telic's pmap-ext spawns its OS threads inside its own timed region;
 the setup share is printed separately.
 """
 

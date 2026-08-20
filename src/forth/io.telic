@@ -1,6 +1,6 @@
 \ filesystem and environment helpers
 
-( value path -- ) \ write a value to a file in Water's binary value format
+( value path -- ) \ write a value to a file in Telic's binary value format
 : save-value swap value>bytes swap write-file ;
 
 ( path -- value ) \ read a value written by save-value

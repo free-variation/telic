@@ -3,7 +3,7 @@
 #
 # Maintainer tool: needs network + clang + Apple's Accelerate. The COMMITTED
 # result under external/lapacke/ builds offline with nothing but a C compiler,
-# exactly like the other vendored deps. water's LAPACKE path is
+# exactly like the other vendored deps. telic's LAPACKE path is
 # Accelerate/macOS-specific, so this script is too.
 #
 # LAPACKE ships ~2600 wrapper files (every routine x s/d/c/z x {high,_work}).
@@ -74,7 +74,7 @@ Contents:  the exact object closure of those LAPACKE_<routine> wrappers
 License:   modified BSD (BSD-3-Clause). See LICENSE.
 
 Build:     the top-level Makefile compiles src/ + utils/ into liblapacke.a, then
-           links liblapacke_water.so against the platform BLAS/LAPACK (Accelerate
+           links liblapacke_telic.so against the platform BLAS/LAPACK (Accelerate
            on macOS, OpenBLAS on Linux), so the Fortran routines (dgesvd_, ...)
            resolve there. The exported-symbol set is exactly LAPACKE_ROUTINES.
 

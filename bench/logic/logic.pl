@@ -3,7 +3,7 @@
 % once; the loop unifies it against ground then backtracks, so it measures
 % unify + bind + trail-undo, as logic.telic does. Note: Prolog has no open
 % records, so `frame` is a fixed compound (no :extra field), and `wide` is a
-% list where water uses a flat array.
+% list where telic uses a flat array.
 :- initialization(main, main).
 
 var_spine(0, _).

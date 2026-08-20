@@ -17,8 +17,8 @@
 "/tmp/images-lf140/3.svg" file-exists? . cr                 \ 0 (only two saves)
 
 \ === view-figure opens the viewer without saving a new version ===
-\ point WATER_BROWSER at a harmless executable so the open is a no-op, not a real browser
-"WATER_BROWSER" "/bin/echo" env!
+\ point TELIC_BROWSER at a harmless executable so the open is a no-op, not a real browser
+"TELIC_BROWSER" "/bin/echo" env!
 "/tmp/images-lf140/index.html" file-exists? . cr            \ 0 (save-figure never writes it)
 "lf140" view-figure
 "/tmp/images-lf140/index.html" file-exists? . cr            \ 1 (view-figure wrote the viewer page)

@@ -3,8 +3,8 @@ raytrace, parallel — the counterpart of bench/variants/raytrace-parallel.telic
 
 Scanlines are independent, so each row's contribution to the checksum (the sum
 of its clamped colour bytes) is computed by a worker and the rows are summed,
-which is what the water variant's `height iota ... pmap-reduce` does. The frame
-loop repeats that map `loops` times, as the water variant repeats render-frame.
+which is what the telic variant's `height iota ... pmap-reduce` does. The frame
+loop repeats that map `loops` times, as the telic variant repeats render-frame.
 
 The geometry, surfaces and recursion come from pyperf_raytrace, so both
 references run the same tracer; only the pixel loop of Scene.render and the
@@ -18,7 +18,7 @@ Two modes:
              pure-Python tracer
 
 The reported elapsed time covers pool creation as well as compute, because
-water's pmap-reduce spawns its OS threads inside its own timed region; the
+telic's pmap-reduce spawns its OS threads inside its own timed region; the
 setup share is printed separately.
 """
 

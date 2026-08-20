@@ -1,5 +1,5 @@
 #!/bin/sh
-# GC-rooting-under-pressure tests for water.
+# GC-rooting-under-pressure tests for telic.
 #
 # Each case runs a word that allocates a fresh object while an operand (or an
 # in-flight C-level value) is the only reference to some heap value, in a loop
@@ -21,7 +21,7 @@
 
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
-bin="$here/../water"
+bin="$here/../telic"
 pass=0
 fail=0
 

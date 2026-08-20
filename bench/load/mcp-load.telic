@@ -28,7 +28,7 @@ variable server
 \ the cap is set after the library loads, since the library assigns its own
 : start-server
   | cap |
-  [ binary-dir "/water" + "-e"
+  [ binary-dir "/telic" + "-e"
 	cap """mcp"" load-library {0:d} to mcp-max-sessions mcp-serve" format ] start-process ;
 
 ( -- fr ) \ the _meta every request carries
@@ -37,13 +37,13 @@ variable server
 	:io.modelcontextprotocol/clientCapabilities { }
   } ;
 
-( id session code -- ) \ send one water-eval call and remember what it should answer
+( id session code -- ) \ send one telic-eval call and remember what it should answer
 : send-eval
   | id session code |
   { :jsonrpc "2.0"
 	:id id
 	:method "tools/call"
-	:params { :name "water-eval"
+	:params { :name "telic-eval"
 			  :arguments { :session session :code code }
 			  :_meta request-meta }
   } frame>json "{0}{nl}" format server :in @ write ;

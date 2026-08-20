@@ -14,7 +14,7 @@
 
 [ ] to mcp-tool-registry
 
-[ "The code is Water, a Forth-styled language for numeric and statistical work; "
+[ "The code is Telic, a Forth-styled language for numeric and statistical work; "
   "send self-contained source and read what it printed as the result. "
   "Every call names a session, and a session keeps its definitions, loaded data, "
   "database handles and fitted models until the server exits, so read a table once "
@@ -142,7 +142,7 @@
 
 ( code marker -- source ) \ what a child is sent for one call: the code, then its end marker
 \ The code travels as a string literal for the child to evaluate, so each quote
-\ in it is doubled — that is the only escape a Water string has.
+\ in it is doubled — that is the only escape a Telic string has.
 : mcp-eval-source
   | code marker |
   [ mcp-quote  code mcp-quote mcp-quote mcp-quote + replace  mcp-quote
@@ -336,12 +336,12 @@
 \ ---- the tools this server ships ----
 
 { :name "telic-eval"
-  :title "Evaluate Water source"
+  :title "Evaluate Telic source"
   :description mcp-instructions
   :inputSchema
 	{ :type "object"
 	  :properties
-		{ :code { :type "string" :description "Water source to evaluate" }
+		{ :code { :type "string" :description "Telic source to evaluate" }
 		  :session { :type "string"
 					 :description "Names the interpreter this call runs in. Reusing a name reuses its state; a call that runs longer than the server's limit stops that session, and the next call naming it starts a fresh interpreter." }
 		}
@@ -351,7 +351,7 @@
 
 { :name "telic-help"
   :title "Read a word's reference entry"
-  :description "Answer the reference entry for one Water word: its stack effect, what it does, its cost, and a worked example. Read-only and sessionless. An unknown name answers that it is unknown."
+  :description "Answer the reference entry for one Telic word: its stack effect, what it does, its cost, and a worked example. Read-only and sessionless. An unknown name answers that it is unknown."
   :inputSchema
 	{ :type "object"
 	  :properties

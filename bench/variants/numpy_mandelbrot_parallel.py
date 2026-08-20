@@ -11,11 +11,11 @@ entirely on which tool you reach for:
   threads    numpy per row block in a ThreadPool; numpy's ufuncs release the
              GIL, so this parallelizes without any interprocess transfer
   scalar     the per-pixel Python loop with early exit, in a Pool — the same
-             algorithm the water variant runs, rather than the same shape
+             algorithm the telic variant runs, rather than the same shape
 
 Workers receive only (row_start, row_end) and return an int, so nothing large
 crosses a process boundary. The reported elapsed time covers pool creation as
-well as compute, because water's pmap-reduce spawns its OS threads inside its
+well as compute, because telic's pmap-reduce spawns its OS threads inside its
 own timed region; the setup share is printed separately, and for 16 CPython
 processes it exceeds the compute.
 

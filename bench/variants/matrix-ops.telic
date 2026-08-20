@@ -1,6 +1,6 @@
 \ matrix-ops — timed sweep over the matrix kernels: construction, element-wise
 \ and broadcast arithmetic, in-place ops, all four dgemm variants, reductions,
-\ unary math, and shape operations. Water-only (no CPython counterpart); each
+\ unary math, and shape operations. Telic-only (no CPython counterpart); each
 \ section prints its time and a checksum, so kernel and compiler changes show
 \ up as speed or value drift. Inputs are matrix-range ramps — deterministic.
 

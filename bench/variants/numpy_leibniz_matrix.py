@@ -9,7 +9,7 @@ verbatim:
 
 It builds the denominators as one dense int64 array and the reciprocals as a
 second float64 array, so the peak is two arrays of rounds/2 elements each — at
-rounds = 1e9 that is 16 GB. The water variant reduces the same sequence.
+rounds = 1e9 that is 16 GB. The telic variant reduces the same sequence.
 """
 
 import sys

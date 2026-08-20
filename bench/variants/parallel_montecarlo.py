@@ -3,11 +3,11 @@ MonteCarlo pi, parallel — the counterpart of bench/variants/monte-carlo-parall
 
 Estimates pi by sampling the unit square and counting the points inside the
 quarter circle: estimate = 4 * (#inside / #samples). scimark's own generator is
-a strict serial sequence, so the water variant draws from its native random
+a strict serial sequence, so the telic variant draws from its native random
 stream instead, giving each worker a deterministic sub-stream of one base seed.
 This reference does the same with one random.Random per worker, seeded from the
 same base, so its estimate is also reproducible run to run — it is a different
-generator from water's, so the two estimates agree to about four digits rather
+generator from telic's, so the two estimates agree to about four digits rather
 than exactly.
 
 Two modes:
@@ -17,7 +17,7 @@ Two modes:
              serialises the pure-Python sampling loop
 
 The reported elapsed time covers pool creation as well as compute, because
-water's pmap-ext spawns its OS threads inside its own timed region; the setup
+telic's pmap-ext spawns its OS threads inside its own timed region; the setup
 share is printed separately.
 """
 
