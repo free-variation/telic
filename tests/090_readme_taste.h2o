@@ -4,12 +4,20 @@
 \ Arithmetic
 3 4 + .                                 \ 7
 
+\ Exact rationals — and they take units (money)
+1/3 1/6 + .                             \ 1/2
+1/2 $ 50/1 ¢ + .                        \ 1 $
+
 \ Matrices: * is element-wise; matrix multiply is dgemm (αAB + βC)
 [ 1 2 3 4 ] 2 2 matrix dup transpose *  \ element-wise product of M and Mᵀ
 
 \ Dimensioned quantities: units propagate, combine, and collapse
 10 m 2 s / .                            \ 5 m.s^-1
 1 kg 1 m * 1 s / 1 s / .                \ 1 newton   (interns to the named unit)
+
+\ Complex numbers — and they take units (phasors)
+-1+0i sqrt .                            \ 0+1i
+3+4i volt 1-1i volt + dup . abs .       \ 4+3i volt 5 volt
 
 \ Dates: instants are quantities in s, so units do the date arithmetic
 wall-now 2 week + time>iso .            \ the ISO timestamp two weeks from now

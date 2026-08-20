@@ -19,6 +19,7 @@ clear
 7/3 truncate . 7/3 round . 7/3 round-up . 7/3 round-down . cr  \ 2 2 3 2
 -7/3 truncate . -7/3 round . -7/3 round-up . -7/3 round-down . cr \ -2 -2 -2 -3
 1/2 10 ^ . 2/1 -2 ^ . -2/3 3 ^ . cr           \ 1/1024 1/4 -8/27
+1/2 2/1 ^ . -2/3 3/1 ^ . cr                   \ 1/4 -8/27 (an integer exact exponent works too)
 7/1 3/1 mod . -7/1 3/1 mod . cr               \ 1 -1
 7/1 3/1 % . . cr                              \ 2 1 (quotient then remainder)
 7/1 3/1 quotient . cr                         \ 2
@@ -78,7 +79,8 @@ clear
 1/0                                           \ (zero denominator literal)
 1/2 sqrt                                      \ (transcendentals reject exacts)
 null rationalize                              \ (NaN has no rational)
-1/2 1/2 ^                                     \ (the exponent is a float count)
+1/2 1/2 ^                                     \ (the exponent must be an integer)
+2 3/1 ^                                       \ (a float base takes a float exponent)
 [ 1/2 ] vector                                \ (matrices stay float)
 clear
 : bad-index 0/1 5/1 1/1 do k loop ; bad-index \ (do operands stay float)

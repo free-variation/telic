@@ -137,6 +137,8 @@ column>array
 column>indicators
 column>set
 complete-cases
+complex
+complex?
 concat
 cons
 cons>array
@@ -327,6 +329,7 @@ i-times
 identity
 identity-matrix
 if
+imaginary-part
 index-of
 indicators!
 inline
@@ -460,6 +463,7 @@ read-file
 read-line
 read-out
 read-tsv
+real-part
 rect-at
 recurse
 reduce

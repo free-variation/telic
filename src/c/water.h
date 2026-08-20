@@ -1,7 +1,7 @@
 #ifndef WATER_H
 #define WATER_H
 
-#define VERSION "0.27.4"
+#define VERSION "0.28.0"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -98,7 +98,8 @@ typedef enum {
 	T_SEGMENT,
 	T_QUANTITY,
 	T_CURRIED,
-	T_EXACT
+	T_EXACT,
+	T_COMPLEX
 } Tag;
 
 typedef union {
@@ -173,6 +174,7 @@ static inline Val make_pointer(int handle) { return make_tagged(T_PTR, handle); 
 static inline Val make_segment(int handle) { return make_tagged(T_SEGMENT, handle); }
 static inline Val make_quantity(int handle) { return make_tagged(T_QUANTITY, handle); }
 static inline Val make_exact(int handle) { return make_tagged(T_EXACT, handle); }
+static inline Val make_complex(int pair_slot) { return make_tagged(T_COMPLEX, pair_slot); }
 static inline Val make_continuation(int handle) { return make_tagged(T_CONT, handle); }
 static inline Val make_logic_var(int handle) { return make_tagged(T_LOGIC_VAR, handle); }
 static inline Val make_mark(void) { return make_tagged(T_MARK, 0); }
@@ -1020,6 +1022,9 @@ void worker_local_gc(Interpreter *interp);
 
 void backtrack(Interpreter *interp);
 void binary_op(Interpreter *interp, Val left, Val right, scalar_operator function, const char *name);
+Val complex_from_parts(Interpreter *interp, double real_part, double imaginary_part);
+int complex_truthy(Val value);
+int parse_complex_literal(Interpreter *interp, const char *token, Val *out);
 int capture_continuation(Interpreter *interp, int what_kind, int *out_mark_index);
 int interpolate(Interpreter *interp, int template_handle);
 int prompt_index(Interpreter *interp, int kind);
@@ -1175,6 +1180,7 @@ void p_bit_or(DISPATCH_ARGS);
 void p_bit_xor(DISPATCH_ARGS);
 void p_bye(DISPATCH_ARGS);
 void p_clear(DISPATCH_ARGS);
+void p_complex(DISPATCH_ARGS);
 void p_cos(DISPATCH_ARGS);
 void p_cr(DISPATCH_ARGS);
 void p_curry(DISPATCH_ARGS);
@@ -1232,6 +1238,7 @@ void p_gte(DISPATCH_ARGS);
 void p_gte_f(DISPATCH_ARGS);
 void p_gte_f_zbranch(DISPATCH_ARGS);
 void p_gte_zbranch(DISPATCH_ARGS);
+void p_imaginary_part(DISPATCH_ARGS);
 void p_inc(DISPATCH_ARGS);
 void p_inc_poly(DISPATCH_ARGS);
 void p_lgamma(DISPATCH_ARGS);
@@ -1268,6 +1275,7 @@ void p_pick_n(DISPATCH_ARGS);
 void p_power(DISPATCH_ARGS);
 void p_random(DISPATCH_ARGS);
 void p_random_int(DISPATCH_ARGS);
+void p_real_part(DISPATCH_ARGS);
 void p_render(DISPATCH_ARGS);
 void p_resample_indices_ext(DISPATCH_ARGS);
 void p_reset(DISPATCH_ARGS);
@@ -1641,6 +1649,8 @@ static inline int truthy(Val value) {
 		return VAL_NUMBER(value) != 0.0;
 	if (VAL_TAG(value) == T_QUANTITY)
 		return quantity_truthy(value);
+	if (VAL_TAG(value) == T_COMPLEX)
+		return complex_truthy(value);
 	if (VAL_TAG(value) == T_EXACT)
 		return exact_truthy_value(value);
 	return VAL_DATA(value) != 0;

@@ -560,7 +560,8 @@ void apply_unit(Interpreter *interp, int cfa) {
 	int unit = (int)vocab.dict[cfa + 1];
 
 	POP(magnitude);
-	if (VAL_TAG(magnitude) != T_FLOAT && VAL_TAG(magnitude) != T_MATRIX && VAL_TAG(magnitude) != T_EXACT) {
+	if (VAL_TAG(magnitude) != T_FLOAT && VAL_TAG(magnitude) != T_MATRIX
+			&& VAL_TAG(magnitude) != T_EXACT && VAL_TAG(magnitude) != T_COMPLEX) {
 		fail(interp, "expected a number or matrix");
 		return;
 	}

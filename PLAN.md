@@ -393,6 +393,8 @@ live here instead. File and function name each invariant's home.
   never a double factor (dimension.c, `unit_conversion_ratio`).
 - `exact_to_double` must stay correctly rounded; cross-type comparison and
   `rationalize` round-trips depend on it (exact.c, `exact_to_double`).
+- A complex part is never NaN — `make_float` would canonicalize it into the
+  null tag; the constructor guards (words.c, `complex_from_parts`).
 - Printing never allocates GC objects; an exact magnitude under an unnamed
   scaled unit folds the scale in arena temporaries (core.c,
   `print_exact_magnitude_scaled`).

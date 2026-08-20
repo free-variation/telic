@@ -47,7 +47,7 @@ row describe . . cr    \ 100 7
 clear
 
 \ === the key is an operand, not a stack push ===
-' price-of see-compiled
+' price-of see-compiled>string "\(@key\) \d+" has? . cr  \ 1 (the symbol id is an operand cell)
 ' price-of see
 
 \ === a defined word wins over the rule ===

@@ -55,12 +55,20 @@ subprocesses, or threads; the loadable statistics library is native-only.
 \ Arithmetic
 3 4 + .                                 \ 7
 
+\ Exact rationals — and they take units (money)
+1/3 1/6 + .                             \ 1/2
+1/2 $ 50/1 ¢ + .                        \ 1 $
+
 \ Matrices: * is element-wise; matrix multiply is dgemm (αAB + βC)
 [ 1 2 3 4 ] 2 2 matrix dup transpose *  \ element-wise product of M and Mᵀ
 
 \ Dimensioned quantities: units propagate, combine, and collapse
 10 m 2 s / .                            \ 5 m.s^-1
 1 kg 1 m * 1 s / 1 s / .                \ 1 newton   (interns to the named unit)
+
+\ Complex numbers — and they take units (phasors)
+-1+0i sqrt .                            \ 0+1i
+3+4i volt 1-1i volt + dup . abs .       \ 4+3i volt 5 volt
 
 \ Dates: instants are quantities in s, so units do the date arithmetic
 wall-now 2 week + time>iso .            \ the ISO timestamp two weeks from now
@@ -240,9 +248,13 @@ departs from its pyperformance original the file's header says so.
 
 Fractions of arbitrarily large integers, always reduced to lowest terms; an integer is the case with denominator 1. `1/3` is a literal; an integer literal, JSON integer, or SQLite INTEGER too large for a float to hold exactly reads as an exact instead of rounding silently, and integer exacts write back without loss. The arithmetic, comparison, and rounding words compute exactly on exacts; comparing an exact with a float is exact, while arithmetic between them errors (`float>exact` / `exact>float` convert). A quantity's magnitude may be an exact, so currency arithmetic is exact (`1/2 $ 50/1 ¢ +` is `1 $`). `rationalize` answers the simplest fraction that reads back as the same float (`0.111` gives `111/1000`). Matrices and the ⚠ words take only floats.
 
+### Complex numbers
+
+A pair of floats with literals `3+4i` / `4i`. `+ - * / ^` take two complexes or a complex and a float (floats promote losslessly); `sqrt`, `exp`, `ln`, and the trigonometric words answer principal values; `negate` keeps the type, `abs` answers the modulus; `complex` / `real-part` / `imaginary-part` construct and destructure. Ordering is by real then imaginary part, and a complex equals a float of its value. A complex takes a unit (`3+4i ohm`), so impedance arithmetic is quantity arithmetic.
+
 ### Dimensioned quantities
 
-A magnitude (float, matrix, or exact) carrying a unit; arithmetic propagates and checks units, rescaling same-dimension operands. Units are rational-exponent vectors over user-declared base dimensions, each with a rational scale.
+A magnitude (float, matrix, exact, or complex) carrying a unit; arithmetic propagates and checks units, rescaling same-dimension operands. Units are rational-exponent vectors over user-declared base dimensions, each with a rational scale.
 
 - **`base` / `unit`** — declare dimensions and units. `base unit m`; `1 kg 1 m * 1 s / 1 s / unit newton` (derived); `1 $ 100 / unit ¢` (scaled sub-unit). A unit word is postfix — `10 m`, `3 newton`.
 - **Arithmetic** — `*`/`/` combine unit exponents and scales (a dimensionless result collapses back to a bare float/matrix); `+`/`-` require the same dimension and rescale across scales; `^`/`sqrt` scale the exponents; `= < >` compare by value, normalizing scale within a dimension. Named units print by name, unnamed compounds in base form.

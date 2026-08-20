@@ -10,13 +10,7 @@ Cambridge
 99 
 100 
 100 7 
-: price-of   \ 10 cells
- 0: (enter-locals-to) 1 1
- 3: (local@0) 0
- 5: (@key) 578
- 7: (leave-locals) 1
- 9: exit
-;
+1 
 : price-of | r | r@price ;
 77 
 1 

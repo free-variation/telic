@@ -576,6 +576,14 @@ static int compare_double(double a, double b) {
 	return a < b ? -1 : a > b ? 1 : 0;
 }
 
+static int complex_cmp_against(Val complex_value, double real_part, double imaginary_part) {
+	int slot = (int)VAL_DATA(complex_value);
+	int real_order = compare_double(VAL_NUMBER(pairs.table[slot].head), real_part);
+	if (real_order)
+		return real_order;
+	return compare_double(VAL_NUMBER(pairs.table[slot].tail), imaginary_part);
+}
+
 int val_cmp_depth(Interpreter *interp, Val left, Val right, int depth) {
 	if (depth > MAX_NESTING_DEPTH) {
 		fail(interp, "structure too deeply nested (cycle?)");
@@ -587,6 +595,10 @@ int val_cmp_depth(Interpreter *interp, Val left, Val right, int depth) {
 			return exact_cmp_double(left, VAL_NUMBER(right));
 		if (VAL_TAG(left) == T_FLOAT && VAL_TAG(right) == T_EXACT)
 			return -exact_cmp_double(right, VAL_NUMBER(left));
+		if (VAL_TAG(left) == T_COMPLEX && VAL_TAG(right) == T_FLOAT)
+			return complex_cmp_against(left, VAL_NUMBER(right), 0.0);
+		if (VAL_TAG(left) == T_FLOAT && VAL_TAG(right) == T_COMPLEX)
+			return -complex_cmp_against(right, VAL_NUMBER(left), 0.0);
 		return (int)VAL_TAG(left) - (int)VAL_TAG(right);
 	}
 
@@ -595,6 +607,12 @@ int val_cmp_depth(Interpreter *interp, Val left, Val right, int depth) {
 			return compare_double(VAL_NUMBER(left), VAL_NUMBER(right));
 		case T_EXACT:
 			return exact_cmp(interp, left, right);
+		case T_COMPLEX: {
+							int right_slot = (int)VAL_DATA(right);
+							return complex_cmp_against(left,
+									VAL_NUMBER(pairs.table[right_slot].head),
+									VAL_NUMBER(pairs.table[right_slot].tail));
+						}
 		case T_QUANTITY: {
 							 int left_unit  = (int)pairs.table[VAL_DATA(left)].tail.bits;
 							 int right_unit = (int)pairs.table[VAL_DATA(right)].tail.bits;
@@ -605,6 +623,27 @@ int val_cmp_depth(Interpreter *interp, Val left, Val right, int depth) {
 							 if (VAL_TAG(left_magnitude) == T_FLOAT && VAL_TAG(right_magnitude) == T_FLOAT
 									 && unit_conversion(right_unit, left_unit, &factor))
 								 return compare_double(VAL_NUMBER(left_magnitude), VAL_NUMBER(right_magnitude) * factor);
+
+							 if ((VAL_TAG(left_magnitude) == T_COMPLEX || VAL_TAG(right_magnitude) == T_COMPLEX)
+									 && (VAL_TAG(left_magnitude) == T_COMPLEX || VAL_TAG(left_magnitude) == T_FLOAT)
+									 && (VAL_TAG(right_magnitude) == T_COMPLEX || VAL_TAG(right_magnitude) == T_FLOAT)
+									 && unit_conversion(right_unit, left_unit, &factor)) {
+								 int left_is_complex = VAL_TAG(left_magnitude) == T_COMPLEX;
+								 int right_is_complex = VAL_TAG(right_magnitude) == T_COMPLEX;
+								 double left_real = left_is_complex
+									 ? VAL_NUMBER(pairs.table[VAL_DATA(left_magnitude)].head) : VAL_NUMBER(left_magnitude);
+								 double left_imaginary = left_is_complex
+									 ? VAL_NUMBER(pairs.table[VAL_DATA(left_magnitude)].tail) : 0.0;
+								 double right_real = right_is_complex
+									 ? VAL_NUMBER(pairs.table[VAL_DATA(right_magnitude)].head) : VAL_NUMBER(right_magnitude);
+								 double right_imaginary = right_is_complex
+									 ? VAL_NUMBER(pairs.table[VAL_DATA(right_magnitude)].tail) : 0.0;
+
+								 int real_order = compare_double(left_real, right_real * factor);
+								 if (real_order)
+									 return real_order;
+								 return compare_double(left_imaginary, right_imaginary * factor);
+							 }
 
 							 int exact_side_is_left = VAL_TAG(left_magnitude) == T_EXACT;
 							 Val exact_magnitude = exact_side_is_left ? left_magnitude : right_magnitude;
@@ -884,6 +923,19 @@ static void print_logic_var(FILE *out, Interpreter *interp, Val var,
 	pr(out, interp, resolved);
 }
 
+static void print_complex_parts(FILE *out, double real_part, double imaginary_part) {
+	print_double(out, real_part);
+	if (imaginary_part >= 0.0)
+		putc('+', out);
+	print_double(out, imaginary_part);
+	putc('i', out);
+}
+
+static void print_complex(FILE *out, Val value) {
+	int slot = (int)VAL_DATA(value);
+	print_complex_parts(out, VAL_NUMBER(pairs.table[slot].head), VAL_NUMBER(pairs.table[slot].tail));
+}
+
 static Val quantity_display_magnitude(Val magnitude, int unit) {
 	if (!unit_is_named(unit) && VAL_TAG(magnitude) == T_FLOAT)
 		return make_float(VAL_NUMBER(magnitude) * unit_scale_value(unit));
@@ -891,7 +943,20 @@ static Val quantity_display_magnitude(Val magnitude, int unit) {
 }
 
 static int print_exact_magnitude_scaled(FILE *out, Val magnitude, int unit) {
-	if (VAL_TAG(magnitude) != T_EXACT || unit_is_named(unit))
+	if (unit_is_named(unit))
+		return 0;
+
+	if (VAL_TAG(magnitude) == T_COMPLEX) {
+		double scale = unit_scale_value(unit);
+		if (scale == 1.0)
+			return 0;
+		int slot = (int)VAL_DATA(magnitude);
+		print_complex_parts(out, VAL_NUMBER(pairs.table[slot].head) * scale,
+				VAL_NUMBER(pairs.table[slot].tail) * scale);
+		return 1;
+	}
+
+	if (VAL_TAG(magnitude) != T_EXACT)
 		return 0;
 
 	long long scale_numerator, scale_denominator;
@@ -1003,6 +1068,7 @@ void print_val(FILE *out, Interpreter *interp, Val value) {
 						   break;
 					   }
 		case T_EXACT: exact_print(out, value); break;
+		case T_COMPLEX: print_complex(out, value); break;
 		case T_QUANTITY: {
 							 int slot = (int)VAL_DATA(value);
 							 int unit = (int)pairs.table[slot].tail.bits;
@@ -1164,6 +1230,7 @@ void print_val_compact(FILE *out, Interpreter *interp, Val value) {
 						   break;
 					   }
 		case T_EXACT: exact_print(out, value); break;
+		case T_COMPLEX: print_complex(out, value); break;
 		case T_QUANTITY: {
 							 int slot = (int)VAL_DATA(value);
 							 int unit = (int)pairs.table[slot].tail.bits;
@@ -2160,6 +2227,7 @@ const char *tag_name(Tag t) {
 		case T_SEGMENT: return "a segment";
 		case T_QUANTITY: return "a quantity";
 		case T_EXACT:  return "an exact";
+		case T_COMPLEX: return "a complex";
 		default:       return "an unknown value";
 	}
 }
@@ -3692,6 +3760,14 @@ void run_outer(Interpreter *interp) {
 			continue;
 		}
 
+		Val complex_literal;
+		if (parse_complex_literal(interp, tok, &complex_literal)) {
+			if (interp->error_flag)
+				return;
+			compile_or_push(interp, complex_literal);
+			continue;
+		}
+
 		if (try_frame_key_token(interp, tok))
 			continue;
 
@@ -3914,7 +3990,8 @@ static void mark_value_at(Interpreter *interp, Val value, int depth) {
 				VAL_TAG(value) != T_SEGMENT &&
 				VAL_TAG(value) != T_CONT &&
 				VAL_TAG(value) != T_EXACT &&
-				VAL_TAG(value) != T_QUANTITY) return;
+				VAL_TAG(value) != T_QUANTITY &&
+				VAL_TAG(value) != T_COMPLEX) return;
 
 		if (VAL_TAG(value) == T_PAIR) {
 			int slot = (int)VAL_DATA(value);
@@ -3929,7 +4006,7 @@ static void mark_value_at(Interpreter *interp, Val value, int depth) {
 			continue;
 		}
 
-		if (VAL_TAG(value) == T_QUANTITY) {
+		if (VAL_TAG(value) == T_QUANTITY || VAL_TAG(value) == T_COMPLEX) {
 			int slot = (int)VAL_DATA(value);
 			if (slot < interp->gc_pair_base)
 				return;
@@ -5233,6 +5310,9 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "float>exact", p_float_to_exact, 0);
 	define_primitive(interp, "exact>float", p_exact_to_float, 0);
 	define_primitive(interp, "rationalize", p_rationalize, 0);
+	define_primitive(interp, "complex", p_complex, 0);
+	define_primitive(interp, "real-part", p_real_part, 0);
+	define_primitive(interp, "imaginary-part", p_imaginary_part, 0);
 	define_primitive(interp, "numerator", p_numerator, 0);
 	define_primitive(interp, "denominator", p_denominator, 0);
 	define_primitive(interp, "string>symbol", p_string_to_symbol, 0);

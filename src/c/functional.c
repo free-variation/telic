@@ -503,7 +503,8 @@ static int references_region_depth(Val value, ParallelRegion *snapshot, int dept
 			return references_region_depth(pair->head, snapshot, depth + 1)
 					|| references_region_depth(pair->tail, snapshot, depth + 1);
 		}
-		case T_QUANTITY: {
+		case T_QUANTITY:
+		case T_COMPLEX: {
 			int handle = (int)VAL_DATA(value);
 			if (handle >= snapshot->n_pairs)
 				return 1;

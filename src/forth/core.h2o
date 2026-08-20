@@ -20,6 +20,7 @@
 : matrix? type-of :matrix = ; inline
 : quantity? type-of :quantity = ; inline
 : exact? type-of :exact = ; inline
+: complex? type-of :complex = ; inline
 : xt? type-of :xt = ; inline
 : continuation? type-of :continuation = ; inline
 : stream? type-of :stream = ; inline

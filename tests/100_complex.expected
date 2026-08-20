@@ -1,0 +1,44 @@
+3+4i -1.5-2i 0+4i 2000+0.5i 
+:complex 1 0 
+1+2i 
+3 4 
+5 0 
+4+6i -2-2i 
+-5+10i 2+0i 
+5+2.5i 0+2i 
+4+2i 2-2i 
+5 -3-4i 
+2+2i 0+2i -3+4i 
+1 0 0 
+0+1i 1+1i 
+0+3.14159i 2+0i 1+0i 
+0+1.1752i 1.54308+0i 
+1.5708+1.31696i 
+-1+1.22465e-16i 0.273957+0.583701i 
+1 0 1 
+1 0 
+[ 0.5 1+2i 1+5i 2+1i ] 
+[< 1+2i 2+3i >] 
+1+2i 
+1+2i volts 
+[ -2+1i -4+3i ] 
+3+3i 
+[ 2+4i 6+8i 10+12i 14+16i ] 
+1+2i 
+3+4i ohm 5 ohm -3-4i ohm 
+4+5i ohm 2+4i ohm 
+1.5+2i 2+2i ohm 
+1.5+1i km 1 
+-16+0i m^2 7200+7200i m.s 
+error: division by zero
+in /
+error: expected two floats, two strings, two sets, two matrices, scalar/matrix, or two arrays; got a complex and an exact
+in +
+error: expected a set, array, matrix, string, segment, or frame; got a complex
+in size ← vector
+error: expected a float or a matrix; got a complex
+in lgamma
+error: expected a float or a matrix; got a complex
+in round
+error: exact and float do not mix; convert with float>exact or exact>float
+in +

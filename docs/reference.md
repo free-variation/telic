@@ -175,13 +175,13 @@ float fast path first; the heavy cases are captured by the O column.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `+` | `( a b -- a+b )` | float: add. string+string: concat → new string. set+set: union → new set. matrix+matrix: element-wise → new matrix. scalar+matrix / matrix+scalar: broadcast → new matrix. array+array: defers to `concat`. exact+exact: exact sum. | 3 (float) | float none; string `1s` + temp buffer; set `1o`; matrix `1m(r×c)`; array `1a(m+n)` | float O(1); string O(\|s\|); set O(n log n); matrix O(r×c); array O(m+n) |
-| `-` | `( a b -- a-b )` | float: subtract. set−set: difference. matrix: element-wise. scalar/matrix broadcast. exact−exact: exact. | 3 (float) | as `+` | as `+` |
-| `*` | `( a b -- a*b )` | float: multiply. set∩set: intersection. matrix: element-wise. scalar/matrix broadcast. exact×exact: exact. | 3 (float) | as `+` | as `+` |
-| `/` | `( a b -- a/b )` | float: divide (errors on zero divisor). matrix÷matrix: element-wise (errors on any zero element). scalar/matrix broadcast. exact÷exact: exact, closed. | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
+| `+` | `( a b -- a+b )` | float: add. string+string: concat → new string. set+set: union → new set. matrix+matrix: element-wise → new matrix. scalar+matrix / matrix+scalar: broadcast → new matrix. array+array: defers to `concat`. exact+exact: exact sum. complex (either side, floats promote): complex sum. | 3 (float) | float none; string `1s` + temp buffer; set `1o`; matrix `1m(r×c)`; array `1a(m+n)` | float O(1); string O(\|s\|); set O(n log n); matrix O(r×c); array O(m+n) |
+| `-` | `( a b -- a-b )` | float: subtract. set−set: difference. matrix: element-wise. scalar/matrix broadcast. exact−exact: exact. complex: complex. | 3 (float) | as `+` | as `+` |
+| `*` | `( a b -- a*b )` | float: multiply. set∩set: intersection. matrix: element-wise. scalar/matrix broadcast. exact×exact: exact. complex: complex. | 3 (float) | as `+` | as `+` |
+| `/` | `( a b -- a/b )` | float: divide (errors on zero divisor). matrix÷matrix: element-wise (errors on any zero element). scalar/matrix broadcast. exact÷exact: exact, closed. complex: complex. | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `%` | `( a b -- remainder quotient )` | truncating division: pushes `a − trunc(a/b)·b` then `trunc(a/b)`; float or matrix element-wise with scalar broadcast, answering a remainder matrix under a quotient matrix, or exact over exacts; a zero divisor or zero element errors | 4 | none | O(1) |
 | `mod` | `( a b -- remainder )` | remainder with the sign of the dividend (`fmod`); float or matrix element-wise with scalar broadcast, or exact over exacts; a zero divisor or zero element errors | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
-| `^` | `( a b -- a^b )` | `pow`; float or matrix (element-wise) / scalar broadcast; an exact base with an integer float exponent stays exact | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
+| `^` | `( a b -- a^b )` | `pow`; float or matrix (element-wise) / scalar broadcast; an exact base with an integer exponent stays exact; a complex base or exponent (floats promote) is `cpow` | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `negate` | `( a -- -a )` | float, matrix (element-wise), or exact | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `1+` | `( a -- a+1 )` | float, matrix, or exact | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `1-` | `( a -- a-1 )` | float, matrix, or exact | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
@@ -703,6 +703,8 @@ QE . cr
 Tag-checked; safe. Float input → float; matrix input → new matrix, element-wise.
 `abs`, `round`, `truncate`, `round-up`, and `round-down` also take an exact and
 answer exactly (see Exact rationals); the transcendentals reject one.
+All but `lgamma` and the rounding words also take a complex, answering
+principal values; `abs` on one answers the modulus as a float.
 A float result that would be NaN (`-1 sqrt`, `-1 ln`) is `null` — NaN-boxing
 reserves NaN bit patterns for tags, so `null` is Water's NaN, and it is falsy,
 `none?`, and `= null`. Matrix buffers hold raw NaN elements untouched
@@ -876,10 +878,10 @@ Result is `1.0` (true) or `0.0` (false), with a float fast path. `=` uses `val_c
 | `>` | `( a b -- bool )` or `( mat/arr x -- mat )` | greater-than; element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (`val_cmp` per element, n×1) | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
 | `>=` | `( a b -- bool )` or `( mat/arr x -- mat )` | greater-than-or-equal (≥); element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (`val_cmp` per element, n×1) | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
 | `eq` | `( a b -- bool )` or `( mat/arr x -- mat )` | equality; element-wise 1/0 mask on matrix and array operands (scalar broadcast; `val_cmp` per array element) — unlike `=`, which stays structural on collections. NaN elements equal nothing | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
-| `nan?` | `( v -- bool )` or `( mat/arr -- mat )` | NaN test: 1/0 mask over a matrix's elements; an array answers an n×1 mask marking `none` elements (a text column's missing cells), composing with `where`/`select-rows`; `1` on `null` itself (a scalar NaN *is* `null`), `0` on any float or exact. NaNs compare false under `<`/`>`/`eq`, so this is the word that masks them | 2 | `1m(r×c)` | O(1); matrix/array O(n) |
+| `nan?` | `( v -- bool )` or `( mat/arr -- mat )` | NaN test: 1/0 mask over a matrix's elements; an array answers an n×1 mask marking `none` elements (a text column's missing cells), composing with `where`/`select-rows`; `1` on `null` itself (a scalar NaN *is* `null`), `0` on any float, exact, or complex. NaNs compare false under `<`/`>`/`eq`, so this is the word that masks them | 2 | `1m(r×c)` | O(1); matrix/array O(n) |
 | `0=` | `( a -- bool )` | `!truthy(a)`; any type | 2 | none | O(1) |
 | `1=` | `( a -- bool )` | core.h2o: `1 =` (inlined) | 5 | none | O(1) |
-| `type-of` | `( a -- sym )` | The value's type as a symbol: `:float` `:string` `:symbol` `:array` `:set` `:pair` `:frame` `:matrix` `:quantity` `:xt` `:continuation` `:stream` `:db` `:ptr` `:segment` `:none` `:wildcard` `:lvar` `:exact`. A bound logic var reports its value's type; an unbound one is `:lvar` | 2 | none | O(1) |
+| `type-of` | `( a -- sym )` | The value's type as a symbol: `:float` `:string` `:symbol` `:array` `:set` `:pair` `:frame` `:matrix` `:quantity` `:xt` `:continuation` `:stream` `:db` `:ptr` `:segment` `:none` `:wildcard` `:lvar` `:exact` `:complex`. A bound logic var reports its value's type; an unbound one is `:lvar` | 2 | none | O(1) |
 | `float?` | `( a -- bool )` | core.h2o: `type-of :float =` (inlined) | 5 | none | O(1) |
 | `string?` | `( a -- bool )` | core.h2o: `type-of :string =` (inlined) | 5 | none | O(1) |
 | `symbol?` | `( a -- bool )` | core.h2o: `type-of :symbol =` (inlined) | 5 | none | O(1) |
@@ -1210,7 +1212,8 @@ float. `rshift` is arithmetic (sign-preserving).
 
 ## Dimensioned quantities
 
-A quantity is a magnitude (a float, a matrix, or an exact) carrying a unit.
+A quantity is a magnitude (a float, a matrix, an exact, or a complex)
+carrying a unit.
 Arithmetic between two exact-magnitude quantities is exact, unit rescaling
 included (`1/2 $ 50/1 ¢ +` is `1 $`); an exact magnitude against a float
 magnitude follows the exact/float mixing rule, and comparison crosses the two
@@ -1292,7 +1295,7 @@ without loss (a non-integer exact errors there).
 The polymorphic words compute exactly on exact operands: `+` `-` `*` `/`
 (`1/3 1/6 +` is `1/2`; dividing two exacts always yields an exact; `/` errors
 on an exact zero), `%` `mod` `quotient`, `negate` `abs` `1+` `1-` `sq`, `^`
-with an integer float exponent, and `round` `truncate` `round-up`
+with an integer exponent (float or exact), and `round` `truncate` `round-up`
 `round-down`, which answer integer exacts. Only comparison accepts an exact
 and a float together: `=` `<` `>` `<=` `>=` `min2` `max2`, `sort`, and set
 membership compare the two kinds numerically and without rounding
@@ -1355,6 +1358,60 @@ the float fast path and more; the float path itself is unchanged.
 
 ```forth exact?
 1/2 exact? . 0.5 exact? . cr
+```
+```output
+1 0
+```
+
+## Complex numbers
+
+A complex is a pair of floats, real and imaginary. `3+4i`, `-1.5-2i`, and
+`4i` are literals; the imaginary part is always explicit (`1i`, never a bare
+`i`), and output round-trips as input. `+` `-` `*` `/` take two complexes or
+a complex and a float, which promotes losslessly (a float is a complex with
+imaginary part 0); `negate` keeps the type; `abs` answers the modulus as a
+float. `sqrt`, `exp`, `ln`, `log`, the trigonometric and hyperbolic words,
+`sq`, `1+`, and `1-` are closed over complexes, answering principal values
+(`-1+0i sqrt` is `0+1i`, `-1+0i ln` is `0+3.14159i`); `^` takes a complex
+base or exponent. A NaN part is refused at construction. Comparison and
+sorting order by real part then imaginary part, and a complex equals a float
+of its value (`3+0i 3 =` is true), so collections, frames, `format`, and the
+parallel words take complexes like any value. A quantity's magnitude may be
+a complex (`3+4i ohm` is an impedance) — quantity arithmetic combines the
+parts and rescales both by the unit conversion factor, and a float magnitude
+promotes. A complex operand errors in matrices, exact arithmetic, `lgamma`,
+and the rounding words.
+
+| Word | Stack effect | Behavior | Ops | Alloc | O |
+|------|-------------|----------|-----|-------|---|
+| `complex` | `( re im -- z )` | Build a complex from two floats | 3 | 1 pair | O(1) |
+| `real-part` | `( z -- f )` | The real part; a float answers itself | 2 | none | O(1) |
+| `imaginary-part` | `( z -- f )` | The imaginary part; a float answers 0 | 2 | none | O(1) |
+| `complex?` | `( a -- bool )` | core.h2o: `type-of :complex =` (inlined) | 5 | none | O(1) |
+
+```forth complex
+3 4 complex . cr
+```
+```output
+3+4i
+```
+
+```forth real-part
+3+4i real-part . cr
+```
+```output
+3
+```
+
+```forth imaginary-part
+3+4i imaginary-part . 5 imaginary-part . cr
+```
+```output
+4 0
+```
+
+```forth complex?
+3+4i complex? . 5 complex? . cr
 ```
 ```output
 1 0
@@ -2069,7 +2126,7 @@ Regex words run on PCRE2 with JIT-compiled patterns. Each distinct pattern is co
 | `pad-right` | `( str width -- str' )` | strings.h2o: s right-padded with spaces to width (unchanged when already that wide; codepoint widths) | n | `1a` + `1o` | O(n) |
 | `string>number` | `( str -- n \| none )` | Parse a decimal/float string (via `strtod`, like a numeric literal) to a float, ignoring surrounding whitespace; the none value if `str` is not entirely a number | n | none | O(n) |
 | `edit-distance` | `( a b -- n )` | Edit distance between two strings over codepoints: insertions, deletions, substitutions, and adjacent transpositions each cost 1 (Levenshtein with transpositions — optimal string alignment); symmetric | n·m | none | O(n·m) |
-| `format` | `( … template -- str )` | Fill `template`'s `{n}` (or `{n:spec}`) placeholders with the nth-from-top stack value, then drop exactly the referenced positions (unreferenced values stay); renders floats/strings/symbols. `{nl}` and `{tab}` emit a newline and a tab — string literals have no escapes, so format is where control characters come from. When stdout is a terminal, the ink directives `{black}` `{red}` `{green}` `{yellow}` `{blue}` `{magenta}` `{cyan}` `{white}` and `{bold}` `{dim}` emit the SGR escape styling the following text until `{plain}` reverts to plain ink; when it is not (piped, batch), they vanish, so redirected output carries no escape bytes. Only these directives substitute; other brace content is left literal | len + refs | `1o` | O(len) |
+| `format` | `( … template -- str )` | Fill `template`'s `{n}` (or `{n:spec}`) placeholders with the nth-from-top stack value, then drop exactly the referenced positions (unreferenced values stay); renders floats/strings/symbols/exacts/quantities. `{nl}` and `{tab}` emit a newline and a tab — string literals have no escapes, so format is where control characters come from. When stdout is a terminal, the ink directives `{black}` `{red}` `{green}` `{yellow}` `{blue}` `{magenta}` `{cyan}` `{white}` and `{bold}` `{dim}` emit the SGR escape styling the following text until `{plain}` reverts to plain ink; when it is not (piped, batch), they vanish, so redirected output carries no escape bytes. Only these directives substitute; other brace content is left literal | len + refs | `1o` | O(len) |
 
 A placeholder may carry a format spec after a colon — `{n:spec}` — a printf-style mini-language controlling how the value renders. `spec` is optional flags (`-`, `+`, space, `#`, `0`), an optional field width, an optional `.precision`, and an optional conversion letter:
 
@@ -5536,6 +5593,7 @@ freed
 | `T_SEGMENT` | heap object; flat fixed-length numeric buffer (`double[]`, calloc'd off the arena); see Segments |
 | `T_QUANTITY` | a magnitude (float or matrix) plus a unit id, in a pair-table slot `{magnitude, unit}`; see Dimensioned quantities. Dimensionless results collapse away, so a live quantity always carries a real unit |
 | `T_EXACT` | heap object; a reduced fraction — sign plus numerator and denominator as 32-bit-limb magnitudes in one buffer; see Exact rationals |
+| `T_COMPLEX` | a pair-table slot `{real, imaginary}`, both floats; see Complex numbers |
 | `T_XT` | execution token (dict index); first-class callable |
 | `T_CURRIED` | heap object; a curried token — `items[0]` is the target xt, `items[1..]` the bound values pushed at invocation. Accepted wherever `T_XT` is, and `type-of` calls both `:xt` |
 | `T_ADDR` | dict index; used internally for return-stack frames |

@@ -31,7 +31,8 @@ by file in SRCS order. What each file is:
   define_primitive registration.
 - words.c — tag-dispatched words: arithmetic/comparison via binary_op/
   unary_op, stack ops, printing, format/interpolate, execute/curry, RNG
-  (seed/random/resample-indices-ext), delimited-continuation prompts.
+  (seed/random/resample-indices-ext), delimited-continuation prompts, the
+  complex scalar kernel and its literal parse.
 - compiler.c — compile-time words (: ; control flow, locals lists,
   quotations), token scanning, partial-definition rollback.
 - collections.c — arrays, sets, frames (path walk, @or), pairs/cons,

@@ -8,6 +8,7 @@
 2 2 3 2 
 -2 -2 -2 -3 
 1/1024 1/4 -8/27 
+1/4 -8/27 
 1 -1 
 2 1 
 2 
@@ -43,7 +44,9 @@ error: expected a float or a matrix; got an exact
 in sqrt
 error: expected a float; got none
 in rationalize
-error: exponent must be a float; got an exact
+error: exact ^ needs an integer exponent; got 0.5
+in ^
+error: ^: expected floats or matrices; got a float and an exact
 in ^
 error: element 0 is an exact, expected a float
 in matrix ← vector

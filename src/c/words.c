@@ -1,4 +1,5 @@
 #include "water.h"
+#include <complex.h>
 
 
 int string_concat(Interpreter *interp, int left_handle, int right_handle) {
@@ -86,6 +87,200 @@ static Val scale_collapsed_magnitude(Val magnitude, double factor) {
 	return make_float(VAL_NUMBER(magnitude) * factor);
 }
 
+Val complex_from_parts(Interpreter *interp, double real_part, double imaginary_part) {
+	if (isnan(real_part) || isnan(imaginary_part)) {
+		fail(interp, "complex part is NaN (missing)");
+		return make_tagged(T_NONE, 0);
+	}
+
+	int slot = object_new_pair(interp);
+	if (interp->error_flag)
+		return make_tagged(T_NONE, 0);
+
+	pairs.table[slot].head = make_float(real_part);
+	pairs.table[slot].tail = make_float(imaginary_part);
+	return make_complex(slot);
+}
+
+static void complex_parts(Val value, double *real_part, double *imaginary_part) {
+	int slot = (int)VAL_DATA(value);
+	*real_part = VAL_NUMBER(pairs.table[slot].head);
+	*imaginary_part = VAL_NUMBER(pairs.table[slot].tail);
+}
+
+int complex_truthy(Val value) {
+	double real_part, imaginary_part;
+	complex_parts(value, &real_part, &imaginary_part);
+	return real_part != 0.0 || imaginary_part != 0.0;
+}
+
+static int complex_operand(Val value, double *real_part, double *imaginary_part) {
+	if (VAL_TAG(value) == T_COMPLEX) {
+		complex_parts(value, real_part, imaginary_part);
+		return 1;
+	}
+	if (VAL_TAG(value) == T_FLOAT) {
+		*real_part = VAL_NUMBER(value);
+		*imaginary_part = 0.0;
+		return 1;
+	}
+	return 0;
+}
+
+static int complex_combine(Interpreter *interp, char op,
+		double left_real, double left_imaginary, double right_real, double right_imaginary,
+		double *real_part, double *imaginary_part) {
+	switch (op) {
+		case '+':
+			*real_part = left_real + right_real;
+			*imaginary_part = left_imaginary + right_imaginary;
+			return 1;
+		case '-':
+			*real_part = left_real - right_real;
+			*imaginary_part = left_imaginary - right_imaginary;
+			return 1;
+		case '*':
+			*real_part = left_real * right_real - left_imaginary * right_imaginary;
+			*imaginary_part = left_real * right_imaginary + left_imaginary * right_real;
+			return 1;
+		default: {
+			double denominator = right_real * right_real + right_imaginary * right_imaginary;
+			if (denominator == 0.0) {
+				fail(interp, "division by zero");
+				return 0;
+			}
+			*real_part = (left_real * right_real + left_imaginary * right_imaginary) / denominator;
+			*imaginary_part = (left_imaginary * right_real - left_real * right_imaginary) / denominator;
+			return 1;
+		}
+	}
+}
+
+static int complex_binary_word(Interpreter *interp, Val left, Val right, char op) {
+	if (VAL_TAG(left) != T_COMPLEX && VAL_TAG(right) != T_COMPLEX)
+		return 0;
+
+	double left_real, left_imaginary, right_real, right_imaginary;
+	if (!complex_operand(left, &left_real, &left_imaginary)
+			|| !complex_operand(right, &right_real, &right_imaginary))
+		return 0;
+
+	double real_part, imaginary_part;
+	if (!complex_combine(interp, op, left_real, left_imaginary, right_real, right_imaginary,
+			&real_part, &imaginary_part))
+		return 1;
+
+	Val result = complex_from_parts(interp, real_part, imaginary_part);
+	if (interp->error_flag)
+		return 1;
+	interp->data_stack[interp->dsp - 2] = result;
+	interp->dsp--;
+	return 1;
+}
+
+static double complex complex_value_of(Val operand) {
+	double real_part, imaginary_part;
+	complex_parts(operand, &real_part, &imaginary_part);
+	return CMPLX(real_part, imaginary_part);
+}
+
+static void push_complex_result(Interpreter *interp, double complex result) {
+	Val value = complex_from_parts(interp, creal(result), cimag(result));
+	if (interp->error_flag)
+		return;
+	push(interp, value);
+}
+
+static void complex_unary_word(Interpreter *interp, Val operand, char op) {
+	double complex z = complex_value_of(operand);
+
+	if (op == 'a') {
+		push(interp, make_float(cabs(z)));
+		return;
+	}
+
+	double complex result;
+	switch (op) {
+		case 'n': result = -z; break;
+		case 's': result = csqrt(z); break;
+		case '+': result = z + 1.0; break;
+		case '-': result = z - 1.0; break;
+		default: result = z * z;
+	}
+	push_complex_result(interp, result);
+}
+
+static void complex_math_word(Interpreter *interp, Val operand, double complex (*function)(double complex)) {
+	push_complex_result(interp, function(complex_value_of(operand)));
+}
+
+static double complex complex_log10(double complex z) {
+	return clog(z) * (1.0 / M_LN10);
+}
+
+int parse_complex_literal(Interpreter *interp, const char *token, Val *out) {
+	char *scan_end;
+	double first = strtod(token, &scan_end);
+	if (scan_end == token)
+		return 0;
+
+	if (scan_end[0] == 'i' && scan_end[1] == '\0') {
+		*out = complex_from_parts(interp, 0.0, first);
+		return 1;
+	}
+
+	if (*scan_end != '+' && *scan_end != '-')
+		return 0;
+
+	const char *second_start = scan_end;
+	double second = strtod(second_start, &scan_end);
+	if (scan_end == second_start || scan_end[0] != 'i' || scan_end[1] != '\0')
+		return 0;
+
+	*out = complex_from_parts(interp, first, second);
+	return 1;
+}
+
+void p_complex(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
+	Val imaginary_val = chain_sp[-1];
+	Val real_val = chain_sp[-2];
+	REQUIRE_CHAIN_TAG(imaginary_val, T_FLOAT, "complex", "a float");
+	REQUIRE_CHAIN_TAG(real_val, T_FLOAT, "complex", "a float");
+
+	Val result = complex_from_parts(interp, VAL_NUMBER(real_val), VAL_NUMBER(imaginary_val));
+	if (interp->error_flag)
+		return;
+	interp->dsp--;
+	interp->data_stack[interp->dsp - 1] = result;
+
+	DISPATCH(interp);
+}
+
+void p_real_part(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val value = chain_sp[-1];
+	if (VAL_TAG(value) == T_FLOAT)
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+	REQUIRE_CHAIN_TAG(value, T_COMPLEX, "real-part", "a complex or float");
+
+	chain_sp[-1] = pairs.table[VAL_DATA(value)].head;
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
+
+void p_imaginary_part(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val value = chain_sp[-1];
+	if (VAL_TAG(value) == T_FLOAT) {
+		chain_sp[-1] = make_float(0.0);
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+	}
+	REQUIRE_CHAIN_TAG(value, T_COMPLEX, "imaginary-part", "a complex or float");
+
+	chain_sp[-1] = pairs.table[VAL_DATA(value)].tail;
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
+
 static int quantity_magnitudes_mix_exact(Interpreter *interp, Val left_magnitude, Val right_magnitude) {
 	int left_exact = VAL_TAG(left_magnitude) == T_EXACT;
 	int right_exact = VAL_TAG(right_magnitude) == T_EXACT;
@@ -116,6 +311,38 @@ static int quantity_additive_op(Interpreter *interp, Val left, Val right,
 
 	if (quantity_magnitudes_mix_exact(interp, left_magnitude, right_magnitude))
 		return 1;
+
+	if (VAL_TAG(left_magnitude) == T_COMPLEX || VAL_TAG(right_magnitude) == T_COMPLEX) {
+		double left_real, left_imaginary, right_real, right_imaginary;
+		if (!complex_operand(left_magnitude, &left_real, &left_imaginary)
+				|| !complex_operand(right_magnitude, &right_real, &right_imaginary)) {
+			fail(interp, "expected float or complex magnitudes; got %s and %s",
+					tag_name(VAL_TAG(left_magnitude)), tag_name(VAL_TAG(right_magnitude)));
+			return 1;
+		}
+
+		if (left_unit != right_unit) {
+			double factor;
+			if (!unit_conversion(right_unit, left_unit, &factor)) {
+				fail(interp, "unit mismatch");
+				return 1;
+			}
+			right_real *= factor;
+			right_imaginary *= factor;
+		}
+
+		double real_part, imaginary_part;
+		if (!complex_combine(interp, op[0], left_real, left_imaginary, right_real, right_imaginary,
+				&real_part, &imaginary_part))
+			return 1;
+
+		Val combined_magnitude = complex_from_parts(interp, real_part, imaginary_part);
+		if (interp->error_flag) return 1;
+
+		interp->dsp = base;
+		push_quantity(interp, combined_magnitude, left_unit);
+		return 1;
+	}
 
 	if (VAL_TAG(left_magnitude) == T_EXACT) {
 		if (left_unit != right_unit) {
@@ -174,6 +401,37 @@ static int quantity_multiplicative_op(Interpreter *interp, Val left, Val right,
 	if (quantity_magnitudes_mix_exact(interp, left_magnitude, right_magnitude))
 		return 1;
 
+	if (VAL_TAG(left_magnitude) == T_COMPLEX || VAL_TAG(right_magnitude) == T_COMPLEX) {
+		double left_real, left_imaginary, right_real, right_imaginary;
+		if (!complex_operand(left_magnitude, &left_real, &left_imaginary)
+				|| !complex_operand(right_magnitude, &right_real, &right_imaginary)) {
+			fail(interp, "expected float or complex magnitudes; got %s and %s",
+					tag_name(VAL_TAG(left_magnitude)), tag_name(VAL_TAG(right_magnitude)));
+			return 1;
+		}
+
+		double real_part, imaginary_part;
+		if (!complex_combine(interp, op[0], left_real, left_imaginary, right_real, right_imaginary,
+				&real_part, &imaginary_part))
+			return 1;
+
+		interp->dsp -= 2;
+		long long collapse_numerator, collapse_denominator;
+		int combined_unit = unit_ratio_op(interp, left_unit, right_unit, &collapse_numerator, &collapse_denominator);
+		if (interp->error_flag) return 1;
+
+		if (collapse_numerator != collapse_denominator) {
+			double factor = (double)collapse_numerator / collapse_denominator;
+			real_part *= factor;
+			imaginary_part *= factor;
+		}
+
+		Val combined_magnitude = complex_from_parts(interp, real_part, imaginary_part);
+		if (interp->error_flag) return 1;
+		push_quantity(interp, combined_magnitude, combined_unit);
+		return 1;
+	}
+
 	if (VAL_TAG(left_magnitude) == T_EXACT) {
 		Val combined_magnitude = exact_binary(interp, left_magnitude, right_magnitude, exact_op);
 		if (interp->error_flag) return 1;
@@ -212,9 +470,27 @@ static int quantity_multiplicative_op(Interpreter *interp, Val left, Val right,
 	return 1;
 }
 
-static void unary_quantity_op(Interpreter *interp, Val quantity, double (*function)(double), int exact_op, int result_unit) {
+static void unary_quantity_op(Interpreter *interp, Val quantity, double (*function)(double), int exact_op, char complex_op, int result_unit) {
 	int slot = (int)VAL_DATA(quantity);
 	Val magnitude = pairs.table[slot].head;
+
+	if (VAL_TAG(magnitude) == T_COMPLEX && complex_op) {
+		double complex z = complex_value_of(magnitude);
+		if (complex_op == 'a') {
+			push_quantity(interp, make_float(cabs(z)), result_unit);
+			return;
+		}
+
+		double complex result = complex_op == 's' ? csqrt(z) : -z;
+		gc_root_push(interp, quantity);
+		Val result_magnitude = complex_from_parts(interp, creal(result), cimag(result));
+		gc_root_pop(interp);
+		if (interp->error_flag)
+			return;
+
+		push_quantity(interp, result_magnitude, result_unit);
+		return;
+	}
 
 	if (VAL_TAG(magnitude) == T_EXACT && exact_op >= 0) {
 		gc_root_push(interp, quantity);
@@ -277,6 +553,8 @@ void p_add(DISPATCH_ARGS) {
 		execute_cfa(interp, find("concat"));
 	else if (exact_binary_word(interp, left, right, EXACT_OP_ADD)) {
 	}
+	else if (complex_binary_word(interp, left, right, '+')) {
+	}
 	else if (!quantity_additive_op(interp, left, right, scalar_add, EXACT_OP_ADD, "+", "add"))
 		fail(interp, "expected two floats, two strings, two sets, two matrices, scalar/matrix, or two arrays; got %s and %s",
 				tag_name(VAL_TAG(left)), tag_name(VAL_TAG(right)));
@@ -315,6 +593,8 @@ void p_sub(DISPATCH_ARGS) {
 		BROADCAST_MATRIX_OP_SCALAR(-);
 	else if (exact_binary_word(interp, left, right, EXACT_OP_SUB)) {
 	}
+	else if (complex_binary_word(interp, left, right, '-')) {
+	}
 	else if (!quantity_additive_op(interp, left, right, scalar_sub, EXACT_OP_SUB, "-", "subtract"))
 		fail(interp, "expected two floats, two sets, two matrices, or scalar/matrix; got %s and %s",
 				tag_name(VAL_TAG(left)), tag_name(VAL_TAG(right)));
@@ -352,6 +632,8 @@ void p_mul(DISPATCH_ARGS) {
 	else if (VAL_TAG(left) == T_MATRIX && VAL_TAG(right) == T_FLOAT)
 		BROADCAST_MATRIX_OP_SCALAR(*);
 	else if (exact_binary_word(interp, left, right, EXACT_OP_MUL)) {
+	}
+	else if (complex_binary_word(interp, left, right, '*')) {
 	}
 	else {
 		if (!quantity_multiplicative_op(interp, left, right, scalar_mul, unit_multiply_ratio, EXACT_OP_MUL, "*", 0))
@@ -402,6 +684,8 @@ void p_div(DISPATCH_ARGS) {
 		BROADCAST_MATRIX_OP_SCALAR(/);
 	}
 	else if (exact_binary_word(interp, left, right, EXACT_OP_DIV)) {
+	}
+	else if (complex_binary_word(interp, left, right, '/')) {
 	}
 	else {
 		if (!quantity_multiplicative_op(interp, left, right, scalar_div, unit_divide_ratio, EXACT_OP_DIV, "/", 1))
@@ -703,7 +987,7 @@ void p_nan(DISPATCH_ARGS) {
 			chain_sp[-1] = make_bool(1);
 			DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 	}
-	if (VAL_TAG(chain_sp[-1]) == T_EXACT) {
+	if (VAL_TAG(chain_sp[-1]) == T_EXACT || VAL_TAG(chain_sp[-1]) == T_COMPLEX) {
 			chain_sp[-1] = make_bool(0);
 			DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 	}
@@ -818,10 +1102,10 @@ void p_null(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
 }
 
-int type_of_symbols[T_EXACT + 1];
+int type_of_symbols[T_COMPLEX + 1];
 
 void type_of_intern_names(Interpreter *interp) {
-	static const char *names[T_EXACT + 1] = {
+	static const char *names[T_COMPLEX + 1] = {
 		[T_NONE] = "none",        [T_SYMBOL] = "symbol",  [T_FLOAT] = "float",
 		[T_STRING] = "string",    [T_SET] = "set",        [T_ARRAY] = "array",
 		[T_PAIR] = "pair",        [T_FRAME] = "frame",    [T_MATRIX] = "matrix",
@@ -829,9 +1113,10 @@ void type_of_intern_names(Interpreter *interp) {
 		[T_MARK] = "mark",        [T_STREAM] = "stream",  [T_LOGIC_VAR] = "lvar",
 		[T_UNBOUND] = "wildcard", [T_DB] = "db",          [T_PTR] = "ptr",
 		[T_SEGMENT] = "segment",  [T_QUANTITY] = "quantity",
-		[T_CURRIED] = "xt",       [T_EXACT] = "exact"
+		[T_CURRIED] = "xt",       [T_EXACT] = "exact",
+		[T_COMPLEX] = "complex"
 	};
-	for (int tag = 0; tag <= T_EXACT; tag++)
+	for (int tag = 0; tag <= T_COMPLEX; tag++)
 		type_of_symbols[tag] = intern_symbol(interp, names[tag]);
 }
 
@@ -2010,7 +2295,9 @@ static void interp_render_val(Interpreter *interp, Val value, char **out_buffer,
 			interp_append(interp, out_buffer, capacity, out_length, rendered, n);
 			break;
 		}
-		case T_EXACT: {
+		case T_EXACT:
+		case T_QUANTITY:
+		case T_COMPLEX: {
 			char *rendered = NULL;
 			size_t rendered_size = 0;
 			FILE *stream = open_memstream(&rendered, &rendered_size);
@@ -2018,7 +2305,7 @@ static void interp_render_val(Interpreter *interp, Val value, char **out_buffer,
 				fail(interp, "out of memory");
 				return;
 			}
-			exact_print(stream, value);
+			print_val(stream, interp, value);
 			fclose(stream);
 			interp_append(interp, out_buffer, capacity, out_length, rendered, (int)rendered_size);
 			free(rendered);
@@ -2320,7 +2607,7 @@ void unary_op(Interpreter *interp, Val operand, double (*function)(double)) {
 	}
 }
 
-#define UNARY_MATH_OP_NAMED(cname, func, word) \
+#define UNARY_MATH_OP_NAMED(cname, func, word, complex_fn) \
 	void p_##cname(DISPATCH_ARGS) { \
 		REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1); \
 		if (VAL_TAG(chain_sp[-1]) == T_FLOAT) { \
@@ -2329,10 +2616,13 @@ void unary_op(Interpreter *interp, Val operand, double (*function)(double)) {
 		} \
 		\
 		SYNC_REGISTERS(interp, chain_ip, chain_sp - 1); \
-		unary_op(interp, chain_sp[-1], func); \
+		if ((complex_fn) != NULL && VAL_TAG(chain_sp[-1]) == T_COMPLEX) \
+			complex_math_word(interp, chain_sp[-1], complex_fn); \
+		else \
+			unary_op(interp, chain_sp[-1], func); \
 		DISPATCH(interp); \
 	}
-#define UNARY_MATH_OP(name, func) UNARY_MATH_OP_NAMED(name, func, #name)
+#define UNARY_MATH_OP(name, func, complex_fn) UNARY_MATH_OP_NAMED(name, func, #name, complex_fn)
 
 static void exact_unary_word(Interpreter *interp, Val operand, int exact_op) {
 	gc_root_push(interp, operand);
@@ -2343,7 +2633,7 @@ static void exact_unary_word(Interpreter *interp, Val operand, int exact_op) {
 	push(interp, result);
 }
 
-#define UNARY_QUANTITY_OP(cname, func, word, exact_op, result_unit) \
+#define UNARY_QUANTITY_OP(cname, func, word, exact_op, complex_op, result_unit) \
 	void p_##cname(DISPATCH_ARGS) { \
 		REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1); \
 		if (VAL_TAG(chain_sp[-1]) == T_FLOAT) { \
@@ -2356,29 +2646,31 @@ static void exact_unary_word(Interpreter *interp, Val operand, int exact_op) {
 		if (VAL_TAG(operand) == T_QUANTITY) { \
 			int unit = (result_unit); \
 			if (interp->error_flag) return; \
-			unary_quantity_op(interp, operand, func, exact_op, unit); \
+			unary_quantity_op(interp, operand, func, exact_op, complex_op, unit); \
 		} else if ((exact_op) >= 0 && VAL_TAG(operand) == T_EXACT) \
 			exact_unary_word(interp, operand, exact_op); \
+		else if ((complex_op) && VAL_TAG(operand) == T_COMPLEX) \
+			complex_unary_word(interp, operand, complex_op); \
 		else \
 			unary_op(interp, operand, func); \
 		DISPATCH(interp); \
 	}
 
-UNARY_QUANTITY_OP(neg, scalar_negate, "negate", EXACT_OP_NEGATE, (int)pairs.table[VAL_DATA(operand)].tail.bits)
-UNARY_QUANTITY_OP(abs, fabs, "abs", EXACT_OP_ABS, (int)pairs.table[VAL_DATA(operand)].tail.bits)
-UNARY_QUANTITY_OP(sqrt, sqrt, "sqrt", -1, unit_pow(interp, (int)pairs.table[VAL_DATA(operand)].tail.bits, 1, 2))
-UNARY_MATH_OP(exp, exp)
-UNARY_MATH_OP(log, log10)
-UNARY_MATH_OP(ln, log)
-UNARY_MATH_OP(lgamma, lgamma)
-UNARY_MATH_OP(sin, sin)
-UNARY_MATH_OP(cos, cos)
-UNARY_MATH_OP(tan, tan)
-UNARY_MATH_OP(tanh, tanh)
-UNARY_MATH_OP(asin, asin)
-UNARY_MATH_OP(acos, acos)
-UNARY_MATH_OP(atan, atan)
-#define UNARY_MATH_OP_EXACT(cname, func, word, exact_op) \
+UNARY_QUANTITY_OP(neg, scalar_negate, "negate", EXACT_OP_NEGATE, 'n', (int)pairs.table[VAL_DATA(operand)].tail.bits)
+UNARY_QUANTITY_OP(abs, fabs, "abs", EXACT_OP_ABS, 'a', (int)pairs.table[VAL_DATA(operand)].tail.bits)
+UNARY_QUANTITY_OP(sqrt, sqrt, "sqrt", -1, 's', unit_pow(interp, (int)pairs.table[VAL_DATA(operand)].tail.bits, 1, 2))
+UNARY_MATH_OP(exp, exp, cexp)
+UNARY_MATH_OP(log, log10, complex_log10)
+UNARY_MATH_OP(ln, log, clog)
+UNARY_MATH_OP(lgamma, lgamma, NULL)
+UNARY_MATH_OP(sin, sin, csin)
+UNARY_MATH_OP(cos, cos, ccos)
+UNARY_MATH_OP(tan, tan, ctan)
+UNARY_MATH_OP(tanh, tanh, ctanh)
+UNARY_MATH_OP(asin, asin, casin)
+UNARY_MATH_OP(acos, acos, cacos)
+UNARY_MATH_OP(atan, atan, catan)
+#define UNARY_MATH_OP_EXACT(cname, func, word, exact_op, complex_op) \
 	void p_##cname(DISPATCH_ARGS) { \
 		REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1); \
 		if (VAL_TAG(chain_sp[-1]) == T_FLOAT) { \
@@ -2389,18 +2681,20 @@ UNARY_MATH_OP(atan, atan)
 		SYNC_REGISTERS(interp, chain_ip, chain_sp - 1); \
 		if (VAL_TAG(chain_sp[-1]) == T_EXACT) \
 			exact_unary_word(interp, chain_sp[-1], exact_op); \
+		else if ((complex_op) && VAL_TAG(chain_sp[-1]) == T_COMPLEX) \
+			complex_unary_word(interp, chain_sp[-1], complex_op); \
 		else \
 			unary_op(interp, chain_sp[-1], func); \
 		DISPATCH(interp); \
 	}
 
-UNARY_MATH_OP_EXACT(round, round, "round", EXACT_OP_ROUND)
-UNARY_MATH_OP_EXACT(truncate, trunc, "truncate", EXACT_OP_TRUNCATE)
-UNARY_MATH_OP_EXACT(round_up, ceil, "round-up", EXACT_OP_ROUND_UP)
-UNARY_MATH_OP_EXACT(round_down, floor, "round-down", EXACT_OP_ROUND_DOWN)
-UNARY_MATH_OP_EXACT(inc_poly, scalar_inc, "1+", EXACT_OP_INCREMENT)
-UNARY_MATH_OP_EXACT(dec_poly, scalar_dec, "1-", EXACT_OP_DECREMENT)
-UNARY_MATH_OP_EXACT(sq_poly, scalar_sq, "sq", EXACT_OP_SQUARE)
+UNARY_MATH_OP_EXACT(round, round, "round", EXACT_OP_ROUND, 0)
+UNARY_MATH_OP_EXACT(truncate, trunc, "truncate", EXACT_OP_TRUNCATE, 0)
+UNARY_MATH_OP_EXACT(round_up, ceil, "round-up", EXACT_OP_ROUND_UP, 0)
+UNARY_MATH_OP_EXACT(round_down, floor, "round-down", EXACT_OP_ROUND_DOWN, 0)
+UNARY_MATH_OP_EXACT(inc_poly, scalar_inc, "1+", EXACT_OP_INCREMENT, '+')
+UNARY_MATH_OP_EXACT(dec_poly, scalar_dec, "1-", EXACT_OP_DECREMENT, '-')
+UNARY_MATH_OP_EXACT(sq_poly, scalar_sq, "sq", EXACT_OP_SQUARE, 'q')
 
 static void binary_matrix_op(Interpreter *interp, Val left, Val right, scalar_operator function, const char *name) {
 	if (VAL_TAG(left) == T_MATRIX && VAL_TAG(right) == T_MATRIX) {
@@ -2489,12 +2783,18 @@ void p_power(DISPATCH_ARGS) {
 
 	interp->dsp -= 2;
 	if (VAL_TAG(left) == T_EXACT) {
-		if (VAL_TAG(right) != T_FLOAT) {
-			fail(interp, "exponent must be a float; got %s", tag_name(VAL_TAG(right)));
+		double exponent;
+		if (VAL_TAG(right) == T_FLOAT)
+			exponent = VAL_NUMBER(right);
+		else if (VAL_TAG(right) == T_EXACT)
+			exponent = exact_to_double(right);
+		else {
+			fail(interp, "exponent must be a float or an integer exact; got %s", tag_name(VAL_TAG(right)));
 			return;
 		}
+
 		gc_root_push(interp, left);
-		Val result = exact_power(interp, left, VAL_NUMBER(right));
+		Val result = exact_power(interp, left, exponent);
 		gc_root_pop(interp);
 		if (interp->error_flag)
 			return;
@@ -2502,30 +2802,64 @@ void p_power(DISPATCH_ARGS) {
 		DISPATCH(interp);
 		return;
 	}
+	if ((VAL_TAG(left) == T_COMPLEX || VAL_TAG(right) == T_COMPLEX)
+			&& (VAL_TAG(left) == T_COMPLEX || VAL_TAG(left) == T_FLOAT)
+			&& (VAL_TAG(right) == T_COMPLEX || VAL_TAG(right) == T_FLOAT)) {
+		double complex base = VAL_TAG(left) == T_COMPLEX
+			? complex_value_of(left) : CMPLX(VAL_NUMBER(left), 0.0);
+		double complex exponent = VAL_TAG(right) == T_COMPLEX
+			? complex_value_of(right) : CMPLX(VAL_NUMBER(right), 0.0);
+		push_complex_result(interp, cpow(base, exponent));
+		if (interp->error_flag)
+			return;
+		DISPATCH(interp);
+		return;
+	}
+
 	if (VAL_TAG(left) == T_QUANTITY) {
-		if (VAL_TAG(right) != T_FLOAT) {
+		int slot = (int)VAL_DATA(left);
+		Val magnitude = pairs.table[slot].head;
+
+		double exponent;
+		if (VAL_TAG(right) == T_FLOAT)
+			exponent = VAL_NUMBER(right);
+		else if (VAL_TAG(right) == T_EXACT && VAL_TAG(magnitude) == T_EXACT)
+			exponent = exact_to_double(right);
+		else if (VAL_TAG(right) == T_EXACT) {
+			fail(interp, "exact and float do not mix; convert with float>exact or exact>float");
+			return;
+		} else {
 			fail(interp, "exponent must be a float; got %s", tag_name(VAL_TAG(right)));
 			return;
 		}
 
 		int numerator, denominator;
-		if (!rational_of_double(VAL_NUMBER(right), &numerator, &denominator)) {
+		if (!rational_of_double(exponent, &numerator, &denominator)) {
 			fail(interp, "exponent must be a simple rational");
 			return;
 		}
 
-		int slot = (int)VAL_DATA(left);
 		int unit = unit_pow(interp, (int)pairs.table[slot].tail.bits, numerator, denominator);
 		if (interp->error_flag) return;
 
-		Val magnitude = pairs.table[slot].head;
 		if (VAL_TAG(magnitude) == T_EXACT) {
 			gc_root_push(interp, left);
-			Val raised = exact_power(interp, magnitude, VAL_NUMBER(right));
+			Val raised = exact_power(interp, magnitude, exponent);
 			gc_root_pop(interp);
 			if (interp->error_flag) return;
 
 			push_quantity(interp, raised, unit);
+			DISPATCH(interp);
+			return;
+		}
+		if (VAL_TAG(magnitude) == T_COMPLEX) {
+			double complex raised = cpow(complex_value_of(magnitude), CMPLX(exponent, 0.0));
+			gc_root_push(interp, left);
+			Val raised_magnitude = complex_from_parts(interp, creal(raised), cimag(raised));
+			gc_root_pop(interp);
+			if (interp->error_flag) return;
+
+			push_quantity(interp, raised_magnitude, unit);
 			DISPATCH(interp);
 			return;
 		}
