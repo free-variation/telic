@@ -1,25 +1,25 @@
 {
-  "name": "water",
-  "displayName": "water",
-  "description": "Syntax highlighting, indentation, and bracket matching for water (.h2o)",
+  "name": "telic",
+  "displayName": "telic",
+  "description": "Syntax highlighting, indentation, and bracket matching for telic (.telic)",
   "version": "0.1.0",
-  "publisher": "water",
+  "publisher": "telic",
   "engines": { "vscode": "^1.60.0" },
   "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {
-        "id": "water",
-        "aliases": ["water", "l4"],
-        "extensions": [".h2o"],
+        "id": "telic",
+        "aliases": ["telic", "l4"],
+        "extensions": [".telic"],
         "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
       {
-        "language": "water",
-        "scopeName": "source.water",
-        "path": "./syntaxes/water.tmLanguage.json"
+        "language": "telic",
+        "scopeName": "source.telic",
+        "path": "./syntaxes/telic.tmLanguage.json"
       }
     ]
   }

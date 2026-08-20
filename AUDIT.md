@@ -21,7 +21,7 @@
   evaluated in int, wraps for pathological match counts. Needs multi-GB.
 
 ### `gc_root_push` unchecked on 64-root exhaustion
-- `gc_root_push` (`water.h:1598`) fails without incrementing `n_gc_roots`; a
+- `gc_root_push` (`telic.h:1598`) fails without incrementing `n_gc_roots`; a
   following unconditional `gc_root_pop` then decrements an outer caller's root.
   Sites lacking the `if (error_flag) return;` guard: `words.c:1347`
   (`p_execute_catching`, OOM path also leaks 2 roots), `logic.c:228-234`

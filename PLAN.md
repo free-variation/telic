@@ -1,4 +1,4 @@
-# Water — future work
+# Telic — future work
 
 A TODO list of pending work, highest priority first.
 
@@ -143,7 +143,7 @@ whether interning happens during compilation.
 
 ## MCP server — follow-ups
 
-`lib/mcp.h2o` serves revision 2026-07-28 with two tools, sessions as child
+`lib/mcp.telic` serves revision 2026-07-28 with two tools, sessions as child
 interpreters, and a poll loop over stdin and every busy child.
 
 - Progress — a call carrying `_meta.progressToken` gets no
@@ -173,7 +173,7 @@ interpreters, and a poll loop over stdin and every busy child.
 
 ## FastCGI service
 
-Run Water as a long-lived FastCGI application behind a web server, decoding
+Run Telic as a long-lived FastCGI application behind a web server, decoding
 records off a Unix or TCP socket, running a handler, writing the response.
 
 Blocked on symbol collection: a long-lived worker mints symbols from unbounded
@@ -205,10 +205,10 @@ before accepting untrusted bodies.
 `render` produces a value's display form, which is not always re-readable —
 strings print raw, a matrix prints as a grid. `frame>json` round-trips, but only
 the JSON-expressible subset (frames, arrays, strings, numbers, booleans).
-Missing is a representation that reads back through the Water reader for
+Missing is a representation that reads back through the Telic reader for
 *any* value.
 
-- `repr` ( v -- s ) — a string of Water source that, read back, reconstructs
+- `repr` ( v -- s ) — a string of Telic source that, read back, reconstructs
   an equal value: quoted strings (with `""` escaping), `[ ]` arrays, `{ :k v }`
   frames, `< >` sets, `[( )]` cons lists, `:name` symbols, floats in shortest
   round-trip form, a matrix as its `[ … ] R C matrix` constructor.
@@ -236,9 +236,9 @@ dropped handle holds its slot and its OS resource until the process exits.
 
 ## Foreign function interface
 
-- **Callbacks** — C → Water function pointers (`qsort` comparators,
+- **Callbacks** — C → Telic function pointers (`qsort` comparators,
   `CURLOPT_WRITEFUNCTION` to capture a response body into a string). Needs
-  re-entry plumbing: a Water xt invoked from within a C call.
+  re-entry plumbing: a Telic xt invoked from within a C call.
 - **Struct-by-value** arguments and returns.
 - **Per-call varargs** — variadic arg types chosen at the call site rather
   than fixed per declared word.
@@ -310,7 +310,7 @@ In rough priority:
 
 Building on the generator primitives:
 
-- Lazy `map` / `filter` / `take` / `zip` as generators.h2o wrappers that resume the
+- Lazy `map` / `filter` / `take` / `zip` as generators.telic wrappers that resume the
   source on demand, with `lazy>array` to force a finite prefix.
 - A cooperative scheduler (`spawn` / `run-scheduler`, a queue of `T_CONT`s) for
   producer/consumer pipelines.
@@ -501,7 +501,7 @@ live here instead. File and function name each invariant's home.
 - A failed handle claim must not leave `space->n` above `cap`; readers walk
   to `n` (core.c, `local_claim_handle`).
 - `HANDLE_PRESSURE_SLOTS` must exceed one claim per worker, or only the
-  worker that trips it collects (water.h).
+  worker that trips it collects (telic.h).
 - The handle-pressure test must stay in the claim branch; per allocation it
   contends on `space->n` (core.c, `local_claim_handle`).
 - In-progress cons chains are gc-rooted during multi-pair allocation so
@@ -509,9 +509,9 @@ live here instead. File and function name each invariant's home.
   `array>cons`).
 - Bind BLAS and LAPACKE from the statistics shared library's single
   handle; never add a second `ffi-open`. Ports keep BLAS reachable from
-  that handle (lib/statistics.h2o; Makefile `-reexport_framework` on
+  that handle (lib/statistics.telic; Makefile `-reexport_framework` on
   Darwin, the DT_NEEDED OpenBLAS dependency on Linux).
-- Keep statistics.h2o native-only; wasm excludes the FFI and skips its
+- Keep statistics.telic native-only; wasm excludes the FFI and skips its
   tests (wasm-skip.txt).
 - Element-wise matrix ops broadcast any dimension of size 1 (n×1 and
   1×k against n×k), not only scalars; the reference documents only the

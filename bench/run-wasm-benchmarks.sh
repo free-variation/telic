@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Run the wasm-eligible water benchmarks three ways — CPython, native
-# water, and the wasm/WASI build under a WASI runtime — and emit a markdown
+# Run the wasm-eligible telic benchmarks three ways — CPython, native
+# telic, and the wasm/WASI build under a WASI runtime — and emit a markdown
 # comparison on stdout. All progress goes to stderr:
 #
 #   bench/run-wasm-benchmarks.sh > bench/wasm-$(date +%Y%m%d).md
@@ -22,8 +22,8 @@ set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/.." && pwd)
-bin="$root/water"
-wasm="$root/water.wasm"
+bin="$root/telic"
+wasm="$root/telic.wasm"
 
 python=${PYTHON:-python3.14}
 if [ -n "${CRYPTO_PYTHON:-}" ]; then
@@ -70,7 +70,7 @@ log() { printf '%s\n' "$*" >&2; }
 
 # --- build -----------------------------------------------------------------
 log "building native + wasm..."
-(cd "$root" && make water) >&2 || { log "native build failed"; exit 1; }
+(cd "$root" && make telic) >&2 || { log "native build failed"; exit 1; }
 (cd "$root" && make wasm) >&2 || { log "wasm build failed"; exit 1; }
 if ! command -v "$wasmtime" >/dev/null 2>&1 && [ ! -x "$wasmtime" ]; then
 	log "wasmtime not found (set WASMTIME to a WASI runtime on PATH or a path)"; exit 1
@@ -95,31 +95,31 @@ ratio() {
 }
 
 # --- bench input feeds (stdin for native and wasm) -------------------------
-feed_nqueens()  { cat "$here/pyperformance/nqueens.h2o"; }
-feed_fannkuch() { cat "$here/pyperformance/fannkuch.h2o"; }
-feed_nbody()    { cat "$here/pyperformance/nbody.h2o"; }
-feed_raytrace() { cat "$here/pyperformance/raytrace.h2o"; }
-feed_float()    { cat "$here/pyperformance/float.h2o"; }
-feed_crypto()   { cat "$here/pyperformance/crypto-pyaes.h2o"; }
-feed_spectral() { cat "$here/pyperformance/spectral-norm.h2o"; }
-feed_scimark_lu() { cat "$here/pyperformance/scimark-lu.h2o"; }
-feed_scimark_sor() { cat "$here/pyperformance/scimark-sor.h2o"; }
-feed_scimark_sparse() { cat "$here/pyperformance/scimark-sparse.h2o"; }
-feed_scimark_fft() { cat "$here/pyperformance/scimark-fft.h2o"; }
-feed_barnes()   { cat "$here/pyperformance/barnes-hut.h2o"; }
-feed_scimark_mc() { cat "$here/pyperformance/scimark-montecarlo.h2o"; }
-feed_meteor()   { cat "$here/pyperformance/meteor.h2o"; }
-feed_hexiom()   { cat "$here/pyperformance/hexiom.h2o"; }
-feed_regex_dna() { cat "$here/pyperformance/regex-dna.h2o"; }
-feed_regex_compile() { cat "$here/pyperformance/regex-compile.h2o"; }
-feed_regex_effbot() { cat "$here/pyperformance/regex-effbot.h2o"; }
-feed_regex_v8() { cat "$here/pyperformance/regex-v8.h2o"; }
-feed_deepcopy() { cat "$here/pyperformance/deepcopy.h2o"; }
-feed_json_loads() { cat "$here/pyperformance/json-loads.h2o"; }
-feed_json_dumps() { cat "$here/pyperformance/json-dumps.h2o"; }
-feed_leibniz()  { cat "$here/pyperformance/leibniz.h2o"; }
-feed_logic()    { cat "$here/logic/logic.h2o"; }
-feed_nreverse() { cat "$here/logic/nreverse.h2o"; }
+feed_nqueens()  { cat "$here/pyperformance/nqueens.telic"; }
+feed_fannkuch() { cat "$here/pyperformance/fannkuch.telic"; }
+feed_nbody()    { cat "$here/pyperformance/nbody.telic"; }
+feed_raytrace() { cat "$here/pyperformance/raytrace.telic"; }
+feed_float()    { cat "$here/pyperformance/float.telic"; }
+feed_crypto()   { cat "$here/pyperformance/crypto-pyaes.telic"; }
+feed_spectral() { cat "$here/pyperformance/spectral-norm.telic"; }
+feed_scimark_lu() { cat "$here/pyperformance/scimark-lu.telic"; }
+feed_scimark_sor() { cat "$here/pyperformance/scimark-sor.telic"; }
+feed_scimark_sparse() { cat "$here/pyperformance/scimark-sparse.telic"; }
+feed_scimark_fft() { cat "$here/pyperformance/scimark-fft.telic"; }
+feed_barnes()   { cat "$here/pyperformance/barnes-hut.telic"; }
+feed_scimark_mc() { cat "$here/pyperformance/scimark-montecarlo.telic"; }
+feed_meteor()   { cat "$here/pyperformance/meteor.telic"; }
+feed_hexiom()   { cat "$here/pyperformance/hexiom.telic"; }
+feed_regex_dna() { cat "$here/pyperformance/regex-dna.telic"; }
+feed_regex_compile() { cat "$here/pyperformance/regex-compile.telic"; }
+feed_regex_effbot() { cat "$here/pyperformance/regex-effbot.telic"; }
+feed_regex_v8() { cat "$here/pyperformance/regex-v8.telic"; }
+feed_deepcopy() { cat "$here/pyperformance/deepcopy.telic"; }
+feed_json_loads() { cat "$here/pyperformance/json-loads.telic"; }
+feed_json_dumps() { cat "$here/pyperformance/json-dumps.telic"; }
+feed_leibniz()  { cat "$here/pyperformance/leibniz.telic"; }
+feed_logic()    { cat "$here/logic/logic.telic"; }
+feed_nreverse() { cat "$here/logic/nreverse.telic"; }
 
 # --- python wrappers -------------------------------------------------------
 py_nqueens()  { "$python" "$here/pyperformance/pyperf_nqueens.py" "$nqueens_n"; }

@@ -162,7 +162,7 @@ def parse():
 
 def emit(entries, sections, examples):
     out = []
-    out.append('#include "water.h"')
+    out.append('#include "telic.h"')
     out.append("")
     out.append("const char *const help_section_names[] = {")
     for section in sections:

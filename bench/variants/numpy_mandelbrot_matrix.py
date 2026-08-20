@@ -1,6 +1,6 @@
 """
 mandelbrot, vectorized with numpy — the counterpart of
-bench/variants/mandelbrot-matrix.h2o.
+bench/variants/mandelbrot-matrix.telic.
 
 Every pixel's z is iterated at once as an N x N array, so element-wise
 multiply/add/subtract and a > mask replace the scalar per-pixel loop. There is

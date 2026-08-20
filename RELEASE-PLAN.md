@@ -1,4 +1,4 @@
-# Water — 1.0-alpha release plan
+# Telic — 1.0-alpha release plan
 
 The gate for 1.0-alpha, in priority order; an entry vanishes as its item
 completes. Optional, if the gate finishes early: `upcase`/`downcase` in the
@@ -26,7 +26,7 @@ because the compiler makes it a tail call).
 
 1. A 10000-level nested frame round-trips through `save-value`/`load-value`.
 2. A synthesized 200000-level file errors from both words rather than
-   crashing; both cases join `tests/102_serialize.h2o`.
+   crashing; both cases join `tests/102_serialize.telic`.
 
 ---
 
@@ -35,18 +35,18 @@ because the compiler makes it a tail call).
 ### Implementation
 
 1. Add a `make install` (PREFIX-parameterized) copying the installed
-   set: the `water` binary, `lib/`, and `liblapacke_water.so`, with
+   set: the `telic` binary, `lib/`, and `liblapacke_telic.so`, with
    `data/` only for running the README examples verbatim.
-2. Add `make pack` output and `water-pack.md` to the released set.
+2. Add `make pack` output and `telic-pack.md` to the released set.
 3. Run `make acceptance` and read the failures: fix what is a pack gap,
    record what is not.
-4. Set VERSION (src/c/water.h) to the release version and tag the
+4. Set VERSION (src/c/telic.h) to the release version and tag the
    commit.
 5. Release notes: the benchmark table's provenance line, the platform
    pair (native, wasm) the suites passed on, and the acceptance pass@1
    with its model and date — a description of that run, not a
    threshold, since the tasks and the pack text were developed against
-   each other. Name `lib/mcp.h2o` as experimental: it has passed no run
+   each other. Name `lib/mcp.telic` as experimental: it has passed no run
    against a real MCP client, and no in-process test can stand in for
    one.
 
@@ -55,7 +55,7 @@ because the compiler makes it a tail call).
 1. From a clean checkout: `make && make test && make test-wasm &&
    make bench && make pack` all succeed, and `make test-libs` on a host
    with LAPACK and libxgboost.
-2. Copy the installed set to a directory outside the repo; `water`
+2. Copy the installed set to a directory outside the repo; `telic`
    starts from any cwd, `"statistics" load-library` and
    `"plot" load-library` load, and `help` answers.
 3. The tagged commit's README benchmark table matches a full run on the

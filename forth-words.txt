@@ -588,6 +588,8 @@ symbol?
 take
 tan
 tanh
+telic
+telic-version
 test
 test-report
 text-anchor
@@ -645,8 +647,6 @@ vvf/
 wait
 wait-readable
 wall-now
-water
-water-version
 where
 while
 wildcard?

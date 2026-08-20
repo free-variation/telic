@@ -10,8 +10,8 @@ error: unknown word: loopy (did you mean loop?)
 3 
 1 
 {
-  :message /tmp/w124_bad.h2o:1: unknown word: no-such-word
-  :trace in load ← [: "/tmp/w124_bad.h2o" load :]
+  :message /tmp/w124_bad.telic:1: unknown word: no-such-word
+  :trace in load ← [: "/tmp/w124_bad.telic" load :]
 }
 
 error: unknown word: broken

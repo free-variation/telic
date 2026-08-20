@@ -1,6 +1,6 @@
 """
 Leibniz pi, fully vectorized with numpy — the counterpart of
-bench/variants/leibniz-matrix.h2o.
+bench/variants/leibniz-matrix.telic.
 
 The expression is the official numpy entry from the speed-comparison project,
 verbatim:

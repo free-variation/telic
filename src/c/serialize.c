@@ -1,9 +1,9 @@
-#include "water.h"
+#include "telic.h"
 
-#define SERIAL_MAGIC_0 'H'
-#define SERIAL_MAGIC_1 '2'
-#define SERIAL_MAGIC_2 'O'
-#define SERIAL_MAGIC_3 'V'
+#define SERIAL_MAGIC_0 'T'
+#define SERIAL_MAGIC_1 'E'
+#define SERIAL_MAGIC_2 'L'
+#define SERIAL_MAGIC_3 'C'
 #define SERIAL_VERSION 1
 
 enum {
@@ -829,7 +829,7 @@ void p_bytes_to_value(DISPATCH_ARGS) {
 		return;
 	if (header[0] != SERIAL_MAGIC_0 || header[1] != SERIAL_MAGIC_1
 			|| header[2] != SERIAL_MAGIC_2 || header[3] != SERIAL_MAGIC_3) {
-		fail(interp, "not Water value data");
+		fail(interp, "not Telic value data");
 		return;
 	}
 	if (header[4] != SERIAL_VERSION) {

@@ -1,4 +1,4 @@
-#include "water.h"
+#include "telic.h"
 #include "lib_embed.h"
 
 
@@ -21,7 +21,7 @@ static platform_mutex_t intern_lock = PLATFORM_MUTEX_INIT;
 void *xmalloc(size_t bytes) {
 	void *block = malloc(bytes);
 	if (!block) {
-		fprintf(stderr, "water: out of memory\n");
+		fprintf(stderr, "telic: out of memory\n");
 		exit(1);
 	}
 	return block;
@@ -30,7 +30,7 @@ void *xmalloc(size_t bytes) {
 void *xcalloc(size_t count, size_t size) {
 	void *block = calloc(count, size);
 	if (!block) {
-		fprintf(stderr, "water: out of memory\n");
+		fprintf(stderr, "telic: out of memory\n");
 		exit(1);
 	}
 	return block;
@@ -39,7 +39,7 @@ void *xcalloc(size_t count, size_t size) {
 static void arena_init(void) {
 	arena.base = platform_reserve(arena_reserve_request, &arena.reserved);
 	if (!arena.base) {
-		fprintf(stderr, "water: arena reserve failed\n");
+		fprintf(stderr, "telic: arena reserve failed\n");
 		exit(1);
 	}
 
@@ -63,7 +63,7 @@ static inline void *arena_bump(AllocContext *ctx, size_t advance_bytes) {
 		size_t slab_claim_bytes = advance_bytes > SLAB_BYTES ? advance_bytes : SLAB_BYTES;
 		size_t claimed = atomic_fetch_add(&arena.used, slab_claim_bytes);
 		if (claimed + slab_claim_bytes > arena.reserved) {
-			fprintf(stderr, "water: arena exhausted\n");
+			fprintf(stderr, "telic: arena exhausted\n");
 			exit(1);
 		}
 		ctx->slab_next = arena.base + claimed;
@@ -1906,7 +1906,7 @@ int intern_symbol(Interpreter *interp, const char *name) {
 void dict_ensure(Interpreter *interp, int extra) {
 	(void)interp;
 	if (vocab.here + extra > VOCABULARY_INIT_SIZE) {
-		fprintf(stderr, "water: dictionary full\n");
+		fprintf(stderr, "telic: dictionary full\n");
 		exit(1);
 	}
 }
@@ -4814,7 +4814,7 @@ void p_save(DISPATCH_ARGS) {
 			collected_cfas[num_cfas++] = cfa;
 	}
 
-	fprintf(file, "\\ water vocabulary\n\n");
+	fprintf(file, "\\ telic vocabulary\n\n");
 
 	for (int i = num_cfas - 1; i >= 0; i--) {
 		int cfa = collected_cfas[i];
@@ -5193,8 +5193,8 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "words", p_words, 0);
 	define_primitive(interp, "(globals)", p_globals, 4);
 	define_primitive(interp, "apropos", p_apropos, 0);
-	define_primitive(interp, "water", p_water, 0);
-	define_primitive(interp, "water-version", p_water_version, 0);
+	define_primitive(interp, "telic", p_telic, 0);
+	define_primitive(interp, "telic-version", p_telic_version, 0);
 	define_primitive(interp, "see", p_see, 0);
 	define_primitive(interp, "see>string", p_see_to_string, 0);
 	define_primitive(interp, "man", p_man, 0);
@@ -5477,9 +5477,9 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "running?", p_running, 0);
 
 	if (load_lib) {
-		memcpy(compiler.input_buffer, lib_h2o, lib_h2o_len);
-		compiler.input_buffer[lib_h2o_len] = 0;
-		compiler.input_buffer_len = (int)lib_h2o_len;
+		memcpy(compiler.input_buffer, lib_telic, lib_telic_len);
+		compiler.input_buffer[lib_telic_len] = 0;
+		compiler.input_buffer_len = (int)lib_telic_len;
 		compiler.input_buffer_pos = 0;
 		run_outer(interp);
 
@@ -5489,9 +5489,9 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 
 		if (interp->error_flag) {
 			if (interp->error_message[0])
-				fprintf(stderr, "water: lib.h2o load error: %s\n", interp->error_message);
+				fprintf(stderr, "telic: lib.telic load error: %s\n", interp->error_message);
 			else
-				fprintf(stderr, "water: lib.h2o load error\n");
+				fprintf(stderr, "telic: lib.telic load error\n");
 			if (interp->error_trace[0])
 				fprintf(stderr, "%s\n", interp->error_trace);
 			return 1;
@@ -5539,7 +5539,7 @@ static void run_program_text(Interpreter *interp, const char *text) {
 }
 
 static void print_usage(void) {
-	printf("usage: water [options] [file.h2o ...]\n"
+	printf("usage: telic [options] [file.telic ...]\n"
 		"\n"
 		"Runs the given program files in order and exits; with no files,\n"
 		"starts the REPL (interactive when stdin is a terminal).\n"
@@ -5584,7 +5584,7 @@ int main(int argc, char **argv) {
 		}
 		else if (strcmp(argv[i], "-e") == 0) {
 			if (i + 1 >= argc) {
-				fprintf(stderr, "water: -e needs a code string\n");
+				fprintf(stderr, "telic: -e needs a code string\n");
 				return 2;
 			}
 			program_items[n_program_items] = argv[++i];
@@ -5597,31 +5597,31 @@ int main(int argc, char **argv) {
 			load_lib = 0;
 		else if (strcmp(argv[i], "--arena") == 0) {
 			if (i + 1 >= argc) {
-				fprintf(stderr, "water: --arena needs a size in gigabytes (e.g. 32g)\n");
+				fprintf(stderr, "telic: --arena needs a size in gigabytes (e.g. 32g)\n");
 				return 2;
 			}
 			char *suffix;
 			double gigabytes = strtod(argv[++i], &suffix);
 			int suffix_ok = *suffix == 0 || ((*suffix == 'g' || *suffix == 'G') && suffix[1] == 0);
 			if (!suffix_ok || !(gigabytes >= 1) || gigabytes > 8e9) {
-				fprintf(stderr, "water: --arena takes gigabytes from 1g up (e.g. 32g)\n");
+				fprintf(stderr, "telic: --arena takes gigabytes from 1g up (e.g. 32g)\n");
 				return 2;
 			}
 			arena_reserve_request = (size_t)(gigabytes * (double)((size_t)1 << 30));
 		}
 		else if (strcmp(argv[i], "--max-objects") == 0) {
 			if (i + 1 >= argc) {
-				fprintf(stderr, "water: --max-objects needs a value\n");
+				fprintf(stderr, "telic: --max-objects needs a value\n");
 				return 2;
 			}
 			max_objects_arg = strtol(argv[++i], NULL, 10);
 			if (max_objects_arg < 1) {
-				fprintf(stderr, "water: --max-objects must be a positive integer\n");
+				fprintf(stderr, "telic: --max-objects must be a positive integer\n");
 				return 2;
 			}
 		}
 		else if (argv[i][0] == '-') {
-			fprintf(stderr, "water: unknown option '%s' (see water --help)\n", argv[i]);
+			fprintf(stderr, "telic: unknown option '%s' (see telic --help)\n", argv[i]);
 			return 2;
 		}
 		else {
@@ -5646,7 +5646,7 @@ int main(int argc, char **argv) {
 	session_unit = current_unit = next_unit++;
 
 	if (show_version) {
-		execute_cfa(interp, find("water"));
+		execute_cfa(interp, find("telic"));
 		return 0;
 	}
 

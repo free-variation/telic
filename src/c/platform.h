@@ -1,5 +1,5 @@
-#ifndef WATER_PLATFORM_H
-#define WATER_PLATFORM_H
+#ifndef TELIC_PLATFORM_H
+#define TELIC_PLATFORM_H
 
 #include <stddef.h>
 

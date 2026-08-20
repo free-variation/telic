@@ -8,13 +8,13 @@ Two kinds of runnable documentation, both extracted here:
    a section calling load-library routes to tests/lib/ (external
    dependencies, run by make test-libs):
 
-     tests/090_readme_taste.h2o          (make test; committed .expected)
-     tests/lib/090_readme_taste_fit.h2o  (make test-libs; committed .expected)
+     tests/090_readme_taste.telic          (make test; committed .expected)
+     tests/lib/090_readme_taste_fit.telic  (make test-libs; committed .expected)
 
    The .expected files are committed goldens, regenerated deliberately
    and inspected line by line:
-     ./water -b < tests/090_readme_taste.h2o > tests/090_readme_taste.expected
-     ./water tests/lib/090_readme_taste_fit.h2o \\
+     ./telic -b < tests/090_readme_taste.telic > tests/090_readme_taste.expected
+     ./telic tests/lib/090_readme_taste_fit.telic \\
          > tests/lib/090_readme_taste_fit.expected
    tests/090_readme_taste.sed (hand-written, committed) normalizes the
    wall-now timestamp before run.sh diffs.
@@ -68,8 +68,8 @@ DOC_EXAMPLE_SOURCES = [
     os.path.join("docs", "idioms.md"),
 ]
 
-MAIN_TEST = os.path.join("tests", "090_readme_taste.h2o")
-LIB_TEST = os.path.join("tests", "lib", "090_readme_taste_fit.h2o")
+MAIN_TEST = os.path.join("tests", "090_readme_taste.telic")
+LIB_TEST = os.path.join("tests", "lib", "090_readme_taste_fit.telic")
 
 FENCE = re.compile(r"^(\s*)```(.*)$")
 EXAMPLE_TAG = re.compile(r"^forth(-noexec)?\s+(\S+)\s*$")
@@ -230,12 +230,12 @@ def emit_examples():
         test_dir = os.path.join("tests", "lib") if external else "tests"
         name = "%s_docs_%s" % (prefix, slug(section))
         base = os.path.join(test_dir, name)
-        write_file(base + ".h2o",
+        write_file(base + ".telic",
                    GENERATED_HEADER + "\nclear\n".join(code + "\n" for code, _ in pairs))
         write_file(base + ".expected",
                    "".join(output + "\n" for _, output in pairs))
         write_file(base + ".sed", STRIP_TRAILING_BLANKS_SED)
-        written.append("%s (%d examples)" % (base + ".h2o", len(pairs)))
+        written.append("%s (%d examples)" % (base + ".telic", len(pairs)))
     return written
 
 

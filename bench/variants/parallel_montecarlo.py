@@ -1,5 +1,5 @@
 """
-MonteCarlo pi, parallel — the counterpart of bench/variants/monte-carlo-parallel.h2o.
+MonteCarlo pi, parallel — the counterpart of bench/variants/monte-carlo-parallel.telic.
 
 Estimates pi by sampling the unit square and counting the points inside the
 quarter circle: estimate = 4 * (#inside / #samples). scimark's own generator is

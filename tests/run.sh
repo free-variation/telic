@@ -1,8 +1,8 @@
 #!/bin/sh
-# Golden-output test harness for water.
+# Golden-output test harness for telic.
 #
 # Each test is a pair of files in this directory:
-#   <name>.h2o        — input piped to the REPL on stdin
+#   <name>.telic        — input piped to the REPL on stdin
 #   <name>.expected  — exact stdout the REPL should produce
 #
 # A third file, <name>.stdin, marks a test that reads stdin itself: the program
@@ -16,22 +16,22 @@ set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/.." && pwd)
-bin="$root/water"
+bin="$root/telic"
 
 (cd "$root" && make all) || { echo "build failed"; exit 1; }
 
 pass=0
 fail=0
 
-for input in "$here"/*.h2o; do
+for input in "$here"/*.telic; do
     [ -e "$input" ] || { echo "no tests found"; exit 1; }
-    name=$(basename "$input" .h2o)
+    name=$(basename "$input" .telic)
     expected="$here/$name.expected"
     if [ ! -f "$expected" ]; then
         echo "SKIP $name (no .expected file)"
         continue
     fi
-    actual=$(mktemp "${TMPDIR:-/tmp}/water.XXXXXX")
+    actual=$(mktemp "${TMPDIR:-/tmp}/telic.XXXXXX")
     # Batch mode (-b): no banner, no per-line prompt — just the program's own
     # output (and errors), so expected files hold exactly what the script prints.
     if [ -f "$here/$name.stdin" ]; then
@@ -44,8 +44,8 @@ for input in "$here"/*.h2o; do
     expected_cmp="$expected"
     actual_cmp="$actual"
     if [ -f "$here/$name.sed" ]; then
-        expected_cmp=$(mktemp "${TMPDIR:-/tmp}/water.XXXXXX")
-        actual_cmp=$(mktemp "${TMPDIR:-/tmp}/water.XXXXXX")
+        expected_cmp=$(mktemp "${TMPDIR:-/tmp}/telic.XXXXXX")
+        actual_cmp=$(mktemp "${TMPDIR:-/tmp}/telic.XXXXXX")
         sed -E -f "$here/$name.sed" "$expected" > "$expected_cmp"
         sed -E -f "$here/$name.sed" "$actual" > "$actual_cmp"
     fi

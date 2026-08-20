@@ -1,7 +1,7 @@
-# Water — loadable library reference
+# Telic — loadable library reference
 
 The words below are not in the base image; they are defined by loading a file
-from `lib/`. `"lib/statistics.h2o" load` brings in the linear-algebra,
+from `lib/`. `"lib/statistics.telic" load` brings in the linear-algebra,
 regression, generalized-linear-model, and gradient-boosting words, and
 `"plot" load-library` the plotting words. Once a library is loaded its words
 answer to `help`, `man`, and `apropos` exactly like built-ins — this file is the
@@ -12,7 +12,7 @@ xgboost words, libxgboost) through the FFI, which the wasm build excludes. The
 plotting library is pure forth (no FFI) and works under wasm; only its
 `save-figure` / `show-figure` output words use a subprocess and are native-only.
 
-## Linear algebra (lib/statistics.h2o)
+## Linear algebra (lib/statistics.telic)
 
 | Word | Stack effect | Summary |
 | --- | --- | --- |
@@ -62,7 +62,7 @@ plotting library is pure forth (no FFI) and works under wasm; only its
 [ 1 2 ]
 ```
 
-## Regression (lib/statistics.h2o)
+## Regression (lib/statistics.telic)
 
 The derivation behind these words — the mathematics, step by step, connected
 to the word performing each step — is docs/regression.md.
@@ -143,7 +143,7 @@ dup :coefficients @ first :estimate @ . :predictors @ . cr
 0.1
 ```
 
-## Generalized linear models (lib/statistics.h2o)
+## Generalized linear models (lib/statistics.telic)
 
 | Word | Stack effect | Summary |
 | --- | --- | --- |
@@ -229,7 +229,7 @@ dup :coefficients @ first :estimate @ . :predictors @ . cr
 [ 1 1 ]
 ```
 
-## Gradient boosting (lib/statistics.h2o)
+## Gradient boosting (lib/statistics.telic)
 
 | Word | Stack effect | Summary |
 | --- | --- | --- |
@@ -292,7 +292,7 @@ dup "/tmp/docs-xgb.json" xgb-save xgb-free
 [ 548 ]
 ```
 
-## Plotting (lib/plot.h2o)
+## Plotting (lib/plot.telic)
 
 A figure accumulates marks (data- or pixel-space coordinates plus the style in
 effect); nothing maps to pixels until `figure>svg` resolves the domain and
@@ -687,16 +687,16 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 1
 ```
 
-## MCP server (lib/mcp.h2o)
+## MCP server (lib/mcp.telic)
 
 An MCP server over stdio, protocol revision 2026-07-28, modern era only: every
 request declares its version in `params._meta` under
 `io.modelcontextprotocol/protocolVersion`, there is no `initialize` handshake,
 and `server/discover` reports the versions, capabilities and identity of the
-server. Two tools are exposed. `water-eval` takes `code` and a `session` name
+server. Two tools are exposed. `telic-eval` takes `code` and a `session` name
 and answers what the code printed; a session is a child interpreter that keeps
 its definitions, loaded data, database handles and fitted models between calls,
-so a table is read once and queried in later calls. `water-help` takes a `word`
+so a table is read once and queried in later calls. `telic-help` takes a `word`
 and answers that word's reference entry, needing no session. An error in
 evaluated code comes back as a tool result with `isError` true, carrying the
 message and trace, never as a protocol error.
@@ -712,7 +712,7 @@ used idle one being closed to make room, and a call arriving when all of them
 are busy answers `isError` rather than waiting. Native-only: sessions need
 `start-process` and the tool output is captured with `stdout>string`.
 
-Remote access is a bridge rather than Water code: run this stdio server behind a
+Remote access is a bridge rather than Telic code: run this stdio server behind a
 stdio-to-Streamable-HTTP gateway such as mcp-proxy or Supergateway, one child
 process per client session.
 
@@ -723,7 +723,7 @@ runs the tool. A handler is `( id arguments -- )`: it receives the request id an
 the parsed arguments frame, and answers by calling `mcp-tool-result`, which keeps
 the JSON-RPC envelope, `resultType` and `isError` in the library's hands. Because
 a handler answers through that word rather than by returning, it may answer
-later, which is how `water-eval` waits for its child. A handler runs inside the
+later, which is how `telic-eval` waits for its child. A handler runs inside the
 server loop, so slow work belongs in a session; a handler that computes for a
 minute holds up every other session for that minute. `tools/list` reports
 definitions in registration order, the two built-in tools first.
@@ -735,7 +735,7 @@ definitions in registration order, the two built-in tools first.
 | `mcp-tool-result` | `( id text failed -- )` | Answer a tools/call with one text content block, `failed` setting `isError`. The only way a handler should answer, since writing to stdout directly would corrupt the protocol stream |
 
 ```forth-noexec mcp-serve
-water -e '"mcp" load-library mcp-serve'
+telic -e '"mcp" load-library mcp-serve'
 ```
 ```output
 ```

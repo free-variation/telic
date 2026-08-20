@@ -1,4 +1,4 @@
-#include "water.h"
+#include "telic.h"
 #include "isocline.h"
 #include <signal.h>
 #include <sys/wait.h>
@@ -255,10 +255,10 @@ static void repl_completer(ic_completion_env_t *cenv, const char *prefix) {
 
 int platform_repl_begin(struct Interpreter *interp, int want_interactive) {
 	if (want_interactive) {
-		printf("water %s\n", VERSION);
+		printf("telic %s\n", VERSION);
 		printf("%swords%s lists every word; %shelp%s shows a quick start; %sbye%s quits\n",
 				term_bold(), term_plain(), term_bold(), term_plain(), term_bold(), term_plain());
-		ic_set_history(".water_history", -1);
+		ic_set_history(".telic_history", -1);
 		repl_interp = interp;
 		ic_set_default_completer(repl_completer, NULL);
 		ic_set_default_highlighter(repl_highlighter, NULL);

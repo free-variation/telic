@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Run the water benchmark suite against CPython and emit a markdown
+# Run the telic benchmark suite against CPython and emit a markdown
 # report on stdout (the same shape as bench/baseline-post-*.md). All progress
 # and build output goes to stderr, so the report can be captured cleanly:
 #
@@ -8,7 +8,7 @@
 #
 # Environment overrides:
 #   PYTHON        python interpreter            (default: python3.14)
-#   REPS          water reps per bench     (default: 5)
+#   REPS          telic reps per bench     (default: 5)
 #   REPS_PY       python reps per bench         (default: 3)
 #   SKIP_LEIBNIZ  set to 1 to skip leibniz      (it is the slow one: ~min)
 #   NUMPY_PYTHON  interpreter with numpy        (default: .venv, else PYTHON)
@@ -19,7 +19,7 @@ set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/.." && pwd)
-bin="$root/water"
+bin="$root/telic"
 
 python=${PYTHON:-python3.14}
 # crypto-pyaes needs the pure-Python `pyaes` module; prefer the repo .venv
@@ -82,7 +82,7 @@ trap 'rm -rf "$work"' EXIT
 log() { printf '%s\n' "$*" >&2; }
 
 # --- build -----------------------------------------------------------------
-log "building water..."
+log "building telic..."
 (cd "$root" && make) >&2 || { log "build failed"; exit 1; }
 
 # --- helpers ---------------------------------------------------------------
@@ -113,7 +113,7 @@ fmt_ms() {
 	}'
 }
 
-# python-over-water ratio, e.g. 1.28× or ~37×
+# python-over-telic ratio, e.g. 1.28× or ~37×
 ratio() {
 	awk -v p="$1" -v l="$2" 'BEGIN {
 		r = p / l
@@ -122,40 +122,40 @@ ratio() {
 	}'
 }
 
-# --- water command wrappers (each prints a full bench run) ------------
-h2o_leibniz()  { "$bin" < "$here/pyperformance/leibniz.h2o"; }
-h2o_leibniz_matrix() { "$bin" < "$here/variants/leibniz-matrix.h2o"; }
-h2o_leibniz_parallel() { "$bin" < "$here/variants/leibniz-parallel.h2o"; }
-h2o_nqueens()  { "$bin" < "$here/pyperformance/nqueens.h2o"; }
-h2o_nqueens_iter() { "$bin" < "$here/variants/nqueens-iter.h2o"; }
-h2o_fannkuch() { "$bin" < "$here/pyperformance/fannkuch.h2o"; }
-h2o_binarytrees() { "$bin" < "$here/pyperformance/binary-trees.h2o"; }
-h2o_mandelbrot() { "$bin" < "$here/pyperformance/mandelbrot.h2o"; }
-h2o_mandelbrot_matrix() { "$bin" < "$here/variants/mandelbrot-matrix.h2o"; }
-h2o_mandelbrot_par() { "$bin" < "$here/variants/mandelbrot-parallel.h2o"; }
-h2o_nbody()    { "$bin" < "$here/pyperformance/nbody.h2o"; }
-h2o_raytrace() { "$bin" < "$here/pyperformance/raytrace.h2o"; }
-h2o_raytrace_par() { "$bin" < "$here/variants/raytrace-parallel.h2o"; }
-h2o_float()    { "$bin" < "$here/pyperformance/float.h2o"; }
-h2o_crypto()   { "$bin" < "$here/pyperformance/crypto-pyaes.h2o"; }
-h2o_spectral() { "$bin" < "$here/pyperformance/spectral-norm.h2o"; }
-h2o_spectral_matrix() { "$bin" < "$here/variants/spectral-norm-matrix.h2o"; }
-h2o_scimark_lu() { "$bin" < "$here/pyperformance/scimark-lu.h2o"; }
-h2o_scimark_sor() { "$bin" < "$here/pyperformance/scimark-sor.h2o"; }
-h2o_scimark_sparse() { "$bin" < "$here/pyperformance/scimark-sparse.h2o"; }
-h2o_scimark_fft() { "$bin" < "$here/pyperformance/scimark-fft.h2o"; }
-h2o_barnes()   { "$bin" < "$here/pyperformance/barnes-hut.h2o"; }
-h2o_scimark_mc() { "$bin" < "$here/pyperformance/scimark-montecarlo.h2o"; }
-h2o_montecarlo_par() { "$bin" < "$here/variants/monte-carlo-parallel.h2o"; }
-h2o_meteor()   { "$bin" < "$here/pyperformance/meteor.h2o"; }
-h2o_hexiom()   { "$bin" < "$here/pyperformance/hexiom.h2o"; }
-h2o_regex_dna() { "$bin" < "$here/pyperformance/regex-dna.h2o"; }
-h2o_regex_compile() { "$bin" < "$here/pyperformance/regex-compile.h2o"; }
-h2o_regex_effbot() { "$bin" < "$here/pyperformance/regex-effbot.h2o"; }
-h2o_regex_v8() { "$bin" < "$here/pyperformance/regex-v8.h2o"; }
-h2o_deepcopy() { "$bin" < "$here/pyperformance/deepcopy.h2o"; }
-h2o_json_loads() { "$bin" < "$here/pyperformance/json-loads.h2o"; }
-h2o_json_dumps() { "$bin" < "$here/pyperformance/json-dumps.h2o"; }
+# --- telic command wrappers (each prints a full bench run) ------------
+telic_leibniz()  { "$bin" < "$here/pyperformance/leibniz.telic"; }
+telic_leibniz_matrix() { "$bin" < "$here/variants/leibniz-matrix.telic"; }
+telic_leibniz_parallel() { "$bin" < "$here/variants/leibniz-parallel.telic"; }
+telic_nqueens()  { "$bin" < "$here/pyperformance/nqueens.telic"; }
+telic_nqueens_iter() { "$bin" < "$here/variants/nqueens-iter.telic"; }
+telic_fannkuch() { "$bin" < "$here/pyperformance/fannkuch.telic"; }
+telic_binarytrees() { "$bin" < "$here/pyperformance/binary-trees.telic"; }
+telic_mandelbrot() { "$bin" < "$here/pyperformance/mandelbrot.telic"; }
+telic_mandelbrot_matrix() { "$bin" < "$here/variants/mandelbrot-matrix.telic"; }
+telic_mandelbrot_par() { "$bin" < "$here/variants/mandelbrot-parallel.telic"; }
+telic_nbody()    { "$bin" < "$here/pyperformance/nbody.telic"; }
+telic_raytrace() { "$bin" < "$here/pyperformance/raytrace.telic"; }
+telic_raytrace_par() { "$bin" < "$here/variants/raytrace-parallel.telic"; }
+telic_float()    { "$bin" < "$here/pyperformance/float.telic"; }
+telic_crypto()   { "$bin" < "$here/pyperformance/crypto-pyaes.telic"; }
+telic_spectral() { "$bin" < "$here/pyperformance/spectral-norm.telic"; }
+telic_spectral_matrix() { "$bin" < "$here/variants/spectral-norm-matrix.telic"; }
+telic_scimark_lu() { "$bin" < "$here/pyperformance/scimark-lu.telic"; }
+telic_scimark_sor() { "$bin" < "$here/pyperformance/scimark-sor.telic"; }
+telic_scimark_sparse() { "$bin" < "$here/pyperformance/scimark-sparse.telic"; }
+telic_scimark_fft() { "$bin" < "$here/pyperformance/scimark-fft.telic"; }
+telic_barnes()   { "$bin" < "$here/pyperformance/barnes-hut.telic"; }
+telic_scimark_mc() { "$bin" < "$here/pyperformance/scimark-montecarlo.telic"; }
+telic_montecarlo_par() { "$bin" < "$here/variants/monte-carlo-parallel.telic"; }
+telic_meteor()   { "$bin" < "$here/pyperformance/meteor.telic"; }
+telic_hexiom()   { "$bin" < "$here/pyperformance/hexiom.telic"; }
+telic_regex_dna() { "$bin" < "$here/pyperformance/regex-dna.telic"; }
+telic_regex_compile() { "$bin" < "$here/pyperformance/regex-compile.telic"; }
+telic_regex_effbot() { "$bin" < "$here/pyperformance/regex-effbot.telic"; }
+telic_regex_v8() { "$bin" < "$here/pyperformance/regex-v8.telic"; }
+telic_deepcopy() { "$bin" < "$here/pyperformance/deepcopy.telic"; }
+telic_json_loads() { "$bin" < "$here/pyperformance/json-loads.telic"; }
+telic_json_dumps() { "$bin" < "$here/pyperformance/json-dumps.telic"; }
 
 # --- python command wrappers -----------------------------------------------
 py_nqueens()  { "$python" "$here/pyperformance/pyperf_nqueens.py" "$nqueens_n"; }
@@ -165,7 +165,7 @@ py_mandelbrot() { "$python" "$here/pyperformance/pyperf_mandelbrot.py" "$mandelb
 py_nbody()    { "$python" "$here/pyperformance/pyperf_nbody.py" "$nbody_steps"; }
 py_raytrace() { "$python" "$here/pyperformance/pyperf_raytrace.py" "$raytrace_loops"; }
 # references for the pmap variants: the same algorithm in a process pool, timed
-# from pool creation onward, as water's pmap spawns its threads inside its timing
+# from pool creation onward, as telic's pmap spawns its threads inside its timing
 py_raytrace_par() { "$python" "$here/variants/parallel_raytrace.py" "$raytrace_loops" 100 100; }
 py_leibniz_parallel() { "$python" "$here/variants/parallel_leibniz.py" "$leibniz_rounds"; }
 py_montecarlo_par() { "$python" "$here/variants/parallel_montecarlo.py" 20000000; }
@@ -188,11 +188,11 @@ py_deepcopy() { "$python" "$here/pyperformance/pyperf_deepcopy.py"; }
 py_json_loads() { "$python" "$here/pyperformance/pyperf_json_loads.py"; }
 py_json_dumps() { "$python" "$here/pyperformance/pyperf_json_dumps.py"; }
 
-# numpy references for the vectorized -matrix variants (same sizes as the .h2o).
+# numpy references for the vectorized -matrix variants (same sizes as the .telic).
 np_leibniz()    { "$numpy_python" "$here/variants/numpy_leibniz_matrix.py" "$leibniz_rounds"; }
 np_mandelbrot() { "$numpy_python" "$here/variants/numpy_mandelbrot_matrix.py" "$mandelbrot_n"; }
 # numpy in a process pool, timed from pool creation onward like the other pool
-# references, since water's pmap-reduce spawns its threads inside its timing.
+# references, since telic's pmap-reduce spawns its threads inside its timing.
 np_mandelbrot_par() { "$numpy_python" "$here/variants/numpy_mandelbrot_parallel.py" "$mandelbrot_n" processes; }
 np_spectral()   { "$numpy_python" "$here/variants/numpy_spectral_norm_matrix.py" 1000 260; }
 
@@ -233,122 +233,122 @@ leibniz_r_version=4.5.2
 # ===========================================================================
 # Run everything
 # ===========================================================================
-log "water: $reps reps/bench   python: $reps_py reps/bench   ($python)"
+log "telic: $reps reps/bench   python: $reps_py reps/bench   ($python)"
 
 log "== nqueens =="
-run_reps nqueens_h2o h2o_nqueens "$reps"
-run_reps nqueens_iter_h2o h2o_nqueens_iter "$reps"
+run_reps nqueens_h2o telic_nqueens "$reps"
+run_reps nqueens_iter_h2o telic_nqueens_iter "$reps"
 run_reps nqueens_py py_nqueens "$reps_py"
 
 log "== nbody =="
-run_reps nbody_h2o h2o_nbody "$reps"
+run_reps nbody_h2o telic_nbody "$reps"
 run_reps nbody_py py_nbody "$reps_py"
 
 log "== raytrace =="
-run_reps raytrace_h2o h2o_raytrace "$reps"
-run_reps raytrace_par_h2o h2o_raytrace_par "$reps"
+run_reps raytrace_h2o telic_raytrace "$reps"
+run_reps raytrace_par_h2o telic_raytrace_par "$reps"
 run_reps raytrace_py py_raytrace "$reps_py"
 run_reps raytrace_par_py py_raytrace_par "$reps_py"
 
 log "== float =="
-run_reps float_h2o h2o_float "$reps"
+run_reps float_h2o telic_float "$reps"
 run_reps float_py py_float "$reps_py"
 
 log "== crypto-pyaes =="
-run_reps crypto_h2o h2o_crypto "$reps"
+run_reps crypto_h2o telic_crypto "$reps"
 run_reps crypto_py py_crypto "$reps_py"
 
 log "== fannkuch =="
-run_reps fannkuch_h2o h2o_fannkuch "$reps"
+run_reps fannkuch_h2o telic_fannkuch "$reps"
 run_reps fannkuch_py py_fannkuch "$reps_py"
 
 log "== binary-trees =="
-run_reps binarytrees_h2o h2o_binarytrees "$reps"
+run_reps binarytrees_h2o telic_binarytrees "$reps"
 run_reps binarytrees_py py_binarytrees "$reps_py"
 
 log "== mandelbrot =="
-run_reps mandelbrot_h2o h2o_mandelbrot "$reps"
-run_reps mandelbrot_matrix_h2o h2o_mandelbrot_matrix "$reps"
-run_reps mandelbrot_par_h2o h2o_mandelbrot_par "$reps"
+run_reps mandelbrot_h2o telic_mandelbrot "$reps"
+run_reps mandelbrot_matrix_h2o telic_mandelbrot_matrix "$reps"
+run_reps mandelbrot_par_h2o telic_mandelbrot_par "$reps"
 run_reps mandelbrot_py py_mandelbrot "$reps_py"
 [ "$have_numpy" = 1 ] && run_reps mandelbrot_np np_mandelbrot "$reps_py"
 [ "$have_numpy" = 1 ] && run_reps mandelbrot_par_np np_mandelbrot_par "$reps_py"
 
 log "== spectral-norm =="
-run_reps spectral_h2o h2o_spectral "$reps"
-run_reps spectral_matrix_h2o h2o_spectral_matrix "$reps"
+run_reps spectral_h2o telic_spectral "$reps"
+run_reps spectral_matrix_h2o telic_spectral_matrix "$reps"
 run_reps spectral_py py_spectral "$reps_py"
 [ "$have_numpy" = 1 ] && run_reps spectral_np np_spectral "$reps_py"
 
 log "== scimark-lu =="
-run_reps scimark_lu_h2o h2o_scimark_lu "$reps"
+run_reps scimark_lu_h2o telic_scimark_lu "$reps"
 run_reps scimark_lu_py py_scimark_lu "$reps_py"
 
 log "== scimark-sparse =="
-run_reps scimark_sparse_h2o h2o_scimark_sparse "$reps"
+run_reps scimark_sparse_h2o telic_scimark_sparse "$reps"
 run_reps scimark_sparse_py py_scimark_sparse "$reps_py"
 
 log "== scimark-fft =="
-run_reps scimark_fft_h2o h2o_scimark_fft "$reps"
+run_reps scimark_fft_h2o telic_scimark_fft "$reps"
 run_reps scimark_fft_py py_scimark_fft "$reps_py"
 
 log "== barnes-hut =="
-run_reps barnes_h2o h2o_barnes "$reps"
+run_reps barnes_h2o telic_barnes "$reps"
 run_reps barnes_py py_barnes "$reps_py"
 
 log "== scimark-sor =="
-run_reps scimark_sor_h2o h2o_scimark_sor "$reps"
+run_reps scimark_sor_h2o telic_scimark_sor "$reps"
 run_reps scimark_sor_py py_scimark_sor "$reps_py"
 
 log "== scimark-montecarlo =="
-run_reps scimark_mc_h2o h2o_scimark_mc "$reps"
-run_reps montecarlo_par_h2o h2o_montecarlo_par "$reps"
+run_reps scimark_mc_h2o telic_scimark_mc "$reps"
+run_reps montecarlo_par_h2o telic_montecarlo_par "$reps"
 run_reps montecarlo_par_py py_montecarlo_par "$reps_py"
 run_reps scimark_mc_py py_scimark_mc "$reps_py"
 
 log "== meteor =="
-run_reps meteor_h2o h2o_meteor "$reps"
+run_reps meteor_h2o telic_meteor "$reps"
 run_reps meteor_py py_meteor "$reps_py"
 
 log "== hexiom =="
-run_reps hexiom_h2o h2o_hexiom "$reps"
+run_reps hexiom_h2o telic_hexiom "$reps"
 run_reps hexiom_py py_hexiom "$reps_py"
 
 log "== regex-dna =="
-run_reps regex_dna_h2o h2o_regex_dna "$reps"
+run_reps regex_dna_h2o telic_regex_dna "$reps"
 run_reps regex_dna_py py_regex_dna "$reps_py"
 
 log "== regex-compile =="
-run_reps regex_compile_h2o h2o_regex_compile "$reps_compile"
+run_reps regex_compile_h2o telic_regex_compile "$reps_compile"
 run_reps regex_compile_py py_regex_compile "$reps_compile"
 
 log "== regex-effbot =="
-run_reps regex_effbot_h2o h2o_regex_effbot "$reps"
+run_reps regex_effbot_h2o telic_regex_effbot "$reps"
 run_reps regex_effbot_py py_regex_effbot "$reps_py"
 
 log "== regex-v8 =="
-run_reps regex_v8_h2o h2o_regex_v8 "$reps"
+run_reps regex_v8_h2o telic_regex_v8 "$reps"
 run_reps regex_v8_py py_regex_v8 "$reps_py"
 
 log "== deepcopy =="
-run_reps deepcopy_h2o h2o_deepcopy "$reps"
+run_reps deepcopy_h2o telic_deepcopy "$reps"
 run_reps deepcopy_py py_deepcopy "$reps_py"
 
 log "== json-loads =="
-run_reps json_loads_h2o h2o_json_loads "$reps"
+run_reps json_loads_h2o telic_json_loads "$reps"
 run_reps json_loads_py py_json_loads "$reps_py"
 
 log "== json-dumps =="
-run_reps json_dumps_h2o h2o_json_dumps "$reps"
+run_reps json_dumps_h2o telic_json_dumps "$reps"
 run_reps json_dumps_py py_json_dumps "$reps_py"
 
 have_leibniz=0
 have_leibniz_r=0
 if [ "$skip_leibniz" != 1 ]; then
 	log "== leibniz + leibniz-matrix (slow; python/R refs are cached) =="
-	run_reps leibniz_h2o h2o_leibniz "$reps"
-	run_reps leibniz_matrix_h2o h2o_leibniz_matrix "$reps"
-	run_reps leibniz_parallel_h2o h2o_leibniz_parallel "$reps"
+	run_reps leibniz_h2o telic_leibniz "$reps"
+	run_reps leibniz_matrix_h2o telic_leibniz_matrix "$reps"
+	run_reps leibniz_parallel_h2o telic_leibniz_parallel "$reps"
 	run_reps leibniz_parallel_py py_leibniz_parallel "$reps_py"
 	[ "$have_numpy" = 1 ] && run_reps leibniz_np np_leibniz "$reps_py"
 	have_leibniz=1
@@ -366,7 +366,7 @@ emit() { printf '%s\n' "$*"; }
 
 emit "# Benchmark report"
 emit ""
-emit "Generated by \`bench/run-benchmarks.sh\` ($reps water reps, $reps_py python reps; medians)."
+emit "Generated by \`bench/run-benchmarks.sh\` ($reps telic reps, $reps_py python reps; medians)."
 emit ""
 emit "## Environment"
 emit ""
@@ -380,18 +380,18 @@ emit "- **Date**: $today"
 emit ""
 
 # ---- standalone table ----
-emit "## Standalone benchmarks — water vs CPython $pyver"
+emit "## Standalone benchmarks — telic vs CPython $pyver"
 emit ""
-emit "| benchmark | size | water | python | py / h2o |"
+emit "| benchmark | size | telic | python | py / telic |"
 emit "|:----------|:-----|-----------:|-------:|--------:|"
 
 row() {
-	# $1 label  $2 size  $3 h2o_key  $4 py_elapsed_or_key  $5 (py is literal?)
-	local label=$1 size=$2 h2o_key=$3
-	local h2o py
-	h2o=$(median_elapsed "$h2o_key")
+	# $1 label  $2 size  $3 telic_key  $4 py_elapsed_or_key  $5 (py is literal?)
+	local label=$1 size=$2 telic_key=$3
+	local telic py
+	telic=$(median_elapsed "$telic_key")
 	py=$4
-	emit "| $label | $size | $(fmt_s "$h2o") | $(fmt_s "$py") | $(ratio "$py" "$h2o") |"
+	emit "| $label | $size | $(fmt_s "$telic") | $(fmt_s "$py") | $(ratio "$py" "$telic") |"
 }
 
 # The -matrix rows are vectorized, so their reference is numpy; without numpy
@@ -454,7 +454,7 @@ emit ""
 # ---- verification ----
 emit "## Verification (results must match)"
 emit ""
-emit "| benchmark | water | python |"
+emit "| benchmark | telic | python |"
 emit "|:----------|:-----------|:-------|"
 emit "| nqueens | $(result_line nqueens_h2o 'solutions') | $(result_line nqueens_py 'solutions') |"
 emit "| nbody | $(result_line nbody_h2o 'final energy') | $(result_line nbody_py 'final energy') |"

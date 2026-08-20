@@ -1,6 +1,6 @@
-# Regression in Water
+# Regression in Telic
 
-This document explains how Water fits linear and logistic regressions, and
+This document explains how Telic fits linear and logistic regressions, and
 the regression trees that drop the linear predictor altogether. That requires
 explaining the *mathematics*, because the code is the math made executable. So
 it does both at once: each idea is derived far enough that you could
@@ -13,7 +13,7 @@ It assumes you've seen means, variance, vectors and matrices, and the idea of a
 sampling distribution — a second-semester course. Throughout, `n` is the number
 of observations and `k` the number of predictors; one observation is a row of
 predictors `x = (x₁, …, x_k)` paired with an outcome `y`. The statistics layer
-lives in `lib/statistics.h2o`, on top of the matrix kernels and an FFI to LAPACK.
+lives in `lib/statistics.telic`, on top of the matrix kernels and an FFI to LAPACK.
 
 ---
 
@@ -41,7 +41,7 @@ computed all at once, are the matrix–vector product
 ```
 
 That single column of ones is the only structural trick here, and it's why
-Water builds a design matrix in two steps: `dataset>matrix` turns the chosen
+Telic builds a design matrix in two steps: `dataset>matrix` turns the chosen
 predictor columns into the numeric matrix, and `with-intercept` prepends the
 column of ones. From here, everything is two choices:
 
@@ -120,10 +120,10 @@ the stationarity condition `Xᵀ(y − Xβ) = 0` directly and the geometry appea
 Linear regression *is* orthogonal projection, and the algebra and the geometry
 are the same statement.
 
-### How Water actually solves it — and why not by that formula
+### How Telic actually solves it — and why not by that formula
 
 The normal equations have a tidy closed form, `β̂ = (XᵀX)⁻¹Xᵀy`, and a naive
-implementation would compute exactly that. Water does **not**, for a
+implementation would compute exactly that. Telic does **not**, for a
 numerical reason worth understanding. Forming `XᵀX` *squares the conditioning* of
 the problem: roughly, the ratio between the most and least informative directions
 in `X` gets squared, and any near-redundancy among predictors (two columns nearly
@@ -131,7 +131,7 @@ collinear) — already a strain — becomes a catastrophe, with the inverse
 amplifying rounding error wildly. You can lose half your significant digits just
 by building `XᵀX`.
 
-The cure is to never form it. Water solves the least-squares problem
+The cure is to never form it. Telic solves the least-squares problem
 *directly* through the **singular value decomposition** (SVD). The SVD factors any
 matrix as
 
@@ -199,7 +199,7 @@ arbitrary choice of squashing function; it is *the* function whose inverse, the
 **logit** `log(p/(1−p))`, is linear. The straight line lives on the log-odds
 scale, the curve lives on the probability scale, and the logit is the bridge.
 This is why `βⱼ` reads as "a one-unit rise in `xⱼ` adds `βⱼ` to the log-odds," and
-why `e^(βⱼ)` is the **odds ratio** — the factor the odds multiply by. Water's
+why `e^(βⱼ)` is the **odds ratio** — the factor the odds multiply by. Telic's
 `sigmoid` word applies `σ` element-wise to a vector of linear predictors.
 
 ### What makes coefficients "good": likelihood, derived
@@ -263,7 +263,7 @@ least squares (IRLS)**: from a guess for `β`, compute `p` and the weights, buil
 the working response, solve a weighted least squares for a better `β`, and repeat
 until `β` stops moving. A handful of iterations suffices.
 
-Water's `fit-logistic` is this loop, and it reuses §2's machinery exactly. A
+Telic's `fit-logistic` is this loop, and it reuses §2's machinery exactly. A
 weighted least squares is solved by *scaling each row by `√wᵢ`* and running an
 ordinary fit, so each iteration computes `η = Xβ` (a matrix multiply via
 `dgemm-nn`), `p = sigmoid(η)`, the weights `w` and their roots, the scaled design
@@ -278,7 +278,7 @@ do a little better by making the curve steeper, driving a coefficient toward `±
 the likelihood has no finite peak and the iteration never settles. This is
 **separation**, and it's common in small or tidy datasets.
 
-The cure Water applies is the **Firth correction**: a principled penalty that
+The cure Telic applies is the **Firth correction**: a principled penalty that
 adjusts each observation's residual by its **leverage**. Leverage `hᵢ` measures how
 much observation `i` pulls its own fitted value — and it falls straight out of the
 SVD of the weighted design: with `√W·X = UΣVᵀ`, the leverages are `hᵢ = Σⱼ Uᵢⱼ²`,
@@ -320,7 +320,7 @@ Both build a linear predictor; both estimate by making the observed data as
 probable as possible. The only real difference is the **link** tying `η` to the
 outcome — identity for a continuous `y`, logit for a binary one. Other links and
 outcome types (counts, rates) give the broader family of **generalized linear
-models**; these two are its most-used members, and Water implements exactly
+models**; these two are its most-used members, and Telic implements exactly
 this pair.
 
 ---
@@ -347,7 +347,7 @@ That collection stands in for the sampling distribution of `β̂`, and the
 uncertainty reads straight off it: the **standard error** is the standard
 deviation of the `β*` values; a 95% **confidence interval** is their 2.5th-to-
 97.5th percentile band; the **bias** is the gap between the average `β*` and the
-original `β̂` (near zero means well-behaved). Water reports exactly these
+original `β̂` (near zero means well-behaved). Telic reports exactly these
 three per coefficient.
 
 The bootstrap needs no formula special to the model — the same resample-and-refit
@@ -355,7 +355,7 @@ recipe serves linear regression, logistic regression, a median, anything you can
 compute — and it assumes nothing about the *shape* of the sampling distribution;
 it shows you the shape the data actually produces.
 
-### How Water does it
+### How Telic does it
 
 `regress-with` is the shared pipeline: build the design matrix (`dataset>matrix`
 + `with-intercept`) and the response, fit once on the full data for the point
@@ -383,7 +383,7 @@ assumptions — for linear regression, a standard error built from `σ` and
 `(XᵀX)⁻¹` with `t`-distribution intervals; for logistic, approximate errors from
 the log-likelihood's curvature at the peak. When their assumptions hold they agree
 closely with the bootstrap (a useful cross-check: both estimate the same sampling
-distribution, one by theory, one by simulation). Water implements only the
+distribution, one by theory, one by simulation). Telic implements only the
 bootstrap: it needs no per-model formula, makes no normality assumption, parallelizes
 cleanly, and the cost it trades for that — refitting many times — is exactly what
 `pmap` makes cheap.
@@ -410,7 +410,7 @@ No model is unconditionally true.
 - **Correlation is not causation.** A coefficient is an association given the other
   predictors; it does not by itself license a causal claim.
 
-The models are powerful because they are simple, and Water makes that
+The models are powerful because they are simple, and Telic makes that
 simplicity literal: one SVD-based least-squares solver does the linear fit, every
 IRLS step of the logistic fit, *and* the leverages Firth needs — and one
 resample-and-refit loop, parallel over `pmap`, supplies all the uncertainty.
@@ -548,5 +548,5 @@ fitted function is piecewise constant and cannot extrapolate beyond the
 training range, and the fit is **high-variance** — a small change in the data
 can change the early splits and with them the whole partition. Pruning reduces
 the variance within one tree; averaging many trees removes it, which is what
-gradient boosting does, and why `lib/statistics.h2o`'s `fit-xgb` is the
+gradient boosting does, and why `lib/statistics.telic`'s `fit-xgb` is the
 prediction-oriented complement to the single interpretable tree here.

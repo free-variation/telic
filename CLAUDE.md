@@ -1,4 +1,4 @@
-# Water — code conventions
+# Telic — code conventions
 
 ## C (src/c)
 - No comments anywhere in .c/.h. Constraints a future change must honor go
@@ -23,7 +23,7 @@
   the REQUIRE macros gain no instructions.
 
 ## C file map (src/c)
-reference.md rows name each word's owning file; water.h declarations group
+reference.md rows name each word's owning file; telic.h declarations group
 by file in SRCS order. What each file is:
 - core.c — the machine: dispatch loop, dictionary and word headers
   (create_header/emit), GC, threaded-code internals (literal/branch/
@@ -51,7 +51,7 @@ by file in SRCS order. What each file is:
 - strings.c — PCRE2 regex (match/split/replace), substrings, codepoints.
 - io.c — files, env, cwd, TSV, stream read/write, stdin/stdout/stderr.
 - logic.c — logic variables, unify, the trail, amb/backtracking (the
-  fact database is forth: src/forth/logic.h2o).
+  fact database is forth: src/forth/logic.telic).
 - database.c — SQLite (db-open/db-exec/db-query).
 - foreign.c — libffi (ffi-open/ffi-function, matrix>pointer).
 - dimension.c — units and quantities (unit/base, dimensional
@@ -115,7 +115,7 @@ by file in SRCS order. What each file is:
 - gc_root_push right after allocation, pop before the final stack write;
   every error path pops before returning; roots never live across
   DISPATCH. Zero a fill-incrementally array before rooting it.
-- static by default; only p_* words and water.h API are extern. Helpers
+- static by default; only p_* words and telic.h API are extern. Helpers
   sit directly above their first user; forward-declare only recursion.
 - Word families are SHOUT-CASE macros taking (c_name, "word-name", op),
   instantiations listed immediately below, one per line.
@@ -138,13 +138,13 @@ by file in SRCS order. What each file is:
 - Typedefs CamelCase; enum members domain-prefixed SHOUT; kernel context
   structs XxxContext built with designated initializers. File-scope state
   grouped at top, static, domain-prefixed. static inline for hot
-  predicates, always_inline only for the hottest water.h helpers,
+  predicates, always_inline only for the hottest telic.h helpers,
   MUSTTAIL for tail recursion. Near-duplicate words factor through a
   callback + op-string helper, leaving p_* as two-liners. File-local
   #define tunables sit beside their use; file-private POP_X macros copy
-  the water.h family's shape.
+  the telic.h family's shape.
 
-## water.h layout (comment-free; this is its table of contents)
+## telic.h layout (comment-free; this is its table of contents)
 1. Guard, VERSION, includes, cell typedef.
 2. Capacity constants grouped by subsystem: dictionary/pools, stacks/
    locals, GC/arena, workers, logic, regex/JSON, databases, trace/print.
@@ -164,7 +164,7 @@ can express it. New declaration → its file's block, alphabetical slot. A
 new inline that calls functions → the tail.
 
 ## Forth (src/forth, lib/, tests)
-- The embedded library is src/forth/*.h2o, concatenated in FORTH_SRCS
+- The embedded library is src/forth/*.telic, concatenated in FORTH_SRCS
   order (Makefile) and burned into the binary. Binding is early, so a
   word must be defined in an earlier file (or earlier in the same file)
   than every use; changing the order changes what compiles. A new
@@ -176,12 +176,12 @@ new inline that calls functions → the tail.
 - C escape hatches are parenthesized primitives wrapped by the public
   word: `: wall-now (wall-now) s ;`. Fully-parameterized primitives carry
   -ext, wrapped by a defaulting word.
-- Lib overrides a C word by redefinition (statistics.h2o's dgemm-*).
+- Lib overrides a C word by redefinition (statistics.telic's dgemm-*).
   Binding is early: earlier compilations keep the old target; a
   self-reference recurses, so capture the old xt with `'` first if
   needed.
 - LAPACK-free stats live in the embedded library (wasm-capable);
-  statistics.h2o accelerates one by redefining it in toto (early
+  statistics.telic accelerates one by redefining it in toto (early
   binding makes partial masking useless). The word's golden runs native
   (masked) and wasm (unmasked) and must agree, pinning both copies.
 - Locals: `>name` receives from the stack at entry, bare names are
@@ -217,7 +217,7 @@ new inline that calls functions → the tail.
   table plus the provenance line naming host, versions and reps; refresh it
   from a full run, never edit a cell by hand.
 - docs/reference.md (built-ins and embedded src/forth words) and
-  docs/reference-libraries.md (loadable lib/*.h2o words) are the source of
+  docs/reference-libraries.md (loadable lib/*.telic words) are the source of
   truth: gen-help.py (help table, automatic in make) reads both and merges
   them into one name-sorted table, so a lib word answers to help/man/apropos
   once its library is loaded; gen-editors.py (make editors) reads
@@ -234,13 +234,13 @@ new inline that calls functions → the tail.
   fences allowed inside list bullets, and a bare ```forth fence there is
   display-only (sketches and fragments stay untagged). gen-pack.py
   (make pack) concatenates the README taste, both references, and
-  idioms.md verbatim into water-pack.md + llms.txt (gitignored), with a
+  idioms.md verbatim into telic-pack.md + llms.txt (gitignored), with a
   hard-fail chars/4 token budget. Never
   hand-edit a generated file: help_table.c,
   forth-words.txt, repl_highlight_groups.h,
-  editors/vim/syntax/water.vim, editors/vscode/syntaxes/water.tmLanguage.json,
-  tests/090_readme_taste.h2o, tests/lib/090_readme_taste_fit.h2o,
-  water-pack.md, llms.txt.
+  editors/vim/syntax/telic.vim, editors/vscode/syntaxes/telic.tmLanguage.json,
+  tests/090_readme_taste.telic, tests/lib/090_readme_taste_fit.telic,
+  telic-pack.md, llms.txt.
   The rest of editors/ (vim indent/, ftplugin/, ftdetect/, and vscode's
   package.json, language-configuration.json, README.md) has no generator and
   is edited by hand.
@@ -253,17 +253,17 @@ new inline that calls functions → the tail.
   mention if user-facing, golden test, wasm suite run.
 
 ## Tests
-- Golden pairs in tests/ (see run.sh); regenerate with ./water -b <
-  tests/NNN_name.h2o > tests/NNN_name.expected — inspect every changed
+- Golden pairs in tests/ (see run.sh); regenerate with ./telic -b <
+  tests/NNN_name.telic > tests/NNN_name.expected — inspect every changed
   line before accepting.
 - A test that reads stdin adds tests/NNN_name.stdin; both runners then pass
   the program as a file argument and feed that file, so regenerate with
-  ./water -b tests/NNN_name.h2o < tests/NNN_name.stdin > tests/NNN_name.expected.
+  ./telic -b tests/NNN_name.telic < tests/NNN_name.stdin > tests/NNN_name.expected.
 - Tests that `load` a lib/ library needing external deps (LAPACK, xgboost)
   live in tests/lib/ and run via `make test-libs` (tests/run-libs.sh),
   native-only and excluded from `make test` so the core suite builds without
   those deps. A new such test goes in tests/lib/, not the wasm-skip list.
-  Pure-forth lib tests (e.g. lib/plot.h2o) stay in the core suite.
+  Pure-forth lib tests (e.g. lib/plot.telic) stay in the core suite.
 - Seeded RNG for anything random; both native and wasm suites must pass.
 - Header comment names the word, stack effect, semantics. Sections split
   with `\ === title ===`. Every output line carries an aligned trailing

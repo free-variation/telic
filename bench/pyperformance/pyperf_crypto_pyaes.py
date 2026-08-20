@@ -1,5 +1,5 @@
 """
-AES-128 CTR benchmark, the reference for crypto-pyaes.h2o. The key and cleartext
+AES-128 CTR benchmark, the reference for crypto-pyaes.telic. The key and cleartext
 are pyperformance bm_crypto_pyaes's, and each loop encrypts then decrypts with a
 fresh CTR object as that benchmark does; the water port uses the same two values,
 so the comparison and the checksum line up. Uses the pure-Python `pyaes` module
@@ -16,7 +16,7 @@ NBYTES = len(MSG)
 
 
 def encrypt(data):
-    # default Counter starts at 1, matching the .h2o (counter = block index + 1)
+    # default Counter starts at 1, matching the .telic (counter = block index + 1)
     return pyaes.AESModeOfOperationCTR(KEY).encrypt(data)
 
 

@@ -1,4 +1,4 @@
-#include "water.h"
+#include "telic.h"
 #include <complex.h>
 
 
@@ -1808,16 +1808,16 @@ static void print_word_group(const char **names, const int *groups, int n_collec
 
 #include "logo_embed.h"
 
-void p_water(DISPATCH_ARGS) {
-	fwrite(water_logo_txt, 1, water_logo_txt_len, stdout);
-	printf("\n%*swater %s\n", 42, "", VERSION);
+void p_telic(DISPATCH_ARGS) {
+	fwrite(telic_logo_txt, 1, telic_logo_txt_len, stdout);
+	printf("\n%*stelic %s\n", 42, "", VERSION);
 	printf("%*shttps://github.com/free-variation/water\n", 30, "");
 	fflush(stdout);
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
 
-void p_water_version(DISPATCH_ARGS) {
+void p_telic_version(DISPATCH_ARGS) {
 	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);
 	int handle = object_new_string(interp, VERSION, (int)strlen(VERSION));
 	if (interp->error_flag)

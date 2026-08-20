@@ -1,7 +1,7 @@
 % Unification micro-benchmarks — SWI-Prolog reference for the unification
-% sections of logic.h2o (deep spine, wide, nested frame). Each term is built
+% sections of logic.telic (deep spine, wide, nested frame). Each term is built
 % once; the loop unifies it against ground then backtracks, so it measures
-% unify + bind + trail-undo, as logic.h2o does. Note: Prolog has no open
+% unify + bind + trail-undo, as logic.telic does. Note: Prolog has no open
 % records, so `frame` is a fixed compound (no :extra field), and `wide` is a
 % list where water uses a flat array.
 :- initialization(main, main).

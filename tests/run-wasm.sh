@@ -1,8 +1,8 @@
 #!/bin/sh
-# Golden-output test harness for the WASM/WASI build of water.
+# Golden-output test harness for the WASM/WASI build of telic.
 #
-# Mirrors run.sh but runs water.wasm under a WASI runtime instead of
-# the native binary. Uses the same <name>.h2o / <name>.expected pairs, and the
+# Mirrors run.sh but runs telic.wasm under a WASI runtime instead of
+# the native binary. Uses the same <name>.telic / <name>.expected pairs, and the
 # same <name>.stdin convention: with that file present the program goes in as a
 # file argument (resolved inside the preopened root) and <name>.stdin is fed on
 # stdin, so a test that reads stdin has something to read.
@@ -17,13 +17,13 @@
 #             on stdin), overriding the default. On a-shell, which has no
 #             separate runtime, set WASM_EXEC=wasm.
 #   WASMTIME  WASI runtime used when WASM_EXEC is unset (default: wasmtime)
-#   WASM      module path (default: ../water.wasm)
+#   WASM      module path (default: ../telic.wasm)
 
 set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/.." && pwd)
-module=${WASM:-$root/water.wasm}
+module=${WASM:-$root/telic.wasm}
 skiplist="$here/wasm-skip.txt"
 
 if [ -n "${WASM_EXEC:-}" ]; then
@@ -39,9 +39,9 @@ pass=0
 fail=0
 skip=0
 
-for input in "$here"/*.h2o; do
+for input in "$here"/*.telic; do
     [ -e "$input" ] || { echo "no tests found"; exit 1; }
-    name=$(basename "$input" .h2o)
+    name=$(basename "$input" .telic)
     expected="$here/$name.expected"
     if [ ! -f "$expected" ]; then
         echo "SKIP $name (no .expected file)"
@@ -62,7 +62,7 @@ for input in "$here"/*.h2o; do
     # root (guest ".") for relative loads and /tmp for scratch files, so file
     # I/O tests get the same access the native harness has.
     if [ -f "$here/$name.stdin" ]; then
-        (cd "$root" && $exec_cmd "$module" -b "tests/$name.h2o" < "$here/$name.stdin") > "$actual" 2>&1
+        (cd "$root" && $exec_cmd "$module" -b "tests/$name.telic" < "$here/$name.stdin") > "$actual" 2>&1
     else
         (cd "$root" && $exec_cmd "$module" -b < "$input") > "$actual" 2>&1
     fi

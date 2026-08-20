@@ -1,0 +1,38 @@
+\ CPU stress — saturate every core with pure floating-point work via pmap.
+\ Each work item runs a long, allocation-free float mill (results are immediate
+\ floats), so the run stays under the parallel headroom and just burns CPU on
+\ every core at once. One line per round; let it run to hear the fans, Ctrl-C
+\ to stop.
+\
+\ Run:  ./water -b < bench/cpu-stress.telic
+\ Knobs: iters (work per item), domain (items/round), workers (cores), rounds.
+
+variable t0
+
+10000000 constant iters
+num-cores to workers
+num-cores 16 * to domain
+1000000 constant rounds
+1 domain range to seeds
+
+( seed -- result )  \ a long, allocation-free float mill
+: crunch
+	| seed |
+	seed  seed 1.0 +
+	[: over + 0.5 * :] iters times
+	nip ;
+
+( -- )  \ loop rounds times; each round is a full-core pmap over every work item
+: stress ^t0 |
+	0 to i
+	begin i rounds < while
+		now to t0
+		seeds workers 1 ' crunch pmap-ext 0.0 [: + :] reduce
+		i 1 + now t0 - "  round {1}: {0} s   cksum {2}" format . cr
+		++ i
+	repeat ;
+
+workers "cpu-stress: pinning {0} cores" format . cr
+domain iters "  {1} items/round x {0} float-iters   (Ctrl-C to stop)" format . cr
+cr
+stress

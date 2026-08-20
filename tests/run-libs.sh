@@ -1,8 +1,8 @@
 #!/bin/sh
-# Loadable-library test harness (tests/lib/*.h2o).
+# Loadable-library test harness (tests/lib/*.telic).
 #
 # These tests `load` a lib/ library and need its external dependencies —
-# LAPACK through the vendored liblapacke_water shared library, and (for the
+# LAPACK through the vendored liblapacke_telic shared library, and (for the
 # xgboost tests) libxgboost. The core `make test` suite excludes them so it
 # builds and passes without those deps installed. Native-only: the wasm build
 # excludes the FFI, so there is no wasm counterpart.
@@ -21,18 +21,18 @@ set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/.." && pwd)
-bin="$root/water"
+bin="$root/telic"
 
 (cd "$root" && make all) || { echo "build failed"; exit 1; }
 
 pass=0
 fail=0
 
-for input in "$here"/lib/*.h2o; do
+for input in "$here"/lib/*.telic; do
     [ -e "$input" ] || { echo "no lib tests found"; exit 1; }
-    name=$(basename "$input" .h2o)
+    name=$(basename "$input" .telic)
     expected="$here/lib/$name.expected"
-    actual=$(mktemp "${TMPDIR:-/tmp}/water.XXXXXX")
+    actual=$(mktemp "${TMPDIR:-/tmp}/telic.XXXXXX")
     (cd "$root" && "$bin" "$input" > "$actual" 2>&1)
     code=$?
     if [ -f "$expected" ]; then
@@ -40,8 +40,8 @@ for input in "$here"/lib/*.h2o; do
         expected_cmp="$expected"
         actual_cmp="$actual"
         if [ -f "$here/lib/$name.sed" ]; then
-            expected_cmp=$(mktemp "${TMPDIR:-/tmp}/water.XXXXXX")
-            actual_cmp=$(mktemp "${TMPDIR:-/tmp}/water.XXXXXX")
+            expected_cmp=$(mktemp "${TMPDIR:-/tmp}/telic.XXXXXX")
+            actual_cmp=$(mktemp "${TMPDIR:-/tmp}/telic.XXXXXX")
             sed -E -f "$here/lib/$name.sed" "$expected" > "$expected_cmp"
             sed -E -f "$here/lib/$name.sed" "$actual" > "$actual_cmp"
         fi

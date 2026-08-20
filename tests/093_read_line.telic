@@ -1,0 +1,37 @@
+\ read-line ( stream -- str | none ): one line, terminator dropped, the bytes
+\ after it left in the stream. Read over stdin, the one stream WASI has without
+\ fork/exec, so this runs on both platforms; the cases needing a pipe are in
+\ 158_stdout_to_string.telic. The harness sees 157_read_line.stdin beside this
+\ file and so passes this program as a file argument, feeding that file on stdin.
+
+stdin to requests
+
+\ === wait-readable over stdin: bytes are already waiting ===
+[ requests ] 5 wait-readable size . cr               \ 1
+
+\ === lines arrive one per call, terminator dropped ===
+requests read-line . cr                              \ alpha
+requests read-line . cr                              \ beta
+
+\ === an empty line is an empty string, not none ===
+requests read-line dup byte-size . none? . cr        \ 0 0
+requests read-line . cr                              \ x
+
+\ === a carriage return before the terminator is content, as under "\n" split ===
+requests read-line byte-size . cr                    \ 5
+"crlf" [ 13 10 ] codepoints>string + "\n" split 0 @i byte-size . cr   \ 5
+
+\ === no buffering: read answers every byte read-line did not consume ===
+requests read-line . cr                              \ one
+requests read . cr                                   \ two, three, each on its own line
+
+\ === end of input is none ===
+requests read-line none? . cr                        \ 1
+
+\ === read-available at end of input answers none too ===
+requests read-available none? . cr                   \ 1
+
+\ === errors ===
+requests close
+[: requests read-line :] catch drop :message @ . cr  \ (a closed stream)
+[: 3 read-line :] catch drop :message @ . cr         \ (not a stream)

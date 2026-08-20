@@ -1,10 +1,10 @@
-error: cannot open definitely-not-a-file.h2o
+error: cannot open definitely-not-a-file.telic
 in load
 survived 
-16 9 :red 0 [ 1 4 9 ] 14 49 /tmp/lf141a.h2o:3: unknown word: bogus 
-/tmp/lf141b.h2o:2: division by zero 
-/tmp/lf141c.h2o:2: unterminated definition 
-/tmp/lf141inner.h2o:1: unknown word: oops (did you mean loop?) 
+16 9 :red 0 [ 1 4 9 ] 14 49 /tmp/lf141a.telic:3: unknown word: bogus 
+/tmp/lf141b.telic:2: division by zero 
+/tmp/lf141c.telic:2: unterminated definition 
+/tmp/lf141inner.telic:1: unknown word: oops (did you mean loop?) 
 42 
 7 
 15 

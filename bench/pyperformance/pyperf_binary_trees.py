@@ -2,7 +2,7 @@
 binary-trees — Computer Language Benchmarks Game.
 
 Allocation / GC stress: build and traverse many short-lived binary trees.
-Matches bench/pyperformance/binary-trees.h2o (same tree shape and checksum).
+Matches bench/pyperformance/binary-trees.telic (same tree shape and checksum).
 """
 
 import sys

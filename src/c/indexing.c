@@ -1,5 +1,5 @@
 
-#include "water.h"
+#include "telic.h"
 
 static inline __attribute__((always_inline)) Val *array_index_fetch(Interpreter *interp, cell *sync_ip, Val *sp, Val source_val, int index) {
 	if (VAL_TAG(source_val) == T_ARRAY) {

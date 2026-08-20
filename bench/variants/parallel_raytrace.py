@@ -1,5 +1,5 @@
 """
-raytrace, parallel — the counterpart of bench/variants/raytrace-parallel.h2o.
+raytrace, parallel — the counterpart of bench/variants/raytrace-parallel.telic.
 
 Scanlines are independent, so each row's contribution to the checksum (the sum
 of its clamped colour bytes) is computed by a worker and the rows are summed,

@@ -1,5 +1,5 @@
 """
-mandelbrot, parallel — the counterpart of bench/variants/mandelbrot-parallel.h2o.
+mandelbrot, parallel — the counterpart of bench/variants/mandelbrot-parallel.telic.
 
 Rows are independent, so each row block's in-set count is computed by a worker
 and the counts are summed. Three modes, because Python's parallel story depends
@@ -20,7 +20,7 @@ own timed region; the setup share is printed separately, and for 16 CPython
 processes it exceeds the compute.
 
 The numpy modes iterate every pixel max_iter times with no early exit, as
-bench/variants/mandelbrot-matrix.h2o does; the scalar mode exits early per
+bench/variants/mandelbrot-matrix.telic does; the scalar mode exits early per
 pixel. All three give the serial checksum.
 """
 

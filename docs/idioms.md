@@ -1,4 +1,4 @@
-# Water idioms
+# Telic idioms
 
 Compositions that recur across the embedded library, the loadable libraries,
 the benchmarks, and working analyses. Each entry is quoted from a real
@@ -16,8 +16,8 @@ left on the stack.
 { :year y :month m 1 + } date>epoch                 \ an expression as a frame value (days-in-month)
 [ width text size - 0 max2 spaces text ] "" join    \ the pad computed inside the array (pad-left)
 [ "curl" "-s" url "-H" "x-api-key: " "ANTHROPIC_API_KEY" env + "-d" body ]
-                                                    \ an argv assembled mid-literal (lib/claude.h2o)
-[ maxx maxy maxz ] frame>json                       \ variables read into a result array (bench/float.h2o)
+                                                    \ an argv assembled mid-literal (lib/claude.telic)
+[ maxx maxy maxz ] frame>json                       \ variables read into a result array (bench/float.telic)
 ```
 
 A frame literal of computed columns is ordinary code:
@@ -188,7 +188,7 @@ two interoperate — a `db-query` result is already relation-shaped.
 
 - `matches?` is the non-destructive test — unify, roll the trail back, answer
   a flag — so pattern tests compose in straight-line code; `query` is exactly
-  `matches?` under `filter` (logic.h2o):
+  `matches?` under `filter` (logic.telic):
 
   ```forth
   pattern [: row pattern | pattern row matches? :] curry filter
@@ -224,7 +224,7 @@ read each index by name. `times`, `i-times`, and `fold-times` are the
 quotation forms — for the top level, for an xt in hand, and for map-folds.
 
 - Indexed fill — initialize a segment or array by index (the shape of
-  bench/float.h2o's `build-points`):
+  bench/float.telic's `build-points`):
 
   ```forth indexed-fill
   variable xs
@@ -242,7 +242,7 @@ quotation forms — for the top level, for an xt in hand, and for map-folds.
   ```
 
 - Nested counted loops read both indices by name, and the loop's own
-  accumulation writes the word's locals directly (bench/nbody.h2o, `energy`):
+  accumulation writes the word's locals directly (bench/nbody.telic, `energy`):
 
   ```forth nested-do
   : upper-pairs
@@ -271,7 +271,7 @@ quotation forms — for the top level, for an xt in hand, and for map-folds.
   The stack-accumulator form `0 swap [: + :] swap i-times` is the fallback
   when the body already leaves values.
 
-- First-element-as-init fold over a pairwise word (lib/statistics.h2o,
+- First-element-as-init fold over a pairwise word (lib/statistics.telic,
   `hstack-all`):
 
   ```forth head-init-fold
@@ -283,7 +283,7 @@ quotation forms — for the top level, for an xt in hand, and for map-folds.
   ```
 
 - Chunked parallel sum: indices as the work list, one partial per worker,
-  serial combine (bench/variants/leibniz-parallel.h2o):
+  serial combine (bench/variants/leibniz-parallel.telic):
 
   ```forth
   0 chunks 1- range
@@ -302,10 +302,10 @@ traversals to one word each (`find-first` and `any?` short-circuit).
 - A named word passes by tick where a quotation would only wrap it:
 
   ```forth
-  : print-raw string>codepoints ' emit each ;   \ repl.h2o
-  ' file-exists? find-first                     \ find-executable (io.h2o)
-  cells ' quantity? all?                        \ column-from-cells (datasets.h2o)
-  dataset values ' column>array map transpose   \ dataset-rows (datasets.h2o)
+  : print-raw string>codepoints ' emit each ;   \ repl.telic
+  ' file-exists? find-first                     \ find-executable (io.telic)
+  cells ' quantity? all?                        \ column-from-cells (datasets.telic)
+  dataset values ' column>array map transpose   \ dataset-rows (datasets.telic)
   ```
 
 - Map-then-reduce pipelines read as one sentence — the widest string in an
@@ -391,9 +391,9 @@ is the argument, and one short regex usually does it:
 
 ```forth
 browser "^/" has?                  \ absolute path? (env-browser)
-dup "\.h2o$" has? not if ".h2o" + then \ ensure a suffix (load-library)
-: basename "^.*/" "" replace ;     \ last path component (strings.h2o)
-: run " +" split start-process ;   \ tokenize on space runs (subprocess.h2o)
+dup "\.telic$" has? not if ".telic" + then \ ensure a suffix (load-library)
+: basename "^.*/" "" replace ;     \ last path component (strings.telic)
+: run " +" split start-process ;   \ tokenize on space runs (subprocess.telic)
 "x=42" "(\w+)=(\d+)" match         \ parse by capture → [ "x=42" "x" "42" ]
 ```
 
@@ -457,7 +457,7 @@ a quantity in `s`, so the units machinery is the date arithmetic.
 - The boundary strip/attach pattern: dimension-blind code (a C primitive, a
   matrix kernel) sits behind a word that strips the unit going in — divide by
   one unit — and re-attaches it coming out — postfix the unit word
-  (units.h2o):
+  (units.telic):
 
   ```forth
   : wall-now (wall-now) s ;
@@ -491,7 +491,7 @@ a quantity in `s`, so the units machinery is the date arithmetic.
   base unit $ 1 $ 100 / unit ¢
   ```
 
-  lib/claude.h2o prices calls this way: token counts times a ¢-per-token
+  lib/claude.telic prices calls this way: token counts times a ¢-per-token
   rate, answered as `¢`, printable in either unit.
 
 ## Dataset shaping
@@ -553,11 +553,11 @@ How values reach a quotation body, beyond its own locals.
 
 - `>side … side>` carries a value across code that owns the stack: a handler
   across `catch` (`try-catch`), a shared FFI handle across a block of
-  definitions (lib/statistics.h2o), a key xt under a fold via `side-peek`
+  definitions (lib/statistics.telic), a key xt under a fold via `side-peek`
   (`group-with`).
 
 - Extend a word by type without breaking early binding: capture the old xt in
-  a constant, redefine with a type test in front (datasets.h2o does this for
+  a constant, redefine with a type test in front (datasets.telic does this for
   `select-rows`, `dim`, `filter`, `map`):
 
   ```forth
@@ -571,7 +571,7 @@ How values reach a quotation body, beyond its own locals.
 ## Continuations and generators
 
 `reset`/`shift`/`resume` are the substrate; exceptions, cleanup brackets, and
-coroutines are short compositions over them (exceptions.h2o, generators.h2o).
+coroutines are short compositions over them (exceptions.telic, generators.telic).
 
 - Resource brackets guarantee cleanup on both exits — the handler or resource
   rides the side stack across the unwind, which the return stack does not
@@ -655,7 +655,7 @@ The register for hot loops: locals, unsafe f-words, segments — the shapes the
 compiler's fusion targets.
 
 - Gather–compute–writeback: hoist reads into locals, run fused arithmetic,
-  store with `!i drop` (bench/float.h2o, `normalize-points`):
+  store with `!i drop` (bench/float.telic, `normalize-points`):
 
   ```forth
   xs i @i to xi ys i @i to yi zs i @i to zi
@@ -664,7 +664,7 @@ compiler's fusion targets.
   ```
 
 - In-place matrix chains avoid allocation in an iteration
-  (bench/variants/mandelbrot-matrix.h2o, `step`):
+  (bench/variants/mandelbrot-matrix.telic, `step`):
 
   ```forth
   zi zr *! 2.0 *! c-imag +! drop
@@ -685,7 +685,7 @@ compiler's fusion targets.
 
 - Bulk field unpack and writeback: `spread` the record array onto the stack
   and receive every field into a kernel word's locals in one head; `to-slice!`
-  stores several values back in one call (bench/nbody.h2o, `pair-force`):
+  stores several values back in one call (bench/nbody.telic, `pair-force`):
 
   ```forth
   b1 spread  b2 spread  b1 b2 dt pair-kernel
@@ -710,7 +710,7 @@ compiler's fusion targets.
 
 ## Writing tests
 
-The test vocabulary (test.h2o) rides on `catch`/`throw`: an assertion throws
+The test vocabulary (test.telic) rides on `catch`/`throw`: an assertion throws
 on failure, `test` catches and tallies, `test-report` throws at the end when
 anything failed — so a test file run as a program exits non-zero.
 
@@ -769,7 +769,7 @@ anything failed — so a test file run as a program exits non-zero.
   db "COMMIT" [ ] db-exec drop
   ```
 
-- Retry-then-rethrow (lib/claude.h2o, `elicit-with-retries`):
+- Retry-then-rethrow (lib/claude.telic, `elicit-with-retries`):
 
   ```forth
   begin

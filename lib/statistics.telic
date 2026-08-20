@@ -1,0 +1,780 @@
+\ LAPACK acceleration layer. Everything LAPACK-free lives in the embedded
+\ src/forth/statistics.telic; this loadable library holds what needs the shared
+\ library, and may mask an embedded word by redefining it in toto.
+
+\ ---- Accelerate BLAS: shadow the built-in dgemm words ----
+\ Same ( alpha A B beta C -- R ) contract, fresh R; words compiled after this
+\ load bind to these, earlier compilations keep the built-in kernels.
+\ The vendored shared library is the platform seam: BLAS and LAPACKE share
+\ its one handle (Accelerate re-exported on macOS, OpenBLAS as an ELF
+\ dependency on Linux).
+
+binary-dir "/external/lapacke/liblapacke_telic.so" + ffi-open
+dup "cblas_dgemm" [
+					   :int :int :int \ order transa transb
+					   :int :int :int \ m n k
+					   :double :ptr :int \ alpha a lda
+					   :ptr :int \ b ldb
+					   :double :ptr :int \ beta c ldc
+				   ] :void ffi-function (cblas-dgemm)
+dup "cblas_dgemv" [
+					   :int :int \ order transa
+					   :int :int \ m n
+					   :double :ptr :int \ alpha a lda
+					   :ptr :int \ x incx
+					   :double :ptr :int \ beta y incy
+				   ] :void ffi-function (cblas-dgemv)
+>side
+
+( m -- columns ) \ the row-major leading dimension
+: leading-dim dim swap drop ; internal
+
+( alpha A B beta C ta tb -- R ) \ R = alpha op(A) op(B) + beta C via cblas
+: accel-dgemm
+	| alpha a b beta c ta tb |
+	ta if a dim swap drop else a dim drop then to product-rows
+	ta if a dim drop else a dim swap drop then to k
+	tb if b dim drop else b dim swap drop then to n
+	tb if b dim swap drop else b dim drop then k = not if
+		"dgemm: inner dimensions must match" throw
+	then
+	c dim swap drop n =  c dim drop product-rows =  and not if
+		"dgemm: C must match the product shape" throw
+	then
+
+	c copy to r
+	101  111 ta +  111 tb +  product-rows n k  alpha
+	a matrix>pointer  a leading-dim
+	b matrix>pointer  b leading-dim
+	beta
+	r matrix>pointer  n
+	(cblas-dgemm)
+	r ; internal
+
+: dgemm-nn 0 0 accel-dgemm ;
+: dgemm-tn 1 0 accel-dgemm ;
+: dgemm-nt 0 1 accel-dgemm ;
+: dgemm-tt 1 1 accel-dgemm ;
+
+( alpha A x beta y ta -- r ) \ r = alpha op(A) x + beta y via cblas, x and y columns
+: accel-dgemv
+	| alpha a x beta y ta |
+	a dim to cols to rows
+	x dim to x-cols to x-rows
+	y dim to y-cols to y-rows
+	ta if rows else cols then to x-len
+	ta if cols else rows then to y-len
+	x-cols 1 =  x-rows x-len =  and not if
+		x-len "dgemv: x must be a column of length {0}" format throw
+	then
+	y-cols 1 =  y-rows y-len =  and not if
+		y-len "dgemv: y must be a column of length {0}" format throw
+	then
+
+	\ beta 0 means cblas never reads y, so a fresh column serves and the copy of
+	\ y's elements is dead work
+	beta 0 = if y-len 1 0-matrix else y copy then to r
+	101  111 ta +  rows cols  alpha
+	a matrix>pointer  cols
+	x matrix>pointer  1
+	beta
+	r matrix>pointer  1
+	(cblas-dgemv)
+	r ; internal
+
+: dgemv-n 0 accel-dgemv ;
+: dgemv-t 1 accel-dgemv ;
+
+side>
+
+dup "LAPACKE_dgesvd" [
+						 :int :int :int \ matrix_layout jobu jobvt
+						 :int :int \ m n
+						 :ptr :int \ a (input matrix) lda
+						 :ptr \ s (singular values)
+						 :ptr :int \ u (left vectors) ldu
+						 :ptr :int \ vt (right vectors) ldvt
+						 :ptr \ superb (workspace)
+					 ] :int ffi-function (dgesvd)
+
+dup "LAPACKE_dgelsd" [
+						 :int :int :int :int \ matrix_layout m n nrhs
+						 :ptr :int \ a (design matrix) lda
+						 :ptr :int \ b (rhs, overwritten with the solution) ldb
+						 :ptr :double :ptr \ s (singular values) rcond rank
+					 ] :int ffi-function (dgelsd)
+
+dup "LAPACKE_dgels" [
+						:int :int :int :int :int \ matrix_layout trans m n nrhs
+						:ptr :int \ a (design matrix, overwritten with the QR factors) lda
+						:ptr :int \ b (rhs, overwritten with the solution in its first n rows) ldb
+					] :int ffi-function (dgels)
+
+dup "LAPACKE_dpotrf" [
+						 :int :int :int \ matrix_layout uplo n
+						 :ptr :int \ a (overwritten with the cholesky factor) lda
+					 ] :int ffi-function (dpotrf)
+
+dup "LAPACKE_dpotrs" [
+						 :int :int :int :int \ matrix_layout uplo n nrhs
+						 :ptr :int \ a (the cholesky factor) lda
+						 :ptr :int \ b (rhs, overwritten with the solution) ldb
+					 ] :int ffi-function (dpotrs)
+drop
+
+: svd ( A -- U S VT )
+	copy to a
+	a dim to cols to rows
+	rows cols < if rows else cols then to min-dim
+	rows min-dim 0-matrix to u
+	1 min-dim 0-matrix to singular-values
+	min-dim cols 0-matrix to vt
+	1 min-dim 1- 0-matrix to superb
+
+	101 83 83 rows cols   \ LAPACK_ROW_MAJOR, jobu='S', jobvt='S' (thin SVD)
+	a matrix>pointer cols
+	singular-values matrix>pointer
+	u matrix>pointer min-dim
+	vt matrix>pointer cols
+	superb matrix>pointer
+
+	(dgesvd) to info
+	info if info "svd: dgesvd failed (info={0})" format throw then
+
+	u singular-values vt ;
+
+( mat y -- beta ) \ ordinary least squares via LAPACKE dgelsd ; mat is m x n (m >= n)
+: fit-linear 
+	| mat y |
+	mat dim to cols to rows
+	rows cols < if 
+		rows cols "fit-linear: need at least as many observations as predictors; got {1}x{0}" format 
+		throw
+	then
+
+	mat copy to a
+	y copy to b
+	1 cols 0-matrix to singular-values
+	1 int-segment to rank
+
+	101 rows cols 1
+	a matrix>pointer cols
+	b matrix>pointer 1
+	singular-values matrix>pointer
+	-1.0
+	rank segment>pointer
+
+	(dgelsd) to info
+	info if 
+		info "fit-linear: dgelsd failed (info={0})" format
+		throw
+	then
+
+	b 0 cols 0 1 submatrix ;
+
+( augmented-matrix -- betas ) \ augmented is observations x (predictors + 1) ; last column is y
+: fit-augmented
+	| aug-mat |
+
+	aug-mat dim to cols to rows
+	aug-mat 0 rows 0 cols 1- submatrix
+	aug-mat 0 rows cols 1- cols submatrix
+	fit-linear ;
+
+( dataset predictors response replications -- [coefficient-summaries] )
+: linear-regression  ' fit-augmented regress-with ;
+
+( X y max-iterations tolerance -- beta ) \ logistic regression by IRLS; X is n×k (incl. intercept), y in {0,1}
+: fit-logistic
+	| x y max-iterations tolerance |
+	x dim to cols to rows
+	cols 1 0-matrix to beta
+	0 to iterations
+	0 to converged
+
+	begin
+		1 x beta 0 rows 1 0-matrix dgemm-nn to eta \ eta = X*beta
+		eta sigmoid to mu
+		mu dup 1 swap - * to w
+		w sqrt to sqrt-w
+		sqrt-w x * to xw                       \ weighted design sqrt(w)*X
+		xw svd drop drop  dup *  row-sums to h  \ hat diagonals h_i = sum_j U_ij^2
+
+		y mu -  h 0.5 mu - *  +  to r           \ Firth residual: (y-mu) + h(0.5-mu)
+		eta r w / + to z
+		xw  sqrt-w z *  fit-linear to new-beta
+		new-beta beta - dup * sum sqrt to delta
+		new-beta to beta
+
+		++ iterations
+		delta tolerance < to converged
+		converged  iterations max-iterations >  or
+	until
+
+	converged not if
+		iterations "fit-logistic: did not converge in {0} iterations" format throw
+	then
+	beta ;
+
+( design target -- beta|null ) \ least squares by Householder QR (dgels), the same
+\ system fit-linear solves and the same conditioning, for several times fewer flops
+\ than dgelsd's divide-and-conquer SVD; null when dgels reports the design
+\ rank-deficient, leaving the caller the dgelsd path and its minimum-norm answer
+: solve-qr
+	| design target |
+	design dim to cols to rows
+	design copy to a
+	target copy to b
+
+	101 78 rows cols 1   \ row-major, trans 'N', one right-hand side
+	a matrix>pointer cols
+	b matrix>pointer 1
+	(dgels) to info
+	info if null exit then
+
+	b 0 cols 0 1 submatrix ; internal
+
+( X y max-iterations tolerance lambda -- beta ) \ L2-regularized logistic by IRLS:
+\ lambda multiplies ||beta||^2/2 in the objective, column 0 (the intercept) is
+\ unpenalized, no Firth term; lambda 0 is the plain MLE. The penalty enters each
+\ weighted least-squares step as sqrt(lambda)*I rows appended to the design, which
+\ solve-qr solves; the normal equations are deliberately not used here, since
+\ squaring the design costs about half the digits and floors the beta step near
+\ 1e-6 at small lambda, above the 1e-8 tolerance callers ask for.
+: fit-logistic-ridge
+	| x y max-iterations tolerance lambda |
+	x dim to cols to rows
+	lambda sqrt cols diagonal-matrix 0 0 0 !i,j to penalty
+	cols 1 0-matrix to zeros
+	cols 1 0-matrix to beta
+	0 to iterations
+	0 to converged
+
+	begin
+		1 x beta 0 rows 1 0-matrix dgemm-nn to eta \ eta = X*beta
+		eta sigmoid
+		dup 1e-10 < 1e-10 mesh
+		dup 1 1e-10 - > 1 1e-10 - mesh to mu      \ keep w = mu(1-mu) > 0 under separation
+		mu dup 1 swap - * to w
+		w sqrt to sqrt-w
+		eta  y mu -  w /  +  to z
+		sqrt-w x *  penalty vstack to design
+		sqrt-w z *  zeros vstack to target
+		design target solve-qr to new-beta
+		new-beta none? if
+			design target fit-linear to new-beta
+		then
+		new-beta beta - dup * sum sqrt to delta
+		new-beta to beta
+
+		++ iterations
+		delta tolerance < to converged
+		converged  iterations max-iterations >  or
+	until
+
+	converged not if
+		iterations "fit-logistic-ridge: did not converge in {0} iterations" format throw
+	then
+	beta ;
+
+( augmented -- beta ) \ logistic fit of an [X | y] block, standard convergence
+: fit-augmented-logistic
+	| aug |
+	aug dim to cols to rows
+	aug 0 rows 0 cols 1- submatrix
+	aug 0 rows cols 1- cols submatrix
+	100 1e-8 fit-logistic ;
+
+( X beta -- probabilities ) \ sigmoid of the linear predictor
+: predict-logistic
+	1 -rot over dim drop 1 0-matrix 
+	0 swap dgemm-nn 
+	sigmoid ;
+
+( dataset predictors response replications -- [coefficient-summaries] )
+: logistic-regression  ' fit-augmented-logistic regress-with ;
+
+( train-units xy lambda -- beta ) \ ridge fit on the drawn units' rows of [1|X|y]
+: cv-ridge-fit
+	| xy lambda |
+	flatten-array xy swap select-rows to rows
+	rows n-columns 1 - to n-predictors
+	rows 0 rows n-rows 0 n-predictors submatrix
+	rows n-predictors @j
+	50 1e-8 lambda fit-logistic-ridge ; internal
+
+( beta test-units xy -- dev ) \ mean held-out deviance of beta
+: cv-ridge-score
+	| beta test xy |
+	test flatten-array xy swap select-rows to rows
+	rows n-columns 1 - to n-predictors
+	1  rows 0 rows n-rows 0 n-predictors submatrix  beta
+	0  rows n-rows 1 0-matrix  dgemm-nn sigmoid to p
+	rows n-predictors @j  p binomial-deviance  rows n-rows / ; internal
+
+( train test xy lambda -- loss ) \ one (lambda, fold) cell: fit, then score held-out
+: cv-ridge-cell
+	| train test xy lambda |
+	train xy lambda cv-ridge-fit
+	test xy cv-ridge-score ; internal
+
+( X y units lambdas n-folds mapper -- fr ) \ the CV skeleton cv-logistic-ridge and
+\ pcv-logistic-ridge instantiate: every (lambda, fold) cell is a pre-curried thunk,
+\ deterministic, so the mapper choice cannot change the result
+: cv-logistic-ridge-with
+	| X y units lambdas n-folds mapper |
+	X with-intercept y augment to xy
+	units n-folds cv-folds to folds
+	lambdas
+	folds xy
+	[: lambda folds xy |
+		folds
+		xy lambda
+		[: fold xy lambda |
+			fold 0 @i  fold 1 @i  xy lambda
+			' cv-ridge-cell curry curry curry curry :]
+		2curry map :]
+	2curry map flatten-array
+	' execute mapper execute
+	vector lambdas size n-folds reshape row-means to losses
+	{ :lambdas lambdas
+	  :deviances losses
+	  :best lambdas losses argmin @i } ; internal
+
+( X y units lambdas n-folds -- fr ) \ ridge-logistic CV over a lambda grid:
+\ { :lambdas :deviances :best }; X excludes the intercept (added internally,
+\ unpenalized); units index rows — per-cluster index arrays give cluster CV
+: cv-logistic-ridge  ' map cv-logistic-ridge-with ;
+
+( X y units lambdas n-folds -- fr ) \ cv-logistic-ridge with the cells run under
+\ pmap; identical results, the cells being deterministic
+: pcv-logistic-ridge  ' pmap cv-logistic-ridge-with ;
+
+
+( -- [paths] ) \ libxgboost install locations on macOS, preference order
+: mac-xgboost-libs
+	[ "/opt/homebrew/lib/libxgboost.dylib" "/usr/local/lib/libxgboost.dylib" ] ; internal
+
+( -- [paths] ) \ libxgboost install locations on Linux, preference order; the
+\ distro runtime package ships only the versioned soname (the unversioned
+\ symlink belongs to its -dev package), so both names appear
+: linux-xgboost-libs
+	[ "/usr/local/lib/libxgboost.so" "/usr/lib/libxgboost.so"
+	  "/usr/lib/x86_64-linux-gnu/libxgboost.so"
+	  "/usr/lib/x86_64-linux-gnu/libxgboost.so.0"
+	  "/usr/lib/aarch64-linux-gnu/libxgboost.so"
+	  "/usr/lib/aarch64-linux-gnu/libxgboost.so.0" ] ; internal
+
+( -- path ) \ XGBOOST_LIB if set, else the first install location present, else
+\ the bare soname, leaving the search to the loader's own path
+: xgb-lib-path
+	"XGBOOST_LIB" env dup none? not if
+		exit
+	then drop
+
+	mac-xgboost-libs linux-xgboost-libs concat ' file-exists? find-first
+	dup none? if
+		drop "libxgboost.so"
+	then ; internal
+
+xgb-lib-path ffi-open
+dup "XGDMatrixCreateFromDense"      [ :string :string :ptr ]          :int    ffi-function (xgd-from-dense)
+dup "XGDMatrixSetInfoFromInterface" [ :ptr :string :string ]          :int    ffi-function (xgd-set-info)
+dup "XGDMatrixFree"                 [ :ptr ]                          :int    ffi-function (xgd-free)
+dup "XGBoosterCreate"               [ :ptr :long :ptr ]               :int    ffi-function (xgb-create)
+dup "XGBoosterSetParam"             [ :ptr :string :string ]          :int    ffi-function (xgb-set-param)
+dup "XGBoosterUpdateOneIter"        [ :ptr :int :ptr ]                :int    ffi-function (xgb-update)
+dup "XGBoosterPredictFromDMatrix"   [ :ptr :ptr :string :ptr :ptr :ptr ] :int ffi-function (xgb-predict-raw)
+dup "XGBoosterFree"                 [ :ptr ]                          :int    ffi-function (xgb-booster-free)
+dup "XGBoosterFeatureScore"         [ :ptr :string :ptr :ptr :ptr :ptr :ptr ] :int ffi-function (xgb-feature-score)
+dup "XGBoosterGetNumFeature"        [ :ptr :ptr ]                     :int    ffi-function (xgb-num-feature)
+dup "XGBoosterSaveModel"            [ :ptr :string ]                  :int    ffi-function (xgb-save-model)
+dup "XGBoosterLoadModel"            [ :ptr :string ]                  :int    ffi-function (xgb-load-model)
+dup "XGBGetLastError"               [ ]                               :string ffi-function (xgb-last-error)
+drop
+
+( status -- ) \ nonzero xgboost statut throws the library's last message
+: xgb-check if (xgb-last-error) throw then ; internal
+
+( matrix -- json ) \ NumPy __array_interface__ (float64) over a matrix's row-major buffer
+: array-interface
+	| described-matrix |
+	{ :data [ described-matrix matrix>pointer pointer>address :0 ]
+	  :shape [ described-matrix dim ]
+	  :typestr "<f8"
+	  :version 3 }
+	frame>json ; internal
+
+( X y fit-params -- booster ) \ train a booster on features X (nxk) and response y (nx1)
+\ params are keyed by xgboost parameter name; :rounds drives the boosting loop (default 100)
+: fit-xgb
+	| X y params |
+	params :rounds 100 @or to rounds
+
+	pointer-cell to dmatrix-cell
+	X array-interface "{""missing"": NaN}" dmatrix-cell (xgd-from-dense) xgb-check
+	dmatrix-cell pointer-deref to dmatrix
+	dmatrix "label" y array-interface (xgd-set-info) xgb-check
+
+	pointer-cell to booster-cell
+	dmatrix-cell 1 booster-cell (xgb-create) xgb-check
+	booster-cell pointer-deref to booster
+
+	params keys [: :rounds = not :] filter
+	booster params
+	[: key booster params |
+	   booster key "{0}" format
+	   params key @ "{0}" format
+	   (xgb-set-param) xgb-check
+	:] 2curry each
+
+	booster dmatrix
+	[: i booster dmatrix |
+	   booster i dmatrix (xgb-update) xgb-check
+	:] 2curry rounds i-times
+
+	dmatrix (xgd-free) xgb-check
+	dmatrix-cell ffi-free booster-cell ffi-free
+	booster ;
+
+( booster X -- predictions ) \ n×1 scores for an n×k feature matrix; booster is not freed
+: xgb-predict
+	| booster X |
+	pointer-cell to dmatrix-cell
+	X array-interface "{""missing"": NaN}" dmatrix-cell (xgd-from-dense) xgb-check
+	dmatrix-cell pointer-deref to dmatrix
+
+	pointer-cell to shape-cell
+	pointer-cell to dim-cell
+	pointer-cell to result-cell
+	booster dmatrix
+	{ :type 0 :iteration_begin 0 :iteration_end 0 :strict_shape :0 :training :0 } frame>json
+	shape-cell dim-cell result-cell  (xgb-predict-raw) xgb-check
+
+	result-cell pointer-deref  X n-rows  floats>matrix
+
+	dmatrix (xgd-free) xgb-check
+	dmatrix-cell ffi-free shape-cell ffi-free dim-cell ffi-free result-cell ffi-free ;
+
+( booster -- ) \ free a booster handle
+: xgb-free (xgb-booster-free) xgb-check ;
+
+( booster path -- ) \ write the booster; the path extension picks the format, ".json" or ".ubj"
+: xgb-save (xgb-save-model) xgb-check ;
+
+( path -- booster ) \ read a booster written by xgb-save or by xgboost elsewhere
+: xgb-load
+	| path |
+	pointer-cell to no-matrices
+	pointer-cell to booster-cell
+	no-matrices 0 booster-cell (xgb-create) xgb-check
+	booster-cell pointer-deref to booster
+	booster path (xgb-load-model) xgb-check
+	no-matrices ffi-free booster-cell ffi-free
+	booster ;
+
+( booster importance-type -- scores ) \ k×1 per-feature importance, row i is feature i
+\ importance-type is "gain" "weight" "cover" "total_gain" or "total_cover"; a feature
+\ never split on scores 0. Rank with: matrix>array argsort reverse (indices best-first)
+: xgb-importance
+	| booster type |
+	pointer-cell to k-cell
+	booster k-cell (xgb-num-feature) xgb-check
+	k-cell pointer-long to k
+	k iota [: "{0}" format :] map to feature-names
+
+	pointer-cell to n-cell
+	pointer-cell to features-cell
+	pointer-cell to dim-cell
+	pointer-cell to shape-cell
+	pointer-cell to scores-cell
+	booster  { :importance_type type :feature_names feature-names } frame>json
+	n-cell features-cell dim-cell shape-cell scores-cell  (xgb-feature-score) xgb-check
+
+	n-cell pointer-long to n
+	k 1 0-matrix to dense
+	n 0 > if
+		scores-cell pointer-deref n floats>matrix matrix>array to scores
+		features-cell pointer-deref to names
+		dense names scores
+		[: i dense names scores |
+		   dense  names i pointer-string-at string>number  0  scores i @i  !i,j drop
+		:] 3 ncurry n i-times
+	then
+
+	k-cell ffi-free n-cell ffi-free features-cell ffi-free
+	dim-cell ffi-free shape-cell ffi-free scores-cell ffi-free
+	dense ;
+
+
+\ The Generalized Linear Model
+{ :inverse-link ' exp
+  :mean-derivative ' exp
+  :variance [: dup * :]
+} to gamma-log
+
+{ :inverse-link ' exp
+  :mean-derivative ' exp
+  :variance ' identity
+} to poisson-log
+
+{ :inverse-link ' identity
+  :mean-derivative [: drop 1 :]
+  :variance [: drop 1 :]
+} to gaussian-identity
+
+{ :inverse-link ' sigmoid
+  :mean-derivative [: sigmoid dup 1 swap - * :]
+  :variance [: dup 1 swap - * :]
+} to binomial-logit
+
+: fit-glm
+	| x y family max-iterations tolerance |
+
+	x dim to cols to rows
+	family :inverse-link @ to inverse-link
+	family :mean-derivative @ to mean-derivative
+	family :variance @ to variance
+	cols 1 0-matrix to beta
+	0 to iterations
+	0 to converged
+
+	begin
+		1 x beta 0 rows 1 0-matrix dgemm-nn to eta
+		eta inverse-link execute to mu
+		eta mean-derivative execute to mean-slope
+		eta y mu - mean-slope / + to working-response
+		
+		mean-slope dup * mu variance execute / to working-weight
+		working-weight sqrt to sqrt-weight
+		sqrt-weight x * sqrt-weight working-response * fit-linear to new-beta
+		new-beta beta - dup * sum sqrt to delta
+		new-beta to beta
+
+		++ iterations
+		delta tolerance < to converged
+		converged iterations max-iterations > or
+	until
+
+	converged not if 
+		iterations "fit-glm: did not converge in {0} iterations" format throw
+	then
+
+	beta ;
+
+( X y max-iterations tolerance -- beta ) \ gamma regression, log link, by IRLS
+: fit-gamma
+	gamma-log -rot fit-glm ;
+
+
+( X y max-iterations tolerance -- beta ) \ poisson regression, log link, by IRLS
+: fit-poisson
+	poisson-log -rot fit-glm ;
+
+( mats -- m)
+: hstack-all 
+	dup 1 skip swap 0 @i ' hstack reduce ;
+
+( mats -- m )
+: vstack-all 
+	dup 1 skip swap 0 @i ' vstack reduce ;
+
+( column-class X probs row-class-probs row-class -- block )
+: information-block 
+	| column-class X probs row-class-probs row-class |
+	probs column-class @j
+	row-class column-class = if 1 else 0 then swap -
+	row-class-probs *
+	X * to weighted-design
+	1 X weighted-design 0 X n-columns dup 0-matrix dgemm-tn ;
+
+( X y reference-class max-iterations tolerance -- beta )
+: fit-multinomial-ridge
+	| X y reference-class max-iterations tolerance lambda |
+	
+	y reference-class eq sum 0= if
+		reference-class "fit-multinomial-ridge: reference class {0} has no observations in y" format throw
+	then
+
+	X n-columns to n-predictors
+	reference-class  y max 1+ iota  [: 2 pick = not :] filter  nip to classes
+	classes size to n-nonreference-classes
+	y classes [: 2 pick swap eq :] map nip hstack-all to response
+	n-predictors n-nonreference-classes 0-matrix to beta
+
+	n-predictors 1 0-matrix 1 + 0 0 0 !i,j to intercept-mask
+	intercept-mask n-predictors n-nonreference-classes 0-matrix 1 + * to penalty-mask
+	n-predictors n-nonreference-classes * identity-matrix
+	  penalty-mask transpose n-predictors n-nonreference-classes * 1 reshape *  lambda *  to penalty-diagonal
+
+	0 to iterations
+	0 to converged
+
+	begin
+		1 X beta 0 X n-rows n-nonreference-classes 0-matrix dgemm-nn
+		exp dup row-sums 1+ / to probs
+		1 X response probs - 0 n-predictors n-nonreference-classes 0-matrix dgemm-tn
+		lambda beta penalty-mask * * - to gradient
+
+		n-nonreference-classes iota
+		n-nonreference-classes X probs
+		[: row-class n-nonreference-classes X probs |
+		   n-nonreference-classes iota
+		   X probs row-class
+		   [: column-class X probs row-class |
+			  column-class X probs  probs row-class @j  row-class  information-block :]
+		   3 ncurry map hstack-all
+		:] 3 ncurry map vstack-all  penalty-diagonal +  to information
+
+		information gradient transpose n-predictors n-nonreference-classes * 1 reshape
+		fit-linear to delta
+
+		beta delta n-nonreference-classes n-predictors reshape transpose + to beta
+
+		delta dup * sum sqrt tolerance < to converged
+		++ iterations
+		converged iterations max-iterations > or
+	until
+
+	converged not if
+		iterations "fit-multinomial-ridge: did not converge in {0} iterations" format throw
+	then
+	beta ;
+
+( X y reference-class max-iterations tolerance -- beta ) \ plain multinomial MLE — fit-multinomial-ridge at lambda 0
+: fit-multinomial
+	0 fit-multinomial-ridge ;
+
+( beta X reference-class -- probabilities ) \ n×K softmax probabilities in label order 0..K-1
+: predict-multinomial
+	| beta X reference-class |
+	beta n-columns to n-nonreference-classes
+	n-nonreference-classes 1 + to n-classes
+	X n-rows to n-observations
+	1 X beta 0 n-observations n-nonreference-classes 0-matrix dgemm-nn exp to class-weights
+	class-weights row-sums 1 + to weight-total
+	n-classes iota
+	reference-class class-weights weight-total
+	[: label reference-class class-weights weight-total |
+		label reference-class = if
+			1 weight-total /
+		else
+			class-weights  label reference-class > if label 1 - else label then  @j  weight-total /
+		then
+	:] 3 ncurry map hstack-all ;
+
+\ ---- Negative binomial (NB2): variance mu + mu^2/theta, log link ----
+\ theta is the dispersion; as theta grows the variance approaches the mean and
+\ the model approaches Poisson. fit-glm handles beta at a fixed theta, so the
+\ fit alternates that with a maximum-likelihood step for theta.
+
+( mu theta -- variance ) \ NB2 variance function
+: negative-binomial-variance
+	| mu theta |
+	mu mu sq theta / + ; internal
+
+( theta -- family ) \ the GLM family at a known dispersion; theta is curried in.
+: negative-binomial-log
+	| theta |
+	{ :inverse-link ' exp
+	  :mean-derivative ' exp
+	  :variance theta ' negative-binomial-variance curry } ;
+
+( X beta -- mu ) \ fitted means under the log link
+: negative-binomial-mean
+	| x beta |
+	1 x beta 0 
+	x dim drop 1 0-matrix
+	dgemm-nn exp ; internal
+
+( y mu -- theta ) \ moment estimate
+: negative-binomial-theta-moment
+	| y mu |
+	y mu - dup * sum mu sum - to excess-variance
+	excess-variance 0 > if
+		mu dup * sum excess-variance /
+	else 0
+	then ; internal
+
+( y mu theta -- loglik ) \ NB2 log-likelihood less the constant sum of lgamma(y+1)
+: negative-binomial-loglik
+	| y mu theta |
+	y theta + lgamma
+	theta lgamma -
+	theta theta ln * +
+	y mu ln * +
+	theta y + mu theta + ln * -
+	sum ; internal
+
+( y mu -- theta ) \ maximum-likelihood dispersion at fixed means. Golden-section on
+\ ln theta, bracketing the moment estimate a factor of bracket-factor each way; when
+\ the sample shows no overdispersion the moment estimate is unusable and the bracket
+\ centres on that factor instead, so an answer near the top means Poisson fits
+: negative-binomial-theta
+	| y mu |
+
+	PHI 1- to section-fraction
+	1000 ln to log-bracket-factor
+	y mu negative-binomial-theta-moment 
+	dup 0 > if ln else drop log-bracket-factor then to log-centre
+
+	log-centre log-bracket-factor - to log-low
+	log-centre log-bracket-factor + to log-high
+
+	0 to narrowings
+	begin narrowings 60 < while
+		log-high  log-high log-low - section-fraction *  - to log-probe-low
+		log-low   log-high log-low - section-fraction *  + to log-probe-high
+		y mu log-probe-low exp negative-binomial-loglik
+		y mu log-probe-high exp negative-binomial-loglik
+		< if
+			log-probe-low to log-low
+		else
+			log-probe-high to log-high
+		then
+		f++ narrowings
+	repeat
+
+	log-low log-high + 2 / exp ;
+
+
+( X y max-iterations tolerance -- beta theta ) \ NB2 regression, log link: start from
+\ the Poisson fit, then alternate a maximum-likelihood theta at the current means
+\ with an IRLS beta at that theta until theta settles. max-iterations bounds both the
+\ inner IRLS and the outer alternation, and tolerance serves both: since theta is a
+\ function of the fitted means, it cannot be pinned tighter than beta is, so the
+\ alternation also stops once a round no longer shrinks the change in theta
+: fit-negative-binomial
+	| x y max-iterations tolerance |
+
+	x y max-iterations tolerance fit-poisson to beta
+	0 to previous-theta
+	0 to previous-change
+	0 to rounds
+	0 to converged
+
+	begin 
+		x beta negative-binomial-mean to mu
+		y mu negative-binomial-theta to theta
+		x y theta negative-binomial-log max-iterations tolerance fit-glm to beta
+
+		++ rounds
+		theta previous-theta - abs theta / to change
+
+		change tolerance <
+		  rounds 1 >  change previous-change < not  and
+		or to converged           \ settled, or no longer shrinking
+
+		change to previous-change
+		theta to previous-theta
+		converged rounds max-iterations > or
+	until
+
+	converged not if
+		rounds "fit-negative-binomial: theta did not settle in {0} rounds" format throw
+	then
+
+	beta theta ;
+
+
+

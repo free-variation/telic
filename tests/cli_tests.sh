@@ -1,5 +1,5 @@
 #!/bin/sh
-# Command-line flag tests for water.
+# Command-line flag tests for telic.
 #
 # The golden-output harness (run.sh) always invokes the binary with `-b`, so it
 # can't exercise flag behavior itself. These cases run the binary directly with
@@ -10,7 +10,7 @@
 
 set -u
 here=$(cd "$(dirname "$0")" && pwd)
-bin="$here/../water"
+bin="$here/../telic"
 pass=0
 fail=0
 
@@ -60,7 +60,7 @@ printf "CLI flag tests:\n"
 exact "batch (-b) is quiet"             '2 3 + . cr'  "5 " 0 -b
 exact "piped default is batch"          '2 3 + . cr'  "5 " 0
 # interactive: banner + per-line prompt (banner version not pinned)
-has   "interactive (-i) shows banner"   '2 3 + . cr'  "water " 0 -i
+has   "interactive (-i) shows banner"   '2 3 + . cr'  "telic " 0 -i
 has   "interactive (-i) shows the hint" '2 3 + . cr'  "words lists every word; help shows a quick start; bye quits" 0 -i
 has   "interactive (-i) shows prompt"   '1 2 . cr'    "ok 1|1"        0 -i
 # definition echo: interactive-only (silent under -b), new vs redefined, and the
@@ -71,9 +71,9 @@ has   "definition echo redefined (-i)"   ': zzz-echo 1 ; : zzz-echo 2 ;'  "redef
 has   "definition echo variable (-i)"    'variable zzz-var'    "new word: zzz-var"         0 -i
 # a loaded library's internal word is private to its load unit: unreachable from
 # the session (public words of the same lib still resolve — covered by 131_plot)
-has   "lib internal is unit-private"     '"lib/plot.h2o" load  "/tmp" next-svg-index'  "unknown word: next-svg-index"  0 -b
+has   "lib internal is unit-private"     '"lib/plot.telic" load  "/tmp" next-svg-index'  "unknown word: next-svg-index"  0 -b
 # words separates loaded-library words into their own group, apart from session
-has   "words groups loaded-library words" '"lib/plot.h2o" load  words'  "library:"  0 -b
+has   "words groups loaded-library words" '"lib/plot.telic" load  words'  "library:"  0 -b
 # a loaded file echoes only its own definitions, not those of files/libraries it loads
 lf=$(mktemp "${TMPDIR:-/tmp}/lf_nest.XXXXXX")
 printf '%s\n' '"plot" load-library' ': zzz-mine 1 ;' > "$lf"
@@ -94,14 +94,14 @@ has   "--max-objects rejects 0"         ''  "positive integer"   2 --max-objects
 has   "--max-objects rejects non-number" '' "positive integer"   2 --max-objects xyz
 # unknown flag is rejected, pointing at --help
 has   "unknown flag rejected"           ''  "unknown option"     2 --bogus
-has   "unknown flag suggests help"      ''  "water --help"       2 --bogus
+has   "unknown flag suggests help"      ''  "telic --help"       2 --bogus
 # timed prints an elapsed line then passes xt's results through (the elapsed
 # value is wall-clock-dependent, so only the pass-through result is pinned)
 has   "timed passes results through"    '[: 40 2 + :] timed 100 + . cr'  "142" 0 -b
 
 # -h / --help print usage and exit 0
-has   "--help prints usage"             ''  "usage: water"       0 --help
-has   "-h prints usage"                 ''  "usage: water"       0 -h
+has   "--help prints usage"             ''  "usage: telic"       0 --help
+has   "-h prints usage"                 ''  "usage: telic"       0 -h
 
 # -w / --words print the word listing and exit 0
 has   "--words prints the listing"      ''  "Stack manipulation:" 0 --words
@@ -111,7 +111,7 @@ has   "-w prints the listing"           ''  "Stack manipulation:" 0 -w
 prog=$(mktemp "${TMPDIR:-/tmp}/lf_prog.XXXXXX")
 printf '2 3 + . cr\n' > "$prog"
 exact "positional arg runs a program file"  ''  "5 "           0  "$prog"
-has   "missing program file reported"       ''  "cannot open"  1  /no/such/file.h2o
+has   "missing program file reported"       ''  "cannot open"  1  /no/such/file.telic
 rm -f "$prog"
 
 # -e runs a code string and exits without reading stdin (implies -b)
@@ -141,11 +141,11 @@ rm -f "$cont"
 # `load` resolves the path as given, then falls back to the loading file's own
 # directory; an unresolved path still reports the original name.
 lfdir=$(mktemp -d "${TMPDIR:-/tmp}/lf_dir.XXXXXX")
-printf ': from-sibling 42 ;\n' > "$lfdir/sib.h2o"
-printf '"sib.h2o" load  from-sibling . cr\n' > "$lfdir/main.h2o"
-exact "load falls back to the loading file's directory"  ''  "42 "  0  "$lfdir/main.h2o"
-printf '"nope.h2o" load\n' > "$lfdir/bad.h2o"
-has   "unresolved load reports the original name"  ''  "cannot open nope.h2o"  1  "$lfdir/bad.h2o"
+printf ': from-sibling 42 ;\n' > "$lfdir/sib.telic"
+printf '"sib.telic" load  from-sibling . cr\n' > "$lfdir/main.telic"
+exact "load falls back to the loading file's directory"  ''  "42 "  0  "$lfdir/main.telic"
+printf '"nope.telic" load\n' > "$lfdir/bad.telic"
+has   "unresolved load reports the original name"  ''  "cannot open nope.telic"  1  "$lfdir/bad.telic"
 rm -rf "$lfdir"
 
 # --arena overrides the reservation (gigabytes, optional g suffix)
@@ -154,10 +154,10 @@ has   "--arena needs a value"       ''  "needs a size"   2 --arena
 has   "--arena rejects junk"        ''  "takes gigabytes" 2 --arena xyz
 has   "--arena rejects sub-1g"      ''  "takes gigabytes" 2 --arena 0.5g
 
-# `water` prints the logo and the version from water.h
-ver=$(sed -n 's/#define VERSION "\(.*\)".*/\1/p' "$here/../src/c/water.h")
-has "water prints the logo"    'water' "++++++"       0 -b
-has "water prints the version" 'water' "water $ver"   0 -b
+# `telic` prints the logo and the version from telic.h
+ver=$(sed -n 's/#define VERSION "\(.*\)".*/\1/p' "$here/../src/c/telic.h")
+has "telic prints the logo"    'telic' "++++++"       0 -b
+has "telic prints the version" 'telic' "telic $ver"   0 -b
 
 printf "%d passed, %d failed\n" "$pass" "$fail"
 [ "$fail" -eq 0 ]

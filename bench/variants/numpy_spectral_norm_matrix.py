@@ -1,6 +1,6 @@
 """
 spectral_norm, matrix-based with numpy — the counterpart of
-bench/variants/spectral-norm-matrix.h2o.
+bench/variants/spectral-norm-matrix.telic.
 
 A is materialized once as an N x N array, so each AtA product is two BLAS
 calls rather than an interpreted loop: A@x then A.T@(A@x). The water variant

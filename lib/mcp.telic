@@ -1,0 +1,492 @@
+\ An MCP server over stdio: newline-delimited JSON-RPC on stdin and stdout,
+\ protocol revision 2026-07-28. stdout carries protocol messages only.
+\ Modern-era only: every request declares its version in params._meta, there is
+\ no initialize handshake, and server/discover reports what this server speaks.
+\
+\ A session is a live interpreter in a child process, addressed by the session
+\ string every call carries. Calls on one session see each other's definitions
+\ and handles; calls on different sessions cannot, being separate processes.
+\ The server never waits on one child: it polls stdin and every busy child
+\ together, so sessions compute at the same time and answers are written in
+\ completion order, which JSON-RPC allows since each carries its request id.
+
+"2026-07-28" to mcp-protocol-version
+
+[ ] to mcp-tool-registry
+
+[ "The code is Water, a Forth-styled language for numeric and statistical work; "
+  "send self-contained source and read what it printed as the result. "
+  "Every call names a session, and a session keeps its definitions, loaded data, "
+  "database handles and fitted models until the server exits, so read a table once "
+  "and query it in later calls. Calls on one session run in order; calls on "
+  "different sessions run at the same time." ] "" join to mcp-instructions
+
+{ } to mcp-sessions
+0 to mcp-eval-counter
+300 to mcp-call-seconds
+8 to mcp-max-sessions
+"""" to mcp-quote
+"{nl}" format to mcp-newline
+"<<mcp-error>>" to mcp-error-mark
+
+\ ---- the JSON-RPC envelope ----
+
+( response -- ) \ one JSON-RPC message and its newline, written to stdout
+: mcp-send
+  frame>json "{0}{nl}" format stdout write ; internal
+
+( -- fr ) \ the _meta every result carries, identifying the server
+: mcp-server-meta
+  { :io.modelcontextprotocol/serverInfo { :name "telic" :version telic-version } } ; internal
+
+( id result -- ) \ a success response; every result carries its resultType and the server identity
+: mcp-answer
+  | id result |
+  { :jsonrpc "2.0"
+	:id id
+	:result { :resultType "complete" :_meta mcp-server-meta } result merge
+  } mcp-send ; internal
+
+( id code message -- ) \ an error response
+: mcp-fail
+  | id code message |
+  { :jsonrpc "2.0"
+	:id id
+	:error { :code code :message message }
+  } mcp-send ; internal
+
+( id code message data -- ) \ an error response carrying a data member
+: mcp-fail-with
+  | id code message data |
+  { :jsonrpc "2.0"
+	:id id
+	:error { :code code :message message :data data }
+  } mcp-send ; internal
+
+( bool -- sym ) \ a JSON boolean, which is a reserved symbol rather than a float
+: mcp-json-bool
+  if :1 else :0 then ; internal
+
+\ ---- the tool registry ----
+\ A host program adds its own tools before calling mcp-serve. A handler is
+\ ( id arguments -- ) and answers through mcp-tool-result, so the JSON-RPC
+\ envelope stays here; it may answer later, which is how telic-eval waits for a
+\ child. A handler runs inside the server loop, so slow work belongs in a
+\ session rather than in a handler, where it would hold up every other session.
+
+( definition handler -- ) \ register a tool: its definition frame and the word that runs it
+: mcp-add-tool
+  | definition handler |
+  mcp-tool-registry { :definition definition :handler handler } add-last! drop ;
+
+( -- arr ) \ the tool definitions, in registration order
+: mcp-tool-definitions
+  mcp-tool-registry [: :definition @ :] map ; internal
+
+( name -- entry|none ) \ the registry entry a tools/call names
+: mcp-find-tool
+  | name |
+  mcp-tool-registry name
+	[: entry wanted | entry :definition @ :name @ wanted = :] curry find-first ; internal
+
+\ ---- sessions ----
+
+( -- child ) \ a fresh interpreter reading source from its input
+: mcp-spawn
+  [ binary-dir "/telic" + "-b" ] start-process ; internal
+
+( state -- bool ) \ whether the session is waiting for its child to answer
+: mcp-busy?
+  | state |
+  state@request-id none? not ; internal
+
+( -- bool ) \ close the least recently used idle session, if any session is idle
+: mcp-evict-idle
+  mcp-sessions values [: mcp-busy? not :] filter to idle
+  idle size 0 = if false exit then
+
+  idle idle 0 @i [: acc candidate | acc@used candidate@used <= if acc else candidate then :] reduce to oldest
+  oldest@child end-process
+  mcp-sessions oldest@session string>symbol delete-at drop
+  true ; internal
+
+( session -- state|none ) \ the session's state, with a live child; none when the server is full
+: mcp-session
+  | session |
+  session string>symbol to key
+
+  mcp-sessions key has? if
+	mcp-sessions key @ to live
+	live@child :pid @ running? if live exit then
+	mcp-sessions key delete-at drop
+  then
+
+  mcp-sessions size mcp-max-sessions < not if
+	mcp-evict-idle not if null exit then
+  then
+
+  { :session session
+	:child mcp-spawn
+	:used now
+	:request-id null
+	:marker ""
+	:buffer ""
+	:output [ ]
+	:failed false
+	:expiry 0
+	:queue [ ]
+  } to fresh
+  mcp-sessions key fresh ! drop
+
+  fresh ; internal
+
+( code marker -- source ) \ what a child is sent for one call: the code, then its end marker
+\ The code travels as a string literal for the child to evaluate, so each quote
+\ in it is doubled — that is the only escape a Water string has.
+: mcp-eval-source
+  | code marker |
+  [ mcp-quote  code mcp-quote mcp-quote mcp-quote + replace  mcp-quote
+	" ' evaluate curry [: dup frame? if :message @ then . cr "
+	mcp-quote mcp-error-mark mcp-quote
+	" stdout write cr :] try-catch "
+	mcp-quote marker mcp-quote
+	" stdout write cr" mcp-newline ] "" join ; internal
+
+( id text failed -- ) \ answer one tools/call; every handler answers through this
+: mcp-tool-result
+  | id text failed |
+  id { :content [ { :type "text" :text text } ]
+	   :isError failed mcp-json-bool
+	 } mcp-answer ;
+
+( state id code -- ) \ hand a call to an idle session's child
+: mcp-start-call
+  | state id code ^mcp-eval-counter |
+  ++ mcp-eval-counter
+  \ the random part keeps evaluated code that prints the marker text from ending
+  \ its own call early; the counter alone would be guessable
+  mcp-eval-counter random 1e9 * round "<<mcp-end-{1:d}-{0:d}>>" format to marker
+
+  id state!request-id
+  marker state!marker
+  [ ] state!output
+  false state!failed
+  now mcp-call-seconds + state!expiry
+  now state!used
+
+  code marker mcp-eval-source state@child :in @ write ; internal
+
+( state -- ) \ answer the call in flight and nothing more; the child may be gone
+: mcp-answer-call
+  | state |
+  state@request-id to id
+  state@output mcp-newline join to text
+  state@failed to failed
+  null state!request-id
+
+  id text failed mcp-tool-result ; internal
+
+( state -- ) \ answer the call in flight, then start the next one queued for this session
+: mcp-finish-call
+  | state |
+  state mcp-answer-call
+
+  state@queue size 0 > if
+	state@queue 0 @i to next
+	state@queue 1 skip state!queue
+	state next :id @ next :code @ mcp-start-call
+  then ; internal
+
+( state -- ) \ forget a session whose child is gone, closing its pipes and failing its queue
+: mcp-forget-session
+  | state |
+  state@child :in @ close
+  state@child :out @ close
+  state@child :err @ close
+
+  state@queue
+	[: :id @ "the session was stopped before this call ran" true mcp-tool-result :] each
+
+  mcp-sessions state@session string>symbol delete-at drop ; internal
+
+( line state -- ) \ act on one complete line
+\ The marker is matched as the tail of a line rather than as a whole line: code
+\ that prints without a trailing newline leaves the marker on the same line as
+\ its output, and the text before it is that call's last output.
+: mcp-take-line
+  | line state |
+  line state@marker has? if
+	line state@marker split 0 @i to printed
+	printed byte-size 0 > if state@output printed add-last! drop then
+	state mcp-finish-call
+	exit
+  then
+
+  line mcp-error-mark = if true state!failed exit then
+
+  state@output line add-last! drop ; internal
+
+( state -- ) \ read what a child has written and act on every complete line
+: mcp-drain
+  | state |
+  mcp-sessions state@session string>symbol has? not if exit then
+
+  state@child :out @ read-available to chunk
+
+  chunk none? if
+	state@output "the session ended without answering" add-last! drop
+	true state!failed
+	state@child :pid @ wait drop
+	state mcp-answer-call
+	state mcp-forget-session
+	exit
+  then
+
+  state@buffer chunk + "\n" split to pieces
+  pieces size 1- to n-complete
+  pieces n-complete @i state!buffer
+
+  \ every complete line is acted on, not only up to the first marker: finishing a
+  \ call dispatches the next one queued for this session, and the child may have
+  \ answered it already inside this same chunk
+  pieces n-complete take  state ' mcp-take-line curry  each ; internal
+
+( state -- ) \ a call that overran its deadline: kill the child, say so, drop the session
+: mcp-expire
+  | state |
+  state@child :pid @ stop drop
+  mcp-call-seconds "the call exceeded {0:g} seconds and the session was stopped" format to reason
+  state@output reason add-last! drop
+  true state!failed
+
+  state mcp-answer-call
+  state mcp-forget-session ; internal
+
+( word -- text failed ) \ what help prints for a word, read back rather than sent to the client
+\ help parses the word after it from the input, so the name is evaluated as
+\ source; the caller has already refused a name carrying whitespace, which is
+\ what keeps this to the single token help reads
+: mcp-help-text
+  | word |
+  "help " word +  ' evaluate curry  ' stdout>string curry  catch if
+	dup frame? if :message @ then true exit
+  then
+
+  dup "^unknown word:" has? ; internal
+
+( id arguments -- ) \ the telic-help tool
+: mcp-help-tool
+  | id arguments |
+  arguments :word has? not if
+	id -32602 "Invalid params: telic-help takes a word string" mcp-fail exit
+  then
+
+  arguments :word @ to word
+
+  word string? not if
+	id -32602 "Invalid params: word must be a string" mcp-fail exit
+  then
+
+  word "^\S+$" has? not if
+	id "a word name carries no spaces; ask for one word at a time" true mcp-tool-result exit
+  then
+
+  word mcp-help-text to failed
+  id swap failed mcp-tool-result ; internal
+
+( id arguments -- ) \ the telic-eval tool
+: mcp-eval-tool
+  | id arguments |
+  arguments :code has? not  arguments :session has? not  or if
+	id -32602 "Invalid params: telic-eval takes a code string and a session string" mcp-fail exit
+  then
+
+  arguments :code @ to code
+  arguments :session @ to session
+
+  code string? not  session string? not  or if
+	id -32602 "Invalid params: code and session must both be strings" mcp-fail exit
+  then
+
+  session mcp-session to state
+
+  state none? if
+	id mcp-max-sessions "the server holds {0:d} live sessions, all of them busy; retry when one finishes" format
+	true mcp-tool-result exit
+  then
+
+  state mcp-busy? if
+	state@queue { :id id :code code } add-last! drop exit
+  then
+
+  state id code mcp-start-call ; internal
+
+( id params -- ) \ dispatch one tools/call through the registry
+: mcp-call-tool
+  | id params |
+  params :name "" @or to wanted
+  wanted mcp-find-tool to entry
+
+  entry none? if
+	id -32602 "Unknown tool: " wanted + mcp-fail exit
+  then
+
+  id params :arguments { } @or entry :handler @ execute ; internal
+
+\ ---- the tools this server ships ----
+
+{ :name "telic-eval"
+  :title "Evaluate Water source"
+  :description mcp-instructions
+  :inputSchema
+	{ :type "object"
+	  :properties
+		{ :code { :type "string" :description "Water source to evaluate" }
+		  :session { :type "string"
+					 :description "Names the interpreter this call runs in. Reusing a name reuses its state; a call that runs longer than the server's limit stops that session, and the next call naming it starts a fresh interpreter." }
+		}
+	  :required [ "code" "session" ]
+	}
+} ' mcp-eval-tool mcp-add-tool
+
+{ :name "telic-help"
+  :title "Read a word's reference entry"
+  :description "Answer the reference entry for one Water word: its stack effect, what it does, its cost, and a worked example. Read-only and sessionless. An unknown name answers that it is unknown."
+  :inputSchema
+	{ :type "object"
+	  :properties
+		{ :word { :type "string" :description "The word to look up, exactly as it is spelled, such as sort or dataset>matrix" } }
+	  :required [ "word" ]
+	}
+} ' mcp-help-tool mcp-add-tool
+
+\ ---- version negotiation and dispatch ----
+
+( params -- version|none ) \ the protocol version a request declares
+: mcp-declared-version
+  | params |
+  params :_meta { } @or :io.modelcontextprotocol/protocolVersion null @or ; internal
+
+( params -- bool ) \ whether the request carries every required _meta field
+: mcp-meta-complete?
+  | params |
+  params :_meta { } @or to meta
+  meta :io.modelcontextprotocol/protocolVersion has?
+  meta :io.modelcontextprotocol/clientCapabilities has? and ; internal
+
+( id requested -- ) \ the version this server speaks, and the one the client asked for
+: mcp-unsupported-version
+  | id requested |
+  id -32022 "Unsupported protocol version"
+  { :supported [ mcp-protocol-version ] :requested requested }
+  mcp-fail-with ; internal
+
+( id -- ) \ what this server supports, in one response
+: mcp-discover
+  | id |
+  id { :supportedVersions [ mcp-protocol-version ]
+	   :capabilities { :tools { } }
+	   :instructions mcp-instructions
+	 } mcp-answer ; internal
+
+( request -- ) \ dispatch one request; a notification, having no :id, is answered with nothing
+: mcp-handle
+  | request |
+  request :method @ to method
+  request :id has? not if exit then
+  request :id @ to id
+  request :params { } @or to params
+
+  method "initialize" = if
+	id -32601 "initialize is not implemented; this server speaks MCP "
+	mcp-protocol-version + ", which declares the version per request in params._meta"
+	+ mcp-fail exit
+  then
+
+  params mcp-meta-complete? not if
+	id -32602 "Invalid params: params._meta must carry io.modelcontextprotocol/protocolVersion and io.modelcontextprotocol/clientCapabilities"
+	mcp-fail exit
+  then
+
+  params mcp-declared-version to declared
+  declared mcp-protocol-version = not if
+	id declared mcp-unsupported-version exit
+  then
+
+  method "server/discover" = if id mcp-discover exit then
+  method "ping" = if id { } mcp-answer exit then
+  method "tools/list" = if id { :tools mcp-tool-definitions } mcp-answer exit then
+  method "tools/call" = if id params mcp-call-tool exit then
+
+  id -32601 "method not found: " method + mcp-fail ; internal
+
+( line -- ) \ parse one request line and dispatch it; malformed JSON answers a parse error
+: mcp-accept
+  | line |
+  line [: json>frame mcp-handle :] curry
+  [: drop null -32700 "Parse error" mcp-fail :]
+  try-catch ; internal
+
+\ ---- the loop ----
+
+( -- arr ) \ the sessions waiting for a child to answer
+: mcp-busy-sessions
+  mcp-sessions values ' mcp-busy? filter ; internal
+
+( -- arr ) \ stdin, plus the output of every busy child
+: mcp-watched
+  [ stdin ] mcp-busy-sessions [: @child :out @ :] map + ; internal
+
+( -- seconds ) \ how long until the earliest deadline, negative when nothing is running
+: mcp-next-deadline
+  mcp-busy-sessions [: @expiry :] map to deadlines
+  deadlines size 0 = if -1 exit then
+
+  deadlines deadlines 0 @i ' min2 reduce now - to remaining
+  remaining 0 max2 ; internal
+
+( -- ) \ stop every session whose call has overrun
+: mcp-expire-overdue
+  mcp-busy-sessions
+	[: dup @expiry now <= if mcp-expire else drop then :] each ; internal
+
+( source -- ) \ drain whichever session owns this stream
+: mcp-drain-stream
+  | source |
+  mcp-sessions values source [: state stream | state@child :out @ stream = :] curry find-first to owner
+  owner none? not if owner mcp-drain then ; internal
+
+( -- ) \ close every live session and reap its child
+: mcp-close-sessions
+  | ^mcp-sessions |
+  mcp-sessions values [: :child @ end-process :] each
+  { } to mcp-sessions ; internal
+
+( -- ) \ serve requests until end of input, answering each call as its child finishes
+: mcp-serve
+  false to finished
+  "" to pending
+
+  begin finished not while
+	mcp-watched mcp-next-deadline wait-readable to ready
+	mcp-expire-overdue
+
+	ready [: stdin = :] any? if
+	  stdin read-available to chunk
+
+	  chunk none? if
+		true to finished
+	  else
+		pending chunk + "\n" split to pieces
+		pieces size 1- to n-complete
+		pieces n-complete @i to pending
+
+		pieces n-complete take
+		  [: dup byte-size 0 > if mcp-accept else drop then :] each
+	  then
+	then
+
+	ready [: stdin = not :] filter ' mcp-drain-stream each
+  repeat
+
+  mcp-close-sessions ;

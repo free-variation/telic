@@ -58,7 +58,7 @@ error: cannot serialize a database
 in value>bytes
 error: cannot serialize an execution token
 in value>bytes
-error: not Water value data
+error: not Telic value data
 in bytes>value
 error: truncated value data
 in bytes>value

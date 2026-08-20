@@ -1,5 +1,5 @@
 """
-Leibniz pi, parallel — the counterpart of bench/variants/leibniz-parallel.h2o.
+Leibniz pi, parallel — the counterpart of bench/variants/leibniz-parallel.telic.
 
 The series splits into `chunks` contiguous blocks of terms. Worker j sums the
 terms k in [j*chunk_size, (j+1)*chunk_size) with term k = (-1)^k / (2k+1);

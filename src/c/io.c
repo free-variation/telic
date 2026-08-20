@@ -1,5 +1,5 @@
 
-#include "water.h"
+#include "telic.h"
 #include <poll.h>
 
 static int stream_generation[STREAM_FD_MAX];
@@ -89,7 +89,7 @@ void p_binary_dir(DISPATCH_ARGS) {
 	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);
 	char resolved[PATH_MAX];
 	if (!platform_executable_path(resolved, sizeof(resolved))) {
-		fail(interp, "cannot locate the water binary");
+		fail(interp, "cannot locate the telic binary");
 		return;
 	}
 

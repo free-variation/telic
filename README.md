@@ -1,4 +1,4 @@
-# <img src="water_logo.png" alt="" height="40" align="top"> Water
+# <img src="telic_logo.png" alt="" height="40" align="top"> Telic
 
 A Forth-styled language for numeric, statistical, and symbolic work, and for
 general scripting: matrices and linear algebra, statistics and regression,
@@ -16,12 +16,12 @@ Dedicated to Chuck Peddle and Tony Wilkinson.
 ## Building and running
 
 ```
-make           # builds ./water
+make           # builds ./telic
 make test      # runs the golden-output test suite
-make bench     # runs the benchmark suite (Water vs CPython)
-./water              # REPL
-./water prog.h2o     # run program files and exit (repeatable, in order; -i to drop into the REPL after)
-./water -e '3 4 + .' # run a code string and exit (repeatable, in argument order with files; implies -b)
+make bench     # runs the benchmark suite (Telic vs CPython)
+./telic              # REPL
+./telic prog.telic     # run program files and exit (repeatable, in order; -i to drop into the REPL after)
+./telic -e '3 4 + .' # run a code string and exit (repeatable, in argument order with files; implies -b)
 ```
 
 Self-contained: its vendored dependencies — PCRE2 (regex), isocline (REPL line
@@ -30,15 +30,15 @@ source into the binary, so `make` needs only a C compiler and the system
 `libffi`. Refresh them with `make vendor-pcre2`, `make vendor-sqlite`, and
 `make vendor-isocline` (see each directory's `PROVENANCE`).
 
-`make` also builds `liblapacke_water.so`, a thin shared library that wraps
+`make` also builds `liblapacke_telic.so`, a thin shared library that wraps
 the platform BLAS/LAPACK (Accelerate on macOS, OpenBLAS on Linux) behind
 the LAPACKE C interface. The statistics library `dlopen`s it through the
 FFI and requires it — the stats module is native-only; the wasm build
 excludes the FFI. Re-vendor with `make vendor-lapacke`.
 
 ```
-make wasm        # cross-builds water.wasm (needs wasi-sdk in ~/wasi-sdk, or set WASI_SDK)
-make test-wasm   # runs the golden suite against water.wasm under wasmtime
+make wasm        # cross-builds telic.wasm (needs wasi-sdk in ~/wasi-sdk, or set WASI_SDK)
+make test-wasm   # runs the golden suite against telic.wasm under wasmtime
 ```
 
 The wasm build targets WASI (a-shell, standalone runtimes, the browser via a
@@ -156,10 +156,10 @@ port five times against three CPython runs, and reports medians with a
 verification table pairing every result against its reference. The run below is
 CPython 3.14.6 and numpy 2.5.1 on Darwin 25.5.0, `clang -O3 -march=native`. The
 `-matrix` rows are vectorized and answer to numpy, the `-parallel` rows to a
-process pool of the same width, and both time pool creation as water times
+process pool of the same width, and both time pool creation as telic times
 spawning its threads.
 
-| benchmark | size | water | python | py / h2o |
+| benchmark | size | telic | python | py / telic |
 |:----------|:-----|-----------:|-------:|--------:|
 | leibniz | 1000000000 iterations | 8.494 s | 42.258 s | 4.98× |
 | leibniz-matrix | 1000000000, vectorized vs numpy | 0.7628 s | 1.810 s | 2.37× |
@@ -238,8 +238,8 @@ departs from its pyperformance original the file's header says so.
 - **Norms** — `norm` (Euclidean/L2) and `frobenius-norm`, both √(Σ elements²) over the matrix; `dot` ( v w -- f ) is the inner product.
 - **Descriptive statistics** — `var` (sample variance) and `quantile` (linearly interpolated at p ∈ [0,1]) over all elements, and `ks-distance` (the two-sample Kolmogorov–Smirnov statistic); the embedded statistics library layers `std`, `se`, `median`, `percentile`, `quantiles` (R's `quantile(x, probs)` over an array of probabilities), `iqr`, `ci`, `summary` (on vectors and per-column on datasets), `histogram-table`, `ecdf`, `binomial-deviance`, `cross-validate` (k-fold over caller-defined units), and the `bootstrap` family; the loadable LAPACK library adds `fit-logistic-ridge` and `cv-logistic-ridge`/`pcv-logistic-ridge` (L2 path selection, serial or parallel) on these — all wasm-capable. The statistics skip NaN elements (missing values) and divide by the non-NaN count (`nonmissing-count`); the correlations and regressions use complete cases.
 - **Correlations** — `correlation-pearson`, `correlation-spearman` (pearson on `ranks`), `correlation-kendall` (tau-b, O(n log n) C kernel); `correlate-with` bootstraps a 95% CI for any of them, and `cor` is kendall + 500 replicates in one word; `qnorm` is the standard normal quantile.
-- **Regression trees** — `fit-tree` grows a CART regression tree over a features frame and a numeric response: numeric columns split at a midpoint threshold, array columns are native categoricals split on a mean-ordered subset, and rows missing a numeric feature follow a per-split default direction learned from the split criterion. It returns the tree as a nested frame — `:prediction` and `:n-rows` at every node, `:feature` with `:threshold` or `:categories` at internal nodes, optional per-leaf `:responses` — and takes a params frame (`:max-depth`, `:min-samples`, `:store-leaf-responses`). `predict` applies a tree to a features frame, walking each row to its leaf (a numeric split sends value ≤ threshold left; a categorical split sends set membership left, an unseen value right). `feature-importance` ranks the features by normalized impurity reduction. `prune` cost-complexity-prunes a fitted tree at a given complexity, and `prune-cv` fits then prunes at the `alpha` chosen by k-fold cross-validation with the 1-SE rule. `draw-tree` prints the tree as indented rules, and `lib/plot.h2o`'s `plot-tree` renders it as an SVG node-link diagram.
-- **SVG plotting** (`lib/plot.h2o`) — scatter, line series, histogram, bar charts (explicit heights or value frequencies), and Tukey boxplots over a deferred-rendering figure: marks accumulate with the style in effect, the domain resolves at render (pinned or auto from the data), ticks are placed at round {1,2,5}×10ᵏ steps, `x-label`/`y-label` set axis titles, `panel` draws a filled ground with gridlines as negative space, and `show-figure` opens a live-reloading browser view that `save-figure` updates in place.
+- **Regression trees** — `fit-tree` grows a CART regression tree over a features frame and a numeric response: numeric columns split at a midpoint threshold, array columns are native categoricals split on a mean-ordered subset, and rows missing a numeric feature follow a per-split default direction learned from the split criterion. It returns the tree as a nested frame — `:prediction` and `:n-rows` at every node, `:feature` with `:threshold` or `:categories` at internal nodes, optional per-leaf `:responses` — and takes a params frame (`:max-depth`, `:min-samples`, `:store-leaf-responses`). `predict` applies a tree to a features frame, walking each row to its leaf (a numeric split sends value ≤ threshold left; a categorical split sends set membership left, an unseen value right). `feature-importance` ranks the features by normalized impurity reduction. `prune` cost-complexity-prunes a fitted tree at a given complexity, and `prune-cv` fits then prunes at the `alpha` chosen by k-fold cross-validation with the 1-SE rule. `draw-tree` prints the tree as indented rules, and `lib/plot.telic`'s `plot-tree` renders it as an SVG node-link diagram.
+- **SVG plotting** (`lib/plot.telic`) — scatter, line series, histogram, bar charts (explicit heights or value frequencies), and Tukey boxplots over a deferred-rendering figure: marks accumulate with the style in effect, the domain resolves at render (pinned or auto from the data), ticks are placed at round {1,2,5}×10ᵏ steps, `x-label`/`y-label` set axis titles, `panel` draws a filled ground with gridlines as negative space, and `show-figure` opens a live-reloading browser view that `save-figure` updates in place.
 - **Element-wise math** — `abs`, `sqrt`, `exp`, `log`, `ln`, `sin`, `cos`, `tan`, `tanh`, `asin`, `acos`, `atan`, `round`, `truncate`, `round-up`, `round-down`. Polymorphic over floats and matrices.
 - **Comparison** — `=` orders matrices structurally (shape then row-major contents), so matrices work as set members; `<`/`>`/`eq` compare matrices **element-wise**, returning a 1/0 matrix (a scalar broadcasts). An array operand also masks element-wise (`val_cmp` per element, a value broadcasts, equal-length arrays pair up), so `names "ann" eq where` filters a text column. On scalars and strings comparison is structural, `eq` agreeing with `=`.
 - **Sorting and masks** — `sort` (ascending copy of a vector, NaNs last), `argsort` (the sorting permutation of a vector as an index vector, or of an array under structural order as an index array; ties keep index order), `where` (flat indices of a mask's nonzero elements), `nan?` (the NaN mask — NaNs compare false under `<`/`>`/`eq`; an array answers a mask of its `none` elements), `mesh` (masked substitution — keep where the mask is 0 or NaN, replace where it is definitely nonzero; scalars, `null`, and quantities broadcast). Masks serve both selection and alteration: `dup 0 @j 0 < where select-rows` keeps the rows whose first column is negative, `dup nan? 0 mesh` fills a column's NaNs, `dup -1 eq null mesh` turns a sentinel into missing.
@@ -259,8 +259,8 @@ A magnitude (float, matrix, exact, or complex) carrying a unit; arithmetic propa
 - **`base` / `unit`** — declare dimensions and units. `base unit m`; `1 kg 1 m * 1 s / 1 s / unit newton` (derived); `1 $ 100 / unit ¢` (scaled sub-unit). A unit word is postfix — `10 m`, `3 newton`.
 - **Arithmetic** — `*`/`/` combine unit exponents and scales (a dimensionless result collapses back to a bare float/matrix); `+`/`-` require the same dimension and rescale across scales; `^`/`sqrt` scale the exponents; `= < >` compare by value, normalizing scale within a dimension. Named units print by name, unnamed compounds in base form.
 - **Statistics keep the unit** — the matrix reductions and statistics accept a dimensioned matrix: `sum`/`mean`/`max`/`min`/`quantile`/`median`/`iqr`/`ci` answer in the operand's unit, `var` in the unit squared (`std`/`se` return through `sqrt`), index/count words and the correlations answer bare; `magnitude` strips a quantity to its payload, `unit-of` answers its unit as the quantity `1` in that unit.
-- **Standard set** (`units.h2o`) — SI `m s kg ampere kelvin mol`, derived `hertz newton pascal joule watt coulomb volt`, `minute`/`hour`/`day`/`week`/`km`, and currencies `$`/`¢`, `£`/`penny`, `€`/`eurocent`.
-- **Constants** (`constants.h2o`) — capitalized: `PI` `E` `TAU` `PHI`, and the physical set as dimensioned quantities (`C` `G` `H` `HBAR` `KB` `NA` `QE`, SI-2019 exact values) — `C 2 ^ 1 kg *` is E=mc², and prints in joules.
+- **Standard set** (`units.telic`) — SI `m s kg ampere kelvin mol`, derived `hertz newton pascal joule watt coulomb volt`, `minute`/`hour`/`day`/`week`/`km`, and currencies `$`/`¢`, `£`/`penny`, `€`/`eurocent`.
+- **Constants** (`constants.telic`) — capitalized: `PI` `E` `TAU` `PHI`, and the physical set as dimensioned quantities (`C` `G` `H` `HBAR` `KB` `NA` `QE`, SI-2019 exact values) — `C 2 ^ 1 kg *` is E=mc², and prints in joules.
 
 ### Bitwise
 
@@ -349,14 +349,14 @@ Symbol-keyed nested maps — the associative type, and the compound term the log
 
 ### I/O and persistence
 
-- **Interactive REPL** with full isocline line editing: theme-adaptive **syntax highlighting**, **matching-brace** highlighting, **inline hints** and **Tab completion** (word names from the live dictionary, filenames inside string literals), persistent history (`.water_history`), and **multi-line editing** — `Ctrl+J` inserts a line, `Enter` submits the whole buffer. Each entry answers `ok`, followed by `count|top` (stack depth and the compressed top value) when the stack is non-empty, or the error message and trace on failure. A definition prints `new word: X`, or `redefined word: X` when the name already existed. A failed entry leaves the data stack as it was before the entry (the stack is snapshotted per entry and restored on error; in-place mutations of heap objects persist). `.` pretty-prints a nested array across lines with the opening brackets aligned; strings print quoted inside a collection and in `.s`, raw when printed bare.
+- **Interactive REPL** with full isocline line editing: theme-adaptive **syntax highlighting**, **matching-brace** highlighting, **inline hints** and **Tab completion** (word names from the live dictionary, filenames inside string literals), persistent history (`.telic_history`), and **multi-line editing** — `Ctrl+J` inserts a line, `Enter` submits the whole buffer. Each entry answers `ok`, followed by `count|top` (stack depth and the compressed top value) when the stack is non-empty, or the error message and trace on failure. A definition prints `new word: X`, or `redefined word: X` when the name already existed. A failed entry leaves the data stack as it was before the entry (the stack is snapshotted per entry and restored on error; in-place mutations of heap objects persist). `.` pretty-prints a nested array across lines with the opening brackets aligned; strings print quoted inside a collection and in `.s`, raw when printed bare.
 - **`load`** runs a source file as if typed.
-- **`save`** writes the user's vocabulary as a re-loadable `.h2o` source file.
+- **`save`** writes the user's vocabulary as a re-loadable `.telic` source file.
 - **`reload`** truncates user state and re-runs every file `load`ed this session, in order.
 - **`read-file`** / **`write-file`** / **`append-file`** — read a whole file as one (byte-safe) string; write or append a string's bytes to a path.
 - **`file-exists?`** — whether a path exists (`access`, `F_OK`); follows symlinks, any file type.
 - **`find-executable`** — `( name -- path/none )` the absolute path of `name` on `$PATH`, or the none value if not found.
-- **`load-library`** — `"plot" load-library` loads `lib/plot.h2o` from beside the water binary (`binary-dir`, symlinks resolved), from any cwd; the statistics library locates its LAPACK shared library the same way.
+- **`load-library`** — `"plot" load-library` loads `lib/plot.telic` from beside the telic binary (`binary-dir`, symlinks resolved), from any cwd; the statistics library locates its LAPACK shared library the same way.
 - **`env`** / **`env!`** — read an environment variable as a string (the none value if unset) and set one (process-wide, so `start-process` children inherit it).
 - **`stdin`** / **`stdout`** / **`stderr`** — the standard streams as `T_STREAM` values (fds 0/1/2), composing with `read`/`write`/`close` — `s stdout write` emits, `stdin read` slurps input.
 
@@ -367,7 +367,7 @@ Drive external programs over pipes (`fork`/`execv`/`pipe`/`waitpid`, with a manu
 - **`argv start-process`** — launch from an argv array; returns a frame `{ :pid :in :out :err }` with the child's pid and its stdin/stdout/stderr as `T_STREAM` values.
 - **`write`** / **`read`** / **`close`** — write a string to a stream, read a stream to EOF, close one (closing `:in` sends EOF).
 - **`running?`** / **`wait`** / **`stop`** — non-blocking liveness check, block-until-exit, signal-and-reap.
-- `subprocess.h2o` conveniences: **`run`** (split a command line and start it), **`read-out`** / **`read-err`** / **`write-in`**.
+- `subprocess.telic` conveniences: **`run`** (split a command line and start it), **`read-out`** / **`read-err`** / **`write-in`**.
 - **`commands width parallel-run`** — run a batch of argv arrays concurrently, at most `width` at a time, collecting `{ :out :err :status }` per command in input order (refills a slot as each child finishes). Process-level parallelism — e.g. firing off many `curl` requests at once.
 
 ### SQLite
@@ -380,7 +380,7 @@ Embedded relational storage via the vendored SQLite amalgamation — built into 
 - **`db-query>dataset`** — `( db query params -- dataset )` — the same query returned as a column-oriented dataset with typed columns: an all-numeric column arrives as an n×1 vector (NULL → NaN), a declared DATE/DATETIME column as a vector of instants in `s`, text as an array — so column statistics and `dataset>matrix` need no conversion step.
 - **`tsv>db`** — `( tsv-path db table -- info )` — import a TSV: header row names the columns, per-column type inference (REAL when every non-empty cell is numeric, else TEXT), empty cells become NULL, one transaction; returns `{ :n-rows :columns }` with each column's name and type, plus a `summary` frame for numeric columns and a distinct count for text.
 - **Bound parameters** — `params` is an array bound positionally to the `?` placeholders (`[ ]` for none); floats, strings, symbols, and `null` bind, so string values need no hand-escaping.
-- **`create-index`** — `( rel cols -- rel )`, `logic.h2o` — index a query result on `cols`, interning those columns to symbols so the fact-db index and `query` can use them.
+- **`create-index`** — `( rel cols -- rel )`, `logic.telic` — index a query result on `cols`, interning those columns to symbols so the fact-db index and `query` can use them.
 
 ### Data: TSV, datasets, and statistics
 
@@ -395,7 +395,7 @@ TSV is the one tabular file format (convert other formats to TSV before loading)
 - **`replace-where`** — `( dataset sym pred replacement -- )` conditionally edit one column in place: `pipeline :rep_touches [: -1 eq :] null replace-where` turns a sentinel into missing.
 - **`resample-indices`** — `( n -- arr )` n indices drawn from `[0,n)` with replacement, for bootstrap resampling.
 
-The statistics library (`lib/statistics.h2o`, loaded on demand) builds on the matrix and FFI layers:
+The statistics library (`lib/statistics.telic`, loaded on demand) builds on the matrix and FFI layers:
 
 - **Descriptive** — `std`, `se`, `median`, `percentile`, `quantiles`, `iqr`, `ci` (percentile confidence interval).
 - **Resampling** — `bootstrap` / `pbootstrap` (parallel) over a fit quotation.
@@ -417,7 +417,7 @@ Call C functions in any shared library at runtime via `libffi` — no per-librar
 
 ### MCP server
 
-`lib/mcp.h2o` serves the Model Context Protocol over stdio — `water -e '"mcp" load-library mcp-serve'` — at revision 2026-07-28, declaring the protocol version per request rather than through an `initialize` handshake. Two tools: `water-eval` runs Water source in a named session, a child interpreter that keeps its definitions, data, database handles and fitted models between calls, and `water-help` answers a word's reference entry. Sessions compute at the same time as one another, a call that overruns its deadline has its session stopped, and evaluated failures come back as tool errors rather than protocol errors. Remote access is a bridge, not Water code: put the stdio server behind a stdio-to-Streamable-HTTP gateway such as mcp-proxy.
+`lib/mcp.telic` serves the Model Context Protocol over stdio — `telic -e '"mcp" load-library mcp-serve'` — at revision 2026-07-28, declaring the protocol version per request rather than through an `initialize` handshake. Two tools: `telic-eval` runs Telic source in a named session, a child interpreter that keeps its definitions, data, database handles and fitted models between calls, and `telic-help` answers a word's reference entry. Sessions compute at the same time as one another, a call that overruns its deadline has its session stopped, and evaluated failures come back as tool errors rather than protocol errors. Remote access is a bridge, not Telic code: put the stdio server behind a stdio-to-Streamable-HTTP gateway such as mcp-proxy.
 
 ### Delimited continuations
 
@@ -430,7 +430,7 @@ A four-primitive substrate the rest of the control story is built on. See `docs/
 
 ### Generators
 
-Coroutines on the continuation primitives, in `generators.h2o`:
+Coroutines on the continuation primitives, in `generators.telic`:
 
 - **`yield`** — emit a value to the driver and suspend until resumed.
 - **`start-generator`** — run a producer to its first `yield`, leaving the yielded value and a resumable continuation.
@@ -442,7 +442,7 @@ A third stack for stashing arbitrary Vals without disturbing the data or return 
 
 ### Exceptions (library)
 
-Built in `generators.h2o` on top of the continuation primitives:
+Built in `generators.telic` on top of the continuation primitives:
 
 - **`throw`** — non-local exit with a value; uncaught, it is an interpreter error naming the value (`uncaught exception: "boom"`) with a trace from the throw site.
 - **`catch`** — wraps an xt; returns `(result 0)` on success, `(exc 1)` on a throw. It also intercepts **interpreter errors** — division by zero, out-of-bounds, type mismatch, and the like — delivering a `{ :message :trace }` frame (the trace names the failing word innermost-first) as the exception value, so a runtime fault is recoverable, not just a user `throw`. A `throw`n value passes through raw.
@@ -496,7 +496,7 @@ See `PLAN.md`.
 ## Project layout
 
 ```
-src/c/water.h          — types, global program structs (Vocabulary/Arena/Compiler), per-run Interpreter, prototypes
+src/c/telic.h          — types, global program structs (Vocabulary/Arena/Compiler), per-run Interpreter, prototypes
 src/c/core.c           — engine: interpreter, dictionary, symbol table, GC, arena, value printing, tokenizer/reader, see, text save
 src/c/words.c          — arithmetic, stack ops, printing words, delimited continuations, format, math, RNG
 src/c/time.c           — clocks and calendar: wall-now, epoch↔date, strftime/strptime
@@ -516,11 +516,11 @@ src/c/foreign.c        — FFI (libffi), pointer registry, matrix/segment bridge
 src/c/platform_posix.c — POSIX platform: arena mmap, isocline REPL, subprocesses
 src/c/platform_wasi.c  — WASI platform: allocator + erroring stubs for FFI/subprocess
 src/c/help_table.c     — generated help/man text (from docs/reference.md)
-src/forth/*.h2o        — standard library (concatenated in Makefile order, embedded)
-lib/                   — loadable libraries: statistics.h2o, plot.h2o, claude.h2o
+src/forth/*.telic        — standard library (concatenated in Makefile order, embedded)
+lib/                   — loadable libraries: statistics.telic, plot.telic, claude.telic
 external/              — vendored deps: pcre2, sqlite, isocline, lapacke
 tests/                 — golden-output test files
-bench/                 — benchmark suite (Water vs CPython) and inventory
+bench/                 — benchmark suite (Telic vs CPython) and inventory
 docs/                  — the word reference (reference.md, reference-libraries.md), idioms.md,
                          and the primers: continuations, logic, regression
 PLAN.md                — future work

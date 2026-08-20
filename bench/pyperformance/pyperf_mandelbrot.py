@@ -1,7 +1,7 @@
 """
 mandelbrot — Computer Language Benchmarks Game.
 
-Escape-time over an N x N grid. Matches bench/pyperformance/mandelbrot.h2o
+Escape-time over an N x N grid. Matches bench/pyperformance/mandelbrot.telic
 (same mapping, iteration cap, and in-set pixel count).
 """
 
