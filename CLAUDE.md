@@ -185,10 +185,10 @@ new inline that calls functions → the tail.
   `|> a b |`.
 - Counted loops inside a definition are `start limit delta do k … loop`:
   the body compiles inline, so it reads and writes the enclosing word's
-  locals, and the per-iteration bookkeeping is one instruction. `times` /
-  `i-times` over a quotation serve the top level and xt-shaped drivers.
-  `begin`/`while` remains for loops whose trip count is not fixed at
-  entry (a fixpoint pass, a bit scan).
+  locals, and each iteration's loop control is one instruction. `times` /
+  `i-times` over a quotation serve the top level and callers holding an
+  xt. `begin`/`while` remains for loops whose iteration count is not
+  fixed at entry (a fixpoint pass, a bit scan).
 - Quotations: write them bare (`[: ... :]`); receive into locals
   (`[>`/`[: |`) when a value is reused past a `dup` or the quotation
   crosses `curry`. Measured: bare is the fastest form — under

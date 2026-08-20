@@ -1,8 +1,8 @@
 \ do / loop ( start limit delta -- ) — counted loop over a named index local.
-\ do parses the index name; the trip count is fixed at entry as
+\ do parses the index name; the number of iterations is fixed at entry as
 \ max(0, ceil((limit - start) / delta)); the body compiles inline.
 
-\ === trip counts and index values ===
+\ === iteration counts and index values ===
 
 : squares 0 5 1 do k k k * . loop cr ;
 squares                                        \ 0 1 4 9 16

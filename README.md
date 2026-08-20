@@ -238,7 +238,7 @@ departs from its pyperformance original the file's header says so.
 
 ### Exact rationals
 
-Arbitrary-precision rationals: gcd-reduced fractions of unbounded integers, integers as the denominator-1 case. `1/3` is a literal; an integer literal, JSON integer, or SQLite INTEGER too large for a float to hold exactly reads as an exact instead of rounding silently, and integer exacts serialize back losslessly. The polymorphic arithmetic, comparison, and rounding words compute exactly on exacts; comparison between an exact and a float is exact, while mixed arithmetic errors (`float>exact` / `exact>float` convert). Matrices, quantities, and the ⚠ tier stay float.
+Fractions of arbitrarily large integers, always reduced to lowest terms; an integer is the case with denominator 1. `1/3` is a literal; an integer literal, JSON integer, or SQLite INTEGER too large for a float to hold exactly reads as an exact instead of rounding silently, and integer exacts write back without loss. The arithmetic, comparison, and rounding words compute exactly on exacts; comparing an exact with a float is exact, while arithmetic between them errors (`float>exact` / `exact>float` convert). Matrices, quantities, and the ⚠ words take only floats.
 
 ### Dimensioned quantities
 

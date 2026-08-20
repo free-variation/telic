@@ -219,8 +219,8 @@ two interoperate — a `db-query` result is already relation-shaped.
 ## Counted iteration and folds
 
 `do`/`loop` is the counted loop inside a definition: the body compiles
-inline, so it reads and writes the enclosing word's locals, and the named
-index reaches any nesting depth. `times`, `i-times`, and `fold-times` are the
+inline, so it reads and writes the enclosing word's locals, and nested loops
+read each index by name. `times`, `i-times`, and `fold-times` are the
 quotation forms — for the top level, for an xt in hand, and for map-folds.
 
 - Indexed fill — initialize a segment or array by index (the shape of

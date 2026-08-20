@@ -1,6 +1,7 @@
-\ Locals read as null before their first assignment, and body hoisting sees
-\ the whole definition regardless of input chunking (this file arrives on
-\ stdin line by line, so every multi-line definition exercises the refill).
+\ Locals read as null before their first assignment, and the compiler's scan
+\ for a body's local names sees the whole definition however the source
+\ arrives (this file comes in on stdin line by line, so every multi-line
+\ definition makes the scan read past a line boundary).
 
 \ === null before first assignment ===
 

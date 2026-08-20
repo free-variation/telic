@@ -60,12 +60,12 @@ incremental collection.
 | `rot` | `( a b c -- b c a )` | Rotate top three | 6 | none | O(1) |
 | `-rot` | `( a b c -- c a b )` | core.h2o: reverse rotate — brings the top down under the other two (`rot rot`, inlined) | 12 | none | O(1) |
 | `depth` | `( -- n )` | Push current depth | 1 | none | O(1) |
-| `pick` | `( xₙ … x₀ n -- xₙ … x₀ xₙ )` | Copy the item n deep to the top, leaving it in place; `0 pick` is `dup` and `1 pick` is `over`, and n counts from the top as `roll`'s does. Reaches a value a caller parked below a combinator's operands — under `map`, which peeks its source, the element is at 0, the source at 1 and a parked value at 2 | 3 | none | O(1) |
+| `pick` | `( xₙ … x₀ n -- xₙ … x₀ xₙ )` | Copy the item n deep to the top, leaving it in place; `0 pick` is `dup` and `1 pick` is `over`, and n counts from the top as `roll`'s does. Reads a value a caller parked below a combinator's operands — under `map`, which peeks its source, the element is at 0, the source at 1 and a parked value at 2 | 3 | none | O(1) |
 | `roll` | `( xₙ … x₀ n -- xₙ₋₁ … x₀ xₙ )` | Move the item n deep to the top; memmoves the n above it down | 2 + n | none | O(n) |
 | `clear` | `( … -- )` | Reset data stack depth to 0 | 1 | none | O(1) |
 | `2dup` | `( a b -- a b a b )` | core.h2o: `over over` (inlined) | 10 | none | O(1) |
 | `2drop` | `( a b -- )` | core.h2o: `drop drop` (inlined) | 2 | none | O(1) |
-| `identity` | `( a -- a )` | core.h2o: the value unchanged (inlined) — the no-op xt for a higher-order word that wants "leave it as is" | 1 | none | O(1) |
+| `identity` | `( a -- a )` | core.h2o: the value unchanged (inlined) — the no-op xt for a higher-order word that expects a transform when none is wanted | 1 | none | O(1) |
 | `nip` | `( a b -- b )` | Drop the second item, keeping the top — one op, not `swap drop` | 1 | none | O(1) |
 
 ```forth dup
@@ -187,7 +187,7 @@ float fast path first; the heavy cases are captured by the O column.
 | `1-` | `( a -- a-1 )` | float, matrix, or exact | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `sq` | `( a -- a² )` | float, matrix, or exact | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `min2` | `( a b -- smaller )` | the `val_cmp`-ordered lesser of two values — floats, strings, quantities; NaN orders below every number, so a NaN operand answers NaN. With a matrix operand it is element-wise with scalar broadcast. `min`/`max` reduce one matrix, these order a pair | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
-| `max2` | `( a b -- larger )` | the `val_cmp`-ordered greater, `min2`'s twin; a NaN operand answers the other value | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
+| `max2` | `( a b -- larger )` | the `val_cmp`-ordered greater of two values (see `min2`); a NaN operand answers the other value | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 
 ```forth +
 3 4 + . cr
@@ -875,7 +875,7 @@ Result is `1.0` (true) or `0.0` (false), with a float fast path. `=` uses `val_c
 | `false` | `( -- bool )` | core.h2o: pushes 0 (inline) | 1 | none | O(1) |
 | `>` | `( a b -- bool )` or `( mat/arr x -- mat )` | greater-than; element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (`val_cmp` per element, n×1) | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
 | `>=` | `( a b -- bool )` or `( mat/arr x -- mat )` | greater-than-or-equal (≥); element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (`val_cmp` per element, n×1) | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
-| `eq` | `( a b -- bool )` or `( mat/arr x -- mat )` | equality; element-wise 1/0 mask on matrix and array operands (scalar broadcast; `val_cmp` per array element) — the mask-producing twin of `=`, which stays structural on collections. NaN elements equal nothing | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
+| `eq` | `( a b -- bool )` or `( mat/arr x -- mat )` | equality; element-wise 1/0 mask on matrix and array operands (scalar broadcast; `val_cmp` per array element) — unlike `=`, which stays structural on collections. NaN elements equal nothing | 3 (float) | matrix `1m(r×c)` | same; matrix O(r×c) |
 | `nan?` | `( v -- bool )` or `( mat/arr -- mat )` | NaN test: 1/0 mask over a matrix's elements; an array answers an n×1 mask marking `none` elements (a text column's missing cells), composing with `where`/`select-rows`; `1` on `null` itself (a scalar NaN *is* `null`), `0` on any float or exact. The only mask route to NaNs — they compare false under `<`/`>`/`eq` | 2 | `1m(r×c)` | O(1); matrix/array O(n) |
 | `0=` | `( a -- bool )` | `!truthy(a)`; any type | 2 | none | O(1) |
 | `1=` | `( a -- bool )` | core.h2o: `1 =` (inlined) | 5 | none | O(1) |
@@ -1277,30 +1277,31 @@ temperature `kelvin`, amount `mol`; derived `hertz` `newton` `pascal` `joule`
 
 ## Exact rationals
 
-An exact is an arbitrary-precision rational: a gcd-reduced fraction of
-unbounded integers, an integer being the denominator-1 case. `1/3`, `-7/2`,
-and `5/1` are literals, and a plain integer literal too large for a float to
-hold exactly (a 19-digit id) reads as an exact instead of rounding silently.
-The same promotion applies to `json>frame` integers and SQLite INTEGER
-columns; `frame>json` and `db-exec`/`db-query` parameters write integer
-exacts back losslessly (a non-integer exact errors there).
+An exact is a fraction of two arbitrarily large integers, always reduced to
+lowest terms; an integer is the case with denominator 1. `1/3`, `-7/2`, and
+`5/1` are literals, and a plain integer literal too large for a float to hold
+exactly (a 19-digit id) reads as an exact instead of rounding silently. The
+same rule applies to `json>frame` integers and SQLite INTEGER columns;
+`frame>json` and `db-exec`/`db-query` parameters write integer exacts back
+without loss (a non-integer exact errors there).
 
 The polymorphic words compute exactly on exact operands: `+` `-` `*` `/`
-(closed — `1/3 1/6 +` is `1/2`; `/` errors on an exact zero), `%` `mod`
-`quotient`, `negate` `abs` `1+` `1-` `sq`, `^` with an integer float exponent,
-and `round` `truncate` `round-up` `round-down` (integer exacts). Comparison
-is the one place exact and float meet: `=` `<` `>` `<=` `>=` `min2` `max2`,
-`sort`, and set membership compare the two numerically and exactly
-(`1/2 0.5 =` is true), so mixed collections order and dedup coherently.
-Exact ⊕ float arithmetic errors — convert explicitly. Matrices, segments,
-quantity magnitudes, bitwise, and the ⚠ float words stay float; an exact
-reaching them errors. An exact result allocates one object per operation, so
-exact arithmetic runs an order of magnitude and more above the float fast
-path, which is unchanged.
+(`1/3 1/6 +` is `1/2`; dividing two exacts always yields an exact; `/` errors
+on an exact zero), `%` `mod` `quotient`, `negate` `abs` `1+` `1-` `sq`, `^`
+with an integer float exponent, and `round` `truncate` `round-up`
+`round-down`, which answer integer exacts. Only comparison accepts an exact
+and a float together: `=` `<` `>` `<=` `>=` `min2` `max2`, `sort`, and set
+membership compare the two kinds numerically and without rounding
+(`1/2 0.5 =` is true), so a collection holding both sorts and deduplicates
+correctly. Arithmetic between an exact and a float errors — convert
+explicitly. Matrices, segments, quantity magnitudes, the bitwise words, and
+the ⚠ float words take only floats; an exact operand errors. Every
+exact operation allocates its result, so exact arithmetic costs ten times
+the float fast path and more; the float path itself is unchanged.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `float>exact` | `( f -- x )` | The float's exact value — every float is a dyadic rational, so the conversion is lossless; errors on NaN or an infinity. An exact passes through unchanged | limbs | `1o` | O(limbs) |
+| `float>exact` | `( f -- x )` | The float's exact value — every float is an integer divided by a power of two, so nothing is lost; errors on NaN or an infinity. An exact passes through unchanged | limbs | `1o` | O(limbs) |
 | `exact>float` | `( x -- f )` | The nearest float; a float passes through unchanged | limbs | none | O(limbs) |
 | `numerator` | `( x -- x' )` | The reduced numerator as an integer exact, carrying the sign | limbs | `1o` | O(limbs) |
 | `denominator` | `( x -- x' )` | The reduced denominator as a positive integer exact | limbs | `1o` | O(limbs) |
@@ -1376,7 +1377,7 @@ path, which is unchanged.
 
 ## Side stack
 
-A third stack (depth 1024) for stashing values out of the way; used by `try-catch` to hold the handler.
+A third stack (depth 1024) for values set aside during a computation; used by `try-catch` to hold the handler.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
@@ -1438,8 +1439,8 @@ Immediate words that emit branch instructions into the current definition. Outsi
 | `again` | — | Unconditional branch back to `begin` |
 | `while` | `( flag -- )` | Exit the loop forward if flag is falsy (`begin … while … repeat`) |
 | `repeat` | — | Branch back to `begin`; patches the `while` exit |
-| `do` | `( start limit delta -- )` | Open a counted loop over a named index local: `do` parses the following name and declares it a local of the enclosing body — reusing the slot when the name is already this body's local, shadowing a word's name for the body as a `to`-local does, erroring on a global variable's name. Pops the triple (the operand order of `matrix-range`) and fixes the trip count at entry, `max(0, ceil((limit − start) / delta))` — equal or crossed bounds run zero times, a negative delta counts down. The index starts at `start` and steps by `delta`, fixed at entry; a zero delta errors, operands must be floats, and a trip count at or above 2^53 errors. Each loop takes three of the body's 128 local slots (the index and two bookkeeping slots) ⚠ the index step is a raw float add |
-| `loop` | — | Close a `do`: one fused instruction steps the index, counts the iteration off, and branches back. After the loop the index still reads — `start + count·delta` on normal exit, the current value after `leave` |
+| `do` | `( start limit delta -- )` | Open a counted loop over a named index local: parses the name, pops the triple (`matrix-range`'s operand order), and computes the number of iterations once at entry — zero when start is already at or past limit, so the loop body may never run; a negative delta counts down; a zero delta errors; operands are floats ⚠ the index step is a raw float add |
+| `loop` | — | Close a `do`: one instruction adds delta to the index, decrements the remaining-iteration count, and branches back while iterations remain. After the loop the index still reads — start plus delta times the iteration count on normal exit, the current value after `leave` |
 | `leave` | — | Branch past the innermost loop's closing word; conditional form is `if leave then` |
 | `continue` | — | Branch to the innermost loop's next iteration: a `while` loop re-runs its test, an `until` loop skips its trailing test and repeats unconditionally, and a `do` loop steps its index and counts the iteration (so it terminates) |
 | `exit` | `( -- )` | Return early from the current definition (this one runs at run time) |
@@ -1452,8 +1453,12 @@ or `:]` (an unpatched `leave` would otherwise be a wild branch); the partial
 definition rolls back. In `times` / `i-times` quotations, `exit` already ends
 the current iteration.
 
-Nested `do` loops read any index by its name; an inner `do` reusing an
-enclosing `do`'s live index name is a compile error.
+A `do` index name resolves as a `to` target does: an existing local of the
+body reuses its slot, a word's name shadows it for the body, a global
+variable's name errors. Each loop takes three of the body's 128 local slots —
+the index, the remaining-iteration count, and the delta — and a loop of 2^53
+or more iterations errors. Nested `do` loops read each index by its name;
+giving an inner `do` the index name of an enclosing `do` is a compile error.
 
 ```forth if
 : absolute dup 0 < if negate then ; -7 absolute . cr
@@ -2358,7 +2363,7 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 | `flatten-array` | `( arr -- arr )` | Flatten one level; returns the input unchanged if no element is itself an array | 1 + m | `1a(m)` | O(m) |
 | `sample` | `( arr/set count repl -- arr )` | Draw `count` elements; `repl` truthy = with replacement, else without (count ≤ len) | 3 + n | `1a(count)` (+ `malloc(n)` without replacement) | O(n) |
 | `shuffle` | `( arr -- arr )` | datasets.h2o: new array, elements uniformly permuted (a full `sample` without replacement); input untouched | 3 + n | as `sample` | O(n) |
-| `resample` | `( arr/set -- arr )` | datasets.h2o: same-size draw with replacement (a full `sample` with replacement, the bootstrap draw); input untouched — the value-space sibling of `resample-indices` | 3 + n | `1a(n)` | O(n) |
+| `resample` | `( arr/set -- arr )` | datasets.h2o: same-size draw with replacement (a full `sample` with replacement, the bootstrap draw); input untouched; `resample-indices` draws positions instead of values | 3 + n | `1a(n)` | O(n) |
 | `iota` | `( n -- arr )` | arrays.h2o: `[0…n−1]`, empty when n ≤ 0 | 3 + n | `1a(n)` | O(n) |
 
 ```forth array
@@ -2577,7 +2582,7 @@ Cons cells in a dense, GC'd table — the linked, recursively-decomposable count
 
 ## Frames
 
-Symbol-keyed sorted maps; binary-search lookup. A **path** is an array of steps; a plain *locator* is all symbols, and the literal `/a/b/c` is a compile-time constant array that allocates nothing at run time. A path may instead be a **search path** matching a set of nodes (see Path queries below). The single-target words (`@`, `!`, `delete-at`, `update-at`) require a locator and reject a search path, pointing the caller at `select-values`/`select-keys`; `has?` accepts either. `d` = path depth, `n` = frame size.
+Symbol-keyed sorted maps; binary-search lookup. A **path** is an array of steps; a plain *locator* is all symbols, and the literal `/a/b/c` is a compile-time constant array that allocates nothing at run time. A path may instead be a **search path** matching a set of nodes (see Path queries below). The single-target words (`@`, `!`, `delete-at`, `update-at`) require a locator and reject a search path (the error names `select-keys`/`select-values`); `has?` accepts either. `d` = path depth, `n` = frame size.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
@@ -2726,7 +2731,7 @@ So `/users/*/name` is the `:name` of every child of `:users`, `/root//city` is e
 | `select-values` | `( fr path -- arr )` | Every matched value, in document (pre-order) order, duplicates kept; no path built per match | s | `1a` + reallocs | O(s) |
 | `select-keys` | `( fr path -- arr )` | The full root-to-match path (a symbol array) for every match, document order; each round-trips through `@` | s | `1a` + `1a` per match | O(s + total path length) |
 
-`select-values` is the cheaper word (it captures the node directly, no per-match path array); `array>set` the result when distinct values are wanted, or `array>cons` to feed matches to `choose` as backtracking choice points.
+`select-values` is the cheaper word (it captures the node directly, no per-match path array); `array>set` the result when distinct values are wanted, or `array>cons` to pass the matches to `choose` as backtracking choice points.
 
 ```forth select-values
 { :a { :n 1 } :b { :n 2 } } /*/n select-values . cr
@@ -2747,7 +2752,7 @@ So `/users/*/name` is the `:name` of every child of `:users`, `/root//city` is e
 
 ## JSON
 
-Objects ↔ frames (keys interned as symbols), arrays ↔ arrays, strings ↔ strings, numbers ↔ floats. JSON `true`/`false` ↔ the reserved `:1`/`:0` symbols; `null` ↔ the none value.
+Objects ↔ frames (keys interned as symbols), arrays ↔ arrays, strings ↔ strings, numbers ↔ floats, except that an integer too large for a float to hold exactly reads as an integer exact and an integer exact writes as its digits (a non-integer exact errors on write). JSON `true`/`false` ↔ the reserved `:1`/`:0` symbols; `null` ↔ the none value.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
@@ -3140,14 +3145,14 @@ keep NaN in place.
 | `select-rows` | `( mat/dataset/arr idx -- same )` | New matrix of the rows named by `idx` — a float index array or an index vector (nx1 or 1xn, as `where`/`argsort` return); a dimensioned matrix keeps its unit; errors on a non-float or out-of-range index. datasets.h2o extends it to a dataset (every column gathered by the same indices — matrix and dimensioned columns through the matrix path, array columns element-wise) and to a bare array (elements gathered by index) | 2 + k·c | `1m(k×c)`; dataset one column each; array `1a(k)` | O(k·c) |
 | `mesh` | `( v mask b -- v' )` | Masked substitution: element i of the result is `b`'s where `mask[i]` is a definite nonzero, `v`'s where it is 0 **or NaN** (an unknown mask cell changes nothing). `v` is a matrix, dimensioned matrix, or array; the mask a bare matrix of `v`'s shape (element count, for an array). `b` is shape-matched same-representation, or broadcasts: a float, `null` (→ NaN), a quantity, or — for an array subject — any single value. Units reconcile as `+`: `b` rescales into `v`'s unit, which the result keeps; a quantity against a bare number errors. Conditional-mutate idioms: `dup nan? 0 mesh` fills NaNs, `dup -1 eq null mesh` turns a sentinel into NaN, `dup 100  100 mesh` caps | 3 + n | `1m(r×c)` / `1a(n)` | O(n) |
 | `argsort` | `( v -- v' )` or `( arr -- arr )` | The sorting permutation of a vector, shape preserved: element i is the source index of the i-th smallest value; ties keep index order, NaNs go last in index order. An array operand answers the permutation under `val_cmp` (structural, so mixed types order), ties in index order, as a float-index array | 1 + n log n | `1m(n)` + `malloc(16n)`; array `1a(n)` + `malloc(4n)` | O(n log n); vectors above 8k elements O(n) radix |
-| `ranks` | `( v -- v' )` | statistics.h2o: 0-based midranks as nx1 — tied values share the mean of their sorted positions, NaNs rank last in index order; one `argsort`, a gather, and a linear run walk | n log n + 2n | `3m(n)` + `malloc(16n)` | O(n log n) |
+| `ranks` | `( v -- v' )` | statistics.h2o: 0-based midranks as nx1 — tied values share the mean of their sorted positions, NaNs rank last in index order; one `argsort`, a gather, and one linear pass over the runs of tied values | n log n + 2n | `3m(n)` + `malloc(16n)` | O(n log n) |
 | `where` | `( mat -- v )` | Flat row-major indices of the nonzero elements, as a k×1 index vector (1×k for a 1×n mask); composes with the `<`/`>` masks and `select-rows` | 1 + n | `1m(k)` | O(n) |
 | `drop-nans` | `( v -- v' )` | matrix.h2o: the finite elements of a vector, NaNs dropped (`dup nan? 0 eq where select-rows`, inlined) | 4n | mask + index + `1m(k)` | O(n) |
-| `cumulative-sum` | `( mat -- mat' )` | Running sum over the elements in row-major order, shape preserved — a vector's prefix sums (ecdf, ROC, and calibration plumbing) | 1 + n | `1m(r×c)` | O(n) |
+| `cumulative-sum` | `( mat -- mat' )` | Running sum over the elements in row-major order, shape preserved — a vector's prefix sums | 1 + n | `1m(r×c)` | O(n) |
 | `var` | `( mat -- f )` | Sample variance (÷ n−1) over all elements; errors with fewer than 2 | 1 + n | none | O(n) |
 | `quantile` | `( mat p -- f )` | Linearly-interpolated quantile at p ∈ [0,1] over all elements (sorts a copy); errors if p out of range or empty | 2 + n log n | `malloc(n)` | O(n log n) |
 | `quantiles` | `( mat probs -- v )` | statistics.h2o: `quantile` at each probability in the `probs` array, as a vector in that order — R's `quantile(x, probs)` (type 7). Sorts a copy per probability | k·(2 + n log n) | `1a(k)` + `1m(k)` | O(k·n log n) |
-| `histogram-table` | `( v n-bins -- fr )` | statistics.h2o: equal-width bin counts over a vector's value range, as `{ :counts (n-bins×1) :low :bin-width }`. NaNs dropped, the top value lands in the last bin, a constant vector takes the range value ± 1; errors on n-bins < 1 or no finite values | n + n-bins | `1m(n-bins)` + `1fr` | O(n + n-bins) |
+| `histogram-table` | `( v n-bins -- fr )` | statistics.h2o: equal-width bin counts over a vector's value range, as `{ :counts (n-bins×1) :low :bin-width }`. NaNs dropped, the maximum value is counted in the last bin, a constant vector takes the range value ± 1; errors on n-bins < 1 or no finite values | n + n-bins | `1m(n-bins)` + `1fr` | O(n + n-bins) |
 | `ecdf` | `( v -- xs ys )` | statistics.h2o: the empirical CDF as two n×1 vectors — the finite elements sorted ascending, and the cumulative fractions (i+1)/n, so `ys` at index i is F(`xs` at i). Ties stay as consecutive points; NaNs are excluded from the points and from n; errors when no finite values remain | 2n log n | `2m(n)` + `1a(n)` | O(n log n) |
 | `binomial-deviance` | `( y p -- dev )` | statistics.h2o: −2 Σ[y ln p + (1−y) ln(1−p)] over n×1 vectors — the proper scoring rule for probability models; p is clamped to [1e-12, 1−1e-12], so an overconfident prediction scores finitely bad rather than losing its ln 0 term to `sum`'s NaN skipping | 10n | clamp + term vectors | O(n) |
 | `brier` | `( outcomes probabilities -- f )` | statistics.h2o: Brier score — mean of (probability − outcome)² over n×1 vectors; NaN elements are skipped by `mean` | 3n | `2m(n)` | O(n) |
@@ -3170,7 +3175,7 @@ keep NaN in place.
 | `correlate-with` | `( xs ys xt B -- fr )` | statistics.h2o: bootstrap 95% CI for the correlation word at xt — resamples (x, y) pairs jointly, B refits via a curried fit through `pbootstrap`, as `{ :estimate :se :bias :ci-low :ci-high }`; deterministic under a fixed seed | B·(n + xt) | pairs matrix + per-worker resample + `1fr` | O(B·(n + xt) / cores) |
 | `cor` | `( xs ys -- fr )` | statistics.h2o: `correlation-kendall` with a 500-replicate bootstrap CI — `' correlation-kendall 500 correlate-with` (inlined) | as `correlate-with` | as `correlate-with` | as `correlate-with` |
 | `qnorm` | `( p -- z )` | statistics.h2o: standard normal quantile (inverse CDF), Acklam's rational approximation — relative error below 1.15e-9, matching R's qnorm to 1e-8 over both tails; errors unless p strictly inside (0, 1) | 30 | none | O(1) |
-| `gpd-fit` | `( exceedances -- shape scale )` | statistics.h2o: maximum-likelihood generalized Pareto (GPD) fit to a vector of threshold exceedances — four refining rounds of a 9×9 grid over (shape, ln scale), reaching about [−0.8, 1.4] in shape at a resolution of 0.02, so a returned shape at either endpoint is the search hitting its limit rather than an optimum | 324n | `4m(n)` per grid point | O(n) |
+| `gpd-fit` | `( exceedances -- shape scale )` | statistics.h2o: maximum-likelihood generalized Pareto (GPD) fit to a vector of threshold exceedances — four refining rounds of a 9×9 grid over (shape, ln scale), reaching about [−0.8, 1.4] in shape at a resolution of 0.02, so a returned shape at either endpoint means the grid boundary was reached, not an optimum | 324n | `4m(n)` per grid point | O(n) |
 | `gpd-quantile` | `( shape scale p -- q )` | statistics.h2o: the generalized-Pareto quantile — `scale/shape · ((1−p)^−shape − 1)`, and the exponential limit `−scale · ln(1−p)` when \|shape\| < 1e-9; errors unless p is in [0, 1) | 6 | none | O(1) |
 | `gpd-draw` | `( shape scale -- draw )` | statistics.h2o: one exceedance drawn from the tail by inverse transform — `random gpd-quantile` (inlined), and `random`'s [0, 1) is `gpd-quantile`'s domain. Draws from the shared stream, so `seed` fixes the sequence | 7 | none | O(1) |
 | `sample-without-replacement` | `( arr n -- arr )` | statistics.h2o: `false sample` (inlined) | n | as `sample` | O(n) |
@@ -3178,8 +3183,8 @@ keep NaN in place.
 | `bootstrap` | `( data fit-xt B -- arr )` | statistics.h2o: B refits of fit-xt over resamples of data — dataset/matrix rows, or an array's elements. One serial draw sets the run seed; replicate i draws its indices via `resample-indices-ext` at run-seed + i, so no resample outlives its fit and results don't depend on scheduling — deterministic under a fixed seed | B(n + fit) | per-fit resample + `1a(B)` | O(B·(n + fit)) |
 | `pbootstrap` | `( data fit-xt B -- arr )` | statistics.h2o: `bootstrap` with the fits run under `pmap` — identical results (per-replicate seeding), parallel resample+fit | as `bootstrap` | as `bootstrap` | O(B·(n + fit) / cores) |
 | `bootstrap-with` | `( data fit-xt B mapper-xt -- arr )` | statistics.h2o: the bootstrap skeleton `bootstrap`/`pbootstrap` instantiate; mapper-xt is `map`-shaped | as `bootstrap` | as `bootstrap` | as `bootstrap` |
-| `column>indicators` | `( column -- mat )` | statistics.h2o: one 0/1 indicator column per distinct value above the first (the reference) — an n×(k−1) matrix from a numeric vector or text array column, levels in `val_cmp` order (`column>set` lists them); a missing cell lands in no column; errors on fewer than 2 distinct values | n·k + n log n | level masks + `1m` per fold | O(n·k + n log n) |
-| `indicators!` | `( design column sym -- design )` | statistics.h2o: `column>indicators`' named twin for a design dataset (a frame of columns): adds one 0/1 column per distinct value above the first (the reference), keyed `sym=level`, mutating and returning the frame — keys and columns derive from the same data, so a level change grows both together; `keys` then names the design and `dataset>matrix` over them is the aligned matrix; errors on fewer than 2 distinct values | n·k + n log n | level masks + frame growth | O(n·k + n log n) |
+| `column>indicators` | `( column -- mat )` | statistics.h2o: one 0/1 indicator column per distinct value above the first (the reference) — an n×(k−1) matrix from a numeric vector or text array column, levels in `val_cmp` order (`column>set` lists them); a missing cell leaves every indicator 0; errors on fewer than 2 distinct values | n·k + n log n | level masks + `1m` per fold | O(n·k + n log n) |
+| `indicators!` | `( design column sym -- design )` | statistics.h2o: `column>indicators` for a design dataset (a frame of columns): adds one 0/1 column per distinct value above the first (the reference), keyed `sym=level`, mutating and returning the frame — keys and columns derive from the same data, so a level change grows both together; `keys` then names the design and `dataset>matrix` over them is the aligned matrix; errors on fewer than 2 distinct values | n·k + n log n | level masks + frame growth | O(n·k + n log n) |
 | `with-intercept` | `( X/design -- X'/design )` | statistics.h2o: a matrix gets a prepended column of ones, so a fit's beta[0] is the intercept; a design dataset gets an `:intercept` ones column keyed like any term (errors on an empty design — the rows are read from it) | r×c | matrix `1m(r×(c+1))`; design `1m(r×1)` | O(r×c) |
 | `sigmoid` | `( mat -- mat' )` | statistics.h2o: elementwise logistic 1/(1+e⁻ˣ), mapping reals to (0,1) | 4n | `1m(r×c)` | O(n) |
 | `regress-with` | `( dataset predictors response B fit-xt -- arr )` | statistics.h2o: the shared regression pipeline — design matrix with intercept, point estimate, then B bootstrap refits for per-coefficient `{ :estimate :se :bias :ci-low :ci-high }` frames; the loadable statistics library's `linear-regression`/`logistic-regression` pass the fit | fit + B·fit | matrices + B refits + `1a(k)` | O(B·fit) |
@@ -3717,14 +3722,14 @@ Composition accepts a partial frame — `:year` required, `:month`/`:day`
 default 1, clock fields 0, other keys ignored — and out-of-range fields carry
 mktime-style: `:month 13` is next January, `:day 0` the last day of the
 previous month. Unsuffixed words are UTC and pure Gregorian arithmetic,
-identical on every platform; the `-local` twins go through libc in the
+identical on every platform; the `-local` words go through libc in the
 process's timezone, re-reading `TZ` on every call. WASI has no timezone
 machinery, so there the `-local` words behave as UTC and `parse-time` lacks
 `%z`.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `wall-now` | `( -- instant )` | units.h2o: CLOCK_REALTIME epoch seconds as a quantity in `s`; steps when the system clock is adjusted, so time intervals with `now` | 2 | 1 pair | O(1) |
+| `wall-now` | `( -- instant )` | units.h2o: CLOCK_REALTIME epoch seconds as a quantity in `s`; steps when the system clock is adjusted, so intervals are measured with `now` | 2 | 1 pair | O(1) |
 | `epoch>date` | `( instant -- date )` | Decompose an instant into a date frame, UTC | 40 | `1o` | O(1) |
 | `epoch>date-local` | `( instant -- date )` | Decompose in the process's timezone | 40 | `1o` | O(1) |
 | `date>epoch` | `( date -- instant )` | Compose an instant from a date frame, UTC; `:year` required, absent fields default, out-of-range fields carry | 30 | 1 pair | O(1) |
@@ -3835,7 +3840,7 @@ wall-now time>iso . cr
 | `save-tsv` | `( rows path -- )` | Write an array of row-arrays as TSV; `none` → empty, a whole-number float → integer, strings raw; errors on a tab/newline inside a string or a non-array row | 2 + r·c | none (to file) | O(r·c) |
 | `rows>dataset` | `( rows header? -- dataset )` | datasets.h2o: column-oriented frame from rows with typed columns — uniformly float-or-`none` cells become an n×1 vector (`none` → NaN), uniform-unit quantity cells a dimensioned vector, anything else stays the cell array; keys come from row 0 when header? is true, else `:col1…` are synthesized | 2·r·c | `k×1a(r)` + `1m` per numeric column + `1fr` | O(r·c) |
 | `rows>relation` | `( rows index-cols header? -- relation )` | datasets.h2o: deduped relation indexed on `index-cols` (coerced to symbols) | r·c | one frame per row + relation + index buckets | O(r·c) |
-| `dataset>rows` | `( dataset -- rows )` | datasets.h2o: the inverse of `true rows>dataset` — an array of row-arrays led by a header row of the column names as strings, columns in key order, cells through `column>array` (NaN → `null`, dimensioned cells as quantities); feeds `save-tsv` directly (`1 skip` for headerless rows) | r·c | header + one array per row + `1a(r·c)` cells | O(r·c) |
+| `dataset>rows` | `( dataset -- rows )` | datasets.h2o: the inverse of `true rows>dataset` — an array of row-arrays led by a header row of the column names as strings, columns in key order, cells through `column>array` (NaN → `null`, dimensioned cells as quantities); `save-tsv` accepts the result as is (`1 skip` for headerless rows) | r·c | header + one array per row + `1a(r·c)` cells | O(r·c) |
 | `headn` | `( dataset n leading-columns -- )` | datasets.h2o: print the first min(n, rows) rows as an aligned table — the `leading-columns` symbols appear first in the given order, the remaining columns alphabetical by name (an empty `leading-columns` orders every column alphabetically); column names as the header line, two-space gutter, numeric/quantity columns right-aligned, text left, `:datetime` columns through `time>iso`, other cells through `render`; empty dataset prints nothing | r·c | rendered cells | O(r·c) |
 | `head` | `( dataset -- )` | datasets.h2o: `10 [ ] headn` — the first 10 rows with columns alphabetical | r·c | rendered cells | O(r·c) |
 | `dataset>matrix` | `( dataset cols -- mat )` | datasets.h2o: build an n×k matrix from the named numeric columns (rows are observations) | n·k | flat `1a(n·k)` + `2m(n×k)` | O(n·k) |
@@ -3844,7 +3849,7 @@ wall-now time>iso . cr
 | `column>set` | `( column -- set )` | datasets.h2o: the set of the column's distinct values — `column>array array>set` | 2n log n | `1a(n)` + `1o` | O(n log n) |
 | `select-columns` | `( dataset cols -- dataset )` | datasets.h2o: the named columns as a new dataset (a fresh frame sharing the column values); a missing name errors through `@` | k log c | `1a(k)` + `1o` | O(k log c) |
 | `count` | `( arr/v/dataset -- pairs )` | datasets.h2o: occurrences of each distinct value as `[ [ value n ] … ]`, most frequent first, ties in value order (`val_cmp`); a vector counts its elements (a dimensioned one counts quantities), a dataset counts whole rows, each a frame keyed by column name | 2n log n | rows + pairs + 3×`1a` | O(n log n) |
-| `group-indices` | `( column -- pairs )` | datasets.h2o: `[ [ value [indices] ] … ]` per distinct value in `val_cmp` order — each index array holds the value's row positions, ascending (one `argsort`, the permutation cut at run boundaries); `count`'s shape with positions instead of tallies, so one pass replaces a per-value `eq where` scan | 2n log n | permutation + one pair and array per value | O(n log n) |
+| `group-indices` | `( column -- pairs )` | datasets.h2o: `[ [ value [indices] ] … ]` per distinct value in `val_cmp` order — each index array holds the value's row positions, ascending (one `argsort`, the permutation cut at run boundaries); the same pair layout as `count`, with positions instead of tallies, so one pass replaces a per-value `eq where` scan | 2n log n | permutation + one pair and array per value | O(n log n) |
 | `frames>dataset` | `( rows -- dataset )` | datasets.h2o: an array of row frames (as `query`, `db-query` `:rows`, or `map` over a dataset produce) as a column-oriented dataset, keys from row 0 — differing keys throw. Each column's representation is inferred: all-float cells (`none` → NaN) become an n×1 vector, uniform-unit quantities a dimensioned vector, anything else stays an array | n·k log k | one column per key + `1o` | O(n·k log k) |
 | `replace-where` | `( dataset sym pred replacement -- )` | datasets.h2o: replace the named column's cells passing `pred` `( column -- mask )`, in place — `update-at` around `mesh`, so the replacement broadcasts and units reconcile: `pipeline :rep_touches [: -1 eq :] null replace-where` nulls a sentinel, `[: nan? :] 0` fills missing, `[: 10 $ < :] 5 $` floors prices | pred + n | mask + one column | O(n) |
 | `resample-indices` | `( n -- arr )` | datasets.h2o: n indices drawn from [0,n) with replacement (bootstrap), from the global stream | 2n | `2×1a(n)` | O(n) |
@@ -4016,10 +4021,10 @@ The quotation/predicate cost dominates; `xt` denotes one call.
 | `sum-times` | `( xt n -- total )` | arrays.h2o: `fold-times` with 0 and `' f+` — the sum of `xt` `( i -- term )` over i in 0..n-1 | 3 + n·(1+xt) | none | O(n·xt) |
 | `product-times` | `( xt n -- product )` | arrays.h2o: `fold-times` with 1 and `' f*` — the product of `xt` `( i -- term )` over i in 0..n-1 | 3 + n·(1+xt) | none | O(n·xt) |
 | `i-times` | `( xt n -- )` | Run xt n times, pushing index 0..n-1 first | 2 + n·(1+xt) | none | O(n·xt) |
-| `fold-times` | `( acc map-xt combine-xt n -- acc' )` | Counted map-fold, the serial counterpart of `pmap-reduce`: for i in 0..n-1 push i, run `map-xt` `( i -- term )`, then combine the accumulator with the term. The accumulator never reaches the data stack — with `' f+`, `' f-`, `' f*`, `' f/` or their polymorphic twins the arithmetic runs inside the loop with no dispatch, and any other combiner is invoked as `( acc term -- acc' )`. `0 [: dup f* :] ' f+ 5 fold-times` answers 30; values the body needs beyond the index are parked below and read with `pick`. Per element it costs slightly less than `i-times` with an equivalent body, since the index leaves through the combinator rather than a dispatched `drop` | 4 + n·(1+xt) | none | O(n·xt) |
+| `fold-times` | `( acc map-xt combine-xt n -- acc' )` | Counted map-fold, the serial counterpart of `pmap-reduce`: for i in 0..n-1 push i, run `map-xt` `( i -- term )`, then combine the accumulator with the term. The accumulator never appears on the data stack — with `' f+`, `' f-`, `' f*`, `' f/` or their polymorphic counterparts the arithmetic runs inside the loop with no dispatch, and any other combiner is invoked as `( acc term -- acc' )`. `0 [: dup f* :] ' f+ 5 fold-times` answers 30; values the body needs beyond the index are parked below and read with `pick`. Per element it costs slightly less than `i-times` with an equivalent body, since the combine step consumes each term inside the loop where an `i-times` body would end in a dispatched `drop` | 4 + n·(1+xt) | none | O(n·xt) |
 | `find-first` | `( items pred -- element )` | The first element for which pred is truthy, or the none value; short-circuits at the first hit (does not run pred over the rest) | n·xt | none | O(n·xt) |
 | `any?` | `( items pred -- bool )` | arrays.h2o: `find-first none? not` — short-circuits, since `find-first` stops at the first hit | n·xt | none | O(n·xt) |
-| `all?` | `( items pred -- bool )` | arrays.h2o: `map 1 [: * :] reduce` — true when every element satisfies pred, vacuously true on empty. Runs pred over **every** element (it maps then folds), so it does not short-circuit and a side-effecting pred fires n times | 2n·xt | `1a(n)` | O(n·xt) |
+| `all?` | `( items pred -- bool )` | arrays.h2o: `map 1 [: * :] reduce` — true when every element satisfies pred, vacuously true on empty. Runs pred over **every** element (it maps then folds), so it does not short-circuit and a side-effecting pred runs n times | 2n·xt | `1a(n)` | O(n·xt) |
 | `each` | `( items xt -- )` | Run xt `( element -- )` on every element for its side effects; the element is the only thing the quotation may consume, and it must leave nothing. No result, no allocation | 2 + n·xt | none | O(n·xt) |
 | `flat-map` | `( items xt -- arr )` | arrays.h2o: `map flatten-array`; xt returns an array per element, results concatenated | n·xt + total | `1a(n)` + `1a(total)` | O(n·xt + total) |
 | `sort-by` | `( items xt -- arr )` | arrays.h2o: sorted by the key xt `( element -- key )` extracts, one evaluation per element; the keys are `argsort`ed and the elements gathered by that permutation, so equal keys keep index order | n·xt + n log n | 3×`1a(n)` + `malloc(4n)` | O(n·xt + n log n) |
@@ -4375,14 +4380,14 @@ hi
 
 Coroutines over the continuation substrate: a producer `yield`s values one at a time and a driver `resume`s it for the next. All generators.h2o on `shift`/`reset`/`resume`. `L` = captured return-stack length per step.
 
-A producer drops nothing after `yield`. The word does not consume the value it emits, and what stands on the stack when the producer resumes is whatever the driver left there: under `gen-take` the emitted value itself, since that word gathers the run of them into an array at the end; under `gen-each` the `:gen-end` sentinel, the consumer having already taken the value. A `drop` after `yield` therefore eats a collected value under `gen-take` (`count N out of range`) and eats the sentinel under `gen-each`, which ends the iteration early and silently.
+A producer drops nothing after `yield`. The word does not consume the value it emits, and what is on the stack when the producer resumes is whatever the driver left there: under `gen-take` the emitted value itself, since that word gathers the run of them into an array at the end; under `gen-each` the `:gen-end` sentinel, the consumer having already taken the value. A `drop` after `yield` therefore removes a collected value under `gen-take` (`count N out of range`) and removes the sentinel under `gen-each`, which ends the iteration early and silently.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `yield` | `( v -- … )` | generators.h2o: `shift` — emit v to the driver and suspend. What stands on the stack when the producer resumes is the driver's doing, so a producer loop drops nothing after `yield` (see the note above the table) | L | `1o` (cont) | O(L) |
+| `yield` | `( v -- … )` | generators.h2o: `shift` — emit v to the driver and suspend. The driver decides what is on the stack when the producer resumes, so a producer loop drops nothing after `yield` (see the note above the table) | L | `1o` (cont) | O(L) |
 | `start-generator` | `( producer -- value generator )` | generators.h2o: `reset execute` — run producer to its first `yield`; leaves the yielded value and a resumable continuation | L | `1o` (cont) | O(producer to first yield) |
 | `gen-take` | `( producer count -- array )` | generators.h2o: the first `count` values the producer yields, collected into an array | — | `1a(count)` + cont/step | O(count · L) |
-| `gen-each` | `( producer consumer -- )` | generators.h2o: run consumer on each value the producer yields until the producer falls off (a `:gen-end` sentinel marks exhaustion) | — | cont/step | O(values · consumer) |
+| `gen-each` | `( producer consumer -- )` | generators.h2o: run consumer on each value the producer yields until the producer finishes (a `:gen-end` sentinel marks exhaustion) | — | cont/step | O(values · consumer) |
 
 ```forth yield
 : nums 1 yield 2 yield ; ' nums 2 gen-take . cr
@@ -4422,7 +4427,7 @@ A producer drops nothing after `yield`. The word does not consume the value it e
 
 ## Logic
 
-Logic variables, unification, and committed choice, built on the trail and a `PROMPT_CHOICE` prompt. The primer behind these words — unknowns and substitutions, unification, the trail, search, reification, and the fact database as a worked application — is docs/logic.md. A logic var is always created explicitly: `lvar` pushes a fresh one, `lvar to x` names a persistent global (`to` auto-creates the global at the top level), and a `?` prefix in a locals list (`| ?x |`) declares a fresh per-call local. Capitalizing logic-var names (`X`, `Hs`) is stylistic convention, not syntax — case carries no meaning. `unify` records every binding on the trail; a `unify` mismatch or an explicit `fail` backtracks to the nearest `amb`. Lists are cons pairs (see Pairs): `[( H T )]` is the `[H|T]` head/tail pattern under `unify`. To keep a result past backtracking, snapshot it with `copy` (fresh vars) or `reify` (canonical `:_N`). A logic var prints by the name of a variable that holds it — `?x` while free (the `?` marks the hole, echoing the `| ?x |` declaration form), `x=value` once bound — or `_N` when anonymous; an anonymous bound var prints its value.
+Logic variables, unification, and committed choice, built on the trail and a `PROMPT_CHOICE` prompt. The primer behind these words — unknowns and substitutions, unification, the trail, search, reification, and the fact database as a worked application — is docs/logic.md. A logic var is always created explicitly: `lvar` pushes a fresh one, `lvar to x` names a persistent global (`to` auto-creates the global at the top level), and a `?` prefix in a locals list (`| ?x |`) declares a fresh per-call local. Capitalizing logic-var names (`X`, `Hs`) is stylistic convention, not syntax — case carries no meaning. `unify` records every binding on the trail; a `unify` mismatch or an explicit `fail` backtracks to the nearest `amb`. Lists are cons pairs (see Pairs): `[( H T )]` is the `[H|T]` head/tail pattern under `unify`. To keep a result past backtracking, snapshot it with `copy` (fresh vars) or `reify` (canonical `:_N`). A logic var prints by the name of a variable that holds it — `?x` while free (the `?` marks it unbound, matching the `| ?x |` declaration form), `x=value` once bound — or `_N` when anonymous; an anonymous bound var prints its value.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
@@ -4511,7 +4516,7 @@ fallback
 
 ## Fact database
 
-A relational store built entirely from frames and sets — no new type. A **relation** is `{ :rows <set of rows> :index <index> }`; a **row** is a frame keyed by column name; a **database**, if you want several relations, is just a frame keyed by relation name (`db :father @` reaches one — no words of its own). The same shape describes a SQLite query result, so a fetched table and a hand-built relation are interchangeable (see the SQLite section below).
+A relational store built entirely from frames and sets — no new type. A **relation** is `{ :rows <set of rows> :index <index> }`; a **row** is a frame keyed by column name; a **database**, if you want several relations, is just a frame keyed by relation name (`db :father @` reaches one — no words of its own). A SQLite query result has the same layout, so a fetched table and a hand-built relation are interchangeable (see the SQLite section below).
 
 Rows live in a set, so an identical row asserted twice dedups to one (a relation is a set of tuples). A caller-supplied `:id` column keeps otherwise-identical rows distinct. Indexed columns are declared at creation and must be symbol-valued; `:index` maps each to a `{ value → <rows> }` frame whose buckets share the row frames in `:rows`.
 
@@ -4529,9 +4534,9 @@ The relation/query machinery is built from logic.h2o helpers (`bucket-of`, `cand
 | `inner-join` | `( driver probed col -- [rows] )` | Inner join: each `driver` row merged (`probed` columns win collisions) with each `probed` row sharing `col`'s value; `probed` must index `col` | — | `1a` | O(driver·log probed) |
 | `bulk-load` | `( rel rows-array -- rel )` | Load all rows at once: builds `:rows` (a deduped set) and each declared column's index, instead of row-by-row | — | sets + frame | O(n log n) |
 | `load-bag` | `( rel rows-array -- rel )` | Like `bulk-load`, but `:rows` stays a **bag** (the array, duplicates kept) rather than a deduped set; only `:index` is built | n | frame + sets | O(n) |
-| `create-index` | `( rel cols -- rel )` | Index a relation on the symbol columns `cols`: intern each indexed column's value to a symbol (so it keys the bucket and matches a `{ :col :val }` pattern), then `load-bag` into a `cols`-indexed relation. Other columns keep their type; `:rows` stays a bag. The explicit bridge from a `db-query` result to an indexed relation | n | frame + sets | O(n) |
+| `create-index` | `( rel cols -- rel )` | Index a relation on the symbol columns `cols`: intern each indexed column's value to a symbol (so it keys the bucket and matches a `{ :col :val }` pattern), then `load-bag` into a `cols`-indexed relation. Other columns keep their type; `:rows` stays a bag. The step that turns a `db-query` result into an indexed relation | n | frame + sets | O(n) |
 
-These are logic.h2o over the C primitives `matches?`, `set-add!`, `set-remove!`, `array>set`, and `group-by`, plus the `symbol?` type predicate. Building a relation with one `assert` per row is super-linear (each insert shifts the sorted `:rows` set, and per-value frames grow the same way); `bulk-load` avoids that with `array>set` for `:rows` (one sort) and a one-pass `group-by` per indexed column (which buckets by the interned symbol value, then sorts each small bucket — no global sort). `load-bag` and `create-index` skip the `:rows` dedup entirely, keeping a bag; `create-index` also interns the indexed columns to symbols. Candidate narrowing drives from the smallest matching bucket.
+These are logic.h2o over the C primitives `matches?`, `set-add!`, `set-remove!`, `array>set`, and `group-by`, plus the `symbol?` type predicate. Building a relation with one `assert` per row is super-linear (each insert shifts the sorted `:rows` set, and per-value frames grow the same way); `bulk-load` avoids that with `array>set` for `:rows` (one sort) and a one-pass `group-by` per indexed column (which buckets by the interned symbol value, then sorts each small bucket — no global sort). `load-bag` and `create-index` skip the `:rows` dedup entirely, keeping a bag; `create-index` also interns the indexed columns to symbols. Queries take their candidate rows from the smallest matching bucket.
 
 ```forth relation
 [ :name ] relation { :name :ann :age 34 } assert { :name :ann } query first frame>array . cr
@@ -5147,10 +5152,10 @@ A stream (`T_STREAM`) wraps an OS file descriptor — a pipe to a child process.
 | `write` | `( str stream -- )` | Write the string's bytes to the stream; loops over partial writes, retries `EINTR` | write syscalls | none | O(\|s\|) |
 | `read` | `( stream -- str )` | Read the stream to EOF into one string | read syscalls | `1o` + buffer growth | O(bytes) |
 | `read-line` | `( stream -- str \| none )` | Read up to and including the next `\n` and answer the line without that terminator; a `\r` before it is content and stays, as it does under `"\n" split`. Bytes after the terminator are left in the stream, so `read` on the same stream answers the rest — the word holds no buffer and costs one `read` syscall per byte, for line protocols rather than bulk input. At end of input with nothing accumulated it answers `none`; a final unterminated run of bytes answers as a line, and the call after it answers `none`. Retries `EINTR` | bytes | `1o` + buffer growth | O(bytes) |
-| `read-available` | `( stream -- str )` | The bytes already waiting on the stream, without blocking: up to 65536 of them as a string, `""` when none are waiting, `none` at end of input. A zero-timeout `poll` decides, then one `read`. The partner of `wait-readable` when one thread serves several streams: `read-line` blocks until its newline arrives, so a writer that flushes a partial line and then computes would stall every other stream, while this word takes what is there and leaves the caller to assemble lines | 1 + bytes | `1o` | O(bytes) |
+| `read-available` | `( stream -- str )` | The bytes already waiting on the stream, without blocking: up to 65536 of them as a string, `""` when none are waiting, `none` at end of input. A zero-timeout `poll` decides, then one `read`. Used with `wait-readable` when one thread serves several streams: `read-line` blocks until its newline arrives, so a writer that flushes a partial line and then computes would stall every other stream, while this word takes what is there and leaves the caller to assemble lines | 1 + bytes | `1o` | O(bytes) |
 | `wait-readable` | `( streams seconds -- ready )` | Wait until at least one of `streams` has bytes to read, and answer a new array of those that do — empty when the wait expires first. `seconds` is a float with sub-second granularity: `0` polls without waiting, a negative value waits indefinitely. End of input counts as readable, so a stream whose writer has exited comes back and the read that follows answers `none` instead of blocking. `poll(2)` underneath, retrying `EINTR`; errors on a non-stream element, a closed stream, or more than 256 streams | 1 + n | `1a(k)` | O(n) |
 | `close` | `( stream -- )` | Close the fd; closing a child's `:in` sends it EOF. Idempotent, and a handle closed here is stale for good — reading or writing it reports `stream is closed` even after the descriptor number is reissued to another stream. A dropped handle holds its descriptor until process exit; `with-stream` scopes one | 1 syscall | none | O(1) |
-| `stdin` | `( -- stream )` | Standard input as a `T_STREAM` over fd 0; `stdin read` slurps it. (Conflicts with the REPL reading its own program from stdin — for file-loaded programs.) | 1 | none | O(1) |
+| `stdin` | `( -- stream )` | Standard input as a `T_STREAM` over fd 0; `stdin read` reads it whole. (Conflicts with the REPL reading its own program from stdin — for file-loaded programs.) | 1 | none | O(1) |
 | `stdout` | `( -- stream )` | Standard output as a `T_STREAM` over fd 1; `s stdout write` emits | 1 | none | O(1) |
 | `stderr` | `( -- stream )` | Standard error as a `T_STREAM` over fd 2; composes with `write`/`close` like any stream | 1 | none | O(1) |
 | `stdout>string` | `( xt -- str )` | Run xt with descriptor 1 redirected to an unlinked temporary file, restore the descriptor, and answer everything xt wrote — a raw `stdout write` included, the redirect being at the descriptor rather than in the printing words. Whatever xt leaves on the stack stays, the string on top; `stderr` is untouched, and a child from `start-process` writes to its own pipe, not this capture. Captures nest, each call saving its own descriptor. An error or `throw` out of xt restores the descriptor, discards the captured text, and propagates. Native-only: the wasm build errors, WASI having no temporary files | 2 + xt + bytes | `1o` + the temporary file | O(xt + bytes) |
@@ -5162,7 +5167,7 @@ A stream (`T_STREAM`) wraps an OS file descriptor — a pipe to a child process.
 | `write-in` | `( str proc -- )` | subprocess.h2o: write the string to the child's `:in` stream | write syscalls | none | O(\|s\|) |
 | `read-out` | `( proc -- str )` | subprocess.h2o: read the child's `:out` stream to EOF | read syscalls | `1o` + buffer growth | O(bytes) |
 | `read-err` | `( proc -- str )` | subprocess.h2o: read the child's `:err` stream to EOF | read syscalls | `1o` + buffer growth | O(bytes) |
-| `end-process` | `( proc -- )` | subprocess.h2o: the teardown mirror of `start-process` — close `:in`/`:out`/`:err` and `wait` `:pid` (graceful, blocks until exit) | 3 closes + wait | none | O(1) |
+| `end-process` | `( proc -- )` | subprocess.h2o: the teardown for a `start-process` child — close `:in`/`:out`/`:err` and `wait` `:pid` (graceful, blocks until exit) | 3 closes + wait | none | O(1) |
 | `parallel-run` | `( commands width -- results )` | subprocess.h2o: run each argv array in `commands` as a subprocess, at most `width` at once; collect `{ :out :err :status }` per command in input order, refilling a slot as each child finishes | fork per command + poll | `1a` + per-child frames/streams | O(critical path) |
 
 Line access is `read-line` one line at a time, or `read "\n" split` for a
@@ -5339,7 +5344,7 @@ a b
 
 ## SQLite
 
-Embedded relational storage via the vendored SQLite amalgamation, built into the binary. A database is a `T_DB` value — an inline handle into a per-interpreter registry of open connections, like a stream. `db-exec` and `db-query` take a `params` array bound positionally to the statement's `?` placeholders (`[ ]` for none): a float binds as a double, a string or symbol as text, `null` as NULL, anything else errors — so string parameters need no hand-escaping. A `db-query` result is a fact-database relation (see Fact database), so it drops straight into `query` / `inner-join` and is indexed with `create-index`. `n` = rows returned, `c` = columns.
+Embedded relational storage via the vendored SQLite amalgamation, built into the binary. A database is a `T_DB` value — an inline handle into a per-interpreter registry of open connections, like a stream. `db-exec` and `db-query` take a `params` array bound positionally to the statement's `?` placeholders (`[ ]` for none): a float binds as a double, a string or symbol as text, `null` as NULL, anything else errors — so string parameters need no hand-escaping. A `db-query` result is a fact-database relation (see Fact database), so `query` / `inner-join` accept it unchanged and `create-index` indexes it. `n` = rows returned, `c` = columns.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
