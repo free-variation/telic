@@ -217,14 +217,6 @@ static void mag_print(FILE *out, const uint32_t *a, int na) {
 	arena_free(groups);
 }
 
-static double mag_to_double(const uint32_t *a, int na) {
-	double value = 0;
-
-	for (int i = na - 1; i >= 0; i--)
-		value = value * 4294967296.0 + a[i];
-	return value;
-}
-
 static const uint32_t mag_zero_limb = 0;
 static const uint32_t mag_one_limb = 1;
 
@@ -235,6 +227,32 @@ static Val exact_wrap(Interpreter *interp, int handle) {
 	return make_exact(handle);
 }
 
+static void mag_reduce(uint32_t *numerator, int *n_numerator, uint32_t *denominator, int *n_denominator) {
+	if (mag_is_one(denominator, *n_denominator))
+		return;
+
+	uint32_t *divisor = arena_malloc((size_t)MAX(*n_numerator, *n_denominator) * 4);
+	int n_divisor = mag_gcd(numerator, *n_numerator, denominator, *n_denominator, divisor);
+
+	if (!mag_is_one(divisor, n_divisor)) {
+		uint32_t *quotient = arena_malloc((size_t)MAX(*n_numerator, *n_denominator) * 4);
+		uint32_t *remainder = arena_malloc(((size_t)n_divisor + 1) * 4);
+		int n_quotient;
+		int n_remainder;
+
+		mag_divmod(numerator, *n_numerator, divisor, n_divisor, quotient, &n_quotient, remainder, &n_remainder);
+		memcpy(numerator, quotient, (size_t)n_quotient * 4);
+		*n_numerator = n_quotient;
+		mag_divmod(denominator, *n_denominator, divisor, n_divisor, quotient, &n_quotient, remainder, &n_remainder);
+		memcpy(denominator, quotient, (size_t)n_quotient * 4);
+		*n_denominator = n_quotient;
+
+		arena_free(quotient);
+		arena_free(remainder);
+	}
+	arena_free(divisor);
+}
+
 static Val exact_normalized(Interpreter *interp, int sign, uint32_t *numerator, int n_numerator,
 		uint32_t *denominator, int n_denominator) {
 	n_numerator = mag_length(numerator, n_numerator);
@@ -243,28 +261,7 @@ static Val exact_normalized(Interpreter *interp, int sign, uint32_t *numerator, 
 	if (mag_is_zero(numerator, n_numerator))
 		return exact_wrap(interp, object_new_exact(interp, 0, &mag_zero_limb, 1, &mag_one_limb, 1));
 
-	if (!mag_is_one(denominator, n_denominator)) {
-		uint32_t *divisor = arena_malloc((size_t)MAX(n_numerator, n_denominator) * 4);
-		int n_divisor = mag_gcd(numerator, n_numerator, denominator, n_denominator, divisor);
-
-		if (!mag_is_one(divisor, n_divisor)) {
-			uint32_t *quotient = arena_malloc((size_t)MAX(n_numerator, n_denominator) * 4);
-			uint32_t *remainder = arena_malloc(((size_t)n_divisor + 1) * 4);
-			int n_quotient;
-			int n_remainder;
-
-			mag_divmod(numerator, n_numerator, divisor, n_divisor, quotient, &n_quotient, remainder, &n_remainder);
-			memcpy(numerator, quotient, (size_t)n_quotient * 4);
-			n_numerator = n_quotient;
-			mag_divmod(denominator, n_denominator, divisor, n_divisor, quotient, &n_quotient, remainder, &n_remainder);
-			memcpy(denominator, quotient, (size_t)n_quotient * 4);
-			n_denominator = n_quotient;
-
-			arena_free(quotient);
-			arena_free(remainder);
-		}
-		arena_free(divisor);
-	}
+	mag_reduce(numerator, &n_numerator, denominator, &n_denominator);
 
 	return exact_wrap(interp, object_new_exact(interp, sign, numerator, n_numerator, denominator, n_denominator));
 }
@@ -286,9 +283,8 @@ int exact_is_integer(Val value) {
 	return obj->exact.n_denominator == 1 && obj->exact.limbs[obj->exact.n_numerator] == 1;
 }
 
-void exact_print(FILE *out, Val value) {
-	EXACT_PARTS(value, obj, sign, num, n_num, den, n_den);
-
+static void mag_print_fraction(FILE *out, int sign, const uint32_t *num, int n_num,
+		const uint32_t *den, int n_den) {
 	if (sign < 0)
 		fputc('-', out);
 	mag_print(out, num, n_num);
@@ -298,27 +294,89 @@ void exact_print(FILE *out, Val value) {
 	}
 }
 
+void exact_print(FILE *out, Val value) {
+	EXACT_PARTS(value, obj, sign, num, n_num, den, n_den);
+
+	mag_print_fraction(out, sign, num, n_num, den, n_den);
+}
+
+void exact_print_scaled(FILE *out, Val value, long long ratio_numerator, long long ratio_denominator) {
+	EXACT_PARTS(value, obj, sign, num, n_num, den, n_den);
+
+	uint32_t top_limbs[2] = { (uint32_t)ratio_numerator, (uint32_t)((uint64_t)ratio_numerator >> 32) };
+	int n_top = mag_length(top_limbs, 2);
+	uint32_t bottom_limbs[2] = { (uint32_t)ratio_denominator, (uint32_t)((uint64_t)ratio_denominator >> 32) };
+	int n_bottom = mag_length(bottom_limbs, 2);
+
+	uint32_t *scaled_numerator = arena_malloc(((size_t)n_num + n_top) * 4);
+	uint32_t *scaled_denominator = arena_malloc(((size_t)n_den + n_bottom) * 4);
+	int n_scaled_numerator = mag_mul(num, n_num, top_limbs, n_top, scaled_numerator);
+	int n_scaled_denominator = mag_mul(den, n_den, bottom_limbs, n_bottom, scaled_denominator);
+
+	mag_reduce(scaled_numerator, &n_scaled_numerator, scaled_denominator, &n_scaled_denominator);
+	mag_print_fraction(out, sign, scaled_numerator, n_scaled_numerator, scaled_denominator, n_scaled_denominator);
+
+	arena_free(scaled_numerator);
+	arena_free(scaled_denominator);
+}
+
 double exact_to_double(Val value) {
 	EXACT_PARTS(value, obj, sign, num, n_num, den, n_den);
 
-	double numerator_value = mag_to_double(num, n_num);
-	double denominator_value = mag_to_double(den, n_den);
-	double magnitude;
+	if (sign == 0)
+		return 0.0;
 
-	if (isinf(numerator_value) || isinf(denominator_value)) {
-		int shift = MAX(mag_bit_length(num, n_num), mag_bit_length(den, n_den)) - 512;
-		double scaled_num = 0;
-		double scaled_den = 0;
-		for (int i = n_num - 1; i >= 0 && (n_num - 1 - i) < 3; i--)
-			scaled_num = scaled_num * 4294967296.0 + num[i];
-		for (int i = n_den - 1; i >= 0 && (n_den - 1 - i) < 3; i--)
-			scaled_den = scaled_den * 4294967296.0 + den[i];
-		int num_exp = MAX(0, (n_num - 3)) * 32;
-		int den_exp = MAX(0, (n_den - 3)) * 32;
-		(void)shift;
-		magnitude = ldexp(scaled_num / scaled_den, num_exp - den_exp);
+	int numerator_bits = mag_bit_length(num, n_num);
+	int denominator_bits = mag_bit_length(den, n_den);
+	int quotient_exponent = numerator_bits - denominator_bits;
+	int shift = 55 - quotient_exponent;
+
+	const uint32_t *dividend = num;
+	int n_dividend = n_num;
+	const uint32_t *divisor = den;
+	int n_divisor = n_den;
+	uint32_t *shifted = NULL;
+	if (shift > 0) {
+		shifted = arena_malloc(((size_t)n_num + (size_t)shift / 32 + 2) * 4);
+		n_dividend = mag_shift_left(num, n_num, shift, shifted);
+		dividend = shifted;
+	} else if (shift < 0) {
+		shifted = arena_malloc(((size_t)n_den + (size_t)(-shift) / 32 + 2) * 4);
+		n_divisor = mag_shift_left(den, n_den, -shift, shifted);
+		divisor = shifted;
+	}
+
+	uint32_t *quotient = arena_malloc(((size_t)n_dividend + 1) * 4);
+	uint32_t *remainder = arena_malloc(((size_t)n_divisor + 1) * 4);
+	int n_quotient;
+	int n_remainder;
+	mag_divmod(dividend, n_dividend, divisor, n_divisor, quotient, &n_quotient, remainder, &n_remainder);
+	int sticky = !mag_is_zero(remainder, n_remainder);
+
+	uint64_t scaled_quotient = quotient[0];
+	if (n_quotient > 1)
+		scaled_quotient |= (uint64_t)quotient[1] << 32;
+	arena_free(shifted);
+	arena_free(quotient);
+	arena_free(remainder);
+
+	int leading = 64 - __builtin_clzll(scaled_quotient);
+	int leading_exponent = quotient_exponent - 55 + leading - 1;
+
+	double magnitude;
+	if (leading_exponent > 1023) {
+		magnitude = HUGE_VAL;
+	} else if (leading_exponent < -1075) {
+		magnitude = 0.0;
 	} else {
-		magnitude = numerator_value / denominator_value;
+		int precision = leading_exponent >= -1022 ? 53 : leading_exponent + 1075;
+		int dropped = leading - precision;
+		uint64_t kept = scaled_quotient >> dropped;
+		uint64_t guard = (scaled_quotient >> (dropped - 1)) & 1;
+		int sticky_below = (scaled_quotient & (((uint64_t)1 << (dropped - 1)) - 1)) != 0 || sticky;
+		if (guard && (sticky_below || (kept & 1)))
+			kept++;
+		magnitude = ldexp((double)kept, leading_exponent - precision + 1);
 	}
 
 	return sign < 0 ? -magnitude : magnitude;
@@ -373,6 +431,50 @@ Val exact_from_int64(Interpreter *interp, int64_t value) {
 	uint32_t one = 1;
 
 	return exact_normalized(interp, sign, limbs, mag_length(limbs, 2), &one, 1);
+}
+
+static Val exact_reciprocal(Interpreter *interp, Val value) {
+	EXACT_PARTS(value, obj, sign, num, n_num, den, n_den);
+
+	uint32_t *flipped_numerator = arena_malloc((size_t)n_den * 4);
+	uint32_t *flipped_denominator = arena_malloc((size_t)n_num * 4);
+	memcpy(flipped_numerator, den, (size_t)n_den * 4);
+	memcpy(flipped_denominator, num, (size_t)n_num * 4);
+
+	Val result = exact_normalized(interp, sign, flipped_numerator, n_den, flipped_denominator, n_num);
+	arena_free(flipped_numerator);
+	arena_free(flipped_denominator);
+	return result;
+}
+
+Val exact_scale_by_ratio(Interpreter *interp, Val value, long long ratio_numerator, long long ratio_denominator) {
+	if (ratio_numerator == ratio_denominator)
+		return value;
+
+	gc_root_push(interp, value);
+	Val numerator_exact = exact_from_int64(interp, ratio_numerator);
+	if (interp->error_flag) {
+		gc_root_pop(interp);
+		return make_tagged(T_NONE, 0);
+	}
+
+	Val scaled = exact_binary(interp, value, numerator_exact, EXACT_OP_MUL);
+	gc_root_pop(interp);
+	if (interp->error_flag)
+		return make_tagged(T_NONE, 0);
+	if (ratio_denominator == 1)
+		return scaled;
+
+	gc_root_push(interp, scaled);
+	Val denominator_exact = exact_from_int64(interp, ratio_denominator);
+	if (interp->error_flag) {
+		gc_root_pop(interp);
+		return make_tagged(T_NONE, 0);
+	}
+
+	Val quotient = exact_binary(interp, scaled, denominator_exact, EXACT_OP_DIV);
+	gc_root_pop(interp);
+	return quotient;
 }
 
 int exact_fits_int64(Val value, int64_t *out) {
@@ -870,6 +972,173 @@ void p_float_to_exact(DISPATCH_ARGS) {
 
 	SYNC_REGISTERS(interp, chain_ip, chain_sp);
 	Val result = exact_from_double(interp, VAL_NUMBER(value));
+	if (interp->error_flag)
+		return;
+	interp->data_stack[interp->dsp - 1] = result;
+
+	DISPATCH(interp);
+}
+
+static Val rationalize_cleanup(Interpreter *interp, int base_dsp, int n_roots) {
+	interp->dsp = base_dsp;
+	for (int i = 0; i < n_roots; i++)
+		gc_root_pop(interp);
+	return make_tagged(T_NONE, 0);
+}
+
+static Val exact_rationalize(Interpreter *interp, double value) {
+	if (isnan(value) || isinf(value)) {
+		fail(interp, "expected a finite float");
+		return make_tagged(T_NONE, 0);
+	}
+	if (value == 0.0)
+		return exact_from_int64(interp, 0);
+
+	double magnitude = fabs(value);
+	uint64_t bits;
+	memcpy(&bits, &magnitude, 8);
+	int closed = (bits & 1) == 0;
+	int base_dsp = interp->dsp;
+
+	Val center = exact_from_double(interp, magnitude);
+	if (interp->error_flag)
+		return center;
+	gc_root_push(interp, center);
+
+	Val below_exact = exact_from_double(interp, nextafter(magnitude, 0.0));
+	if (interp->error_flag)
+		return rationalize_cleanup(interp, base_dsp, 1);
+	gc_root_push(interp, below_exact);
+
+	Val lo = exact_binary(interp, center, below_exact, EXACT_OP_ADD);
+	if (!interp->error_flag)
+		lo = exact_scale_by_ratio(interp, lo, 1, 2);
+	if (interp->error_flag)
+		return rationalize_cleanup(interp, base_dsp, 2);
+	gc_root_push(interp, lo);
+
+	double above = nextafter(magnitude, INFINITY);
+	Val hi;
+	if (isinf(above)) {
+		hi = exact_binary(interp, center, below_exact, EXACT_OP_SUB);
+		if (!interp->error_flag)
+			hi = exact_scale_by_ratio(interp, hi, 1, 2);
+		if (!interp->error_flag)
+			hi = exact_binary(interp, center, hi, EXACT_OP_ADD);
+	} else {
+		hi = exact_from_double(interp, above);
+		if (!interp->error_flag)
+			hi = exact_binary(interp, center, hi, EXACT_OP_ADD);
+		if (!interp->error_flag)
+			hi = exact_scale_by_ratio(interp, hi, 1, 2);
+	}
+	if (interp->error_flag)
+		return rationalize_cleanup(interp, base_dsp, 3);
+
+	gc_root_pop(interp);
+	gc_root_pop(interp);
+	gc_root_pop(interp);
+	gc_root_push(interp, lo);
+	gc_root_push(interp, hi);
+
+	int n_parked = 0;
+	Val candidate = make_tagged(T_NONE, 0);
+	for (int step = 0; ; step++) {
+		if (step == 200) {
+			fail(interp, "rationalize did not converge");
+			return rationalize_cleanup(interp, base_dsp, 2);
+		}
+
+		Val lo_floor = exact_unary(interp, lo, EXACT_OP_ROUND_DOWN);
+		if (interp->error_flag)
+			return rationalize_cleanup(interp, base_dsp, 2);
+		int lo_is_integer = exact_cmp(interp, lo, lo_floor) == 0;
+
+		if (lo_is_integer && closed) {
+			candidate = lo_floor;
+		} else {
+			gc_root_push(interp, lo_floor);
+			candidate = exact_unary(interp, lo_floor, EXACT_OP_INCREMENT);
+			gc_root_pop(interp);
+			if (interp->error_flag)
+				return rationalize_cleanup(interp, base_dsp, 2);
+		}
+
+		int order = exact_cmp(interp, candidate, hi);
+		if (order < 0 || (order == 0 && closed))
+			break;
+
+		if (lo_is_integer) {
+			fail(interp, "rationalize did not converge");
+			return rationalize_cleanup(interp, base_dsp, 2);
+		}
+
+		push(interp, lo_floor);
+		n_parked++;
+
+		Val hi_minus = exact_binary(interp, hi, lo_floor, EXACT_OP_SUB);
+		if (interp->error_flag)
+			return rationalize_cleanup(interp, base_dsp, 2);
+		gc_root_push(interp, hi_minus);
+
+		Val lo_minus = exact_binary(interp, lo, lo_floor, EXACT_OP_SUB);
+		gc_root_pop(interp);
+		if (interp->error_flag)
+			return rationalize_cleanup(interp, base_dsp, 2);
+		gc_root_push(interp, lo_minus);
+
+		Val new_lo = exact_reciprocal(interp, hi_minus);
+		if (interp->error_flag)
+			return rationalize_cleanup(interp, base_dsp, 3);
+		gc_root_push(interp, new_lo);
+
+		Val new_hi = exact_reciprocal(interp, lo_minus);
+		if (interp->error_flag)
+			return rationalize_cleanup(interp, base_dsp, 4);
+
+		gc_root_pop(interp);
+		gc_root_pop(interp);
+		gc_root_pop(interp);
+		gc_root_pop(interp);
+		lo = new_lo;
+		hi = new_hi;
+		gc_root_push(interp, lo);
+		gc_root_push(interp, hi);
+	}
+
+	gc_root_pop(interp);
+	gc_root_pop(interp);
+
+	Val result = candidate;
+	while (n_parked-- > 0) {
+		Val coefficient = interp->data_stack[interp->dsp - 1];
+		Val inverse = exact_reciprocal(interp, result);
+		if (interp->error_flag)
+			return rationalize_cleanup(interp, base_dsp, 0);
+
+		result = exact_binary(interp, coefficient, inverse, EXACT_OP_ADD);
+		if (interp->error_flag)
+			return rationalize_cleanup(interp, base_dsp, 0);
+		interp->dsp--;
+	}
+
+	if (value < 0.0) {
+		result = exact_unary(interp, result, EXACT_OP_NEGATE);
+		if (interp->error_flag)
+			return make_tagged(T_NONE, 0);
+	}
+	return result;
+}
+
+void p_rationalize(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val value = chain_sp[-1];
+	if (VAL_TAG(value) == T_EXACT)
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+	REQUIRE_CHAIN_TAG(value, T_FLOAT, "rationalize", "a float");
+
+	SYNC_REGISTERS(interp, chain_ip, chain_sp);
+	Val result = exact_rationalize(interp, VAL_NUMBER(value));
 	if (interp->error_flag)
 		return;
 	interp->data_stack[interp->dsp - 1] = result;

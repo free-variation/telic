@@ -238,11 +238,11 @@ departs from its pyperformance original the file's header says so.
 
 ### Exact rationals
 
-Fractions of arbitrarily large integers, always reduced to lowest terms; an integer is the case with denominator 1. `1/3` is a literal; an integer literal, JSON integer, or SQLite INTEGER too large for a float to hold exactly reads as an exact instead of rounding silently, and integer exacts write back without loss. The arithmetic, comparison, and rounding words compute exactly on exacts; comparing an exact with a float is exact, while arithmetic between them errors (`float>exact` / `exact>float` convert). Matrices, quantities, and the ⚠ words take only floats.
+Fractions of arbitrarily large integers, always reduced to lowest terms; an integer is the case with denominator 1. `1/3` is a literal; an integer literal, JSON integer, or SQLite INTEGER too large for a float to hold exactly reads as an exact instead of rounding silently, and integer exacts write back without loss. The arithmetic, comparison, and rounding words compute exactly on exacts; comparing an exact with a float is exact, while arithmetic between them errors (`float>exact` / `exact>float` convert). A quantity's magnitude may be an exact, so currency arithmetic is exact (`1/2 $ 50/1 ¢ +` is `1 $`). `rationalize` answers the simplest fraction that reads back as the same float (`0.111` gives `111/1000`). Matrices and the ⚠ words take only floats.
 
 ### Dimensioned quantities
 
-A magnitude (float or matrix) carrying a unit; arithmetic propagates and checks units — dimensional algebra, not unit conversion. Units are rational-exponent vectors over user-declared base dimensions, each with a rational scale.
+A magnitude (float, matrix, or exact) carrying a unit; arithmetic propagates and checks units, rescaling same-dimension operands. Units are rational-exponent vectors over user-declared base dimensions, each with a rational scale.
 
 - **`base` / `unit`** — declare dimensions and units. `base unit m`; `1 kg 1 m * 1 s / 1 s / unit newton` (derived); `1 $ 100 / unit ¢` (scaled sub-unit). A unit word is postfix — `10 m`, `3 newton`.
 - **Arithmetic** — `*`/`/` combine unit exponents and scales (a dimensionless result collapses back to a bare float/matrix); `+`/`-` require the same dimension and rescale across scales; `^`/`sqrt` scale the exponents; `= < >` compare by value, normalizing scale within a dimension. Named units print by name, unnamed compounds in base form.

@@ -606,6 +606,30 @@ int val_cmp_depth(Interpreter *interp, Val left, Val right, int depth) {
 									 && unit_conversion(right_unit, left_unit, &factor))
 								 return compare_double(VAL_NUMBER(left_magnitude), VAL_NUMBER(right_magnitude) * factor);
 
+							 int exact_side_is_left = VAL_TAG(left_magnitude) == T_EXACT;
+							 Val exact_magnitude = exact_side_is_left ? left_magnitude : right_magnitude;
+							 Val other_magnitude = exact_side_is_left ? right_magnitude : left_magnitude;
+							 int exact_unit = exact_side_is_left ? left_unit : right_unit;
+							 int other_unit = exact_side_is_left ? right_unit : left_unit;
+
+							 long long ratio_numerator, ratio_denominator;
+							 if (left_unit != right_unit && VAL_TAG(exact_magnitude) == T_EXACT
+									 && (VAL_TAG(other_magnitude) == T_EXACT || VAL_TAG(other_magnitude) == T_FLOAT)
+									 && unit_conversion_ratio(exact_unit, other_unit, &ratio_numerator, &ratio_denominator)) {
+								 gc_root_push(interp, left);
+								 gc_root_push(interp, right);
+								 Val scaled = exact_scale_by_ratio(interp, exact_magnitude, ratio_numerator, ratio_denominator);
+								 gc_root_pop(interp);
+								 gc_root_pop(interp);
+								 if (interp->error_flag)
+									 return 0;
+
+								 int order = VAL_TAG(other_magnitude) == T_EXACT
+									 ? exact_cmp(interp, scaled, other_magnitude)
+									 : exact_cmp_double(scaled, VAL_NUMBER(other_magnitude));
+								 return exact_side_is_left ? order : -order;
+							 }
+
 							 if (left_unit != right_unit)
 								 return left_unit - right_unit;
 							 return val_cmp_depth(interp, left_magnitude, right_magnitude, depth + 1);
@@ -866,6 +890,19 @@ static Val quantity_display_magnitude(Val magnitude, int unit) {
 	return magnitude;
 }
 
+static int print_exact_magnitude_scaled(FILE *out, Val magnitude, int unit) {
+	if (VAL_TAG(magnitude) != T_EXACT || unit_is_named(unit))
+		return 0;
+
+	long long scale_numerator, scale_denominator;
+	unit_scale_ratio(unit, &scale_numerator, &scale_denominator);
+	if (scale_numerator == scale_denominator)
+		return 0;
+
+	exact_print_scaled(out, magnitude, scale_numerator, scale_denominator);
+	return 1;
+}
+
 void print_val(FILE *out, Interpreter *interp, Val value) {
 	if (VAL_TAG(value) == T_LOGIC_VAR) { print_logic_var(out, interp, value, print_val); return; }
 	value = deref(interp, value);
@@ -969,7 +1006,8 @@ void print_val(FILE *out, Interpreter *interp, Val value) {
 		case T_QUANTITY: {
 							 int slot = (int)VAL_DATA(value);
 							 int unit = (int)pairs.table[slot].tail.bits;
-							 print_val(out, interp, quantity_display_magnitude(pairs.table[slot].head, unit));
+							 if (!print_exact_magnitude_scaled(out, pairs.table[slot].head, unit))
+								 print_val(out, interp, quantity_display_magnitude(pairs.table[slot].head, unit));
 							 putc(' ', out);
 							 render_unit(out, unit);
 							 break;
@@ -1129,7 +1167,8 @@ void print_val_compact(FILE *out, Interpreter *interp, Val value) {
 		case T_QUANTITY: {
 							 int slot = (int)VAL_DATA(value);
 							 int unit = (int)pairs.table[slot].tail.bits;
-							 print_val_compact(out, interp, quantity_display_magnitude(pairs.table[slot].head, unit));
+							 if (!print_exact_magnitude_scaled(out, pairs.table[slot].head, unit))
+								 print_val_compact(out, interp, quantity_display_magnitude(pairs.table[slot].head, unit));
 							 putc(' ', out);
 							 render_unit(out, unit);
 							 break;
@@ -5193,6 +5232,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "unit-of", p_unit_of, 0);
 	define_primitive(interp, "float>exact", p_float_to_exact, 0);
 	define_primitive(interp, "exact>float", p_exact_to_float, 0);
+	define_primitive(interp, "rationalize", p_rationalize, 0);
 	define_primitive(interp, "numerator", p_numerator, 0);
 	define_primitive(interp, "denominator", p_denominator, 0);
 	define_primitive(interp, "string>symbol", p_string_to_symbol, 0);

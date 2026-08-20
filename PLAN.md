@@ -389,6 +389,13 @@ live here instead. File and function name each invariant's home.
 - Locals frames are none-filled at creation (the three enter ops and
   `call_open`'s reuse frame); the per-iteration refill path deliberately does
   not re-fill (core.c, `p_enter_locals`).
+- An exact-magnitude quantity rescales only through the long-long ratio APIs,
+  never a double factor (dimension.c, `unit_conversion_ratio`).
+- `exact_to_double` must stay correctly rounded; cross-type comparison and
+  `rationalize` round-trips depend on it (exact.c, `exact_to_double`).
+- Printing never allocates GC objects; an exact magnitude under an unnamed
+  scaled unit folds the scale in arena temporaries (core.c,
+  `print_exact_magnitude_scaled`).
 - `hoist_assigned_locals` refills across input chunks so name resolution never
   depends on how source arrives; `refill_input` is fenced by `load_depth` and
   `nested_input_depth`, so a `load` or `evaluate` never reads stdin

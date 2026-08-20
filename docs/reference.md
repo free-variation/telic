@@ -1210,7 +1210,11 @@ float. `rshift` is arithmetic (sign-preserving).
 
 ## Dimensioned quantities
 
-A quantity is a magnitude (a float or a matrix) carrying a unit. Units are
+A quantity is a magnitude (a float, a matrix, or an exact) carrying a unit.
+Arithmetic between two exact-magnitude quantities is exact, unit rescaling
+included (`1/2 $ 50/1 ¢ +` is `1 $`); an exact magnitude against a float
+magnitude follows the exact/float mixing rule, and comparison crosses the two
+exactly. Units are
 rational-exponent vectors over user-declared base dimensions, each with a
 rational scale relative to its dimension's base; arithmetic propagates and
 checks them. Same-dimension units at any rational scale coexist and convert
@@ -1294,7 +1298,9 @@ and a float together: `=` `<` `>` `<=` `>=` `min2` `max2`, `sort`, and set
 membership compare the two kinds numerically and without rounding
 (`1/2 0.5 =` is true), so a collection holding both sorts and deduplicates
 correctly. Arithmetic between an exact and a float errors — convert
-explicitly. Matrices, segments, quantity magnitudes, the bitwise words, and
+explicitly. A quantity's magnitude may be an exact (see Dimensioned
+quantities); `^` on one takes integer exponents, and `sqrt` and the
+transcendentals reject one. Matrices, segments, the bitwise words, and
 the ⚠ float words take only floats; an exact operand errors. Every
 exact operation allocates its result, so exact arithmetic costs ten times
 the float fast path and more; the float path itself is unchanged.
@@ -1302,9 +1308,10 @@ the float fast path and more; the float path itself is unchanged.
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
 | `float>exact` | `( f -- x )` | The float's exact value — every float is an integer divided by a power of two, so nothing is lost; errors on NaN or an infinity. An exact passes through unchanged | limbs | `1o` | O(limbs) |
-| `exact>float` | `( x -- f )` | The nearest float; a float passes through unchanged | limbs | none | O(limbs) |
+| `exact>float` | `( x -- f )` | The nearest float, round-to-nearest-even (denormals and the overflow threshold included); a float passes through unchanged | shift + divmod | arena temps | O(bits · limbs) |
 | `numerator` | `( x -- x' )` | The reduced numerator as an integer exact, carrying the sign | limbs | `1o` | O(limbs) |
 | `denominator` | `( x -- x' )` | The reduced denominator as a positive integer exact | limbs | `1o` | O(limbs) |
+| `rationalize` | `( f -- x )` | The simplest rational that reads back as the same float — the smallest-denominator fraction in the float's rounding interval (`0.111 rationalize` is `111/1000`); an exact passes through unchanged | cf steps | exacts per step | O(steps · limbs) |
 | `exact?` | `( a -- bool )` | core.h2o: `type-of :exact =` (inlined) | 5 | none | O(1) |
 
 ```forth float>exact
@@ -1335,6 +1342,15 @@ the float fast path and more; the float path itself is unchanged.
 ```
 ```output
 4
+```
+
+```forth rationalize
+0.111 rationalize . cr
+1/3 exact>float rationalize . cr
+```
+```output
+111/1000
+1/3
 ```
 
 ```forth exact?

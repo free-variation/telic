@@ -266,7 +266,7 @@ const HelpEntry help_entries[] = {
 	{ "epoch>date-local", "( instant -- date )", "Decompose in the process's timezone", "40", "1o", "O(1)", 22 },
 	{ "eq", "( a b -- bool ) or ( mat/arr x -- mat )", "equality; element-wise 1/0 mask on matrix and array operands (scalar broadcast; val_cmp per array element) — unlike =, which stays structural on collections. NaN elements equal nothing", "3 (float)", "matrix 1m(r×c)", "same; matrix O(r×c)", 4 },
 	{ "evaluate", "( str -- )", "Run the string's characters as source, as if they had been typed at that point: the reader takes its tokens, compile-time words act, definitions enter the dictionary, and the code runs against the same stacks. load's counterpart with a string rather than a file, so nothing is recorded for reload and an error names only the failing word instead of carrying a file:line: prefix. A colon definition works here, where one inside a quotation does not. Errors on an unterminated string literal or definition in the text, and on text at or above the input buffer size", "text + run", "input buffer copy", "O(text + run)", 31 },
-	{ "exact>float", "( x -- f )", "The nearest float; a float passes through unchanged", "limbs", "none", "O(limbs)", 6 },
+	{ "exact>float", "( x -- f )", "The nearest float, round-to-nearest-even (denormals and the overflow threshold included); a float passes through unchanged", "shift + divmod", "arena temps", "O(bits · limbs)", 6 },
 	{ "exact?", "( a -- bool )", "core.h2o: type-of :exact = (inlined)", "5", "none", "O(1)", 6 },
 	{ "execute", "( xt -- … )", "Call the word at xt", NULL, NULL, NULL, 11 },
 	{ "exit", "( -- )", "Return early from the current definition (this one runs at run time)", NULL, NULL, NULL, 9 },
@@ -504,6 +504,7 @@ const HelpEntry help_entries[] = {
 	{ "random-int", "( bound -- f )", "Uniform integer in [0,bound) as a float, by rejection sampling; errors if bound ≤ 0", "1", "none", "O(1)†", 21 },
 	{ "range", "( from to -- arr )", "Inclusive integer range, step ±1", "3 + n", "1a(n)", "O(n)", 15 },
 	{ "ranks", "( v -- v' )", "statistics.h2o: 0-based midranks as nx1 — tied values share the mean of their sorted positions, NaNs rank last in index order; one argsort, a gather, and one linear pass over the runs of tied values", "n log n + 2n", "3m(n) + malloc(16n)", "O(n log n)", 19 },
+	{ "rationalize", "( f -- x )", "The simplest rational that reads back as the same float — the smallest-denominator fraction in the float's rounding interval (0.111 rationalize is 111/1000); an exact passes through unchanged", "cf steps", "exacts per step", "O(steps · limbs)", 6 },
 	{ "read", "( stream -- str )", "Read the stream to EOF into one string", "read syscalls", "1o + buffer growth", "O(bytes)", 33 },
 	{ "read-available", "( stream -- str )", "The bytes already waiting on the stream, without blocking: up to 65536 of them as a string, \"\" when none are waiting, none at end of input. A zero-timeout poll decides, then one read. Used with wait-readable when one thread serves several streams: read-line blocks until its newline arrives, so a writer that flushes a partial line and then computes would stall every other stream, while this word takes what is there and leaves the caller to assemble lines", "1 + bytes", "1o", "O(bytes)", 33 },
 	{ "read-err", "( proc -- str )", "subprocess.h2o: read the child's :err stream to EOF", "read syscalls", "1o + buffer growth", "O(bytes)", 33 },
@@ -712,7 +713,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "C primitive alias of unify, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 27 },
 };
 
-const int help_entry_count = 660;
+const int help_entry_count = 661;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } /a/b 5 ! /a/b @ . cr", "5" },
@@ -1170,6 +1171,7 @@ const HelpExample help_examples[] = {
 	{ "random-int", "42 seed 10 random-int . 10 random-int . cr", "2 2" },
 	{ "range", "3 7 range . cr", "[ 3 4 5 6 7 ]" },
 	{ "ranks", "[ 10 20 20 30 ] vector ranks matrix>array . cr", "[ 0 1.5 1.5 3 ]" },
+	{ "rationalize", "0.111 rationalize . cr\n1/3 exact>float rationalize . cr", "111/1000\n1/3" },
 	{ "read", "[ \"echo\" \"data\" ] start-process :out @ read trim . cr", "data" },
 	{ "read-available", "[ \"printf\" \"chunk\" ] start-process to talker\n[ talker :out @ ] 5 wait-readable drop\ntalker :out @ read-available . cr\ntalker end-process\n[ \"sleep\" \"5\" ] start-process to quiet\nquiet :out @ read-available byte-size . cr\nquiet :pid @ stop drop\nquiet :in @ close  quiet :out @ close  quiet :err @ close", "chunk\n0" },
 	{ "read-err", "[ \"sh\" \"-c\" \"echo oops >&2\" ] start-process read-err trim . cr", "oops" },
@@ -1378,4 +1380,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 661;
+const int help_example_count = 662;

@@ -86,8 +86,18 @@ static Val scale_collapsed_magnitude(Val magnitude, double factor) {
 	return make_float(VAL_NUMBER(magnitude) * factor);
 }
 
+static int quantity_magnitudes_mix_exact(Interpreter *interp, Val left_magnitude, Val right_magnitude) {
+	int left_exact = VAL_TAG(left_magnitude) == T_EXACT;
+	int right_exact = VAL_TAG(right_magnitude) == T_EXACT;
+	if (left_exact == right_exact)
+		return 0;
+
+	fail(interp, "exact and float do not mix; convert with float>exact or exact>float");
+	return 1;
+}
+
 static int quantity_additive_op(Interpreter *interp, Val left, Val right,
-		scalar_operator scalar_op, const char *op, const char *verb) {
+		scalar_operator scalar_op, int exact_op, const char *op, const char *verb) {
 	int left_is_quantity  = VAL_TAG(left)  == T_QUANTITY;
 	int right_is_quantity = VAL_TAG(right) == T_QUANTITY;
 	if (!left_is_quantity && !right_is_quantity)
@@ -103,6 +113,30 @@ static int quantity_additive_op(Interpreter *interp, Val left, Val right,
 	unwrap_quantity(left,  1, &left_magnitude,  &left_unit);
 	unwrap_quantity(right, 1, &right_magnitude, &right_unit);
 	int base = interp->dsp - 2;
+
+	if (quantity_magnitudes_mix_exact(interp, left_magnitude, right_magnitude))
+		return 1;
+
+	if (VAL_TAG(left_magnitude) == T_EXACT) {
+		if (left_unit != right_unit) {
+			long long ratio_numerator, ratio_denominator;
+			if (!unit_conversion_ratio(right_unit, left_unit, &ratio_numerator, &ratio_denominator)) {
+				fail(interp, "unit mismatch");
+				return 1;
+			}
+			right_magnitude = exact_scale_by_ratio(interp, right_magnitude, ratio_numerator, ratio_denominator);
+			if (interp->error_flag) return 1;
+		}
+
+		gc_root_push(interp, right_magnitude);
+		Val combined_magnitude = exact_binary(interp, left_magnitude, right_magnitude, exact_op);
+		gc_root_pop(interp);
+		if (interp->error_flag) return 1;
+
+		interp->dsp = base;
+		push_quantity(interp, combined_magnitude, left_unit);
+		return 1;
+	}
 
 	if (left_unit != right_unit) {
 		double factor;
@@ -125,8 +159,8 @@ static int quantity_additive_op(Interpreter *interp, Val left, Val right,
 }
 
 static int quantity_multiplicative_op(Interpreter *interp, Val left, Val right,
-		scalar_operator scalar_op, int (*unit_op)(Interpreter *, int, int, double *),
-		const char *op, int guards_zero) {
+		scalar_operator scalar_op, int (*unit_ratio_op)(Interpreter *, int, int, long long *, long long *),
+		int exact_op, const char *op, int guards_zero) {
 	int left_is_quantity  = VAL_TAG(left)  == T_QUANTITY;
 	int right_is_quantity = VAL_TAG(right) == T_QUANTITY;
 	if (!left_is_quantity && !right_is_quantity)
@@ -136,6 +170,28 @@ static int quantity_multiplicative_op(Interpreter *interp, Val left, Val right,
 	int left_unit, right_unit;
 	unwrap_quantity(left,  left_is_quantity,  &left_magnitude,  &left_unit);
 	unwrap_quantity(right, right_is_quantity, &right_magnitude, &right_unit);
+
+	if (quantity_magnitudes_mix_exact(interp, left_magnitude, right_magnitude))
+		return 1;
+
+	if (VAL_TAG(left_magnitude) == T_EXACT) {
+		Val combined_magnitude = exact_binary(interp, left_magnitude, right_magnitude, exact_op);
+		if (interp->error_flag) return 1;
+
+		interp->dsp -= 2;
+		long long collapse_numerator, collapse_denominator;
+		int combined_unit = unit_ratio_op(interp, left_unit, right_unit, &collapse_numerator, &collapse_denominator);
+		if (interp->error_flag) return 1;
+
+		if (collapse_numerator != collapse_denominator) {
+			gc_root_push(interp, combined_magnitude);
+			combined_magnitude = exact_scale_by_ratio(interp, combined_magnitude, collapse_numerator, collapse_denominator);
+			gc_root_pop(interp);
+			if (interp->error_flag) return 1;
+		}
+		push_quantity(interp, combined_magnitude, combined_unit);
+		return 1;
+	}
 
 	if (guards_zero && VAL_TAG(right_magnitude) == T_FLOAT && VAL_NUMBER(right_magnitude) == 0.0) {
 		fail(interp, "division by zero");
@@ -147,20 +203,32 @@ static int quantity_multiplicative_op(Interpreter *interp, Val left, Val right,
 
 	Val combined = pop(interp);
 	interp->dsp -= 2;
-	double collapse_factor;
-	int combined_unit = unit_op(interp, left_unit, right_unit, &collapse_factor);
+	long long collapse_numerator, collapse_denominator;
+	int combined_unit = unit_ratio_op(interp, left_unit, right_unit, &collapse_numerator, &collapse_denominator);
 	if (interp->error_flag) return 1;
-	if (collapse_factor != 1.0)
-		combined = scale_collapsed_magnitude(combined, collapse_factor);
+	if (collapse_numerator != collapse_denominator)
+		combined = scale_collapsed_magnitude(combined, (double)collapse_numerator / collapse_denominator);
 	push_quantity(interp, combined, combined_unit);
 	return 1;
 }
 
-static void unary_quantity_op(Interpreter *interp, Val quantity, double (*function)(double), int result_unit) {
+static void unary_quantity_op(Interpreter *interp, Val quantity, double (*function)(double), int exact_op, int result_unit) {
 	int slot = (int)VAL_DATA(quantity);
+	Val magnitude = pairs.table[slot].head;
+
+	if (VAL_TAG(magnitude) == T_EXACT && exact_op >= 0) {
+		gc_root_push(interp, quantity);
+		Val exact_magnitude = exact_unary(interp, magnitude, exact_op);
+		gc_root_pop(interp);
+		if (interp->error_flag)
+			return;
+
+		push_quantity(interp, exact_magnitude, result_unit);
+		return;
+	}
 
 	gc_root_push(interp, quantity);
-	unary_op(interp, pairs.table[slot].head, function);
+	unary_op(interp, magnitude, function);
 	gc_root_pop(interp);
 
 	if (interp->error_flag)
@@ -209,7 +277,7 @@ void p_add(DISPATCH_ARGS) {
 		execute_cfa(interp, find("concat"));
 	else if (exact_binary_word(interp, left, right, EXACT_OP_ADD)) {
 	}
-	else if (!quantity_additive_op(interp, left, right, scalar_add, "+", "add"))
+	else if (!quantity_additive_op(interp, left, right, scalar_add, EXACT_OP_ADD, "+", "add"))
 		fail(interp, "expected two floats, two strings, two sets, two matrices, scalar/matrix, or two arrays; got %s and %s",
 				tag_name(VAL_TAG(left)), tag_name(VAL_TAG(right)));
 
@@ -247,7 +315,7 @@ void p_sub(DISPATCH_ARGS) {
 		BROADCAST_MATRIX_OP_SCALAR(-);
 	else if (exact_binary_word(interp, left, right, EXACT_OP_SUB)) {
 	}
-	else if (!quantity_additive_op(interp, left, right, scalar_sub, "-", "subtract"))
+	else if (!quantity_additive_op(interp, left, right, scalar_sub, EXACT_OP_SUB, "-", "subtract"))
 		fail(interp, "expected two floats, two sets, two matrices, or scalar/matrix; got %s and %s",
 				tag_name(VAL_TAG(left)), tag_name(VAL_TAG(right)));
 
@@ -286,7 +354,7 @@ void p_mul(DISPATCH_ARGS) {
 	else if (exact_binary_word(interp, left, right, EXACT_OP_MUL)) {
 	}
 	else {
-		if (!quantity_multiplicative_op(interp, left, right, scalar_mul, unit_multiply, "*", 0))
+		if (!quantity_multiplicative_op(interp, left, right, scalar_mul, unit_multiply_ratio, EXACT_OP_MUL, "*", 0))
 			fail(interp, "expected two floats, two sets, two matrices, or scalar/matrix; got %s and %s",
 					tag_name(VAL_TAG(left)), tag_name(VAL_TAG(right)));
 	}
@@ -336,7 +404,7 @@ void p_div(DISPATCH_ARGS) {
 	else if (exact_binary_word(interp, left, right, EXACT_OP_DIV)) {
 	}
 	else {
-		if (!quantity_multiplicative_op(interp, left, right, scalar_div, unit_divide, "/", 1))
+		if (!quantity_multiplicative_op(interp, left, right, scalar_div, unit_divide_ratio, EXACT_OP_DIV, "/", 1))
 			fail(interp, "expected two floats, two matrices, or scalar/matrix; got %s and %s",
 					tag_name(VAL_TAG(left)), tag_name(VAL_TAG(right)));
 	}
@@ -2288,7 +2356,7 @@ static void exact_unary_word(Interpreter *interp, Val operand, int exact_op) {
 		if (VAL_TAG(operand) == T_QUANTITY) { \
 			int unit = (result_unit); \
 			if (interp->error_flag) return; \
-			unary_quantity_op(interp, operand, func, unit); \
+			unary_quantity_op(interp, operand, func, exact_op, unit); \
 		} else if ((exact_op) >= 0 && VAL_TAG(operand) == T_EXACT) \
 			exact_unary_word(interp, operand, exact_op); \
 		else \
@@ -2436,7 +2504,7 @@ void p_power(DISPATCH_ARGS) {
 	}
 	if (VAL_TAG(left) == T_QUANTITY) {
 		if (VAL_TAG(right) != T_FLOAT) {
-			fail(interp, "exponent must be a number; got %s", tag_name(VAL_TAG(right)));
+			fail(interp, "exponent must be a float; got %s", tag_name(VAL_TAG(right)));
 			return;
 		}
 
@@ -2450,7 +2518,19 @@ void p_power(DISPATCH_ARGS) {
 		int unit = unit_pow(interp, (int)pairs.table[slot].tail.bits, numerator, denominator);
 		if (interp->error_flag) return;
 
-		binary_op(interp, pairs.table[slot].head, right, pow, "^");
+		Val magnitude = pairs.table[slot].head;
+		if (VAL_TAG(magnitude) == T_EXACT) {
+			gc_root_push(interp, left);
+			Val raised = exact_power(interp, magnitude, VAL_NUMBER(right));
+			gc_root_pop(interp);
+			if (interp->error_flag) return;
+
+			push_quantity(interp, raised, unit);
+			DISPATCH(interp);
+			return;
+		}
+
+		binary_op(interp, magnitude, right, pow, "^");
 		if (interp->error_flag) return;
 
 		push_quantity(interp, pop(interp), unit);

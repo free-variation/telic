@@ -59,7 +59,7 @@ error: unit mismatch
 in +
 error: cannot add a quantity and a plain number
 in +
-error: exponent must be a number; got a quantity
+error: exponent must be a float; got a quantity
 in ^
 error: exponent must be a simple rational
 in ^

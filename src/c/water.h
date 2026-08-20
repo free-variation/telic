@@ -1,7 +1,7 @@
 #ifndef WATER_H
 #define WATER_H
 
-#define VERSION "0.27.3"
+#define VERSION "0.27.4"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1107,11 +1107,13 @@ int quantity_truthy(Val quantity);
 void render_unit(FILE *out, int unit);
 void render_unit_description(FILE *out, Interpreter *interp, Val target);
 int unit_conversion(int from, int to, double *factor);
-int unit_divide(Interpreter *interp, int left, int right, double *collapse_factor);
+int unit_conversion_ratio(int from, int to, long long *numerator, long long *denominator);
+int unit_divide_ratio(Interpreter *interp, int left, int right, long long *numerator, long long *denominator);
 int unit_id_valid(int unit);
 int unit_is_named(int unit);
-int unit_multiply(Interpreter *interp, int left, int right, double *collapse_factor);
+int unit_multiply_ratio(Interpreter *interp, int left, int right, long long *numerator, long long *denominator);
 int unit_pow(Interpreter *interp, int unit, int numerator, int denominator);
+void unit_scale_ratio(int unit, long long *numerator, long long *denominator);
 double unit_scale_value(int unit);
 
 void docol(DISPATCH_ARGS);
@@ -1619,6 +1621,8 @@ int exact_is_integer(Val value);
 int exact_mod_word(Interpreter *interp, Val dividend, Val divisor, int also_quotient);
 Val exact_power(Interpreter *interp, Val base, double exponent);
 void exact_print(FILE *out, Val value);
+void exact_print_scaled(FILE *out, Val value, long long ratio_numerator, long long ratio_denominator);
+Val exact_scale_by_ratio(Interpreter *interp, Val value, long long ratio_numerator, long long ratio_denominator);
 double exact_to_double(Val value);
 Val exact_truncated_quotient(Interpreter *interp, Val left, Val right);
 int exact_truthy_value(Val value);
@@ -1630,6 +1634,7 @@ void p_denominator(DISPATCH_ARGS);
 void p_exact_to_float(DISPATCH_ARGS);
 void p_float_to_exact(DISPATCH_ARGS);
 void p_numerator(DISPATCH_ARGS);
+void p_rationalize(DISPATCH_ARGS);
 
 static inline int truthy(Val value) {
 	if (VAL_TAG(value) == T_FLOAT)

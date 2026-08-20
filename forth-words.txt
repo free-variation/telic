@@ -452,6 +452,7 @@ random
 random-int
 range
 ranks
+rationalize
 read
 read-available
 read-err

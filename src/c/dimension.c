@@ -290,6 +290,27 @@ int unit_conversion(int from, int to, double *factor) {
 	return 1;
 }
 
+int unit_conversion_ratio(int from, int to, long long *numerator, long long *denominator) {
+	Unit *source = &units[from];
+	Unit *target = &units[to];
+
+	if (!same_dimensions(source, target))
+		return 0;
+
+	long long top = (long long)source->scale.numerator * target->scale.denominator;
+	long long bottom = (long long)source->scale.denominator * target->scale.numerator;
+	long long divisor = gcd_ll(top, bottom);
+	*numerator = top / divisor;
+	*denominator = bottom / divisor;
+
+	return 1;
+}
+
+void unit_scale_ratio(int unit, long long *numerator, long long *denominator) {
+	*numerator = units[unit].scale.numerator;
+	*denominator = units[unit].scale.denominator;
+}
+
 int unit_is_named(int unit) {
 	return units[unit].name != UNIT_UNNAMED;
 }
@@ -302,7 +323,7 @@ int unit_id_valid(int unit) {
 	return unit >= 0 && unit < n_units;
 }
 
-static int unit_combine(Interpreter *interp, int left, int right, int sign, double *collapse_factor) {
+static int unit_combine(Interpreter *interp, int left, int right, int sign, Rational *collapse) {
 	Unit *left_unit = &units[left];
 	Unit *right_unit = &units[right];
 
@@ -352,9 +373,9 @@ static int unit_combine(Interpreter *interp, int left, int right, int sign, doub
 		return -1;
 	}
 
-	*collapse_factor = 1.0;
+	*collapse = make_rational(1, 1);
 	if (n_terms == 0)
-		*collapse_factor = (double)scale.numerator / (double)scale.denominator;
+		*collapse = scale;
 
 	int combined_unit = unit_intern(interp, merged, n_terms, scale);
 
@@ -362,17 +383,28 @@ static int unit_combine(Interpreter *interp, int left, int right, int sign, doub
 	return combined_unit;
 }
 
-int unit_multiply(Interpreter *interp, int left, int right, double *collapse_factor) {
-	int combined = unit_combine(interp, left, right, 1, collapse_factor);
+static int unit_combine_checked(Interpreter *interp, int left, int right, int sign, Rational *collapse) {
+	*collapse = make_rational(1, 1);
+
+	int combined = unit_combine(interp, left, right, sign, collapse);
 	if (combined < 0 && !interp->error_flag)
 		fail(interp, "unit scale or exponent overflow");
 	return combined;
 }
 
-int unit_divide(Interpreter *interp, int left, int right, double *collapse_factor) {
-	int combined = unit_combine(interp, left, right, -1, collapse_factor);
-	if (combined < 0 && !interp->error_flag)
-		fail(interp, "unit scale or exponent overflow");
+int unit_multiply_ratio(Interpreter *interp, int left, int right, long long *numerator, long long *denominator) {
+	Rational collapse;
+	int combined = unit_combine_checked(interp, left, right, 1, &collapse);
+	*numerator = collapse.numerator;
+	*denominator = collapse.denominator;
+	return combined;
+}
+
+int unit_divide_ratio(Interpreter *interp, int left, int right, long long *numerator, long long *denominator) {
+	Rational collapse;
+	int combined = unit_combine_checked(interp, left, right, -1, &collapse);
+	*numerator = collapse.numerator;
+	*denominator = collapse.denominator;
 	return combined;
 }
 
@@ -528,7 +560,7 @@ void apply_unit(Interpreter *interp, int cfa) {
 	int unit = (int)vocab.dict[cfa + 1];
 
 	POP(magnitude);
-	if (VAL_TAG(magnitude) != T_FLOAT && VAL_TAG(magnitude) != T_MATRIX) {
+	if (VAL_TAG(magnitude) != T_FLOAT && VAL_TAG(magnitude) != T_MATRIX && VAL_TAG(magnitude) != T_EXACT) {
 		fail(interp, "expected a number or matrix");
 		return;
 	}

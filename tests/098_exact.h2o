@@ -63,12 +63,21 @@ db "select id from t" [ ] db-query :rows @ 0 @i :id @ dup . type-of . cr  \ 9223
 db db-close
 
 clear
+\ === rationalize: the simplest fraction that reads back as the float ===
+
+0.111 rationalize . 0.5 rationalize . -0.2 rationalize . cr  \ 111/1000 1/2 -1/5
+1/3 exact>float rationalize . cr              \ 1/3 (recovers the fraction the float approximates)
+3 rationalize . 22/7 rationalize . cr         \ 3 22/7 (an exact passes through)
+0.12345 rationalize dup . exact>float 0.12345 = . cr  \ 2469/20000 1
+
+clear
 \ === errors (each reason parenthesized) ===
 
 1/2 1 +                                       \ (exact and float arithmetic does not mix)
 1/2 0/3 /                                     \ (division by zero)
 1/0                                           \ (zero denominator literal)
 1/2 sqrt                                      \ (transcendentals reject exacts)
+null rationalize                              \ (NaN has no rational)
 1/2 1/2 ^                                     \ (the exponent is a float count)
 [ 1/2 ] vector                                \ (matrices stay float)
 clear
