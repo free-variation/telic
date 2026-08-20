@@ -1,0 +1,48 @@
+\ spread ( coll -- v0 v1 ... vN-1 ) — push the elements of a collection
+\ onto the data stack. For frames, pushes :key v :key v ... in key order.
+\ Accepts array, set, and frame; errors on other types.
+
+\ basic array spread
+[ 10 20 30 ] spread .s clear cr          \ [ 10 20 30 ]
+
+\ empty array — nothing pushed
+[ ] spread .s clear cr                   \ [ ]
+
+\ single-element array
+[ 42 ] spread . cr                       \ 42
+
+\ mixed types
+[ "a" 5 :sym ] spread .s clear cr        \ [ a 5 :sym ]
+
+\ nested values stay intact (each item pushed as-is)
+[ [ 1 2 ] [ 3 4 ] ] spread .s clear cr   \ [ [ 1 2 ] [ 3 4 ] ]
+
+\ set: elements come out in the set's internal (sorted) order
+[< 3 1 2 >] spread .s clear cr             \ [ 1 2 3 ]
+
+\ empty set
+[< >] spread .s clear cr                   \ [ ]
+
+\ frame: pushes :key value :key value ... in key-sort order
+{ :a 1 :b 2 } spread .s clear cr         \ [ :a 1 :b 2 ]
+
+\ frame: keys come back as symbols (not raw cells)
+{ :x 10 } spread swap . . cr             \ :x 10
+
+\ empty frame
+{ } spread .s clear cr                   \ [ ]
+
+\ round-trip: spread an array then rebuild
+[ 1 2 3 ] spread 3 array . cr            \ [ 1 2 3 ]
+
+\ non-collection — error
+42 spread
+"hello" spread
+:sym spread
+
+\ spread into a locals head names the pieces
+: three-fields | a b c | c . b . a . cr ;
+[ 1 2 3 ] spread three-fields                   \ 3 2 1
+
+\ empty stack — underflow
+spread

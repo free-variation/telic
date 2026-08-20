@@ -26,8 +26,8 @@ wall-now 2 week + time>iso .            \ the ISO timestamp two weeks from now
 \ Sets and set algebra
 [< 1 2 3 >] [< 2 3 4 >] + .                 \ [< 1 2 3 4 >]  (union via polymorphic +)
 
-\ Set-builder { x² | x ∈ 1..10, even x } — literal + filter/map + destruct
-[< 1 10 range [: 2 mod 0= :] filter ' fsq map destruct >] .   \ [< 4 16 36 64 100 >]
+\ Set-builder { x² | x ∈ 1..10, even x } — literal + filter/map + spread
+[< 1 10 range [: 2 mod 0= :] filter ' fsq map spread >] .   \ [< 4 16 36 64 100 >]
 
 \ Frames — symbol-keyed nested maps
 { :a 1 :b { :c 2 } } /b/c @ .           \ 2

@@ -1,7 +1,7 @@
 #ifndef WATER_H
 #define WATER_H
 
-#define VERSION "0.28.0"
+#define VERSION "0.28.1"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -595,6 +595,7 @@ typedef struct {
 	int loop_begin;
 	int leave_chain;
 	int do_continue_chain;
+	int case_chain;
 	int n_active_do_loops;
 	int do_index_slots[MAX_LOCAL_SCOPES];
 	int do_index_scopes[MAX_LOCAL_SCOPES];
@@ -1325,6 +1326,7 @@ void p_zeq_zbranch(DISPATCH_ARGS);
 void p_again(DISPATCH_ARGS);
 void p_bar(DISPATCH_ARGS);
 void p_begin(DISPATCH_ARGS);
+void p_case(DISPATCH_ARGS);
 void p_colon(DISPATCH_ARGS);
 void p_constant(DISPATCH_ARGS);
 void p_continue(DISPATCH_ARGS);
@@ -1334,6 +1336,8 @@ void p_do(DISPATCH_ARGS);
 void p_else(DISPATCH_ARGS);
 void p_embodies(DISPATCH_ARGS);
 void p_embodies_final(DISPATCH_ARGS);
+void p_endcase(DISPATCH_ARGS);
+void p_endof(DISPATCH_ARGS);
 void p_f_decrement(DISPATCH_ARGS);
 void p_f_increment(DISPATCH_ARGS);
 void p_forget(DISPATCH_ARGS);
@@ -1344,6 +1348,7 @@ void p_internal(DISPATCH_ARGS);
 void p_leave(DISPATCH_ARGS);
 void p_lookup(DISPATCH_ARGS);
 void p_loop(DISPATCH_ARGS);
+void p_of(DISPATCH_ARGS);
 void p_qcolon(DISPATCH_ARGS);
 void p_qif(DISPATCH_ARGS);
 void p_qsemi(DISPATCH_ARGS);
@@ -1398,8 +1403,6 @@ void p_byte_size(DISPATCH_ARGS);
 void p_concat(DISPATCH_ARGS);
 void p_cons(DISPATCH_ARGS);
 void p_cons_to_array(DISPATCH_ARGS);
-void p_destruct(DISPATCH_ARGS);
-void p_destruct_to(DISPATCH_ARGS);
 void p_difference(DISPATCH_ARGS);
 void p_double_segment(DISPATCH_ARGS);
 void p_flatten_array(DISPATCH_ARGS);
@@ -1440,6 +1443,7 @@ void p_set_remove(DISPATCH_ARGS);
 void p_setclose(DISPATCH_ARGS);
 void p_setopen(DISPATCH_ARGS);
 void p_slice_store(DISPATCH_ARGS);
+void p_spread(DISPATCH_ARGS);
 void p_take(DISPATCH_ARGS);
 void p_to_slice(DISPATCH_ARGS);
 void p_union(DISPATCH_ARGS);
@@ -1557,6 +1561,7 @@ void p_lvar(DISPATCH_ARGS);
 void p_matches(DISPATCH_ARGS);
 void p_unify(DISPATCH_ARGS);
 void p_unify_cons(DISPATCH_ARGS);
+void p_unify_keep(DISPATCH_ARGS);
 void p_wildcard(DISPATCH_ARGS);
 
 void p_db_close(DISPATCH_ARGS);

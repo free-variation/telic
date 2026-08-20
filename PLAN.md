@@ -395,6 +395,9 @@ live here instead. File and function name each invariant's home.
   `rationalize` round-trips depend on it (exact.c, `exact_to_double`).
 - A complex part is never NaN — `make_float` would canonicalize it into the
   null tag; the constructor guards (words.c, `complex_from_parts`).
+- `compiler.case_chain` is 0 outside a `case`, -1 inside one with no `endof`
+  yet, else the endof-branch chain head; quotations save and zero it
+  (compiler.c, `p_case`).
 - Printing never allocates GC objects; an exact magnitude under an unnamed
   scaled unit folds the scale in arena temporaries (core.c,
   `print_exact_magnitude_scaled`).

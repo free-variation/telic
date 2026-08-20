@@ -1,0 +1,20 @@
+10 20 30 
+
+42 
+"a" 5 :sym 
+[ 1 2 ] [ 3 4 ] 
+1 2 3 
+
+:a 1 :b 2 
+:x 10 
+
+[ 1 2 3 ] 
+error: expected array, set, or frame; got a float
+in spread
+error: expected array, set, or frame; got a string
+in spread
+error: expected array, set, or frame; got a symbol
+in spread
+3 2 1 
+error: stack underflow
+in spread

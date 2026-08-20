@@ -683,12 +683,12 @@ compiler's fusion targets.
   1.0 ones-col cr-row 0.0 n n 0-matrix dgemm-nn
   ```
 
-- Bulk field unpack and writeback: `destruct-to` into pre-declared globals
-  with a reused target array; `to-slice!` stores several values in one call
-  (bench/nbody.h2o, `pair-force`):
+- Bulk field unpack and writeback: `spread` the record array onto the stack
+  and receive every field into a kernel word's locals in one head; `to-slice!`
+  stores several values back in one call (bench/nbody.h2o, `pair-force`):
 
   ```forth
-  b1 b1-targets destruct-to
+  b1 spread  b2 spread  b1 b2 dt pair-kernel
   vx1 vy1 vz1 b1 3 3 to-slice! drop
   ```
 

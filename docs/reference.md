@@ -1514,6 +1514,10 @@ Immediate words that emit branch instructions into the current definition. Outsi
 | `repeat` | — | Branch back to `begin`; patches the `while` exit |
 | `do` | `( start limit delta -- )` | Take start, limit, delta from the stack and read the next token as the index name; the body runs with the index at start, start+delta, …, while the value is short of limit ⚠ |
 | `loop` | — | End a `do` loop |
+| `case` | `( sel -- )` | Open pattern dispatch on the selector; clauses follow, each `pattern of … endof`, then an optional default region, then `endcase` |
+| `of` | — | Unify the clause pattern with the selector: on a match the bindings commit, both are dropped, and the body runs; on a mismatch the bindings roll back, the pattern is dropped, and the selector falls to the next clause |
+| `endof` | — | Close a clause; jumps past `endcase` |
+| `endcase` | — | Close the `case`; the default region before it runs with the unmatched selector on the stack and owns it (`drop` it or transform it) |
 | `leave` | — | Branch past the innermost loop's closing word; conditional form is `if leave then` |
 | `continue` | — | Branch to the innermost loop's next iteration: a `while` loop re-runs its test, an `until` loop skips its trailing test and repeats unconditionally, and a `do` loop steps its index and counts the iteration (so it terminates) |
 | `exit` | `( -- )` | Return early from the current definition (this one runs at run time) |
@@ -1525,6 +1529,14 @@ are compile errors outside a loop, and a quotation opens its own frame, so a
 or `:]` (an unpatched `leave` would otherwise be a wild branch); the partial
 definition rolls back. In `times` / `i-times` quotations, `exit` already ends
 the current iteration.
+
+`case` dispatches by unification (`unify?`), so a clause pattern may be a
+ground value, which behaves as equality; a frame, which matches as an open
+record (`{ :type :quit } of` matches any frame carrying that pair); `_`; or a
+structure holding logic vars, which bind for the clause body — read them with
+`?`, and declare per-call fresh vars in the head (`| ?x |`). A failed arm's
+bindings roll back before the next arm is tried. The pattern is computed at
+run time by ordinary code, so anything may build it.
 
 A `do` loop whose start is already at or past limit runs zero times; a zero
 delta errors. Writing to the index inside the body does not change how many
@@ -1638,6 +1650,41 @@ big done
 1 3 5 7 9
 ```
 
+```forth case
+: kind case 1 of "one" endof 2 of "two" endof drop "many" endcase . cr ;
+1 kind 5 kind
+```
+```output
+one
+many
+```
+
+```forth of
+: dispatch | ?x | case { :cmd :add :n x } of x ? 1 + . endof { :cmd :quit } of "bye" . endof drop "?" . endcase cr ;
+{ :cmd :add :n 4 } dispatch
+{ :cmd :quit :id 7 } dispatch
+```
+```output
+5
+bye
+```
+
+```forth endof
+: parity case 0 of "zero" endof 1 of "one" endof drop "big" endcase . cr ;
+1 parity
+```
+```output
+one
+```
+
+```forth endcase
+: describe case :ok of "fine" endof "unmatched: " . dup . drop "seen" endcase . cr ;
+:oops describe
+```
+```output
+unmatched:  :oops seen
+```
+
 ```forth exit
 : early dup 0 < if drop "neg" . cr exit then drop "pos" . cr ; -3 early
 ```
@@ -1743,11 +1790,18 @@ closers are self-delimiting tokens (see the note in the introduction).
 
 These parse following tokens and/or compile code. Costs are dominated by compilation, not by a stack effect, so no cost columns.
 
+At `;` and `:]` the compiler rewrites tail calls: a colon-word call that
+reaches `exit` becomes a jump, so tail recursion — direct, or through
+`recurse` — runs at constant return-stack depth. A body using `>r`/`r>`/`r@`,
+`reset`/`shift`, `fail`, or a quotation with locals keeps plain calls, and so
+does a call through a word that is still `defer`red — mutual recursion via
+`defer` grows the return stack.
+
 | Word | Stack effect | Behavior |
 |------|-------------|----------|
 | `:` | — | Begin a colon definition; read the following name; enter compile mode |
 | `;` | — | End a colon definition; emit `exit`; store the source text for `see`. Self-delimiting: `dup *;` parses |
-| `recurse` | — | Compile a call to the innermost definition being compiled — the enclosing quotation, else the enclosing colon word — so an anonymous quotation can self-call. An ordinary recursive call (grows the return stack); compile error outside a definition |
+| `recurse` | — | Compile a call to the innermost definition being compiled — the enclosing quotation, else the enclosing colon word — so an anonymous quotation can self-call. In tail position the call is eliminated (constant return-stack depth); elsewhere it grows the return stack. Compile error outside a definition |
 | `variable` | — | Read the following name; declare a global variable initialized to `0.0` |
 | `constant` | `( val -- )` | Pop a value and read the following name; define an inline word that pushes it as a literal, so call sites fold to the literal with no run-time fetch. Fixed at definition — `to` cannot reassign it |
 | `to` | `( val -- )` | Assign to the named local (in a definition) or global. At interpreted top level — the REPL, a program file, a `load`ed file — it auto-creates an absent global. In a compiled body, a colon definition or a quotation alike, a free name declares a local in that body's frame and stores into it (see Locals), so the head names only what the body receives and a body needs no head at all. Assigning an existing global from inside a body needs `^name` in the head; without it `to` reports that the name is a global. An existing word that is not a variable is never a target, at top level or in a body — `to m` fails because `m` is the metre unit. May trigger superword store-fusion while compiling. |
@@ -2429,8 +2483,7 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 | `reverse` | `( arr/set -- arr )` | Reversed copy | 1 + n | `1a(n)` | O(n) |
 | `concat` | `( arr/set arr/set -- arr )` | Concatenated copy | 2 + m + n | `1a(m+n)` | O(m+n) |
 | `range` | `( from to -- arr )` | Inclusive integer range, step ±1 | 3 + n | `1a(n)` | O(n) |
-| `destruct` | `( arr/set/fr -- v… )` | Spread elements onto the stack; a frame spreads alternating sym/value | 1 + n | none | O(n) |
-| `destruct-to` | `( source targets -- )` | source and target arrays; assign each source element to the variable named by the corresponding target (symbol or xt), creating it if needed | 2 + n | may create variables | O(n) |
+| `spread` | `( arr/set/fr -- v… )` | Spread the elements onto the stack; a frame spreads alternating sym/value | 1 + n | none | O(n) |
 | `slice!` | `( arr tstart src sstart sstep slen -- arr )` | Copy `slen` elements `src[sstart], src[sstart+sstep], …` into `arr[tstart…]` in place | 6 + slen | self-overlap may malloc slen | O(slen) |
 | `to-slice!` | `( v₀ … vₙ₋₁ arr offset n -- arr )` | Store the n values just below `arr` into `arr[offset…offset+n)`; leaves arr | 2 + n | none | O(n) |
 | `last` | `( arr n -- arr )` | arrays.h2o: `swap reverse swap take reverse` | 3n | 3×`1a(n)` | O(n) |
@@ -2514,18 +2567,11 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 [ 3 4 5 6 7 ]
 ```
 
-```forth destruct
-[ 1 2 3 ] destruct . . . cr
+```forth spread
+[ 1 2 3 ] spread . . . cr
 ```
 ```output
 3 2 1
-```
-
-```forth destruct-to
-[ 10 20 ] [ :low :high ] destruct-to low . high . cr
-```
-```output
-10 20
 ```
 
 ```forth slice!
@@ -4519,6 +4565,7 @@ Logic variables, unification, and committed choice, built on the trail and a `PR
 | `fail` | `( -- )` | Backtrack to the nearest enclosing `amb`, failing the current branch; with no enclosing `amb`, an error | 1 | none | O(L) |
 | `choose` | `( list cont -- )` | logic.h2o: run cont with each element of a cons list in turn, committing to the first for which it succeeds; `fail` if none do (n-way `amb` over a list) | n·cont | none | O(n·cont) |
 | `matches?` | `( a b -- flag )` | Non-destructive unify test: mark the trail, unify a and b, roll the trail back, push whether they unified. Leaves no bindings and never backtracks, so it composes in straight-line code | n | none | O(n) |
+| `unify?` | `( a b -- flag )` | Committed unify test: on success the bindings stay and it answers true; on a mismatch the trail rolls back and it answers false, never backtracking. `case`/`of` dispatch through it | n | none | O(n) |
 
 ```forth lvar
 lvar dup 5 ~ drop ? . cr
@@ -4588,6 +4635,14 @@ fallback
 ```
 ```output
 1
+```
+
+```forth unify?
+lvar to W
+[ 1 W ] [ 1 5 ] unify? . W ? . cr
+```
+```output
+1 5
 ```
 
 ---

@@ -1,0 +1,19 @@
+one two many 
+warm text half ? 
+bye 
+moved 
+unknown 
+2 9 null 
+twins single other 
+unmatched:  :oops seen 
+a-one a-other outer 
+five other 
+1 5 
+0 ?V 
+error: of: no enclosing case
+in of
+error: endcase: no enclosing case
+in endcase
+error: ; : unterminated case (a case has no endcase)
+in ;
+error: unknown word: broken

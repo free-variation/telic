@@ -1,0 +1,60 @@
+\ case / of / endof / endcase — pattern dispatch by unification. A clause
+\ pattern is ordinary code; matching commits its bindings and drops selector
+\ and pattern; a mismatch rolls the bindings back and keeps the selector.
+\ The default region before endcase owns the unmatched selector.
+
+\ === ground values behave as equality ===
+
+: kind case 1 of "one" endof 2 of "two" endof drop "many" endcase ;
+1 kind . 2 kind . 5 kind . cr                 \ one two many
+
+: color case :red of "warm" endof "str" of "text" endof 1/2 of "half" endof drop "?" endcase ;
+:red color . "str" color . 1/2 color . :blue color . cr  \ warm text half ?
+
+clear
+\ === frames match as open records ===
+
+: msg case { :type :quit } of "bye" endof { :type :move } of "moved" endof drop "unknown" endcase ;
+{ :type :quit :id 4 } msg . cr                \ bye (extra keys allowed)
+{ :type :move :x 1 :y 2 } msg . cr            \ moved
+{ :type :chat } msg . cr                      \ unknown
+
+clear
+\ === logic vars in a pattern bind for the body ===
+
+: pick-second | ?x | case [ _ x ] of x ? endof drop null endcase ;
+[ 1 2 ] pick-second . [ 7 9 ] pick-second . "nope" pick-second . cr  \ 2 9 null
+
+: shape | ?x | case [ x x ] of "twins" endof [ x ] of "single" endof drop "other" endcase ;
+[ 3 3 ] shape . [ 5 ] shape . [ 3 4 ] shape . cr  \ twins single other (a failed arm unbinds x)
+
+clear
+\ === the default region owns the selector ===
+
+: describe case :ok of "fine" endof "unmatched: " . dup . drop "seen" endcase ;
+:oops describe . cr                           \ unmatched:  :oops seen
+
+clear
+\ === nesting and quotations ===
+
+: nested | ?x | case [ :a x ] of x ? case 1 of "a-one" endof drop "a-other" endcase endof drop "outer" endcase ;
+[ :a 1 ] nested . [ :a 2 ] nested . [ :b 1 ] nested . cr  \ a-one a-other outer
+
+[: case 5 of "five" endof drop "other" endcase :] to q
+5 q execute . 6 q execute . cr                \ five other
+
+clear
+\ === unify? commits; matches? does not ===
+
+lvar to W
+[ 1 W ] [ 1 5 ] unify? . W ? . cr             \ 1 5
+lvar to V
+[ 2 V ] [ 1 5 ] unify? . V ? . cr             \ 0 ?V (rolled back on mismatch)
+
+clear
+\ === errors (each reason parenthesized) ===
+
+1 2 of                                        \ (of outside case)
+endcase                                       \ (endcase outside case)
+: broken case 1 of "x" endof ;                \ (case with no endcase; definition rolls back)
+broken                                        \ (the partial definition rolled back)

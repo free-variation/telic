@@ -1738,7 +1738,7 @@ void p_group_by(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 }
 
-void p_destruct(DISPATCH_ARGS) {
+void p_spread(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	Val source_val = chain_sp[-1];
 	Tag tag = VAL_TAG(source_val);
@@ -1761,57 +1761,6 @@ void p_destruct(DISPATCH_ARGS) {
 	}
 
 	DISPATCH_REGISTERS(interp, chain_ip, slot);
-}
-
-void p_destruct_to(DISPATCH_ARGS) {
-	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
-	Val target_val = chain_sp[-1];
-	Val source_val = chain_sp[-2];
-
-	if (VAL_TAG(source_val) != T_ARRAY) {
-			fail(interp, "source must be an array; got %s", tag_name(VAL_TAG(source_val)));
-			return;
-	}
-	if (VAL_TAG(target_val) != T_ARRAY) {
-		fail(interp, "target must be an array; got %s", tag_name(VAL_TAG(target_val)));
-		return;
-	}
-
-	Object *source = OBJECT_AT(VAL_DATA(source_val));
-	Object *target = OBJECT_AT(VAL_DATA(target_val));
-	if (source->len != target->len) {
-		fail(interp, "length mismatch (source %d, target %d)", source->len, target->len);
-		return;
-	}
-
-	for (int i = 0; i < source->len; i++) {
-		int var_cfa;
-
-		Val item = target->items[i];
-		if (VAL_TAG(item) == T_XT) {
-			var_cfa = (int)VAL_DATA(item);
-		} else if (VAL_TAG(item) == T_SYMBOL) {
-			const char *name = &vocab.symbol_pool[VAL_DATA(item)];
-			var_cfa = find(name);
-			if (!var_cfa)
-				var_cfa = create_variable(interp, name);
-
-			target->items[i] = make_xt(var_cfa);
-		} else {
-			fail(interp, "target item at index %d must be symbol or xt; got %s",
-					i, tag_name(VAL_TAG(item)));
-			return;
-		}
-
-		if ((cfa_handler)vocab.dict[var_cfa] != dovar) {
-			fail(interp, "target at index %d is not a variable", i);
-			return;
-		}
-
-		vocab.dict[var_cfa + 1] = (cell)source->items[i].bits;
-	}
-
-	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 2);
 }
 
 void p_slice_store(DISPATCH_ARGS) {

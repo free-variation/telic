@@ -1,8 +1,9 @@
-\ N-body simulation — array storage + destruct-to for field access.
+\ N-body simulation — array storage, per-pair fields in locals.
 \ Bodies live as 7-element arrays in BODIES (the natural pyperformance shape).
-\ At the top of pair-force, destruct-to loads each body's contents into the
-\ same 7 global variables. Subsequent uses are direct variable reads.
-\ Target arrays are pre-built so the symbol-to-XT resolution happens once.
+\ pair-force spreads both bodies and receives the fields into pair-kernel's
+\ locals in one enter; velocities write back with one to-slice! per body.
+\ Per-field `b1 0 @i` reads in pair-force measured slower than the one
+\ bulk spread + frame fill.
 
 20000 to iterations
 PI PI * 4 * constant solar-mass
@@ -55,25 +56,6 @@ variable sun  variable jupiter  variable saturn  variable uranus  variable neptu
   bodies 3 @i to uranus
   bodies 4 @i to neptune ;
 
-\ Pre-declare the per-pair globals so the colon definitions below can
-\ reference them at compile time. destruct-to will still find and use them
-\ (and cache the symbol→XT mapping in the target arrays on first call).
-variable x1  variable y1  variable z1
-variable vx1 variable vy1 variable vz1  variable m1
-variable x2  variable y2  variable z2
-variable vx2 variable vy2 variable vz2  variable m2
-variable dx  variable dy  variable dz
-variable d2  variable mag
-
-\ Target arrays for the two body slots in pair-force.
-\ On first destruct-to call these get mutated from symbols to XTs.
-variable b1-targets
-variable b2-targets
-
-: init-targets ^b1-targets ^b2-targets |
-  [ :x1 :y1 :z1 :vx1 :vy1 :vz1 :m1 ] to b1-targets
-  [ :x2 :y2 :z2 :vx2 :vy2 :vz2 :m2 ] to b2-targets ;
-
 : offset-momentum
   0 to px  0 to py  0 to pz
   bodies 0 @i to sun-body
@@ -109,12 +91,11 @@ variable b2-targets
   loop
   e ;
 
-\ pair-force: load both bodies into globals via destruct-to,
-\ compute, write velocities back to source arrays.
-: pair-force ( b1 b2 dt -- )
-  | b1 b2 dt  ^dx ^dy ^dz ^d2 ^mag  ^vx1 ^vy1 ^vz1 ^vx2 ^vy2 ^vz2 |
-  b1 b1-targets destruct-to
-  b2 b2-targets destruct-to
+\ pair-force: spread both bodies onto the stack and receive all fourteen
+\ fields into the kernel's locals in one enter; compute, write the six
+\ velocities back with one to-slice! per body.
+: pair-kernel ( fields… b1 b2 dt -- )
+  | x1 y1 z1 vx1 vy1 vz1 m1  x2 y2 z2 vx2 vy2 vz2 m2  b1 b2 dt |
   x1 x2 f- to dx
   y1 y2 f- to dy
   z1 z2 f- to dz
@@ -128,6 +109,10 @@ variable b2-targets
   dz m1 f* mag vz2 f*+ to vz2
   vx1 vy1 vz1 b1 3 3 to-slice! drop
   vx2 vy2 vz2 b2 3 3 to-slice! drop ;
+
+: pair-force ( b1 b2 dt -- )
+  | b1 b2 dt |
+  b1 spread  b2 spread  b1 b2 dt pair-kernel ; inline
 
 : integrate-pos ( b dt -- )
   | b dt |
@@ -156,7 +141,6 @@ variable b2-targets
 : nbody-run ( steps -- )
    to n
   init-bodies
-  init-targets
   offset-momentum
   "initial energy: " . energy . cr
   now to t0

@@ -214,6 +214,23 @@ void p_matches(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 }
 
+void p_unify_keep(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
+	Val row = chain_sp[-1];
+	Val pattern = chain_sp[-2];
+
+	int trail_mark = interp->bind_trail_top;
+	int matched = unify(interp, pattern, row);
+	if (!matched)
+		trail_undo_to(interp, trail_mark);
+
+	if (interp->error_flag) return;
+
+	chain_sp[-2] = make_bool(matched);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+}
+
 void p_deref(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	chain_sp[-1] = deref(interp, chain_sp[-1]);

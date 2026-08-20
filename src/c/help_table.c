@@ -171,6 +171,7 @@ const HelpEntry help_entries[] = {
 	{ "bye", "( -- )", "exit(0)", "—", "—", "—", 31 },
 	{ "byte-size", "( str -- n )", "Byte length of a string", "2", "none", "O(1)", 15 },
 	{ "byte-substring", "( str start end -- sub )", "Half-open **byte** range [start, end); bounds-checked. Pairs with byte offsets from match/match-all", "2 + k", "1o", "O(k), k = end − start", 14 },
+	{ "case", "( sel -- )", "Open pattern dispatch on the selector; clauses follow, each pattern of … endof, then an optional default region, then endcase", NULL, NULL, NULL, 10 },
 	{ "catch", "( xt -- result 0 | exc 1 )", "exceptions.h2o: reset (execute-catching) 0; (result 0) on success, (exc 1) on a throw **or** an interpreter error (an error frame { :message :trace } becomes the exception value)", "—", "cont if thrown; 1f + 2s on a caught interpreter error", "O(xt)", 26 },
 	{ "cd", "( path -- )", "Change the interpreter's working directory (chdir); process-wide, so it moves the base for relative file I/O and is inherited by subsequent start-process children", "1", "none", "O(1)", 33 },
 	{ "char-at", "( str index -- char )", "The one-character string at codepoint index; bounds-checked against the codepoint count", "2 + n", "1o", "O(n)", 14 },
@@ -235,8 +236,6 @@ const HelpEntry help_entries[] = {
 	{ "denominator", "( x -- x' )", "The reduced denominator as a positive integer exact", "limbs", "1o", "O(limbs)", 6 },
 	{ "depth", "( -- n )", "Push current depth", "1", "none", "O(1)", 0 },
 	{ "deref", "( v -- val )", "Follow a logic var's binding chain to the first non-variable value (v itself if unbound). Shallow — a returned structure still has bound vars inside; for a fully resolved snapshot use reify or copy", "d", "none", "O(d)", 28 },
-	{ "destruct", "( arr/set/fr -- v… )", "Spread elements onto the stack; a frame spreads alternating sym/value", "1 + n", "none", "O(n)", 16 },
-	{ "destruct-to", "( source targets -- )", "source and target arrays; assign each source element to the variable named by the corresponding target (symbol or xt), creating it if needed", "2 + n", "may create variables", "O(n)", 16 },
 	{ "dgemm-nn", "( α A B β C -- R )", "R = α·A·B + β·C, ikj fast path", "5 + m·k·n", "1m(m×n)", "O(m·k·n)", 20 },
 	{ "dgemm-nt", "( α A B β C -- R )", "R = α·A·Bᵀ + β·C", "5 + m·k·n", "1m(m×n)", "O(m·k·n)", 20 },
 	{ "dgemm-tn", "( α A B β C -- R )", "R = α·Aᵀ·B + β·C", "5 + m·k·n", "1m(m×n)", "O(m·k·n)", 20 },
@@ -262,6 +261,8 @@ const HelpEntry help_entries[] = {
 	{ "embodies!", "( xt \"name\" -- )", "Like embodies, but finalizing: rewrite every existing call site of the deferred word to call the target directly (no forwarding cost), then turn the word into an ordinary word. Not retargetable afterward; a further embodies/embodies! reports it is no longer deferred. Top-level only", NULL, NULL, NULL, 12 },
 	{ "emit", "( code -- )", "Print the character with codepoint code, UTF-8 encoded (1–4 bytes); range-checked [0, 0x10FFFF]", "1", "none", "O(1)", 13 },
 	{ "end-process", "( proc -- )", "subprocess.h2o: the teardown for a start-process child — close :in/:out/:err and wait :pid (graceful, blocks until exit)", "3 closes + wait", "none", "O(1)", 34 },
+	{ "endcase", "—", "Close the case; the default region before it runs with the unmatched selector on the stack and owns it (drop it or transform it)", NULL, NULL, NULL, 10 },
+	{ "endof", "—", "Close a clause; jumps past endcase", NULL, NULL, NULL, 10 },
 	{ "ensure", "( body-xt cleanup-xt -- … )", "exceptions.h2o: run cleanup-xt (stack-neutral) whether body-xt returns normally or throws/errors, then re-raise on the throw path", "—", "cont if thrown", "O(body-xt)", 26 },
 	{ "env", "( name -- val )", "Environment variable as a string, or the none value if unset (so set-empty \"\" and unset stay distinct)", "1", "1o on hit", "O(|val|)", 33 },
 	{ "env!", "( name value -- )", "Set an environment variable (overwriting); process-wide, so subsequent start-process children inherit it", "1", "none", "O(1)", 33 },
@@ -461,6 +462,7 @@ const HelpEntry help_entries[] = {
 	{ "num-cores", "( -- n )", "Online CPU count (sysconf)", "1", "none", "O(1)", 25 },
 	{ "num-elements", "( mat -- n )", "matrix.h2o: dim * (inlined)", "5", "none", "O(1)", 20 },
 	{ "numerator", "( x -- x' )", "The reduced numerator as an integer exact, carrying the sign", "limbs", "1o", "O(limbs)", 6 },
+	{ "of", "—", "Unify the clause pattern with the selector: on a match the bindings commit, both are dropped, and the body runs; on a mismatch the bindings roll back, the pattern is dropped, and the selector falls to the next clause", NULL, NULL, NULL, 10 },
 	{ "open-app-window", "( path -- )", "browser.h2o: open path in a detached browser application window (Chromium --app), falling back to the system open / xdg-open; the mechanism behind show-figure", "fork", "none", "O(1)", 34 },
 	{ "or", "( a b -- bool )", "logical or of truthiness", "3", "none", "O(1)", 4 },
 	{ "over", "( a b -- a b a )", "Copy second over top", "5", "none", "O(1)", 0 },
@@ -518,7 +520,7 @@ const HelpEntry help_entries[] = {
 	{ "read-tsv", "( path -- dataset )", "datasets.h2o: a TSV file with a header row as a column-oriented dataset (load-tsv true rows>dataset, inlined), columns typed as rows>dataset types them; a headerless file goes through load-tsv + rows>dataset", "bytes + 2·r·c", "rows + one array per column + 1m per numeric column + 1fr", "O(bytes + r·c)", 24 },
 	{ "real-part", "( z -- f )", "The real part; a float answers itself", "2", "none", "O(1)", 7 },
 	{ "rect-at", "( x1 y1 x2 y2 -- )", "Rectangle between two data-space corners, mapped through the domain; current :fill :stroke :stroke-width (the data-space analog of svg-rect)", NULL, NULL, NULL, 43 },
-	{ "recurse", "—", "Compile a call to the innermost definition being compiled — the enclosing quotation, else the enclosing colon word — so an anonymous quotation can self-call. An ordinary recursive call (grows the return stack); compile error outside a definition", NULL, NULL, NULL, 12 },
+	{ "recurse", "—", "Compile a call to the innermost definition being compiled — the enclosing quotation, else the enclosing colon word — so an anonymous quotation can self-call. In tail position the call is eliminated (constant return-stack depth); elsewhere it grows the return stack. Compile error outside a definition", NULL, NULL, NULL, 12 },
 	{ "reduce", "( arr/set init xt -- val )", "Left fold; xt is ( acc elem -- acc )", "3 + n·xt", "none", "O(n·xt)", 25 },
 	{ "regress-with", "( dataset predictors response B fit-xt -- arr )", "statistics.h2o: the shared regression pipeline — design matrix with intercept, point estimate, then B bootstrap refits for per-coefficient { :estimate :se :bias :ci-low :ci-high } frames; the loadable statistics library's linear-regression/logistic-regression pass the fit", "fit + B·fit", "matrices + B refits + 1a(k)", "O(B·fit)", 20 },
 	{ "reify", "( a -- a' )", "Like copy, but each unbound var becomes a canonical inert symbol :_0, :_1, … numbered by first appearance — a ground, storable, comparable snapshot.", "tree size", "one object per node", "O(tree size)", 18 },
@@ -600,6 +602,7 @@ const HelpEntry help_entries[] = {
 	{ "sort-by", "( items xt -- arr )", "arrays.h2o: sorted by the key xt ( element -- key ) extracts, one evaluation per element; the keys are argsorted and the elements gathered by that permutation, so equal keys keep index order", "n·xt + n log n", "3×1a(n) + malloc(4n)", "O(n·xt + n log n)", 25 },
 	{ "spaces", "( k -- str )", "strings.h2o: a string of k spaces (\" \" swap array-of \"\" join)", "k", "1a + 1o", "O(k)", 14 },
 	{ "split", "( str pat -- [ piece… ] )", "Split str at each non-overlapping match of pat; the pieces are the gaps between matches, empty fields kept; no match → [ str ]", "n", "1a + pieces", "O(n)", 14 },
+	{ "spread", "( arr/set/fr -- v… )", "Spread the elements onto the stack; a frame spreads alternating sym/value", "1 + n", "none", "O(n)", 16 },
 	{ "sq", "( a -- a² )", "float, matrix, or exact", "2 (float)", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 1 },
 	{ "sqrt", "( a -- √a )", "sqrt", "2", "matrix 1m(r×c)", "same", 3 },
 	{ "stacked-barchart", "( matrix labels colors -- )", "Stacked vertical bars: row i is category i (a bar at x=i+1), column j is series j (a segment colored colors[j]), stacked from the y=0 baseline; labels names the categories under the bars, colors is the per-series palette (pass the same array to legend); pins the domain and sets :x-categorical so axes/panel drop the numeric x-ticks; aes :bar-stroke", NULL, NULL, NULL, 43 },
@@ -654,6 +657,7 @@ const HelpEntry help_entries[] = {
 	{ "tty?", "( -- bool )", "Whether stdout is a terminal (isatty) — printing words branch on it to emit styling only for a person at a terminal, so piped and batch output stays plain (help dims its prose this way)", "1", "none", "O(1)", 13 },
 	{ "type-of", "( a -- sym )", "The value's type as a symbol: :float :string :symbol :array :set :pair :frame :matrix :quantity :xt :continuation :stream :db :ptr :segment :none :wildcard :lvar :exact :complex. A bound logic var reports its value's type; an unbound one is :lvar", "2", "none", "O(1)", 4 },
 	{ "unify", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term. Atoms by value; pairs head then tail; arrays element-wise; frames as open records — shared keys must unify, extra keys on either side allowed. A _ on either side matches anything and binds nothing. On a mismatch, fails.", "n", "none", "O(n)", 28 },
+	{ "unify?", "( a b -- flag )", "Committed unify test: on success the bindings stay and it answers true; on a mismatch the trail rolls back and it answers false, never backtracking. case/of dispatch through it", "n", "none", "O(n)", 28 },
 	{ "union", "( set₁ set₂ -- set₃ )", "Union into a new set, merging the two sorted arrays", "m+n", "1o + reallocs", "O(m+n)", 15 },
 	{ "unit", "( q -- )", "Read the following name; pop a quantity whose magnitude is a positive whole number, and define a postfix word attaching that unit. The magnitude is the unit's integer scale relative to its dimension's base (100 cent unit dollar). A single unnamed base dimension gets named after the word", NULL, NULL, NULL, 12 },
 	{ "unit-of", "( v -- q|1 )", "A quantity's unit as the quantity 1 in that unit (10 km → 1 km, a matrix column in m → 1 m, computed units in dimensional form — 1 m.s^-1); a bare value answers 1.0. Composes: x unit-of * attaches x's unit, 1 s = tests for a unit", "2", "1 pair", "O(1)", 5 },
@@ -718,7 +722,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "C primitive alias of unify, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 28 },
 };
 
-const int help_entry_count = 665;
+const int help_entry_count = 669;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } /a/b 5 ! /a/b @ . cr", "5" },
@@ -842,6 +846,7 @@ const HelpExample help_examples[] = {
 	{ "bye", "bye", "" },
 	{ "byte-size", "\"héllo\" byte-size . cr", "6" },
 	{ "byte-substring", "\"héllo\" 0 3 byte-substring . cr", "hé" },
+	{ "case", ": kind case 1 of \"one\" endof 2 of \"two\" endof drop \"many\" endcase . cr ;\n1 kind 5 kind", "one\nmany" },
 	{ "catch", "[: 42 :] catch . . cr", "0 42" },
 	{ "cd", "cwd \"/tmp\" cd cwd \"tmp\" has? . cd cr", "1" },
 	{ "char-at", "\"héllo\" 1 char-at . cr", "é" },
@@ -906,8 +911,6 @@ const HelpExample help_examples[] = {
 	{ "denominator", "6/8 denominator . cr", "4" },
 	{ "depth", "1 2 3 depth . clear cr", "3" },
 	{ "deref", "lvar dup 7 ~ drop deref . cr", "7" },
-	{ "destruct", "[ 1 2 3 ] destruct . . . cr", "3 2 1" },
-	{ "destruct-to", "[ 10 20 ] [ :low :high ] destruct-to low . high . cr", "10 20" },
 	{ "dgemm-nn", "1 [ 1 2 3 4 ] 2 2 matrix 2 identity-matrix 0 2 2 0-matrix dgemm-nn matrix>array . cr", "[ 1 2 3 4 ]" },
 	{ "dgemm-nt", "1 [ 1 2 3 4 ] 2 2 matrix dup 0 2 2 0-matrix dgemm-nt matrix>array . cr", "[ 5 11 11 25 ]" },
 	{ "dgemm-tn", "1 [ 1 2 3 4 ] 2 2 matrix dup 0 2 2 0-matrix dgemm-tn matrix>array . cr", "[ 10 14 14 20 ]" },
@@ -933,6 +936,8 @@ const HelpExample help_examples[] = {
 	{ "embodies!", "defer farewell : bye-word \"bye\" . cr ; ' bye-word embodies! farewell farewell", "bye" },
 	{ "emit", "87 emit 9731 emit cr", "W☃" },
 	{ "end-process", "\"cat\" run dup \"ping\" swap write-in dup :in @ close dup read-out trim . end-process cr", "ping" },
+	{ "endcase", ": describe case :ok of \"fine\" endof \"unmatched: \" . dup . drop \"seen\" endcase . cr ;\n:oops describe", "unmatched:  :oops seen" },
+	{ "endof", ": parity case 0 of \"zero\" endof 1 of \"one\" endof drop \"big\" endcase . cr ;\n1 parity", "one" },
 	{ "ensure", "[: \"body\" . :] [: \"cleanup\" . :] ensure cr", "body cleanup" },
 	{ "env", "\"DOCS_VAR\" \"42\" env! \"DOCS_VAR\" env . cr\n\"NO_SUCH_VAR_XYZ\" env none? . cr", "42\n1" },
 	{ "env!", "\"DOCS_VAR\" \"42\" env! \"DOCS_VAR\" env . cr", "42" },
@@ -1132,6 +1137,7 @@ const HelpExample help_examples[] = {
 	{ "num-cores", "num-cores 0 > . cr", "1" },
 	{ "num-elements", "[ 1 2 3 4 5 6 ] 2 3 matrix num-elements . cr", "6" },
 	{ "numerator", "-6/8 numerator . cr", "-3" },
+	{ "of", ": dispatch | ?x | case { :cmd :add :n x } of x ? 1 + . endof { :cmd :quit } of \"bye\" . endof drop \"?\" . endcase cr ;\n{ :cmd :add :n 4 } dispatch\n{ :cmd :quit :id 7 } dispatch", "5\nbye" },
 	{ "open-app-window", "\"figures/plot.svg\" open-app-window", "" },
 	{ "or", "0 0 or . 0 3 or . cr", "0 1" },
 	{ "over", "1 2 over . . . cr", "1 2 1" },
@@ -1271,6 +1277,7 @@ const HelpExample help_examples[] = {
 	{ "sort-by", "[ \"bb\" \"a\" \"ccc\" ] ' size sort-by . cr", "[ \"a\" \"bb\" \"ccc\" ]" },
 	{ "spaces", "3 spaces byte-size . cr", "3" },
 	{ "split", "\"a,b,,c\" \",\" split . cr", "[ \"a\" \"b\" \"\" \"c\" ]" },
+	{ "spread", "[ 1 2 3 ] spread . . . cr", "3 2 1" },
 	{ "sq", "9 sq . cr", "81" },
 	{ "sqrt", "16 sqrt . cr\n-1 sqrt . cr", "4\nnull" },
 	{ "stacked-barchart", "\"plot\" load-library\n320 240 figure [ 1 2 3 4 ] 2 2 matrix [ \"a\" \"b\" ] [ \"red\" \"blue\" ] stacked-barchart figure>svg \"blue\" has? . cr", "1" },
@@ -1325,6 +1332,7 @@ const HelpExample help_examples[] = {
 	{ "tty?", "tty? . cr", "0" },
 	{ "type-of", "3.5 type-of . \"s\" type-of . [ ] type-of . cr", ":float :string :array" },
 	{ "unify", "lvar to Q [ 1 Q ] [ 1 2 ] unify . cr", "[ 1 Q=2 ]" },
+	{ "unify?", "lvar to W\n[ 1 W ] [ 1 5 ] unify? . W ? . cr", "1 5" },
 	{ "union", "[< 1 2 >] [< 2 3 >] union . cr", "[< 1 2 3 >]" },
 	{ "unit", "base unit inch 12 inch unit foot 2 foot 6 inch + . cr", "2.5 foot" },
 	{ "unit-of", "10 km unit-of . cr", "1 km" },
@@ -1389,4 +1397,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 666;
+const int help_example_count = 670;

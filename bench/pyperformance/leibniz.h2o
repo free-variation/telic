@@ -15,7 +15,7 @@
 \ (= 2*(idx+2) - 1). The compound op f*+ collapses the multiply-add.
 \ i-times over the bare quotation, not do/loop: the body consumes the
 \ index from the stack once, so the do form's (local@0) fetch costs more
-\ than its one-op bookkeeping saves — measured 8.38s vs 8.60s.
+\ than its one-op bookkeeping saves — measured slower.
 
 1000000000 constant rounds
 
@@ -31,7 +31,7 @@ variable t0
      x fnegate to x
      2.0 3.0 f*+        \ idx*2 + 3 = divisor
      x 1 pick f/        \ X / divisor; `1 pick f/` fuses to one op, where `swap f/`
-     pi-est f+ to pi-est  \ costs a swap — measured 12% of this loop
+     pi-est f+ to pi-est  \ costs a swap — a measurable share of this loop
      drop
   :] rounds f1+ i-times
   pi-est 4.0 f* to pi-est

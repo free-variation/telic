@@ -5062,6 +5062,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "unify", p_unify, 0);
 	define_primitive(interp, "~", p_unify, 0);
 	define_primitive(interp, "matches?", p_matches, 0);
+	define_primitive(interp, "unify?", p_unify_keep, 0);
 	define_primitive(interp, "deref", p_deref, 0);
 	define_primitive(interp, "amb", p_amb, 0);
 	define_primitive(interp, "alloc-stats", p_alloc_stats, 0);
@@ -5155,8 +5156,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "sort", p_sort, 0);
 	define_primitive(interp, "argsort", p_argsort, 0);
 	define_primitive(interp, "sample", p_sample, 0);
-	define_primitive(interp, "destruct", p_destruct, 0);
-	define_primitive(interp, "destruct-to", p_destruct_to, 0);
+	define_primitive(interp, "spread", p_spread, 0);
 	define_primitive(interp, "slice!", p_slice_store, 0);
 	define_primitive(interp, "to-slice!", p_to_slice, 0);
 	define_primitive(interp, "range", p_range, 0);
@@ -5337,6 +5337,10 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "loop", p_loop, 1);
 	define_primitive(interp, "leave", p_leave, 1);
 	define_primitive(interp, "continue", p_continue, 1);
+	define_primitive(interp, "case", p_case, 1);
+	define_primitive(interp, "of", p_of, 1);
+	define_primitive(interp, "endof", p_endof, 1);
+	define_primitive(interp, "endcase", p_endcase, 1);
 	define_primitive(interp, "[:", p_qcolon, 1);
 	define_primitive(interp, ":]", p_qsemi, 1);
 	define_primitive(interp, "|", p_bar, 1);
@@ -5708,6 +5712,7 @@ int main(int argc, char **argv) {
 			compiler.loop_begin = 0;
 			compiler.leave_chain = 0;
 			compiler.do_continue_chain = 0;
+			compiler.case_chain = 0;
 			compiler.n_active_do_loops = 0;
 			compiler.compiling = 0;
 			if (interp->entry_snapshot_depth > 0)

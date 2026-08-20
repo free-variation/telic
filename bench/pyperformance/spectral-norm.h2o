@@ -19,7 +19,7 @@ inline
 \ fold-times keeps the running sum in the combinator: the body maps an index to
 \ one term and `' f+` combines, so the sum never reaches the data stack. i and u
 \ are parked below the index and read by depth. No swap in the body: a swap in a
-\ hot body measured 7.6 ns against ~1.2 for an ordinary op
+\ hot body measured several times the cost of an ordinary op
 : part_A_times_u ( i u -- partial_sum )
   | i u |
   i u

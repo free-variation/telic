@@ -77,8 +77,8 @@ wall-now 2 week + time>iso .            \ the ISO timestamp two weeks from now
 \ Sets and set algebra
 [< 1 2 3 >] [< 2 3 4 >] + .                 \ [< 1 2 3 4 >]  (union via polymorphic +)
 
-\ Set-builder { x² | x ∈ 1..10, even x } — literal + filter/map + destruct
-[< 1 10 range [: 2 mod 0= :] filter ' fsq map destruct >] .   \ [< 4 16 36 64 100 >]
+\ Set-builder { x² | x ∈ 1..10, even x } — literal + filter/map + spread
+[< 1 10 range [: 2 mod 0= :] filter ' fsq map spread >] .   \ [< 4 16 36 64 100 >]
 
 \ Frames — symbol-keyed nested maps
 { :a 1 :b { :c 2 } } /b/c @ .           \ 2
@@ -214,7 +214,7 @@ departs from its pyperformance original the file's header says so.
 - **`recurse`** — compiles a call to the innermost definition being compiled (the enclosing quotation, else the colon word), so an anonymous quotation can self-call.
 - **Tail-call elimination** — a call in tail position compiles to a frame-reusing jump, so a self-recursive or `recurse` loop runs in constant return-stack space. Disabled where it would be unsafe (a body using `>r`/`reset`/`shift`/`fail`, or locals plus a quotation).
 - **Partial application** — `curry` ( value xt -- xt' ) binds a value into a curried token, a heap value accepted wherever an xt is; the token travels through other words' frames intact, works inside parallel regions, and is garbage-collected.
-- **Control flow** — `if`/`else`/`then`, the `begin`/`until`/`again` and `begin`/`while`/`repeat` loops with `leave` / `continue` for early exit, the counted `start limit delta do k … loop` over a named index local, counted `times` / `i-times`, `exit`, and `>r`/`r>`/`r@` for return-stack access.
+- **Control flow** — `if`/`else`/`then`, the `begin`/`until`/`again` and `begin`/`while`/`repeat` loops with `leave` / `continue` for early exit, the counted `start limit delta do k … loop` over a named index local, `case`/`of`/`endof`/`endcase` dispatching by unification (clauses are patterns — ground values, open-record frames, `_`, logic vars that bind for the body), counted `times` / `i-times`, `exit`, and `>r`/`r>`/`r@` for return-stack access.
 - **Tick and execute** — `' word execute` for first-class invocation by name.
 - **Forward declaration** — `defer name` declares a word with no target, for mutual recursion or late binding; `xt embodies name` installs a target (a colon word or quotation), retargetable through one forwarding dispatch; `xt embodies! name` finalizes, rewriting existing call sites to call the target directly and turning the word ordinary.
 - **`forget`** — truncate the dictionary back to a named word; symbol identities survive.
@@ -286,7 +286,7 @@ Flat, fixed-length typed numeric buffers stored off the arena (one allocation, f
 - **Map, fold, zip-map, filter** — `map` for a single source, `reduce` for a left fold over a collection, `nmap` for N-ary zip, `filter` to select by predicate, with anonymous quotations as the higher-order argument.
 - **Counted map-fold** — `fold-times` ( acc map-xt combine-xt n -- acc' ) folds over an index range with no collection: the body maps `( i -- term )` and the accumulator stays inside the combinator, so a primitive combiner like `' f+` adds with no dispatch and the fold costs what `i-times` costs. `sum-times` and `product-times` wrap the usual defaults; `pmap-reduce` is the parallel form of the same shape.
 - **Search, traversal, and reshaping** — `find-first` (first element satisfying a predicate, or `null`, stopping there), `any?` (short-circuits through `find-first`) / `all?` (maps then folds, so its predicate runs on every element), `each` (side effects, no result), `flat-map` (per-element arrays concatenated), `sort-by` (sorted by an extracted key, n key evaluations), `partition` (matches and non-matches in one pass), and `group-with` (group into `{ key → set }` by a computed symbol key — the quotation-keyed kin of `group-by`).
-- **Destructuring** — `destruct` spreads a set/array/frame's elements onto the stack (a frame as alternating symbol/value). `destruct-to` ( values names -- ) takes two equal-length arrays and assigns each value to the global variable named by the corresponding symbol, creating it if absent.
+- **Destructuring** — `spread` pushes a set/array/frame's elements onto the stack (a frame as alternating symbol/value); a locals head, `unify`, or a `case` pattern receives the pieces by name.
 - **In-place slicing** — `slice!` copies a strided run from one array into another (a negative step with source and target aligned reverses in place), `to-slice!` stores values from the stack into a range.
 
 ### Random
@@ -328,7 +328,7 @@ Symbol-keyed nested maps — the associative type, and the compound term the log
 - **Access** — `@` ( frame key/path -- value ) get, `!` ( frame key/path value -- frame ) set with auto-vivified intermediates, `has?` existence test, `delete-at` remove, `update-at` apply a quotation to a leaf, `merge` combine two frames (right wins), plus `keys` / `values` / `size`. The single-location words (`@`, `!`, `delete-at`, `update-at`) take a `:symbol` key or a plain `/a/b/c` locator and reject a search pattern; `has?` accepts either, answering whether any node matches.
 - **Key tokens** — `row@price` joins a frame reference to a key in one token: the part left of the operator is a local or a defined word supplying the frame, and the key compiles as an operand, so the access is a fetch plus one op with no symbol on the stack. Gets chain — `row@address@city` — and `row!price` sets from the stack top, dropping the frame `!` returns. An empty left part takes the frame from the stack, so `@price` is the postfix form. A defined word always wins, leaving `@i`, `@or` and any word named with an `@` untouched.
 - **Path queries** — `select-values` ( frame pattern -- array ) returns every value matched by a `*`/`//`/predicate search pattern, in document order; `select-keys` returns the full root-to-match path for each match (each round-trips back through `@`). Convert the result with `array>set` for distinct values or `array>cons` to feed matches to `choose`.
-- **Representation** — parallel key/value arrays kept in **symbol-id order** (interning order, not alphabetical) so lookup is a binary search; `keys`, `values`, `destruct` and printing follow that order, stable for a given program but not name-sorted. Mutable in place, reference semantics. Structurally comparable, so frames work as set members and round-trip through their `{ }` literal.
+- **Representation** — parallel key/value arrays kept in **symbol-id order** (interning order, not alphabetical) so lookup is a binary search; `keys`, `values`, `spread` and printing follow that order, stable for a given program but not name-sorted. Mutable in place, reference semantics. Structurally comparable, so frames work as set members and round-trip through their `{ }` literal.
 
 ### Strings and regex
 

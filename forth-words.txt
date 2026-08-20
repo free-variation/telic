@@ -118,6 +118,7 @@ bulk-load
 bye
 byte-size
 byte-substring
+case
 catch
 cd
 char-at
@@ -182,8 +183,6 @@ delete-at
 denominator
 depth
 deref
-destruct
-destruct-to
 dgemm-nn
 dgemm-nt
 dgemm-tn
@@ -209,6 +208,8 @@ embodies
 embodies!
 emit
 end-process
+endcase
+endof
 ensure
 env
 env!
@@ -408,6 +409,7 @@ null
 num-cores
 num-elements
 numerator
+of
 open-app-window
 or
 over
@@ -547,6 +549,7 @@ sort
 sort-by
 spaces
 split
+spread
 sq
 sqrt
 stacked-barchart
@@ -601,6 +604,7 @@ tsv>db
 tty?
 type-of
 unify
+unify?
 union
 unit
 unit-of

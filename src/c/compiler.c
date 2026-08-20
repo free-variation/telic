@@ -27,6 +27,7 @@ void rollback_partial_definition(void) {
 	compiler.loop_begin = 0;
 	compiler.leave_chain = 0;
 	compiler.do_continue_chain = 0;
+	compiler.case_chain = 0;
 	compiler.n_active_do_loops = 0;
 	compiler.conditional_depth = 0;
 	compiler.n_declared_globals = 0;
@@ -64,6 +65,11 @@ void p_semicolon(DISPATCH_ARGS) {
 	if (compiler.loop_begin != 0) {
 		rollback_partial_definition();
 		fail(interp, "; : unterminated loop (a begin has no until/again/repeat, or a do no loop)");
+		return;
+	}
+	if (compiler.case_chain != 0) {
+		rollback_partial_definition();
+		fail(interp, "; : unterminated case (a case has no endcase)");
 		return;
 	}
 	if (compiler.conditional_depth > 0) {
@@ -455,8 +461,82 @@ static void open_quotation(Interpreter *interp) {
 	push(interp, make_float((double)opener_start));
 	push(interp, make_float((double)compiler.loop_begin));
 	push(interp, make_float((double)compiler.leave_chain));
+	push(interp, make_float((double)compiler.case_chain));
 	compiler.loop_begin = 0;
 	compiler.leave_chain = 0;
+	compiler.case_chain = 0;
+}
+
+void p_case(DISPATCH_ARGS) {
+	if (!compiler.compiling) {
+		fail(interp, "case: only valid inside a colon definition or quotation");
+		return;
+	}
+
+	push(interp, make_float((double)compiler.case_chain));
+	compiler.case_chain = -1;
+
+	DISPATCH(interp);
+}
+
+void p_of(DISPATCH_ARGS) {
+	if (compiler.case_chain == 0) {
+		fail(interp, "of: no enclosing case");
+		return;
+	}
+
+	emit_call(interp, find("over"));
+	emit_call(interp, find("unify?"));
+	emit_call(interp, vocab.zbranch_cfa);
+	push(interp, make_float((double)vocab.here));
+	emit(interp, 0);
+	emit_call(interp, find("drop"));
+	compiler.conditional_depth++;
+	compiler.fuse_floor = vocab.here;
+
+	DISPATCH(interp);
+}
+
+void p_endof(DISPATCH_ARGS) {
+	if (compiler.case_chain == 0) {
+		fail(interp, "endof: no enclosing case");
+		return;
+	}
+
+	POP(slot_val);
+	int slot = (int)VAL_NUMBER(slot_val);
+	if (!valid_patch_slot(interp, slot, "endof"))
+		return;
+
+	emit_call(interp, vocab.branch_cfa);
+	emit(interp, compiler.case_chain > 0 ? (cell)compiler.case_chain : 0);
+	compiler.case_chain = vocab.here - 1;
+
+	vocab.dict[slot] = (vocab.here - slot);
+	compiler.fuse_floor = vocab.here;
+	if (compiler.conditional_depth > 0)
+		compiler.conditional_depth--;
+
+	DISPATCH(interp);
+}
+
+void p_endcase(DISPATCH_ARGS) {
+	if (compiler.case_chain == 0) {
+		fail(interp, "endcase: no enclosing case");
+		return;
+	}
+
+	for (int slot = compiler.case_chain; slot > 0; ) {
+		int prior_slot = (int)vocab.dict[slot];
+		vocab.dict[slot] = vocab.here - slot;
+		slot = prior_slot;
+	}
+
+	POP(saved_case_chain_val);
+	compiler.case_chain = (int)VAL_NUMBER(saved_case_chain_val);
+	compiler.fuse_floor = vocab.here;
+
+	DISPATCH(interp);
 }
 
 void p_qcolon(DISPATCH_ARGS) {
@@ -506,6 +586,10 @@ void p_qsemi(DISPATCH_ARGS) {
 		fail(interp, ":] : unterminated loop (a begin has no until/again/repeat, or a do no loop)");
 		return;
 	}
+	if (compiler.case_chain != 0) {
+		fail(interp, ":] : unterminated case (a case has no endcase)");
+		return;
+	}
 	if (compiler.conditional_depth > 0) {
 		fail(interp, ":] : unterminated conditional (an if has no matching then)");
 		return;
@@ -514,11 +598,13 @@ void p_qsemi(DISPATCH_ARGS) {
 		return;
 	leave_compile_scope(interp);
 	emit_call(interp, vocab.exit_cfa);
+	POP(case_chain_val);
 	POP(leave_chain_val);
 	POP(loop_begin_val);
 	POP(opener_start_val);
 	POP(branch_slot_val);
 	POP(anon_cfa_val);
+	compiler.case_chain = (int)VAL_NUMBER(case_chain_val);
 	compiler.leave_chain = (int)VAL_NUMBER(leave_chain_val);
 	compiler.loop_begin = (int)VAL_NUMBER(loop_begin_val);
 	int opener_start = (int)VAL_NUMBER(opener_start_val);
