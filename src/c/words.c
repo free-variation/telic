@@ -1958,6 +1958,11 @@ void p_globals(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
 }
 
+static int section_name_cmp(const void *left, const void *right) {
+	return strcmp(help_section_names[*(const int *)left],
+			help_section_names[*(const int *)right]);
+}
+
 void p_words(DISPATCH_ARGS) {
 	int word_count = 0;
 	for (int cfa = vocab.latest_cfa; cfa != 0; cfa = (int)WORD_LINK(cfa))
@@ -1992,13 +1997,22 @@ void p_words(DISPATCH_ARGS) {
 
 	const char **group_names;
 	MALLOC_OR_FAIL_CLEANUP(interp, group_names, sizeof(char *) * (size_t)word_count, { free(groups); free(names); });
+	int *section_order;
+	MALLOC_OR_FAIL_CLEANUP(interp, section_order, sizeof(int) * (size_t)help_section_count, { free(group_names); free(groups); free(names); });
+	for (int s = 0; s < help_section_count; s++)
+		section_order[s] = s;
+	qsort(section_order, (size_t)help_section_count, sizeof(int), section_name_cmp);
+
 	print_word_group(names, groups, n_collected, session_group, "this session", group_names);
 	print_word_group(names, groups, n_collected, library_group, "library", group_names);
-	for (int s = 0; s < help_section_count; s++)
-		print_word_group(names, groups, n_collected, s, help_section_names[s], group_names);
+	for (int s = 0; s < help_section_count; s++) {
+		int section = section_order[s];
+		print_word_group(names, groups, n_collected, section, help_section_names[section], group_names);
+	}
 	print_word_group(names, groups, n_collected, units_group, "units", group_names);
 	print_word_group(names, groups, n_collected, undocumented_group, "undocumented", group_names);
 
+	free(section_order);
 	free(group_names);
 	free(groups);
 	free(names);

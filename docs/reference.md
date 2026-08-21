@@ -4999,7 +4999,7 @@ variable b 4 to b variable c 10 to c
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `words` | `( -- )` | List all non-internal words in aligned columns, grouped by section, alphabetical within a group: words defined this session first, then words loaded from a library file, then the reference sections | dict scan | none | O(\|dict\| log \|dict\|) |
+| `words` | `( -- )` | List all non-internal words in aligned columns, grouped by section, alphabetical within a group: words defined this session first, then words loaded from a library file, then the reference sections in alphabetical order by section name, then units and undocumented | dict scan | none | O(\|dict\| log \|dict\|) |
 | `variables` | `( -- arr )` | core.telic: one `{ :name :value :type }` frame per global (`variable`-declared or `to`-auto-created), oldest first — the name symbol, the live value (shared reference for collections), and its `type-of` symbol. `variables [: :name @ :] map` is the name list; `variables frames>dataset head` a table | dict scan | `1a` + one frame per global | O(\|dict\|) |
 | `vars` | `( -- )` | repl.telic: pretty-print every global, one `variables` frame per block (`variables ' print each`) | dict scan + print | `1a` + frames | O(\|dict\|) |
 | `telic` | `( -- )` | Print the telic logo and the interpreter version | print | none | O(1) |

@@ -227,6 +227,64 @@ departs from its pyperformance original the file's header says so.
 - **A quotation's locals are its own** — a quotation reads the slots it declares and the data stack, never the enclosing word's: `: f | x | 5 to x [: x 1 + :] execute ;` is refused at compile time with `x is not bound in this quotation; pass it in or use pick`. Values reach a quotation three ways — received into its own head (`[: a b | … :]`), parked on the stack under the combinator's operands and read by depth (`2 pick`), or bound into a curried token by `curry`.
 - **Mark-and-sweep GC** — walks data/return/side stacks, the entry-snapshot slots, a small `gc_roots` array for in-flight C-level temporaries, and the dictionary (a separate body walk, marking each `variable`'s value cell and every compiled literal). It triggers on object-table pressure and on live-byte pressure, and runs at a safepoint between words so popped C-level operands stay live.
 
+### Side stack
+
+A third stack for stashing arbitrary Vals without disturbing the data or return stack: **`>side`**, **`side>`**, **`side-drop`**, **`side-depth`**.
+
+### Delimited continuations
+
+A four-primitive substrate the rest of the control story is built on. See `docs/continuations.md` for the full treatment.
+
+- **`reset`** — installs a delimiter (a uniquely-tagged mark on the return stack).
+- **`shift`** — captures the slice up to the nearest reset, removes the mark and captured frames, pushes the continuation as a `T_CONT` Val. Used for coroutines and generators.
+- **`shift-with`** — same capture, but runs a handler xt in the outer context after the unwind. Used for exceptions and restarts.
+- **`resume`** — re-enters a captured continuation. Multi-shot.
+
+### Generators
+
+Coroutines on the continuation primitives, in `generators.telic`:
+
+- **`yield`** — emit a value to the driver and suspend until resumed.
+- **`start-generator`** — run a producer to its first `yield`, leaving the yielded value and a resumable continuation.
+- **`gen-take`** — collect the first N values a producer yields into an array; **`gen-each`** — run a consumer on each yielded value until the producer falls off.
+
+### Exceptions (library)
+
+Built in `generators.telic` on top of the continuation primitives:
+
+- **`throw`** — non-local exit with a value; uncaught, it is an interpreter error naming the value (`uncaught exception: "boom"`) with a trace from the throw site.
+- **`catch`** — wraps an xt; returns `(result 0)` on success, `(exc 1)` on a throw. It also intercepts **interpreter errors** — division by zero, out-of-bounds, type mismatch, and the like — delivering a `{ :message :trace }` frame (the trace names the failing word innermost-first) as the exception value, so a runtime fault is recoverable, not just a user `throw`. A `throw`n value passes through raw.
+- **`try-catch`** — wraps an xt with a recovery handler that runs on either kind of failure. Arity-agnostic.
+- **`ensure`** — `( body-xt cleanup-xt -- … )` runs cleanup on both the normal and the throw/error path, then re-raises on throw. **`with-db`** / **`with-stream`** build on it to open (or take) a resource, run a body with it, and release it however the body exits.
+
+An uncaught `throw` or interpreter error still surfaces at the REPL. The `shift-with` handler can also resume the captured continuation, giving the Common Lisp restart pattern — exceptions can recover.
+
+An uncaught error also prints a backtrace under the message: the call chain read
+off the return stack, innermost first — `in inner ← mid ← outer`. A quotation
+frame prints as its source snippet (`in [: 1 0 % :]`, long ones truncated),
+same-site recursion collapses to one frame (`in spin ×65536`), and deep chains
+elide the middle (`… ← …+3 ← …`). A caught error prints none. The trace costs
+nothing until an error happens — capture is a return-stack walk at failure
+time.
+
+An unknown word names the nearest dictionary word or in-scope local when one is
+within edit distance 2 — `unknown word: filtr (did you mean filter?)`. Distance
+ties break toward the more-used word (every compiled token counts toward its
+word's frequency, so the embedded library seeds the counts at startup), then
+toward the longer shared prefix.
+
+### Logic
+
+Unification and committed choice, on the trail and the continuation machinery:
+
+- **Logic variables** — `lvar` makes a fresh one; `lvar to x` names a persistent global, and a `?` prefix in a locals list (`| ?x |`) declares a fresh per-call variable inside a definition or quotation.
+- **`unify`** (`~`) — `( a b -- term )` unifies two terms, binding logic vars through a trail so they match, and leaves the dereferenced left term (hence the `drop` in the taste block above): atoms by value, arrays element-wise, frames as open records (shared keys must unify, extras allowed); on a mismatch it fails. **`deref`** (`?`) follows a variable's binding chain.
+- **`amb`** / **`fail`** — committed choice: run the first branch; if it fails (a `unify` mismatch or an explicit `fail`), roll its bindings back through the trail and run the second, committing to whichever succeeds. **`choose`** generalizes it to a cons list, running a continuation with each element until one succeeds.
+- **`_`** — the anonymous wildcard: unifies with anything, binds nothing, and allocates nothing.
+- **`matches?`** — a non-destructive `unify` test: marks the trail, unifies, rolls back, and pushes whether the two unified — so it composes in straight-line code.
+- **Cons lists** — `[( a b c )]` builds cons pairs and `[( H T )]` is the `[H|T]` head/tail pattern under `unify`; with `cons`, `head-tail`, and `array`↔`cons` conversions.
+- **Fact database** — `relation` / `assert` / `query` / `retract` / `count-matches` / `inner-join`. A relation is a frame of a row-set plus per-column indexes (declared symbol columns); rows are column-keyed frames that dedup; `query` matches a pattern by unification, narrowing through the index (and returning the bucket directly when the index covers the whole pattern). `inner-join` merges two relations on a shared column via index probing; `bulk-load` builds a whole relation in one sorted pass (`array>set` for the rows, `group-by` per index). The same row-frame shape is what a SQLite query would return.
+
 ### Numeric / matrix
 
 - **Polymorphic arithmetic** — `+`/`-`/`*`/`/` dispatch on operand tags: floats compute, strings concatenate (`+`), sets union/difference/intersection, matrices element-wise, a scalar broadcasts over a matrix, and arrays concatenate (`+`).
@@ -273,12 +331,21 @@ Integer bitwise operators over the float representation: a value is read as a tw
 - **`bit-and`** / **`bit-or`** / **`bit-xor`** / **`bit-not`** — bitwise logic, named apart from the truthiness words `and`/`or`/`not`.
 - **`lshift`** / **`rshift`** — left shift and arithmetic right shift (`= floor(a / 2ⁿ)`); **`lowest-bit`** — 0-indexed position of the lowest set bit (−1 when zero).
 
-### Segments
+### Random
 
-Flat, fixed-length typed numeric buffers stored off the arena (one allocation, freed by GC), for dense numeric data without per-element boxing and as FFI scratch.
+A thread-local xoshiro256\*\* stream. Each worker thread derives its own stream from the shared base seed, so parallel draws are deterministic per worker.
 
-- **`int-segment`** / **`double-segment`** — `( n -- seg )` an n-element zero-filled buffer; both store doubles internally, so `@i` reads and `!i` writes a float, sharing the array indexing words.
-- **`segment>pointer`** — intern the backing buffer as a `T_PTR` for an FFI `:ptr` argument, no copy.
+- **`seed`** — `( n -- )` set the global base seed and reset the stream.
+- **`random`** — `( -- f )` a uniform float in `[0, 1)`; **`random-int`** — `( bound -- f )` a uniform integer in `[0, bound)`.
+- `sample` (arrays) and `resample-indices` (datasets) draw on this stream.
+
+### Strings and regex
+
+- **String literals** are raw (newlines allowed; `""` is the one escape → a literal `"`); **`format`** fills `{n}` placeholders from the stack — `"got {0} of {1}" format` — and, on a terminal, colors text with ink directives (`{red}`…`{plain}`) that vanish when output is piped; **polymorphic concatenation** via `+`.
+- **Regex** on PCRE2 (Perl-compatible, JIT-compiled): `match` (first match as a flat `[ whole cap… ]`), `match-all` (all matches, nested), `replace` (replace-all, with `&` / `\1`–`\9` backrefs), and the `has?` string overload (does the pattern match?). Patterns are plain `"..."` literals — PCRE2 reads `\d`, `\w`, `\n`, lookaround, `\p{...}`.
+- **Slicing / building** — `substring` (half-open codepoint range), `char-at` (the one-character string at a codepoint index), `split` (split at each non-overlapping match of a pattern, empty fields kept), `join` (concatenate an array of strings with a separator).
+- **Unicode** — strings are UTF-8 and the bare words work in *codepoints*: `size`/`substring`/`char-at`/`codepoint-at` count and index by codepoint, with byte-level forms (`byte-size`, `byte-substring`) for the raw layer and to pair with regex byte offsets. `string>chars`/`string>codepoints` decompose a string, `codepoint>char`/`codepoints>string` rebuild one, and `emit` UTF-8-encodes a codepoint. Regex runs in UTF + UCP mode: `.` matches a codepoint, `\w`/`\d`/`\b` are Unicode-aware, and invalid byte sequences are tolerated rather than erroring.
+- **`edit-distance`** — `( a b -- n )` edit distance between two strings over codepoints; insertions, deletions, substitutions, and adjacent transpositions each cost one edit.
 
 ### Sets, arrays, higher-order
 
@@ -293,13 +360,24 @@ Flat, fixed-length typed numeric buffers stored off the arena (one allocation, f
 - **Destructuring** — `spread` pushes a set/array/frame's elements onto the stack (a frame as alternating symbol/value); a locals head, `unify`, or a `case` pattern receives the pieces by name.
 - **In-place slicing** — `slice!` copies a strided run from one array into another (a negative step with source and target aligned reverses in place), `to-slice!` stores values from the stack into a range.
 
-### Random
+### Frames
 
-A thread-local xoshiro256\*\* stream. Each worker thread derives its own stream from the shared base seed, so parallel draws are deterministic per worker.
+Symbol-keyed nested maps — the associative type, and the compound term the logic layer builds on. The three bracket families are distinct: `[ ]` arrays, `{ }` frames, `[< >]` sets. `[ ] { }` and `;` are self-delimiting — `[1 2 3]` and `{:a 1}` parse without inner spaces; `[< >]` still need theirs.
 
-- **`seed`** — `( n -- )` set the global base seed and reset the stream.
-- **`random`** — `( -- f )` a uniform float in `[0, 1)`; **`random-int`** — `( bound -- f )` a uniform integer in `[0, bound)`.
-- `sample` (arrays) and `resample-indices` (datasets) draw on this stream.
+- **Literals** — `{ :a 1 :b 2 }`; values may be any Val, including nested frames, arrays, and sets.
+- **Builders** — `frame` ( keys values -- frame ) from two parallel collections, `array>frame` ( kv-array -- frame ) from an alternating key/value array, and `frame>array` ( frame -- kv-array ) the inverse, flattening to a key-sorted alternating array.
+- **Path literals** — `/a/b/c` is a symbol array `[ :a :b :c ]`, built once at compile time, used to address into the tree — and usable as a key when constructing a frame (`{ /a/b/c v }` / `array>frame`), where it vivifies nested frames. A path may also be a *search* pattern: `*` matches any child at that level, `//` matches at any depth (descendant-or-self), and `[…]` filters by predicate (`[city=:NYC]`, `[age>30]`, `[.>0]` on the node itself, `[addr/zip]` on a sub-path).
+- **Access** — `@` ( frame key/path -- value ) get, `!` ( frame key/path value -- frame ) set with auto-vivified intermediates, `has?` existence test, `delete-at` remove, `update-at` apply a quotation to a leaf, `merge` combine two frames (right wins), plus `keys` / `values` / `size`. The single-location words (`@`, `!`, `delete-at`, `update-at`) take a `:symbol` key or a plain `/a/b/c` locator and reject a search pattern; `has?` accepts either, answering whether any node matches.
+- **Key tokens** — `row@price` joins a frame reference to a key in one token: the part left of the operator is a local or a defined word supplying the frame, and the key compiles as an operand, so the access is a fetch plus one op with no symbol on the stack. Gets chain — `row@address@city` — and `row!price` sets from the stack top, dropping the frame `!` returns. An empty left part takes the frame from the stack, so `@price` is the postfix form. A defined word always wins, leaving `@i`, `@or` and any word named with an `@` untouched.
+- **Path queries** — `select-values` ( frame pattern -- array ) returns every value matched by a `*`/`//`/predicate search pattern, in document order; `select-keys` returns the full root-to-match path for each match (each round-trips back through `@`). Convert the result with `array>set` for distinct values or `array>cons` to feed matches to `choose`.
+- **Representation** — parallel key/value arrays kept in **symbol-id order** (interning order, not alphabetical) so lookup is a binary search; `keys`, `values`, `spread` and printing follow that order, stable for a given program but not name-sorted. Mutable in place, reference semantics. Structurally comparable, so frames work as set members and round-trip through their `{ }` literal.
+
+### Segments
+
+Flat, fixed-length typed numeric buffers stored off the arena (one allocation, freed by GC), for dense numeric data without per-element boxing and as FFI scratch.
+
+- **`int-segment`** / **`double-segment`** — `( n -- seg )` an n-element zero-filled buffer; both store doubles internally, so `@i` reads and `!i` writes a float, sharing the array indexing words.
+- **`segment>pointer`** — intern the backing buffer as a `T_PTR` for an FFI `:ptr` argument, no copy.
 
 ### Time and dates
 
@@ -321,26 +399,6 @@ Worker threads over one shared object heap: a quotation runs across the collecti
 - **`pmap`** — `( arr xt -- arr )` parallel `map`; **`pfilter`** — `( arr pred -- arr )` parallel `filter`, order preserved; **`pmap-reduce`** — `( arr id map-xt combine-xt -- val )` fused parallel map+fold, with `combine-xt` associative and `id` its neutral element.
 - **`-ext` forms** — `pmap-ext` / `pfilter-ext` / `pmap-reduce-ext` take an explicit worker count and items-per-claim; the bare forms default to `num-cores` workers.
 - **`num-cores`** — online CPU count.
-
-### Frames
-
-Symbol-keyed nested maps — the associative type, and the compound term the logic layer builds on. The three bracket families are distinct: `[ ]` arrays, `{ }` frames, `[< >]` sets. `[ ] { }` and `;` are self-delimiting — `[1 2 3]` and `{:a 1}` parse without inner spaces; `[< >]` still need theirs.
-
-- **Literals** — `{ :a 1 :b 2 }`; values may be any Val, including nested frames, arrays, and sets.
-- **Builders** — `frame` ( keys values -- frame ) from two parallel collections, `array>frame` ( kv-array -- frame ) from an alternating key/value array, and `frame>array` ( frame -- kv-array ) the inverse, flattening to a key-sorted alternating array.
-- **Path literals** — `/a/b/c` is a symbol array `[ :a :b :c ]`, built once at compile time, used to address into the tree — and usable as a key when constructing a frame (`{ /a/b/c v }` / `array>frame`), where it vivifies nested frames. A path may also be a *search* pattern: `*` matches any child at that level, `//` matches at any depth (descendant-or-self), and `[…]` filters by predicate (`[city=:NYC]`, `[age>30]`, `[.>0]` on the node itself, `[addr/zip]` on a sub-path).
-- **Access** — `@` ( frame key/path -- value ) get, `!` ( frame key/path value -- frame ) set with auto-vivified intermediates, `has?` existence test, `delete-at` remove, `update-at` apply a quotation to a leaf, `merge` combine two frames (right wins), plus `keys` / `values` / `size`. The single-location words (`@`, `!`, `delete-at`, `update-at`) take a `:symbol` key or a plain `/a/b/c` locator and reject a search pattern; `has?` accepts either, answering whether any node matches.
-- **Key tokens** — `row@price` joins a frame reference to a key in one token: the part left of the operator is a local or a defined word supplying the frame, and the key compiles as an operand, so the access is a fetch plus one op with no symbol on the stack. Gets chain — `row@address@city` — and `row!price` sets from the stack top, dropping the frame `!` returns. An empty left part takes the frame from the stack, so `@price` is the postfix form. A defined word always wins, leaving `@i`, `@or` and any word named with an `@` untouched.
-- **Path queries** — `select-values` ( frame pattern -- array ) returns every value matched by a `*`/`//`/predicate search pattern, in document order; `select-keys` returns the full root-to-match path for each match (each round-trips back through `@`). Convert the result with `array>set` for distinct values or `array>cons` to feed matches to `choose`.
-- **Representation** — parallel key/value arrays kept in **symbol-id order** (interning order, not alphabetical) so lookup is a binary search; `keys`, `values`, `spread` and printing follow that order, stable for a given program but not name-sorted. Mutable in place, reference semantics. Structurally comparable, so frames work as set members and round-trip through their `{ }` literal.
-
-### Strings and regex
-
-- **String literals** are raw (newlines allowed; `""` is the one escape → a literal `"`); **`format`** fills `{n}` placeholders from the stack — `"got {0} of {1}" format` — and, on a terminal, colors text with ink directives (`{red}`…`{plain}`) that vanish when output is piped; **polymorphic concatenation** via `+`.
-- **Regex** on PCRE2 (Perl-compatible, JIT-compiled): `match` (first match as a flat `[ whole cap… ]`), `match-all` (all matches, nested), `replace` (replace-all, with `&` / `\1`–`\9` backrefs), and the `has?` string overload (does the pattern match?). Patterns are plain `"..."` literals — PCRE2 reads `\d`, `\w`, `\n`, lookaround, `\p{...}`.
-- **Slicing / building** — `substring` (half-open codepoint range), `char-at` (the one-character string at a codepoint index), `split` (split at each non-overlapping match of a pattern, empty fields kept), `join` (concatenate an array of strings with a separator).
-- **Unicode** — strings are UTF-8 and the bare words work in *codepoints*: `size`/`substring`/`char-at`/`codepoint-at` count and index by codepoint, with byte-level forms (`byte-size`, `byte-substring`) for the raw layer and to pair with regex byte offsets. `string>chars`/`string>codepoints` decompose a string, `codepoint>char`/`codepoints>string` rebuild one, and `emit` UTF-8-encodes a codepoint. Regex runs in UTF + UCP mode: `.` matches a codepoint, `\w`/`\d`/`\b` are Unicode-aware, and invalid byte sequences are tolerated rather than erroring.
-- **`edit-distance`** — `( a b -- n )` edit distance between two strings over codepoints; insertions, deletions, substitutions, and adjacent transpositions each cost one edit.
 
 ### JSON
 
@@ -422,64 +480,6 @@ Call C functions in any shared library at runtime via `libffi` — no per-librar
 ### MCP server
 
 `lib/mcp.telic` serves the Model Context Protocol over stdio — `telic -e '"mcp" load-library mcp-serve'` — at revision 2026-07-28, declaring the protocol version per request rather than through an `initialize` handshake. Two tools: `telic-eval` runs Telic source in a named session, a child interpreter that keeps its definitions, data, database handles and fitted models between calls, and `telic-help` answers a word's reference entry. Sessions compute at the same time as one another, a call that overruns its deadline has its session stopped, and evaluated failures come back as tool errors rather than protocol errors. Remote access is a bridge, not Telic code: put the stdio server behind a stdio-to-Streamable-HTTP gateway such as mcp-proxy.
-
-### Delimited continuations
-
-A four-primitive substrate the rest of the control story is built on. See `docs/continuations.md` for the full treatment.
-
-- **`reset`** — installs a delimiter (a uniquely-tagged mark on the return stack).
-- **`shift`** — captures the slice up to the nearest reset, removes the mark and captured frames, pushes the continuation as a `T_CONT` Val. Used for coroutines and generators.
-- **`shift-with`** — same capture, but runs a handler xt in the outer context after the unwind. Used for exceptions and restarts.
-- **`resume`** — re-enters a captured continuation. Multi-shot.
-
-### Generators
-
-Coroutines on the continuation primitives, in `generators.telic`:
-
-- **`yield`** — emit a value to the driver and suspend until resumed.
-- **`start-generator`** — run a producer to its first `yield`, leaving the yielded value and a resumable continuation.
-- **`gen-take`** — collect the first N values a producer yields into an array; **`gen-each`** — run a consumer on each yielded value until the producer falls off.
-
-### Side stack
-
-A third stack for stashing arbitrary Vals without disturbing the data or return stack: **`>side`**, **`side>`**, **`side-drop`**, **`side-depth`**.
-
-### Exceptions (library)
-
-Built in `generators.telic` on top of the continuation primitives:
-
-- **`throw`** — non-local exit with a value; uncaught, it is an interpreter error naming the value (`uncaught exception: "boom"`) with a trace from the throw site.
-- **`catch`** — wraps an xt; returns `(result 0)` on success, `(exc 1)` on a throw. It also intercepts **interpreter errors** — division by zero, out-of-bounds, type mismatch, and the like — delivering a `{ :message :trace }` frame (the trace names the failing word innermost-first) as the exception value, so a runtime fault is recoverable, not just a user `throw`. A `throw`n value passes through raw.
-- **`try-catch`** — wraps an xt with a recovery handler that runs on either kind of failure. Arity-agnostic.
-- **`ensure`** — `( body-xt cleanup-xt -- … )` runs cleanup on both the normal and the throw/error path, then re-raises on throw. **`with-db`** / **`with-stream`** build on it to open (or take) a resource, run a body with it, and release it however the body exits.
-
-An uncaught `throw` or interpreter error still surfaces at the REPL. The `shift-with` handler can also resume the captured continuation, giving the Common Lisp restart pattern — exceptions can recover.
-
-An uncaught error also prints a backtrace under the message: the call chain read
-off the return stack, innermost first — `in inner ← mid ← outer`. A quotation
-frame prints as its source snippet (`in [: 1 0 % :]`, long ones truncated),
-same-site recursion collapses to one frame (`in spin ×65536`), and deep chains
-elide the middle (`… ← …+3 ← …`). A caught error prints none. The trace costs
-nothing until an error happens — capture is a return-stack walk at failure
-time.
-
-An unknown word names the nearest dictionary word or in-scope local when one is
-within edit distance 2 — `unknown word: filtr (did you mean filter?)`. Distance
-ties break toward the more-used word (every compiled token counts toward its
-word's frequency, so the embedded library seeds the counts at startup), then
-toward the longer shared prefix.
-
-### Logic
-
-Unification and committed choice, on the trail and the continuation machinery:
-
-- **Logic variables** — `lvar` makes a fresh one; `lvar to x` names a persistent global, and a `?` prefix in a locals list (`| ?x |`) declares a fresh per-call variable inside a definition or quotation.
-- **`unify`** (`~`) — `( a b -- term )` unifies two terms, binding logic vars through a trail so they match, and leaves the dereferenced left term (hence the `drop` in the taste block above): atoms by value, arrays element-wise, frames as open records (shared keys must unify, extras allowed); on a mismatch it fails. **`deref`** (`?`) follows a variable's binding chain.
-- **`amb`** / **`fail`** — committed choice: run the first branch; if it fails (a `unify` mismatch or an explicit `fail`), roll its bindings back through the trail and run the second, committing to whichever succeeds. **`choose`** generalizes it to a cons list, running a continuation with each element until one succeeds.
-- **`_`** — the anonymous wildcard: unifies with anything, binds nothing, and allocates nothing.
-- **`matches?`** — a non-destructive `unify` test: marks the trail, unifies, rolls back, and pushes whether the two unified — so it composes in straight-line code.
-- **Cons lists** — `[( a b c )]` builds cons pairs and `[( H T )]` is the `[H|T]` head/tail pattern under `unify`; with `cons`, `head-tail`, and `array`↔`cons` conversions.
-- **Fact database** — `relation` / `assert` / `query` / `retract` / `count-matches` / `inner-join`. A relation is a frame of a row-set plus per-column indexes (declared symbol columns); rows are column-keyed frames that dedup; `query` matches a pattern by unification, narrowing through the index (and returning the bucket directly when the index covers the whole pattern). `inner-join` merges two relations on a shared column via index probing; `bulk-load` builds a whole relation in one sorted pass (`array>set` for the rows, `group-by` per index). The same row-frame shape is what a SQLite query would return.
 
 ### Other
 
