@@ -64,6 +64,7 @@ spectral_loops=50
 scimark_lu_cycles=200
 nqueens_n=8
 nqueens_loops=45
+regex_dna_n=100000
 regex_dna_loops=17
 montecarlo_par_loops=13
 mandelbrot_matrix_loops=7
@@ -190,7 +191,7 @@ py_barnes()   { "$python" "$here/pyperformance/pyperf_barnes_hut.py" "$barnes_lo
 py_scimark_mc() { "$python" "$here/pyperformance/pyperf_scimark_montecarlo.py" "$montecarlo_samples" "$montecarlo_loops"; }
 py_meteor()   { "$python" "$here/pyperformance/pyperf_meteor.py" "$meteor_loops"; }
 py_hexiom()   { "$python" "$here/pyperformance/pyperf_hexiom.py" "$hexiom_loops"; }
-py_regex_dna() { "$python" "$here/pyperformance/pyperf_regex_dna.py" "$regex_dna_loops"; }
+py_regex_dna() { "$python" "$here/pyperformance/pyperf_regex_dna.py" "$regex_dna_n" "$regex_dna_loops"; }
 py_regex_compile() { "$python" "$here/pyperformance/pyperf_regex_compile.py"; }
 py_regex_effbot() { "$python" "$here/pyperformance/pyperf_regex_effbot.py"; }
 py_regex_v8() { "$python" "$here/pyperformance/pyperf_regex_v8.py"; }

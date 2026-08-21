@@ -153,7 +153,7 @@ if __name__ == '__main__':
     print("result: " + str(ilen) + " " + str(clen) + " "
           + " ".join(str(c) for c in counts) + " " + str(flen))
 
-    loops = int(sys.argv[1]) if len(sys.argv) > 1 else 1
+    loops = int(sys.argv[2]) if len(sys.argv) > 2 else 1
     t0 = time.perf_counter()
     for _ in range(loops):
         run_benchmarks(seq)
