@@ -2003,7 +2003,6 @@ void p_words(DISPATCH_ARGS) {
 		section_order[s] = s;
 	qsort(section_order, (size_t)help_section_count, sizeof(int), section_name_cmp);
 
-	print_word_group(names, groups, n_collected, session_group, "this session", group_names);
 	print_word_group(names, groups, n_collected, library_group, "library", group_names);
 	for (int s = 0; s < help_section_count; s++) {
 		int section = section_order[s];
@@ -2011,6 +2010,7 @@ void p_words(DISPATCH_ARGS) {
 	}
 	print_word_group(names, groups, n_collected, units_group, "units", group_names);
 	print_word_group(names, groups, n_collected, undocumented_group, "undocumented", group_names);
+	print_word_group(names, groups, n_collected, session_group, "this session", group_names);
 
 	free(section_order);
 	free(group_names);

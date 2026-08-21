@@ -156,7 +156,7 @@ has   "--arena rejects sub-1g"      ''  "takes gigabytes" 2 --arena 0.5g
 
 # `telic` prints the logo and the version from telic.h
 ver=$(sed -n 's/#define VERSION "\(.*\)".*/\1/p' "$here/../src/c/telic.h")
-has "telic prints the logo"    'telic' "++++++"       0 -b
+has "telic prints the logo"    'telic' "******"       0 -b
 has "telic prints the version" 'telic' "telic $ver"   0 -b
 
 printf "%d passed, %d failed\n" "$pass" "$fail"
