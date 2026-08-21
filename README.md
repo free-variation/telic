@@ -9,7 +9,8 @@ runtime C FFI, and an SVG plotting library. A compact, self-contained C
 interpreter: NaN-boxed tagged values, direct-threaded code with compile-time
 fusion, mark-and-sweep GC, and a WASI build from the same source.
 
-The doc system is designed to fit into a single LLM prompt, making the language LLM-friendly from the start.
+The language is designed to be LLM-friendly from the start. 
+`make pack` concatenates the whole documentation set — the reference, the library reference, and the idioms — into one file sized to fit a single LLM prompt.
 
 Dedicated to Chuck Peddle and Tony Wilkinson.
 
@@ -210,35 +211,23 @@ departs from its pyperformance original the file's header says so.
 
 - **Tagged Vals** — the none value, floats, strings, symbols, sets, arrays, cons pairs, frames, matrices, quantities, segments, execution tokens, curried tokens, dictionary addresses, continuations, logic variables and the unbound/wildcard sentinel, process streams, database handles, C pointers, internal marks. A single 8-byte NaN-boxed representation; the tag determines interpretation.
 - **Direct-threaded inner interpreter** — each dictionary cell is a handler function pointer, dispatched by an indirect tail call (`musttail`); a colon call, literal, or branch carries its operand in the cell(s) right after the handler. The dictionary *is* the threaded code.
-- **Compile-time instruction fusion** — adjacent variable-reads and float ops collapse into single instructions (`var var f+` → one op; `… var f+!` fuses the store), `f*+` / `f*-` are fused multiply-add/subtract, and a comparison immediately before a branch (`= if`, `> while`, `0= until`) fuses into a single compare-and-branch op, and an array read-modify-write (`arr i arr i @i f1- !i` or a `… delta f+ !i` step) collapses to one in-place element update. Variable-fused float words (`vf+`/`vf*`/… on one named variable, `vvf+`/`vvf*`/… on two) collapse the variable load into the float op. Word-locals fuse the same way: a float op over two locals or a local and a literal is one instruction, a following `to name` fuses into it (`zr zr f* to zr2` is one op), and `++ name` / `f++ name` increment a local in one. Stack reads fuse the same way: `n pick` before a float op becomes one depth-addressed instruction, so a quotation body reading values parked below the combinator's operands costs the same as one reading locals.
-- **Program image and execution state separated** — the dictionary, symbol pool, and object heap live in global structures (`Vocabulary`, `Compiler`, `Arena`) shared by every execution context; the per-run state — the three stacks, instruction pointer, locals, and GC roots — lives in an `Interpreter`, so one program can back several contexts at once, which is how the parallel words give each worker its own stacks over the shared heap. The shared structures are mutable at run time in specific places: a global's value is the dictionary cell after its header, so `to` writes the dictionary; a combinator call installs a trampoline and patches the body's frame teardown; allocation and GC move the object table; `embodies!` and `forget` rewrite or truncate the dictionary. Hence the rule for parallel regions — a worker xt must not mutate shared inputs or print.
-- **Three stacks** — data, return, and a side stack for stashing values that mustn't sit on the other two.
+- **Compile-time instruction fusion** — a float op collapses with its operands and its store into one instruction, whether they are globals (`vvf+ a b`), locals (`zr zr f* to zr2`), a literal, or a stack slot read by depth (`2 pick f+`), so a quotation reading values parked below a combinator's operands costs the same as one reading locals. Also fused: `f*+` / `f*-` multiply-add, a comparison before a branch (`= if`, `> while`), an array read-modify-write (`arr i arr i @i f1- !i`), and `++ name` / `f++ name`. `see-compiled` shows the fused ops.
+- **Program image and execution state separated** — the dictionary, symbol pool, and object heap are global (`Vocabulary`, `Compiler`, `Arena`); the three stacks, instruction pointer, locals, and GC roots live in a per-run `Interpreter`. Several execution contexts share one image, which is how the parallel words give each worker its own stacks over the shared heap — and why a worker xt must not mutate shared inputs or print.
+- **Three stacks** — data, return, and a side stack for values that mustn't sit on either: `>side`, `side>`, `side-drop`, `side-peek`, `side-depth`.
 - **Colon definitions** — `: name body ;`. The body is captured as source text for `see` and the text-form `save`.
 - **Anonymous quotations** — `[: ... :]` pushes a fresh xt. Works at top level and inside colon defs.
 - **`recurse`** — compiles a call to the innermost definition being compiled (the enclosing quotation, else the colon word), so an anonymous quotation can self-call.
 - **Tail-call elimination** — a call in tail position compiles to a frame-reusing jump, so a self-recursive or `recurse` loop runs in constant return-stack space. Disabled where it would be unsafe (a body using `>r`/`reset`/`shift`/`fail`, or locals plus a quotation).
 - **Partial application** — `curry` ( value xt -- xt' ) binds a value into a curried token, a heap value accepted wherever an xt is; the token travels through other words' frames intact, works inside parallel regions, and is garbage-collected.
 - **Control flow** — `if`/`else`/`then`, the `begin`/`until`/`again` and `begin`/`while`/`repeat` loops with `leave` / `continue` for early exit, the counted `start limit delta do k … loop` over a named index local, `case`/`of`/`endof`/`endcase` dispatching by unification (clauses are patterns — ground values, open-record frames, `_`, logic vars that bind for the body), counted `times` / `i-times`, `exit`, and `>r`/`r>`/`r@` for return-stack access.
+- **Delimited continuations** — four primitives, the substrate for generators, exceptions, and restarts (`docs/continuations.md`): `reset` installs a delimiter, a uniquely-tagged mark on the return stack; `shift` captures the slice up to the nearest delimiter, removes the mark and the captured frames, and pushes the continuation as a `T_CONT` Val; `shift-with` captures the same slice and then runs a handler xt in the outer context; `resume` re-enters a captured continuation, multi-shot.
 - **Tick and execute** — `' word execute` for first-class invocation by name.
 - **Forward declaration** — `defer name` declares a word with no target, for mutual recursion or late binding; `xt embodies name` installs a target (a colon word or quotation), retargetable through one forwarding dispatch; `xt embodies! name` finalizes, rewriting existing call sites to call the target directly and turning the word ordinary.
 - **`forget`** — truncate the dictionary back to a named word; symbol identities survive.
 - **Variables and symbols** — `variable foo` declares a global; read it by bare name, assign with `42 to foo` (`to` auto-creates a global on first assignment at interpreted top level — the REPL, a program file, a `load`ed file; inside a colon definition or quotation a free name declares a local instead, and assigning the global needs `^foo` in the head). `symbol bar` defines a symbol; `:foo` is a symbol literal interned on use; `string>symbol` interns a computed string.
 - **Word-local variables** — a head at the start of a colon definition or quotation names what the body receives from the stack, rightmost from the top: `| x y |`, or `x y |` with the opening bar left off. Everything else is declared where `to` first assigns it, and the compiler collects those names to the head, so a name means one thing throughout the body. In the head, `^name` is an enclosing global the body assigns and `?name` a fresh logic variable per call. `++ name` / `-- name` increment/decrement in place (`f++` / `f--` the unsafe float-only forms). A word's locals survive continuation capture, so a generator resumes with its slots intact.
 - **A quotation's locals are its own** — a quotation reads the slots it declares and the data stack, never the enclosing word's: `: f | x | 5 to x [: x 1 + :] execute ;` is refused at compile time with `x is not bound in this quotation; pass it in or use pick`. Values reach a quotation three ways — received into its own head (`[: a b | … :]`), parked on the stack under the combinator's operands and read by depth (`2 pick`), or bound into a curried token by `curry`.
-- **Mark-and-sweep GC** — walks data/return/side stacks, the entry-snapshot slots, a small `gc_roots` array for in-flight C-level temporaries, and the dictionary (a separate body walk, marking each `variable`'s value cell and every compiled literal). It triggers on object-table pressure and on live-byte pressure, and runs at a safepoint between words so popped C-level operands stay live.
-
-### Side stack
-
-A third stack for stashing arbitrary Vals without disturbing the data or return stack: **`>side`**, **`side>`**, **`side-drop`**, **`side-depth`**.
-
-### Delimited continuations
-
-A four-primitive substrate the rest of the control story is built on. See `docs/continuations.md` for the full treatment.
-
-- **`reset`** — installs a delimiter (a uniquely-tagged mark on the return stack).
-- **`shift`** — captures the slice up to the nearest reset, removes the mark and captured frames, pushes the continuation as a `T_CONT` Val. Used for coroutines and generators.
-- **`shift-with`** — same capture, but runs a handler xt in the outer context after the unwind. Used for exceptions and restarts.
-- **`resume`** — re-enters a captured continuation. Multi-shot.
+- **Mark-and-sweep GC** — walks the three stacks, the C-level roots, and the dictionary (each global's value cell and every compiled literal). Triggers on object-table and live-byte pressure, at a safepoint between words.
 
 ### Generators
 
@@ -246,18 +235,18 @@ Coroutines on the continuation primitives, in `generators.telic`:
 
 - **`yield`** — emit a value to the driver and suspend until resumed.
 - **`start-generator`** — run a producer to its first `yield`, leaving the yielded value and a resumable continuation.
-- **`gen-take`** — collect the first N values a producer yields into an array; **`gen-each`** — run a consumer on each yielded value until the producer falls off.
+- **`gen-take`** — collect the first N values a producer yields into an array; **`gen-each`** — run a consumer on each yielded value until the producer is exhausted.
 
 ### Exceptions (library)
 
-Built in `generators.telic` on top of the continuation primitives:
+Built in `exceptions.telic` on top of the continuation primitives:
 
 - **`throw`** — non-local exit with a value; uncaught, it is an interpreter error naming the value (`uncaught exception: "boom"`) with a trace from the throw site.
 - **`catch`** — wraps an xt; returns `(result 0)` on success, `(exc 1)` on a throw. It also intercepts **interpreter errors** — division by zero, out-of-bounds, type mismatch, and the like — delivering a `{ :message :trace }` frame (the trace names the failing word innermost-first) as the exception value, so a runtime fault is recoverable, not just a user `throw`. A `throw`n value passes through raw.
 - **`try-catch`** — wraps an xt with a recovery handler that runs on either kind of failure. Arity-agnostic.
 - **`ensure`** — `( body-xt cleanup-xt -- … )` runs cleanup on both the normal and the throw/error path, then re-raises on throw. **`with-db`** / **`with-stream`** build on it to open (or take) a resource, run a body with it, and release it however the body exits.
 
-An uncaught `throw` or interpreter error still surfaces at the REPL. The `shift-with` handler can also resume the captured continuation, giving the Common Lisp restart pattern — exceptions can recover.
+An uncaught `throw` or interpreter error still surfaces at the REPL. The `shift-with` handler can also resume the captured continuation, giving the Common Lisp restart pattern.
 
 An uncaught error also prints a backtrace under the message: the call chain read
 off the return stack, innermost first — `in inner ← mid ← outer`. A quotation
@@ -278,33 +267,33 @@ toward the longer shared prefix.
 Unification and committed choice, on the trail and the continuation machinery:
 
 - **Logic variables** — `lvar` makes a fresh one; `lvar to x` names a persistent global, and a `?` prefix in a locals list (`| ?x |`) declares a fresh per-call variable inside a definition or quotation.
-- **`unify`** (`~`) — `( a b -- term )` unifies two terms, binding logic vars through a trail so they match, and leaves the dereferenced left term (hence the `drop` in the taste block above): atoms by value, arrays element-wise, frames as open records (shared keys must unify, extras allowed); on a mismatch it fails. **`deref`** (`?`) follows a variable's binding chain.
+- **`unify`** (`~`) — `( a b -- term )` unifies two terms, binding logic vars through a trail so they match, and leaves the dereferenced left term: atoms by value, arrays element-wise, frames as open records (shared keys must unify, extras allowed); on a mismatch it fails. **`deref`** (`?`) follows a variable's binding chain.
 - **`amb`** / **`fail`** — committed choice: run the first branch; if it fails (a `unify` mismatch or an explicit `fail`), roll its bindings back through the trail and run the second, committing to whichever succeeds. **`choose`** generalizes it to a cons list, running a continuation with each element until one succeeds.
 - **`_`** — the anonymous wildcard: unifies with anything, binds nothing, and allocates nothing.
 - **`matches?`** — a non-destructive `unify` test: marks the trail, unifies, rolls back, and pushes whether the two unified — so it composes in straight-line code.
 - **Cons lists** — `[( a b c )]` builds cons pairs and `[( H T )]` is the `[H|T]` head/tail pattern under `unify`; with `cons`, `head-tail`, and `array`↔`cons` conversions.
-- **Fact database** — `relation` / `assert` / `query` / `retract` / `count-matches` / `inner-join`. A relation is a frame of a row-set plus per-column indexes (declared symbol columns); rows are column-keyed frames that dedup; `query` matches a pattern by unification, narrowing through the index (and returning the bucket directly when the index covers the whole pattern). `inner-join` merges two relations on a shared column via index probing; `bulk-load` builds a whole relation in one sorted pass (`array>set` for the rows, `group-by` per index). The same row-frame shape is what a SQLite query would return.
+- **Fact database** — `relation` / `assert` / `query` / `retract` / `count-matches` / `inner-join`. A relation is a frame of a row-set plus per-column indexes (declared symbol columns); rows are column-keyed frames that dedup; `query` matches a pattern by unification, narrowing through the index. `inner-join` merges two relations on a shared column, and `bulk-load` builds a whole relation in one sorted pass. The same row-frame shape is what a SQLite query returns.
 
 ### Numeric / matrix
 
 - **Polymorphic arithmetic** — `+`/`-`/`*`/`/` dispatch on operand tags: floats compute, strings concatenate (`+`), sets union/difference/intersection, matrices element-wise, a scalar broadcasts over a matrix, and arrays concatenate (`+`).
 - **Integer division** — `%` ( a b -- rem quot ) truncating divmod (errors on a zero divisor); `mod` (remainder, sign follows the dividend) and `quotient` (toward zero) build on it. All three broadcast like the arithmetic words: matrix and array operands compute element-wise and a scalar spreads — `[ 7 5 ] vector 3 mod` answers `[ 1 2 ]`.
 - **`min2`** / **`max2`** — the pairwise minimum and maximum, element-wise over matrices and arrays with scalar broadcast, ordering NaN as `val_cmp` does.
-- **In-place matrix ops** — `+!`/`-!`/`*!`/`/!` mutate the left matrix in place (explicit; the programmer decides). Float-only fast paths (`f+`, `f-`, `f*`, `f/`, `f^`, …) skip the type dispatch when both operands are known floats.
+- **In-place matrix ops** — `+!`/`-!`/`*!`/`/!` mutate the left matrix in place. Float-only fast paths (`f+`, `f-`, `f*`, `f/`, `f^`, …) skip the type dispatch when both operands are known floats.
 - **Matrix construction** — `R C 0-matrix` (zeros), `[ ... ] R C matrix`, `[ ... ] vector` (an n×1 column, length inferred), `V N diagonal-matrix` (N×N with V on the diagonal), `N identity-matrix`, `start end step matrix-range` (a 1×N row over a stepped range).
-- **DGEMM** — `dgemm-nn`/`tn`/`nt`/`tt` (`αAB + βC`) for all four transpose variants, each with its own loop order chosen so the inner loop runs unit-stride with `restrict` pointers: for a wide B, `nn` and `tn` are ikj axpy kernels and `nt` and `tt` are vectorized dot products (`tt` staging Aᵀ's column through a scratch buffer). A single-column B takes a matrix-vector path instead — `nn` reduces each row against the column, `tn` accumulates column-scaled rows — and `tn` has a third form for fewer than 8 columns.
+- **DGEMM** — `dgemm-nn`/`tn`/`nt`/`tt` (`αAB + βC`) for all four transpose variants, each with a loop order that keeps the inner loop unit-stride; a single-column B takes a matrix-vector path instead.
 - **Indexing** — `@i`/`@j`/`@i,j` to read rows, columns, or single cells; `@e` reads by flat row-major index (what `argmax`/`where`/`argsort` produce); `!i,j` and `!e` store a single element in place.
 - **Shape** — `dim`, `reshape`, `flatten`, `transpose`, `diagonal`, `matrix>array` (the elements as an array in row-major order; a dimensioned matrix yields per-element quantities, NaN becomes `null`).
 - **Selection** — `augment`/`hstack` (concatenate two matrices column-wise), `vstack` (row-wise), `submatrix` (copy a half-open row×column block), `select-rows` (gather rows named by a float index array or an index vector; a dataset operand gathers every column by the same indices).
 - **Reductions** — `sum`, `row-sums`, `column-sums`, `max`, `min`, `argmax`, `argmin` (flat row-major index of the extreme element), `row-maxes`, `row-mins`, `column-maxes`, `column-mins`, `cumulative-sum` (row-major prefix sums, shape preserved). Library `mean`, `row-means`, `column-means` on top.
 - **Norms** — `norm` (Euclidean/L2) and `frobenius-norm`, both √(Σ elements²) over the matrix; `dot` ( v w -- f ) is the inner product.
-- **Descriptive statistics** — `var` (sample variance) and `quantile` (linearly interpolated at p ∈ [0,1]) over all elements, and `ks-distance` (the two-sample Kolmogorov–Smirnov statistic); the embedded statistics library layers `std`, `se`, `median`, `percentile`, `quantiles` (R's `quantile(x, probs)` over an array of probabilities), `iqr`, `ci`, `summary` (on vectors and per-column on datasets), `histogram-table`, `ecdf`, `binomial-deviance`, `cross-validate` (k-fold over caller-defined units), and the `bootstrap` family; the loadable LAPACK library adds `fit-logistic-ridge` and `cv-logistic-ridge`/`pcv-logistic-ridge` (L2 path selection, serial or parallel) on these — all wasm-capable. The statistics skip NaN elements (missing values) and divide by the non-NaN count (`nonmissing-count`); the correlations and regressions use complete cases.
+- **Descriptive statistics** — `var` (sample variance), `quantile` (linearly interpolated at p ∈ [0,1]), and `ks-distance` (two-sample Kolmogorov–Smirnov) over all elements; the embedded library layers on `std`, `se`, `median`, `percentile`, `quantiles`, `iqr`, `ci`, `summary` (per vector, or per column of a dataset), `histogram-table`, `ecdf`, `binomial-deviance`, `cross-validate` (k-fold over caller-defined units), and the `bootstrap` family — all LAPACK-free, so all wasm-capable. NaN elements are missing values: the statistics skip them and divide by `nonmissing-count`, and the correlations and regressions use complete cases.
 - **Correlations** — `correlation-pearson`, `correlation-spearman` (pearson on `ranks`), `correlation-kendall` (tau-b, O(n log n) C kernel); `correlate-with` bootstraps a 95% CI for any of them, and `cor` is kendall + 500 replicates in one word; `qnorm` is the standard normal quantile.
-- **Regression trees** — `fit-tree` grows a CART regression tree over a features frame and a numeric response: numeric columns split at a midpoint threshold, array columns are native categoricals split on a mean-ordered subset, and rows missing a numeric feature follow a per-split default direction learned from the split criterion. It returns the tree as a nested frame — `:prediction` and `:n-rows` at every node, `:feature` with `:threshold` or `:categories` at internal nodes, optional per-leaf `:responses` — and takes a params frame (`:max-depth`, `:min-samples`, `:store-leaf-responses`). `predict` applies a tree to a features frame, walking each row to its leaf (a numeric split sends value ≤ threshold left; a categorical split sends set membership left, an unseen value right). `feature-importance` ranks the features by normalized impurity reduction. `prune` cost-complexity-prunes a fitted tree at a given complexity, and `prune-cv` fits then prunes at the `alpha` chosen by k-fold cross-validation with the 1-SE rule. `draw-tree` prints the tree as indented rules, and `lib/plot.telic`'s `plot-tree` renders it as an SVG node-link diagram.
-- **SVG plotting** (`lib/plot.telic`) — scatter, line series, histogram, bar charts (explicit heights or value frequencies), and Tukey boxplots over a deferred-rendering figure: marks accumulate with the style in effect, the domain resolves at render (pinned or auto from the data), ticks are placed at round {1,2,5}×10ᵏ steps, `x-label`/`y-label` set axis titles, `panel` draws a filled ground with gridlines as negative space, and `show-figure` opens a live-reloading browser view that `save-figure` updates in place.
+- **Regression trees** — `fit-tree` grows a CART regression tree over a features frame and a numeric response, taking numeric and categorical columns and missing values as they come; `predict` applies one, `feature-importance` ranks the features, `prune` and `prune-cv` cost-complexity-prune it, `draw-tree` prints it, and `lib/plot.telic`'s `plot-tree` draws it.
+- **SVG plotting** (`lib/plot.telic`) — scatter, line series, histograms, bar charts, and Tukey boxplots over a deferred-rendering figure: marks accumulate with the style in effect and nothing maps to pixels until render, so draw order is free and the domain may be set after the data. `save-figure` writes a version, `show-figure` opens a browser view that later versions appear in.
 - **Element-wise math** — `abs`, `sqrt`, `exp`, `log`, `ln`, `sin`, `cos`, `tan`, `tanh`, `asin`, `acos`, `atan`, `round`, `truncate`, `round-up`, `round-down`. Polymorphic over floats and matrices.
 - **Comparison** — `=` orders matrices structurally (shape then row-major contents), so matrices work as set members; `<`/`>`/`eq` compare matrices **element-wise**, returning a 1/0 matrix (a scalar broadcasts). An array operand also masks element-wise (`val_cmp` per element, a value broadcasts, equal-length arrays pair up), so `names "ann" eq where` filters a text column. On scalars and strings comparison is structural, `eq` agreeing with `=`.
-- **Sorting and masks** — `sort` (ascending copy of a vector, NaNs last), `argsort` (the sorting permutation of a vector as an index vector, or of an array under structural order as an index array; ties keep index order), `where` (flat indices of a mask's nonzero elements), `nan?` (the NaN mask — NaNs compare false under `<`/`>`/`eq`; an array answers a mask of its `none` elements), `mesh` (masked substitution — keep where the mask is 0 or NaN, replace where it is definitely nonzero; scalars, `null`, and quantities broadcast). Masks serve both selection and alteration: `dup 0 @j 0 < where select-rows` keeps the rows whose first column is negative, `dup nan? 0 mesh` fills a column's NaNs, `dup -1 eq null mesh` turns a sentinel into missing.
+- **Sorting and masks** — `sort` (an ascending copy, NaNs last), `argsort` (the sorting permutation), `where` (the flat indices of a mask's nonzero elements), `nan?` (the missing-value mask), and `mesh` (masked substitution). Masks serve selection and alteration alike: `dup 0 @j 0 < where select-rows` keeps the rows whose first column is negative, `dup nan? 0 mesh` fills a column's NaNs, `dup -1 eq null mesh` turns a sentinel into missing.
 
 ### Exact rationals
 
@@ -326,7 +315,7 @@ A magnitude (float, matrix, exact, or complex) carrying a unit; arithmetic propa
 
 ### Bitwise
 
-Integer bitwise operators over the float representation: a value is read as a two's-complement integer (exact within the double's 53-bit range), the operation runs, and the result is pushed back as a float. Enough for byte- and bit-level work — block ciphers, codecs, bit-stream packing.
+Integer bitwise operators over the float representation: a value is read as a two's-complement integer (exact within the double's 53-bit range), the operation runs, and the result is pushed back as a float — byte- and bit-level work such as block ciphers, codecs, and bit-stream packing.
 
 - **`bit-and`** / **`bit-or`** / **`bit-xor`** / **`bit-not`** — bitwise logic, named apart from the truthiness words `and`/`or`/`not`.
 - **`lshift`** / **`rshift`** — left shift and arithmetic right shift (`= floor(a / 2ⁿ)`); **`lowest-bit`** — 0-indexed position of the lowest set bit (−1 when zero).
@@ -350,7 +339,7 @@ A thread-local xoshiro256\*\* stream. Each worker thread derives its own stream 
 ### Sets, arrays, higher-order
 
 - **Set literals** — `[< 1 2 3 >]`, set operations, `member?`, `size`, in-place `set-add!`/`set-remove!`, and `array>set` (sort-and-dedup an array into a set in one pass).
-- **`group-by`** — `array :col group-by` groups frames by a symbol field into a frame from each value to a set of rows (the engine behind fast indexing and aggregation).
+- **`group-by`** — `array :col group-by` groups frames by a symbol field into a frame from each value to a set of rows.
 - **Array literals** — `[ 1 2 3 ]`, the `array` constructor (gather N from the stack), `array-of` (fill), `range` ( from to -- arr ) for an ascending or descending integer sequence, `iota` ( n -- [0..n-1] ), indexed access via `@i`, in-place store via `!i`.
 - **Array operations** — `sort` (a sorted copy in `val_cmp` order; a set projects to a sorted array, a vector sorts ascending with NaNs last), `reverse`, `take`, `concat`, `flatten-array` (flatten one level), `sample` ( arr count repl -- arr ) drawing elements with or without replacement, `shuffle` (a uniform permutation of the array), `resample` (a same-size draw with replacement — the bootstrap draw), and `first`/`second` (element 0/1 of an array, head/tail of a cons).
 - **Growing at the end** — `add-last!` ( arr v -- arr ) appends over a backing buffer that doubles when full, `remove-last!` ( arr -- v ) pops the last element; both amortized O(1), indexing stays O(1).
@@ -394,7 +383,7 @@ timezone (`TZ` re-read per call).
 
 ### Multi-core parallelism
 
-Worker threads over one shared object heap: a quotation runs across the collection on several cores, results joining back by handle with no copy. Allocation in a region is per-worker; a region whose results don't escape is rewound wholesale, and live results are retained by handle.
+Worker threads over one shared object heap: a quotation runs across the collection on several cores, results joining back by handle with no copy. Allocation inside a region is per-worker.
 
 - **`pmap`** — `( arr xt -- arr )` parallel `map`; **`pfilter`** — `( arr pred -- arr )` parallel `filter`, order preserved; **`pmap-reduce`** — `( arr id map-xt combine-xt -- val )` fused parallel map+fold, with `combine-xt` associative and `id` its neutral element.
 - **`-ext` forms** — `pmap-ext` / `pfilter-ext` / `pmap-reduce-ext` take an explicit worker count and items-per-claim; the bare forms default to `num-cores` workers.
@@ -411,7 +400,7 @@ Worker threads over one shared object heap: a quotation runs across the collecti
 
 ### I/O and persistence
 
-- **Interactive REPL** with full isocline line editing: theme-adaptive **syntax highlighting**, **matching-brace** highlighting, **inline hints** and **Tab completion** (word names from the live dictionary, filenames inside string literals), persistent history (`.telic_history`), and **multi-line editing** — `Ctrl+J` inserts a line, `Enter` submits the whole buffer. Each entry answers `ok`, followed by `count|top` (stack depth and the compressed top value) when the stack is non-empty, or the error message and trace on failure. A definition prints `new word: X`, or `redefined word: X` when the name already existed. A failed entry leaves the data stack as it was before the entry (the stack is snapshotted per entry and restored on error; in-place mutations of heap objects persist). `.` pretty-prints a nested array across lines with the opening brackets aligned; strings print quoted inside a collection and in `.s`, raw when printed bare.
+- **Interactive REPL** on isocline: theme-adaptive syntax highlighting, matching-brace highlighting, inline hints, Tab completion (dictionary words, filenames inside string literals), persistent history, and multi-line editing. Each entry answers `ok` with the stack depth and top value, or the error message and its trace; a failed entry leaves the data stack as it was.
 - **`load`** runs a source file as if typed.
 - **`save`** writes the user's vocabulary as a re-loadable `.telic` source file.
 - **`reload`** truncates user state and re-runs every file `load`ed this session, in order.
@@ -420,7 +409,7 @@ Worker threads over one shared object heap: a quotation runs across the collecti
 - **`find-executable`** — `( name -- path/none )` the absolute path of `name` on `$PATH`, or the none value if not found.
 - **`load-library`** — `"plot" load-library` loads `lib/plot.telic` from beside the telic binary (`binary-dir`, symlinks resolved), from any cwd; the statistics library locates its LAPACK shared library the same way.
 - **`env`** / **`env!`** — read an environment variable as a string (the none value if unset) and set one (process-wide, so `start-process` children inherit it).
-- **`stdin`** / **`stdout`** / **`stderr`** — the standard streams as `T_STREAM` values (fds 0/1/2), composing with `read`/`write`/`close` — `s stdout write` emits, `stdin read` slurps input.
+- **`stdin`** / **`stdout`** / **`stderr`** — the standard streams as `T_STREAM` values (fds 0/1/2), composing with `read`/`write`/`close` — `s stdout write` emits, `stdin read` reads input whole.
 
 ### Subprocesses and pipes
 
@@ -430,7 +419,7 @@ Drive external programs over pipes (`fork`/`execv`/`pipe`/`waitpid`, with a manu
 - **`write`** / **`read`** / **`close`** — write a string to a stream, read a stream to EOF, close one (closing `:in` sends EOF).
 - **`running?`** / **`wait`** / **`stop`** — non-blocking liveness check, block-until-exit, signal-and-reap.
 - `subprocess.telic` conveniences: **`run`** (split a command line and start it), **`read-out`** / **`read-err`** / **`write-in`**.
-- **`commands width parallel-run`** — run a batch of argv arrays concurrently, at most `width` at a time, collecting `{ :out :err :status }` per command in input order (refills a slot as each child finishes). Process-level parallelism — e.g. firing off many `curl` requests at once.
+- **`commands width parallel-run`** — run a batch of argv arrays concurrently, at most `width` at a time, collecting `{ :out :err :status }` per command in input order (refills a slot as each child finishes) — process-level parallelism, for many concurrent `curl` requests and the like.
 
 ### SQLite
 
@@ -451,7 +440,7 @@ TSV is the one tabular file format (convert other formats to TSV before loading)
 - **`read-tsv`** / **`write-tsv`** — a TSV file with a header row as a column-oriented dataset with typed columns (a uniformly numeric column becomes a vector, empty cells NaN), and a dataset back to a header TSV, one word each.
 - **`load-tsv`** / **`save-tsv`** — read a file into an array of row-arrays (a numeric cell becomes a float, an empty cell `none`, everything else a string) and write one back.
 - **`rows>dataset`** — `( rows header? -- frame )` a column-oriented frame with typed columns (a uniformly numeric column becomes an n×1 vector, `none` → NaN; anything else stays an array); **`rows>relation`** — `( rows index-cols header? -- relation )` a deduped, indexed fact-database relation; **`dataset>rows`** — `( dataset -- rows )` the inverse of `true rows>dataset` (header row + row-arrays, ready for `save-tsv`); **`dataset>matrix`** — `( dataset cols -- m )` an observations×columns numeric matrix from named columns.
-- **Dataset verbs** — `select-rows`, `select-columns`, `filter`, `map`, `dim`, `column-type`, and `count` work on a dataset directly: rows gather by an index array or vector across every column, `select-columns` keeps named columns, `filter` keeps the rows whose frame satisfies a predicate, `map` transforms each row frame to a new one (columns re-infer their representation), `dim` answers rows and columns, `column-type` reads a column's type from its representation (`:numeric` `:datetime` `:quantity` `:text`), and `count` tallies distinct values — or whole rows — most frequent first. `column>array` reads any column as an array of its values; `column>set` is its distinct-value set; `group-indices` maps each distinct value to its row positions (`[ [ value [indices] ] … ]`, one sort instead of a scan per value).
+- **Dataset verbs** — `select-rows`, `select-columns`, `filter`, `map`, `dim`, `column-type`, and `count` work on a dataset directly, `filter` and `map` seeing each row as a frame keyed by column name and every column keeping its representation. `column>array` reads any column as an array, `column>set` its distinct values, `column-type` its type (`:numeric` `:datetime` `:quantity` `:text`), and `group-indices` maps each distinct value to its row positions in one sort.
 - **`frames>dataset`** — `( rows -- dataset )` an array of row frames (a `query` or `db-query` result, `map`-over-dataset output) as a column-oriented dataset with inferred column representations.
 - **`head`** / **`headn`** — `( dataset -- )` / `( dataset n leading-columns -- )` print the first 10 / n rows as an aligned table: column names as the header, numeric and quantity columns right-aligned, text left, datetime cells as ISO timestamps. The `leading-columns` symbols name the columns placed first, in that order; the remaining columns follow alphabetically by name. `head` passes an empty list, so its columns are alphabetical.
 - **`replace-where`** — `( dataset sym pred replacement -- )` conditionally edit one column in place: `pipeline :rep_touches [: -1 eq :] null replace-where` turns a sentinel into missing.
@@ -462,9 +451,9 @@ The statistics library (`lib/statistics.telic`, loaded on demand) builds on the 
 - **Descriptive** — `std`, `se`, `median`, `percentile`, `quantiles`, `iqr`, `ci` (percentile confidence interval).
 - **Resampling** — `bootstrap` / `pbootstrap` (parallel) over a fit quotation.
 - **Linear algebra** — `svd` and `fit-linear` (least-squares) on LAPACK through the FFI; loading the library also rebinds the `dgemm-*` words to BLAS and adds `dgemv-n` / `dgemv-t` (`α op(A)·x + β·y` with `x` and `y` as columns), which reach cblas with a vector call rather than dgemm on a one-column matrix.
-- **Regression** — `linear-regression` and `logistic-regression` (IRLS with Firth correction), each returning a model frame: per-coefficient estimate, standard error, bias, and bootstrap confidence interval, plus the point estimate, the predictor names, and the complete-case design and response it fitted.
+- **Regression** — `linear-regression` and `logistic-regression` (IRLS with Firth correction), each returning a model frame: per-coefficient estimate, standard error, bias, and bootstrap confidence interval, plus the point estimate, the predictor names, and the complete-case design and response it fitted. `fit-logistic-ridge` is the L2-penalized fit, with `cv-logistic-ridge` / `pcv-logistic-ridge` selecting `lambda` by k-fold cross-validation, serial or parallel.
 - **Generalized linear models** — `fit-glm` runs IRLS for a family object of three quotations (`:inverse-link`, `:mean-derivative`, `:variance`); `gamma-log`, `poisson-log`, `gaussian-identity`, `binomial-logit`, and `negative-binomial-log` are provided, and `fit-gamma`/`fit-poisson` wrap the log-link fits. `fit-negative-binomial` fits overdispersed counts, estimating the dispersion alongside the coefficients. `fit-multinomial` fits softmax (baseline-category) logistic by Newton–Raphson, `fit-multinomial-ridge` adds an L2 penalty for separable data, and `predict-multinomial` returns class probabilities.
-- **Gradient boosting** — `fit-xgb` trains an XGBoost booster on a feature matrix and response through the system `libxgboost` (`XGBOOST_LIB`, else the default install path), taking a params frame keyed by XGBoost parameter names (`:rounds` drives the boosting loop); `xgb-predict` scores a feature matrix, `xgb-free` releases the booster, and `xgb-save`/`xgb-load` store a booster in XGBoost's own `.json`/`.ubj` model format, readable by Python and R. `xgb-importance` returns the per-feature importance (`"gain"`/`"weight"`/`"cover"`/`"total_gain"`/`"total_cover"`) as a k×1 matrix — `matrix>array argsort reverse` ranks the features. The matrix passes zero-copy via a NumPy array-interface handle.
+- **Gradient boosting** — `fit-xgb` trains an XGBoost booster on a feature matrix and response through the system `libxgboost`, taking a params frame keyed by XGBoost parameter names; `xgb-predict` scores, `xgb-importance` ranks the features, `xgb-free` releases the booster, and `xgb-save`/`xgb-load` use XGBoost's own model format, readable by Python and R.
 
 ### Foreign function interface
 
@@ -472,14 +461,14 @@ Call C functions in any shared library at runtime via `libffi` — no per-librar
 
 - **`ffi-open`** — `( path -- lib )` — `dlopen` a library and push a handle; `""` opens the running process for already-linked symbols.
 - **`ffi-function`** — `( lib symbol arg-types ret-type -- ) <name>` — resolve a symbol and define the following word `<name>` to call it. Types are symbols: `:void :int :long :double :ptr :string`. Floats marshal to/from C `int`/`long`/`double`, strings pass as `const char*` (a returned `char*` is copied back into a string), `:ptr` is an opaque handle. The call interface is prepared once; calls are ~30–100 ns.
-- **`ffi-variadic`** — `( lib symbol arg-types ret-type n-fixed -- ) <name>` — the same for a variadic C function (`ffi_prep_cif_var`); `n-fixed` leading args are fixed, the rest variadic, with the variadic types fixed per binding. Enough to drive `printf`, `curl_easy_setopt`, etc.
+- **`ffi-variadic`** — `( lib symbol arg-types ret-type n-fixed -- ) <name>` — the same for a variadic C function (`ffi_prep_cif_var`); `n-fixed` leading args are fixed, the rest variadic, with the variadic types fixed per binding — variadic entry points such as `printf` and `curl_easy_setopt`.
 - **`ffi-free`** — `( ptr -- )` — `free` a C buffer held as a `T_PTR`.
 - **`matrix>pointer`** / **`segment>pointer`** — intern a matrix's or segment's element buffer as a `T_PTR` (no copy, aliasing the live buffer) to pass dense numeric data to a `:ptr` parameter.
-- Examples: `"/usr/lib/libcurl.4.dylib" ffi-open` plus a few declarations drives a real libcurl HTTPS request in-process, no subprocess; the statistics library drives LAPACK's `dgesvd`/`dgelsd` the same way (matrices in via `matrix>pointer`). FFI is unsafe — a wrong signature corrupts or crashes; arg *count* is checked, types are the caller's responsibility.
+- FFI is unsafe: a wrong signature corrupts or crashes; argument *count* is checked, types are the caller's responsibility. `lib/statistics.telic` drives LAPACK's `dgesvd`/`dgelsd` this way, and `ffi-open` on `libcurl` makes an HTTPS request in-process without a subprocess.
 
 ### MCP server
 
-`lib/mcp.telic` serves the Model Context Protocol over stdio — `telic -e '"mcp" load-library mcp-serve'` — at revision 2026-07-28, declaring the protocol version per request rather than through an `initialize` handshake. Two tools: `telic-eval` runs Telic source in a named session, a child interpreter that keeps its definitions, data, database handles and fitted models between calls, and `telic-help` answers a word's reference entry. Sessions compute at the same time as one another, a call that overruns its deadline has its session stopped, and evaluated failures come back as tool errors rather than protocol errors. Remote access is a bridge, not Telic code: put the stdio server behind a stdio-to-Streamable-HTTP gateway such as mcp-proxy.
+`lib/mcp.telic` serves the Model Context Protocol over stdio — `telic -e '"mcp" load-library mcp-serve'` — at revision 2026-07-28. Two tools: `telic-eval` runs Telic source in a named session, a child interpreter that keeps its definitions, data, database handles and fitted models between calls, and `telic-help` answers a word's reference entry. Sessions compute concurrently, and a failure in evaluated code comes back as a tool error rather than a protocol error. Remote access is a bridge, not Telic code: put the stdio server behind a stdio-to-Streamable-HTTP gateway such as mcp-proxy.
 
 ### Other
 
