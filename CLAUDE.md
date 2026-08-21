@@ -212,7 +212,9 @@ new inline that calls functions → the tail.
   vanishes.
 - README describes the language as it is: terse present-tense capability
   statements, one line per feature. No past narratives, no reflections or
-  design history — detail belongs in docs/reference.md. Measurements appear
+  design history — detail belongs in docs/reference.md. No parenthetical asides
+  that answer an objection nobody raised, and no per-word behavioral detail:
+  the README says what exists, the reference says how it behaves. Measurements appear
   only in the Benchmarks section, as the newest bench report's standalone
   table plus the provenance line naming host, versions and reps; refresh it
   from a full run, never edit a cell by hand.
@@ -255,7 +257,10 @@ new inline that calls functions → the tail.
 ## Tests
 - Golden pairs in tests/ (see run.sh); regenerate with ./telic -b <
   tests/NNN_name.telic > tests/NNN_name.expected — inspect every changed
-  line before accepting.
+  line before accepting. A golden line you cannot explain is a bug report,
+  not a baseline: accepting one makes the defect the contract, and the test
+  then protects it. `009_see` pinned `:    \ 9 cells` — a definition with no
+  name — for as long as it took someone to ask why.
 - A test that reads stdin adds tests/NNN_name.stdin; both runners then pass
   the program as a file argument and feed that file, so regenerate with
   ./telic -b tests/NNN_name.telic < tests/NNN_name.stdin > tests/NNN_name.expected.

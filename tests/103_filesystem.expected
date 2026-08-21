@@ -1,0 +1,61 @@
+[ "deep" ] 
+[ "nest" ] 
+[ ] 
+[ "alpha.txt" "beta.txt" "deep" "gamma.txt" ] 
+4 
+:file 
+3 
+[ :modified :kind :size ] 
+:directory 
+1 
+1 
+1 
+20 
+1 
+1 
+bb 
+0 
+bb 
+[ "beta.txt" "deep" "gamma.txt" ] 
+:directory 
+0 
+[ ] 
+[ "beta.txt" ] 
+0 
+[ 2 4 ] 
+[ "deep" ] 
+one 
+[ "deep" "second" ] 
+[ ] 
+0 
+the payload
+11 
+the payload 
+1 
+0 
+:file 
+the payload
+:directory 
+[ "fresh" "raw" "raw-copy" "source" "target" ] 
+0 
+a-longer-name.txt  inner/             one.txt            two.tsv
+0 
+deeply-nested-file-with-a-very-long-name-past-forty-columns
+after the empty listing 
+cannot list /tmp/telic-fs-missing-dir 
+cannot list /tmp/telic-fs-notdir 
+cannot delete /tmp/telic-fs-absent 
+cannot remove /tmp 
+expected a string; got a float 
+cannot rename /tmp/telic-fs-absent to /tmp/no/such/dir/b 
+cannot copy /tmp: not a file 
+cannot copy /tmp/telic-fs-absent: no such file 
+0 
+1 
+inner/  one     two
+nothing above this line 
+expected a string; got a float 
+error: cannot list /tmp/telic-ls-cwd/one
+in list-directory ← ls
+1 
+0 

@@ -29,6 +29,14 @@ error: to: tally is a global; declare it in the locals list as ^tally to assign 
 in :
 error: to: tally is a global; declare it in the locals list as ^tally to assign it here, or rename the local
 in |
+error: |: to is a compile-time word and cannot name a local; rename it
+in |
+error: |: case is a compile-time word and cannot name a local; rename it
+in |
+error: to: if is a compile-time word and cannot name a local; rename it
+in :
+error: do: to is a compile-time word and cannot name a local; rename it
+in :
 [ 4 9 16 ] 
 [ 4 9 16 ] 
 9 

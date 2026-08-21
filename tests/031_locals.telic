@@ -92,6 +92,15 @@ clear
 : writes-global-barred | n | n to tally ;        \ (leading-bar head)
 
 clear
+\ === errors: a compile-time word cannot name a local ===
+\ the name would shadow the construct itself: a local named `to` silently
+\ disables assignment for the rest of the body
+: head-to | source to | source ;                 \ (in the head)
+: head-lvar-case | ?case | 1 ;                   \ (a ?-marked head name)
+: hoisted-if 5 to if ;                           \ (declared by `to`)
+: index-to 0 3 1 do to loop ;                    \ (a do index name)
+
+clear
 
 \ ==== lambda sugar ====
 

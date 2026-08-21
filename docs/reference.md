@@ -2001,6 +2001,8 @@ Everything else the body needs is declared where it is first assigned. A `to` on
 
 A name in the head that would otherwise resolve outward carries a marker. `^name` names an enclosing **global** the body assigns rather than a local shadowing it: without it, `to name`, `++ name`, `-- name`, `f++ name` and `f-- name` on an existing global are a compile error naming the marker to add. `?name` is a slot holding a fresh logic variable per call, received from nothing. An unmarked name is a capture.
 
+A local may shadow an ordinary word, deliberately and visibly, but never a **compile-time** word: `| source to |`, `| ?case |`, `5 to if`, and a `do` index named `to` are all compile errors — `to is a compile-time word and cannot name a local; rename it` — because the name would shadow the construct that makes the body work, leaving `to` in that body no longer assigning. This holds however the local is declared: in the head, by a `to`, or as a `do` index.
+
 Locals live on the return stack: up to 128 names across up to 64 nested scopes. A slot reads as `null` before its first assignment. A body reads the locals **it declares itself** and nothing else: a reference to a name declared in an enclosing definition or an enclosing quotation is a compile error — `x is not bound in this quotation; pass it in or use pick` — and the partial definition rolls back. Values reach a quotation three ways: received into its own head, parked on the stack below the combinator's operands and read by depth with `pick`, or bound into a curried token by `curry`/`2curry`/`ncurry`.
 
 The mechanism: a local reference compiles to the **slot index** in the frame that declares it, always the innermost locals-bearing scope, and the op reads `local_base + slot` with no frame walk. Names are discarded after compilation and no value is bound then. Because every reference is depth 0, a quotation's meaning does not depend on which frames happen to be live when it runs — it reads the same slots under `map`, under `i-times`, through `execute`, inside another word's frame, or after a continuation capture and resume.
@@ -5260,6 +5262,23 @@ reload
 | `binary-dir` | `( -- str )` | The directory holding the running telic binary, symlinks resolved (`realpath`), so an installation's resources are reachable from any cwd; errors on the wasm build (no executable path) | 1 | `1o` | O(\|path\|) |
 | `cd` | `( path -- )` | Change the interpreter's working directory (`chdir`); process-wide, so it moves the base for relative file I/O and is inherited by subsequent `start-process` children | 1 | none | O(1) |
 | `find-executable` | `( name -- path\|none )` | `io.telic`: the absolute path of `name` on `$PATH` (first directory holding it), or the none value if unset or not found; a name containing `/` matches no bare `PATH` entry, so it answers the none value | split + probe | `1o` per candidate | O(dirs) |
+| `list-directory` | `( path -- arr )` | The directory's entry names as an array of strings, `.` and `..` excluded, sorted in `val_cmp` order so a listing is the same on every filesystem. Names only, not paths — joining them to the parent is the caller's; errors when the path is missing or is not a directory | n log n | `1a(n)` + `1o` per name | O(n log n) |
+| `file-info` | `( path -- fr\|none )` | `io.telic`: `{ :kind :size :modified }` for one path — `:kind` is `:file`, `:directory`, or `:other`, `:size` the byte count, `:modified` the modification time as an instant (a quantity in `s`, whole seconds). Symlinks are followed, so a link to a directory reports `:directory`; a missing path — a dangling symlink included — answers the none value rather than erroring, so `dup none? if … then` guards it | 20 | `1o` + 1 pair | O(1) |
+| `make-directory` | `( path -- )` | Create the directory, intermediate components included (`mkdir -p`); silent when it already exists, so it is idempotent. Errors when a component exists as a non-directory or the path is unwritable | d | none | O(d), d = path components |
+| `delete-file` | `( path -- )` | Remove the file (`unlink`); errors when it is missing or is a directory — guard with `file-exists?` for an idempotent delete | 1 | none | O(1) |
+| `delete-directory` | `( path -- )` | Remove the directory (`rmdir`); errors unless it exists and is empty. There is no recursive form: emptying a tree is the caller's loop over `list-directory`, or an explicit `start-process` | 1 | none | O(1) |
+| `rename-file` | `( from to -- )` | Rename `from` to `to` (`rename`), replacing an existing `to` — a move within one filesystem, files and directories alike; errors across filesystems (copy through `read-file`/`write-file` instead) | 1 | none | O(1) |
+| `copy-file` | `( from to -- )` | `io.telic`: copy `from`'s bytes to `to`, creating or truncating it — `read-file` then `write-file`, so the whole file passes through memory and the mode and timestamps are not carried over. Throws unless `from` is a regular file, since `read-file` on a directory answers `""` and would otherwise write an empty file | file read + write | `1o` + buffer | O(bytes) |
+| `touch-file` | `( path -- )` | Set the path's modification time to now (`utimensat`), creating an empty file when nothing is there; an existing file keeps its contents — the word never truncates — and a directory is touched in place. Errors when the path is unwritable | 1 | none | O(1) |
+| `ls` | `( path -- )` or `( -- )` | repl.telic: print the directory's entries in aligned columns to an 80-column width, a trailing `/` marking each directory, in `list-directory`'s sorted order; an empty directory prints nothing. Bare `ls` on an empty data stack lists the working directory; with anything on the stack the top value is the path, so `ls` after other work reads that value rather than the cwd | n log n + n stats | `1a(n)` + `1o` per name | O(n log n) |
+| `mkdir` | `( path -- )` | `io.telic`: `make-directory` under its unix name (inlined) | d | none | O(d) |
+| `rm` | `( path -- )` | `io.telic`: `delete-file` under its unix name (inlined) — one file, never a tree | 1 | none | O(1) |
+| `rmdir` | `( path -- )` | `io.telic`: `delete-directory` under its unix name (inlined) | 1 | none | O(1) |
+| `mv` | `( from to -- )` | `io.telic`: `rename-file` under its unix name (inlined) | 1 | none | O(1) |
+| `pwd` | `( -- )` | `io.telic`: print the working directory and a newline (`cwd stdout write cr`, inlined); symlinks are resolved, so the real path is printed | 1 | `1o` | O(\|path\|) |
+| `cat` | `( path -- )` | `io.telic`: write the file's bytes to stdout (`read-file stdout write`, inlined). Byte-exact: nothing is added, so a file with no closing newline leaves the cursor mid-line | file read + write | `1o` + buffer | O(file) |
+| `cp` | `( from to -- )` | `io.telic`: `copy-file` under its unix name (inlined) | file read + write | `1o` + buffer | O(bytes) |
+| `touch` | `( path -- )` | `io.telic`: `touch-file` under its unix name (inlined) | 1 | none | O(1) |
 
 `read-file` and `write-file` carry bytes, NUL and invalid UTF-8 included, so
 they hold binary as well as text; `save-value` and `load-value` (see Value
@@ -5332,6 +5351,165 @@ cwd "/tmp" cd cwd "tmp" has? . cd cr
 
 ```forth find-executable
 "sh" find-executable none? 0= . cr
+```
+```output
+1
+```
+
+```forth list-directory
+"/tmp/docs-fs" make-directory
+"a" "/tmp/docs-fs/one.txt" write-file
+"bb" "/tmp/docs-fs/two.txt" write-file
+"/tmp/docs-fs" list-directory . cr
+```
+```output
+[ "one.txt" "two.txt" ]
+```
+
+```forth file-info
+"hello" "/tmp/docs-info.txt" write-file
+"/tmp/docs-info.txt" file-info dup :kind @ . :size @ . cr
+"/tmp/docs-info.txt" file-info@modified 1 s / 0 > . cr
+"/tmp/docs-no-such-file" file-info none? . cr
+```
+```output
+:file 5
+1
+1
+```
+
+```forth make-directory
+"/tmp/docs-mk/inner" make-directory
+"/tmp/docs-mk/inner" make-directory
+"/tmp/docs-mk" list-directory . cr
+```
+```output
+[ "inner" ]
+```
+
+```forth delete-file
+"x" "/tmp/docs-delete.txt" write-file
+"/tmp/docs-delete.txt" delete-file
+"/tmp/docs-delete.txt" file-exists? . cr
+```
+```output
+0
+```
+
+```forth delete-directory
+"/tmp/docs-rmdir" make-directory
+"/tmp/docs-rmdir" delete-directory
+"/tmp/docs-rmdir" file-exists? . cr
+```
+```output
+0
+```
+
+```forth rename-file
+"moved" "/tmp/docs-from.txt" write-file
+"/tmp/docs-from.txt" "/tmp/docs-to.txt" rename-file
+"/tmp/docs-to.txt" read-file . cr
+"/tmp/docs-from.txt" file-exists? . cr
+```
+```output
+moved
+0
+```
+
+```forth copy-file
+"contents" "/tmp/docs-copy-from.txt" write-file
+"/tmp/docs-copy-from.txt" "/tmp/docs-copy-to.txt" copy-file
+"/tmp/docs-copy-to.txt" read-file . cr
+```
+```output
+contents
+```
+
+```forth touch-file
+"/tmp/docs-touch" touch-file
+"/tmp/docs-touch" file-exists? . cr
+"kept" "/tmp/docs-touch" write-file
+"/tmp/docs-touch" touch-file
+"/tmp/docs-touch" read-file . cr
+```
+```output
+1
+kept
+```
+
+```forth ls
+"/tmp/docs-ls/inner" mkdir
+"note" "/tmp/docs-ls/note.txt" write-file
+"a table" "/tmp/docs-ls/data.tsv" write-file
+"/tmp/docs-ls" ls
+```
+```output
+data.tsv  inner/    note.txt
+```
+
+```forth mkdir
+"/tmp/docs-mkdir/inner" mkdir
+"/tmp/docs-mkdir" list-directory . cr
+```
+```output
+[ "inner" ]
+```
+
+```forth rm
+"x" "/tmp/docs-rm.txt" write-file
+"/tmp/docs-rm.txt" rm
+"/tmp/docs-rm.txt" file-exists? . cr
+```
+```output
+0
+```
+
+```forth rmdir
+"/tmp/docs-rmdir" mkdir
+"/tmp/docs-rmdir" rmdir
+"/tmp/docs-rmdir" file-exists? . cr
+```
+```output
+0
+```
+
+```forth mv
+"carried" "/tmp/docs-mv-from.txt" write-file
+"/tmp/docs-mv-from.txt" "/tmp/docs-mv-to.txt" mv
+"/tmp/docs-mv-to.txt" read-file . cr
+```
+```output
+carried
+```
+
+```forth-noexec pwd
+pwd
+```
+```output
+/Users/you/work/telic
+```
+
+```forth cat
+"two{nl}lines{nl}" format "/tmp/docs-cat.txt" write-file
+"/tmp/docs-cat.txt" cat
+```
+```output
+two
+lines
+```
+
+```forth cp
+"duplicated" "/tmp/docs-cp-from.txt" write-file
+"/tmp/docs-cp-from.txt" "/tmp/docs-cp-to.txt" cp
+"/tmp/docs-cp-to.txt" cat cr
+```
+```output
+duplicated
+```
+
+```forth touch
+"/tmp/docs-touched" touch
+"/tmp/docs-touched" file-exists? . cr
 ```
 ```output
 1

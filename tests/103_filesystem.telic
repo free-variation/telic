@@ -1,0 +1,209 @@
+\ list-directory ( path -- arr ): entry names, sorted, . and .. excluded.
+\ file-info ( path -- fr | null ): { :kind :size :modified }, none when absent.
+\ make-directory ( path -- ): mkdir -p, idempotent.
+\ delete-file ( path -- ) / delete-directory ( path -- ) / rename-file ( from to -- ).
+
+\ === make-directory builds intermediates and is idempotent ===
+"/tmp/telic-fs-test/deep/nest" make-directory
+"/tmp/telic-fs-test/deep/nest" make-directory
+"/tmp/telic-fs-test" list-directory . cr              \ [ "deep" ]
+"/tmp/telic-fs-test/deep" list-directory . cr         \ [ "nest" ]
+"/tmp/telic-fs-test/deep/nest" list-directory . cr    \ [ ]
+
+\ === list-directory: names only, sorted, no dot entries ===
+"a" "/tmp/telic-fs-test/gamma.txt" write-file
+"bb" "/tmp/telic-fs-test/alpha.txt" write-file
+"ccc" "/tmp/telic-fs-test/beta.txt" write-file
+"/tmp/telic-fs-test" list-directory . cr              \ [ "alpha.txt" "beta.txt" "deep" "gamma.txt" ]
+"/tmp/telic-fs-test" list-directory size . cr         \ 4
+
+clear
+
+\ === file-info: kind, size, and an instant ===
+"/tmp/telic-fs-test/beta.txt" file-info to info
+info :kind @ . cr                                     \ :file
+info :size @ . cr                                     \ 3
+info keys . cr                                        \ [ :modified :kind :size ]
+"/tmp/telic-fs-test/deep" file-info :kind @ . cr      \ :directory
+
+\ :modified is a quantity in s, so the date words take it
+info :modified @ unit-of 1 s = . cr                   \ 1
+info :modified @ 1 s / 1000000000 > . cr              \ 1
+info :modified @ epoch>date :year @ 2020 > . cr       \ 1
+info :modified @ time>iso size . cr                   \ 20
+
+\ a missing path answers null, not an error
+"/tmp/telic-fs-test/absent" file-info none? . cr      \ 1
+"/tmp/telic-fs-test/absent" file-info null = . cr     \ 1
+
+clear
+
+\ === rename-file moves within a filesystem ===
+"/tmp/telic-fs-test/alpha.txt" "/tmp/telic-fs-test/renamed.txt" rename-file
+"/tmp/telic-fs-test/renamed.txt" read-file . cr       \ bb
+"/tmp/telic-fs-test/alpha.txt" file-exists? . cr      \ 0
+"/tmp/telic-fs-test/renamed.txt" "/tmp/telic-fs-test/beta.txt" rename-file
+"/tmp/telic-fs-test/beta.txt" read-file . cr          \ bb  (replaced the target)
+"/tmp/telic-fs-test" list-directory . cr              \ [ "beta.txt" "deep" "gamma.txt" ]
+
+\ a directory renames too
+"/tmp/telic-fs-test/deep" "/tmp/telic-fs-test/shallow" rename-file
+"/tmp/telic-fs-test/shallow" file-info :kind @ . cr   \ :directory
+
+clear
+
+\ === delete-file and delete-directory ===
+"/tmp/telic-fs-test/gamma.txt" delete-file
+"/tmp/telic-fs-test/gamma.txt" file-exists? . cr      \ 0
+"/tmp/telic-fs-test/shallow/nest" delete-directory
+"/tmp/telic-fs-test/shallow" list-directory . cr      \ [ ]
+"/tmp/telic-fs-test/shallow" delete-directory
+"/tmp/telic-fs-test" list-directory . cr              \ [ "beta.txt" ]
+
+\ the whole tree goes away, leaving nothing behind
+"/tmp/telic-fs-test/beta.txt" delete-file
+"/tmp/telic-fs-test" delete-directory
+"/tmp/telic-fs-test" file-exists? . cr                \ 0
+
+clear
+
+\ === composition: sizes of a directory's files ===
+"/tmp/telic-fs-sizes" make-directory
+"aa" "/tmp/telic-fs-sizes/x" write-file
+"bbbb" "/tmp/telic-fs-sizes/y" write-file
+"/tmp/telic-fs-sizes" list-directory
+[: "/tmp/telic-fs-sizes/" swap + file-info :size @ :] map . cr   \ [ 2 4 ]
+"/tmp/telic-fs-sizes/x" delete-file
+"/tmp/telic-fs-sizes/y" delete-file
+"/tmp/telic-fs-sizes" delete-directory
+
+clear
+
+\ === unix aliases: same words under shorter names ===
+"/tmp/telic-fs-unix/deep" mkdir
+"/tmp/telic-fs-unix" list-directory . cr             \ [ "deep" ]
+"one" "/tmp/telic-fs-unix/first" write-file
+"/tmp/telic-fs-unix/first" "/tmp/telic-fs-unix/second" mv
+"/tmp/telic-fs-unix/second" read-file . cr            \ one
+"/tmp/telic-fs-unix" list-directory . cr             \ [ "deep" "second" ]
+"/tmp/telic-fs-unix/second" rm
+"/tmp/telic-fs-unix/deep" rmdir
+"/tmp/telic-fs-unix" list-directory . cr             \ [ ]
+"/tmp/telic-fs-unix" rmdir
+"/tmp/telic-fs-unix" file-exists? . cr                \ 0
+
+clear
+
+\ === copy-file / touch-file, and cat / cp / touch over them ===
+"/tmp/telic-fs-copy" mkdir
+"the payload" "/tmp/telic-fs-copy/source" write-file
+"/tmp/telic-fs-copy/source" "/tmp/telic-fs-copy/target" copy-file
+"/tmp/telic-fs-copy/target" cat cr                    \ the payload  (cat prints)
+"/tmp/telic-fs-copy/target" file-info :size @ . cr    \ 11
+"/tmp/telic-fs-copy/source" "/tmp/telic-fs-copy/target" cp
+"/tmp/telic-fs-copy/target" read-file . cr            \ the payload  (truncates, not appends)
+
+\ copying keeps bytes exactly, NUL and invalid UTF-8 included
+[ 0 200 10 ] codepoints>string "/tmp/telic-fs-copy/raw" write-file
+"/tmp/telic-fs-copy/raw" "/tmp/telic-fs-copy/raw-copy" cp
+"/tmp/telic-fs-copy/raw-copy" read-file
+"/tmp/telic-fs-copy/raw" read-file = . cr             \ 1
+
+\ touch creates an empty file, and leaves an existing one's bytes alone
+"/tmp/telic-fs-copy/fresh" touch-file
+"/tmp/telic-fs-copy/fresh" file-info :size @ . cr     \ 0
+"/tmp/telic-fs-copy/fresh" file-info :kind @ . cr     \ :file
+"/tmp/telic-fs-copy/source" touch
+"/tmp/telic-fs-copy/source" cat cr                    \ the payload
+"/tmp/telic-fs-copy" touch                            \ a directory touches in place
+"/tmp/telic-fs-copy" file-info :kind @ . cr           \ :directory
+"/tmp/telic-fs-copy" list-directory . cr             \ [ "fresh" "raw" "raw-copy" "source" "target" ]
+
+"/tmp/telic-fs-copy" list-directory [: "/tmp/telic-fs-copy/" swap + rm :] each
+"/tmp/telic-fs-copy" rmdir
+"/tmp/telic-fs-copy" file-exists? . cr                \ 0
+
+clear
+
+\ === ls prints what list-directory answers ===
+"/tmp/telic-fs-ls/inner" mkdir
+[ "one.txt" "two.tsv" "a-longer-name.txt" ]
+[: "/tmp/telic-fs-ls/" swap + touch :] each
+
+\ aligned columns, sorted, a trailing / on directories
+"/tmp/telic-fs-ls" ls
+\ a-longer-name.txt  inner/             one.txt            two.tsv
+
+\ one wide entry per row when the width leaves room for one column only
+"/tmp/telic-fs-ls/inner" list-directory size . cr     \ 0
+"x" "/tmp/telic-fs-ls/inner/deeply-nested-file-with-a-very-long-name-past-forty-columns" write-file
+"/tmp/telic-fs-ls/inner" ls
+\ deeply-nested-file-with-a-very-long-name-past-forty-columns
+
+\ an empty directory prints nothing
+"/tmp/telic-fs-ls/inner/deeply-nested-file-with-a-very-long-name-past-forty-columns" rm
+"/tmp/telic-fs-ls/inner" ls
+"after the empty listing" . cr
+
+"/tmp/telic-fs-ls" list-directory [: "/tmp/telic-fs-ls/" swap + :] map
+[: dup file-info@kind :directory = if rmdir else rm then :] each
+"/tmp/telic-fs-ls" rmdir
+
+clear
+
+\ === errors (reason parenthesized) ===
+[: "/tmp/telic-fs-missing-dir" list-directory :] catch drop :message @ . cr
+\ cannot list /tmp/telic-fs-missing-dir            (no such directory)
+"plain" "/tmp/telic-fs-notdir" write-file
+[: "/tmp/telic-fs-notdir" list-directory :] catch drop :message @ . cr
+\ cannot list /tmp/telic-fs-notdir                 (a file, not a directory)
+"/tmp/telic-fs-notdir" delete-file
+[: "/tmp/telic-fs-absent" delete-file :] catch drop :message @ . cr
+\ cannot delete /tmp/telic-fs-absent               (no such file)
+[: "/tmp" delete-directory :] catch drop :message @ . cr
+\ cannot remove /tmp                               (not empty)
+[: 42 list-directory :] catch drop :message @ . cr
+\ expected a string; got a float                   (not a string)
+[: "/tmp/telic-fs-absent" "/tmp/no/such/dir/b" rename-file :] catch drop :message @ . cr
+\ cannot rename ... to ...                         (target directory missing)
+
+\ copy-file throws a string of its own rather than a runtime error frame
+[: "/tmp" "/tmp/telic-fs-dir-copy" cp :] catch drop . cr
+\ cannot copy /tmp: not a file                     (a directory, which read-file reads as "")
+[: "/tmp/telic-fs-absent" "/tmp/telic-fs-x" cp :] catch drop . cr
+\ cannot copy /tmp/telic-fs-absent: no such file   (nothing to copy)
+"/tmp/telic-fs-dir-copy" file-exists? . cr
+\ 0                                                (the guard wrote no empty file)
+
+clear
+
+\ === the working-directory forms: bare ls ===
+cwd to entry-cwd
+
+"/tmp/telic-ls-cwd/inner" mkdir
+"a" "/tmp/telic-ls-cwd/one" write-file
+"bb" "/tmp/telic-ls-cwd/two" write-file
+
+\ === bare ls lists the working directory ===
+"/tmp/telic-ls-cwd" cd
+cwd "telic-ls-cwd" has? . cr                     \ 1
+ls
+\ inner/  one     two
+
+\ === a path on the stack still names the directory ===
+"/tmp/telic-ls-cwd/inner" ls
+"nothing above this line" . cr
+
+\ === with something on the stack, ls takes it as the path, it is not ignored ===
+[: 42 ls :] catch drop :message @ . cr           \ expected a string; got a float
+"/tmp/telic-ls-cwd/one" ls                       \ (a file, not a directory)
+
+\ === teardown, back to where we started ===
+entry-cwd cd
+cwd entry-cwd = . cr                             \ 1
+"/tmp/telic-ls-cwd" list-directory [: "/tmp/telic-ls-cwd/" swap + :] map
+[: dup file-info@kind :directory = if rmdir else rm then :] each
+"/tmp/telic-ls-cwd" rmdir
+"/tmp/telic-ls-cwd" file-exists? . cr            \ 0
+
+clear

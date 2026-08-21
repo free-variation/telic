@@ -55,3 +55,33 @@
 
 ( -- ) \ pretty prints all current globals
 : vars variables ' print each ;
+
+( name path -- str ) \ the entry name, carrying a trailing / when it is a directory
+: ls-entry
+	| name path |
+	path "/" + name + file-info to info
+	info none? if name exit then
+
+	info@kind :directory = if name "/" + else name then ; internal
+
+( path -- ) \ pretty prints a directory's entries in aligned columns; bare ls on
+\ an empty stack lists the working directory
+: ls
+	depth 0= if cwd then
+	to path
+
+	path list-directory  path ' ls-entry curry map to entries
+	entries size 0= if exit then
+
+	entries ' size map 0 ' max2 reduce 2 + to width
+	80 width / round-down to columns
+	columns 1 < if 1 to columns then
+
+	0 entries size 1 do k
+		entries k @i to entry
+		k 1 + columns mod 0=  k 1 + entries size =  or if
+			entry print-raw cr
+		else
+			entry width pad-right print-raw
+		then
+	loop ;

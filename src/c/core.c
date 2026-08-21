@@ -4729,14 +4729,20 @@ int capture_render(Interpreter *interp, void (*render)(FILE *, Interpreter *, Va
 	return handle;
 }
 
+static const char *quotation_header(int cfa) {
+	const char *source = quotation_source(cfa);
+
+	return source ? source : "[: ... :]";
+}
+
 static void see_compiled_render(FILE *out, Interpreter *interp, Val target) {
 	render_curried_bindings(out, interp, target);
 
 	int target_cfa = callable_cfa(target);
-	const char *name = &vocab.name_pool[WORD_NAME(target_cfa)];
+	const char *name = name_of(target_cfa);
 
 	if ((cfa_handler)vocab.dict[target_cfa] != docol) {
-		fprintf(out, "%s: not a colon definition\n", name);
+		fprintf(out, "%s: not a colon definition\n", name ? name : "?");
 		return;
 	}
 
@@ -4747,9 +4753,12 @@ static void see_compiled_render(FILE *out, Interpreter *interp, Val target) {
 			body_end = cfa - 4;
 	}
 
-	fprintf(out, ": %s   \\ %d cells\n", name, body_end - body_start);
+	if (name)
+		fprintf(out, ": %s   \\ %d cells\n", name, body_end - body_start);
+	else
+		fprintf(out, "%s   \\ %d cells\n", quotation_header(target_cfa), body_end - body_start);
 	see_compiled_body(out, interp, body_start, body_end);
-	fputs(";\n", out);
+	fputs(name ? ";\n" : ":]\n", out);
 }
 
 #define SEE_WORD_PAIR(print_name, string_name, print_word, string_word, render) \
@@ -4779,19 +4788,22 @@ static void see_tree_render(FILE *out, Interpreter *interp, Val target) {
 	render_curried_bindings(out, interp, target);
 
 	int target_cfa = callable_cfa(target);
-	const char *name = &vocab.name_pool[WORD_NAME(target_cfa)];
+	const char *name = name_of(target_cfa);
 
 	if ((cfa_handler)vocab.dict[target_cfa] != docol) {
-		fprintf(out, "%s: not a colon definition\n", name);
+		fprintf(out, "%s: not a colon definition\n", name ? name : "?");
 		return;
 	}
 
 	int stack[SEE_TREE_MAX_DEPTH + 1];
 	stack[0] = target_cfa;
 
-	fprintf(out, ": %s\n", name);
+	if (name)
+		fprintf(out, ": %s\n", name);
+	else
+		fprintf(out, "%s\n", quotation_header(target_cfa));
 	see_tree_body(out, interp, target_cfa + 1, 2, stack, 1);
-	fputs(";\n", out);
+	fputs(name ? ";\n" : ":]\n", out);
 }
 
 SEE_WORD_PAIR(p_see_tree, p_see_tree_to_string, "see-tree", "see-tree>string", see_tree_render)
@@ -5440,6 +5452,13 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "read-file", p_read_file, 0);
 	define_primitive(interp, "write-file", p_write_file, 0);
 	define_primitive(interp, "append-file", p_append_file, 0);
+	define_primitive(interp, "list-directory", p_list_directory, 0);
+	define_primitive(interp, "(file-info)", p_file_info, 4);
+	define_primitive(interp, "make-directory", p_make_directory, 0);
+	define_primitive(interp, "delete-file", p_delete_file, 0);
+	define_primitive(interp, "delete-directory", p_delete_directory, 0);
+	define_primitive(interp, "rename-file", p_rename_file, 0);
+	define_primitive(interp, "touch-file", p_touch_file, 0);
 	define_primitive(interp, "load-tsv", p_load_tsv, 0);
 	define_primitive(interp, "save-tsv", p_save_tsv, 0);
 	define_primitive(interp, "start-process", p_start_process, 0);

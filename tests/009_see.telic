@@ -104,3 +104,16 @@ clear
 [ 2 0 ] [ 10 20 30 ] at-swap-pick . cr    \ [ 30 10 ]
 : at-swap-deeper | arr indices | arr indices [: 2 pick swap @i :] map nip ;
 ' at-swap-deeper see-compiled
+
+clear
+\ an anonymous quotation has no header cells, so see-compiled / see-tree must
+\ take its name from the recorded span rather than reading the dictionary cell
+\ below its body (which belongs to whatever was compiled before it)
+[: + :] see-compiled
+[: dup * :] see-tree
+
+\ a curried token: bindings first, then the quotation it wraps
+5 [: + :] curry see-compiled
+\ the header comes from the span, so it is the quotation's own source text
+[: 2 * :] see-compiled>string 0 9 substring . cr            \ [: 2 * :]
+5 [: + :] curry see-compiled>string "curried, binds 5" has? . cr   \ 1

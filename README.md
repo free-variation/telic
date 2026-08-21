@@ -406,6 +406,7 @@ Worker threads over one shared object heap: a quotation runs across the collecti
 - **`reload`** truncates user state and re-runs every file `load`ed this session, in order.
 - **`read-file`** / **`write-file`** / **`append-file`** — read a whole file as one (byte-safe) string; write or append a string's bytes to a path.
 - **`file-exists?`** — whether a path exists (`access`, `F_OK`); follows symlinks, any file type.
+- **Files and directories** — **`list-directory`**, **`file-info`**, **`make-directory`**, **`delete-file`**, **`delete-directory`**, **`rename-file`**, **`copy-file`**, **`touch-file`**, with **`ls`** **`mkdir`** **`rm`** **`rmdir`** **`mv`** **`pwd`** **`cat`** **`cp`** **`touch`** as shell names.
 - **`find-executable`** — `( name -- path/none )` the absolute path of `name` on `$PATH`, or the none value if not found.
 - **`load-library`** — `"plot" load-library` loads `lib/plot.telic` from beside the telic binary (`binary-dir`, symlinks resolved), from any cwd; the statistics library locates its LAPACK shared library the same way.
 - **`env`** / **`env!`** — read an environment variable as a string (the none value if unset) and set one (process-wide, so `start-process` children inherit it).

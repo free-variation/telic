@@ -6,6 +6,51 @@
 ( path -- value ) \ read a value written by save-value
 : load-value read-file bytes>value ;
 
+( path -- fr|null ) \ { :kind :size :modified } with :modified an instant;
+\ null when the path does not exist
+: file-info
+	| path |
+	path (file-info) to info
+	info none? if info exit then
+
+	info@modified s info!modified
+	info ;
+
+( from to -- ) \ copy a file's bytes; errors unless from is a regular file
+: copy-file
+	| source target |
+	source file-info to info
+	info none? if source "cannot copy {0}: no such file" format throw then
+	info@kind :file = 0= if source "cannot copy {0}: not a file" format throw then
+
+	source read-file target write-file ;
+
+\ unix names for the filesystem words, for hands that type them
+
+( path -- ) \ make-directory
+: mkdir make-directory ; inline
+
+( path -- ) \ delete-file
+: rm delete-file ; inline
+
+( path -- ) \ delete-directory
+: rmdir delete-directory ; inline
+
+( from to -- ) \ rename-file
+: mv rename-file ; inline
+
+( -- ) \ print the working directory, cwd's printing counterpart
+: pwd cwd stdout write cr ; inline
+
+( path -- ) \ write a file's bytes to stdout, read-file's printing counterpart
+: cat read-file stdout write ; inline
+
+( from to -- ) \ copy-file
+: cp copy-file ; inline
+
+( path -- ) \ touch-file
+: touch touch-file ; inline
+
 ( name -- path|none ) \ absolute path of name on $PATH, or none if not found
 : find-executable
 	| name |

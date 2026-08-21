@@ -1,6 +1,8 @@
 
 #include "telic.h"
 #include <poll.h>
+#include <dirent.h>
+#include <sys/stat.h>
 
 static int stream_generation[STREAM_FD_MAX];
 
@@ -193,6 +195,222 @@ static void write_file(Interpreter *interp, Object *content, Object *path, const
 
 WRITE_FILE_OP(p_write_file, "wb")
 WRITE_FILE_OP(p_append_file, "ab")
+
+static void free_entry_names(char **names, int name_count) {
+	for (int i = 0; i < name_count; i++)
+		free(names[i]);
+	free(names);
+}
+
+static int compare_entry_names(const void *left, const void *right) {
+	return strcmp(*(const char *const *)left, *(const char *const *)right);
+}
+
+static int directory_entry_names(Interpreter *interp, const char *path,
+		char ***names_out, int *count_out) {
+	DIR *directory = opendir(path);
+	if (directory == NULL) {
+		fail(interp, "cannot list %s", path);
+		return 0;
+	}
+
+	char **names = NULL;
+	int name_count = 0;
+	int capacity = 0;
+
+	struct dirent *entry;
+	while ((entry = readdir(directory)) != NULL) {
+		if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+			continue;
+
+		GROW_IF_FULL_SYS(name_count, capacity, names);
+		char *name = names == NULL ? NULL : strdup(entry->d_name);
+		if (name == NULL) {
+			free_entry_names(names, name_count);
+			closedir(directory);
+			fail(interp, "out of memory");
+			return 0;
+		}
+
+		names[name_count++] = name;
+	}
+	closedir(directory);
+
+	if (name_count > 1)
+		qsort(names, (size_t)name_count, sizeof(char *), compare_entry_names);
+
+	*names_out = names;
+	*count_out = name_count;
+	return 1;
+}
+
+void p_list_directory(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val path_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(path_val, T_STRING, "list-directory", "a string");
+
+	char **names;
+	int name_count;
+	if (!directory_entry_names(interp, OBJECT_AT(VAL_DATA(path_val))->bytes, &names, &name_count))
+		return;
+
+	int handle = object_new_array(interp, name_count);
+	if (interp->error_flag) {
+		free_entry_names(names, name_count);
+		return;
+	}
+	Object *entries = OBJECT_AT(handle);
+	memset(entries->items, 0, sizeof(Val) * (size_t)name_count);
+	gc_root_push(interp, make_array(handle));
+
+	for (int i = 0; i < name_count; i++) {
+		int name_handle = object_new_string(interp, names[i], (int)strlen(names[i]));
+		if (interp->error_flag) {
+			gc_root_pop(interp);
+			free_entry_names(names, name_count);
+			return;
+		}
+		entries->items[i] = make_string(name_handle);
+	}
+	gc_root_pop(interp);
+	free_entry_names(names, name_count);
+
+	chain_sp[-1] = make_array(handle);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
+
+void p_file_info(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val path_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(path_val, T_STRING, "(file-info)", "a string");
+
+	struct stat status;
+	if (stat(OBJECT_AT(VAL_DATA(path_val))->bytes, &status) != 0) {
+		chain_sp[-1] = make_tagged(T_NONE, 0);
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+	}
+
+	const char *kind = "other";
+	if (S_ISREG(status.st_mode))
+		kind = "file";
+	else if (S_ISDIR(status.st_mode))
+		kind = "directory";
+
+	int handle = object_new_frame(interp);
+	if (interp->error_flag)
+		return;
+	Object *info = OBJECT_AT(handle);
+
+	frame_put(info, intern_symbol(interp, "kind"), make_symbol(intern_symbol(interp, kind)));
+	frame_put(info, intern_symbol(interp, "size"), make_float((double)status.st_size));
+	frame_put(info, intern_symbol(interp, "modified"), make_float((double)status.st_mtime));
+
+	chain_sp[-1] = make_frame(handle);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
+
+static int make_directory_path(Interpreter *interp, char *path) {
+	for (char *cursor = path + 1; *cursor; cursor++) {
+		if (*cursor != '/')
+			continue;
+
+		*cursor = 0;
+		int made = mkdir(path, 0777);
+		*cursor = '/';
+
+		if (made != 0 && errno != EEXIST) {
+			fail(interp, "cannot create %s", path);
+			return 0;
+		}
+	}
+
+	if (mkdir(path, 0777) != 0 && errno != EEXIST) {
+		fail(interp, "cannot create %s", path);
+		return 0;
+	}
+
+	return 1;
+}
+
+void p_make_directory(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val path_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(path_val, T_STRING, "make-directory", "a string");
+	Object *path = OBJECT_AT(VAL_DATA(path_val));
+
+	if (path->len >= PATH_MAX) {
+		fail(interp, "path is %d bytes (max %d)", path->len, PATH_MAX - 1);
+		return;
+	}
+
+	char writable[PATH_MAX];
+	memcpy(writable, path->bytes, (size_t)path->len + 1);
+	if (!make_directory_path(interp, writable))
+		return;
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+}
+
+#define PATH_ACTION_OP(c_name, word_name, action, verb) \
+	void c_name(DISPATCH_ARGS) { \
+		REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1); \
+		Val path_val = chain_sp[-1]; \
+		REQUIRE_CHAIN_TAG(path_val, T_STRING, word_name, "a string"); \
+		Object *path = OBJECT_AT(VAL_DATA(path_val)); \
+		\
+		if (action(path->bytes) != 0) { \
+			fail(interp, "cannot " verb " %s", path->bytes); \
+			return; \
+		} \
+		\
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1); \
+	}
+
+PATH_ACTION_OP(p_delete_file, "delete-file", unlink, "delete")
+PATH_ACTION_OP(p_delete_directory, "delete-directory", rmdir, "remove")
+
+void p_rename_file(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
+	Val target_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(target_val, T_STRING, "rename-file", "a string");
+	Val source_val = chain_sp[-2];
+	REQUIRE_CHAIN_TAG(source_val, T_STRING, "rename-file", "a string");
+	Object *source = OBJECT_AT(VAL_DATA(source_val));
+	Object *target = OBJECT_AT(VAL_DATA(target_val));
+
+	if (rename(source->bytes, target->bytes) != 0) {
+		fail(interp, "cannot rename %s to %s", source->bytes, target->bytes);
+		return;
+	}
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 2);
+}
+
+void p_touch_file(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val path_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(path_val, T_STRING, "touch-file", "a string");
+	Object *path = OBJECT_AT(VAL_DATA(path_val));
+
+	if (utimensat(AT_FDCWD, path->bytes, NULL, 0) == 0)
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+
+	if (errno != ENOENT) {
+		fail(interp, "cannot touch %s", path->bytes);
+		return;
+	}
+
+	int descriptor = open(path->bytes, O_WRONLY | O_CREAT, 0666);
+	if (descriptor < 0) {
+		fail(interp, "cannot touch %s", path->bytes);
+		return;
+	}
+	close(descriptor);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+}
 
 static int tsv_row_to_array(Interpreter *interp, char *row, int row_length) {
 	int cell_count = 1;

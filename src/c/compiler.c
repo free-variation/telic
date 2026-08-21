@@ -786,6 +786,12 @@ static const char *in_place_update_word(const char *token) {
 	return NULL;
 }
 
+static int name_is_compile_time_word(const char *name) {
+	int cfa = find(name);
+
+	return cfa && WORD_IS_IMMEDIATE(cfa);
+}
+
 static void hoist_assigned_locals(Interpreter *interp) {
 	int saved_position = compiler.input_buffer_pos;
 	int saved_line = compiler.input_line;
@@ -867,6 +873,14 @@ static void hoist_assigned_locals(Interpreter *interp) {
 				already = 1;
 		if (already)
 			continue;
+
+		if (name_is_compile_time_word(name)) {
+			compiler.input_buffer_pos = saved_position;
+			compiler.input_line = saved_line;
+			fail(interp, "%s: %s is a compile-time word and cannot name a local; rename it",
+					assigning_word, name);
+			return;
+		}
 
 		if (declare_local_in_scope(interp, name) < 0)
 			break;
@@ -1271,6 +1285,11 @@ static void compile_locals_decl(Interpreter *interp) {
 			token++;
 		}
 		int has_receive_marker = !has_lvar_marker;
+
+		if (name_is_compile_time_word(token)) {
+			fail(interp, "|: %s is a compile-time word and cannot name a local; rename it", token);
+			return;
+		}
 
 		for (int i = scope_start; i < compiler.n_local_names; i++) {
 			if (strcmp(token, &compiler.local_names_pool[compiler.local_name_offsets[i]]) == 0) {

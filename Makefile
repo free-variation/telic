@@ -42,7 +42,7 @@ TELIC_DEPS = $(PCRE2_LIB) $(SQLITE_OBJ) $(ISOCLINE_OBJ)
 # Embedded library, concatenated in this order. Binding is early: a word must
 # be defined in an earlier file than every file that uses it (units before the
 # constants that use joule, predicates before the words that call them).
-FORTH_SRCS = src/forth/core.telic src/forth/arrays.telic src/forth/io.telic src/forth/strings.telic src/forth/exceptions.telic src/forth/test.telic src/forth/matrix.telic src/forth/subprocess.telic src/forth/browser.telic src/forth/logic.telic src/forth/generators.telic src/forth/units.telic src/forth/datasets.telic src/forth/statistics.telic src/forth/constants.telic src/forth/database.telic src/forth/repl.telic
+FORTH_SRCS = src/forth/core.telic src/forth/arrays.telic src/forth/strings.telic src/forth/exceptions.telic src/forth/test.telic src/forth/matrix.telic src/forth/subprocess.telic src/forth/logic.telic src/forth/generators.telic src/forth/units.telic src/forth/io.telic src/forth/browser.telic src/forth/datasets.telic src/forth/statistics.telic src/forth/constants.telic src/forth/database.telic src/forth/repl.telic
 
 # Vendored PCRE2 (see external/pcre2/PROVENANCE; refresh with tools/vendor-pcre2.sh).
 PCRE2_DIR    = external/pcre2
