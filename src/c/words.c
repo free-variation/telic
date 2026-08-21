@@ -28,7 +28,7 @@ int string_concat(Interpreter *interp, int left_handle, int right_handle) {
 		const double * restrict source_elements = matrix_source->matrix.elements; \
 		double * restrict target_elements = target->matrix.elements; \
 		for (size_t i = 0; i < num_elements; i++) \
-			target_elements[i] = scalar op source_elements[i]; \
+		target_elements[i] = scalar op source_elements[i]; \
 		interp->data_stack[interp->dsp - 2] = make_matrix(target_handle); \
 		interp->dsp--; \
 	} while (0)
@@ -44,7 +44,7 @@ int string_concat(Interpreter *interp, int left_handle, int right_handle) {
 		const double * restrict source_elements = matrix_source->matrix.elements; \
 		double * restrict target_elements = target->matrix.elements; \
 		for (size_t i = 0; i < num_elements; i++) \
-			target_elements[i] = source_elements[i] op scalar; \
+		target_elements[i] = source_elements[i] op scalar; \
 		interp->data_stack[interp->dsp - 2] = make_matrix(target_handle); \
 		interp->dsp--; \
 	} while (0)
@@ -144,15 +144,15 @@ static int complex_combine(Interpreter *interp, char op,
 			*imaginary_part = left_real * right_imaginary + left_imaginary * right_real;
 			return 1;
 		default: {
-			double denominator = right_real * right_real + right_imaginary * right_imaginary;
-			if (denominator == 0.0) {
-				fail(interp, "division by zero");
-				return 0;
-			}
-			*real_part = (left_real * right_real + left_imaginary * right_imaginary) / denominator;
-			*imaginary_part = (left_imaginary * right_real - left_real * right_imaginary) / denominator;
-			return 1;
-		}
+					 double denominator = right_real * right_real + right_imaginary * right_imaginary;
+					 if (denominator == 0.0) {
+						 fail(interp, "division by zero");
+						 return 0;
+					 }
+					 *real_part = (left_real * right_real + left_imaginary * right_imaginary) / denominator;
+					 *imaginary_part = (left_imaginary * right_real - left_real * right_imaginary) / denominator;
+					 return 1;
+				 }
 	}
 }
 
@@ -167,7 +167,7 @@ static int complex_binary_word(Interpreter *interp, Val left, Val right, char op
 
 	double real_part, imaginary_part;
 	if (!complex_combine(interp, op, left_real, left_imaginary, right_real, right_imaginary,
-			&real_part, &imaginary_part))
+				&real_part, &imaginary_part))
 		return 1;
 
 	Val result = complex_from_parts(interp, real_part, imaginary_part);
@@ -333,7 +333,7 @@ static int quantity_additive_op(Interpreter *interp, Val left, Val right,
 
 		double real_part, imaginary_part;
 		if (!complex_combine(interp, op[0], left_real, left_imaginary, right_real, right_imaginary,
-				&real_part, &imaginary_part))
+					&real_part, &imaginary_part))
 			return 1;
 
 		Val combined_magnitude = complex_from_parts(interp, real_part, imaginary_part);
@@ -412,7 +412,7 @@ static int quantity_multiplicative_op(Interpreter *interp, Val left, Val right,
 
 		double real_part, imaginary_part;
 		if (!complex_combine(interp, op[0], left_real, left_imaginary, right_real, right_imaginary,
-				&real_part, &imaginary_part))
+					&real_part, &imaginary_part))
 			return 1;
 
 		interp->dsp -= 2;
@@ -711,7 +711,7 @@ void p_div(DISPATCH_ARGS) {
 			double * restrict left_elements = left_matrix->matrix.elements; \
 			const double * restrict right_elements = right_matrix->matrix.elements; \
 			for (size_t i = 0; i < num_elements; i++) \
-				left_elements[i] = left_elements[i] op right_elements[i]; \
+			left_elements[i] = left_elements[i] op right_elements[i]; \
 			push(interp, left); \
 		} else if (VAL_TAG(left) == T_MATRIX && VAL_TAG(right) == T_FLOAT) { \
 			double scalar = VAL_NUMBER(right); \
@@ -719,7 +719,7 @@ void p_div(DISPATCH_ARGS) {
 			size_t num_elements = (size_t)matrix->matrix.rows * (size_t)matrix->matrix.columns; \
 			double * restrict elements = matrix->matrix.elements; \
 			for (size_t i = 0; i < num_elements; i++) \
-				elements[i] = elements[i] op scalar; \
+			elements[i] = elements[i] op scalar; \
 			push(interp, left); \
 		} else if (VAL_TAG(left) == T_FLOAT && VAL_TAG(right) == T_MATRIX) { \
 			double scalar = VAL_NUMBER(left); \
@@ -727,7 +727,7 @@ void p_div(DISPATCH_ARGS) {
 			size_t num_elements = (size_t)matrix->matrix.rows * (size_t)matrix->matrix.columns; \
 			double * restrict elements = matrix->matrix.elements; \
 			for (size_t i = 0; i < num_elements; i++) \
-				elements[i] = scalar op elements[i]; \
+			elements[i] = scalar op elements[i]; \
 			push(interp, right); \
 		} else { \
 			fail(interp, "expected a matrix operand; got %s and %s", tag_name(VAL_TAG(left)), tag_name(VAL_TAG(right))); \
@@ -946,7 +946,7 @@ static void array_comparison_mask(Interpreter *interp, Val left, Val right,
 			SYNC_REGISTERS(interp, chain_ip, chain_sp); \
 			if (quantity_comparison_mask(interp, left, right, sfn, word)) { \
 				if (interp->error_flag) \
-					return; \
+				return; \
 				DISPATCH(interp); \
 			} \
 		} \
@@ -954,7 +954,7 @@ static void array_comparison_mask(Interpreter *interp, Val left, Val right,
 			SYNC_REGISTERS(interp, chain_ip, chain_sp); \
 			array_comparison_mask(interp, left, right, sfn); \
 			if (interp->error_flag) \
-				return; \
+			return; \
 			DISPATCH(interp); \
 		} \
 		SYNC_REGISTERS(interp, chain_ip, chain_sp - 2); \
@@ -965,12 +965,12 @@ static void array_comparison_mask(Interpreter *interp, Val left, Val right,
 			gc_root_pop(interp); \
 			gc_root_pop(interp); \
 			if (interp->error_flag) \
-				return; \
+			return; \
 			push(interp, make_matrix(mask_handle)); \
 		} else { \
 			int ordering = val_cmp(interp, left, right); \
 			if (interp->error_flag) \
-				return; \
+			return; \
 			push(interp, make_bool(ordering op 0)); \
 		} \
 		DISPATCH(interp); \
@@ -984,12 +984,12 @@ MATRIX_COMPARISON_OP(p_eq_elements, ==, scalar_eq, "eq", matrix_compare_eq)
 void p_nan(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	if (VAL_TAG(chain_sp[-1]) == T_NONE) {
-			chain_sp[-1] = make_bool(1);
-			DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+		chain_sp[-1] = make_bool(1);
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 	}
 	if (VAL_TAG(chain_sp[-1]) == T_EXACT || VAL_TAG(chain_sp[-1]) == T_COMPLEX) {
-			chain_sp[-1] = make_bool(0);
-			DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+		chain_sp[-1] = make_bool(0);
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 	}
 
 	if (VAL_TAG(chain_sp[-1]) == T_ARRAY) {
@@ -1010,7 +1010,7 @@ void p_nan(DISPATCH_ARGS) {
 
 	DISPATCH(interp);
 }
-			
+
 
 #define UNARY_FLOAT_OP(name, opname, expr) \
 	void name(DISPATCH_ARGS) { \
@@ -1039,7 +1039,7 @@ void p_zeq(DISPATCH_ARGS) {
 			SYNC_REGISTERS(interp, chain_ip + 1, chain_sp - 2); \
 			is_true = val_cmp(interp, left, right) op 0; \
 			if (interp->error_flag) \
-				return; \
+			return; \
 		} \
 		cell *continue_ip = is_true ? chain_ip + 1 : chain_ip + (int)*chain_ip; \
 		DISPATCH_REGISTERS(interp, continue_ip, chain_sp - 2); \
@@ -1811,7 +1811,7 @@ static void print_word_group(const char **names, const int *groups, int n_collec
 void p_telic(DISPATCH_ARGS) {
 	fwrite(telic_logo_txt, 1, telic_logo_txt_len, stdout);
 	printf("\n%*stelic %s\n", 42, "", VERSION);
-	printf("%*shttps://github.com/free-variation/water\n", 30, "");
+	printf("%*shttps://github.com/free-variation/telic\n", 30, "");
 	fflush(stdout);
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
