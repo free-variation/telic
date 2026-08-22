@@ -115,7 +115,7 @@ wall-now 2 week + time>iso .            \ the ISO timestamp two weeks from now
 \ Subprocesses over pipes
 "echo hi" run read-out .                \ hi
 
-\ Logic: unify binds variables; amb is a committed choice
+\ Logic: unify binds variables; amb keeps the first branch that succeeds
 lvar to X  lvar to Y  lvar to Z
 [ 1 2 3 ] [ X Y Z ] ~ drop  X ? . Y ? . Z ? . cr   \ 1 2 3
 [: fail :] [: "fallback" :] amb .                  \ fallback
@@ -220,13 +220,13 @@ departs from its pyperformance original the file's header says so.
 - **Tail-call elimination** — a call in tail position compiles to a frame-reusing jump, so a self-recursive or `recurse` loop runs in constant return-stack space. Disabled where it would be unsafe (a body using `>r`/`reset`/`shift`/`fail`, or locals plus a quotation).
 - **Partial application** — `curry` ( value xt -- xt' ) binds a value into a curried token, a heap value accepted wherever an xt is; the token travels through other words' frames intact, works inside parallel regions, and is garbage-collected.
 - **Control flow** — `if`/`else`/`then`, the `begin`/`until`/`again` and `begin`/`while`/`repeat` loops with `leave` / `continue` for early exit, the counted `start limit delta do k … loop` over a named index local, `case`/`of`/`endof`/`endcase` dispatching by unification (clauses are patterns — ground values, open-record frames, `_`, logic vars that bind for the body), counted `times` / `i-times`, `exit`, and `>r`/`r>`/`r@` for return-stack access.
-- **Delimited continuations** — four primitives, the substrate for generators, exceptions, and restarts (`docs/continuations.md`): `reset` installs a delimiter, a uniquely-tagged mark on the return stack; `shift` captures the slice up to the nearest delimiter, removes the mark and the captured frames, and pushes the continuation as a `T_CONT` Val; `shift-with` captures the same slice and then runs a handler xt in the outer context; `resume` re-enters a captured continuation, multi-shot.
+- **Delimited continuations** — four primitives, the substrate for generators, exceptions, and restarts (`docs/continuations.md`): `reset` installs a delimiter, `shift` captures the slice up to it, `shift-with` captures and then runs a handler in the outer context, `resume` re-enters a captured continuation, multi-shot.
 - **Tick and execute** — `' word execute` for first-class invocation by name.
-- **Forward declaration** — `defer name` declares a word with no target, for mutual recursion or late binding; `xt embodies name` installs a target (a colon word or quotation), retargetable through one forwarding dispatch; `xt embodies! name` finalizes, rewriting existing call sites to call the target directly and turning the word ordinary.
+- **Forward declaration** — `defer name` declares a word with no target, for mutual recursion or late binding; `embodies` installs one and stays retargetable, `embodies!` finalizes it and rewrites the existing call sites to call direct.
 - **`forget`** — truncate the dictionary back to a named word; symbol identities survive.
-- **Variables and symbols** — `variable foo` declares a global; read it by bare name, assign with `42 to foo` (`to` auto-creates a global on first assignment at interpreted top level — the REPL, a program file, a `load`ed file; inside a colon definition or quotation a free name declares a local instead, and assigning the global needs `^foo` in the head). `symbol bar` defines a symbol; `:foo` is a symbol literal interned on use; `string>symbol` interns a computed string.
-- **Word-local variables** — a head at the start of a colon definition or quotation names what the body receives from the stack, rightmost from the top: `| x y |`, or `x y |` with the opening bar left off. Everything else is declared where `to` first assigns it, and the compiler collects those names to the head, so a name means one thing throughout the body. In the head, `^name` is an enclosing global the body assigns and `?name` a fresh logic variable per call. `++ name` / `-- name` increment/decrement in place (`f++` / `f--` the unsafe float-only forms). A word's locals survive continuation capture, so a generator resumes with its slots intact.
-- **A quotation's locals are its own** — a quotation reads the slots it declares and the data stack, never the enclosing word's: `: f | x | 5 to x [: x 1 + :] execute ;` is refused at compile time with `x is not bound in this quotation; pass it in or use pick`. Values reach a quotation three ways — received into its own head (`[: a b | … :]`), parked on the stack under the combinator's operands and read by depth (`2 pick`), or bound into a curried token by `curry`.
+- **Variables and symbols** — `variable foo` declares a global, read by bare name and assigned with `42 to foo`; at top level `to` creates the global on first assignment. `symbol bar` defines a symbol, `:foo` is a symbol literal, `string>symbol` interns a computed string.
+- **Word-local variables** — a head at the start of a colon definition or quotation names what the body receives from the stack, rightmost from the top: `| x y |`, or `x y |` with the opening bar left off. Everything else is declared where `to` first assigns it, and the compiler collects those names to the head, so a name means one thing throughout the body. In the head, `^name` is an enclosing global the body assigns and `?name` a fresh logic variable per call. `++ name` / `-- name` increment/decrement in place (`f++` / `f--` the unsafe float-only forms).
+- **A quotation's locals are its own** — it reads the slots it declares and the data stack, never the enclosing body's, which is a compile error. Values reach it three ways: its own head, `pick` from the stack below the combinator's operands, or `curry`.
 - **Mark-and-sweep GC** — walks the three stacks, the C-level roots, and the dictionary (each global's value cell and every compiled literal). Triggers on object-table and live-byte pressure, at a safepoint between words.
 
 ### Generators
@@ -241,44 +241,36 @@ Coroutines on the continuation primitives, in `generators.telic`:
 
 Built in `exceptions.telic` on top of the continuation primitives:
 
-- **`throw`** — non-local exit with a value; uncaught, it is an interpreter error naming the value (`uncaught exception: "boom"`) with a trace from the throw site.
-- **`catch`** — wraps an xt; returns `(result 0)` on success, `(exc 1)` on a throw. It also intercepts **interpreter errors** — division by zero, out-of-bounds, type mismatch, and the like — delivering a `{ :message :trace }` frame (the trace names the failing word innermost-first) as the exception value, so a runtime fault is recoverable, not just a user `throw`. A `throw`n value passes through raw.
-- **`try-catch`** — wraps an xt with a recovery handler that runs on either kind of failure. Arity-agnostic.
-- **`ensure`** — `( body-xt cleanup-xt -- … )` runs cleanup on both the normal and the throw/error path, then re-raises on throw. **`with-db`** / **`with-stream`** build on it to open (or take) a resource, run a body with it, and release it however the body exits.
+- **`throw`** — non-local exit with a value.
+- **`catch`** — wraps an xt, answering `(result 0)` or `(exc 1)`. Interpreter errors are caught too — division by zero, out of bounds, a type mismatch — arriving as a `{ :message :trace }` frame.
+- **`try-catch`** — run an xt, and on either kind of failure run a handler with the exception.
+- **`ensure`** — cleanup on both the normal and the failing path; **`with-db`** / **`with-stream`** scope a resource that way.
 
-An uncaught `throw` or interpreter error still surfaces at the REPL. The `shift-with` handler can also resume the captured continuation, giving the Common Lisp restart pattern.
-
-An uncaught error also prints a backtrace under the message: the call chain read
-off the return stack, innermost first — `in inner ← mid ← outer`. A quotation
-frame prints as its source snippet (`in [: 1 0 % :]`, long ones truncated),
-same-site recursion collapses to one frame (`in spin ×65536`), and deep chains
-elide the middle (`… ← …+3 ← …`). A caught error prints none. The trace costs
-nothing until an error happens — capture is a return-stack walk at failure
-time.
-
-An unknown word names the nearest dictionary word or in-scope local when one is
-within edit distance 2 — `unknown word: filtr (did you mean filter?)`. Distance
-ties break toward the more-used word (every compiled token counts toward its
-word's frequency, so the embedded library seeds the counts at startup), then
-toward the longer shared prefix.
+An uncaught error prints its message with a backtrace of the call chain,
+innermost first (`in inner ← mid ← outer`), and an unknown word suggests the
+nearest name in scope (`unknown word: filtr (did you mean filter?)`). A
+`shift-with` handler can resume the captured continuation, giving the Common
+Lisp restart pattern.
 
 ### Logic
 
-Unification and committed choice, on the trail and the continuation machinery:
+A logic variable stands for a value not yet known. `unify` makes two terms equal
+by binding the variables inside them, and `amb` tries alternatives, undoing
+those bindings when one fails — on the same delimited-continuation substrate as
+exceptions.
 
-- **Logic variables** — `lvar` makes a fresh one; `lvar to x` names a persistent global, and a `?` prefix in a locals list (`| ?x |`) declares a fresh per-call variable inside a definition or quotation.
-- **`unify`** (`~`) — `( a b -- term )` unifies two terms, binding logic vars through a trail so they match, and leaves the dereferenced left term: atoms by value, arrays element-wise, frames as open records (shared keys must unify, extras allowed); on a mismatch it fails. **`deref`** (`?`) follows a variable's binding chain.
-- **`amb`** / **`fail`** — committed choice: run the first branch; if it fails (a `unify` mismatch or an explicit `fail`), roll its bindings back through the trail and run the second, committing to whichever succeeds. **`choose`** generalizes it to a cons list, running a continuation with each element until one succeeds.
-- **`_`** — the anonymous wildcard: unifies with anything, binds nothing, and allocates nothing.
-- **`matches?`** — a non-destructive `unify` test: marks the trail, unifies, rolls back, and pushes whether the two unified — so it composes in straight-line code.
-- **Cons lists** — `[( a b c )]` builds cons pairs and `[( H T )]` is the `[H|T]` head/tail pattern under `unify`; with `cons`, `head-tail`, and `array`↔`cons` conversions.
+- **Variables** — `lvar` pushes a fresh one; `| ?x |` in a locals head declares one that is fresh on every call. `?` reads a variable, answering what it is bound to.
+- **`unify`** (`~`) — makes two terms equal, binding variables on either side: values by comparison, arrays and cons pairs element-wise, frames as open records where shared keys must agree and extra keys are ignored. A mismatch fails. `_` matches anything and binds nothing.
+- **Search** — `amb` runs the first of two quotations; if it fails — a mismatch, or an explicit `fail` — its bindings are undone and the second runs. `choose` does the same across a cons list. The first branch that succeeds is the one kept.
+- **Tests** — `matches?` answers whether two terms could unify and leaves nothing bound; `unify?` keeps the bindings when they do. `case`/`of` dispatches through `unify?`, so a clause pattern may hold variables that bind for its body.
+- **Lists** — `[( a b c )]` builds cons pairs and `[( H T )]` is Prolog's `[H|T]` under `unify`, with `cons`, `head-tail`, and `array`↔`cons` conversions.
 - **Fact database** — `relation` / `assert` / `query` / `retract` / `count-matches` / `inner-join`. A relation is a frame of a row-set plus per-column indexes (declared symbol columns); rows are column-keyed frames that dedup; `query` matches a pattern by unification, narrowing through the index. `inner-join` merges two relations on a shared column, and `bulk-load` builds a whole relation in one sorted pass. The same row-frame shape is what a SQLite query returns.
 
 ### Numeric / matrix
 
 - **Polymorphic arithmetic** — `+`/`-`/`*`/`/` dispatch on operand tags: floats compute, strings concatenate (`+`), sets union/difference/intersection, matrices element-wise, a scalar broadcasts over a matrix, and arrays concatenate (`+`).
-- **Integer division** — `%` ( a b -- rem quot ) truncating divmod (errors on a zero divisor); `mod` (remainder, sign follows the dividend) and `quotient` (toward zero) build on it. All three broadcast like the arithmetic words: matrix and array operands compute element-wise and a scalar spreads — `[ 7 5 ] vector 3 mod` answers `[ 1 2 ]`.
-- **`min2`** / **`max2`** — the pairwise minimum and maximum, element-wise over matrices and arrays with scalar broadcast, ordering NaN as `val_cmp` does.
+- **Integer division** — `%` truncating divmod, with `mod` (sign follows the dividend) and `quotient` (toward zero) on top; all three broadcast element-wise like the arithmetic words.
+- **`min2`** / **`max2`** — pairwise minimum and maximum, element-wise with scalar broadcast.
 - **In-place matrix ops** — `+!`/`-!`/`*!`/`/!` mutate the left matrix in place. Float-only fast paths (`f+`, `f-`, `f*`, `f/`, `f^`, …) skip the type dispatch when both operands are known floats.
 - **Matrix construction** — `R C 0-matrix` (zeros), `[ ... ] R C matrix`, `[ ... ] vector` (an n×1 column, length inferred), `V N diagonal-matrix` (N×N with V on the diagonal), `N identity-matrix`, `start end step matrix-range` (a 1×N row over a stepped range).
 - **DGEMM** — `dgemm-nn`/`tn`/`nt`/`tt` (`αAB + βC`) for all four transpose variants, each with a loop order that keeps the inner loop unit-stride; a single-column B takes a matrix-vector path instead.
@@ -286,18 +278,26 @@ Unification and committed choice, on the trail and the continuation machinery:
 - **Shape** — `dim`, `reshape`, `flatten`, `transpose`, `diagonal`, `matrix>array` (the elements as an array in row-major order; a dimensioned matrix yields per-element quantities, NaN becomes `null`).
 - **Selection** — `augment`/`hstack` (concatenate two matrices column-wise), `vstack` (row-wise), `submatrix` (copy a half-open row×column block), `select-rows` (gather rows named by a float index array or an index vector; a dataset operand gathers every column by the same indices).
 - **Reductions** — `sum`, `row-sums`, `column-sums`, `max`, `min`, `argmax`, `argmin` (flat row-major index of the extreme element), `row-maxes`, `row-mins`, `column-maxes`, `column-mins`, `cumulative-sum` (row-major prefix sums, shape preserved). Library `mean`, `row-means`, `column-means` on top.
-- **Norms** — `norm` (Euclidean/L2) and `frobenius-norm`, both √(Σ elements²) over the matrix; `dot` ( v w -- f ) is the inner product.
-- **Descriptive statistics** — `var` (sample variance), `quantile` (linearly interpolated at p ∈ [0,1]), and `ks-distance` (two-sample Kolmogorov–Smirnov) over all elements; the embedded library layers on `std`, `se`, `median`, `percentile`, `quantiles`, `iqr`, `ci`, `summary` (per vector, or per column of a dataset), `histogram-table`, `ecdf`, `binomial-deviance`, `cross-validate` (k-fold over caller-defined units), and the `bootstrap` family — all LAPACK-free, so all wasm-capable. NaN elements are missing values: the statistics skip them and divide by `nonmissing-count`, and the correlations and regressions use complete cases.
-- **Correlations** — `correlation-pearson`, `correlation-spearman` (pearson on `ranks`), `correlation-kendall` (tau-b, O(n log n) C kernel); `correlate-with` bootstraps a 95% CI for any of them, and `cor` is kendall + 500 replicates in one word; `qnorm` is the standard normal quantile.
+- **Norms** — `norm` and `frobenius-norm`, both √(Σ elements²); `dot` is the inner product.
+- **Descriptive statistics** — `var`, `quantile`, and `ks-distance` in C, with `std`, `se`, `median`, `percentile`, `quantiles`, `iqr`, `ci`, `summary`, `histogram-table`, `ecdf`, `binomial-deviance`, `cross-validate`, and the `bootstrap` family in the embedded library — LAPACK-free, so wasm-capable. NaN elements are missing values: the statistics skip them, and the correlations and regressions use complete cases.
+- **Correlations** — `correlation-pearson`, `correlation-spearman`, `correlation-kendall` (tau-b); `correlate-with` bootstraps a confidence interval for any of them, `cor` does it with kendall in one word, and `qnorm` is the standard normal quantile.
 - **Regression trees** — `fit-tree` grows a CART regression tree over a features frame and a numeric response, taking numeric and categorical columns and missing values as they come; `predict` applies one, `feature-importance` ranks the features, `prune` and `prune-cv` cost-complexity-prune it, `draw-tree` prints it, and `lib/plot.telic`'s `plot-tree` draws it.
 - **SVG plotting** (`lib/plot.telic`) — scatter, line series, histograms, bar charts, and Tukey boxplots over a deferred-rendering figure: marks accumulate with the style in effect and nothing maps to pixels until render, so draw order is free and the domain may be set after the data. `save-figure` writes a version, `show-figure` opens a browser view that later versions appear in.
 - **Element-wise math** — `abs`, `sqrt`, `exp`, `log`, `ln`, `sin`, `cos`, `tan`, `tanh`, `asin`, `acos`, `atan`, `round`, `truncate`, `round-up`, `round-down`. Polymorphic over floats and matrices.
-- **Comparison** — `=` orders matrices structurally (shape then row-major contents), so matrices work as set members; `<`/`>`/`eq` compare matrices **element-wise**, returning a 1/0 matrix (a scalar broadcasts). An array operand also masks element-wise (`val_cmp` per element, a value broadcasts, equal-length arrays pair up), so `names "ann" eq where` filters a text column. On scalars and strings comparison is structural, `eq` agreeing with `=`.
+- **Comparison** — `=` is structural, so matrices work as set members; `<`/`>`/`eq` on a matrix or array operand mask **element-wise** into a 1/0 matrix, so `names "ann" eq where` filters a text column. On scalars and strings all of them are structural.
 - **Sorting and masks** — `sort` (an ascending copy, NaNs last), `argsort` (the sorting permutation), `where` (the flat indices of a mask's nonzero elements), `nan?` (the missing-value mask), and `mesh` (masked substitution). Masks serve selection and alteration alike: `dup 0 @j 0 < where select-rows` keeps the rows whose first column is negative, `dup nan? 0 mesh` fills a column's NaNs, `dup -1 eq null mesh` turns a sentinel into missing.
 
 ### Exact rationals
 
-Fractions of arbitrarily large integers, always reduced to lowest terms; an integer is the case with denominator 1. `1/3` is a literal; an integer literal, JSON integer, or SQLite INTEGER too large for a float to hold exactly reads as an exact instead of rounding silently, and integer exacts write back without loss. The arithmetic, comparison, and rounding words compute exactly on exacts; comparing an exact with a float is exact, while arithmetic between them errors (`float>exact` / `exact>float` convert). A quantity's magnitude may be an exact, so currency arithmetic is exact (`1/2 $ 50/1 ¢ +` is `1 $`). `rationalize` answers the simplest fraction that reads back as the same float (`0.111` gives `111/1000`). Matrices and the ⚠ words take only floats.
+Fractions of arbitrarily large integers, always reduced; an integer is the case
+with denominator 1. `1/3` is a literal, and an integer literal, JSON integer, or
+SQLite INTEGER too large for a float reads as an exact rather than rounding
+silently. The arithmetic, comparison, and rounding words compute exactly;
+comparison crosses exact and float, arithmetic between them errors, and
+`float>exact` / `exact>float` convert. A quantity's magnitude may be an exact,
+so currency arithmetic is exact (`1/2 $ 50/1 ¢ +` is `1 $`). `rationalize`
+answers the simplest fraction that reads back as the same float. Matrices and
+the ⚠ words take only floats.
 
 ### Complex numbers
 
@@ -324,28 +324,27 @@ Integer bitwise operators over the float representation: a value is read as a tw
 
 A thread-local xoshiro256\*\* stream. Each worker thread derives its own stream from the shared base seed, so parallel draws are deterministic per worker.
 
-- **`seed`** — `( n -- )` set the global base seed and reset the stream.
-- **`random`** — `( -- f )` a uniform float in `[0, 1)`; **`random-int`** — `( bound -- f )` a uniform integer in `[0, bound)`.
-- `sample` (arrays) and `resample-indices` (datasets) draw on this stream.
+- **`seed`** sets the base seed; **`random`** draws a uniform float in `[0, 1)` and **`random-int`** a uniform integer below a bound.
+- `sample` and `resample-indices` draw on this stream.
 
 ### Strings and regex
 
-- **String literals** are raw (newlines allowed; `""` is the one escape → a literal `"`); **`format`** fills `{n}` placeholders from the stack — `"got {0} of {1}" format` — and, on a terminal, colors text with ink directives (`{red}`…`{plain}`) that vanish when output is piped; **polymorphic concatenation** via `+`.
-- **Regex** on PCRE2 (Perl-compatible, JIT-compiled): `match` (first match as a flat `[ whole cap… ]`), `match-all` (all matches, nested), `replace` (replace-all, with `&` / `\1`–`\9` backrefs), and the `has?` string overload (does the pattern match?). Patterns are plain `"..."` literals — PCRE2 reads `\d`, `\w`, `\n`, lookaround, `\p{...}`.
-- **Slicing / building** — `substring` (half-open codepoint range), `char-at` (the one-character string at a codepoint index), `split` (split at each non-overlapping match of a pattern, empty fields kept), `join` (concatenate an array of strings with a separator).
-- **Unicode** — strings are UTF-8 and the bare words work in *codepoints*: `size`/`substring`/`char-at`/`codepoint-at` count and index by codepoint, with byte-level forms (`byte-size`, `byte-substring`) for the raw layer and to pair with regex byte offsets. `string>chars`/`string>codepoints` decompose a string, `codepoint>char`/`codepoints>string` rebuild one, and `emit` UTF-8-encodes a codepoint. Regex runs in UTF + UCP mode: `.` matches a codepoint, `\w`/`\d`/`\b` are Unicode-aware, and invalid byte sequences are tolerated rather than erroring.
-- **`edit-distance`** — `( a b -- n )` edit distance between two strings over codepoints; insertions, deletions, substitutions, and adjacent transpositions each cost one edit.
+- **String literals** are raw, `""` being the one escape; **`format`** fills `{n}` placeholders from the stack — `"got {0} of {1}" format` — and on a terminal colors text with ink directives (`{red}`…`{plain}`) that vanish when piped; `+` concatenates.
+- **Regex** on PCRE2, JIT-compiled: `match`, `match-all`, `replace` (all matches, with `&` and `\1`–`\9` backrefs), and `has?` to test one. Patterns are plain `"..."` literals, read by PCRE2 itself.
+- **Slicing and building** — `substring`, `char-at`, `split` on a pattern, `join` with a separator.
+- **Unicode** — strings are UTF-8 and the bare words work in *codepoints*: `size`, `substring`, `char-at`, `codepoint-at`, with `byte-size` and `byte-substring` for the raw layer and for regex byte offsets. `string>chars` / `string>codepoints` decompose, `codepoint>char` / `codepoints>string` rebuild, `emit` encodes one. Regex is Unicode-aware, and invalid bytes fail to match rather than erroring.
+- **`edit-distance`** — over codepoints, counting insertions, deletions, substitutions, and adjacent transpositions.
 
 ### Sets, arrays, higher-order
 
 - **Set literals** — `[< 1 2 3 >]`, set operations, `member?`, `size`, in-place `set-add!`/`set-remove!`, and `array>set` (sort-and-dedup an array into a set in one pass).
 - **`group-by`** — `array :col group-by` groups frames by a symbol field into a frame from each value to a set of rows.
-- **Array literals** — `[ 1 2 3 ]`, the `array` constructor (gather N from the stack), `array-of` (fill), `range` ( from to -- arr ) for an ascending or descending integer sequence, `iota` ( n -- [0..n-1] ), indexed access via `@i`, in-place store via `!i`.
-- **Array operations** — `sort` (a sorted copy in `val_cmp` order; a set projects to a sorted array, a vector sorts ascending with NaNs last), `reverse`, `take`, `concat`, `flatten-array` (flatten one level), `sample` ( arr count repl -- arr ) drawing elements with or without replacement, `shuffle` (a uniform permutation of the array), `resample` (a same-size draw with replacement — the bootstrap draw), and `first`/`second` (element 0/1 of an array, head/tail of a cons).
-- **Growing at the end** — `add-last!` ( arr v -- arr ) appends over a backing buffer that doubles when full, `remove-last!` ( arr -- v ) pops the last element; both amortized O(1), indexing stays O(1).
+- **Array literals** — `[ 1 2 3 ]`, `array` to gather N from the stack, `array-of` to fill, `range` and `iota` for integer sequences, `@i` and `!i` to read and store by index.
+- **Array operations** — `sort`, `reverse`, `take`, `concat`, `flatten-array`, `sample` (with or without replacement), `shuffle`, `resample` (the bootstrap draw), and `first`/`second`.
+- **Growing at the end** — `add-last!` and `remove-last!` over a doubling buffer, both amortized O(1) with indexing still O(1).
 - **Map, fold, zip-map, filter** — `map` for a single source, `reduce` for a left fold over a collection, `nmap` for N-ary zip, `filter` to select by predicate, with anonymous quotations as the higher-order argument.
-- **Counted map-fold** — `fold-times` ( acc map-xt combine-xt n -- acc' ) folds over an index range with no collection: the body maps `( i -- term )` and the accumulator stays inside the combinator, so a primitive combiner like `' f+` adds with no dispatch and the fold costs what `i-times` costs. `sum-times` and `product-times` wrap the usual defaults; `pmap-reduce` is the parallel form of the same shape.
-- **Search, traversal, and reshaping** — `find-first` (first element satisfying a predicate, or `null`, stopping there), `any?` (short-circuits through `find-first`) / `all?` (maps then folds, so its predicate runs on every element), `each` (side effects, no result), `flat-map` (per-element arrays concatenated), `sort-by` (sorted by an extracted key, n key evaluations), `partition` (matches and non-matches in one pass), and `group-with` (group into `{ key → set }` by a computed symbol key — the quotation-keyed kin of `group-by`).
+- **Counted map-fold** — `fold-times` folds over an index range with no collection, the accumulator staying off the data stack; `sum-times` and `product-times` are the common defaults and `pmap-reduce` the parallel form.
+- **Search, traversal, and reshaping** — `find-first` (short-circuits), `any?` / `all?`, `each` for side effects, `flat-map`, `sort-by` on an extracted key, `partition`, and `group-with` for grouping by a computed key.
 - **Destructuring** — `spread` pushes a set/array/frame's elements onto the stack (a frame as alternating symbol/value); a locals head, `unify`, or a `case` pattern receives the pieces by name.
 - **In-place slicing** — `slice!` copies a strided run from one array into another (a negative step with source and target aligned reverses in place), `to-slice!` stores values from the stack into a range.
 
@@ -354,12 +353,12 @@ A thread-local xoshiro256\*\* stream. Each worker thread derives its own stream 
 Symbol-keyed nested maps — the associative type, and the compound term the logic layer builds on. The three bracket families are distinct: `[ ]` arrays, `{ }` frames, `[< >]` sets. `[ ] { }` and `;` are self-delimiting — `[1 2 3]` and `{:a 1}` parse without inner spaces; `[< >]` still need theirs.
 
 - **Literals** — `{ :a 1 :b 2 }`; values may be any Val, including nested frames, arrays, and sets.
-- **Builders** — `frame` ( keys values -- frame ) from two parallel collections, `array>frame` ( kv-array -- frame ) from an alternating key/value array, and `frame>array` ( frame -- kv-array ) the inverse, flattening to a key-sorted alternating array.
+- **Builders** — `frame` from parallel key and value collections, `array>frame` from an alternating key/value array, `frame>array` back again.
 - **Path literals** — `/a/b/c` is a symbol array `[ :a :b :c ]`, built once at compile time, used to address into the tree — and usable as a key when constructing a frame (`{ /a/b/c v }` / `array>frame`), where it vivifies nested frames. A path may also be a *search* pattern: `*` matches any child at that level, `//` matches at any depth (descendant-or-self), and `[…]` filters by predicate (`[city=:NYC]`, `[age>30]`, `[.>0]` on the node itself, `[addr/zip]` on a sub-path).
-- **Access** — `@` ( frame key/path -- value ) get, `!` ( frame key/path value -- frame ) set with auto-vivified intermediates, `has?` existence test, `delete-at` remove, `update-at` apply a quotation to a leaf, `merge` combine two frames (right wins), plus `keys` / `values` / `size`. The single-location words (`@`, `!`, `delete-at`, `update-at`) take a `:symbol` key or a plain `/a/b/c` locator and reject a search pattern; `has?` accepts either, answering whether any node matches.
-- **Key tokens** — `row@price` joins a frame reference to a key in one token: the part left of the operator is a local or a defined word supplying the frame, and the key compiles as an operand, so the access is a fetch plus one op with no symbol on the stack. Gets chain — `row@address@city` — and `row!price` sets from the stack top, dropping the frame `!` returns. An empty left part takes the frame from the stack, so `@price` is the postfix form. A defined word always wins, leaving `@i`, `@or` and any word named with an `@` untouched.
-- **Path queries** — `select-values` ( frame pattern -- array ) returns every value matched by a `*`/`//`/predicate search pattern, in document order; `select-keys` returns the full root-to-match path for each match (each round-trips back through `@`). Convert the result with `array>set` for distinct values or `array>cons` to feed matches to `choose`.
-- **Representation** — parallel key/value arrays kept in **symbol-id order** (interning order, not alphabetical) so lookup is a binary search; `keys`, `values`, `spread` and printing follow that order, stable for a given program but not name-sorted. Mutable in place, reference semantics. Structurally comparable, so frames work as set members and round-trip through their `{ }` literal.
+- **Access** — `@` gets, `!` sets and vivifies intermediates, `has?` tests, `delete-at` removes, `update-at` applies a quotation to a leaf, `merge` combines two frames, and `keys` / `values` / `size` report. All but `has?` take a single key or locator, not a search pattern.
+- **Key tokens** — `row@price` joins a frame reference to a key in one token, the left part being a local or a word that supplies the frame. Gets chain — `row@address@city` — `row!price` sets, and an empty left part takes the frame from the stack, so `@price` is the postfix form. A defined word always wins, so `@i` and `@or` keep their meanings.
+- **Path queries** — `select-values` returns every value a search pattern matches, in document order; `select-keys` returns the path to each match.
+- **Representation** — parallel key/value arrays in **symbol-id order**, which is interning order rather than alphabetical, so `keys`, `values`, `spread` and printing are stable for a program but not name-sorted. Mutable in place, reference semantics, structurally comparable.
 
 ### Segments
 
@@ -376,23 +375,21 @@ duration, `… 1 day /` counts days. Unsuffixed words are UTC and pure Gregorian
 arithmetic, identical on every platform; `-local` twins use the process
 timezone (`TZ` re-read per call).
 
-- **`wall-now`** — `( -- instant )` the absolute wall clock; `now` is the monotonic interval clock.
-- **`epoch>date`** / **`date>epoch`** — decompose to / compose from a date frame `{ :year :month :day :hour :minute :second :weekday :yearday }`; composition takes a partial frame (`:year` required, the rest defaulted) and carries out-of-range fields mktime-style (`:month 13` → next January). Plus `-local` variants.
-- **`format-time`** / **`parse-time`** — strftime / strptime, with `%z` offsets on parse; **`time>iso`** / **`iso>time`** for the ISO 8601 Z form.
-- **`date-shift`** — `( instant delta -- instant )` calendar-aware shifts: `:years`/`:months` step the calendar with the day clamped to the target month, `:weeks` `:days` `:hours` `:minutes` `:seconds` add exact durations; components combine and may be negative. **`days-in-month`** is leap-aware.
+- **`wall-now`** — the absolute wall clock; `now` is the monotonic interval clock.
+- **`epoch>date`** / **`date>epoch`** — an instant to and from a date frame `{ :year :month :day :hour :minute :second :weekday :yearday }`, composition accepting a partial frame and carrying out-of-range fields mktime-style. Plus `-local` variants.
+- **`format-time`** / **`parse-time`** — strftime and strptime; **`time>iso`** / **`iso>time`** for the ISO 8601 Z form.
+- **`date-shift`** — calendar shifts by `:years` `:months` `:weeks` `:days` `:hours` `:minutes` `:seconds`, the day clamped to the target month. **`days-in-month`** is leap-aware.
 
 ### Multi-core parallelism
 
 Worker threads over one shared object heap: a quotation runs across the collection on several cores, results joining back by handle with no copy. Allocation inside a region is per-worker.
 
-- **`pmap`** — `( arr xt -- arr )` parallel `map`; **`pfilter`** — `( arr pred -- arr )` parallel `filter`, order preserved; **`pmap-reduce`** — `( arr id map-xt combine-xt -- val )` fused parallel map+fold, with `combine-xt` associative and `id` its neutral element.
-- **`-ext` forms** — `pmap-ext` / `pfilter-ext` / `pmap-reduce-ext` take an explicit worker count and items-per-claim; the bare forms default to `num-cores` workers.
-- **`num-cores`** — online CPU count.
+- **`pmap`**, **`pfilter`** (order preserved), and **`pmap-reduce`**, whose combiner must be associative.
+- **`-ext` forms** take an explicit worker count and items-per-claim; the bare forms use `num-cores` workers.
 
 ### JSON
 
-- **`json>frame`** — parse a JSON string into native values: objects → frames (keys interned as symbols), arrays → arrays, strings → strings (escapes and `\uXXXX` decoded to UTF-8), numbers → floats, `true`/`false` → the reserved `:1`/`:0` boolean symbols, `null` → `null` (the none value). Recursive-descent, GC-safe, rejects trailing garbage.
-- **`frame>json`** — serialize a value back to a JSON string: floats use a shortest round-trip representation, strings are escaped, `:1`/`:0` → `true`/`false`, none → `null`.
+- **`json>frame`** / **`frame>json`** — parse and serialize: objects ↔ frames with interned symbol keys, arrays ↔ arrays, strings ↔ strings, numbers ↔ floats, `true`/`false` ↔ the reserved `:1`/`:0` symbols, `null` ↔ the none value. An integer too large for a float reads as an exact and writes back without loss.
 
 ### Value serialization
 
@@ -416,60 +413,63 @@ Worker threads over one shared object heap: a quotation runs across the collecti
 
 Drive external programs over pipes (`fork`/`execv`/`pipe`/`waitpid`, with a manual `PATH` search; binary-safe, no shell):
 
-- **`argv start-process`** — launch from an argv array; returns a frame `{ :pid :in :out :err }` with the child's pid and its stdin/stdout/stderr as `T_STREAM` values.
-- **`write`** / **`read`** / **`close`** — write a string to a stream, read a stream to EOF, close one (closing `:in` sends EOF).
-- **`running?`** / **`wait`** / **`stop`** — non-blocking liveness check, block-until-exit, signal-and-reap.
-- `subprocess.telic` conveniences: **`run`** (split a command line and start it), **`read-out`** / **`read-err`** / **`write-in`**.
-- **`commands width parallel-run`** — run a batch of argv arrays concurrently, at most `width` at a time, collecting `{ :out :err :status }` per command in input order (refills a slot as each child finishes) — process-level parallelism, for many concurrent `curl` requests and the like.
+- **`start-process`** — launch from an argv array, answering `{ :pid :in :out :err }` with the three streams.
+- **`write`** / **`read`** / **`read-line`** / **`read-available`** / **`wait-readable`** / **`close`** — stream I/O, blocking or not.
+- **`running?`** / **`wait`** / **`stop`** — liveness, block-until-exit, signal-and-reap.
+- `subprocess.telic` conveniences: **`run`**, **`read-out`**, **`read-err`**, **`write-in`**, **`run-result`**, **`end-process`**.
+- **`parallel-run`** — a batch of commands at a bounded width, collecting each one's output and status in input order.
 
 ### SQLite
 
 Embedded relational storage via the vendored SQLite amalgamation — built into the binary, no external dependency. A database is a `T_DB` handle.
 
-- **`db-open`** / **`db-close`** — open (creating if absent, or `":memory:"` for an in-memory DB) and push a handle; close frees the connection and is idempotent.
-- **`db-exec`** — `( db statement params -- n )` — run an INSERT/UPDATE/DELETE/CREATE with `params` bound to its `?` placeholders; returns the affected-row count (0 for DDL).
-- **`db-query`** — `( db query params -- rel )` — run a query; returns a fact-database relation `{ :rows <bag of row frames> :index { } }`, each row keyed by column-name symbols (INTEGER/REAL → float, TEXT → string, NULL → `null`, BLOB → raw bytes). Duplicates are kept, in result order; the result drops straight into `query` / `inner-join`.
-- **`db-query>dataset`** — `( db query params -- dataset )` — the same query returned as a column-oriented dataset with typed columns: an all-numeric column arrives as an n×1 vector (NULL → NaN), a declared DATE/DATETIME column as a vector of instants in `s`, text as an array — so column statistics and `dataset>matrix` need no conversion step.
-- **`tsv>db`** — `( tsv-path db table -- info )` — import a TSV: header row names the columns, per-column type inference (REAL when every non-empty cell is numeric, else TEXT), empty cells become NULL, one transaction; returns `{ :n-rows :columns }` with each column's name and type, plus a `summary` frame for numeric columns and a distinct count for text.
-- **Bound parameters** — `params` is an array bound positionally to the `?` placeholders (`[ ]` for none); floats, strings, symbols, and `null` bind, so string values need no hand-escaping.
-- **`create-index`** — `( rel cols -- rel )`, `logic.telic` — index a query result on `cols`, interning those columns to symbols so the fact-db index and `query` can use them.
+- **`db-open`** / **`db-close`** — open a file, or `":memory:"`, and close it.
+- **`db-exec`** — run a statement with no result set, answering the affected-row count.
+- **`db-query`** — run a query, answering a fact-database relation of row frames keyed by column name, so the result drops straight into `query` / `inner-join`. **`db-query>dataset`** answers the same query as a column-oriented dataset with typed columns.
+- **`tsv>db`** — import a TSV into a new table, inferring each column's type.
+- **Bound parameters** — every query and statement takes an array bound to its `?` placeholders, so values need no hand-escaping.
+- **`create-index`** — index a query result so the fact-database `query` can use it.
 
 ### Data: TSV, datasets, and statistics
 
 TSV is the one tabular file format (convert other formats to TSV before loading).
 
-- **`read-tsv`** / **`write-tsv`** — a TSV file with a header row as a column-oriented dataset with typed columns (a uniformly numeric column becomes a vector, empty cells NaN), and a dataset back to a header TSV, one word each.
-- **`load-tsv`** / **`save-tsv`** — read a file into an array of row-arrays (a numeric cell becomes a float, an empty cell `none`, everything else a string) and write one back.
-- **`rows>dataset`** — `( rows header? -- frame )` a column-oriented frame with typed columns (a uniformly numeric column becomes an n×1 vector, `none` → NaN; anything else stays an array); **`rows>relation`** — `( rows index-cols header? -- relation )` a deduped, indexed fact-database relation; **`dataset>rows`** — `( dataset -- rows )` the inverse of `true rows>dataset` (header row + row-arrays, ready for `save-tsv`); **`dataset>matrix`** — `( dataset cols -- m )` an observations×columns numeric matrix from named columns.
+- **`read-tsv`** / **`write-tsv`** — a header TSV to a column-oriented dataset with typed columns, and back.
+- **`load-tsv`** / **`save-tsv`** — the same file as an array of row-arrays, untyped and in file column order.
+- **Conversions** — **`rows>dataset`** types the columns of an array of row-arrays, **`rows>relation`** builds an indexed fact-database relation, **`dataset>rows`** inverts `rows>dataset`, and **`dataset>matrix`** builds an observations×columns matrix from named columns.
 - **Dataset verbs** — `select-rows`, `select-columns`, `filter`, `map`, `dim`, `column-type`, and `count` work on a dataset directly, `filter` and `map` seeing each row as a frame keyed by column name and every column keeping its representation. `column>array` reads any column as an array, `column>set` its distinct values, `column-type` its type (`:numeric` `:datetime` `:quantity` `:text`), and `group-indices` maps each distinct value to its row positions in one sort.
-- **`frames>dataset`** — `( rows -- dataset )` an array of row frames (a `query` or `db-query` result, `map`-over-dataset output) as a column-oriented dataset with inferred column representations.
-- **`head`** / **`headn`** — `( dataset -- )` / `( dataset n leading-columns -- )` print the first 10 / n rows as an aligned table: column names as the header, numeric and quantity columns right-aligned, text left, datetime cells as ISO timestamps. The `leading-columns` symbols name the columns placed first, in that order; the remaining columns follow alphabetically by name. `head` passes an empty list, so its columns are alphabetical.
-- **`replace-where`** — `( dataset sym pred replacement -- )` conditionally edit one column in place: `pipeline :rep_touches [: -1 eq :] null replace-where` turns a sentinel into missing.
-- **`resample-indices`** — `( n -- arr )` n indices drawn from `[0,n)` with replacement, for bootstrap resampling.
+- **`frames>dataset`** — an array of row frames, as `query` and `db-query` return, into a dataset with inferred column types.
+- **`head`** / **`headn`** — print the first rows as an aligned table, `headn` taking the row count and the columns to lead with.
+- **`replace-where`** — edit one column in place where a predicate holds.
+- **`resample-indices`** — indices drawn with replacement, for bootstrap resampling.
 
 The statistics library (`lib/statistics.telic`, loaded on demand) builds on the matrix and FFI layers:
 
 - **Descriptive** — `std`, `se`, `median`, `percentile`, `quantiles`, `iqr`, `ci` (percentile confidence interval).
 - **Resampling** — `bootstrap` / `pbootstrap` (parallel) over a fit quotation.
-- **Linear algebra** — `svd` and `fit-linear` (least-squares) on LAPACK through the FFI; loading the library also rebinds the `dgemm-*` words to BLAS and adds `dgemv-n` / `dgemv-t` (`α op(A)·x + β·y` with `x` and `y` as columns), which reach cblas with a vector call rather than dgemm on a one-column matrix.
-- **Regression** — `linear-regression` and `logistic-regression` (IRLS with Firth correction), each returning a model frame: per-coefficient estimate, standard error, bias, and bootstrap confidence interval, plus the point estimate, the predictor names, and the complete-case design and response it fitted. `fit-logistic-ridge` is the L2-penalized fit, with `cv-logistic-ridge` / `pcv-logistic-ridge` selecting `lambda` by k-fold cross-validation, serial or parallel.
-- **Generalized linear models** — `fit-glm` runs IRLS for a family object of three quotations (`:inverse-link`, `:mean-derivative`, `:variance`); `gamma-log`, `poisson-log`, `gaussian-identity`, `binomial-logit`, and `negative-binomial-log` are provided, and `fit-gamma`/`fit-poisson` wrap the log-link fits. `fit-negative-binomial` fits overdispersed counts, estimating the dispersion alongside the coefficients. `fit-multinomial` fits softmax (baseline-category) logistic by Newton–Raphson, `fit-multinomial-ridge` adds an L2 penalty for separable data, and `predict-multinomial` returns class probabilities.
+- **Linear algebra** — `svd` and `fit-linear` on LAPACK through the FFI; loading the library also rebinds `dgemm-*` to BLAS and adds `dgemv-n` / `dgemv-t` for matrix-vector products.
+- **Regression** — `linear-regression` and `logistic-regression` (Firth-penalized IRLS), each answering a model frame of per-coefficient estimates with bootstrap confidence intervals, the predictor names, and the complete-case data it fitted. `fit-logistic-ridge` is the L2-penalized fit, with `cv-logistic-ridge` / `pcv-logistic-ridge` choosing `lambda` by cross-validation.
+- **Generalized linear models** — `fit-glm` takes a family as three quotations, with `gaussian-identity`, `poisson-log`, `gamma-log`, `binomial-logit`, and `negative-binomial-log` provided and `fit-poisson` / `fit-gamma` wrapping the log-link fits. `fit-negative-binomial` estimates the dispersion alongside the coefficients; `fit-multinomial`, `fit-multinomial-ridge`, and `predict-multinomial` handle several classes.
 - **Gradient boosting** — `fit-xgb` trains an XGBoost booster on a feature matrix and response through the system `libxgboost`, taking a params frame keyed by XGBoost parameter names; `xgb-predict` scores, `xgb-importance` ranks the features, `xgb-free` releases the booster, and `xgb-save`/`xgb-load` use XGBoost's own model format, readable by Python and R.
 
 ### Foreign function interface
 
 Call C functions in any shared library at runtime via `libffi` — no per-library glue. An opaque C pointer is a `T_PTR` handle (a registry index, since a 64-bit pointer doesn't fit a Val).
 
-- **`ffi-open`** — `( path -- lib )` — `dlopen` a library and push a handle; `""` opens the running process for already-linked symbols.
-- **`ffi-function`** — `( lib symbol arg-types ret-type -- ) <name>` — resolve a symbol and define the following word `<name>` to call it. Types are symbols: `:void :int :long :double :ptr :string`. Floats marshal to/from C `int`/`long`/`double`, strings pass as `const char*` (a returned `char*` is copied back into a string), `:ptr` is an opaque handle. The call interface is prepared once; calls are ~30–100 ns.
-- **`ffi-variadic`** — `( lib symbol arg-types ret-type n-fixed -- ) <name>` — the same for a variadic C function (`ffi_prep_cif_var`); `n-fixed` leading args are fixed, the rest variadic, with the variadic types fixed per binding — variadic entry points such as `printf` and `curl_easy_setopt`.
-- **`ffi-free`** — `( ptr -- )` — `free` a C buffer held as a `T_PTR`.
-- **`matrix>pointer`** / **`segment>pointer`** — intern a matrix's or segment's element buffer as a `T_PTR` (no copy, aliasing the live buffer) to pass dense numeric data to a `:ptr` parameter.
+- **`ffi-open`** — `dlopen` a library; `""` opens the running process for already-linked symbols.
+- **`ffi-function`** — resolve a symbol and define a word that calls it. Types are symbols: `:void :int :long :double :ptr :string`. **`ffi-variadic`** does the same for a variadic function, with the variadic types fixed per binding.
+- **`ffi-free`** — `free` a C buffer held as a `T_PTR`.
+- **`matrix>pointer`** / **`segment>pointer`** — pass a matrix's or segment's buffer to a `:ptr` parameter, no copy.
 - FFI is unsafe: a wrong signature corrupts or crashes; argument *count* is checked, types are the caller's responsibility. `lib/statistics.telic` drives LAPACK's `dgesvd`/`dgelsd` this way, and `ffi-open` on `libcurl` makes an HTTPS request in-process without a subprocess.
 
 ### MCP server
 
-`lib/mcp.telic` serves the Model Context Protocol over stdio — `telic -e '"mcp" load-library mcp-serve'` — at revision 2026-07-28. Two tools: `telic-eval` runs Telic source in a named session, a child interpreter that keeps its definitions, data, database handles and fitted models between calls, and `telic-help` answers a word's reference entry. Sessions compute concurrently, and a failure in evaluated code comes back as a tool error rather than a protocol error. Remote access is a bridge, not Telic code: put the stdio server behind a stdio-to-Streamable-HTTP gateway such as mcp-proxy.
+`lib/mcp.telic` serves the Model Context Protocol over stdio — `telic -e '"mcp"
+load-library mcp-serve'` — at revision 2026-07-28. Two tools: `telic-eval` runs
+source in a named session, a child interpreter that keeps its definitions, data,
+database handles and fitted models between calls, and `telic-help` answers a
+word's reference entry. Sessions compute concurrently. For remote access, put
+the stdio server behind a stdio-to-Streamable-HTTP gateway such as mcp-proxy.
 
 ### Other
 
@@ -478,9 +478,9 @@ Call C functions in any shared library at runtime via `libffi` — no per-librar
 - **`type-of`** — `( a -- sym )` the value's type as a symbol (`:float`, `:frame`, `:lvar`, …), with a lib predicate per type (`float?` … `lvar?`); a bound logic var answers as its value.
 - **`now`** — monotonic seconds as a float, for timing intervals (`wall-now`, under Time and dates, is the absolute clock). **`timed`** — `( xt -- … )` runs xt, prints its elapsed `now` seconds, and passes its results through.
 - **`see`** — prints a word's source definition; **`see-compiled`** disassembles its threaded body.
-- **`man`** — `( xt -- fr )`, returns a frame of a word's reference entry (stack effect, one-line summary, cost notes). **`help name`** prints it for the named word.
-- **`words`** — the dictionary grouped by reference section (session-defined words first, alphabetical, aligned columns); **`apropos`** — `( s -- )` every word whose name or reference summary matches, with stack effect and summary.
-- **`variables`** — `( -- arr )` the current globals as `{ :name :value :type }` frames, oldest first: `variables [: :name @ :] map` lists the names, `variables frames>dataset head` prints a table; **`vars`** pretty-prints them.
+- **`man`** — a word's reference entry as a frame; **`help name`** prints it.
+- **`words`** — the dictionary grouped by reference section; **`apropos`** — every word whose name or summary matches a pattern.
+- **`variables`** — the current globals as `{ :name :value :type }` frames; **`vars`** prints them.
 - **`forget`**, **`bye`**, **`gc`**, **`clear`**, **`.s`**, **`.a`** — interpreter utilities.
 
 ## Future work
