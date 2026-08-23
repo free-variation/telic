@@ -63,7 +63,7 @@ wall-now 2 week + time>iso .            \ the ISO timestamp two weeks from now
 \ Subprocesses over pipes
 "echo hi" run read-out .                \ hi
 
-\ Logic: unify binds variables; amb is a committed choice
+\ Logic: unify binds variables; amb keeps the first branch that succeeds
 lvar to X  lvar to Y  lvar to Z
 [ 1 2 3 ] [ X Y Z ] ~ drop  X ? . Y ? . Z ? . cr   \ 1 2 3
 [: fail :] [: "fallback" :] amb .                  \ fallback

@@ -1,8 +1,10 @@
 # Telic — code conventions
 
 ## C (src/c)
-- No comments anywhere in .c/.h. Constraints a future change must honor go
-  in PLAN.md under "Source invariants".
+- No comments anywhere in .c/.h, with one exception: telic.h may carry
+  single-line `//` section headers naming the region below them, above all
+  for the per-file blocks of p_* declarations. Constraints a future change
+  must honor go in PLAN.md under "Source invariants".
 - Tabs for indentation. One statement per line; one declaration per line.
 - Descriptive names, nouns not adjectives: `sorted_vector`, never `sorted`;
   no filler names (result, tmp except swap temps, found, val).
@@ -144,7 +146,7 @@ by file in SRCS order. What each file is:
   #define tunables sit beside their use; file-private POP_X macros copy
   the telic.h family's shape.
 
-## telic.h layout (comment-free; this is its table of contents)
+## telic.h layout (single-line section headers only; this is its table of contents)
 1. Guard, VERSION, includes, cell typedef.
 2. Capacity constants grouped by subsystem: dictionary/pools, stacks/
    locals, GC/arena, workers, logic, regex/JSON, databases, trace/print.

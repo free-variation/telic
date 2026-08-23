@@ -917,6 +917,8 @@ static inline __attribute__((always_inline)) int frame_find(Object *frame, cell 
 	int at = frame_find((obj), (key)); \
 	int present = (at) < (obj)->len && (obj)->frame.keys[at] == (key)
 
+// API functions, by owning file in SRCS order
+// core.c
 void *xmalloc(size_t bytes);
 void *xcalloc(size_t count, size_t size);
 int alloc_name(Interpreter *interp, const char *name);
@@ -1023,6 +1025,7 @@ int val_cmp(Interpreter *interp, Val left, Val right);
 Interpreter *worker_init(int worker_index);
 void worker_local_gc(Interpreter *interp);
 
+// words.c
 void backtrack(Interpreter *interp);
 void binary_op(Interpreter *interp, Val left, Val right, scalar_operator function, const char *name);
 Val complex_from_parts(Interpreter *interp, double real_part, double imaginary_part);
@@ -1038,11 +1041,13 @@ int string_concat(Interpreter *interp, int left_handle, int right_handle);
 void type_of_intern_names(Interpreter *interp);
 void unary_op(Interpreter *interp, Val operand, double (*function)(double));
 
+// compiler.c
 int create_variable(Interpreter *interp, const char *name);
 int reject_outer_local(Interpreter *interp, const char *token);
 void rollback_partial_definition(void);
 void truncate_quotation_spans(void);
 
+// collections.c
 int array_argsort_copy(Interpreter *interp, Object *source);
 int array_sorted_copy(Interpreter *interp, Object *source);
 int build_set_from_values(Interpreter *interp, const Val *values, int count);
@@ -1057,6 +1062,7 @@ int set_member(Interpreter *interp, int set_handle, Val value);
 void set_remove(Interpreter *interp, int set_handle, Val value);
 int set_union(Interpreter *interp, int handle_a, int handle_b);
 
+// matrix.c
 typedef struct {
 	double value;
 	int index;
@@ -1087,12 +1093,14 @@ void sort_pairs(ArgsortPair *elements, size_t n_elements);
 int vector_argsort_copy(Interpreter *interp, Object *source);
 int vector_sorted_copy(Interpreter *interp, Object *source);
 
+// superwords.c
 void define_superwords(Interpreter *interp);
 int superword_cell_count(cell handler);
 int superword_is_lit_fold(cell handler);
 int superword_try_fuse(Interpreter *interp, int op_cfa);
 int superword_try_fuse_store(Interpreter *interp, int dst_cfa);
 
+// strings.c
 int *decoded_codepoints(Interpreter *interp, const char *bytes, int byte_len, int *count_out);
 int string_codepoint_count(Object *string);
 int string_edit_distance(Interpreter *interp, const char *first_bytes, int first_len, const char *second_bytes, int second_len);
@@ -1100,12 +1108,15 @@ int string_matches(Interpreter *interp, Object *subject, Object *pattern);
 int utf8_codepoint_count(const char *bytes, int length);
 int utf8_encode(int codepoint, char *out);
 
+// logic.c
 Val deref(Interpreter *interp, Val value);
 void trail_undo_to(Interpreter *interp, int mark);
 
+// foreign.c
 int ffi_register_call_cfa(int cfa);
 Val ffi_pointer_owner_of(int index);
 
+// dimension.c
 void apply_unit(Interpreter *interp, int cfa);
 void dimension_freeze(void);
 void dimension_init();
@@ -1129,6 +1140,8 @@ int unit_pow(Interpreter *interp, int unit, int numerator, int denominator);
 void unit_scale_ratio(int unit, long long *numerator, long long *denominator);
 double unit_scale_value(int unit);
 
+// dispatch handlers and p_* words, by owning file in SRCS order
+// core.c
 void docol(DISPATCH_ARGS);
 void dodefer(DISPATCH_ARGS);
 void dosym(DISPATCH_ARGS);
@@ -1167,6 +1180,7 @@ void p_see_tree_to_string(DISPATCH_ARGS);
 void p_stop(DISPATCH_ARGS);
 void p_tailcall(DISPATCH_ARGS);
 
+// words.c
 void p_2curry(DISPATCH_ARGS);
 void p_abs(DISPATCH_ARGS);
 void p_acos(DISPATCH_ARGS);
@@ -1330,6 +1344,7 @@ void p_words(DISPATCH_ARGS);
 void p_zeq(DISPATCH_ARGS);
 void p_zeq_zbranch(DISPATCH_ARGS);
 
+// compiler.c
 void p_again(DISPATCH_ARGS);
 void p_bar(DISPATCH_ARGS);
 void p_begin(DISPATCH_ARGS);
@@ -1372,6 +1387,7 @@ void p_until(DISPATCH_ARGS);
 void p_variable(DISPATCH_ARGS);
 void p_while(DISPATCH_ARGS);
 
+// io.c
 int stream_fd(Val stream);
 int stream_is_open(Val stream);
 Val stream_value(int file_descriptor);
@@ -1405,6 +1421,7 @@ void p_wait_readable(DISPATCH_ARGS);
 void p_write(DISPATCH_ARGS);
 void p_write_file(DISPATCH_ARGS);
 
+// collections.c
 void p_add_last(DISPATCH_ARGS);
 void p_array(DISPATCH_ARGS);
 void p_array_close(DISPATCH_ARGS);
@@ -1463,6 +1480,7 @@ void p_to_slice(DISPATCH_ARGS);
 void p_union(DISPATCH_ARGS);
 void p_update_at(DISPATCH_ARGS);
 
+// matrix.c
 void p_0_matrix(DISPATCH_ARGS);
 void p_argmax(DISPATCH_ARGS);
 void p_argmin(DISPATCH_ARGS);
@@ -1509,6 +1527,7 @@ void p_transpose(DISPATCH_ARGS);
 void p_vstack(DISPATCH_ARGS);
 void p_where(DISPATCH_ARGS);
 
+// statistics.c
 double matrix_variance_overall(Object *source, size_t *n_nonmissing_out);
 void p_correlation_kendall(DISPATCH_ARGS);
 void p_fit_tree(DISPATCH_ARGS);
@@ -1516,6 +1535,7 @@ void p_ks_distance(DISPATCH_ARGS);
 void p_quantile(DISPATCH_ARGS);
 void p_variance(DISPATCH_ARGS);
 
+// indexing.c
 void p_add_store_i(DISPATCH_ARGS);
 void p_at_i(DISPATCH_ARGS);
 void p_at_i_array(DISPATCH_ARGS);
@@ -1538,6 +1558,7 @@ void p_store_i_drop(DISPATCH_ARGS);
 void p_store_i_drop_array(DISPATCH_ARGS);
 void p_sub_store_i(DISPATCH_ARGS);
 
+// functional.c
 void p_filter(DISPATCH_ARGS);
 void p_find_first(DISPATCH_ARGS);
 void p_fold_times(DISPATCH_ARGS);
@@ -1552,6 +1573,7 @@ void p_pmap_reduce(DISPATCH_ARGS);
 void p_reduce(DISPATCH_ARGS);
 void p_times(DISPATCH_ARGS);
 
+// strings.c
 void p_byte_substring(DISPATCH_ARGS);
 void p_char_at(DISPATCH_ARGS);
 void p_codepoint_at(DISPATCH_ARGS);
@@ -1569,6 +1591,7 @@ void p_string_to_number(DISPATCH_ARGS);
 void p_substring(DISPATCH_ARGS);
 void p_trim(DISPATCH_ARGS);
 
+// logic.c
 void p_amb(DISPATCH_ARGS);
 void p_deref(DISPATCH_ARGS);
 void p_lvar(DISPATCH_ARGS);
@@ -1578,12 +1601,14 @@ void p_unify_cons(DISPATCH_ARGS);
 void p_unify_keep(DISPATCH_ARGS);
 void p_wildcard(DISPATCH_ARGS);
 
+// database.c
 void p_db_close(DISPATCH_ARGS);
 void p_db_exec(DISPATCH_ARGS);
 void p_db_open(DISPATCH_ARGS);
 void p_db_query(DISPATCH_ARGS);
 void p_db_query_to_dataset(DISPATCH_ARGS);
 
+// foreign.c
 void p_ffi_call(DISPATCH_ARGS);
 void p_ffi_free(DISPATCH_ARGS);
 void p_ffi_function(DISPATCH_ARGS);
@@ -1598,18 +1623,21 @@ void p_pointer_string_at(DISPATCH_ARGS);
 void p_pointer_to_address(DISPATCH_ARGS);
 void p_segment_to_pointer(DISPATCH_ARGS);
 
+// platform_posix.c
 void p_running(DISPATCH_ARGS);
 void p_start_process(DISPATCH_ARGS);
 void p_stdout_to_string(DISPATCH_ARGS);
 void p_stop_process(DISPATCH_ARGS);
 void p_wait(DISPATCH_ARGS);
 
+// dimension.c
 void dounit(DISPATCH_ARGS);
 void p_base(DISPATCH_ARGS);
 void p_magnitude(DISPATCH_ARGS);
 void p_unit(DISPATCH_ARGS);
 void p_unit_of(DISPATCH_ARGS);
 
+// time.c
 void p_date_to_epoch(DISPATCH_ARGS);
 void p_date_to_epoch_local(DISPATCH_ARGS);
 void p_epoch_to_date(DISPATCH_ARGS);
@@ -1620,6 +1648,7 @@ void p_now(DISPATCH_ARGS);
 void p_parse_time(DISPATCH_ARGS);
 void p_wall_now(DISPATCH_ARGS);
 
+// exact.c
 typedef enum {
 	EXACT_OP_ADD = 0,
 	EXACT_OP_SUB,
@@ -1657,8 +1686,6 @@ Val exact_unary(Interpreter *interp, Val value, int op);
 int object_new_exact(Interpreter *interp, int sign, const uint32_t *numerator, int n_numerator,
 		const uint32_t *denominator, int n_denominator);
 int parse_exact_literal(Interpreter *interp, const char *token, Val *out);
-void p_bytes_to_value(DISPATCH_ARGS);
-void p_value_to_bytes(DISPATCH_ARGS);
 
 void p_denominator(DISPATCH_ARGS);
 void p_exact_to_float(DISPATCH_ARGS);
@@ -1666,6 +1693,11 @@ void p_float_to_exact(DISPATCH_ARGS);
 void p_numerator(DISPATCH_ARGS);
 void p_rationalize(DISPATCH_ARGS);
 
+// serialize.c
+void p_bytes_to_value(DISPATCH_ARGS);
+void p_value_to_bytes(DISPATCH_ARGS);
+
+// inline functions whose bodies call the declarations above
 static inline int truthy(Val value) {
 	if (VAL_TAG(value) == T_FLOAT)
 		return VAL_NUMBER(value) != 0.0;
