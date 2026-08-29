@@ -36,7 +36,8 @@
 : linux-browsers
 	[ "vivaldi-stable" "vivaldi" "opera" "brave-browser" "brave"
 	  "google-chrome-stable" "google-chrome" "chromium" "chromium-browser"
-	  "microsoft-edge-stable" "microsoft-edge" ] ; internal
+	  "microsoft-edge-stable" "microsoft-edge" 
+	] ; internal
 
 ( -- path|none ) \ TELIC_BROWSER, else the first installed Chromium-family browser, else none
 : find-browser

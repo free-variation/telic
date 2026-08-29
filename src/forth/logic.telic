@@ -129,8 +129,7 @@ inline internal
 		probed driver-row col bucket-of joined
 		[: joined probed-row | 1 pick probed-row merge joined cons :] reduce
 		nip
-	:]
-	2curry reduce
+	:] 2curry reduce
 	cons>array dup size 1- take ;
 
  ( rel rows-array -- rel ) \ load all rows: build :rows in one sorted pass, then index each row

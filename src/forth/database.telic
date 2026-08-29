@@ -38,7 +38,8 @@
 			[ ] vector
 		else
 			column
-		then :] 2 nmap
+		then 
+	:] 2 nmap
 	frame ;
 
 ( names types table -- statement ) 
@@ -72,13 +73,14 @@
 	type :real = if
 		{ :name name string>symbol
 		  :type type
-		  :summary dataset name string>symbol @ summary }
-		exit
+		  :summary dataset name string>symbol @ summary 
+		} exit
 	then
 
 	{ :name name string>symbol
 	  :type type
-	  :distinct db table name column-distinct-count } ; internal
+	  :distinct db table name column-distinct-count 
+	} ; internal
 
 ( tsv-path db table -- info ) \ imports a tsv. header row names the columns, types inferred by column
 \ the dataset, connection and table name are parked below the combinators' sources
@@ -104,5 +106,6 @@
 	names types  dataset db table ' column-info 3 ncurry  2 nmap to columns
 
 	{ :n-rows rows size 1-
-	  :columns columns } ;
+	  :columns columns 
+	} ;
 	

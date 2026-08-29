@@ -47,8 +47,8 @@
 	[: f fold-ids units |
 		fold-ids f eq  1 swap -  where  units swap select-rows
 		fold-ids f eq  where  units swap select-rows
-		2 array :]
-	2curry map ;
+		2 array 
+	:] 2curry map ;
 
 ( units n-folds fit-xt score-xt -- fold-losses ) \ k-fold CV: units deal round-robin
 \ into folds in the given order (shuffle first; one shuffle compares configurations on
@@ -61,8 +61,8 @@
 	fit score
 	[: fold fit score |
 		fold 0 @i fit execute
-		fold 1 @i score execute :]
-	2curry map vector ;
+		fold 1 @i score execute 
+	:] 2curry map vector ;
 
 ( matrix -- float ) \ standard deviation
 : std var sqrt ; inline
@@ -163,9 +163,11 @@
 	2147483647 random-int to run-seed
 
 	replications iota
-	fit-xt [: i run-seed data fit |
+	fit-xt 
+	[: i run-seed data fit |
 		data  dup n-observations  run-seed i +  resample-indices-ext  select-rows
-		fit execute :] curry
+		fit execute 
+	:] curry
 	data swap curry
 	run-seed swap curry
 	fit-mapper execute ;
@@ -191,10 +193,11 @@
 	column column>array [: none? not :] filter array>set sort to levels
 	levels size 2 < if "indicators!: needs at least 2 distinct values" throw then
 	levels 1 skip
+
 	design prefix column
 	[: level design prefix column |
-		design  prefix level "{1}={0}" format string>symbol  column level eq  ! :]
-	3 ncurry map drop
+		design  prefix level "{1}={0}" format string>symbol  column level eq  ! 
+	:] 3 ncurry map drop
 	design ;
 
 ( X/design -- X'/design ) \ matrix: prepend a column of 1s so beta[0] is the
@@ -260,7 +263,8 @@
 	  :design data 0 fitted-rows 0 n-terms submatrix
 	  :responses data 0 fitted-rows n-terms n-terms 1+ submatrix
 	  :n-rows fitted-rows
-	  :replications replications } ;
+	  :replications replications 
+	} ;
 
 ( xs ys -- xs' ys' ) \ drop pairs where either element is NaN; magnitudes taken
 : complete-cases
@@ -321,10 +325,11 @@
 	outcomes 0.5 < where scores swap select-rows to negatives
 	positives num-elements 0 = negatives num-elements 0 = or if
 		"auc: both a positive and a negative outcome required" throw then
+	
 	positives matrix>array negatives
 	[: positive-score negatives |
-		negatives positive-score < sum  negatives positive-score <= sum + :]
-	curry map vector sum
+		negatives positive-score < sum  negatives positive-score <= sum + 
+	:] curry map vector sum
 	0.5 *  positives num-elements negatives num-elements * / ;
 
 ( outcomes probabilities -- f ) \ Brier score: mean squared error of probabilities against 0/1
@@ -485,12 +490,15 @@
 : cv-alpha
 	| features y params alpha units n-folds |
 	units n-folds
+	
 	[: train features y params alpha |
-		features train select-rows  y train select-rows  params fit-tree  alpha prune :]
-		alpha swap curry  params swap curry  y swap curry  features swap curry
+		features train select-rows  y train select-rows  params fit-tree  alpha prune 
+	:] alpha swap curry  params swap curry  y swap curry  features swap curry
+	
 	[: model test features y |
-		model  features test select-rows  predict   y test select-rows  - dup * mean :]
-		y swap curry  features swap curry
+		model  features test select-rows  predict   y test select-rows  - dup * mean 
+	:] y swap curry  features swap curry
+	
 	cross-validate ; internal
 
 ( features y params -- tree ) \ fit a tree, then cost-complexity prune it at the alpha the
@@ -508,8 +516,8 @@
 	[: alpha features y params units n-folds |
 		alpha
 		features y params alpha units n-folds cv-alpha  dup mean  swap std n-folds sqrt /
-		3 array :]
-	5 ncurry map to stats
+		3 array 
+	:] 5 ncurry map to stats
 
 	stats [: 1 @i :] map vector argmin to best
 	stats best @i 1 @i  stats best @i 2 @i  +  to threshold

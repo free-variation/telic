@@ -74,5 +74,5 @@ inline
 	(globals)
 	[: binding |
 	   binding 1 @i to value
-	   { :name binding 0 @i :value value :type value type-of } :]
-	map ;
+	   { :name binding 0 @i :value value :type value type-of } 
+	:] map ;
