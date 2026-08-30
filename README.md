@@ -60,7 +60,7 @@ subprocesses, or threads; the loadable statistics library is native-only.
 1/3 1/6 + .                             \ 1/2
 1/2 $ 50/1 ¢ + .                        \ 1 $
 
-\ Matrices: * is element-wise; matrix multiply is dgemm (αAB + βC)
+\ Matrices: * is element-wise; matrix multiply is matmul
 [ 1 2 3 4 ] 2 2 matrix dup transpose *  \ element-wise product of M and Mᵀ
 
 \ Dimensioned quantities: units propagate, combine, and collapse

@@ -4,15 +4,156 @@ A TODO list of pending work, highest priority first.
 
 ---
 
+## 1.0-alpha gate
+
+The gate for the tag, in priority order; an entry vanishes as its item
+completes.
+
+### Serialization depth
+
+`bytes>value` roots each in-progress container on the GC root stack, so a
+value nested past 62 levels writes but cannot be read, reporting `gc roots
+exhausted`. `value>bytes` recurses per level with no guard and takes SIGSEGV
+above about 50000 levels of array or frame nesting (a cons tail escapes only
+because the compiler makes it a tail call).
+
+Implementation:
+
+1. Park the in-progress container on the data stack, which the collector
+   scans and which holds a million slots, instead of `gc_root_push`.
+2. Guard the writer with the depth cap printing and `val_cmp` already use,
+   erroring `structure too deeply nested` rather than overflowing.
+
+Acceptance:
+
+1. A 10000-level nested frame round-trips through `save-value`/`load-value`.
+2. A synthesized 200000-level file errors from both words rather than
+   crashing; both cases join `tests/102_serialize.telic`.
+
+### Release mechanics
+
+Implementation:
+
+1. Add a `make install` (PREFIX-parameterized) copying the installed
+   set: the `telic` binary, `lib/`, and `liblapacke_telic.so`, with
+   `data/` only for running the README examples verbatim.
+2. Add `make pack` output and `telic-pack.md` to the released set.
+3. Run `make acceptance` and read the failures: fix what is a pack gap,
+   record what is not.
+4. Set VERSION (src/c/telic.h) to the release version and tag the
+   commit.
+5. Release notes: the benchmark table's provenance line, the platform
+   pair (native, wasm) the suites passed on, and the acceptance pass@1
+   with its model and date — a description of that run, not a
+   threshold, since the tasks and the pack text were developed against
+   each other. Name `lib/mcp.telic` as experimental: it has passed no run
+   against a real MCP client, and no in-process test can stand in for
+   one.
+
+Acceptance:
+
+1. From a clean checkout: `make && make test && make test-wasm &&
+   make bench && make pack` all succeed, and `make test-libs` on a host
+   with LAPACK and libxgboost.
+2. Copy the installed set to a directory outside the repo; `telic`
+   starts from any cwd, `"statistics" load-library` and
+   `"plot" load-library` load, and `help` answers.
+3. The tagged commit's README benchmark table matches a full run on the
+   release host.
+
+### Decisions to take before the tag
+
+1. Symbol order is interning order, so a new symbol in the embedded library
+   reshuffles frame key order and every golden that prints one. Either accept
+   it and keep the embedded library free of short generic symbol names, or
+   order symbols by name and pay a `strcmp` on each frame lookup.
+2. `exact_to_double`'s method, `EXACT_POWER_BIT_CAP`'s value, and citations
+   like Acklam's `qnorm` have no home under the no-comments rule: reference
+   rows carry behavior and PLAN.md carries constraints, neither carries
+   algorithm provenance. Decide where it goes, or decide it goes nowhere.
+3. Which Alpha gaps entries (below) make the gate, and which follow the tag.
+
+---
+
+## Alpha gaps
+
+From a full read of the reference against what a first user needs. The
+scripting items are the blocking ones: each closes a "the language cannot do
+X at all", not an "X takes three words".
+
+### Scripting
+
+- `args ( -- arr )` — a program's command-line arguments as a string array.
+  Today extra CLI arguments are read as more program files, so the only
+  channel into a script is `env`; settle the CLI convention (`--`, or first
+  file runs and the rest are args).
+- `open-file ( path -- stream )` — a file as a `T_STREAM`, unlocking
+  `read-line` / `read-available` / `wait-readable` / `close` for files;
+  today streams are pipe ends only, so there is no line-by-line path
+  through a file too large for `read-file`.
+- Exit with a chosen code — `bye` is `exit(0)` and an error exits 1;
+  nothing else is expressible.
+- `lib/http.telic` — `http-get` / `http-post` over libcurl through the FFI,
+  native-only like the statistics library. Today networking is a `curl`
+  subprocess (lib/claude.telic) or hand-rolled FFI.
+
+### Math
+
+- `atan2` — absent from both the safe and ⚠ families; also the only route
+  to a complex number's phase. Add complex `conjugate` (and consider `arg`)
+  alongside.
+- `sinh` / `cosh` (`tanh` stands alone); `log2`.
+- Hex output: an `x` conversion letter in `format` specs. Hex input works
+  only by the accident of `strtod`; whether hex literals join the reader
+  is a separate decision.
+
+### Statistics
+
+- `pnorm` — the normal CDF; `qnorm` exists without its partner, so no
+  p-value is computable. A rational approximation in forth beside Acklam's
+  `qnorm` keeps it wasm-capable.
+- `random-normal` — `random qnorm` errors on a zero draw; package the
+  guarded form (or Box–Muller).
+- `covariance ( xs ys -- f )` — `correlation-pearson` computes one
+  internally; name it.
+
+### Strings
+
+- `uppercase` / `lowercase` — no case conversion exists and no route to
+  one; data cleaning needs it before `group-by`. Unicode-correct folding
+  needs tables, so an ASCII-only first cut names the boundary.
+
+### Logic
+
+- `solutions ( goal -- arr )` — package the record-and-`fail` enumeration
+  idiom docs/logic.md describes; array mutation survives backtracking
+  while bindings do not, so it is a few lines in logic.telic.
+
+### Datasets
+
+- `sort-rows ( dataset sym -- dataset )` — name the
+  `dup :col @ argsort select-rows` idiom.
+- A grouped-aggregate word over `group-indices` — per-group reductions
+  into a dataset, the split-apply-combine step written by hand today.
+
+### Docs
+
+- State the deliberate absences in one README line each, so alpha users
+  read them as decisions: TSV-only (no CSV quoting), no networking
+  (subprocess/FFI is the route), no affine units (°C/°F), no occurs check.
+- `%`'s reference cost columns say `none / O(1)` while its behavior column
+  covers element-wise matrices.
+
+---
+
 ## xgboost — follow-ups
 
-- **Model persistence.** Bind `XGBoosterSaveModel`/`XGBoosterLoadModel` as
-  `xgb-save ( booster path -- )` and `xgb-load-model ( path -- booster )`
-  (create an empty booster, then load into it). Acceptance: `xgb-save` →
-  `xgb-load-model` → `xgb-predict` reproduces the original predictions exactly.
 - **Multiclass / multi-output.** Read `out_dim`/`out_shape` in `xgb-predict`
   and `xgb-importance` so a multiclass model returns the full `[n, n_classes]`
   (predict) / `[k, n_classes]` (importance) matrix.
+- **Buffer-form persistence.** The buffer form of `XGBoosterSaveModel`, so a
+  booster travels inside a serialized frame rather than only through its own
+  file (`xgb-save`/`xgb-load`).
 
 ---
 
@@ -56,9 +197,8 @@ Generalize the bootstrap shape — index sets → refit → collect:
 
 - `permutation-test` — shuffle one column's indices for the null.
 - `jackknife` — leave-one-out partitions, over `cross-validate`'s units shape.
-- **Model metrics** — squared/absolute error, accuracy, confusion counts, AUC
-  (argsort), ROC and calibration curves, isotonic calibration (PAVA), Brier,
-  MASE.
+- **Model metrics** — squared/absolute error, accuracy, confusion counts,
+  ROC and calibration curves, isotonic calibration (PAVA), MASE.
 - **Cluster resampling** — index-array units and the wild-cluster
   weight-multiplier (Rademacher) variant; cluster jackknife.
 - Parallel variants via `pmap` (as `pbootstrap` does).
@@ -97,9 +237,8 @@ Each one pass over sorted samples, in the `ks-distance` mold:
   regressions.
 - **Log axes** — transform at the domain with power-of-ten tick labels,
   instead of transforming the data and labeling in log units.
-- **Torn frames on overwrite** — `write-file` truncates in place; either
-  a `rename-file` word for temp-and-rename atomicity, or accept that
-  viewers re-read fast.
+- **Torn frames on overwrite** — `write-file` truncates in place; have
+  `save-figure` write to a temp name and `rename-file` into place.
 
 ---
 
@@ -272,9 +411,7 @@ dropped handle holds its slot and its OS resource until the process exits.
 
 - **ASCII fast path**: a per-string all-ASCII flag to collapse the byte-offset
   walk in `substring`/`char-at`/`codepoint-at` to direct byte indexing.
-- **Case folding**: `upcase`/`downcase`. Unicode-correct folding needs
-  tables (ICU or a generated table), so even an ASCII-only first cut should
-  name the boundary.
+- **Case folding** is under Alpha gaps → Strings.
 
 ---
 

@@ -208,7 +208,7 @@ pack:
 test: telic docs-tests
 	sh tests/run.sh
 
-# The language-pack acceptance battery (RELEASE-PLAN.md, release mechanics): each
+# The language-pack acceptance battery (PLAN.md, release mechanics): each
 # tests/acceptance prompt goes to a model with only telic-pack.md as context
 # and the generated program is compared against the expected output. Needs
 # ANTHROPIC_API_KEY and the anthropic SDK in .venv; costs API tokens, so it
