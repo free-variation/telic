@@ -3160,11 +3160,13 @@ Row-major `double` storage. `r` rows, `c` columns.
 
 ### Multiplication and reductions
 
-Matrix multiply is `dgemm`, which the statistics library supplies through the
-platform BLAS (`"statistics" load-library`); `*` on matrices is element-wise.
+Matrix multiply is `matmul`; `*` on matrices is element-wise. The general
+`αAB + βC` form is `dgemm`, which the statistics library supplies through the
+platform BLAS (`"statistics" load-library`).
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
+| `matmul` | `( A B -- A·B )` | The matrix product, an ikj loop over row-major operands; errors unless A's columns match B's rows. Loading the statistics library replaces it with a version that keeps this loop for small operands and hands anything above 24×24 of work (rows × inner × columns) to cblas dgemm, which is faster there and slower below it | m·k·n | `1m(m×n)` | O(m·k·n) |
 | `sum` | `( mat -- f )` | Sum of all elements (4-way unrolled, fast-math) | 1 + r×c | none | O(r×c) |
 | `max` | `( mat -- f )` | Maximum element | 1 + r×c | none | O(r×c) |
 | `min` | `( mat -- f )` | Minimum element | 1 + r×c | none | O(r×c) |
@@ -3179,6 +3181,13 @@ platform BLAS (`"statistics" load-library`); `*` on matrices is element-wise.
 | `mean` | `( mat -- f )` | matrix.telic: sum ÷ element count | r×c | none | O(r×c) |
 | `row-means` | `( mat -- mat' )` | matrix.telic: `row-sums` then scalar ÷ | r×c | 2×`1m(r×1)` | O(r×c) |
 | `column-means` | `( mat -- mat' )` | matrix.telic: `column-sums` then scalar ÷ | r×c | 2×`1m(1×c)` | O(r×c) |
+
+```forth matmul
+[ 1 2 3 4 5 6 ] 2 3 matrix [ 7 8 9 10 11 12 ] 3 2 matrix matmul matrix>array . cr
+```
+```output
+[ 58 64 139 154 ]
+```
 
 ```forth sum
 [ 1 2 3 4 ] 2 2 matrix sum . cr

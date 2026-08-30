@@ -378,6 +378,7 @@ map
 match
 match-all
 matches?
+matmul
 matrix
 matrix-range
 matrix>array

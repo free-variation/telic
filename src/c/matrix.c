@@ -293,6 +293,48 @@ void p_store_e_lll0(DISPATCH_ARGS) {
 STORE_IJ_OP(p_store_ij, 3)
 STORE_IJ_OP(p_store_ij_drop, 4)
 
+void p_matmul(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
+	Val right_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(right_val, T_MATRIX, "matmul", "a matrix");
+	Val left_val = chain_sp[-2];
+	REQUIRE_CHAIN_TAG(left_val, T_MATRIX, "matmul", "a matrix");
+
+	Object *left = OBJECT_AT(VAL_DATA(left_val));
+	Object *right = OBJECT_AT(VAL_DATA(right_val));
+	int n_rows = left->matrix.rows;
+	int n_inner = left->matrix.columns;
+	int n_columns = right->matrix.columns;
+
+	if (right->matrix.rows != n_inner) {
+		fail(interp, "inner dimensions must match (A is %dx%d, B is %dx%d)",
+				n_rows, n_inner, right->matrix.rows, n_columns);
+		return;
+	}
+
+	int handle = object_new_matrix(interp, n_rows, n_columns);
+	if (interp->error_flag)
+		return;
+
+	const double * restrict left_elements = left->matrix.elements;
+	const double * restrict right_elements = right->matrix.elements;
+	double * restrict product = OBJECT_AT(handle)->matrix.elements;
+
+	for (int i = 0; i < n_rows; i++) {
+		double * restrict product_row = &product[i * n_columns];
+		for (int p = 0; p < n_inner; p++) {
+			double left_value = left_elements[i * n_inner + p];
+			const double * restrict right_row = &right_elements[p * n_columns];
+			for (int j = 0; j < n_columns; j++)
+				product_row[j] += left_value * right_row[j];
+		}
+	}
+
+	chain_sp[-2] = make_matrix(handle);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+}
+
 static size_t sort_partition_nans(double *elements, size_t n_elements) {
 	int any_nan = 0;
 	for (size_t i = 0; i < n_elements; i++)

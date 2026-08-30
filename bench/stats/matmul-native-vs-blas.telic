@@ -1,0 +1,64 @@
+\ matmul: the matrix.c loop called directly, against the size-dispatching matmul
+\ that loading lib/statistics.telic installs over the same name — the loop below
+\ 24x24 of work, cblas dgemm above it. Binding is early, so the built-in xt is
+\ captured before the load and both stay callable afterwards. The second column
+\ is therefore the dispatcher, and under the threshold it measures the same loop
+\ plus the dispatch.
+\ Square n x n operands, integer ramp data (so the products are exact and the
+\ two can be compared for equality), result matrix freshly allocated by each
+\ call, so both sides pay the same allocation and GC.
+\
+\ Run:  ./telic -b < bench/stats/matmul-native-vs-blas.telic
+
+' matmul constant native-matmul
+
+"statistics" load-library
+
+( n -- m ) \ n x n ramp, deterministic
+: ramp | n | 0 n n * 1- 1 matrix-range n n reshape ; internal
+
+( n -- reps ) \ hold the work per size roughly constant, capped so the batches stay short
+: reps-for | n | 20000000 n n * n * / round-down 20 max2 100000 min2 ; internal
+
+( n -- flag ) \ do the two spellings answer the same matrix?
+: agree? | n | n ramp to a  n ramp to b  a b native-matmul execute  a b matmul  = ; internal
+
+( n reps -- ) \ time both spellings of the same product
+: bench-size
+	| n reps |
+	n ramp to a
+	n ramp to b
+
+	\ one of each first, so neither pays a cold path in the timed loop
+	a b native-matmul execute drop
+	a b matmul drop
+
+	\ the minimum over several batches: interference and GC only ever add time,
+	\ so the fastest batch is the closest reading of the work itself
+	1e18 to native-us
+	0 5 1 do native-batch
+		now to t0
+		0 reps 1 do i  a b native-matmul execute drop  loop
+		now t0 - reps / 1e6 * to trial
+		trial native-us < if trial to native-us then
+	loop
+
+	1e18 to blas-us
+	0 5 1 do blas-batch
+		now to t0
+		0 reps 1 do i  a b matmul drop  loop
+		now t0 - reps / 1e6 * to trial
+		trial blas-us < if trial to blas-us then
+	loop
+
+	n reps native-us blas-us  blas-us native-us /
+	"{4}x{4}{tab}reps {3}{tab}native {2:.3f} us{tab}dispatched {1:.3f} us{tab}ratio {0:.2f}"
+	format . cr ; internal
+
+\ agreement first: a speed comparison of two different answers is worthless
+[ 2 3 4 8 16 32 64 ] ' agree? map
+[: 1 = :] all? "identical results at every checked size: {0}" format . cr
+cr
+
+[ 2 3 4 6 8 12 16 24 32 48 64 96 128 192 256 ]
+[: dup reps-for bench-size :] each

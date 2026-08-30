@@ -1,0 +1,45 @@
+\ matmul ( A B -- A·B ): the matrix product in the base image, an ikj loop over
+\ row-major operands. `*` on two matrices is element-wise; this is the real
+\ product. Loading lib/statistics.telic replaces it with a size dispatch — that
+\ side is tested in tests/lib/021_dgemm.
+
+\ === shape follows the operands ===
+[ 1 2 3 4 5 6 ] 2 3 matrix [ 7 8 9 10 11 12 ] 3 2 matrix matmul dim swap . . cr   \ 2 2
+[ 1 2 3 4 5 6 ] 3 2 matrix [ 7 8 9 10 11 12 ] 2 3 matrix matmul dim swap . . cr   \ 3 3
+[ 1 2 3 ] 1 3 matrix [ 4 5 6 ] 3 1 matrix matmul dim swap . . cr                  \ 1 1
+
+\ === values ===
+[ 1 2 3 4 5 6 ] 2 3 matrix [ 7 8 9 10 11 12 ] 3 2 matrix matmul matrix>array . cr \ [ 58 64 139 154 ]
+[ 1 2 3 ] 1 3 matrix [ 4 5 6 ] 3 1 matrix matmul matrix>array . cr                \ [ 32 ]  (the inner product)
+[ 4 5 6 ] 3 1 matrix [ 1 2 3 ] 1 3 matrix matmul matrix>array . cr                \ [ 4 8 12 5 10 15 6 12 18 ]  (the outer product)
+
+\ === identity is the unit on both sides ===
+[ 1 2 3 4 ] 2 2 matrix 2 identity-matrix matmul matrix>array . cr                 \ [ 1 2 3 4 ]
+2 identity-matrix [ 1 2 3 4 ] 2 2 matrix matmul matrix>array . cr                 \ [ 1 2 3 4 ]
+
+\ === a zero operand annihilates; the result is freshly allocated, not aliased ===
+[ 1 2 3 4 ] 2 2 matrix to a
+a 2 2 0-matrix matmul matrix>array . cr                                           \ [ 0 0 0 0 ]
+a a matmul to product
+product 0 0 99 !i,j drop
+a matrix>array . cr                                                               \ [ 1 2 3 4 ]  (unchanged)
+
+\ === it is not element-wise: * and matmul differ ===
+[ 1 2 3 4 ] 2 2 matrix dup * matrix>array . cr                                    \ [ 1 4 9 16 ]
+[ 1 2 3 4 ] 2 2 matrix dup matmul matrix>array . cr                               \ [ 7 10 15 22 ]
+
+\ === non-square chains ===
+\ a selector matrix picks rows 0 and 1 of B
+[ 1 0 0 0 1 0 ] 2 3 matrix [ 1 2 3 4 5 6 ] 3 2 matrix matmul matrix>array . cr    \ [ 1 2 3 4 ]
+
+clear
+
+\ === errors (reason parenthesized) ===
+[: [ 1 2 3 4 5 6 ] 2 3 matrix [ 7 8 9 10 ] 2 2 matrix matmul :] catch drop :message @ . cr
+\ inner dimensions must match (A is 2x3, B is 2x2)
+[: [ 1 2 ] 1 2 matrix 42 matmul :] catch drop :message @ . cr
+\ expected a matrix; got a float                    (B is not a matrix)
+[: "x" [ 1 2 ] 2 1 matrix matmul :] catch drop :message @ . cr
+\ expected a matrix; got a string                   (A is not a matrix)
+
+clear

@@ -65,29 +65,29 @@ syn keyword telicBuiltin frobenius-norm fround fround-down fround-up fsin fsq fs
 syn keyword telicBuiltin gen-take group-by group-indices group-with has? head head-tail headn help histogram-table hstack identity
 syn keyword telicBuiltin identity-matrix imaginary-part index-of inner-join int-segment intersection iota iqr iso>time join json>frame keys
 syn keyword telicBuiltin ks-distance last lgamma list-directory ln load load-bag load-library load-tsv load-value log loop
-syn keyword telicBuiltin lowest-bit ls lshift lvar? magnitude make-directory man map match match-all matches? matrix
-syn keyword telicBuiltin matrix-range matrix>array matrix>pointer matrix? max max2 mean median member? merge mesh min
-syn keyword telicBuiltin min2 mkdir mod mv n-columns n-rows name!key name@key nan? ncurry negate new-tests
-syn keyword telicBuiltin nip nmap none? nonmissing-count norm not now num-cores num-elements numerator of open-app-window
-syn keyword telicBuiltin or over pad-left pad-right pair? parallel-run parse-time partition pbootstrap peek percentile pfilter
-syn keyword telicBuiltin pfilter-ext pick pmap pmap-ext pmap-reduce pmap-reduce-ext pointer-cell pointer-deref pointer-long pointer-string-at pointer>address print
-syn keyword telicBuiltin print-stack product-times ptr? pwd qnorm quantile quantiles quantity? query quotient r> r@
-syn keyword telicBuiltin random random-int range ranks rationalize read read-available read-err read-file read-line read-out read-tsv
-syn keyword telicBuiltin real-part recurse reduce reify relation reload remove-last! rename-file render replace replace-where resample
-syn keyword telicBuiltin resample-indices resample-indices-ext reset reshape resume retract reverse rm rmdir roll rot round
-syn keyword telicBuiltin round-down round-up row-maxes row-means row-mins row-sums rows>dataset rows>relation rshift run run-result running?
-syn keyword telicBuiltin sample sample-with-replacement sample-without-replacement save save-tsv save-value se second see see-compiled see-compiled>string see-tree
-syn keyword telicBuiltin see-tree>string see>string seed segment>pointer segment? select-columns select-keys select-rows select-values set set-add! set-remove!
-syn keyword telicBuiltin set>array set? shift shift-with shuffle side-depth side-drop side-peek sigmoid sin size skip
-syn keyword telicBuiltin sleep slice! sort sort-by spaces split spread sq sqrt start-generator start-process std
-syn keyword telicBuiltin stderr stdin stdout stdout>string stop stream? string>chars string>codepoints string>number string>symbol string? submatrix
-syn keyword telicBuiltin substring sum sum-times summary swap symbol? take tan tanh telic telic-version test
-syn keyword telicBuiltin test-report throw time>iso timed to-slice! touch touch-file transpose trim true truncate try-catch
-syn keyword telicBuiltin tsv>db tty? type-of unify? union unit unit-of update-at value>bytes values var variables
-syn keyword telicBuiltin vars vector vf* vf+ vf- vf/ vfabs vfcos vfexp vflog vfneg vfsin
-syn keyword telicBuiltin vfsq vfsqrt vftan vftanh vstack vvf* vvf*+ vvf*- vvf+ vvf- vvf/ wait
-syn keyword telicBuiltin wait-readable wall-now where wildcard? with-db with-stream words write write-file write-in write-tsv xml-escape
-syn keyword telicBuiltin xt? yield
+syn keyword telicBuiltin lowest-bit ls lshift lvar? magnitude make-directory man map match match-all matches? matmul
+syn keyword telicBuiltin matrix matrix-range matrix>array matrix>pointer matrix? max max2 mean median member? merge mesh
+syn keyword telicBuiltin min min2 mkdir mod mv n-columns n-rows name!key name@key nan? ncurry negate
+syn keyword telicBuiltin new-tests nip nmap none? nonmissing-count norm not now num-cores num-elements numerator of
+syn keyword telicBuiltin open-app-window or over pad-left pad-right pair? parallel-run parse-time partition pbootstrap peek percentile
+syn keyword telicBuiltin pfilter pfilter-ext pick pmap pmap-ext pmap-reduce pmap-reduce-ext pointer-cell pointer-deref pointer-long pointer-string-at pointer>address
+syn keyword telicBuiltin print print-stack product-times ptr? pwd qnorm quantile quantiles quantity? query quotient r>
+syn keyword telicBuiltin r@ random random-int range ranks rationalize read read-available read-err read-file read-line read-out
+syn keyword telicBuiltin read-tsv real-part recurse reduce reify relation reload remove-last! rename-file render replace replace-where
+syn keyword telicBuiltin resample resample-indices resample-indices-ext reset reshape resume retract reverse rm rmdir roll rot
+syn keyword telicBuiltin round round-down round-up row-maxes row-means row-mins row-sums rows>dataset rows>relation rshift run run-result
+syn keyword telicBuiltin running? sample sample-with-replacement sample-without-replacement save save-tsv save-value se second see see-compiled see-compiled>string
+syn keyword telicBuiltin see-tree see-tree>string see>string seed segment>pointer segment? select-columns select-keys select-rows select-values set set-add!
+syn keyword telicBuiltin set-remove! set>array set? shift shift-with shuffle side-depth side-drop side-peek sigmoid sin size
+syn keyword telicBuiltin skip sleep slice! sort sort-by spaces split spread sq sqrt start-generator start-process
+syn keyword telicBuiltin std stderr stdin stdout stdout>string stop stream? string>chars string>codepoints string>number string>symbol string?
+syn keyword telicBuiltin submatrix substring sum sum-times summary swap symbol? take tan tanh telic telic-version
+syn keyword telicBuiltin test test-report throw time>iso timed to-slice! touch touch-file transpose trim true truncate
+syn keyword telicBuiltin try-catch tsv>db tty? type-of unify? union unit unit-of update-at value>bytes values var
+syn keyword telicBuiltin variables vars vector vf* vf+ vf- vf/ vfabs vfcos vfexp vflog vfneg
+syn keyword telicBuiltin vfsin vfsq vfsqrt vftan vftanh vstack vvf* vvf*+ vvf*- vvf+ vvf- vvf/
+syn keyword telicBuiltin wait wait-readable wall-now where wildcard? with-db with-stream words write write-file write-in write-tsv
+syn keyword telicBuiltin xml-escape xt? yield
 
 hi def link telicComment      Comment
 hi def link telicString       String

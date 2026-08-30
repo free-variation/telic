@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.29.1"
+#define VERSION "0.30.0"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1496,6 +1496,7 @@ void p_diagonal(DISPATCH_ARGS);
 void p_diagonal_matrix(DISPATCH_ARGS);
 void p_dim(DISPATCH_ARGS);
 void p_frobenius_norm(DISPATCH_ARGS);
+void p_matmul(DISPATCH_ARGS);
 void p_matrix(DISPATCH_ARGS);
 void p_matrix_range(DISPATCH_ARGS);
 void p_matrix_to_array(DISPATCH_ARGS);

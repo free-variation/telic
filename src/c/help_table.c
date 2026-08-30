@@ -245,7 +245,7 @@ const HelpEntry help_entries[] = {
 	{ "denominator", "( x -- x' )", "The reduced denominator as a positive integer exact", "limbs", "1o", "O(limbs)", 6 },
 	{ "depth", "( -- n )", "Push current depth", "1", "none", "O(1)", 0 },
 	{ "deref", "( v -- val )", "Follow a logic var's binding chain to the first non-variable value (v itself if unbound). Shallow — a returned structure still has bound vars inside; for a fully resolved snapshot use reify or copy", "d", "none", "O(d)", 29 },
-	{ "dgemm-nn", "( α A B β C -- R )", "R = α·A·B + β·C via cblas dgemm. Matrix multiply lives here rather than in the base image: * on two matrices is element-wise, and this is the real product", NULL, NULL, NULL, 40 },
+	{ "dgemm-nn", "( α A B β C -- R )", "R = α·A·B + β·C via cblas dgemm — the general form, with the scaling and accumulation the base image's matmul leaves out. Loading this library also gives matmul a size dispatch, so it takes this path above 24×24 of work", NULL, NULL, NULL, 40 },
 	{ "dgemm-nt", "( α A B β C -- R )", "R = α·A·Bᵀ + β·C", NULL, NULL, NULL, 40 },
 	{ "dgemm-tn", "( α A B β C -- R )", "R = α·Aᵀ·B + β·C", NULL, NULL, NULL, 40 },
 	{ "dgemm-tt", "( α A B β C -- R )", "R = α·Aᵀ·Bᵀ + β·C", NULL, NULL, NULL, 40 },
@@ -434,6 +434,7 @@ const HelpEntry help_entries[] = {
 	{ "match", "( str pat -- [ whole cap… ] | 0 )", "First (leftmost) match as a flat array: whole match then each capture; no match returns 0", "n", "1a + captures", "O(n)", 14 },
 	{ "match-all", "( str pat -- [ [whole cap…] … ] | 0 )", "Every non-overlapping leftmost match, each a flat sub-array; a zero-width match advances one byte; no match returns 0", "n", "1a per match + captures", "O(n + m·g)", 14 },
 	{ "matches?", "( a b -- flag )", "Non-destructive unify test: mark the trail, unify a and b, roll the trail back, push whether they unified. Leaves no bindings and never backtracks, so it composes in straight-line code", "n", "none", "O(n)", 29 },
+	{ "matmul", "( A B -- A·B )", "The matrix product, an ikj loop over row-major operands; errors unless A's columns match B's rows. Loading the statistics library replaces it with a version that keeps this loop for small operands and hands anything above 24×24 of work (rows × inner × columns) to cblas dgemm, which is faster there and slower below it", "m·k·n", "1m(m×n)", "O(m·k·n)", 21 },
 	{ "matrix", "( arr r c -- mat ) or ( arr r -- mat )", "Build from a float array; two-arg form takes r = rows and infers columns", "3 + r×c", "1m(r×c)", "O(r×c)", 21 },
 	{ "matrix-range", "( start end step -- mat )", "1×N row of evenly spaced values", "3 + N", "1m(1×N)", "O(N)", 21 },
 	{ "matrix>array", "( mat -- arr )", "The elements as an array in row-major order: floats from a bare matrix; a dimensioned matrix yields one quantity per element in its unit; a NaN element becomes null either way", "1 + r×c", "1a(r×c); dimensioned + 1 pair per non-NaN element", "O(r×c)", 21 },
@@ -741,7 +742,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "C primitive alias of unify, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 29 },
 };
 
-const int help_entry_count = 685;
+const int help_entry_count = 686;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } /a/b 5 ! /a/b @ . cr", "5" },
@@ -1125,6 +1126,7 @@ const HelpExample help_examples[] = {
 	{ "match", "\"x=42\" \"(\\w+)=(\\d+)\" match . cr", "[ \"x=42\" \"x\" \"42\" ]" },
 	{ "match-all", "\"a1 b2\" \"\\w(\\d)\" match-all . cr", "[ [ \"a1\" \"1\" ]\n  [ \"b2\" \"2\" ] ]" },
 	{ "matches?", "[ 1 _ ] [ 1 5 ] matches? . cr", "1" },
+	{ "matmul", "[ 1 2 3 4 5 6 ] 2 3 matrix [ 7 8 9 10 11 12 ] 3 2 matrix matmul matrix>array . cr", "[ 58 64 139 154 ]" },
 	{ "matrix", "[ 1 2 3 4 ] 2 2 matrix render print cr", "<matrix 2x2>\n          1          2\n          3          4" },
 	{ "matrix-range", "0 1 0.25 matrix-range matrix>array . cr", "[ 0 0.25 0.5 0.75 1 ]" },
 	{ "matrix>array", "[ 1 2 3 4 ] 2 2 matrix matrix>array . cr", "[ 1 2 3 4 ]" },
@@ -1432,4 +1434,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 686;
+const int help_example_count = 687;

@@ -16,7 +16,7 @@ plotting library is pure forth (no FFI) and works under wasm; only its
 
 | Word | Stack effect | Summary |
 | --- | --- | --- |
-| `dgemm-nn` | `( α A B β C -- R )` | `R = α·A·B + β·C` via cblas dgemm. Matrix multiply lives here rather than in the base image: `*` on two matrices is element-wise, and this is the real product |
+| `dgemm-nn` | `( α A B β C -- R )` | `R = α·A·B + β·C` via cblas dgemm — the general form, with the scaling and accumulation the base image's `matmul` leaves out. Loading this library also gives `matmul` a size dispatch, so it takes this path above 24×24 of work |
 | `dgemm-tn` | `( α A B β C -- R )` | `R = α·Aᵀ·B + β·C` |
 | `dgemm-nt` | `( α A B β C -- R )` | `R = α·A·Bᵀ + β·C` |
 | `dgemm-tt` | `( α A B β C -- R )` | `R = α·Aᵀ·Bᵀ + β·C` |

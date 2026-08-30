@@ -1,5 +1,20 @@
 # Telic — code conventions
 
+## Working method
+- grep locates; it never concludes. Before asserting what code *does* — that it
+  duplicates something, that it is unused, that it can be removed, that it
+  handles some case — read the definition. If a sentence names a function or
+  word and claims something about its behavior, that definition must have been
+  read, not pattern-matched. Black-box probing counts as pattern-matching: it
+  finds the cases you thought to test, not the ones in the code.
+- Legitimate for grep: which files mention a name, line counts, locating a
+  symbol before reading around it. Not legitimate: any question whose answer is
+  *the complete set* of something — the types a word accepts, the callers it
+  has, the cases a switch covers. A pattern search cannot establish
+  completeness, because the pattern encodes the guess.
+- The files here are small — no file is long enough that reading it is the
+  expensive option.
+
 ## C (src/c)
 - No comments anywhere in .c/.h, with one exception: telic.h may carry
   single-line `//` section headers naming the region below them, above all

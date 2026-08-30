@@ -5380,6 +5380,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "reshape", p_reshape, 0);
 	define_primitive(interp, "matrix-range", p_matrix_range, 0);
 	define_primitive(interp, "matrix>array", p_matrix_to_array, 0);
+	define_primitive(interp, "matmul", p_matmul, 0);
 	define_primitive(interp, "sum", p_sum, 0);
 	define_primitive(interp, "var", p_variance, 0);
 	define_primitive(interp, "quantile", p_quantile, 0);

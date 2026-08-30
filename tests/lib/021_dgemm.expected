@@ -1,6 +1,15 @@
 <matrix 2x2>
          58         64
         139        154
+2 2 
+3 3 
+[ 1 2 3 4 ] 
+[ 32 ] 
+inner dimensions must match (A is 2x3, B is 2x2) 
+inner dimensions must match (A is 64x64, B is 32x32) 
+<matrix 2x2>
+         58         64
+        139        154
 <matrix 1x1>
          32
 <matrix 3x3>

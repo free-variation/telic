@@ -157,7 +157,10 @@ port five times against three CPython runs, and reports medians with a
 verification table pairing every result against its reference. The `-matrix`
 rows are vectorized and answer to numpy, the `-parallel` rows to a process pool
 of the same width, and both time pool creation as telic times spawning its
-threads. Refresh the table below from a report with
+threads. `mandelbrot-matrix` and `spectral-norm-matrix` take their matrix
+multiply from the platform BLAS through the statistics library, so those two
+rows put Accelerate against numpy rather than telic's own kernels. Refresh the
+table below from a report with
 `python3 tools/update-readme-bench.py <report.md>`; never edit a cell by hand.
 
 <!-- bench:begin -->
@@ -273,6 +276,7 @@ exceptions.
 - **`min2`** / **`max2`** — pairwise minimum and maximum, element-wise with scalar broadcast.
 - **In-place matrix ops** — `+!`/`-!`/`*!`/`/!` mutate the left matrix in place. Float-only fast paths (`f+`, `f-`, `f*`, `f/`, `f^`, …) skip the type dispatch when both operands are known floats.
 - **Matrix construction** — `R C 0-matrix` (zeros), `[ ... ] R C matrix`, `[ ... ] vector` (an n×1 column, length inferred), `V N diagonal-matrix` (N×N with V on the diagonal), `N identity-matrix`, `start end step matrix-range` (a 1×N row over a stepped range).
+- **`matmul`** — the matrix product (`*` is element-wise); the statistics library adds a size dispatch, keeping the built-in loop for small operands and handing larger ones to the platform BLAS.
 - **Indexing** — `@i`/`@j`/`@i,j` to read rows, columns, or single cells; `@e` reads by flat row-major index (what `argmax`/`where`/`argsort` produce); `!i,j` and `!e` store a single element in place.
 - **Shape** — `dim`, `reshape`, `flatten`, `transpose`, `diagonal`, `matrix>array` (the elements as an array in row-major order; a dimensioned matrix yields per-element quantities, NaN becomes `null`).
 - **Selection** — `augment`/`hstack` (concatenate two matrices column-wise), `vstack` (row-wise), `submatrix` (copy a half-open row×column block), `select-rows` (gather rows named by a float index array or an index vector; a dataset operand gathers every column by the same indices).

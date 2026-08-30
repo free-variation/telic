@@ -68,6 +68,25 @@ dup "cblas_dgemv" [
 : dgemm-nt 0 1 accel-dgemm ;
 : dgemm-tt 1 1 accel-dgemm ;
 
+' matmul constant (native-matmul) internal
+
+( A B -- A·B ) \ the plain matrix product: the matrix.c loop under 24x24 of
+\ work, cblas dgemm above it (bench/stats/matmul-native-vs-blas.telic)
+: matmul
+	| a b |
+	a dim to inner to rows
+	b dim to columns to b-rows
+	b-rows inner = not if
+		rows inner b-rows columns
+		"inner dimensions must match (A is {3}x{2}, B is {1}x{0})" format throw
+	then
+
+	rows inner * columns * 13824 > if
+		1 a b 0  rows columns 0-matrix  dgemm-nn
+	else
+		a b (native-matmul) execute
+	then ;
+
 ( alpha A x beta y ta -- r ) \ r = alpha op(A) x + beta y via cblas, x and y columns
 : accel-dgemv
 	| alpha a x beta y ta |
