@@ -3,6 +3,10 @@
 \ unary math, and shape operations. Telic-only (no CPython counterpart); each
 \ section prints its time and a checksum, so kernel and compiler changes show
 \ up as speed or value drift. Inputs are matrix-range ramps — deterministic.
+\ The dgemm sections need the statistics library, which binds them to the
+\ platform BLAS through the FFI, so this is native-only.
+
+"statistics" load-library
 
 variable a  variable b  variable c  variable t0
 

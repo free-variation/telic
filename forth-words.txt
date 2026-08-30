@@ -202,7 +202,6 @@ dim
 do
 dot
 double-segment
-draw-tree
 drop
 drop-nans
 dup
@@ -255,7 +254,6 @@ false
 fasin
 fatan
 fcos
-feature-importance
 fexp
 ffi-free
 ffi-function
@@ -283,7 +281,6 @@ fit-multinomial
 fit-multinomial-ridge
 fit-negative-binomial
 fit-poisson
-fit-tree
 fit-xgb
 flat-map
 flatten
@@ -440,7 +437,6 @@ percentile
 pfilter
 pfilter-ext
 pick
-plot-tree
 pmap
 pmap-ext
 pmap-reduce
@@ -450,13 +446,10 @@ pointer-deref
 pointer-long
 pointer-string-at
 pointer>address
-predict
 predict-multinomial
 print
 print-stack
 product-times
-prune
-prune-cv
 ptr?
 pwd
 qnorm

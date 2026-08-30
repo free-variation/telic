@@ -1,0 +1,39 @@
+<matrix 5x2>
+          0          0
+          1          0
+          0          1
+          1          0
+          0          0
+
+<matrix 4x2>
+          1          0
+          0          0
+          1          0
+          0          1
+
+<matrix 3x1>
+          0
+          0
+          1
+
+1 column>indicators: needs at least 2 distinct values 
+[ :kind=b :kind=c ] 
+[ :t=2 :t=3 ] <matrix 5x1>
+          0
+          0
+          1
+          0
+          0
+
+1 indicators!: needs at least 2 distinct values 
+<matrix 3x2>
+          1          5
+          1          6
+          1          7
+
+[ :intercept :x ] <matrix 3x1>
+          1
+          1
+          1
+
+1 with-intercept: empty design (add a column first) 

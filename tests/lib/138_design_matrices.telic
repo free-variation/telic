@@ -1,0 +1,21 @@
+\ Design-matrix words: column>indicators, indicators!, with-intercept.
+\ They live in lib/statistics.telic — each one exists to build a design for a
+\ fit, and the fits are there — so this test is native-only.
+"statistics" load-library
+
+\ column>indicators ( column -- m ): one indicator column per level above the reference
+[ 1 2 3 2 1 ] vector column>indicators . cr      \ 5x2: level-2 and level-3 columns
+[ "b" "a" "b" "c" ] column>indicators . cr       \ 4x2: "b" and "c" columns, "a" reference
+[ 2 null 3 ] vector column>indicators . cr       \ 3x1: null is no level; missing row all zero
+[ 1 1 1 ] vector ' column>indicators catch . . cr   \ 1 then the single-level message
+
+\ indicators! ( design column sym -- design ): keyed 0/1 level columns
+{ } [ "b" "a" "b" "c" ] :kind indicators! keys . cr        \ [ :kind=b :kind=c ]
+{ } [ 1 2 3 2 1 ] vector :t indicators! dup keys . :t=3 @ . cr   \ [ :t=2 :t=3 ] then the 3-mask
+{ } [ 1 1 ] vector [: :t indicators! :] catch . . cr       \ 1 then the single-level message
+
+\ with-intercept ( X/design -- X'/design ): ones column, prepended or keyed
+[ 5 6 7 ] 3 1 matrix with-intercept . cr   \ [[1 5][1 6][1 7]]
+{ :x [ 5 6 7 ] vector } with-intercept dup keys . :intercept @ . cr   \ [ :intercept :x ] then 3x1 ones
+{ } ' with-intercept catch . . cr      \ 1 then the empty-design message
+

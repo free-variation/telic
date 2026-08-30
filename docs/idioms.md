@@ -506,10 +506,10 @@ a quantity in `s`, so the units machinery is the date arithmetic.
   } merge to panel
   ```
 
-- The design-matrix pipeline: `select-columns` for the verbatim numerics,
-  categorical levels via `indicators!`, indicator columns as `eq` masks,
-  `with-intercept`, then the matrix — keeping the key array so coefficients
-  stay addressable by name:
+- The design-matrix pipeline (the statistics library, with the fits):
+  `select-columns` for the verbatim numerics, categorical levels via
+  `indicators!`, indicator columns as `eq` masks, `with-intercept`, then the
+  matrix — keeping the key array so coefficients stay addressable by name:
 
   ```forth
   dup keys dup -rot dataset>matrix
@@ -677,7 +677,8 @@ compiler's fusion targets.
   escaped zr2 zi2 + 4.0 > +! drop
   ```
 
-- Coordinate grids as rank-1 products (`setup`, same file):
+- Coordinate grids as rank-1 products, through the statistics library's BLAS
+  `dgemm` (`setup`, same file):
 
   ```forth
   1.0 ones-col cr-row 0.0 n n 0-matrix dgemm-nn

@@ -5383,9 +5383,6 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "sum", p_sum, 0);
 	define_primitive(interp, "var", p_variance, 0);
 	define_primitive(interp, "quantile", p_quantile, 0);
-	define_primitive(interp, "correlation-kendall", p_correlation_kendall, 0);
-	define_primitive(interp, "ks-distance", p_ks_distance, 0);
-	define_primitive(interp, "fit-tree", p_fit_tree, 0);
 	define_primitive(interp, "frobenius-norm", p_frobenius_norm, 0);
 	define_primitive(interp, "row-sums", p_row_sums, 0);
 	define_primitive(interp, "column-sums", p_column_sums, 0);
@@ -5401,10 +5398,9 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "column-maxes", p_column_maxes, 0);
 	define_primitive(interp, "column-mins", p_column_mins, 0);
 
-	define_primitive(interp, "dgemm-nn", p_dgemm_nn, 0);
-	define_primitive(interp, "dgemm-tn", p_dgemm_tn, 0);
-	define_primitive(interp, "dgemm-nt", p_dgemm_nt, 0);
-	define_primitive(interp, "dgemm-tt", p_dgemm_tt, 0);
+	define_primitive(interp, "correlation-kendall", p_correlation_kendall, 0);
+	define_primitive(interp, "ks-distance", p_ks_distance, 0);
+
 
 	define_primitive(interp, "abs", p_abs, 0);
 	define_primitive(interp, "sqrt", p_sqrt, 0);

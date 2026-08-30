@@ -1,3 +1,7 @@
+\ dgemm reaches the platform BLAS through the FFI, so the statistics library
+\ supplies these words and this test is native-only.
+"statistics" load-library
+
 \ ---- dgemm-nn: A * B, no transposes -------------------------
 
 \ basic 2x3 * 3x2 -> 2x2
@@ -50,27 +54,22 @@
 \ A is 2x3 -> A^T is 3x2; B is 3x2 -> B^T is 2x3; product is 3x3
 1 [ 1 2 3 4 5 6 ] 2 3 matrix [ 7 8 9 10 11 12 ] 3 2 matrix 0 3 3 0-matrix dgemm-tt .
 
-\ ---- failure: inner dimension mismatch ---------------------
+\ ---- failures: caught, since a program file stops at an uncaught error ------
 
 \ A 2x3 * B 2x2: A's cols (3) != B's rows (2)
-1 [ 1 2 3 4 5 6 ] 2 3 matrix [ 7 8 9 10 ] 2 2 matrix 0 2 2 0-matrix dgemm-nn
+[: 1 [ 1 2 3 4 5 6 ] 2 3 matrix [ 7 8 9 10 ] 2 2 matrix 0 2 2 0-matrix dgemm-nn :] catch drop . cr
 
-\ same shapes, but with -tn: A^T is 3x2, cols 2, vs B's rows 2 -- this DOES match;
-\ try one that genuinely fails: A 2x3, B 3x3, -tn means A^T is 3x2, cols 2 vs B rows 3 -- mismatch
-1 [ 1 2 3 4 5 6 ] 2 3 matrix [ 1 2 3 4 5 6 7 8 9 ] 3 3 matrix 0 2 3 0-matrix dgemm-tn
-
-\ ---- failure: C wrong shape --------------------------------
+\ -tn on A 2x3, B 3x3: A^T is 3x2, cols 2 vs B's rows 3 -- mismatch
+[: 1 [ 1 2 3 4 5 6 ] 2 3 matrix [ 1 2 3 4 5 6 7 8 9 ] 3 3 matrix 0 2 3 0-matrix dgemm-tn :] catch drop . cr
 
 \ A*B should be 1x1 but C is 3x3
-1 [ 1 2 ] 1 2 matrix [ 3 4 ] 2 1 matrix 0 3 3 0-matrix dgemm-nn
-
-\ ---- failure: wrong types ----------------------------------
+[: 1 [ 1 2 ] 1 2 matrix [ 3 4 ] 2 1 matrix 0 3 3 0-matrix dgemm-nn :] catch drop . cr
 
 \ alpha is a string
-"hi" [ 1 2 3 4 ] 2 2 matrix [ 1 2 3 4 ] 2 2 matrix 0 2 2 0-matrix dgemm-nn
+[: "hi" [ 1 2 3 4 ] 2 2 matrix [ 1 2 3 4 ] 2 2 matrix 0 2 2 0-matrix dgemm-nn :] catch drop . cr
 
 \ A is a number
-1 99 [ 1 2 3 4 ] 2 2 matrix 0 2 2 0-matrix dgemm-nn
+[: 1 99 [ 1 2 3 4 ] 2 2 matrix 0 2 2 0-matrix dgemm-nn :] catch drop . cr
 
 \ C is a string
-1 [ 1 2 3 4 ] 2 2 matrix [ 1 2 3 4 ] 2 2 matrix 0 "C" dgemm-nn
+[: 1 [ 1 2 3 4 ] 2 2 matrix [ 1 2 3 4 ] 2 2 matrix 0 "C" dgemm-nn :] catch drop . cr

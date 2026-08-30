@@ -104,12 +104,16 @@ big-matrix value>bytes byte-size . cr                   \ 320014 (8 bytes an ele
 clear
 \ === files: save-value / load-value ===
 
-{ :x [ 1 2 3 4 ] vector } [ 10 10 20 20 ] vector { :store-leaf-responses 1 } fit-tree to model
+{ :predictors [ :intercept :age ]
+  :estimates [ 1.5 -0.25 ] vector
+  :levels [< :a :b >]
+  :meta { :n-rows 4 :response :income }
+} to model
 model "/tmp/telic-test-model.bin" save-value
 "/tmp/telic-test-model.bin" load-value to reloaded
 reloaded model = . cr                         \ 1
-reloaded { :x [ 1 4 ] vector } predict matrix>array . cr    \ [ 10 20 ]
-reloaded feature-importance keys . cr         \ [ :x ]
+reloaded :estimates @ matrix>array . cr       \ [ 1.5 -0.25 ]
+reloaded /meta/response @ . cr                \ :income
 
 [< 1 2 3 >] "/tmp/telic-test-set.bin" save-value
 "/tmp/telic-test-set.bin" load-value . cr     \ [< 1 2 3 >]

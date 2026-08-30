@@ -32,14 +32,26 @@ dup "cblas_dgemv" [
 ( alpha A B beta C ta tb -- R ) \ R = alpha op(A) op(B) + beta C via cblas
 : accel-dgemm
 	| alpha a b beta c ta tb |
+	alpha float? beta float? and not if
+		alpha type-of beta type-of
+		"alpha and beta must be floats; got {1} and {0}" format throw
+	then
+	a matrix? b matrix? and c matrix? and not if
+		a type-of b type-of c type-of
+		"A, B, C must be matrices; got {2}, {1}, {0}" format throw
+	then
+
 	ta if a dim swap drop else a dim drop then to product-rows
 	ta if a dim drop else a dim swap drop then to k
 	tb if b dim drop else b dim swap drop then to n
-	tb if b dim swap drop else b dim drop then k = not if
-		"dgemm: inner dimensions must match" throw
+	tb if b dim swap drop else b dim drop then to inner-b
+	inner-b k = not if
+		product-rows k inner-b n
+		"inner dimensions must match (op(A) is {3}x{2}, op(B) is {1}x{0})" format throw
 	then
 	c dim swap drop n =  c dim drop product-rows =  and not if
-		"dgemm: C must match the product shape" throw
+		product-rows n  c dim swap
+		"C must be {3}x{2} to match the product, but is {1}x{0}" format throw
 	then
 
 	c copy to r
@@ -180,6 +192,99 @@ drop
 	aug-mat 0 rows 0 cols 1- submatrix
 	aug-mat 0 rows cols 1- cols submatrix
 	fit-linear ;
+
+\ ---- design matrices and the shared regression pipeline ----
+\ Moved out of the embedded library: every one of these serves a fit, and the
+\ fits are here.
+
+( column -- m ) \ one 0/1 indicator column per distinct value above the first
+\ (the reference); levels in val_cmp order, as column>set lists them; a
+\ missing cell lands in no column
+: column>indicators
+	| column |
+	column column>array [: none? not :] filter array>set sort to levels
+	levels size 2 < if "column>indicators: needs at least 2 distinct values" throw then
+	column  levels 1 skip
+	[: 2 pick swap eq :] map  nip
+	dup 0 @i swap 1 skip swap ' augment reduce ;
+
+( design column sym -- design ) \ add one 0/1 column per non-reference level to a
+\ design dataset, keyed sym=level; levels and keys derive from the same data
+: indicators!
+	| design column prefix |
+	column column>array [: none? not :] filter array>set sort to levels
+	levels size 2 < if "indicators!: needs at least 2 distinct values" throw then
+	levels 1 skip
+
+	design prefix column
+	[: level design prefix column |
+		design  prefix level "{1}={0}" format string>symbol  column level eq  ! 
+	:] 3 ncurry map drop
+	design ;
+
+( X/design -- X'/design ) \ matrix: prepend a column of 1s so beta[0] is the
+\ intercept; design dataset: add an :intercept ones column (after at least one
+\ column exists — the rows are read from the design)
+: with-intercept
+	dup frame? if
+		dup keys size 0= if "with-intercept: empty design (add a column first)" throw then
+		:intercept over n-rows 1 0-matrix 1 + !
+	else
+		dup dim drop
+		1 0-matrix 1 +    \ rows x 1 column of ones
+		swap augment
+	then ;
+
+( betas replications j -- column )
+: coefficient-column
+	| betas replications j |
+
+	betas j [: b j | b j 0 @i,j :] curry map replications 1 matrix ; internal
+
+( beta betas replications j -- frame )
+: coefficient-summary
+	| beta betas replications j |
+
+	betas replications j coefficient-column to column
+	column 0.95 ci to high to low
+	{ :estimate beta j 0 @i,j
+	  :se column std
+	  :bias column mean beta j 0 @i,j -
+	  :ci-low low
+	  :ci-high high 
+	} ; internal
+
+( dataset predictors response replications fit-augmented-xt -- model )
+\ Shared regression pipeline: build the design matrix (with intercept) and the
+\ response, point-estimate with fit on the full data, then bootstrap-resample
+\ rows and refit for per-coefficient SE/CI/bias. The fit picks linear vs logistic.
+\ The model frame carries the complete-case design and response it fitted, so it
+\ applies and serializes on its own.
+: regress-with
+	| dataset predictors response replications fit |
+	dataset predictors dataset>matrix with-intercept to x
+	dataset response 1 array dataset>matrix to y
+	x y augment to data
+	data dup nan? row-sums 0 eq where select-rows to data
+	data fit execute to beta
+	data fit replications bootstrap to betas
+	0 beta size 1- range
+	beta betas replications
+	[: j beta betas replications | beta betas replications j coefficient-summary :]
+	3 ncurry map to coefficients
+
+	data n-rows to fitted-rows
+	data n-columns 1- to n-terms
+	{ :coefficients coefficients
+	  :estimates beta
+	  :predictors [ :intercept ] predictors concat
+	  :response response
+	  :design data 0 fitted-rows 0 n-terms submatrix
+	  :responses data 0 fitted-rows n-terms n-terms 1+ submatrix
+	  :n-rows fitted-rows
+	  :replications replications 
+	} ;
+
 
 ( dataset predictors response replications -- [coefficient-summaries] )
 : linear-regression  ' fit-augmented regress-with ;
@@ -776,5 +881,57 @@ drop
 
 	beta theta ;
 
+\ ---- generalized Pareto distribution (GPD): the peaks-over-threshold tail ----
+\ Exceedances are the amounts by which observations pass a threshold, so they
+\ are positive and measured from zero.
 
+( shape scale exceedances -- nll ) \ negative log-likelihood; 1e10 where the parameters put an exceedance outside the support
+: gpd-nll
+	| shape scale exceedances |
+	shape abs 1e-9 < if 1e10 exit then
+	exceedances shape * scale / 1 + to scaled
+	scaled min 0 <= if 1e10 exit then
+	scaled ln sum 1 1 shape / + *
+	exceedances num-elements scale ln * + ; internal
 
+( exceedances -- shape scale ) \ maximum likelihood over a refining (shape, ln scale) grid
+: gpd-fit
+	| exceedances |
+	0.3 to center-shape
+	exceedances mean ln to center-lnscale
+	0.6 to shape-span
+	1.5 to lnscale-span
+	center-shape to best-shape
+	center-lnscale to best-lnscale
+	1e10 to best-nll
+	0 4 1 do round-i
+		0 81 1 do grid-i
+			center-shape    grid-i 9 / ftruncate 4 - 4 /  shape-span *  +  to trial-shape
+			center-lnscale  grid-i 9 mod         4 - 4 /  lnscale-span *  +  to trial-lnscale
+			trial-shape  trial-lnscale exp  exceedances  gpd-nll to trial-nll
+			trial-nll best-nll < if
+				trial-nll to best-nll
+				trial-shape to best-shape
+				trial-lnscale to best-lnscale
+			then
+		loop
+		best-shape to center-shape
+		best-lnscale to center-lnscale
+		shape-span 2 / to shape-span
+		lnscale-span 2 / to lnscale-span
+	loop
+	best-shape best-lnscale exp ;
+
+( shape scale p -- q ) \ the exceedance at probability p; shape 0 gives the exponential tail
+: gpd-quantile
+	| shape scale p |
+	p 0 < p 1 >= or if
+		p "gpd-quantile: expected a probability in [0, 1); got {0}" format throw
+	then
+	shape abs 1e-9 < if
+		1 p - ln negate scale * exit
+	then
+	1 p - shape negate ^ 1 - scale * shape / ;
+
+( shape scale -- draw ) \ one exceedance drawn from the tail, by inverse transform
+: gpd-draw random gpd-quantile ; inline

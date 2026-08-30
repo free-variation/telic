@@ -16,11 +16,47 @@ plotting library is pure forth (no FFI) and works under wasm; only its
 
 | Word | Stack effect | Summary |
 | --- | --- | --- |
+| `dgemm-nn` | `( α A B β C -- R )` | `R = α·A·B + β·C` via cblas dgemm. Matrix multiply lives here rather than in the base image: `*` on two matrices is element-wise, and this is the real product |
+| `dgemm-tn` | `( α A B β C -- R )` | `R = α·Aᵀ·B + β·C` |
+| `dgemm-nt` | `( α A B β C -- R )` | `R = α·A·Bᵀ + β·C` |
+| `dgemm-tt` | `( α A B β C -- R )` | `R = α·Aᵀ·Bᵀ + β·C` |
 | `dgemv-n` | `( α A x β y -- r )` | `r = α·A·x + β·y` via cblas dgemv, with `x` and `y` columns (n×1) and a fresh `r` copied from `y`; `x` must be A's column count and `y` its row count. Reaches BLAS with a vector call rather than dgemm on a one-column matrix |
 | `dgemv-t` | `( α A x β y -- r )` | `r = α·Aᵀ·x + β·y` via cblas dgemv, with `x` A's row count and `y` its column count |
 | `svd` | `( A -- U S VT )` | Thin singular value decomposition via LAPACKE dgesvd: `A = U diag(S) VT`, with `S` the 1×min(m,n) singular values. Column signs of U/VT are not canonical, so pin goldens on S and the reconstruction, not raw U/VT entries |
 | `fit-linear` | `( mat y -- beta )` | Ordinary least squares via LAPACKE dgelsd; `mat` is observations×predictors (observations ≥ predictors), `y` the observations×1 response, `beta` the predictors×1 coefficients |
 | `fit-augmented` | `( augmented -- beta )` | Least squares of an `[X | y]` block whose last column is the response |
+
+```forth dgemm-nn
+"statistics" load-library
+1 [ 1 2 3 4 ] 2 2 matrix 2 identity-matrix 0 2 2 0-matrix dgemm-nn matrix>array . cr
+```
+```output
+[ 1 2 3 4 ]
+```
+
+```forth dgemm-tn
+"statistics" load-library
+1 [ 1 2 3 4 ] 2 2 matrix dup 0 2 2 0-matrix dgemm-tn matrix>array . cr
+```
+```output
+[ 10 14 14 20 ]
+```
+
+```forth dgemm-nt
+"statistics" load-library
+1 [ 1 2 3 4 ] 2 2 matrix dup 0 2 2 0-matrix dgemm-nt matrix>array . cr
+```
+```output
+[ 5 11 11 25 ]
+```
+
+```forth dgemm-tt
+"statistics" load-library
+1 [ 1 2 3 4 ] 2 2 matrix dup 0 2 2 0-matrix dgemm-tt matrix>array . cr
+```
+```output
+[ 7 15 10 22 ]
+```
 
 ```forth dgemv-n
 "statistics" load-library
@@ -63,9 +99,6 @@ plotting library is pure forth (no FFI) and works under wasm; only its
 ```
 
 ## Regression (lib/statistics.telic)
-
-The derivation behind these words — the mathematics, step by step, connected
-to the word performing each step — is docs/regression.md.
 
 `linear-regression` and `logistic-regression` answer a model frame:
 `:coefficients` (one `{ :estimate :se :bias :ci-low :ci-high }` frame per
@@ -292,6 +325,96 @@ dup "/tmp/docs-xgb.json" xgb-save xgb-free
 [ 548 ]
 ```
 
+## Design matrices and the regression pipeline (lib/statistics.telic)
+
+These build the design a fit consumes, and assemble the model frame the
+regressions answer. `linear-regression` and `logistic-regression` are
+`regress-with` with a fit supplied.
+
+| Word | Stack effect | Summary |
+| --- | --- | --- |
+| `column>indicators` | `( column -- mat )` | one 0/1 indicator column per distinct value above the first (the reference) — an n×(k−1) matrix from a numeric vector or text array column, levels in `val_cmp` order (`column>set` lists them); a missing cell leaves every indicator 0; errors on fewer than 2 distinct values | n·k + n log n | level masks + `1m` per fold | O(n·k + n log n) |
+| `indicators!` | `( design column sym -- design )` | `column>indicators` for a design dataset (a frame of columns): adds one 0/1 column per distinct value above the first (the reference), keyed `sym=level`, mutating and returning the frame — keys and columns derive from the same data, so a level change grows both together; `keys` then names the design and `dataset>matrix` over them is the aligned matrix; errors on fewer than 2 distinct values | n·k + n log n | level masks + frame growth | O(n·k + n log n) |
+| `with-intercept` | `( X/design -- X'/design )` | a matrix gets a prepended column of ones, so a fit's beta[0] is the intercept; a design dataset gets an `:intercept` ones column keyed like any term (errors on an empty design — the rows are read from it) | r×c | matrix `1m(r×(c+1))`; design `1m(r×1)` | O(r×c) |
+| `regress-with` | `( dataset predictors response B fit-xt -- model )` | the shared regression pipeline — design matrix with intercept, point estimate, then B bootstrap refits. The model frame carries `:coefficients` (a `{ :estimate :se :bias :ci-low :ci-high }` frame each), `:estimates` (the point-estimate vector), `:predictors`, `:response`, the complete-case `:design` and `:responses`, `:n-rows`, and `:replications`; the loadable statistics library's `linear-regression`/`logistic-regression` pass the fit | fit + B·fit | matrices + B refits + `1fr` | O(B·fit) |
+
+```forth column>indicators
+"statistics" load-library
+[ "a" "b" "a" "c" ] column>indicators matrix>array . cr
+```
+```output
+[ 0 0 1 0 0 0 0 1 ]
+```
+
+```forth indicators!
+"statistics" load-library
+{ } [ "r" "g" "r" ] :color indicators! keys . cr
+```
+```output
+[ :color=r ]
+```
+
+```forth with-intercept
+"statistics" load-library
+[ 1 2 ] vector with-intercept matrix>array . cr
+```
+```output
+[ 1 1 1 2 ]
+```
+
+```forth regress-with
+"statistics" load-library
+42 seed [ [ "x" "y" ] [ 1 3 ] [ 2 5 ] [ 3 7 ] [ 4 9.1 ] ] true rows>dataset
+[ :x ] :y 20 ' fit-augmented regress-with :predictors @ . cr
+```
+```output
+[ :intercept :x ]
+```
+
+
+## Generalized Pareto tail (lib/statistics.telic)
+
+The peaks-over-threshold tail. Exceedances are the amounts by which
+observations pass a threshold, so they are positive and measured from zero.
+
+| Word | Stack effect | Summary |
+| --- | --- | --- |
+| `gpd-fit` | `( exceedances -- shape scale )` | maximum-likelihood generalized Pareto (GPD) fit to a vector of threshold exceedances — four refining rounds of a 9×9 grid over (shape, ln scale), reaching about [−0.8, 1.4] in shape at a resolution of 0.02, so a returned shape at either endpoint is the grid boundary, not an optimum | 324n | `4m(n)` per grid point | O(n) |
+| `gpd-quantile` | `( shape scale p -- q )` | the generalized-Pareto quantile — `scale/shape · ((1−p)^−shape − 1)`, and the exponential limit `−scale · ln(1−p)` when \|shape\| < 1e-9; errors unless p is in [0, 1) | 6 | none | O(1) |
+| `gpd-draw` | `( shape scale -- draw )` | one exceedance drawn from the tail by inverse transform — `random gpd-quantile` (inlined), and `random`'s [0, 1) is `gpd-quantile`'s domain. Draws from the shared stream, so `seed` fixes the sequence | 7 | none | O(1) |
+
+```forth gpd-fit
+"statistics" load-library
+[ 0.2 0.5 0.9 1.4 2.1 3.5 6.0 12.0 ] vector gpd-fit
+swap "shape {0}" format . cr
+"scale {0}" format . cr
+```
+```output
+shape 0.225
+scale 2.63029
+```
+
+```forth gpd-quantile
+"statistics" load-library
+0.2 1.5 0.9 gpd-quantile . cr
+0 2 0.5 gpd-quantile . cr
+```
+```output
+4.3867
+1.38629
+```
+
+```forth gpd-draw
+"statistics" load-library
+42 seed
+0.25 2 gpd-draw . cr
+0.25 2 gpd-draw . cr
+```
+```output
+0.177111
+1.01184
+```
+
 ## Plotting (lib/plot.telic)
 
 A figure accumulates marks (data- or pixel-space coordinates plus the style in
@@ -344,7 +467,6 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 | `boxplots-plot` | `( arrays labels -- svg )` | Complete side-by-side boxplots, rendered |
 | `barchart-plot` | `( heights labels -- svg )` | Complete bar chart (border and y-ticks, no x-ticks), rendered |
 | `count-barchart-plot` | `( values -- svg )` | Complete frequency bar chart from raw values, rendered |
-| `plot-tree` | `( tree -- svg )` | Render a `fit-tree` as a node-link diagram — internal nodes show the split, leaves the prediction, edges to the left (condition-true) child then the right |
 
 ```forth figure
 "plot" load-library
@@ -679,13 +801,6 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 1
 ```
 
-```forth plot-tree
-"plot" load-library
-{ :x [ 1 2 3 4 ] vector } [ 10 10 20 20 ] vector { } fit-tree plot-tree "<svg" has? . cr
-```
-```output
-1
-```
 
 ## MCP server (lib/mcp.telic)
 

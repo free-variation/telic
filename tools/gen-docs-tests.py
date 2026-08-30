@@ -64,7 +64,6 @@ EXAMPLE_SOURCES = [
 DOC_EXAMPLE_SOURCES = [
     os.path.join("docs", "continuations.md"),
     os.path.join("docs", "logic.md"),
-    os.path.join("docs", "regression.md"),
     os.path.join("docs", "idioms.md"),
 ]
 

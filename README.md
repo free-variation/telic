@@ -273,7 +273,6 @@ exceptions.
 - **`min2`** / **`max2`** — pairwise minimum and maximum, element-wise with scalar broadcast.
 - **In-place matrix ops** — `+!`/`-!`/`*!`/`/!` mutate the left matrix in place. Float-only fast paths (`f+`, `f-`, `f*`, `f/`, `f^`, …) skip the type dispatch when both operands are known floats.
 - **Matrix construction** — `R C 0-matrix` (zeros), `[ ... ] R C matrix`, `[ ... ] vector` (an n×1 column, length inferred), `V N diagonal-matrix` (N×N with V on the diagonal), `N identity-matrix`, `start end step matrix-range` (a 1×N row over a stepped range).
-- **DGEMM** — `dgemm-nn`/`tn`/`nt`/`tt` (`αAB + βC`) for all four transpose variants, each with a loop order that keeps the inner loop unit-stride; a single-column B takes a matrix-vector path instead.
 - **Indexing** — `@i`/`@j`/`@i,j` to read rows, columns, or single cells; `@e` reads by flat row-major index (what `argmax`/`where`/`argsort` produce); `!i,j` and `!e` store a single element in place.
 - **Shape** — `dim`, `reshape`, `flatten`, `transpose`, `diagonal`, `matrix>array` (the elements as an array in row-major order; a dimensioned matrix yields per-element quantities, NaN becomes `null`).
 - **Selection** — `augment`/`hstack` (concatenate two matrices column-wise), `vstack` (row-wise), `submatrix` (copy a half-open row×column block), `select-rows` (gather rows named by a float index array or an index vector; a dataset operand gathers every column by the same indices).
@@ -281,7 +280,6 @@ exceptions.
 - **Norms** — `norm` and `frobenius-norm`, both √(Σ elements²); `dot` is the inner product.
 - **Descriptive statistics** — `var`, `quantile`, and `ks-distance` in C, with `std`, `se`, `median`, `percentile`, `quantiles`, `iqr`, `ci`, `summary`, `histogram-table`, `ecdf`, `binomial-deviance`, `cross-validate`, and the `bootstrap` family in the embedded library — LAPACK-free, so wasm-capable. NaN elements are missing values: the statistics skip them, and the correlations and regressions use complete cases.
 - **Correlations** — `correlation-pearson`, `correlation-spearman`, `correlation-kendall` (tau-b); `correlate-with` bootstraps a confidence interval for any of them, `cor` does it with kendall in one word, and `qnorm` is the standard normal quantile.
-- **Regression trees** — `fit-tree` grows a CART regression tree over a features frame and a numeric response, taking numeric and categorical columns and missing values as they come; `predict` applies one, `feature-importance` ranks the features, `prune` and `prune-cv` cost-complexity-prune it, `draw-tree` prints it, and `lib/plot.telic`'s `plot-tree` draws it.
 - **SVG plotting** (`lib/plot.telic`) — scatter, line series, histograms, bar charts, and Tukey boxplots over a deferred-rendering figure: marks accumulate with the style in effect and nothing maps to pixels until render, so draw order is free and the domain may be set after the data. `save-figure` writes a version, `show-figure` opens a browser view that later versions appear in.
 - **Element-wise math** — `abs`, `sqrt`, `exp`, `log`, `ln`, `sin`, `cos`, `tan`, `tanh`, `asin`, `acos`, `atan`, `round`, `truncate`, `round-up`, `round-down`. Polymorphic over floats and matrices.
 - **Comparison** — `=` is structural, so matrices work as set members; `<`/`>`/`eq` on a matrix or array operand mask **element-wise** into a 1/0 matrix, so `names "ann" eq where` filters a text column. On scalars and strings all of them are structural.
@@ -447,7 +445,7 @@ The statistics library (`lib/statistics.telic`, loaded on demand) builds on the 
 
 - **Descriptive** — `std`, `se`, `median`, `percentile`, `quantiles`, `iqr`, `ci` (percentile confidence interval).
 - **Resampling** — `bootstrap` / `pbootstrap` (parallel) over a fit quotation.
-- **Linear algebra** — `svd` and `fit-linear` on LAPACK through the FFI; loading the library also rebinds `dgemm-*` to BLAS and adds `dgemv-n` / `dgemv-t` for matrix-vector products.
+- **Linear algebra** — matrix multiply (`dgemm-nn`/`tn`/`nt`/`tt`) and matrix-vector products (`dgemv-n` / `dgemv-t`) on the platform BLAS, `svd` and `fit-linear` on LAPACK, all through the FFI.
 - **Regression** — `linear-regression` and `logistic-regression` (Firth-penalized IRLS), each answering a model frame of per-coefficient estimates with bootstrap confidence intervals, the predictor names, and the complete-case data it fitted. `fit-logistic-ridge` is the L2-penalized fit, with `cv-logistic-ridge` / `pcv-logistic-ridge` choosing `lambda` by cross-validation.
 - **Generalized linear models** — `fit-glm` takes a family as three quotations, with `gaussian-identity`, `poisson-log`, `gamma-log`, `binomial-logit`, and `negative-binomial-log` provided and `fit-poisson` / `fit-gamma` wrapping the log-link fits. `fit-negative-binomial` estimates the dispersion alongside the coefficients; `fit-multinomial`, `fit-multinomial-ridge`, and `predict-multinomial` handle several classes.
 - **Gradient boosting** — `fit-xgb` trains an XGBoost booster on a feature matrix and response through the system `libxgboost`, taking a params frame keyed by XGBoost parameter names; `xgb-predict` scores, `xgb-importance` ranks the features, `xgb-free` releases the booster, and `xgb-save`/`xgb-load` use XGBoost's own model format, readable by Python and R.
@@ -516,7 +514,7 @@ external/              — vendored deps: pcre2, sqlite, isocline, lapacke
 tests/                 — golden-output test files
 bench/                 — benchmark suite (Telic vs CPython) and inventory
 docs/                  — the word reference (reference.md, reference-libraries.md), idioms.md,
-                         and the primers: continuations, logic, regression
+                         and the primers: continuations, logic
 PLAN.md                — future work
 ```
 

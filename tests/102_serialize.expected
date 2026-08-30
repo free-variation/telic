@@ -41,8 +41,8 @@
 row19999 
 0.375 
 1 
-[ 10 20 ] 
-[ :x ] 
+[ 1.5 -0.25 ] 
+:income 
 [< 1 2 3 >] 
 error: cannot serialize an execution token
 in value>bytes

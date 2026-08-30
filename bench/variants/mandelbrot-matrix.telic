@@ -4,7 +4,11 @@
 \ does the work. There is no per-pixel early exit — all max-iter iterations run
 \ for every pixel and `escaped` accumulates the escape mask; a pixel is in-set
 \ iff it never escaped (escaped = 0), giving the same count as the serial version.
-\ CR[y,x] = 2x/N - 1.5 and CI[y,x] = 2y/N - 1 are built as rank-1 outer products.
+\ CR[y,x] = 2x/N - 1.5 and CI[y,x] = 2y/N - 1 are built as rank-1 outer products,
+\ so the statistics library is loaded for dgemm, which reaches the platform BLAS
+\ through the FFI. Native-only, as the FFI is.
+
+"statistics" load-library
 
 1000 constant n
 50 constant max-iter

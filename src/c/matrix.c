@@ -293,202 +293,6 @@ void p_store_e_lll0(DISPATCH_ARGS) {
 STORE_IJ_OP(p_store_ij, 3)
 STORE_IJ_OP(p_store_ij_drop, 4)
 
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC push_options
-#pragma GCC optimize ("-fassociative-math", "-fno-signed-zeros", "-fno-trapping-math")
-#endif
-int dgemm_kernel(Interpreter *interp, int transpose_a, int transpose_b,
-		double alpha,
-		int a_handle, int b_handle,
-		double beta, int c_handle) {
-	int i, j, k, m, n, p;
-
-	Object *A = OBJECT_AT(a_handle);
-	Object *B = OBJECT_AT(b_handle);
-	Object *C = OBJECT_AT(c_handle);
-
-	int op_a_rows = transpose_a ? A->matrix.columns : A->matrix.rows;
-	int op_a_cols = transpose_a ? A->matrix.rows : A->matrix.columns;
-	int op_b_rows = transpose_b ? B->matrix.columns : B->matrix.rows;
-	int op_b_cols = transpose_b ? B->matrix.rows : B->matrix.columns;
-
-	if (op_a_cols != op_b_rows) {
-		fail(interp, "inner dimensions must match (op(A) is %dx%d, op(B) is %dx%d)",
-				op_a_rows, op_a_cols, op_b_rows, op_b_cols);
-		return -1;
-	}
-
-	if (C->matrix.rows != op_a_rows || C->matrix.columns != op_b_cols) {
-		fail(interp, "C must be %dx%d to match the product, but is %dx%d",
-				op_a_rows, op_b_cols, C->matrix.rows, C->matrix.columns);
-		return -1;
-	}
-
-	m = op_a_rows;
-	n = op_b_cols;
-	k = op_a_cols;
-
-	int matmult_handle = object_new_matrix_raw(interp, m, n);
-	if (interp->error_flag) return -1;
-	Object *matmult = OBJECT_AT(matmult_handle);
-
-	if (!transpose_a && !transpose_b) {
-		double * restrict out_elements = matmult->matrix.elements;
-		const double * restrict a_elements = A->matrix.elements;
-		const double * restrict b_elements = B->matrix.elements;
-		const double * restrict c_elements = C->matrix.elements;
-
-		if (n == 1) {
-#if defined(__clang__)
-#pragma clang fp reassociate(on)
-#endif
-			for (i = 0; i < m; i++) {
-				const double * restrict a_row = &a_elements[i * k];
-				double sum = 0.0;
-				for (p = 0; p < k; p++)
-					sum += a_row[p] * b_elements[p];
-				out_elements[i] = alpha * sum + beta * c_elements[i];
-			}
-		} else {
-			for (i = 0; i < m; i++)
-				for (j = 0; j < n; j++)
-					out_elements[i * n + j] = beta * c_elements[i * n + j];
-
-			for (i = 0; i < m; i++) {
-				for (p = 0; p < k; p++) {
-					double a_val = alpha * a_elements[i * k + p];
-					const double *b_row = &b_elements[p * n];
-					double *out_row = &out_elements[i * n];
-					for (j = 0; j < n; j++)
-						out_row[j] += a_val * b_row[j];
-				}
-			}
-		}
-	} else if (!transpose_a && transpose_b) {
-#if defined(__clang__)
-#pragma clang fp reassociate(on)
-#endif
-		const double * restrict a_elements = A->matrix.elements;
-		const double * restrict b_elements = B->matrix.elements;
-		for (i = 0; i < m; i++) {
-			for (j = 0; j < n; j++) {
-				const double * restrict a_row = &a_elements[i * k];
-				const double * restrict b_row = &b_elements[j * k];
-				double sum = 0.0;
-				for (p = 0; p < k; p++)
-					sum += a_row[p] * b_row[p];
-				MAT(matmult, i, j) = alpha * sum + beta * MAT(C, i, j);
-			}
-		}
-	} else if (transpose_a && !transpose_b) {
-		double * restrict out_elements = matmult->matrix.elements;
-		const double * restrict a_elements = A->matrix.elements;
-		const double * restrict b_elements = B->matrix.elements;
-		const double * restrict c_elements = C->matrix.elements;
-
-		if (n == 1) {
-			for (i = 0; i < m; i++)
-				out_elements[i] = beta * c_elements[i];
-
-			for (p = 0; p < k; p++) {
-				double b_val = alpha * b_elements[p];
-				const double * restrict a_row = &a_elements[p * m];
-				for (i = 0; i < m; i++)
-					out_elements[i] += b_val * a_row[i];
-			}
-		} else if (n < 8) {
-			for (i = 0; i < m; i++) {
-				for (j = 0; j < n; j++) {
-					double sum = 0.0;
-					for (p = 0; p < k; p++)
-						sum += a_elements[p * m + i] * b_elements[p * n + j];
-					out_elements[i * n + j] = alpha * sum + beta * c_elements[i * n + j];
-				}
-			}
-		} else {
-			for (i = 0; i < m; i++)
-				for (j = 0; j < n; j++)
-					out_elements[i * n + j] = beta * c_elements[i * n + j];
-
-			for (i = 0; i < m; i++) {
-				for (p = 0; p < k; p++) {
-					double a_val = alpha * a_elements[p * m + i];
-					const double *b_row = &b_elements[p * n];
-					double *out_row = &out_elements[i * n];
-					for (j = 0; j < n; j++)
-						out_row[j] += a_val * b_row[j];
-				}
-			}
-		}
-	} else {
-#if defined(__clang__)
-#pragma clang fp reassociate(on)
-#endif
-		const double * restrict a_elements = A->matrix.elements;
-		const double * restrict b_elements = B->matrix.elements;
-		double *a_column;
-		MALLOC_OR_FAIL_RETURNING(interp, a_column, sizeof(double) * (size_t)k, -1);
-
-		for (i = 0; i < m; i++) {
-			for (p = 0; p < k; p++)
-				a_column[p] = a_elements[p * m + i];
-			for (j = 0; j < n; j++) {
-				const double * restrict b_row = &b_elements[j * k];
-				double sum = 0.0;
-				for (p = 0; p < k; p++)
-					sum += a_column[p] * b_row[p];
-				MAT(matmult, i, j) = alpha * sum + beta * MAT(C, i, j);
-			}
-		}
-
-		free(a_column);
-	}
-
-	return matmult_handle;
-}
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC pop_options
-#endif
-
-void p_dgemm_helper(Interpreter *interp, int transpose_a, int transpose_b) {
-	POP(c_val);
-	POP(beta_val);
-	POP(b_val);
-	POP(a_val);
-	POP(alpha_val);
-
-	if (VAL_TAG(alpha_val) != T_FLOAT || VAL_TAG(beta_val) != T_FLOAT) {
-		fail(interp, "alpha and beta must be floats; got %s and %s",
-				tag_name(VAL_TAG(alpha_val)), tag_name(VAL_TAG(beta_val)));
-		return;
-	}
-	if (VAL_TAG(a_val) != T_MATRIX || VAL_TAG(b_val) != T_MATRIX || VAL_TAG(c_val) != T_MATRIX) {
-		fail(interp, "A, B, C must be matrices; got %s, %s, %s",
-				tag_name(VAL_TAG(a_val)), tag_name(VAL_TAG(b_val)), tag_name(VAL_TAG(c_val)));
-		return;
-	}
-
-	int matmult_handle = dgemm_kernel(interp, transpose_a, transpose_b,
-			VAL_NUMBER(alpha_val),
-			(int)VAL_DATA(a_val), (int)VAL_DATA(b_val),
-			VAL_NUMBER(beta_val),
-			(int)VAL_DATA(c_val));
-	if (interp->error_flag) return;
-	push(interp, make_matrix(matmult_handle));
-}
-
-#define DGEMM_WORD(c_name, transpose_a, transpose_b) \
-	void c_name(DISPATCH_ARGS) { \
-		p_dgemm_helper(interp, transpose_a, transpose_b); \
-		\
-		DISPATCH(interp); \
-	}
-
-DGEMM_WORD(p_dgemm_nn, 0, 0)
-DGEMM_WORD(p_dgemm_tn, 1, 0)
-DGEMM_WORD(p_dgemm_nt, 0, 1)
-DGEMM_WORD(p_dgemm_tt, 1, 1)
-
 static size_t sort_partition_nans(double *elements, size_t n_elements) {
 	int any_nan = 0;
 	for (size_t i = 0; i < n_elements; i++)
@@ -1426,6 +1230,121 @@ REDUCE_AXIS_HANDLER(p_row_mins, "row-mins", matrix_min_rows)
 REDUCE_AXIS_HANDLER(p_column_sums, "column-sums", matrix_sum_columns)
 REDUCE_AXIS_HANDLER(p_column_maxes, "column-maxes", matrix_max_columns)
 REDUCE_AXIS_HANDLER(p_column_mins, "column-mins", matrix_min_columns)
+
+double matrix_variance_overall(Object *source, size_t *n_nonmissing_out) {
+	size_t n = (size_t)(source->matrix.rows * source->matrix.columns);
+	const double * restrict elements = source->matrix.elements;
+	double reference = 0.0;
+	int have_reference = 0;
+	double sum_shifted = 0.0;
+	double sum_shifted_squares = 0.0;
+	size_t n_nonmissing = 0;
+
+	for (size_t i = 0; i < n; i++) {
+		double value = elements[i];
+		if (value != value)
+			continue;
+		if (!have_reference) {
+			reference = value;
+			have_reference = 1;
+		}
+		double shifted = value - reference;
+		n_nonmissing++;
+		sum_shifted += shifted;
+		sum_shifted_squares += shifted * shifted;
+	}
+
+	*n_nonmissing_out = n_nonmissing;
+	if (n_nonmissing < 2)
+		return NAN;
+	return (sum_shifted_squares - sum_shifted * sum_shifted / (double)n_nonmissing) / (double)(n_nonmissing - 1);
+}
+
+void p_variance(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	int unit;
+	Val source_val = quantity_unwrap(chain_sp[-1], &unit);
+	REQUIRE_CHAIN_TAG(source_val, T_MATRIX, "var", "a matrix");
+	Object *source = OBJECT_AT(VAL_DATA(source_val));
+
+	size_t n_nonmissing;
+	double variance = matrix_variance_overall(source, &n_nonmissing);
+	if (n_nonmissing < 2) {
+		fail(interp, "needs at least 2 non-NaN elements; got %zu", n_nonmissing);
+		return;
+	}
+
+	if (unit) {
+		int squared_unit = unit_pow(interp, unit, 2, 1);
+		if (interp->error_flag)
+			return;
+
+		SYNC_REGISTERS(interp, chain_ip, chain_sp - 1);
+		push_quantity(interp, make_float(variance), squared_unit);
+		DISPATCH(interp);
+	}
+
+	chain_sp[-1] = make_float(variance);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
+
+void p_quantile(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
+	Val probability_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(probability_val, T_FLOAT, "quantile", "a float probability");
+	double probability = VAL_NUMBER(probability_val);
+	if (probability < 0.0 || probability > 1.0) {
+		fail(interp, "probability must be in [0,1]; got %g", probability);
+		return;
+	}
+
+	int unit;
+	Val source_val = quantity_unwrap(chain_sp[-2], &unit);
+	REQUIRE_CHAIN_TAG(source_val, T_MATRIX, "quantile", "a matrix");
+	Object *source = OBJECT_AT(VAL_DATA(source_val));
+	size_t n = (size_t)(source->matrix.rows * source->matrix.columns);
+	if (n == 0) {
+		fail(interp, "empty matrix");
+		return;
+	}
+
+	double *sorted;
+	MALLOC_OR_FAIL(interp, sorted, n * sizeof(double));
+	size_t n_nonmissing = 0;
+	for (size_t i = 0; i < n; i++) {
+		double element = source->matrix.elements[i];
+		if (element != element)
+			continue;
+		sorted[n_nonmissing++] = element;
+	}
+	if (n_nonmissing == 0) {
+		free(sorted);
+		fail(interp, "all elements are NaN (missing)");
+		return;
+	}
+	sort_doubles(sorted, n_nonmissing);
+
+	double rank = probability * (double)(n_nonmissing - 1);
+	size_t lower = (size_t)rank;
+	double fraction = rank - (double)lower;
+	double value = sorted[lower];
+
+	if (lower + 1 < n_nonmissing)
+		value += fraction * (sorted[lower + 1] - sorted[lower]);
+
+	free(sorted);
+
+	if (unit) {
+		SYNC_REGISTERS(interp, chain_ip, chain_sp - 2);
+		push_quantity(interp, make_float(value), unit);
+		DISPATCH(interp);
+	}
+
+	chain_sp[-2] = make_float(value);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+}
 
 void p_cumulative_sum(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);

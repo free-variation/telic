@@ -2911,8 +2911,8 @@ null 1
 
 ## Value serialization
 
-A whole value graph as bytes and back: matrices, datasets, fitted trees,
-regression models — anything built from floats, strings, symbols, `null`, `_`,
+A whole value graph as bytes and back: matrices, datasets, regression
+models — anything built from floats, strings, symbols, `null`, `_`,
 arrays, sets, frames, pairs, matrices, segments, exacts, complexes, and
 quantities, nested to any depth. Shared substructure is written once and
 referenced, so an object reachable twice comes back as one object and a cyclic
@@ -2954,11 +2954,11 @@ rather than answering a damaged value. Doubles and counts are little-endian.
 ```
 
 ```forth save-value
-{ :x [ 1 2 3 4 ] vector } [ 10 10 20 20 ] vector { } fit-tree "/tmp/docs-tree.bin" save-value
-"/tmp/docs-tree.bin" load-value { :x [ 1 4 ] vector } predict matrix>array . cr
+{ :estimates [ 1.5 -0.25 ] vector :meta { :n-rows 4 } } "/tmp/docs-model.bin" save-value
+"/tmp/docs-model.bin" load-value :estimates @ matrix>array . cr
 ```
 ```output
-[ 10 20 ]
+[ 1.5 -0.25 ]
 ```
 
 ```forth load-value
@@ -3160,14 +3160,11 @@ Row-major `double` storage. `r` rows, `c` columns.
 
 ### Multiplication and reductions
 
-`dgemm` variants do real matrix multiply; `*` on matrices is element-wise.
+Matrix multiply is `dgemm`, which the statistics library supplies through the
+platform BLAS (`"statistics" load-library`); `*` on matrices is element-wise.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `dgemm-nn` | `( α A B β C -- R )` | `R = α·A·B + β·C`, ikj fast path | 5 + m·k·n | `1m(m×n)` | O(m·k·n) |
-| `dgemm-tn` | `( α A B β C -- R )` | `R = α·Aᵀ·B + β·C` | 5 + m·k·n | `1m(m×n)` | O(m·k·n) |
-| `dgemm-nt` | `( α A B β C -- R )` | `R = α·A·Bᵀ + β·C` | 5 + m·k·n | `1m(m×n)` | O(m·k·n) |
-| `dgemm-tt` | `( α A B β C -- R )` | `R = α·Aᵀ·Bᵀ + β·C` | 5 + m·k·n | `1m(m×n)` | O(m·k·n) |
 | `sum` | `( mat -- f )` | Sum of all elements (4-way unrolled, fast-math) | 1 + r×c | none | O(r×c) |
 | `max` | `( mat -- f )` | Maximum element | 1 + r×c | none | O(r×c) |
 | `min` | `( mat -- f )` | Minimum element | 1 + r×c | none | O(r×c) |
@@ -3182,34 +3179,6 @@ Row-major `double` storage. `r` rows, `c` columns.
 | `mean` | `( mat -- f )` | matrix.telic: sum ÷ element count | r×c | none | O(r×c) |
 | `row-means` | `( mat -- mat' )` | matrix.telic: `row-sums` then scalar ÷ | r×c | 2×`1m(r×1)` | O(r×c) |
 | `column-means` | `( mat -- mat' )` | matrix.telic: `column-sums` then scalar ÷ | r×c | 2×`1m(1×c)` | O(r×c) |
-
-```forth dgemm-nn
-1 [ 1 2 3 4 ] 2 2 matrix 2 identity-matrix 0 2 2 0-matrix dgemm-nn matrix>array . cr
-```
-```output
-[ 1 2 3 4 ]
-```
-
-```forth dgemm-tn
-1 [ 1 2 3 4 ] 2 2 matrix dup 0 2 2 0-matrix dgemm-tn matrix>array . cr
-```
-```output
-[ 10 14 14 20 ]
-```
-
-```forth dgemm-nt
-1 [ 1 2 3 4 ] 2 2 matrix dup 0 2 2 0-matrix dgemm-nt matrix>array . cr
-```
-```output
-[ 5 11 11 25 ]
-```
-
-```forth dgemm-tt
-1 [ 1 2 3 4 ] 2 2 matrix dup 0 2 2 0-matrix dgemm-tt matrix>array . cr
-```
-```output
-[ 7 15 10 22 ]
-```
 
 ```forth sum
 [ 1 2 3 4 ] 2 2 matrix sum . cr
@@ -3318,8 +3287,8 @@ elements are NaN (missing)" (`var`: "needs at least 2 non-NaN elements") when
 too little remains; the correlations delete row i from both vectors when
 either element i is NaN, and error below 2 complete pairs; `regress-with`
 deletes incomplete rows of its design matrix before fitting. The positional
-operations (`cumulative-sum`, the row/column reductions, `dot`, `dgemm-*`)
-keep NaN in place.
+operations (`cumulative-sum`, the row/column reductions, `dot`) keep NaN in
+place.
 
 `c` below is the output column count; `k` the index count; `n = r×c`.
 
@@ -3362,28 +3331,15 @@ keep NaN in place.
 | `correlate-with` | `( xs ys xt B -- fr )` | statistics.telic: bootstrap 95% CI for the correlation word at xt — resamples (x, y) pairs jointly, B refits via a curried fit through `pbootstrap`, as `{ :estimate :se :bias :ci-low :ci-high }`; deterministic under a fixed seed | B·(n + xt) | pairs matrix + per-worker resample + `1fr` | O(B·(n + xt) / cores) |
 | `cor` | `( xs ys -- fr )` | statistics.telic: `correlation-kendall` with a 500-replicate bootstrap CI — `' correlation-kendall 500 correlate-with` (inlined) | as `correlate-with` | as `correlate-with` | as `correlate-with` |
 | `qnorm` | `( p -- z )` | statistics.telic: standard normal quantile (inverse CDF), Acklam's rational approximation — relative error below 1.15e-9, matching R's qnorm to 1e-8 over both tails; errors unless p strictly inside (0, 1) | 30 | none | O(1) |
-| `gpd-fit` | `( exceedances -- shape scale )` | statistics.telic: maximum-likelihood generalized Pareto (GPD) fit to a vector of threshold exceedances — four refining rounds of a 9×9 grid over (shape, ln scale), reaching about [−0.8, 1.4] in shape at a resolution of 0.02, so a returned shape at either endpoint is the grid boundary, not an optimum | 324n | `4m(n)` per grid point | O(n) |
-| `gpd-quantile` | `( shape scale p -- q )` | statistics.telic: the generalized-Pareto quantile — `scale/shape · ((1−p)^−shape − 1)`, and the exponential limit `−scale · ln(1−p)` when \|shape\| < 1e-9; errors unless p is in [0, 1) | 6 | none | O(1) |
-| `gpd-draw` | `( shape scale -- draw )` | statistics.telic: one exceedance drawn from the tail by inverse transform — `random gpd-quantile` (inlined), and `random`'s [0, 1) is `gpd-quantile`'s domain. Draws from the shared stream, so `seed` fixes the sequence | 7 | none | O(1) |
 | `sample-without-replacement` | `( arr n -- arr )` | statistics.telic: `false sample` (inlined) | n | as `sample` | O(n) |
 | `sample-with-replacement` | `( arr n -- arr )` | statistics.telic: `true sample` (inlined) | n | as `sample` | O(n) |
 | `bootstrap` | `( data fit-xt B -- arr )` | statistics.telic: B refits of fit-xt over resamples of data — dataset/matrix rows, or an array's elements. One serial draw sets the run seed; replicate i draws its indices via `resample-indices-ext` at run-seed + i, so no resample outlives its fit and results don't depend on scheduling — deterministic under a fixed seed | B(n + fit) | per-fit resample + `1a(B)` | O(B·(n + fit)) |
 | `pbootstrap` | `( data fit-xt B -- arr )` | statistics.telic: `bootstrap` with the fits run under `pmap` — identical results (per-replicate seeding), parallel resample+fit | as `bootstrap` | as `bootstrap` | O(B·(n + fit) / cores) |
 | `bootstrap-with` | `( data fit-xt B mapper-xt -- arr )` | statistics.telic: the bootstrap skeleton `bootstrap`/`pbootstrap` instantiate; mapper-xt is `map`-shaped | as `bootstrap` | as `bootstrap` | as `bootstrap` |
-| `column>indicators` | `( column -- mat )` | statistics.telic: one 0/1 indicator column per distinct value above the first (the reference) — an n×(k−1) matrix from a numeric vector or text array column, levels in `val_cmp` order (`column>set` lists them); a missing cell leaves every indicator 0; errors on fewer than 2 distinct values | n·k + n log n | level masks + `1m` per fold | O(n·k + n log n) |
-| `indicators!` | `( design column sym -- design )` | statistics.telic: `column>indicators` for a design dataset (a frame of columns): adds one 0/1 column per distinct value above the first (the reference), keyed `sym=level`, mutating and returning the frame — keys and columns derive from the same data, so a level change grows both together; `keys` then names the design and `dataset>matrix` over them is the aligned matrix; errors on fewer than 2 distinct values | n·k + n log n | level masks + frame growth | O(n·k + n log n) |
-| `with-intercept` | `( X/design -- X'/design )` | statistics.telic: a matrix gets a prepended column of ones, so a fit's beta[0] is the intercept; a design dataset gets an `:intercept` ones column keyed like any term (errors on an empty design — the rows are read from it) | r×c | matrix `1m(r×(c+1))`; design `1m(r×1)` | O(r×c) |
 | `sigmoid` | `( mat -- mat' )` | statistics.telic: elementwise logistic 1/(1+e⁻ˣ), mapping reals to (0,1) | 4n | `1m(r×c)` | O(n) |
-| `regress-with` | `( dataset predictors response B fit-xt -- model )` | statistics.telic: the shared regression pipeline — design matrix with intercept, point estimate, then B bootstrap refits. The model frame carries `:coefficients` (a `{ :estimate :se :bias :ci-low :ci-high }` frame each), `:estimates` (the point-estimate vector), `:predictors`, `:response`, the complete-case `:design` and `:responses`, `:n-rows`, and `:replications`; the loadable statistics library's `linear-regression`/`logistic-regression` pass the fit | fit + B·fit | matrices + B refits + `1fr` | O(B·fit) |
 | `norm` | `( mat -- f )` | matrix.telic: `frobenius-norm` under the short name (inlined) | 1 + n | none | O(n) |
 | `dot` | `( v w -- f )` | matrix.telic: inner product (`* sum`, inlined); shapes must broadcast, so match the vectors | 2 + 2n | `1m(n)` | O(n) |
 | `frobenius-norm` | `( mat -- f )` | Euclidean (L2) norm: √(Σ aᵢⱼ²) over all elements — a vector's length; for a matrix the Frobenius (entrywise 2-)norm, not the spectral norm | 1 + n | none | O(n) |
-| `fit-tree` | `( features y params -- tree )` | CART regression tree. `features` is a frame of typed columns — a numeric vector splits at a midpoint `:threshold`, an array column is categorical and splits on a mean-ordered subset stored as `:categories`; `y` is a numeric response vector. Returns a nested frame: every node carries `:prediction` (mean of its rows) and `:n-rows`, an internal node adds `:feature` and either `:threshold` or `:categories` plus `:left`/`:right`, a leaf optionally carries `:responses`. Splits maximize S_L²/n_L + S_R²/n_R (squared-error reduction), each numeric column presorted once. Params frame: `:max-depth` (default unlimited), `:min-samples` (minimum rows on each side of a split, default 1), `:store-leaf-responses` (default off). A numeric split learns a default direction for rows missing that feature (NaN): the side that maximizes the split criterion, stored on the node as `:default` (`:left`/`:right`) — present only when the node saw missing rows | features·n·depth | `malloc(24n)` per numeric column + node buffer + tree frame | O(features·n·depth) |
-| `predict` | `( tree features -- yhat )` | statistics.telic: apply a `fit-tree` tree to a features frame keyed as at training, walking each row from the root to a leaf — a `:threshold` node sends value ≤ threshold left, a `:categories` node sends set membership left (an unseen value goes right), a NaN feature value follows the node's `:default` (left when the node has none) — and answer the leaf `:prediction`s as an n×1 vector | n·depth | `1a(n)` + `1m(n)` | O(n·depth) |
-| `feature-importance` | `( tree -- fr )` | statistics.telic: normalized impurity-reduction importance from a `fit-tree` tree — each split's squared-error reduction (`n_L·pred_L² + n_R·pred_R² − n_P·pred_P²`) summed per `:feature` and scaled to sum 1, as a frame keyed by feature symbol over the features actually split on; a stump gives `{ }` | nodes | `1fr` | O(nodes) |
-| `prune` | `( tree alpha -- tree )` | statistics.telic: cost-complexity prune in place — collapse every subtree whose total split-gain per extra leaf is at most `alpha` (bottom-up, so each collapse sees already-pruned children); `alpha` 0 leaves the tree unchanged, large `alpha` reduces it to the root stump. Mutates the input tree | nodes | leaf frames | O(nodes) |
-| `prune-cv` | `( features y params -- tree )` | statistics.telic: fit a `fit-tree`, then `prune` at the `alpha` the 1-SE rule picks — the largest `alpha` (smallest tree) whose mean k-fold CV mean-squared-error is within one standard error of the minimum, over the weakest-link `alpha` sequence; `:folds` in params sets k (default 5). Fits k×(sequence length) trees | k·seq·(fit + n) | trees + fold data | O(k·seq·fit) |
-| `draw-tree` | `( tree -- )` | statistics.telic: print a `fit-tree` tree as indented split rules — each internal node's condition (`feature <= threshold`, or `feature in <categories>`), left (condition-true) branch first, and each leaf's `predict <value> (n <rows>)` | nodes | strings | O(nodes) |
 
 ```forth augment
 [ 1 2 ] vector [ 3 4 ] vector augment matrix>array . cr
@@ -3649,35 +3605,6 @@ keep NaN in place.
 1.95996
 ```
 
-```forth gpd-fit
-[ 0.2 0.5 0.9 1.4 2.1 3.5 6.0 12.0 ] vector gpd-fit
-swap "shape {0}" format . cr
-"scale {0}" format . cr
-```
-```output
-shape 0.225
-scale 2.63029
-```
-
-```forth gpd-quantile
-0.2 1.5 0.9 gpd-quantile . cr
-0 2 0.5 gpd-quantile . cr
-```
-```output
-4.3867
-1.38629
-```
-
-```forth gpd-draw
-42 seed
-0.25 2 gpd-draw . cr
-0.25 2 gpd-draw . cr
-```
-```output
-0.177111
-1.01184
-```
-
 ```forth sample-without-replacement
 42 seed [ 1 2 3 4 5 ] 2 sample-without-replacement . cr
 ```
@@ -3713,40 +3640,11 @@ scale 2.63029
 [ 1.66667 1 ]
 ```
 
-```forth column>indicators
-[ "a" "b" "a" "c" ] column>indicators matrix>array . cr
-```
-```output
-[ 0 0 1 0 0 0 0 1 ]
-```
-
-```forth indicators!
-{ } [ "r" "g" "r" ] :color indicators! keys . cr
-```
-```output
-[ :color=r ]
-```
-
-```forth with-intercept
-[ 1 2 ] vector with-intercept matrix>array . cr
-```
-```output
-[ 1 1 1 2 ]
-```
-
 ```forth sigmoid
 [ 0 ] vector sigmoid matrix>array . cr
 ```
 ```output
 [ 0.5 ]
-```
-
-```forth-noexec regress-with
-\ the loadable statistics library passes its LAPACK fit:
-adult [ :age :education-num ] :income 200 ' fit-linear regress-with
-```
-```output
-{ :coefficients … :estimates … :predictors [ :intercept :age :education-num ] … }
 ```
 
 ```forth norm
@@ -3768,51 +3666,6 @@ adult [ :age :education-num ] :income 200 ' fit-linear regress-with
 ```
 ```output
 5
-```
-
-```forth fit-tree
-{ :x [ 1 2 3 4 ] vector } [ 10 10 20 20 ] vector { } fit-tree :feature @ . cr
-```
-```output
-:x
-```
-
-```forth predict
-{ :x [ 1 2 3 4 ] vector } [ 10 10 20 20 ] vector { } fit-tree { :x [ 1 4 ] vector } predict matrix>array . cr
-```
-```output
-[ 10 20 ]
-```
-
-```forth feature-importance
-{ :x [ 1 2 3 4 ] vector } [ 10 10 20 20 ] vector { } fit-tree feature-importance keys . cr
-```
-```output
-[ :x ]
-```
-
-```forth prune
-{ :x [ 1 2 3 4 ] vector } [ 10 10 20 20 ] vector { } fit-tree 1000 prune :prediction @ . cr
-```
-```output
-15
-```
-
-```forth prune-cv
-{ :x [ 1 2 3 4 5 6 ] vector } [ 1 1 1 9 9 9 ] vector { :folds 2 } prune-cv :prediction @ . cr
-```
-```output
-5
-```
-
-```forth draw-tree
-{ :x [ 1 2 3 4 ] vector } [ 10 10 20 20 ] vector { } fit-tree draw-tree
-```
-```output
-x <= 2.5
-  predict 10  (n 2)
-x > 2.5
-  predict 20  (n 2)
 ```
 
 ---

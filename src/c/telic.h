@@ -887,10 +887,6 @@ extern int session_unit;
 		return; \
 	}
 
-int dgemm_kernel(Interpreter *interp, int transpose_a, int transpose_b,
-		double alpha,
-		int a_handle, int b_handle,
-		double beta, int c_handle);
 
 void parallel_for(int n_items, int n_threads, int items_per_claim,
 		void (*kernel)(int start_index, int end_index, void *context), void *context);
@@ -1088,6 +1084,7 @@ int matrix_sub(Interpreter *interp, Val left_val, Val right_val);
 int matrix_sum_columns(Interpreter *interp, Object *source);
 double matrix_sum_overall(Object *source);
 int matrix_sum_rows(Interpreter *interp, Object *source);
+double matrix_variance_overall(Object *source, size_t *n_nonmissing_out);
 void sort_doubles(double *elements, size_t n_elements);
 void sort_pairs(ArgsortPair *elements, size_t n_elements);
 int vector_argsort_copy(Interpreter *interp, Object *source);
@@ -1495,11 +1492,6 @@ void p_column_maxes(DISPATCH_ARGS);
 void p_column_mins(DISPATCH_ARGS);
 void p_column_sums(DISPATCH_ARGS);
 void p_cumulative_sum(DISPATCH_ARGS);
-void p_dgemm_helper(Interpreter *interp, int transpose_a, int transpose_b);
-void p_dgemm_nn(DISPATCH_ARGS);
-void p_dgemm_nt(DISPATCH_ARGS);
-void p_dgemm_tn(DISPATCH_ARGS);
-void p_dgemm_tt(DISPATCH_ARGS);
 void p_diagonal(DISPATCH_ARGS);
 void p_diagonal_matrix(DISPATCH_ARGS);
 void p_dim(DISPATCH_ARGS);
@@ -1523,17 +1515,15 @@ void p_store_ij(DISPATCH_ARGS);
 void p_store_ij_drop(DISPATCH_ARGS);
 void p_submatrix(DISPATCH_ARGS);
 void p_sum(DISPATCH_ARGS);
+void p_quantile(DISPATCH_ARGS);
 void p_transpose(DISPATCH_ARGS);
+void p_variance(DISPATCH_ARGS);
 void p_vstack(DISPATCH_ARGS);
 void p_where(DISPATCH_ARGS);
 
 // statistics.c
-double matrix_variance_overall(Object *source, size_t *n_nonmissing_out);
 void p_correlation_kendall(DISPATCH_ARGS);
-void p_fit_tree(DISPATCH_ARGS);
 void p_ks_distance(DISPATCH_ARGS);
-void p_quantile(DISPATCH_ARGS);
-void p_variance(DISPATCH_ARGS);
 
 // indexing.c
 void p_add_store_i(DISPATCH_ARGS);
