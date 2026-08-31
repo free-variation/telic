@@ -4,8 +4,8 @@ UNAME  = $(shell uname -s)
 # always wins — tested via $(origin) because make predefines CC=cc with origin
 # 'default', so `?=` would never fire. When CC is not set explicitly: macOS uses
 # clang (Apple clang; gcc < 15 can't compile the musttail dispatch), and Linux
-# prefers gcc >= 15 when present (measured faster than clang here on Zen4),
-# falling back to clang. Probe order: gcc-15, the /usr/local install, then gcc.
+# prefers gcc >= 15 when present, falling back to clang. Probe order: gcc-15,
+# the /usr/local install, then gcc.
 ifeq ($(origin CC),default)
 ifeq ($(UNAME),Darwin)
 CC := clang
@@ -26,7 +26,8 @@ endif
 # than a common symbol. Mach-O gathers commons into __DATA,__common and asks for
 # an alignment the segment cannot hold ("reducing alignment ... from 0x8000"),
 # and a global tentatively defined in two translation units is a link error here
-# instead of being silently merged into one.
+# instead of being silently merged into one. Still needed: upstream clang made
+# this the default in clang 11, but Apple clang (v21 checked) did not follow.
 CFLAGS = -O3 -march=native -Wall -Wextra -pthread -D_GNU_SOURCE -fno-common
 ifneq ($(UNAME),Darwin)
 CFLAGS += -flto
