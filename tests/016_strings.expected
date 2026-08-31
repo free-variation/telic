@@ -27,14 +27,36 @@ zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
 1 
 1 
 1 
+1 
+1 
+1 
+1 
+1 
+1 
+1 
 error: {d} needs a float; got a string
 in format
 error: {.2f} needs a float; got a string
 in format
 error: bad spec 'z'
 in format
-error: bad spec '.2x'
+error: {x} needs a non-negative value; got -26
 in format
+error: {x} needs a float; got a string
+in format
+HELLO, WORLD! 
+hello, world! 
+mixed 42 _-! MIXED 42 _-! 
+0 
+HéLLO ΩMEGA 
+héllo Ωmega 
+A"B 
+abc 
+[< "ann" >] 
+error: expected a string; got a float
+in upper-case
+error: expected a string; got a symbol
+in lower-case
 ell 
 hello 
 h 

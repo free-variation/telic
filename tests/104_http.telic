@@ -1,0 +1,29 @@
+\ lib/http.telic: http-request / http-get / http-post over a curl subprocess.
+\ file:// URLs keep the tests off the network; curl reports status 000 for
+\ them, so http-get and http-post appear here only through their throw path.
+
+"http" load-library
+
+\ === http-request: { :status :body } from one call ===
+"payload
+line two" "/tmp/lf_http.txt" write-file
+"GET" "file:///tmp/lf_http.txt" [ ] null http-request to response
+response :status @ . cr                             \ 0 (file:// carries no HTTP status)
+response :body @ . cr                               \ payload / line two
+response :body @ byte-size . cr                     \ 16
+
+\ headers and a body ride as extra argv pairs; file:// ignores them
+"POST" "file:///tmp/lf_http.txt" [ "x-a: 1" "x-b: 2" ] "ignored" http-request :status @ . cr   \ 0
+
+\ === http-get / http-post throw on a non-2xx status (file:// reports 0) ===
+[: "file:///tmp/lf_http.txt" http-get :] catch . cr \ 1
+. cr                                                \ http status 0
+[: "file:///tmp/lf_http.txt" "body" http-post :] catch . cr   \ 1
+. cr                                                \ http status 0
+
+\ === a transport failure throws curl's message ===
+[: "notascheme://x" http-get :] catch . cr          \ 1
+"curl" has? . cr                                    \ 1
+
+\ === both stacks left empty ===
+depth . cr                                          \ 0

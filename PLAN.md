@@ -71,78 +71,6 @@ Acceptance:
    like Acklam's `qnorm` have no home under the no-comments rule: reference
    rows carry behavior and PLAN.md carries constraints, neither carries
    algorithm provenance. Decide where it goes, or decide it goes nowhere.
-3. Which Alpha gaps entries (below) make the gate, and which follow the tag.
-
----
-
-## Alpha gaps
-
-From a full read of the reference against what a first user needs. The
-scripting items are the blocking ones: each closes a "the language cannot do
-X at all", not an "X takes three words".
-
-### Scripting
-
-- `args ( -- arr )` — a program's command-line arguments as a string array.
-  Today extra CLI arguments are read as more program files, so the only
-  channel into a script is `env`; settle the CLI convention (`--`, or first
-  file runs and the rest are args).
-- `open-file ( path -- stream )` — a file as a `T_STREAM`, unlocking
-  `read-line` / `read-available` / `wait-readable` / `close` for files;
-  today streams are pipe ends only, so there is no line-by-line path
-  through a file too large for `read-file`.
-- Exit with a chosen code — `bye` is `exit(0)` and an error exits 1;
-  nothing else is expressible.
-- `lib/http.telic` — `http-get` / `http-post` over libcurl through the FFI,
-  native-only like the statistics library. Today networking is a `curl`
-  subprocess (lib/claude.telic) or hand-rolled FFI.
-
-### Math
-
-- `atan2` — absent from both the safe and ⚠ families; also the only route
-  to a complex number's phase. Add complex `conjugate` (and consider `arg`)
-  alongside.
-- `sinh` / `cosh` (`tanh` stands alone); `log2`.
-- Hex output: an `x` conversion letter in `format` specs. Hex input works
-  only by the accident of `strtod`; whether hex literals join the reader
-  is a separate decision.
-
-### Statistics
-
-- `pnorm` — the normal CDF; `qnorm` exists without its partner, so no
-  p-value is computable. A rational approximation in forth beside Acklam's
-  `qnorm` keeps it wasm-capable.
-- `random-normal` — `random qnorm` errors on a zero draw; package the
-  guarded form (or Box–Muller).
-- `covariance ( xs ys -- f )` — `correlation-pearson` computes one
-  internally; name it.
-
-### Strings
-
-- `uppercase` / `lowercase` — no case conversion exists and no route to
-  one; data cleaning needs it before `group-by`. Unicode-correct folding
-  needs tables, so an ASCII-only first cut names the boundary.
-
-### Logic
-
-- `solutions ( goal -- arr )` — package the record-and-`fail` enumeration
-  idiom docs/logic.md describes; array mutation survives backtracking
-  while bindings do not, so it is a few lines in logic.telic.
-
-### Datasets
-
-- `sort-rows ( dataset sym -- dataset )` — name the
-  `dup :col @ argsort select-rows` idiom.
-- A grouped-aggregate word over `group-indices` — per-group reductions
-  into a dataset, the split-apply-combine step written by hand today.
-
-### Docs
-
-- State the deliberate absences in one README line each, so alpha users
-  read them as decisions: TSV-only (no CSV quoting), no networking
-  (subprocess/FFI is the route), no affine units (°C/°F), no occurs check.
-- `%`'s reference cost columns say `none / O(1)` while its behavior column
-  covers element-wise matrices.
 
 ---
 
@@ -158,19 +86,6 @@ X at all", not an "X takes three words".
 ---
 
 ## Statistics
-
-Build in library code on four kernels: `svd`, weighted least squares (the
-`fit-linear` sqrt-w idiom), the resampling loop (`bootstrap`), and pairwise
-distances (§4).
-
-- Add a built-in `svd` — a one-sided Jacobi C kernel masked by the dgesvd
-  binding. Pin goldens on S and the U·S·Vᵀ reconstruction, never raw U/V entries.
-
-Small C words the rest builds on:
-
-- `cumulative-product` (`cumulative-sum`'s twin).
-- `row-argmins`, with its argmax and column twins (index-returning, one pass).
-- Empirical-distribution kernels `ks`, `wasserstein` (§5).
 
 ### 1. SVD / dgemm methods (library)
 
@@ -411,7 +326,8 @@ dropped handle holds its slot and its OS resource until the process exits.
 
 - **ASCII fast path**: a per-string all-ASCII flag to collapse the byte-offset
   walk in `substring`/`char-at`/`codepoint-at` to direct byte indexing.
-- **Case folding** is under Alpha gaps → Strings.
+- **Unicode case folding** — `upper-case`/`lower-case` fold ASCII only;
+  folding the rest needs tables (ICU or a generated table).
 
 ---
 
@@ -457,6 +373,8 @@ Building on the generator primitives:
   infinite branch can't starve the other) and `bind` (flatMap with interleaving)
   — a *complete* search, distinct from the depth-first `amb` / `fail`. Generators
   are the substrate; the interleaving combinators are the work.
+- **Occurs check** — `unify` builds cyclic terms today (docs/logic.md names the
+  omission); add the check, or a guarded `unify-safe`, and measure the cost.
 
 All library forth on the existing primitives — no new C.
 

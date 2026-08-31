@@ -34,3 +34,26 @@ b" "/tmp/lf_fileio.txt" write-file
 42 "/tmp/lf_fileio.txt" write-file             \ content not a string
 "/tmp/lf_fileio.txt" 42 append-file            \ path not a string
 42 file-exists?                                \ path not a string
+
+clear
+\ open-file ( path -- stream ): the file as a read-only stream; read-line /
+\ read / read-available / close work as on pipe ends.
+"first
+second
+tail" "/tmp/lf_fileio.txt" write-file
+"/tmp/lf_fileio.txt" open-file to lines
+lines read-line . cr                           \ first
+lines read-line . cr                           \ second
+lines read . cr                                \ tail (unterminated final run)
+lines read-line none? . cr                     \ 1  end of input
+lines close
+
+"/tmp/lf_fileio.txt" open-file to peeking
+[ peeking ] 5 wait-readable size . cr          \ 1  a file is always readable
+peeking read-available byte-size . cr          \ 17 the whole content waits
+peeking close
+
+\ errors
+lines read-line                                \ stream is closed
+"/tmp/lf_no_such_file_zzz" open-file           \ cannot open
+42 open-file                                   \ path not a string

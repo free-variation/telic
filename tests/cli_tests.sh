@@ -99,6 +99,11 @@ has   "unknown flag suggests help"      ''  "telic --help"       2 --bogus
 # value is wall-clock-dependent, so only the pass-through result is pinned)
 has   "timed passes results through"    '[: 40 2 + :] timed 100 + . cr'  "142" 0 -b
 
+# halt exits with the given code; output already printed is flushed
+exact "halt exits with the given code"  ''  "1 "  3  -e '1 . 3 halt'
+exact "halt truncates a float code"     ''  ""    5  -e '5.9 halt'
+has   "halt rejects a non-float"        ''  "expected a float exit code"  1  -e '"x" halt'
+
 # -h / --help print usage and exit 0
 has   "--help prints usage"             ''  "usage: telic"       0 --help
 has   "-h prints usage"                 ''  "usage: telic"       0 -h
@@ -121,7 +126,18 @@ has   "-e reports errors"               ''  "unknown word: bogus"  1 -e 'bogus'
 has   "-e needs a code string"          ''  "needs a code string"  2 -e
 prog=$(mktemp "${TMPDIR:-/tmp}/lf_prog.XXXXXX")
 printf '2 . \n' > "$prog"
-exact "-e composes with files in argument order"  ''  "1 2 3 "  0 -e '1 .' "$prog" -e '3 . cr'
+exact "-e composes before the program file"  ''  "1 2 "  0 -e '1 .' "$prog"
+rm -f "$prog"
+
+# everything after the program file belongs to the program, options included,
+# answered by `args`
+prog=$(mktemp "${TMPDIR:-/tmp}/lf_prog.XXXXXX")
+printf 'args . cr\n' > "$prog"
+exact "args after the program file"       ''  '[ "a" "b c" "-x" ] '  0  "$prog" a "b c" -x
+exact "a -e after the file is an arg"     ''  '[ "-e" "3" ] '        0  "$prog" -e 3
+exact "args is empty with none given"     ''  "0 "                   0  -e 'args size . cr'
+printf '#!/usr/bin/env telic\nargs . cr\n' > "$prog"
+exact "a leading shebang line is skipped" ''  '[ "z" ] '             0  "$prog" z
 rm -f "$prog"
 
 # a string of bare UTF-8 continuation bytes must decode without a heap overflow:

@@ -105,7 +105,7 @@
   mcp-sessions values [: mcp-busy? not :] filter to idle
   idle size 0 = if false exit then
 
-  idle idle 0 @i [: acc candidate | acc@used candidate@used <= if acc else candidate then :] reduce to oldest
+  idle idle 0 @i [: oldest candidate | oldest@used candidate@used <= if oldest else candidate then :] reduce to oldest
   oldest@child end-process
   mcp-sessions oldest@session string>symbol delete-at drop
   true ; internal

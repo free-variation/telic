@@ -89,7 +89,17 @@ in exp
           1         -1
 error: expected a float or a matrix; got a string
 in round
-0 1.5708 -1.5708 0 1.5708 3.14159 0 0.785398 -0.785398 1 <matrix 1x2>
+0 1.5708 -1.5708 0 1.5708 3.14159 0 0.785398 -0.785398 1 0.785398 2.35619 -2.35619 3.14159 <matrix 3x1>
+     0.7854
+          0
+    -0.7854
+<matrix 1x2>
+     0.7854    -0.7854
+1.1752 1.54308 1 <matrix 1x2>
+          0      1.175
+10 -1 null <matrix 1x2>
+          1          3
+<matrix 1x2>
           0     0.7854
 null 
 1 
@@ -102,5 +112,12 @@ null
 706.573 
 <matrix 1x5>
           0          0     0.6931      1.792      3.178
+0 
+0.842701 
+0 
+1 
+2.15197e-17 
+<matrix 1x3>
+    -0.8427          0     0.8427
 error: expected a float or a matrix; got a string
 in asin

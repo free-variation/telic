@@ -802,6 +802,41 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 ```
 
 
+## HTTP (lib/http.telic)
+
+`"http" load-library`. HTTP over a `curl` subprocess — the language itself has
+no networking. `http-request` is the general form; `http-get` and `http-post`
+wrap the common cases and throw on a non-2xx status. A transport failure (an
+unreachable host, an unsupported URL) throws curl's message; redirects are not
+followed. Native-only: needs `start-process` and the `curl` binary.
+
+| Word | Stack effect | Summary |
+| --- | --- | --- |
+| `http-request` | `( method url headers body -- response )` | One request; `response` is `{ :status :body }` with the HTTP status code and the raw body. `headers` is an array of `"name: value"` strings, `body` a string or `null` (sent as-is, `--data-binary`). A non-HTTP URL (`file://`) reports status 0 |
+| `http-get` | `( url -- body )` | GET, answering the response body; a non-2xx status throws `http status NNN` |
+| `http-post` | `( url body -- body' )` | POST the body as-is (curl's default content-type), answering the response body; a non-2xx status throws |
+
+```forth http-request
+"http" load-library
+"hi" "/tmp/docs-http.txt" write-file
+"GET" "file:///tmp/docs-http.txt" [ ] null http-request dup :status @ . :body @ . cr
+```
+```output
+0 hi
+```
+
+```forth-noexec http-get
+"https://example.org/" http-get
+```
+```output
+```
+
+```forth-noexec http-post
+"https://example.org/collect" "name=telic" http-post
+```
+```output
+```
+
 ## MCP server (lib/mcp.telic)
 
 An MCP server over stdio, protocol revision 2026-07-28, modern era only: every

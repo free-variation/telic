@@ -5,18 +5,54 @@
 : ? deref ;
 inline
 
-( list cont -- )  \ run cont with each element of list in turn; commit to the first element for which cont succeeds, fail if none do
+( list goal -- )  \ run goal with each element of list in turn; commit to the first element for which goal succeeds, fail if none do
 : choose
-	| list cont |
+	| list goal |
 	list null = if fail exit then
 	list head-tail to list-tail to list-head
 	list-tail null = if
-		list-head cont execute
+		list-head goal execute
 	else
-		list-head cont ' execute 2curry
-		list-tail cont ' choose 2curry
+		list-head goal ' execute 2curry
+		list-tail goal ' choose 2curry
 		amb
 	then ;
+
+( list goal -- arr )  \ goal's value for every element of the cons list it
+\ succeeds on, in list order; answers snapshot through copy, and every
+\ binding rolls back — choose collects all instead of committing to one
+: solutions
+	| list goal |
+	[ ] to answers
+	list
+	goal answers 
+	[: element goal answers |
+		element goal execute
+		answers swap copy add-last! drop
+		fail 
+	:] 2curry
+	' choose 2curry
+	
+	' identity amb
+	answers ;
+
+( list goal n -- arr )  \ the first n solutions; the goal stops running once
+\ n are collected, and bindings roll back as in solutions
+: take-solutions
+	| list goal n |
+	[ ] to answers
+	list
+	goal n answers 
+	[: element goal n answers |
+		answers size n >= if fail then
+		element goal execute
+		answers swap copy add-last! drop
+		fail 
+	:] 3 ncurry
+	' choose 2curry
+	
+	' identity amb
+	answers ;
 
 \ Fact database
 ( [cols] -- rel ) \ empty relation; cols is an array of symbols to index
@@ -42,7 +78,7 @@ inline
 
 ( rel row set-op bucket-op -- rel ) \ apply set-op to :rows and bucket-op to each indexed bucket for row
 \ the row and the bucket operation are bound into the combiner, which receives
-\ them after the accumulator and the column name
+\ them after the answersumulator and the column name
 : update-row!
 	| row set-op bucket-op |
 	dup :rows @ row set-op execute drop

@@ -223,3 +223,34 @@ shop :price @ transpose . cr                    \ 12 5, unit kept
 
 \ errors
 editable :missing ' nan? 0 replace-where    \ (no key :missing)
+
+clear
+\ sort-rows ( dataset sym -- dataset ): rows sorted ascending by the named
+\ column; every column reorders together and keeps its representation.
+{ :name [ "b" "a" "c" ]
+  :score [ 2 3 1 ] vector
+  :height [ 180 170 190 ] vector m } to sortable
+
+sortable :score sort-rows . cr                  \ c b a rows; height keeps m
+sortable :name sort-rows :score @ transpose . cr \ 3 2 1 — a text column sorts too
+{ :x [ 2 null 1 ] vector } :x sort-rows :x @ transpose . cr \ 1 2 nan — NaN last
+{ :x [ ] vector } :x sort-rows n-rows . cr      \ 0
+
+\ errors
+sortable :missing sort-rows                     \ (no key :missing)
+
+clear
+\ aggregate ( dataset by xt -- dataset ): split-apply-combine — group rows by
+\ the by column, xt ( group-dataset -- frame ) reduces each group to a row
+\ frame, the by value joins under its key, frames>dataset reassembles.
+{ :region [ "e" "w" "e" "w" "e" ]
+  :amount [ 10 40 30 20 50 ] vector } to sales
+
+sales :region [: g | { :total g :amount @ sum  :n g n-rows } :] aggregate . cr  \ e 90/3, w 60/2
+sales :amount [: g | { :k g n-rows } :] aggregate n-rows . cr   \ 5 — numeric by column
+sales :region [: g | { :region "x" :n g n-rows } :] aggregate :region @ . cr \ by value overwrites the xt's
+{ :g [ ] } :g [: n-rows :] aggregate . cr       \ { }
+
+\ errors
+sales :missing [: n-rows :] aggregate           \ (no key :missing)
+sales :region [: :amount @ sum 70 > if { :a 1 } else { :b 2 } then :] aggregate \ (rows have differing keys)

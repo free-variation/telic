@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.30.1"
+#define VERSION "0.31.0"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1191,8 +1191,10 @@ void p_add_inplace(DISPATCH_ARGS);
 void p_and(DISPATCH_ARGS);
 void p_apropos(DISPATCH_ARGS);
 void p_argsort(DISPATCH_ARGS);
+void p_arg(DISPATCH_ARGS);
 void p_asin(DISPATCH_ARGS);
 void p_atan(DISPATCH_ARGS);
+void p_atan2(DISPATCH_ARGS);
 void p_bit_and(DISPATCH_ARGS);
 void p_bit_not(DISPATCH_ARGS);
 void p_bit_or(DISPATCH_ARGS);
@@ -1200,7 +1202,9 @@ void p_bit_xor(DISPATCH_ARGS);
 void p_bye(DISPATCH_ARGS);
 void p_clear(DISPATCH_ARGS);
 void p_complex(DISPATCH_ARGS);
+void p_conjugate(DISPATCH_ARGS);
 void p_cos(DISPATCH_ARGS);
+void p_cosh(DISPATCH_ARGS);
 void p_cr(DISPATCH_ARGS);
 void p_curry(DISPATCH_ARGS);
 void p_dec(DISPATCH_ARGS);
@@ -1223,6 +1227,8 @@ void p_eq_f_zbranch(DISPATCH_ARGS);
 void p_eq_string(DISPATCH_ARGS);
 void p_eq_symbol(DISPATCH_ARGS);
 void p_eq_zbranch(DISPATCH_ARGS);
+void p_erf(DISPATCH_ARGS);
+void p_erfc(DISPATCH_ARGS);
 void p_execute(DISPATCH_ARGS);
 void p_execute_catching(DISPATCH_ARGS);
 void p_exp(DISPATCH_ARGS);
@@ -1257,12 +1263,14 @@ void p_gte(DISPATCH_ARGS);
 void p_gte_f(DISPATCH_ARGS);
 void p_gte_f_zbranch(DISPATCH_ARGS);
 void p_gte_zbranch(DISPATCH_ARGS);
+void p_halt(DISPATCH_ARGS);
 void p_imaginary_part(DISPATCH_ARGS);
 void p_inc(DISPATCH_ARGS);
 void p_inc_poly(DISPATCH_ARGS);
 void p_lgamma(DISPATCH_ARGS);
 void p_ln(DISPATCH_ARGS);
 void p_log(DISPATCH_ARGS);
+void p_log2(DISPATCH_ARGS);
 void p_lowest_bit(DISPATCH_ARGS);
 void p_lshift(DISPATCH_ARGS);
 void p_lt(DISPATCH_ARGS);
@@ -1317,6 +1325,7 @@ void p_side_drop(DISPATCH_ARGS);
 void p_side_peek(DISPATCH_ARGS);
 void p_side_to(DISPATCH_ARGS);
 void p_sin(DISPATCH_ARGS);
+void p_sinh(DISPATCH_ARGS);
 void p_size(DISPATCH_ARGS);
 void p_size_len(DISPATCH_ARGS);
 void p_sleep(DISPATCH_ARGS);
@@ -1385,11 +1394,13 @@ void p_variable(DISPATCH_ARGS);
 void p_while(DISPATCH_ARGS);
 
 // io.c
+void set_script_args(char **arguments, int n_arguments);
 int stream_fd(Val stream);
 int stream_is_open(Val stream);
 Val stream_value(int file_descriptor);
 
 void p_append_file(DISPATCH_ARGS);
+void p_args(DISPATCH_ARGS);
 void p_binary_dir(DISPATCH_ARGS);
 void p_cd(DISPATCH_ARGS);
 void p_close(DISPATCH_ARGS);
@@ -1403,6 +1414,7 @@ void p_file_info(DISPATCH_ARGS);
 void p_list_directory(DISPATCH_ARGS);
 void p_load_tsv(DISPATCH_ARGS);
 void p_make_directory(DISPATCH_ARGS);
+void p_open_file(DISPATCH_ARGS);
 void p_read(DISPATCH_ARGS);
 void p_read_available(DISPATCH_ARGS);
 void p_read_file(DISPATCH_ARGS);
@@ -1578,9 +1590,11 @@ void p_replace(DISPATCH_ARGS);
 void p_split(DISPATCH_ARGS);
 void p_string_to_chars(DISPATCH_ARGS);
 void p_string_to_codepoints(DISPATCH_ARGS);
+void p_lower_case(DISPATCH_ARGS);
 void p_string_to_number(DISPATCH_ARGS);
 void p_substring(DISPATCH_ARGS);
 void p_trim(DISPATCH_ARGS);
+void p_upper_case(DISPATCH_ARGS);
 
 // logic.c
 void p_amb(DISPATCH_ARGS);

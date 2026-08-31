@@ -218,6 +218,10 @@ static double complex complex_log10(double complex z) {
 	return clog(z) * (1.0 / M_LN10);
 }
 
+static double complex complex_log2(double complex z) {
+	return clog(z) * (1.0 / M_LN2);
+}
+
 int parse_complex_literal(Interpreter *interp, const char *token, Val *out) {
 	char *scan_end;
 	double first = strtod(token, &scan_end);
@@ -278,6 +282,39 @@ void p_imaginary_part(DISPATCH_ARGS) {
 	REQUIRE_CHAIN_TAG(value, T_COMPLEX, "imaginary-part", "a complex or float");
 
 	chain_sp[-1] = pairs.table[VAL_DATA(value)].tail;
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
+
+void p_conjugate(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val value = chain_sp[-1];
+	if (VAL_TAG(value) == T_FLOAT)
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+	REQUIRE_CHAIN_TAG(value, T_COMPLEX, "conjugate", "a complex or float");
+
+	double real_part, imaginary_part;
+	complex_parts(value, &real_part, &imaginary_part);
+	Val result = complex_from_parts(interp, real_part, -imaginary_part);
+	if (interp->error_flag)
+		return;
+	interp->data_stack[interp->dsp - 1] = result;
+
+	DISPATCH(interp);
+}
+
+void p_arg(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val value = chain_sp[-1];
+	if (VAL_TAG(value) == T_FLOAT) {
+		chain_sp[-1] = make_float(atan2(0.0, VAL_NUMBER(value)));
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+	}
+	REQUIRE_CHAIN_TAG(value, T_COMPLEX, "arg", "a complex or float");
+
+	double real_part, imaginary_part;
+	complex_parts(value, &real_part, &imaginary_part);
+	chain_sp[-1] = make_float(atan2(imaginary_part, real_part));
+
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
 
@@ -1386,6 +1423,14 @@ void p_bye(DISPATCH_ARGS) {
 	exit(0);
 }
 
+void p_halt(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val code_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(code_val, T_FLOAT, "halt", "a float exit code");
+
+	exit((int)VAL_NUMBER(code_val));
+}
+
 void p_tor(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	if (interp->rsp >= RETURN_STACK_DEPTH) {
@@ -2347,7 +2392,7 @@ static int parse_format_spec(const char *spec, int len, char *conv_out) {
 	}
 
 	char conv = 0;
-	if (i < len && strchr("fFeEgGdis", spec[i])) {
+	if (i < len && strchr("fFeEgGdisxX", spec[i])) {
 		conv = spec[i];
 		i++;
 	}
@@ -2394,6 +2439,23 @@ static void interp_render_with_spec(Interpreter *interp, Val value,
 		if (n >= (int)sizeof stackbuf) {
 			MALLOC_OR_FAIL(interp, rendered, (size_t)n + 1);
 			snprintf(rendered, (size_t)n + 1, fmt, as_int);
+		}
+	} else if (conv == 'x' || conv == 'X') {
+		if (VAL_TAG(value) != T_FLOAT) {
+			fail(interp, "{%s} needs a float; got %s", cspec, tag_name(VAL_TAG(value)));
+			return;
+		}
+		long long as_int = (long long)VAL_NUMBER(value);
+		if (as_int < 0) {
+			fail(interp, "{%s} needs a non-negative value; got %lld", cspec, as_int);
+			return;
+		}
+		cspec[spec_len - 1] = 0;
+		snprintf(fmt, sizeof fmt, "%%%sll%c", cspec, conv);
+		n = snprintf(stackbuf, sizeof stackbuf, fmt, (unsigned long long)as_int);
+		if (n >= (int)sizeof stackbuf) {
+			MALLOC_OR_FAIL(interp, rendered, (size_t)n + 1);
+			snprintf(rendered, (size_t)n + 1, fmt, (unsigned long long)as_int);
 		}
 	} else if (conv && conv != 's') {
 		if (VAL_TAG(value) != T_FLOAT) {
@@ -2676,11 +2738,16 @@ UNARY_QUANTITY_OP(sqrt, sqrt, "sqrt", -1, 's', unit_pow(interp, (int)pairs.table
 UNARY_MATH_OP(exp, exp, cexp)
 UNARY_MATH_OP(log, log10, complex_log10)
 UNARY_MATH_OP(ln, log, clog)
+UNARY_MATH_OP(log2, log2, complex_log2)
 UNARY_MATH_OP(lgamma, lgamma, NULL)
+UNARY_MATH_OP(erf, erf, NULL)
+UNARY_MATH_OP(erfc, erfc, NULL)
 UNARY_MATH_OP(sin, sin, csin)
 UNARY_MATH_OP(cos, cos, ccos)
 UNARY_MATH_OP(tan, tan, ctan)
 UNARY_MATH_OP(tanh, tanh, ctanh)
+UNARY_MATH_OP(sinh, sinh, csinh)
+UNARY_MATH_OP(cosh, cosh, ccosh)
 UNARY_MATH_OP(asin, asin, casin)
 UNARY_MATH_OP(acos, acos, cacos)
 UNARY_MATH_OP(atan, atan, catan)
@@ -3065,6 +3132,22 @@ void p_mod(DISPATCH_ARGS) {
 
 	interp->dsp -= 2;
 	binary_op(interp, dividend, divisor, fmod, "mod");
+
+	DISPATCH(interp);
+}
+
+void p_atan2(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
+	Val x_val = chain_sp[-1];
+	Val y_val = chain_sp[-2];
+
+	if (VAL_TAG(y_val) == T_FLOAT && VAL_TAG(x_val) == T_FLOAT) {
+		chain_sp[-2] = make_float(atan2(VAL_NUMBER(y_val), VAL_NUMBER(x_val)));
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+	}
+
+	interp->dsp -= 2;
+	binary_op(interp, y_val, x_val, atan2, "atan2");
 
 	DISPATCH(interp);
 }

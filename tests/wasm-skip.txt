@@ -21,3 +21,6 @@
 062_ffi             ffi excluded from the wasm build
 063_ffi_lapacke     ffi/LAPACKE excluded from the wasm build
 074_datetime_zones  timezones: no tzset/TZ handling and no strptime %z on WASI
+088_claude          lib/claude.telic loads lib/http.telic via binary-dir: no executable path on WASI
+104_http            load-library via binary-dir and a curl subprocess: no fork/exec on WASI
+900_docs_http_lib_http_telic  load-library via binary-dir and a curl subprocess: no fork/exec on WASI

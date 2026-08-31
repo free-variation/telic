@@ -177,7 +177,7 @@ two interoperate — a `db-query` result is already relation-shaped.
   ```
 
 - `choose` is n-way `amb` over a cons list — a backtracking iteration that
-  commits to the first element the continuation accepts:
+  commits to the first element the goal accepts:
 
   ```forth choose-commit
   [( 1 2 3 null )] [: dup 2 < if fail then . cr :] choose

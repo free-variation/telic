@@ -17,3 +17,15 @@ error: expected a string; got a float
 in append-file
 error: expected a string; got a float
 in file-exists?
+first 
+second 
+tail 
+1 
+1 
+17 
+error: stream is closed
+in read-line
+error: cannot open /tmp/lf_no_such_file_zzz
+in open-file
+error: expected a string; got a float
+in open-file

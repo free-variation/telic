@@ -67,6 +67,15 @@ clear
 :sym "[{0:5}]" format "[  sym]" = . cr
 3.5 "[{0:6}]" format "[   3.5]" = . cr
 
+\ hex: x lowercase, X uppercase, truncation toward zero, # for the 0x prefix
+255 "{0:x}" format "ff" = . cr
+255 "{0:X}" format "FF" = . cr
+255 "{0:#x}" format "0xff" = . cr
+255 "{0:#06x}" format "0x00ff" = . cr
+26.9 "{0:x}" format "1a" = . cr
+0 "{0:x}" format "0" = . cr
+9007199254740991 "{0:x}" format "1fffffffffffff" = . cr
+
 \ empty spec is a plain substitution
 5 "{0:}" format "5" = . cr
 
@@ -81,7 +90,30 @@ clear
 "x" "{0:d}" format
 "x" "{0:.2f}" format
 5 "{0:z}" format
-5 "{0:.2x}" format
+-26 "{0:x}" format
+"s" "{0:x}" format
+
+clear
+\ upper-case / lower-case — ASCII letters only; every other byte passes
+\ through, UTF-8 sequences included, so non-ASCII letters keep their case.
+
+"Hello, World!" upper-case . cr           \ HELLO, WORLD!
+"Hello, World!" lower-case . cr           \ hello, world!
+"MiXeD 42 _-!" dup upper-case swap lower-case . . cr   \ mixed 42 _-! MIXED 42 _-!
+"" upper-case size . cr                   \ 0
+"héllo Ωmega" upper-case . cr             \ HéLLO ΩMEGA  (e-acute and omega untouched)
+"héllo Ωmega" lower-case . cr             \ héllo Ωmega
+"a""b" upper-case . cr                    \ A"B  (the embedded quote byte passes through)
+
+\ the input is untouched; the result is a fresh string
+"abc" dup upper-case drop . cr            \ abc
+
+\ case-normalized dedup, the data-cleaning use
+[ "Ann" "ANN" "ann" ] [: lower-case :] map array>set . cr   \ [< "ann" >]
+
+\ errors
+42 upper-case
+:sym lower-case
 
 clear
 \ substring ( string start end -- substring ) — half-open [start, end), codepoint-indexed.
@@ -139,7 +171,8 @@ clear
 "  hi  " trim size . cr
 "mid word" trim . cr
 "	
-data " trim . cr
+data
+ " trim . cr
 "" trim size . cr
 "  	 " trim size . cr
 5 trim

@@ -2,9 +2,46 @@
 #include "telic.h"
 #include <poll.h>
 #include <dirent.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 
 static int stream_generation[STREAM_FD_MAX];
+
+static char **script_args;
+static int n_script_args;
+
+void set_script_args(char **arguments, int n_arguments) {
+	script_args = arguments;
+	n_script_args = n_arguments;
+}
+
+void p_args(DISPATCH_ARGS) {
+	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);
+
+	int n_arguments = n_script_args;
+	int array_handle = object_new_array(interp, n_arguments);
+	if (interp->error_flag)
+		return;
+	Object *arguments = OBJECT_AT(array_handle);
+	for (int i = 0; i < n_arguments; i++)
+		arguments->items[i] = make_tagged(T_NONE, 0);
+
+	gc_root_push(interp, make_array(array_handle));
+	for (int i = 0; i < n_arguments; i++) {
+		const char *argument = script_args[i];
+		int string_handle = object_new_string(interp, argument, (int)strlen(argument));
+		if (interp->error_flag) {
+			gc_root_pop(interp);
+			return;
+		}
+		OBJECT_AT(array_handle)->items[i] = make_string(string_handle);
+	}
+	gc_root_pop(interp);
+
+	*chain_sp = make_array(array_handle);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
+}
 
 int stream_fd(Val stream) {
 	return (int)(VAL_DATA(stream) & STREAM_FD_MASK);
@@ -870,6 +907,23 @@ void p_close(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 }
 
+
+void p_open_file(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val path_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(path_val, T_STRING, "open-file", "a string");
+	Object *path = OBJECT_AT(VAL_DATA(path_val));
+
+	int file_descriptor = open(path->bytes, O_RDONLY);
+	if (file_descriptor < 0) {
+		fail(interp, "cannot open %s", path->bytes);
+		return;
+	}
+
+	chain_sp[-1] = stream_value(file_descriptor);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
 
 void p_stdin(DISPATCH_ARGS)  { push(interp, stream_value(0)); DISPATCH(interp); }
 void p_stdout(DISPATCH_ARGS) { push(interp, stream_value(1)); DISPATCH(interp); }

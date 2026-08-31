@@ -11,6 +11,21 @@
 3+4i real-part . 3+4i imaginary-part . cr     \ 3 4
 5 real-part . 5 imaginary-part . cr           \ 5 0
 
+\ conjugate negates the imaginary part; a float answers itself
+3+4i conjugate . 5 conjugate . cr             \ 3-4i 5
+3+4i dup conjugate * . cr                     \ 25+0i (z z-bar = |z|^2)
+3-4i conjugate . cr                           \ 3+4i
+
+\ arg is the phase in (-pi, pi]; a float answers 0, or pi when negative
+0+1i arg . 1+0i arg . cr                      \ 1.5708 0
+-1+0i arg . 0-1i arg . cr                     \ 3.14159 -1.5708
+1+1i arg . cr                                 \ 0.785398 (pi/4)
+2 arg . -2 arg . cr                           \ 0 3.14159
+
+\ sinh and cosh are closed over complexes, like tanh
+1i sinh . 1i cosh . cr                        \ 0+0.841471i 0.540302+0i
+-4+0i log2 . cr                               \ 2+4.53236i (principal value)
+
 clear
 \ === arithmetic; floats promote ===
 

@@ -179,7 +179,7 @@ float fast path first; the heavy cases are captured by the O column.
 | `-` | `( a b -- a-b )` | float: subtract. set−set: difference. matrix: element-wise. scalar/matrix broadcast. exact−exact: exact. complex: complex. | 3 (float) | as `+` | as `+` |
 | `*` | `( a b -- a*b )` | float: multiply. set∩set: intersection. matrix: element-wise. scalar/matrix broadcast. exact×exact: exact. complex: complex. | 3 (float) | as `+` | as `+` |
 | `/` | `( a b -- a/b )` | float: divide (errors on zero divisor). matrix÷matrix: element-wise (errors on any zero element). scalar/matrix broadcast. exact÷exact: exact, closed. complex: complex. | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
-| `%` | `( a b -- remainder quotient )` | truncating division: pushes `a − trunc(a/b)·b` then `trunc(a/b)`; float or matrix element-wise with scalar broadcast, answering a remainder matrix under a quotient matrix, or exact over exacts; a zero divisor or zero element errors | 4 | none | O(1) |
+| `%` | `( a b -- remainder quotient )` | truncating division: pushes `a − trunc(a/b)·b` then `trunc(a/b)`; float or matrix element-wise with scalar broadcast, answering a remainder matrix under a quotient matrix, or exact over exacts; a zero divisor or zero element errors | 4 (float) | matrix `2m(r×c)` | float O(1); matrix O(r×c) |
 | `mod` | `( a b -- remainder )` | remainder with the sign of the dividend (`fmod`); float or matrix element-wise with scalar broadcast, or exact over exacts; a zero divisor or zero element errors | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `^` | `( a b -- a^b )` | `pow`; float or matrix (element-wise) / scalar broadcast; an exact base with an integer exponent stays exact; a complex base or exponent (floats promote) is `cpow` | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `negate` | `( a -- -a )` | float, matrix (element-wise), or exact | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
@@ -188,6 +188,7 @@ float fast path first; the heavy cases are captured by the O column.
 | `sq` | `( a -- a² )` | float, matrix, or exact | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `min2` | `( a b -- smaller )` | the `val_cmp`-ordered lesser of two values — floats, strings, quantities; NaN orders below every number, so a NaN operand answers NaN. With a matrix operand it is element-wise with scalar broadcast. `min`/`max` reduce one matrix, these order a pair | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `max2` | `( a b -- larger )` | the `val_cmp`-ordered greater of two values (see `min2`); a NaN operand answers the other value | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
+| `atan2` | `( y x -- f )` | the angle of the point (x, y) in (−π, π] — `atan2(y, x)`, quadrant-correct where `atan` alone cannot be; float, or matrix element-wise with scalar broadcast. `imaginary-part` then `real-part` feed it a complex's phase, which `arg` packages | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 
 ```forth +
 3 4 + . cr
@@ -286,6 +287,15 @@ concat
 ```
 ```output
 7
+```
+
+```forth atan2
+1 1 atan2 . cr
+0 -1 atan2 . cr
+```
+```output
+0.785398
+3.14159
 ```
 
 ### In-place matrix arithmetic
@@ -718,11 +728,16 @@ matrix (`@i,j`, `@e`) surfaces as `null` the same way.
 | `exp` | `( a -- eᵃ )` | `exp` | 2 | matrix `1m(r×c)` | same |
 | `log` | `( a -- log₁₀ a )` | `log10` | 2 | matrix `1m(r×c)` | same |
 | `ln` | `( a -- ln a )` | `log` — natural log | 2 | matrix `1m(r×c)` | same |
+| `log2` | `( a -- log2 a )` | base-2 log | 2 | matrix `1m(r×c)` | same |
 | `lgamma` | `( a -- ln Γ(a) )` | `lgamma` — log of the gamma function, which extends the factorial (`5 lgamma` is `ln 4!`). Γ overflows a double past 171, while `171 lgamma` is 706.57. Defined for positive arguments: it is `+inf` at zero and the negative integers, and for negative non-integers libm returns ln \|Γ(a)\| and the sign is discarded | 2 | matrix `1m(r×c)` | same |
 | `sin` | `( a -- sin a )` | sine (radians) | 2 | matrix `1m(r×c)` | same |
 | `cos` | `( a -- cos a )` | cosine (radians) | 2 | matrix `1m(r×c)` | same |
 | `tan` | `( a -- tan a )` | tangent (radians) | 2 | matrix `1m(r×c)` | same |
 | `tanh` | `( a -- tanh a )` | hyperbolic tangent | 2 | matrix `1m(r×c)` | same |
+| `erf` | `( a -- erf a )` | the error function (libm) | 2 | matrix `1m(r×c)` | same |
+| `erfc` | `( a -- erfc a )` | the complementary error function, `1 − erf` without cancellation in the tail | 2 | matrix `1m(r×c)` | same |
+| `sinh` | `( a -- sinh a )` | hyperbolic sine | 2 | matrix `1m(r×c)` | same |
+| `cosh` | `( a -- cosh a )` | hyperbolic cosine | 2 | matrix `1m(r×c)` | same |
 | `asin` | `( a -- asin a )` | inverse sine | 2 | matrix `1m(r×c)` | same |
 | `acos` | `( a -- acos a )` | inverse cosine | 2 | matrix `1m(r×c)` | same |
 | `atan` | `( a -- atan a )` | inverse tangent | 2 | matrix `1m(r×c)` | same |
@@ -771,6 +786,13 @@ E ln . cr
 1
 ```
 
+```forth log2
+1024 log2 . cr
+```
+```output
+10
+```
+
 ```forth lgamma
 5 lgamma . cr
 ```
@@ -804,6 +826,34 @@ PI cos . cr
 ```
 ```output
 1
+```
+
+```forth erf
+1 erf . cr
+```
+```output
+0.842701
+```
+
+```forth erfc
+2 erfc . cr
+```
+```output
+0.00467773
+```
+
+```forth sinh
+1 sinh . cr
+```
+```output
+1.1752
+```
+
+```forth cosh
+1 cosh . cr
+```
+```output
+1.54308
 ```
 
 ```forth asin
@@ -1149,6 +1199,10 @@ Each operand is read as a two's-complement integer (exact within the double's
 53-bit integer range), the operation is applied, and the result is pushed as a
 float. `rshift` is arithmetic (sign-preserving).
 
+Hex literals cover the input side: `0xff` (either case, optional sign) reads
+as the float 255. Digits only — no `p` exponents — and at most 2^53, past
+which the token is not a literal; `{0:x}` under `format` renders hex back out.
+
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
 | `bit-and` | `( a b -- f )` | bitwise AND | 2 | none | O(1) |
@@ -1387,6 +1441,8 @@ and the rounding words.
 | `complex` | `( re im -- z )` | Build a complex from two floats | 3 | 1 pair | O(1) |
 | `real-part` | `( z -- f )` | The real part; a float answers itself | 2 | none | O(1) |
 | `imaginary-part` | `( z -- f )` | The imaginary part; a float answers 0 | 2 | none | O(1) |
+| `conjugate` | `( z -- z' )` | The complex conjugate — the imaginary part negated, so `z conjugate *` is \|z\|² (as a complex); a float answers itself | 2 | 1 pair | O(1) |
+| `arg` | `( z -- f )` | The phase in (−π, π] — `atan2` of the imaginary over the real part; a float answers 0, or π when negative | 2 | none | O(1) |
 | `complex?` | `( a -- bool )` | core.telic: `type-of :complex =` (inlined) | 5 | none | O(1) |
 
 ```forth complex
@@ -1408,6 +1464,20 @@ and the rounding words.
 ```
 ```output
 4 0
+```
+
+```forth conjugate
+3+4i conjugate . 5 conjugate . cr
+```
+```output
+3-4i 5
+```
+
+```forth arg
+0+1i arg . -1+0i arg . -2 arg . cr
+```
+```output
+1.5708 3.14159 3.14159
 ```
 
 ```forth complex?
@@ -2175,6 +2245,8 @@ Regex words run on PCRE2 with JIT-compiled patterns. Each distinct pattern is co
 | `codepoint>char` | `( code -- char )` | One-character string for codepoint `code`; range-checked `[0, 0x10FFFF]` | 1 | `1o` | O(1) |
 | `codepoints>string` | `( [ code… ] -- str )` | Encode each codepoint to UTF-8 and concatenate; per-element type- and range-checked | n | `1o` | O(n) |
 | `trim` | `( str -- str' )` | Strip leading and trailing ASCII whitespace (`' ' \t \n \v \f \r`); a backward/forward byte-scan, one allocation of the surviving span | n | `1o` | O(n) |
+| `upper-case` | `( str -- str' )` | A copy with the ASCII letters a–z raised to A–Z; every other byte passes through unchanged, UTF-8 sequences included, so non-ASCII letters (`é`, `ω`) keep their case — Unicode folding needs tables the runtime does not carry | n | `1o` | O(n) |
+| `lower-case` | `( str -- str' )` | A copy with the ASCII letters A–Z lowered to a–z; the same ASCII-only boundary as `upper-case` | n | `1o` | O(n) |
 | `join` | `( arr sep -- str )` | Concatenate the string elements of `arr` separated by `sep`; errors on a non-string element | 2 + total | `1o` | O(total) |
 | `index-of` | `( str pat -- i )` | strings.telic: codepoint index of `pat`'s first regex match in `str`, or `-1` if none (`split 0 @i size` guarded by `has?`) | n | `1a` + pieces | O(n) |
 | `spaces` | `( k -- str )` | strings.telic: a string of k spaces (`" " swap array-of "" join`) | k | `1a` + `1o` | O(k) |
@@ -2188,6 +2260,7 @@ A placeholder may carry a format spec after a colon — `{n:spec}` — a printf-
 
 - `f` `e` `g` (and `F` `E` `G`) render the value as a float: `{0:.2f}` fixes the precision, `{0:8.2f}` also pads to a field width.
 - `d` / `i` render it as an integer, truncated toward zero: `{0:04d}`.
+- `x` / `X` render it as lowercase/uppercase hex, truncated toward zero: `{0:x}`, `{0:#06x}` (the `#` flag adds `0x`); a negative value errors.
 - `s`, or no conversion letter, places the value's default rendering in a field: `{0:8}` right-justifies, `{0:-8}` left-justifies, `{0:.3}` truncates to three characters.
 
 A float or integer conversion requires a float operand; a non-float operand, an unknown conversion letter, or trailing characters in the spec is an error. With no colon, `{n}` renders the value in its default form.
@@ -2300,6 +2373,24 @@ WoW
 pad|
 ```
 
+```forth upper-case
+"Hello, World!" upper-case . cr
+"héllo" upper-case . cr
+```
+```output
+HELLO, WORLD!
+HéLLO
+```
+
+```forth lower-case
+"Hello, World!" lower-case . cr
+[ "Ann" "ANN" "ann" ] [: lower-case :] map array>set size . cr
+```
+```output
+hello, world!
+1
+```
+
 ```forth join
 [ "a" "b" "c" ] "-" join . cr
 ```
@@ -2352,11 +2443,13 @@ a-b-c
 ```forth format
 1 2 "{1} then {0}" format . cr
 PI "{0:.2f}" format . cr
+255 "{0:#x}" format . cr
 "{bold}{red}alert{plain} normal" format . cr
 ```
 ```output
 1 then 2
 3.14
+0xff
 alert normal
 ```
 
@@ -3334,12 +3427,15 @@ place.
 | `summary` | `( v/dataset -- fr )` | statistics.telic: a vector answers `{ :min :q1 :median :mean :q3 :max }` over its finite elements — a dimensioned vector in its unit, an instant vector (unit exactly `s`) with each statistic rendered through `time>iso` — plus `:missing` with the NaN count when any; an all-missing vector answers `{ :missing n }`, an empty one `{ }`. A dataset answers that frame per numeric column and `{ :distinct }` (distinct non-missing cells, plus `:missing`) per text column, keyed by column name; any other column value errors naming the column | 4n log n (per column) | `malloc(n)` ×4 + `1fr` (per column) | O(n log n) |
 | `ci` | `( mat level -- low high )` | statistics.telic: percentile confidence interval — level 0.95 gives the 0.025 and 0.975 quantiles | 2n log n | `malloc(n)` ×2 | O(n log n) |
 | `complete-cases` | `( xs ys -- xs' ys' )` | statistics.telic: drop the paired rows where either vector is NaN, keeping the two aligned and returned as n×1; magnitudes are taken, so dimensioned inputs come back unitless | 4n | index vector + 2 gathers | O(n) |
+| `covariance` | `( xs ys -- f )` | statistics.telic: sample covariance over the complete pairs (n−1 denominator, matching `var`); errors below 2 complete pairs | 6n | `4m(n)` | O(n) |
 | `correlation-pearson` | `( xs ys -- f )` | statistics.telic: Pearson r — center both vectors, then `dot` products for covariance and the two variances; accepts nx1 or 1xn; `null` when either vector is constant (R's NA) | 12n | `6m(n)` | O(n) |
 | `correlation-spearman` | `( xs ys -- f )` | statistics.telic: Spearman rho — `correlation-pearson` on the midrank `ranks` of both vectors (inlined); `null` when either vector is constant (R's NA) | 2n log n | `6m(n)` + `malloc(16n)` ×2 | O(n log n) |
 | `correlation-kendall` | `( xs ys -- f )` | Kendall tau-b: concordant minus discordant pairs over sqrt of tie-corrected pair counts, via one (x,y) sort and a merge-sort exchange count; NaN when all x or all y are tied; errors on length mismatch or fewer than 2 elements | 2n log n | `malloc(16n)` ×2–3 | O(n log n); above 8k elements the pair sort is O(n) radix |
 | `correlate-with` | `( xs ys xt B -- fr )` | statistics.telic: bootstrap 95% CI for the correlation word at xt — resamples (x, y) pairs jointly, B refits via a curried fit through `pbootstrap`, as `{ :estimate :se :bias :ci-low :ci-high }`; deterministic under a fixed seed | B·(n + xt) | pairs matrix + per-worker resample + `1fr` | O(B·(n + xt) / cores) |
 | `cor` | `( xs ys -- fr )` | statistics.telic: `correlation-kendall` with a 500-replicate bootstrap CI — `' correlation-kendall 500 correlate-with` (inlined) | as `correlate-with` | as `correlate-with` | as `correlate-with` |
 | `qnorm` | `( p -- z )` | statistics.telic: standard normal quantile (inverse CDF), Acklam's rational approximation — relative error below 1.15e-9, matching R's qnorm to 1e-8 over both tails; errors unless p strictly inside (0, 1) | 30 | none | O(1) |
+| `pnorm` | `( z -- p )` | statistics.telic: standard normal CDF, `0.5 erfc(-z/√2)` — machine-accurate via libm; float or matrix element-wise | 5 | matrix `1m(r×c)` | O(1); matrix O(n) |
+| `random-normal` | `( -- z )` | statistics.telic: one standard normal deviate — `qnorm` of a uniform draw from the global stream, redrawn on 0 | 32 | none | O(1) |
 | `sample-without-replacement` | `( arr n -- arr )` | statistics.telic: `false sample` (inlined) | n | as `sample` | O(n) |
 | `sample-with-replacement` | `( arr n -- arr )` | statistics.telic: `true sample` (inlined) | n | as `sample` | O(n) |
 | `bootstrap` | `( data fit-xt B -- arr )` | statistics.telic: B refits of fit-xt over resamples of data — dataset/matrix rows, or an array's elements. One serial draw sets the run seed; replicate i draws its indices via `resample-indices-ext` at run-seed + i, so no resample outlives its fit and results don't depend on scheduling — deterministic under a fixed seed | B(n + fit) | per-fit resample + `1a(B)` | O(B·(n + fit)) |
@@ -3612,6 +3708,27 @@ place.
 ```
 ```output
 1.95996
+```
+
+```forth pnorm
+1.959963984540054 pnorm . cr
+```
+```output
+0.975
+```
+
+```forth random-normal
+42 seed random-normal . cr
+```
+```output
+-1.37955
+```
+
+```forth covariance
+[ 1 2 3 4 ] vector [ 2 4 6 8 ] vector covariance . cr
+```
+```output
+3.33333
 ```
 
 ```forth sample-without-replacement
@@ -3897,9 +4014,11 @@ wall-now time>iso . cr
 | `column>array` | `( column -- arr )` | datasets.telic: a column in any representation as an array of its values — arrays pass through unchanged, matrix/quantity columns go through `matrix>array` (NaN → `null`, dimensioned elements become quantities) | n | `1a(n)` for matrix columns, none for arrays | O(n) |
 | `column>set` | `( column -- set )` | datasets.telic: the set of the column's distinct values — `column>array array>set` | 2n log n | `1a(n)` + `1o` | O(n log n) |
 | `select-columns` | `( dataset cols -- dataset )` | datasets.telic: the named columns as a new dataset (a fresh frame sharing the column values); a missing name errors through `@` | k log c | `1a(k)` + `1o` | O(k log c) |
+| `sort-rows` | `( dataset sym -- dataset )` | datasets.telic: rows sorted ascending by the named column — `argsort` on the column, `select-rows` on the dataset, so every column reorders together and keeps its representation; a missing key errors through `@` | n log n + n·c | permutation + one column each | O(n log n + n·c) |
 | `count` | `( arr/v/dataset -- pairs )` | datasets.telic: occurrences of each distinct value as `[ [ value n ] … ]`, most frequent first, ties in value order (`val_cmp`); a vector counts its elements (a dimensioned one counts quantities), a dataset counts whole rows, each a frame keyed by column name | 2n log n | rows + pairs + 3×`1a` | O(n log n) |
 | `group-indices` | `( column -- pairs )` | datasets.telic: `[ [ value [indices] ] … ]` per distinct value in `val_cmp` order — each index array holds the value's row positions, ascending (one `argsort`, the permutation cut at run boundaries); the same pair layout as `count`, with positions instead of tallies, so one pass replaces a per-value `eq where` scan | 2n log n | permutation + one pair and array per value | O(n log n) |
 | `frames>dataset` | `( rows -- dataset )` | datasets.telic: an array of row frames (as `query`, `db-query` `:rows`, or `map` over a dataset produce) as a column-oriented dataset, keys from row 0 — differing keys throw. Each column's representation is inferred: all-float cells (`none` → NaN) become an n×1 vector, uniform-unit quantities a dimensioned vector, anything else stays an array | n·k log k | one column per key + `1o` | O(n·k log k) |
+| `aggregate` | `( dataset by xt -- dataset )` | datasets.telic: split-apply-combine — rows group by the `by` column's distinct values (`group-indices`); for each group `xt` `( group-dataset -- frame )` answers one row frame, the group's value is stored into it under the `by` key (overwriting one the xt set), and the rows reassemble through `frames>dataset` | n log n + per-group xt | one sub-dataset and frame per group + result columns | O(n log n + n·c) |
 | `replace-where` | `( dataset sym pred replacement -- )` | datasets.telic: replace the named column's cells passing `pred` `( column -- mask )`, in place — `update-at` around `mesh`, so the replacement broadcasts and units reconcile: `pipeline :rep_touches [: -1 eq :] null replace-where` nulls a sentinel, `[: nan? :] 0` fills missing, `[: 10 $ < :] 5 $` floors prices | pred + n | mask + one column | O(n) |
 | `resample-indices` | `( n -- arr )` | datasets.telic: n indices drawn from [0,n) with replacement (bootstrap), from the global stream | 2n | `2×1a(n)` | O(n) |
 | `resample-indices-ext` | `( n seed -- arr )` | n indices drawn from [0,n) with replacement by a private generator seeded from `seed` (splitmix64-expanded) — same draw for the same seed regardless of thread or stream position; the bootstrap words seed replicate i at run-seed + i | n | `1a(n)` | O(n)† |
@@ -4008,6 +4127,13 @@ ann    34
 [ :b ]
 ```
 
+```forth sort-rows
+{ :name [ "b" "a" "c" ] :score [ 2 3 1 ] vector } :score sort-rows :name @ . cr
+```
+```output
+[ "c" "b" "a" ]
+```
+
 ```forth count
 [ :b :a :b ] count . cr
 ```
@@ -4031,6 +4157,13 @@ ann    34
 ```
 ```output
 [ 1 2 ]
+```
+
+```forth aggregate
+{ :g [ "a" "b" "a" ] :x [ 1 2 3 ] vector } :g [: d | { :sum d :x @ sum } :] aggregate :sum @ matrix>array . cr
+```
+```output
+[ 4 2 ]
 ```
 
 ```forth replace-where
@@ -4476,7 +4609,7 @@ A producer drops nothing after `yield`. The word does not consume the value it e
 
 ## Logic
 
-Logic variables, unification, and committed choice, built on the trail and a `PROMPT_CHOICE` prompt. The primer behind these words — unknowns and substitutions, unification, the trail, search, reification, and the fact database as a worked application — is docs/logic.md. A logic var is always created explicitly: `lvar` pushes a fresh one, `lvar to x` names a persistent global (`to` auto-creates the global at the top level), and a `?` prefix in a locals list (`| ?x |`) declares a fresh per-call local. Capitalizing logic-var names (`X`, `Hs`) is stylistic convention; case carries no meaning. `unify` records every binding on the trail; a `unify` mismatch or an explicit `fail` backtracks to the nearest `amb`. Lists are cons pairs (see Pairs): `[( H T )]` is the `[H|T]` head/tail pattern under `unify`. To keep a result past backtracking, snapshot it with `copy` (fresh vars) or `reify` (canonical `:_N`). A logic var prints by the name of a variable that holds it — `?x` while free (the `?` marks it unbound, matching the `| ?x |` declaration form), `x=value` once bound — or `_N` when anonymous; an anonymous bound var prints its value.
+Logic variables, unification, and committed choice, built on the trail and a `PROMPT_CHOICE` prompt. The primer behind these words — unknowns and substitutions, unification, the trail, search, reification, and the fact database as a worked application — is docs/logic.md. A logic var is always created explicitly: `lvar` pushes a fresh one, `lvar to x` names a persistent global (`to` auto-creates the global at the top level), and a `?` prefix in a locals list (`| ?x |`) declares a fresh per-call local. Capitalizing logic-var names (`X`, `Hs`) is stylistic convention; case carries no meaning. `unify` records every binding on the trail; a `unify` mismatch or an explicit `fail` backtracks to the nearest `amb`. Lists are cons pairs (see Pairs): `[( H T )]` is the `[H|T]` head/tail pattern under `unify`. To keep a result past backtracking, snapshot it with `copy` (fresh vars) or `reify` (canonical `:_N`). A **goal** is any quotation run for success or failure: it either completes, leaving its results, or fails — through an explicit `fail` or a `unify` mismatch — and failure is a control transfer to the nearest choice point, not a returned boolean. That is the contract `choose`, `solutions`, and `take-solutions` expect, and what separates a goal from `filter`'s predicate, which must always return and answer 1/0. A logic var prints by the name of a variable that holds it — `?x` while free (the `?` marks it unbound, matching the `| ?x |` declaration form), `x=value` once bound — or `_N` when anonymous; an anonymous bound var prints its value.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
@@ -4488,7 +4621,9 @@ Logic variables, unification, and committed choice, built on the trail and a `PR
 | `?` | `( v -- val )` | logic.telic: `deref` (inlined) | d | none | O(d) |
 | `amb` | `( xt1 xt2 -- … )` | Run xt1; if it fails (a `unify` mismatch or `fail`), roll its bindings back through the trail and run xt2. Commits to the first branch that succeeds. | xt1 | none | O(xt1 + xt2) |
 | `fail` | `( -- )` | Backtrack to the nearest enclosing `amb`, failing the current branch; with no enclosing `amb`, an error | 1 | none | O(L) |
-| `choose` | `( list cont -- )` | logic.telic: run cont with each element of a cons list in turn, committing to the first for which it succeeds; `fail` if none do (n-way `amb` over a list) | n·cont | none | O(n·cont) |
+| `choose` | `( list goal -- )` | logic.telic: run the goal with each element of a cons list in turn, committing to the first for which it succeeds; `fail` if none do (n-way `amb` over a list) | n·goal | none | O(n·goal) |
+| `solutions` | `( list goal -- arr )` | logic.telic: the goal's value for every cons-list element it succeeds on, in list order — `choose` collecting every success instead of committing to one (Prolog's findall, with the choice points as the explicit list). Each answer is snapshotted with `copy` before the search moves on, and every binding rolls back, so nothing stays bound afterward | n·goal | `1a` + a copy per answer | O(n·goal) |
+| `take-solutions` | `( list goal n -- arr )` | logic.telic: the first n `solutions`; once n are collected the goal no longer runs (the rest of the list is walked only to unwind), and bindings roll back the same way | n·goal | `1a` + a copy per answer | O(n·goal) |
 | `matches?` | `( a b -- flag )` | Non-destructive unify test: mark the trail, unify a and b, roll the trail back, push whether they unified. Leaves no bindings and never backtracks, so it composes in straight-line code | n | none | O(n) |
 | `unify?` | `( a b -- flag )` | Committed unify test: on success the bindings stay and it answers true; on a mismatch the trail rolls back and it answers false, never backtracking. `case`/`of` dispatch through it | n | none | O(n) |
 
@@ -4553,6 +4688,23 @@ fallback
 ```
 ```output
 2
+```
+
+```forth solutions
+[( 1 2 3 4 null )] [: dup 2 mod if fail then dup * :] solutions . cr
+[( { :n 1 :ok :y } { :n 2 :ok :n } { :n 3 :ok :y } null )]
+[: { :ok :y } ~ :n @ :] solutions . cr
+```
+```output
+[ 4 16 ]
+[ 1 3 ]
+```
+
+```forth take-solutions
+[( 1 2 3 4 5 null )] [: dup * :] 3 take-solutions . cr
+```
+```output
+[ 1 4 9 ]
 ```
 
 ```forth matches?
@@ -4880,6 +5032,7 @@ variable b 4 to b variable c 10 to c
 | `gc` | `( -- )` | Force a mark-sweep now | walks stacks + dict + roots, frees unmarked | none | O(objects + dict) |
 | `alloc-stats` | `( -- )` | Print and reset the allocation counters since the last call (`lvars=… arrays=…`) | 2 | none | O(1) |
 | `bye` | `( -- )` | `exit(0)` | — | — | — |
+| `halt` | `( code -- )` | `exit` with the given code as the process exit status | — | — | — |
 | `now` | `( -- f )` | `CLOCK_MONOTONIC` seconds as a float | 1 | none | O(1) |
 | `sleep` | `( seconds -- )` | Block for the given float seconds (sub-second supported); `nanosleep` | blocks | none | O(1) |
 | `timed` | `( xt -- … )` | Run xt, print its elapsed `now` (`CLOCK_MONOTONIC`) seconds, then pass through whatever it left on the stack | 2 + xt + print | none | O(xt) |
@@ -5039,6 +5192,12 @@ bye
 ```output
 ```
 
+```forth-noexec halt
+3 halt
+```
+```output
+```
+
 ```forth-noexec now
 now . cr
 ```
@@ -5117,7 +5276,9 @@ reload
 | `read-file` | `( path -- str )` | Read a whole file as one string (byte-safe); errors if it can't be opened | file read | `1o` + buffer | O(file) |
 | `write-file` | `( str path -- )` | Create or truncate the file, then write the string's bytes | file write | none | O(\|s\|) |
 | `append-file` | `( str path -- )` | Open in append mode, write the string's bytes | file write | none | O(\|s\|) |
+| `open-file` | `( path -- stream )` | The file as a read-only stream, so `read-line` / `read` / `read-available` / `wait-readable` / `close` (see Subprocesses and streams) walk a file too large for `read-file` line by line; errors if it can't be opened | 1 | none | O(1) |
 | `file-exists?` | `( path -- bool )` | Whether the path exists (`access` with `F_OK`); follows symlinks, tests any file type, not just regular files | 1 | none | O(1) |
+| `args` | `( -- arr )` | The command-line arguments after the program file, as a string array — everything after the file belongs to the program, options included. A leading `#!` line is skipped | 1 + n | `1a(n)` + `1o` per argument | O(bytes) |
 | `env` | `( name -- val )` | Environment variable as a string, or the none value if unset (so set-empty `""` and unset stay distinct) | 1 | `1o` on hit | O(\|val\|) |
 | `env!` | `( name value -- )` | Set an environment variable (overwriting); process-wide, so subsequent `start-process` children inherit it | 1 | none | O(1) |
 | `cwd` | `( -- path )` | The interpreter's current working directory as a string (`getcwd`) | 1 | `1o` | O(\|path\|) |
@@ -5153,6 +5314,15 @@ serialization) put a whole value graph through them.
 hello
 ```
 
+```forth open-file
+"one
+two" "/tmp/docs-file.txt" write-file
+"/tmp/docs-file.txt" open-file dup read-line . dup read-line . close cr
+```
+```output
+one two
+```
+
 ```forth write-file
 "hello" "/tmp/docs-file.txt" write-file "/tmp/docs-file.txt" read-file . cr
 ```
@@ -5172,6 +5342,13 @@ ab
 ```
 ```output
 1 0
+```
+
+```forth args
+args . cr
+```
+```output
+[ ]
 ```
 
 ```forth env
@@ -5381,7 +5558,7 @@ duplicated
 
 ## Subprocesses and streams
 
-A stream (`T_STREAM`) wraps an OS file descriptor — a pipe to a child process. `start-process` launches a program directly from an argv array (no shell, so no quoting or injection surface) and returns a frame `{ :pid :in :out :err }` whose `:in`/`:out`/`:err` are streams. The lifecycle is: `write` input → `close` `:in` (sends EOF) → `read` the output → `wait`. `SIGPIPE` is ignored process-wide, so a `write` to a child that has exited returns an error rather than killing the interpreter. Bytes are raw and length-counted, so streams are binary-safe.
+A stream (`T_STREAM`) wraps an OS file descriptor — a pipe to a child process, or a file from `open-file` (see Files and environment). `start-process` launches a program directly from an argv array (no shell, so no quoting or injection surface) and returns a frame `{ :pid :in :out :err }` whose `:in`/`:out`/`:err` are streams. The lifecycle is: `write` input → `close` `:in` (sends EOF) → `read` the output → `wait`. `SIGPIPE` is ignored process-wide, so a `write` to a child that has exited returns an error rather than killing the interpreter. Bytes are raw and length-counted, so streams are binary-safe.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|

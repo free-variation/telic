@@ -1,0 +1,39 @@
+\ HTTP over a curl subprocess (no networking is built in). http-request is the
+\ general form; http-get and http-post wrap the common cases and throw on a
+\ non-2xx status. Native-only: needs start-process and the curl binary.
+
+( method url headers body -- response ) \ { :status :body }: status is the
+\ HTTP status code, headers an array of "name: value" strings, body a string
+\ or null; redirects are not followed; a transport failure (unreachable host,
+\ unsupported URL) throws curl's message
+: http-request
+	| method url headers body |
+	headers
+	[ "curl" "-sS" "-X" method url "-w" "\n%{http_code}" ]
+	[: argv header | argv "-H" add-last! header add-last! :] reduce
+	body none? not if "--data-binary" add-last! body add-last! then
+	run-result to result
+	result :status @ 0 = not if result :err @ trim throw then
+
+	result :out @ to out
+	out byte-size to n
+	{ :status out n 3 - n byte-substring string>number
+	  :body out 0 n 4 - byte-substring } ;
+
+( response -- body ) \ the body when the status is 2xx; throws "http status NNN" otherwise
+: require-2xx
+	dup :status @ to status
+	status 200 >= status 300 < and not if
+		drop
+		status "http status {0}" format throw
+	then
+	:body @ ; internal
+
+( url -- body ) \ GET, answering the response body; throws on a non-2xx status
+: http-get
+	"GET" swap [ ] null http-request require-2xx ;
+
+( url body -- body' ) \ POST the body as-is (curl's default content-type); throws on a non-2xx status
+: http-post
+	| url body |
+	"POST" url [ ] body http-request require-2xx ;

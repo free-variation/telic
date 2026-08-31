@@ -357,3 +357,21 @@
 
 ( dataset -- ) \ print the first 10 rows as an aligned table
 : head 10 [ ] headn ;
+
+( dataset sym -- dataset ) \ rows sorted ascending by the named column
+: sort-rows
+	| dataset column-name |
+	dataset  dataset column-name @ argsort  select-rows ;
+
+( dataset by xt -- dataset ) \ split-apply-combine: for each distinct value of
+\ the by column, xt ( group-dataset -- frame ) answers one row frame; the by
+\ value is stored into it under its own key, and the rows reassemble
+: aggregate
+	| dataset by xt |
+	dataset by @ group-indices
+	dataset by xt
+	[: pair dataset by xt |
+		dataset  pair 1 @i  select-rows  xt execute
+		by  pair 0 @i  !
+	:] 3 ncurry map
+	frames>dataset ;

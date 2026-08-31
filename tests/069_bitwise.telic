@@ -38,3 +38,17 @@
 1024 lowest-bit .
 1 49 lshift lowest-bit .
 0 lowest-bit .
+cr
+
+\ ---- hex literals: integers, either case, optional sign, at most 2^53 ----
+0xff .                          \ 255
+0XFF .                          \ 255
+-0x10 .                         \ -16
+0xdeadbeef .                    \ 3735928559
+0x1fffffffffffff .              \ 9.0072e+15 (2^53 - 1)
+0xff 0x0f bit-and . cr          \ 15
+
+\ ---- rejected forms read as unknown words ----
+0x1p3                           \ (no hex-float exponents)
+0x20000000000001                \ (past 2^53)
+0xgg                            \ (not hex digits)

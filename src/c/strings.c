@@ -691,6 +691,30 @@ void p_trim(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
 
+#define STRING_CASE_OP(c_name, word_name, low, high, delta) \
+	void c_name(DISPATCH_ARGS) { \
+		PEEK_STRING_AT(source, 0, word_name); \
+		\
+		int handle = object_new_string_uninit(interp, source->len); \
+		if (interp->error_flag) \
+			return; \
+		\
+		Object *target = OBJECT_AT(handle); \
+		int length = source->len; \
+		for (int i = 0; i < length; i++) { \
+			unsigned char byte = (unsigned char)source->bytes[i]; \
+			target->bytes[i] = byte >= (low) && byte <= (high) ? (char)(byte + (delta)) : (char)byte; \
+		} \
+		target->len = length; \
+		target->bytes[length] = 0; \
+		chain_sp[-1] = make_string(handle); \
+		\
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp); \
+	}
+
+STRING_CASE_OP(p_upper_case, "upper-case", 'a', 'z', -32)
+STRING_CASE_OP(p_lower_case, "lower-case", 'A', 'Z', 32)
+
 void p_string_to_number(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	Val string_val = chain_sp[-1];

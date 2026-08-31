@@ -108,9 +108,14 @@ lets a frame double as a query pattern: a pattern `{ :role :wizard }` unifies wi
 any row that has `:role :wizard` regardless of its other columns, which is
 precisely relational selection-and-projection falling out of the unification rule.
 
-Run as a *goal*, unification (`unify`, aliased `~`) either succeeds — leaving the
+A *goal* is any computation run for success or failure: it either completes,
+leaving its results, or fails, and failure is a control transfer — the search
+backs up to the nearest choice point — never a returned boolean. Run as a goal,
+unification (`unify`, aliased `~`) either succeeds — leaving the
 now-unified term, so `V 42 ~` binds `V` (declared beforehand with `lvar to V`) and
-leaves `42` — or fails and backtracks.
+leaves `42` — or fails and backtracks; it is the archetypal goal, and the words
+that take a goal per element (`choose`, `solutions`, `take-solutions`) expect
+exactly this contract.
 A program describes a relation by sequencing unification goals: each `~` either
 narrows the unknowns or fails the branch.
 
@@ -178,6 +183,8 @@ alternative. A multi-way choice is nested binary `amb`. Crucially, `amb`
 *commits* to the first branch that succeeds — if `branch1` succeeds it never tries
 `branch2`, it just drops the choice point — so to enumerate more than one solution
 you record the answer and then explicitly `fail` to drive the search onward.
+`solutions` and `take-solutions` package that pattern over a candidate list —
+`choose` collecting every success instead of committing to one.
 
 A choice point is a *snapshot*. `amb` is built directly on the delimited-
 continuation machinery (`continuations.md`): it marks the return stack with a

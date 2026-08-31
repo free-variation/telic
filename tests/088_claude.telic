@@ -1,6 +1,7 @@
-\ lib/claude.telic: the pure words — message frames, the request body, the curl
-\ argv, response classification, extraction, and pricing. Nothing here calls the
-\ API: every result frame is synthesised, so the test needs no key and no network.
+\ lib/claude.telic: the pure words — message frames, the request body, the API
+\ headers, response classification, extraction, and pricing. Nothing here calls
+\ the API: every response frame is synthesised, so the test needs no key and no
+\ network. Responses are http-request's { :status :body } (lib/http.telic).
 
 "lib/claude.telic" load
 "ANTHROPIC_API_KEY" "test-key" env!
@@ -18,27 +19,25 @@ dup "65536" has? . cr                                               \ 1
 
 clear
 
-\ === build-curl-argv: the header takes the key from the environment, the body
-\ is the final argument ===
-"BODY" build-curl-argv
-dup 0 @i . cr                                        \ curl
-dup dup size 1 - @i . cr                             \ BODY
+\ === claude-headers: the key comes from the environment ===
+claude-headers
 dup [: "x-api-key: test-key" = :] any? . cr          \ 1
-[: "anthropic-version: 2023-06-01" = :] any? . cr    \ 1
+dup [: "anthropic-version: 2023-06-01" = :] any? . cr \ 1
+size . cr                                            \ 3
 
 clear
 
-\ === response-ok?: status 0 and a :content array ===
-{ :status 0 :out "{""content"":[{""text"":""hi""}]}" } response-ok? . cr   \ 1
-{ :status 1 :out "{""content"":[]}" } response-ok? . cr                   \ 0   non-zero status
-{ :status 0 :out "{""error"":""nope""}" } response-ok? . cr               \ 0   no :content
+\ === response-ok?: status 200 and a :content array ===
+{ :status 200 :body "{""content"":[{""text"":""hi""}]}" } response-ok? . cr   \ 1
+{ :status 429 :body "{""content"":[]}" } response-ok? . cr                   \ 0   non-2xx status
+{ :status 200 :body "{""error"":""nope""}" } response-ok? . cr               \ 0   no :content
 
 clear
 
-\ === extract-response: the text, the stderr, or the whole body re-rendered ===
-{ :status 0 :out "{""content"":[{""text"":""the answer""}]}" } extract-response . cr  \ the answer
-{ :status 7 :err "curl failed" } extract-response . cr                                \ curl failed
-{ :status 0 :out "{""error"":""nope""}" } extract-response . cr                       \ {"error": "nope"}
+\ === extract-response: the text, or the failed call's body ===
+{ :status 200 :body "{""content"":[{""text"":""the answer""}]}" } extract-response . cr  \ the answer
+{ :status 401 :body "{""error"":""bad key""}" } extract-response . cr                    \ {"error":"bad key"} verbatim
+{ :status 200 :body "{""error"":""nope""}" } extract-response . cr                       \ {"error": "nope"} re-rendered
 
 clear
 
@@ -46,11 +45,11 @@ clear
 "claude-opus-4-8" model-price :output @ . cr    \ 0.0075
 "claude-sonnet-5" model-price :input @ . cr     \ 0.0003
 
-{ :status 0
-  :out "{""model"":""claude-opus-4-8"",""usage"":{""input_tokens"":1000,""output_tokens"":2000}}" }
+{ :status 200
+  :body "{""model"":""claude-opus-4-8"",""usage"":{""input_tokens"":1000,""output_tokens"":2000}}" }
 response-cost . cr                              \ 16.5 ¢   1000*0.0015 + 2000*0.0075
 
-{ :status 0 :out "{""model"":""claude-opus-4-8""}" } response-cost . cr   \ 0 $   no usage reported
+{ :status 200 :body "{""model"":""claude-opus-4-8""}" } response-cost . cr   \ 0 $   no usage reported
 
 cot-cost-ceiling . cr                           \ 491.52 ¢   65536 * 0.0075
 

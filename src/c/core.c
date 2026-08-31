@@ -3215,6 +3215,21 @@ int parse_float(const char *text, double *out) {
 	if (!*text)
 		return 0;
 
+	const char *digits = (text[0] == '-' || text[0] == '+') ? text + 1 : text;
+	if (digits[0] == '0' && (digits[1] == 'x' || digits[1] == 'X')) {
+		if (!isxdigit((unsigned char)digits[2]))
+			return 0;
+
+		char *end_of_hex;
+		errno = 0;
+		unsigned long long magnitude = strtoull(digits + 2, &end_of_hex, 16);
+		if (*end_of_hex != 0 || errno == ERANGE || magnitude > (1ULL << 53))
+			return 0;
+
+		*out = text[0] == '-' ? -(double)magnitude : (double)magnitude;
+		return 1;
+	}
+
 	char *end_of_number;
 	double value = strtod(text, &end_of_number);
 	if (*end_of_number != 0)
@@ -3885,6 +3900,10 @@ void load_file(Interpreter *interp, const char *filename) {
 	size_t bytes_read = fread(contents, 1, (size_t)file_size, file);
 	fclose(file);
 	contents[bytes_read] = 0;
+
+	if (bytes_read >= 2 && contents[0] == '#' && contents[1] == '!')
+		for (size_t i = 0; i < bytes_read && contents[i] != '\n'; i++)
+			contents[i] = ' ';
 
 	char resolved_dir[PATH_MAX];
 	const char *last_slash = strrchr(resolved, '/');
@@ -5085,6 +5104,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "emit", p_emit_, 0);
 	define_primitive(interp, ".s", p_dots, 0);
 	define_primitive(interp, "bye", p_bye, 0);
+	define_primitive(interp, "halt", p_halt, 0);
 	define_primitive(interp, "clear", p_clear, 0);
 	define_primitive(interp, "gc", p_gc, 0);
 	define_primitive(interp, "evaluate", p_evaluate, 0);
@@ -5119,6 +5139,8 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "codepoint>char", p_codepoint_to_char, 0);
 	define_primitive(interp, "codepoints>string", p_codepoints_to_string, 0);
 	define_primitive(interp, "trim", p_trim, 0);
+	define_primitive(interp, "upper-case", p_upper_case, 0);
+	define_primitive(interp, "lower-case", p_lower_case, 0);
 	define_primitive(interp, "join", p_join, 0);
 	define_primitive(interp, "string>number", p_string_to_number, 0);
 	define_primitive(interp, "edit-distance", p_edit_distance, 0);
@@ -5327,6 +5349,8 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "complex", p_complex, 0);
 	define_primitive(interp, "real-part", p_real_part, 0);
 	define_primitive(interp, "imaginary-part", p_imaginary_part, 0);
+	define_primitive(interp, "conjugate", p_conjugate, 0);
+	define_primitive(interp, "arg", p_arg, 0);
 	define_primitive(interp, "numerator", p_numerator, 0);
 	define_primitive(interp, "denominator", p_denominator, 0);
 	define_primitive(interp, "string>symbol", p_string_to_symbol, 0);
@@ -5408,7 +5432,10 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "exp", p_exp, 0);
 	define_primitive(interp, "log", p_log, 0);
 	define_primitive(interp, "ln", p_ln, 0);
+	define_primitive(interp, "log2", p_log2, 0);
 	define_primitive(interp, "lgamma", p_lgamma, 0);
+	define_primitive(interp, "erf", p_erf, 0);
+	define_primitive(interp, "erfc", p_erfc, 0);
 	define_primitive(interp, "^", p_power, 0);
 	define_primitive(interp, "%", p_divmod, 0);
 	define_primitive(interp, "mod", p_mod, 0);
@@ -5418,9 +5445,12 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "cos", p_cos, 0);
 	define_primitive(interp, "tan", p_tan, 0);
 	define_primitive(interp, "tanh", p_tanh, 0);
+	define_primitive(interp, "sinh", p_sinh, 0);
+	define_primitive(interp, "cosh", p_cosh, 0);
 	define_primitive(interp, "asin", p_asin, 0);
 	define_primitive(interp, "acos", p_acos, 0);
 	define_primitive(interp, "atan", p_atan, 0);
+	define_primitive(interp, "atan2", p_atan2, 0);
 	define_primitive(interp, "round", p_round, 0);
 	define_primitive(interp, "round-up", p_round_up, 0);
 	define_primitive(interp, "round-down", p_round_down, 0);
@@ -5440,6 +5470,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "(format-time-local)", p_format_time_local, 4);
 	define_primitive(interp, "(parse-time)", p_parse_time, 4);
 	define_primitive(interp, "sleep", p_sleep, 0);
+	define_primitive(interp, "args", p_args, 0);
 	define_primitive(interp, "env", p_env, 0);
 	define_primitive(interp, "env!", p_env_set, 0);
 	define_primitive(interp, "cd", p_cd, 0);
@@ -5459,6 +5490,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "load-tsv", p_load_tsv, 0);
 	define_primitive(interp, "save-tsv", p_save_tsv, 0);
 	define_primitive(interp, "start-process", p_start_process, 0);
+	define_primitive(interp, "open-file", p_open_file, 0);
 	define_primitive(interp, "write", p_write, 0);
 	define_primitive(interp, "read", p_read, 0);
 	define_primitive(interp, "read-available", p_read_available, 0);
@@ -5555,14 +5587,15 @@ static void run_program_text(Interpreter *interp, const char *text) {
 }
 
 static void print_usage(void) {
-	printf("usage: telic [options] [file.telic ...]\n"
+	printf("usage: telic [options] [file.telic [args ...]]\n"
 		"\n"
-		"Runs the given program files in order and exits; with no files,\n"
-		"starts the REPL (interactive when stdin is a terminal).\n"
+		"Runs the program file and exits; everything after it is the program's,\n"
+		"answered as a string array by the word `args`. With no file, starts\n"
+		"the REPL (interactive when stdin is a terminal).\n"
 		"\n"
-		"  -i, --interactive   drop into the REPL after running the files\n"
+		"  -i, --interactive   drop into the REPL after running the program\n"
 		"  -b, --batch         no banner or prompts, even on a terminal\n"
-		"  -e CODE             run CODE as a program, in argument order with the files (implies -b)\n"
+		"  -e CODE             run CODE as a program, in argument order before the file (implies -b)\n"
 		"      --no-lib        skip loading the embedded library\n"
 		"      --arena SIZE    reserve SIZE gigabytes of heap (e.g. 32g)\n"
 		"      --max-objects N cap the object table at N entries\n"
@@ -5644,6 +5677,8 @@ int main(int argc, char **argv) {
 			program_items[n_program_items] = argv[i];
 			program_item_is_code[n_program_items] = 0;
 			n_program_items++;
+			set_script_args(argv + i + 1, argc - i - 1);
+			break;
 		}
 	}
 

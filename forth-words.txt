@@ -72,6 +72,7 @@ acos
 add-last!
 aes!
 again
+aggregate
 all?
 alloc-stats
 amb
@@ -80,8 +81,10 @@ annotate
 any?
 append-file
 apropos
+arg
 argmax
 argmin
+args
 argsort
 array
 array-of
@@ -93,6 +96,7 @@ as-column
 asin
 assert
 atan
+atan2
 auc
 augment
 axes
@@ -143,6 +147,7 @@ complete-cases
 complex
 complex?
 concat
+conjugate
 cons
 cons>array
 constant
@@ -156,10 +161,12 @@ correlation-kendall
 correlation-pearson
 correlation-spearman
 cos
+cosh
 count
 count-barchart
 count-barchart-plot
 count-matches
+covariance
 cp
 cr
 create-index
@@ -221,6 +228,8 @@ env!
 epoch>date
 epoch>date-local
 eq
+erf
+erfc
 evaluate
 exact>float
 exact?
@@ -321,6 +330,7 @@ gpd-quantile
 group-by
 group-indices
 group-with
+halt
 has?
 head
 head-tail
@@ -330,6 +340,9 @@ histogram
 histogram-plot
 histogram-table
 hstack
+http-get
+http-post
+http-request
 i-times
 identity
 identity-matrix
@@ -363,9 +376,11 @@ load-library
 load-tsv
 load-value
 log
+log2
 logistic-regression
 lookup
 loop
+lower-case
 lowest-bit
 ls
 lshift
@@ -422,6 +437,7 @@ num-elements
 numerator
 of
 open-app-window
+open-file
 or
 over
 pad-left
@@ -442,6 +458,7 @@ pmap
 pmap-ext
 pmap-reduce
 pmap-reduce-ext
+pnorm
 pointer-cell
 pointer-deref
 pointer-long
@@ -463,6 +480,7 @@ r>
 r@
 random
 random-int
+random-normal
 range
 ranks
 rationalize
@@ -553,12 +571,15 @@ side-peek
 side>
 sigmoid
 sin
+sinh
 size
 skip
 sleep
 slice!
+solutions
 sort
 sort-by
+sort-rows
 spaces
 split
 spread
@@ -595,6 +616,7 @@ swap
 symbol
 symbol?
 take
+take-solutions
 tan
 tanh
 telic
@@ -626,6 +648,7 @@ unit
 unit-of
 until
 update-at
+upper-case
 value>bytes
 values
 var

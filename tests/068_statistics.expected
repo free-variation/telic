@@ -298,3 +298,22 @@ qnorm: expected a probability in (0, 1); got 2
 
 error: uncaught exception: "auc: both a positive and a negative outcome required"
 in throw ← auc
+3.33333 
+1 
+0 
+4 
+1.5 
+covariance: expected at least 2 complete pairs; got 1 
+0.5 
+0.975 
+1 
+0.975 
+0.025 
+<matrix 1x3>
+     0.1587        0.5     0.8413
+
+1 
+0 
+-1.37955 
+1 
+1 

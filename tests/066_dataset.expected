@@ -242,3 +242,33 @@ in mesh
 
 error: no key :missing
 in (@.symbol) ← replace-where
+{
+  :name [ "c" "b" "a" ]
+  :height <matrix 3x1:  190 180 170> m
+  :score <matrix 3x1:  1 2 3>
+}
+
+<matrix 1x3>
+          3          2          1
+
+<matrix 1x3>
+          1          2        nan
+
+0 
+error: no key :missing
+in (@.symbol) ← sort-rows
+{
+  :region [ "e" "w" ]
+  :total <matrix 2x1:  90 60>
+  :n <matrix 2x1:  3 2>
+}
+
+5 
+[ "e" "w" ] 
+{
+}
+
+error: no key :missing
+in (@.symbol) ← aggregate
+error: uncaught exception: "rows have differing keys"
+in throw ← frames>dataset ← aggregate

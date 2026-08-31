@@ -317,3 +317,38 @@ clear
 [ 1 1 ] 2 1 matrix  [ 3 1 ] 2 1 matrix  auc                 \ (single class: no negative)
 
 clear
+
+\ ==== covariance ====
+
+\ covariance ( xs ys -- f ): sample covariance over the complete pairs,
+\ n-1 denominator matching var.
+[ 1 2 3 4 ] vector [ 2 4 6 8 ] vector covariance . cr           \ 3.33333 (2 var(xs))
+[ 1 2 3 4 ] vector dup covariance [ 1 2 3 4 ] vector var = . cr \ 1 (cov(x,x) = var)
+[ 1 2 3 ] vector [ 5 5 5 ] vector covariance . cr               \ 0 (constant ys)
+[ 1 null 3 ] vector [ 2 5 6 ] vector covariance . cr            \ 4 (NaN pair dropped)
+[ 1 2 3 ] vector transpose [ 4 5 7 ] vector covariance . cr     \ 1.5 (1xn accepted)
+
+\ === errors (reason parenthesized) ===
+[: [ 1 ] vector [ 2 ] vector covariance :] [: . cr :] try-catch \ (one pair)
+
+clear
+
+\ ==== pnorm / random-normal ====
+
+\ pnorm ( z -- p ): standard normal CDF, qnorm's inverse; random-normal ( -- z ):
+\ one deviate from the global stream, deterministic under seed.
+0 pnorm . cr                                    \ 0.5
+1.959963984540054 pnorm . cr                    \ 0.975
+-1 pnorm 1 pnorm + . cr                         \ 1 (symmetry)
+0.975 qnorm pnorm . cr                          \ 0.975 (round trip)
+0.025 qnorm pnorm . cr                          \ 0.025 (lower tail)
+[ -1 0 1 ] vector pnorm transpose . cr          \ 0.1587 0.5 0.8413
+10 pnorm . cr                                   \ 1
+-40 pnorm . cr                                  \ 0 (tail underflows)
+
+42 seed random-normal . cr                      \ -1.37955
+42 seed 10000 iota [: drop random-normal :] map vector to draws
+draws mean abs 0.05 < . cr                      \ 1
+draws std 1 - abs 0.05 < . cr                   \ 1
+
+clear

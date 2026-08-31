@@ -1,3 +1,5 @@
+"http" load-library
+
 "claude-opus-4-8" to claude-model
 65536 to claude-max-tokens
 
@@ -13,38 +15,41 @@
   }
   frame>json ;
 
-( body -- argv ) \ the curl argv array that POSTs one request body to the API
-: build-curl-argv
-  | body |
-  [ "curl" "-s" "https://api.anthropic.com/v1/messages"
-    "-H" "x-api-key: " "ANTHROPIC_API_KEY" env +
-    "-H" "anthropic-version: 2023-06-01"
-    "-H" "content-type: application/json"
-    "-d" body ] ;
+( -- headers ) \ the API headers; the key comes from the environment
+: claude-headers
+	[ "x-api-key: " "ANTHROPIC_API_KEY" env +
+	  "anthropic-version: 2023-06-01"
+	  "content-type: application/json" ] ;
 
-: call-once ( messages -- result )
-	request-body build-curl-argv run-result ;
+( messages -- response ) \ POST one request to the API; http-request's { :status :body }
+: call-once
+	| messages |
+	"POST"
+	"https://api.anthropic.com/v1/messages"
+	claude-headers
+	messages request-body
+	http-request ;
 
-: response-ok? ( result -- bool )
-	dup :status @ 0 = if
-		:out @ json>frame :content has?
+( response -- bool ) \ a 200 whose body carries :content
+: response-ok?
+	dup :status @ 200 = if
+		:body @ json>frame :content has?
 	else
 		drop 0
 	then ;
 
-
-\ Pull the response text out of one { :out :err :status } result.
-: extract-response ( result -- answer )
-  dup :status @ 0 = not if
-    :err @
-  else
-    :out @ json>frame
-    dup :content has? if
-      :content @ 0 @i :text @
-    else
-      frame>json
-    then
-  then ;
+( response -- answer ) \ the response text; a failed call answers its error body
+: extract-response
+	dup :status @ 200 = not if
+		:body @
+	else
+		:body @ json>frame
+		dup :content has? if
+			:content @ 0 @i :text @
+		else
+			frame>json
+		then
+	then ;
 
 : try-call ( messages -- answer )
 	call-once dup response-ok? if
@@ -105,9 +110,9 @@
   claude-prices sym has? not if "no price for model: " model + throw then
   claude-prices sym @ ;
 
-( result -- $ ) \ actual cost of one call, from its usage and model
+( response -- $ ) \ actual cost of one call, from its usage and model
 : response-cost
-  :out @ json>frame to body
+  :body @ json>frame to body
   body :usage has? not if 0 $ exit then
   body :usage @ to usage
   body :model @ model-price to price

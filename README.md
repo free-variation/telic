@@ -264,7 +264,7 @@ exceptions.
 
 - **Variables** — `lvar` pushes a fresh one; `| ?x |` in a locals head declares one that is fresh on every call. `?` reads a variable, answering what it is bound to.
 - **`unify`** (`~`) — makes two terms equal, binding variables on either side: values by comparison, arrays and cons pairs element-wise, frames as open records where shared keys must agree and extra keys are ignored. A mismatch fails. `_` matches anything and binds nothing.
-- **Search** — `amb` runs the first of two quotations; if it fails — a mismatch, or an explicit `fail` — its bindings are undone and the second runs. `choose` does the same across a cons list. The first branch that succeeds is the one kept.
+- **Search** — `amb` runs the first of two quotations; if it fails — a mismatch, or an explicit `fail` — its bindings are undone and the second runs. `choose` does the same across a cons list. The first branch that succeeds is the one kept; `solutions` and `take-solutions` collect every success instead of the first.
 - **Tests** — `matches?` answers whether two terms could unify and leaves nothing bound; `unify?` keeps the bindings when they do. `case`/`of` dispatches through `unify?`, so a clause pattern may hold variables that bind for its body.
 - **Lists** — `[( a b c )]` builds cons pairs and `[( H T )]` is Prolog's `[H|T]` under `unify`, with `cons`, `head-tail`, and `array`↔`cons` conversions.
 - **Fact database** — `relation` / `assert` / `query` / `retract` / `count-matches` / `inner-join`. A relation is a frame of a row-set plus per-column indexes (declared symbol columns); rows are column-keyed frames that dedup; `query` matches a pattern by unification, narrowing through the index. `inner-join` merges two relations on a shared column, and `bulk-load` builds a whole relation in one sorted pass. The same row-frame shape is what a SQLite query returns.
@@ -283,9 +283,9 @@ exceptions.
 - **Reductions** — `sum`, `row-sums`, `column-sums`, `max`, `min`, `argmax`, `argmin` (flat row-major index of the extreme element), `row-maxes`, `row-mins`, `column-maxes`, `column-mins`, `cumulative-sum` (row-major prefix sums, shape preserved). Library `mean`, `row-means`, `column-means` on top.
 - **Norms** — `norm` and `frobenius-norm`, both √(Σ elements²); `dot` is the inner product.
 - **Descriptive statistics** — `var`, `quantile`, and `ks-distance` in C, with `std`, `se`, `median`, `percentile`, `quantiles`, `iqr`, `ci`, `summary`, `histogram-table`, `ecdf`, `binomial-deviance`, `cross-validate`, and the `bootstrap` family in the embedded library — LAPACK-free, so wasm-capable. NaN elements are missing values: the statistics skip them, and the correlations and regressions use complete cases.
-- **Correlations** — `correlation-pearson`, `correlation-spearman`, `correlation-kendall` (tau-b); `correlate-with` bootstraps a confidence interval for any of them, `cor` does it with kendall in one word, and `qnorm` is the standard normal quantile.
+- **Correlations** — `covariance`, `correlation-pearson`, `correlation-spearman`, `correlation-kendall` (tau-b); `correlate-with` bootstraps a confidence interval for any of them, `cor` does it with kendall in one word. `qnorm` and `pnorm` are the standard normal quantile and CDF, `random-normal` a standard normal deviate.
 - **SVG plotting** (`lib/plot.telic`) — scatter, line series, histograms, bar charts, and Tukey boxplots over a deferred-rendering figure: marks accumulate with the style in effect and nothing maps to pixels until render, so draw order is free and the domain may be set after the data. `save-figure` writes a version, `show-figure` opens a browser view that later versions appear in.
-- **Element-wise math** — `abs`, `sqrt`, `exp`, `log`, `ln`, `sin`, `cos`, `tan`, `tanh`, `asin`, `acos`, `atan`, `round`, `truncate`, `round-up`, `round-down`. Polymorphic over floats and matrices.
+- **Element-wise math** — `abs`, `sqrt`, `exp`, `log`, `ln`, `log2`, `sin`, `cos`, `tan`, `sinh`, `cosh`, `tanh`, `asin`, `acos`, `atan`, `atan2`, `erf`, `erfc`, `round`, `truncate`, `round-up`, `round-down`. Polymorphic over floats and matrices.
 - **Comparison** — `=` is structural, so matrices work as set members; `<`/`>`/`eq` on a matrix or array operand mask **element-wise** into a 1/0 matrix, so `names "ann" eq where` filters a text column. On scalars and strings all of them are structural.
 - **Sorting and masks** — `sort` (an ascending copy, NaNs last), `argsort` (the sorting permutation), `where` (the flat indices of a mask's nonzero elements), `nan?` (the missing-value mask), and `mesh` (masked substitution). Masks serve selection and alteration alike: `dup 0 @j 0 < where select-rows` keeps the rows whose first column is negative, `dup nan? 0 mesh` fills a column's NaNs, `dup -1 eq null mesh` turns a sentinel into missing.
 
@@ -303,7 +303,7 @@ the ⚠ words take only floats.
 
 ### Complex numbers
 
-A pair of floats with literals `3+4i` / `4i`. `+ - * / ^` take two complexes or a complex and a float (floats promote losslessly); `sqrt`, `exp`, `ln`, and the trigonometric words answer principal values; `negate` keeps the type, `abs` answers the modulus; `complex` / `real-part` / `imaginary-part` construct and destructure. Ordering is by real then imaginary part, and a complex equals a float of its value. A complex takes a unit (`3+4i ohm`), so impedance arithmetic is quantity arithmetic.
+A pair of floats with literals `3+4i` / `4i`. `+ - * / ^` take two complexes or a complex and a float (floats promote losslessly); `sqrt`, `exp`, `ln`, and the trigonometric words answer principal values; `negate` keeps the type, `abs` answers the modulus; `complex` / `real-part` / `imaginary-part` / `conjugate` / `arg` construct and destructure. Ordering is by real then imaginary part, and a complex equals a float of its value. A complex takes a unit (`3+4i ohm`), so impedance arithmetic is quantity arithmetic.
 
 ### Dimensioned quantities
 
@@ -321,6 +321,7 @@ Integer bitwise operators over the float representation: a value is read as a tw
 
 - **`bit-and`** / **`bit-or`** / **`bit-xor`** / **`bit-not`** — bitwise logic, named apart from the truthiness words `and`/`or`/`not`.
 - **`lshift`** / **`rshift`** — left shift and arithmetic right shift (`= floor(a / 2ⁿ)`); **`lowest-bit`** — 0-indexed position of the lowest set bit (−1 when zero).
+- **Hex literals** — `0xff` reads as 255; `{0:x}` under `format` renders hex back out.
 
 ### Random
 
@@ -333,7 +334,7 @@ A thread-local xoshiro256\*\* stream. Each worker thread derives its own stream 
 
 - **String literals** are raw, `""` being the one escape; **`format`** fills `{n}` placeholders from the stack — `"got {0} of {1}" format` — and on a terminal colors text with ink directives (`{red}`…`{plain}`) that vanish when piped; `+` concatenates.
 - **Regex** on PCRE2, JIT-compiled: `match`, `match-all`, `replace` (all matches, with `&` and `\1`–`\9` backrefs), and `has?` to test one. Patterns are plain `"..."` literals, read by PCRE2 itself.
-- **Slicing and building** — `substring`, `char-at`, `split` on a pattern, `join` with a separator.
+- **Slicing and building** — `substring`, `char-at`, `split` on a pattern, `join` with a separator, `trim`, `upper-case` / `lower-case` (ASCII).
 - **Unicode** — strings are UTF-8 and the bare words work in *codepoints*: `size`, `substring`, `char-at`, `codepoint-at`, with `byte-size` and `byte-substring` for the raw layer and for regex byte offsets. `string>chars` / `string>codepoints` decompose, `codepoint>char` / `codepoints>string` rebuild, `emit` encodes one. Regex is Unicode-aware, and invalid bytes fail to match rather than erroring.
 - **`edit-distance`** — over codepoints, counting insertions, deletions, substitutions, and adjacent transpositions.
 
@@ -404,6 +405,8 @@ Worker threads over one shared object heap: a quotation runs across the collecti
 - **`save`** writes the user's vocabulary as a re-loadable `.telic` source file.
 - **`reload`** truncates user state and re-runs every file `load`ed this session, in order.
 - **`read-file`** / **`write-file`** / **`append-file`** — read a whole file as one (byte-safe) string; write or append a string's bytes to a path.
+- **`open-file`** — a file as a read-only stream, for the stream words below.
+- **`args`** — the command-line arguments after the program file, as a string array; a leading `#!` line is skipped.
 - **`file-exists?`** — whether a path exists (`access`, `F_OK`); follows symlinks, any file type.
 - **Files and directories** — **`list-directory`**, **`file-info`**, **`make-directory`**, **`delete-file`**, **`delete-directory`**, **`rename-file`**, **`copy-file`**, **`touch-file`**, with **`ls`** **`mkdir`** **`rm`** **`rmdir`** **`mv`** **`pwd`** **`cat`** **`cp`** **`touch`** as shell names.
 - **`find-executable`** — `( name -- path/none )` the absolute path of `name` on `$PATH`, or the none value if not found.
@@ -439,8 +442,9 @@ TSV is the one tabular file format (convert other formats to TSV before loading)
 - **`read-tsv`** / **`write-tsv`** — a header TSV to a column-oriented dataset with typed columns, and back.
 - **`load-tsv`** / **`save-tsv`** — the same file as an array of row-arrays, untyped and in file column order.
 - **Conversions** — **`rows>dataset`** types the columns of an array of row-arrays, **`rows>relation`** builds an indexed fact-database relation, **`dataset>rows`** inverts `rows>dataset`, and **`dataset>matrix`** builds an observations×columns matrix from named columns.
-- **Dataset verbs** — `select-rows`, `select-columns`, `filter`, `map`, `dim`, `column-type`, and `count` work on a dataset directly, `filter` and `map` seeing each row as a frame keyed by column name and every column keeping its representation. `column>array` reads any column as an array, `column>set` its distinct values, `column-type` its type (`:numeric` `:datetime` `:quantity` `:text`), and `group-indices` maps each distinct value to its row positions in one sort.
+- **Dataset verbs** — `select-rows`, `select-columns`, `sort-rows`, `filter`, `map`, `dim`, `column-type`, and `count` work on a dataset directly, `filter` and `map` seeing each row as a frame keyed by column name and every column keeping its representation. `column>array` reads any column as an array, `column>set` its distinct values, `column-type` its type (`:numeric` `:datetime` `:quantity` `:text`), and `group-indices` maps each distinct value to its row positions in one sort.
 - **`frames>dataset`** — an array of row frames, as `query` and `db-query` return, into a dataset with inferred column types.
+- **`aggregate`** — split-apply-combine: group rows by a column, reduce each group to a row frame, reassemble as a dataset.
 - **`head`** / **`headn`** — print the first rows as an aligned table, `headn` taking the row count and the columns to lead with.
 - **`replace-where`** — edit one column in place where a predicate holds.
 - **`resample-indices`** — indices drawn with replacement, for bootstrap resampling.
@@ -464,6 +468,12 @@ Call C functions in any shared library at runtime via `libffi` — no per-librar
 - **`matrix>pointer`** / **`segment>pointer`** — pass a matrix's or segment's buffer to a `:ptr` parameter, no copy.
 - FFI is unsafe: a wrong signature corrupts or crashes; argument *count* is checked, types are the caller's responsibility. `lib/statistics.telic` drives LAPACK's `dgesvd`/`dgelsd` this way, and `ffi-open` on `libcurl` makes an HTTPS request in-process without a subprocess.
 
+### HTTP
+
+`lib/http.telic` — `http-get`, `http-post`, and the general `http-request`
+(`{ :status :body }`) over a `curl` subprocess; `lib/claude.telic` calls the
+Anthropic API through it.
+
 ### MCP server
 
 `lib/mcp.telic` serves the Model Context Protocol over stdio — `telic -e '"mcp"
@@ -483,7 +493,14 @@ the stdio server behind a stdio-to-Streamable-HTTP gateway such as mcp-proxy.
 - **`man`** — a word's reference entry as a frame; **`help name`** prints it.
 - **`words`** — the dictionary grouped by reference section; **`apropos`** — every word whose name or summary matches a pattern.
 - **`variables`** — the current globals as `{ :name :value :type }` frames; **`vars`** prints them.
-- **`forget`**, **`bye`**, **`gc`**, **`clear`**, **`.s`**, **`.a`** — interpreter utilities.
+- **`forget`**, **`bye`**, **`halt`**, **`gc`**, **`clear`**, **`.s`**, **`.a`** — interpreter utilities.
+
+## Absences
+
+Decisions, not gaps:
+
+- **No networking** — HTTP is a `curl` subprocess (`lib/http.telic`); anything else goes through a subprocess or the FFI.
+- **No CSV** — tabular I/O is TSV only; a tab or newline inside a cell is an error, not a quoting rule.
 
 ## Future work
 
@@ -513,7 +530,7 @@ src/c/platform_posix.c — POSIX platform: arena mmap, isocline REPL, subprocess
 src/c/platform_wasi.c  — WASI platform: allocator + erroring stubs for FFI/subprocess
 src/c/help_table.c     — generated help/man text (from docs/reference.md)
 src/forth/*.telic        — standard library (concatenated in Makefile order, embedded)
-lib/                   — loadable libraries: statistics.telic, plot.telic, claude.telic
+lib/                   — loadable libraries: statistics.telic, plot.telic, http.telic, claude.telic, mcp.telic
 external/              — vendored deps: pcre2, sqlite, isocline, lapacke
 tests/                 — golden-output test files
 bench/                 — benchmark suite (Telic vs CPython) and inventory

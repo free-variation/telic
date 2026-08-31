@@ -187,6 +187,14 @@
 	xs keep select-rows
 	ys keep select-rows ;
 
+( xs ys -- f ) \ sample covariance over the complete pairs (n-1 denominator, matching var)
+: covariance
+	| xs ys |
+	xs ys complete-cases to ys to xs
+	xs num-elements to n
+	n 2 < if n "covariance: expected at least 2 complete pairs; got {0}" format throw then
+	xs dup mean -  ys dup mean -  dot  n 1 - / ;
+
 ( xs ys -- r ) \ Pearson correlation coefficient over the complete pairs
 : correlation-pearson
 	| xs ys |
@@ -267,6 +275,13 @@
 	-39.69683028665376 squared-deviation * 220.9460984245205 + squared-deviation * -275.9285104469687 + squared-deviation * 138.3577518672690 + squared-deviation * -30.66479806614716 + squared-deviation * 2.506628277459239 + median-deviation *
 	-54.47609879822406 squared-deviation * 161.5858368580409 + squared-deviation * -155.6989798598866 + squared-deviation * 66.80131188771972 + squared-deviation * -13.28068155288572 + squared-deviation * 1 +
 	/ ;
+
+( z -- p ) \ standard normal CDF: 0.5 erfc(-z / sqrt 2); float or matrix element-wise
+: pnorm negate 2 sqrt / erfc 0.5 * ;
+
+( -- z ) \ one standard normal deviate: qnorm of a uniform draw, redrawn on 0
+: random-normal
+	begin random dup 0 = while drop repeat qnorm ;
 
 (  xs ys correlation-xt replications -- corr-summary ) \ bootstrap CI for a correlation
 : correlate-with
