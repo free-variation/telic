@@ -767,6 +767,11 @@ void p_read_line(DISPATCH_ARGS) {
 
 #define READ_AVAILABLE_MAX (1 << 16)
 
+static int descriptor_is_regular_file(int file_descriptor) {
+	struct stat status;
+	return fstat(file_descriptor, &status) == 0 && S_ISREG(status.st_mode);
+}
+
 void p_read_available(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	Val stream_val = chain_sp[-1];
@@ -792,7 +797,7 @@ void p_read_available(DISPATCH_ARGS) {
 		return;
 	}
 
-	if (n_ready == 0) {
+	if (n_ready == 0 && !descriptor_is_regular_file(file_descriptor)) {
 		int empty = object_new_string(interp, "", 0);
 		if (interp->error_flag)
 			return;
@@ -872,6 +877,10 @@ void p_wait_readable(DISPATCH_ARGS) {
 		fail(interp, "%s", strerror(errno));
 		return;
 	}
+
+	for (int i = 0; i < n_streams; i++)
+		if (!watched[i].revents && descriptor_is_regular_file(watched[i].fd))
+			watched[i].revents = POLLIN;
 
 	int n_readable = 0;
 	for (int i = 0; i < n_streams; i++)
