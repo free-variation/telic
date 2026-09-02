@@ -3593,8 +3593,8 @@ static int try_frame_key_token(Interpreter *interp, const char *token) {
 			if (interp->error_flag)
 				return 1;
 			push(interp, target);
-			push(interp, make_symbol(key));
 			push(interp, stored);
+			push(interp, make_symbol(key));
 			execute_cfa(interp, find("!"));
 			if (interp->error_flag)
 				return 1;
@@ -4281,6 +4281,14 @@ int op_cell_count(int cursor) {
 	    || handler == (cell)p_ll_lit_mul_0_store
 	    || handler == (cell)p_ll_litrev_sub_0_store)
 		return 4;
+
+	if (handler == (cell)p_inc_store_i
+	    || handler == (cell)p_dec_store_i
+	    || handler == (cell)p_add_store_i
+	    || handler == (cell)p_sub_store_i
+	    || handler == (cell)p_mul_store_i
+	    || handler == (cell)p_div_store_i)
+		return 2;
 
 	if (handler == vocab.dict[vocab.local_fetch_cfa]
 	    || handler == vocab.dict[vocab.local_store_cfa]

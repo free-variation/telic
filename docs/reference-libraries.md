@@ -25,6 +25,8 @@ plotting library is pure forth (no FFI) and works under wasm; only its
 | `svd` | `( A -- U S VT )` | Thin singular value decomposition via LAPACKE dgesvd: `A = U diag(S) VT`, with `S` the 1×min(m,n) singular values. Column signs of U/VT are not canonical, so pin goldens on S and the reconstruction, not raw U/VT entries |
 | `fit-linear` | `( mat y -- beta )` | Ordinary least squares via LAPACKE dgelsd; `mat` is observations×predictors (observations ≥ predictors), `y` the observations×1 response, `beta` the predictors×1 coefficients |
 | `fit-augmented` | `( augmented -- beta )` | Least squares of an `[X | y]` block whose last column is the response |
+| `fit-nonnegative` | `( X y -- beta )` | Nonnegative least squares — min ‖Xβ−y‖² with β ≥ 0 — by the Lawson–Hanson active set over `fit-linear` subset solves: terminates finitely with exact zeros on the active set, and at the answer the passive gradient is ~0 and the active gradient ≤ 0 (the KKT conditions, checkable as `X transpose y X beta matmul - matmul`) |
+| `fit-simplex` | `( X y -- weights )` | Least squares on the probability simplex — weights ≥ 0 summing to 1 (synthetic-control weights, mixture proportions). The sum constraint enters `fit-nonnegative` as a ones row weighted 1000·max(1, max\|X\|), the weights keep the penalty's O(1/mu²) deviation (~1e-7 relative), and a final renormalization reduces the sum error to one float rounding; throws `empty support` when every weight is 0 |
 
 ```forth dgemm-nn
 "statistics" load-library
@@ -96,6 +98,22 @@ plotting library is pure forth (no FFI) and works under wasm; only its
 ```
 ```output
 [ 1 2 ]
+```
+
+```forth fit-nonnegative
+"statistics" load-library
+[ 1 0 0 1 ] 2 2 matrix [ 0.3 -0.9 ] vector fit-nonnegative matrix>array . cr
+```
+```output
+[ 0.3 0 ]
+```
+
+```forth fit-simplex
+"statistics" load-library
+[ 1 0 0 1 ] 2 2 matrix [ 0.3 0.9 ] vector fit-simplex matrix>array . cr
+```
+```output
+[ 0.2 0.8 ]
 ```
 
 ## Regression (lib/statistics.telic)

@@ -17,6 +17,11 @@ clear
 clear
 1 2 nip . cr
 
+\ tuck copies the top under the second
+clear
+1 2 tuck .s cr                  \ 2 1 2
+clear
+
 \ pick copies the nth item from the top, leaving it in place; roll moves it
 1 2 3 0 pick .s cr              \ 1 2 3 3
 clear

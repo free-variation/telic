@@ -1,0 +1,15 @@
+[ 0.3 0 ] 
+[ 0 0 ] 
+[ -4 120 ] 
+[ 0 1 ] 
+1 
+kkt holds 
+[ 0 1074461 ] 
+passive flat 
+[ 200000 800000 ] 
+sums to one 
+[ 0.25 0.75 ] 
+[ 0.75 0.25 ] 
+[ 0 1 ] 
+random kkt ok 
+inner dimensions must match (A is 2x2, B is 3x1) 

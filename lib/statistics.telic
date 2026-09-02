@@ -212,6 +212,117 @@ drop
 	aug-mat 0 rows cols 1- cols submatrix
 	fit-linear ;
 
+\ ---- constrained least squares ----
+
+( X passive -- mat ) \ the passive columns of X, side by side in passive order
+: passive-columns
+	[: 2 pick swap @j :] map nip
+	dup 0 @i swap 1 skip swap ' augment reduce ; internal
+
+( X y -- beta ) \ nonnegative least squares (beta >= 0) by the Lawson-Hanson
+\ active set over fit-linear subset solves: finite, exact zeros on the active
+\ set; at the answer the passive gradient is ~0 and the active gradient <= 0
+: fit-nonnegative
+	| X y |
+	X dim to n-predictors to n-observations
+	X transpose to Xt
+	Xt y matmul to gradient
+	gradient abs max 1e-10 * to tolerance
+
+	n-predictors 1 0-matrix to beta
+	n-predictors 1 0-matrix to passive-mask
+	[ ] to passive
+	0 to rounds
+
+	begin
+		++ rounds
+		rounds  n-predictors 3 * 10 +  > if
+			"fit-nonnegative: did not converge" throw
+		then
+
+		\ dual test: the most positive gradient among the active coordinates
+		-1 to best-index
+		tolerance to best-gradient
+		0 n-predictors 1 do candidate
+			passive-mask candidate @e 0= if
+				gradient candidate @e best-gradient > if
+					gradient candidate @e to best-gradient
+					candidate to best-index
+				then
+			then
+		loop
+		best-index 0 < if leave then
+
+		passive best-index add-last! to passive
+		passive-mask 1 best-index !e drop
+
+		\ feasibility loop: solve on the passive columns; while the solve
+		\ leaves the orthant, step to the boundary and demote what it zeroed
+		begin
+			X passive passive-columns y fit-linear to z
+			z min 0 > if
+				0 passive size 1 do position
+					beta  z position @e  passive position @i  !e drop
+				loop
+				true
+			else
+				1 to alpha
+				-1 to pivot
+				0 passive size 1 do position
+					z position @e 0 <= if
+						beta passive position @i @e to beta-entry
+						beta-entry  beta-entry z position @e -  /  to step-limit
+						step-limit alpha < if
+							step-limit to alpha
+							passive position @i to pivot
+						then
+					then
+				loop
+
+				0 passive size 1 do position
+					passive position @i to column-index
+					beta column-index @e to beta-entry
+					beta
+					beta-entry  z position @e beta-entry -  alpha *  +
+					column-index !e drop
+				loop
+				pivot 0 < not if beta 0 pivot !e drop then
+
+				[ ] to still-passive
+				0 passive size 1 do position
+					passive position @i to column-index
+					beta column-index @e 0 <=  column-index pivot =  or if
+						passive-mask 0 column-index !e drop
+						beta 0 column-index !e drop
+					else
+						still-passive column-index add-last! to still-passive
+					then
+				loop
+				still-passive to passive
+				false
+			then
+		until
+
+		Xt  y X beta matmul -  matmul to gradient
+	again
+	beta ;
+
+( X y -- weights ) \ least squares on the probability simplex: weights >= 0,
+\ summing to exactly 1. The sum constraint enters as a mu-weighted ones row,
+\ whose O(1/mu^2) error the final renormalization removes
+: fit-simplex
+	| X y |
+	X abs max 1 max2 1e3 * to mu
+	X dim nip to n-predictors
+
+	X  1 n-predictors 0-matrix mu +  vstack
+	y  [ mu ] vector  vstack
+	fit-nonnegative to weights
+
+	weights sum to total
+	total 0 <= if "fit-simplex: empty support" throw then
+	weights total / ;
+
 \ ---- design matrices and the shared regression pipeline ----
 \ Moved out of the embedded library: every one of these serves a fit, and the
 \ fits are here.
@@ -237,7 +348,7 @@ drop
 
 	design prefix column
 	[: level design prefix column |
-		design  prefix level "{1}={0}" format string>symbol  column level eq  ! 
+		design  column level eq  prefix level "{1}={0}" format string>symbol  ! 
 	:] 3 ncurry map drop
 	design ;
 
@@ -247,7 +358,7 @@ drop
 : with-intercept
 	dup frame? if
 		dup keys size 0= if "with-intercept: empty design (add a column first)" throw then
-		:intercept over n-rows 1 0-matrix 1 + !
+		dup n-rows 1 0-matrix 1 +  :intercept  !
 	else
 		dup dim drop
 		1 0-matrix 1 +    \ rows x 1 column of ones
@@ -622,7 +733,7 @@ drop
 		features-cell pointer-deref to names
 		dense names scores
 		[: i dense names scores |
-		   dense  names i pointer-string-at string>number  0  scores i @i  !i,j drop
+		   dense  scores i @i  names i pointer-string-at string>number  0  !i,j drop
 		:] 3 ncurry n i-times
 	then
 

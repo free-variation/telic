@@ -48,5 +48,5 @@ error: target [-1, 1) out of bounds for length 3
 in slice! ← rev!
 error: length must be non-negative; got -1
 in slice! ← rev!
-error: source must be an array or set; got a float
+error: expected an array; got a float
 in slice! ← rev!

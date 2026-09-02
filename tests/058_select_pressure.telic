@@ -89,7 +89,7 @@ org //age select-values [: 35 > :] filter . cr
 org //people/*[role=admin] select-values size . cr
 
 \ --- cycle guard ---
-{ } dup :self swap ! //x select-values . cr
+{ } dup dup :self ! nip //x select-values . cr
 
 \ --- errors ---
 org /company/depts/*[x select-values . cr
@@ -112,7 +112,7 @@ org //* select-keys size . cr
 org dup //people/alice/age select-keys 0 @i @ . cr
 
 \ cycle guard in keys mode
-{ } dup :self swap ! //x select-keys . cr
+{ } dup dup :self ! nip //x select-keys . cr
 
 \ argument type errors
 org 5 select-keys . cr
@@ -122,9 +122,9 @@ org 5 select-keys . cr
 org /company/depts/* @ . cr
 org //city @ . cr
 org /company/depts[head] @ . cr
-org /company/depts/* 0 ! . cr
+org 0 /company/depts/* ! . cr
 org /company/depts/* delete-at . cr
-org /company/depts/* [: 1 + :] update-at . cr
+org [: 1 + :] /company/depts/* update-at . cr
 
 \ --- has? accepts a search path: true when any node matches, else false ---
 org //city has? . cr
@@ -139,5 +139,5 @@ org /company/depts/eng/head has? . cr
 org /company/depts/eng/missing has? . cr
 
 \ has? early-exits before a cycle when a match exists; errors when none does
-{ :x 1 } dup :self swap ! //x has? . cr
-{ } dup :self swap ! //x has? . cr
+{ :x 1 } dup dup :self ! nip //x has? . cr
+{ } dup dup :self ! nip //x has? . cr

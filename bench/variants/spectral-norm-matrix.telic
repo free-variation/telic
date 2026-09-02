@@ -25,7 +25,7 @@ variable zero-col
 ( j i flat -- ) \ flat[i*n + j] = A_ij
 : set-a
   | j i flat |
-  flat  i n * j +  i j eval-a  !i drop ; internal
+  flat  i j eval-a  i n * j +  !i drop ; internal
 
 ( i flat -- ) \ fill row i
 : set-a-row

@@ -33,7 +33,7 @@ variable g
            g idx 1.0 f+ @i f+
            omega-over-four f*
            one-minus-omega  g idx @i f*  f+  to nv
-           g idx nv !i drop
+           g nv idx !i drop
         loop
      loop
   loop ;

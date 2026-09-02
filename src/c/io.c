@@ -80,9 +80,9 @@ void p_env(DISPATCH_ARGS) {
 
 void p_env_set(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
-	Val value_val = chain_sp[-1];
+	Val value_val = chain_sp[-2];
 	REQUIRE_CHAIN_TAG(value_val, T_STRING, "env!", "a string");
-	Val name_val = chain_sp[-2];
+	Val name_val = chain_sp[-1];
 	REQUIRE_CHAIN_TAG(name_val, T_STRING, "env!", "a string");
 	Object *name = OBJECT_AT(VAL_DATA(name_val));
 

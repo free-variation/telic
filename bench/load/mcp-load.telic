@@ -51,7 +51,7 @@ variable server
 ( id text -- ) \ what a call's answer must be
 : expect-answer
   | id text |
-  expected id string>symbol text ! drop ;
+  expected text id string>symbol ! drop ;
 
 ( -- ) \ read one answer, check it against what was expected, and count it
 : take-answer

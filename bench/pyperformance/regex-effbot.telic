@@ -30,12 +30,12 @@
 ( kk arr -- ) \ build string kk in place
 : build-string-at
   | kk arr |
-  arr kk
+  arr
     fills kk 21 mod @i
     word-list kk 21 mod @i
     nvalues kk 21 quotient @i
     make-string
-  !i drop ; internal
+  kk !i drop ; internal
 
 \ build the 147 strings: kk in 0..146, id = kk mod 21, n = nvalues[kk / 21]
 : build-strings ( -- arr )

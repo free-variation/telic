@@ -105,6 +105,7 @@ barchart-plot
 base
 basename
 begin
+between?
 binary-dir
 binomial-deviance
 bit-and
@@ -289,7 +290,9 @@ fit-logistic-ridge
 fit-multinomial
 fit-multinomial-ridge
 fit-negative-binomial
+fit-nonnegative
 fit-poisson
+fit-simplex
 fit-xgb
 flat-map
 flatten
@@ -520,6 +523,7 @@ rot
 round
 round-down
 round-up
+row-at
 row-maxes
 row-means
 row-mins
@@ -580,6 +584,7 @@ solutions
 sort
 sort-by
 sort-rows
+sort-rows-descending
 spaces
 split
 spread
@@ -640,6 +645,7 @@ truncate
 try-catch
 tsv>db
 tty?
+tuck
 type-of
 unify
 unify?

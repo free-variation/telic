@@ -32,7 +32,7 @@ null
 
 : element-into   \ 10 cells
  0: (enter-locals-to) 3 3
- 3: (!e.lll0) 0 1 2
+ 3: (!e.lll0) 0 2 1
  7: (leave-locals) 3
  9: exit
 ;
@@ -41,14 +41,15 @@ null
          42
           0
 
-: double-into   \ 14 cells
+: double-into   \ 15 cells
  0: (enter-locals-to) 2 2
- 3: (load3) 0 1 1
- 7: (lit) 2
- 9: *
- 10: (!e-drop)
- 11: (leave-locals) 2
- 13: exit
+ 3: (load2) 0 1
+ 6: (lit) 2
+ 8: *
+ 9: (local@0) 1
+ 11: (!e-drop)
+ 12: (leave-locals) 2
+ 14: exit
 ;
 <matrix 3x1>
           0
@@ -58,9 +59,9 @@ null
 : corner-nine   \ 15 cells
  0: (enter-locals-to) 1 1
  3: (local@0) 0
- 5: (lit) 0
- 7: (lit) 1
- 9: (lit) 9
+ 5: (lit) 9
+ 7: (lit) 0
+ 9: (lit) 1
  11: (!i,j-drop)
  12: (leave-locals) 1
  14: exit

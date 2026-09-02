@@ -10,8 +10,8 @@ variable cycles
 : bswap ( a b -- )
   | a b |
   board a @i
-  board a  board b @i  !i drop
-  board b  rot         !i drop ;
+  board  board b @i  a  !i drop
+  board swap b !i drop ;
 
 : valid?
   [< [: i | board i @i i + :] queens i-times >] size queens =
@@ -29,18 +29,18 @@ variable cycles
     board i @i to tmp
     i to j
     begin
-      board j  board j f1+ @i  !i drop
+      board  board j f1+ @i  j  !i drop
       ++ j
       j queens 1 - =
     until
-    board queens 1 -  tmp  !i drop
+    board tmp  queens 1 -  !i drop
   then ;
 
 : init-arrays ^board ^cycles |
   0 queens array-of to board
   [: k | board k k !i drop :] queens i-times
   0 queens array-of to cycles
-  [: k | cycles k  queens k -  !i drop :] queens i-times ;
+  [: k | cycles  queens k -  k  !i drop :] queens i-times ;
 
 : permute-all
   init-arrays
@@ -51,10 +51,10 @@ variable cycles
     0 to yielded
     0 to inner-done
     begin
-      cycles i  cycles i @i 1 -  !i drop
+      cycles  cycles i @i 1 -  i  !i drop
       cycles i @i 0 = if
         i rotate-left
-        cycles i  queens i -  !i drop
+        cycles  queens i -  i  !i drop
         i 1 - to i
       else
         cycles i @i to j

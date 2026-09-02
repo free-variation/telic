@@ -49,28 +49,28 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
   node 7 @i to tm
   tm pmass f+ to tnew
   tnew 0.0 > if
-     node 5  node 5 @i tm f* px pmass f* f+ tnew f/  !i drop
-     node 6  node 6 @i tm f* py pmass f* f+ tnew f/  !i drop
+     node  node 5 @i tm f* px pmass f* f+ tnew f/  5  !i drop
+     node  node 6 @i tm f* py pmass f* f+ tnew f/  6  !i drop
   then
-  node 7 tnew !i drop ;
+  node tnew 7 !i drop ;
 
 : insert ( node pidx -- placed? )
   | node pidx |
   particles pidx @i to p  p 0 @i to px  p 1 @i to py
   node px py contains? 0= if 0.0 exit then
   node 8 @i 4.0 <  node 4 @i 0= and if
-     node  9.0 node 8 @i f+  pidx  !i drop
-     node 8  node 8 @i 1.0 f+  !i drop
+     node pidx  9.0 node 8 @i f+  !i drop
+     node  node 8 @i 1.0 f+  8  !i drop
      node pidx update-mass
      1.0 exit
   then
   node 4 @i 0= if
      node 0 @i to x  node 1 @i to y  node 2 @i 2.0 f/ to w  node 3 @i 2.0 f/ to h
-     node 13  x w f+ y h f- w h make-node  !i drop
-     node 14  x w f- y h f- w h make-node  !i drop
-     node 15  x w f+ y h f+ w h make-node  !i drop
-     node 16  x w f- y h f+ w h make-node  !i drop
-     node 4 1.0 !i drop
+     node  x w f+ y h f- w h make-node  13  !i drop
+     node  x w f- y h f- w h make-node  14  !i drop
+     node  x w f+ y h f+ w h make-node  15  !i drop
+     node  x w f- y h f+ w h make-node  16  !i drop
+     node 1.0 4 !i drop
      node 8 @i to oldn
      node
      [: k |
@@ -81,7 +81,7 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
         dup 16 @i pid insert drop
      :] oldn i-times
      drop
-     node 8 0.0 !i drop
+     node 0.0 8 !i drop
   then
   node 13 @i pidx insert if 1.0 exit then
   node 14 @i pidx insert if 1.0 exit then
@@ -112,7 +112,7 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
 
 : add-particle ( px py mass -- )
   | px py mass ^pfill |
-  particles pfill [ px py 0.0 0.0 0.0 0.0 mass ] !i drop
+  particles [ px py 0.0 0.0 0.0 0.0 mass ] pfill !i drop
   pfill 1.0 f+ to pfill ;
 
 ( i bulge -- ) \ one bulge particle
@@ -163,8 +163,8 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
      dy fnegate dist f/ to perpx
      dx dist f/ to perpy
      0.1 dist 100.0 f+ f* fsqrt 0.3 f* to orbv
-     p 2  perpx orbv f*  !i drop
-     p 3  perpy orbv f*  !i drop
+     p  perpx orbv f*  2  !i drop
+     p  perpy orbv f*  3  !i drop
   then ; internal
 
 : create-galaxy ^particles ^pfill |
@@ -216,18 +216,18 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
   particles i @i to p
   i to tpidx  p 0 @i to tpx  p 1 @i to tpy  p 6 @i to tpmass
   root calc-force to fy to fx
-  p 4  p 4 @i  fx p 6 @i f/  f+  !i drop
-  p 5  p 5 @i  fy p 6 @i f/  f+  !i drop ; internal
+  p  p 4 @i  fx p 6 @i f/  f+  4  !i drop
+  p  p 5 @i  fy p 6 @i f/  f+  5  !i drop ; internal
 
 ( i -- ) \ integrate particle i one time step
 : step-particle
   | i |
   particles i @i to p
-  p 2  p 2 @i  p 4 @i time-step f* f+  !i drop
-  p 3  p 3 @i  p 5 @i time-step f* f+  !i drop
-  p 0  p 0 @i  p 2 @i time-step f* f+  !i drop
-  p 1  p 1 @i  p 3 @i time-step f* f+  !i drop
-  p 4 0.0 !i drop  p 5 0.0 !i drop ; internal
+  p  p 2 @i  p 4 @i time-step f* f+  2  !i drop
+  p  p 3 @i  p 5 @i time-step f* f+  3  !i drop
+  p  p 0 @i  p 2 @i time-step f* f+  0  !i drop
+  p  p 1 @i  p 3 @i time-step f* f+  1  !i drop
+  p 0.0 4 !i drop  p 0.0 5 !i drop ; internal
 
 : advance-system
   width 2.0 f/  height 2.0 f/  width 2.0 f/  height 2.0 f/  make-node to root

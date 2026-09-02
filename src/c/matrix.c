@@ -241,8 +241,8 @@ static int matrix_element_write(Interpreter *interp, cell *resume_ip, Val *fail_
 #define STORE_E_OP(c_name, n_consumed) \
 	void c_name(DISPATCH_ARGS) { \
 		REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 3); \
-		Val element_val = chain_sp[-1]; \
-		Val index_val = chain_sp[-2]; \
+		Val element_val = chain_sp[-2]; \
+		Val index_val = chain_sp[-1]; \
 		Val target_val = chain_sp[-3]; \
 		REQUIRE_CHAIN_TAG(index_val, T_FLOAT, "!e", "a float index"); \
 		if (!matrix_element_write(interp, chain_ip, chain_sp, target_val, (int)VAL_NUMBER(index_val), element_val)) \
@@ -256,8 +256,8 @@ STORE_E_OP(p_store_e_drop, 3)
 void p_store_e_lll0(DISPATCH_ARGS) {
 	Val *locals = interp->return_stack + interp->local_base;
 	Val target_val = locals[(int)chain_ip[0]];
-	int index = (int)locals[(int)chain_ip[1]].number;
-	Val element_val = locals[(int)chain_ip[2]];
+	Val element_val = locals[(int)chain_ip[1]];
+	int index = (int)locals[(int)chain_ip[2]].number;
 	if (!matrix_element_write(interp, chain_ip + 3, chain_sp, target_val, index, element_val))
 		return;
 	DISPATCH_REGISTERS(interp, chain_ip + 3, chain_sp);
@@ -266,9 +266,9 @@ void p_store_e_lll0(DISPATCH_ARGS) {
 #define STORE_IJ_OP(c_name, n_consumed) \
 	void c_name(DISPATCH_ARGS) { \
 		REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 4); \
-		Val element_val = chain_sp[-1]; \
-		Val j_val = chain_sp[-2]; \
-		Val i_val = chain_sp[-3]; \
+		Val element_val = chain_sp[-3]; \
+		Val j_val = chain_sp[-1]; \
+		Val i_val = chain_sp[-2]; \
 		Val target_val = chain_sp[-4]; \
 		if (VAL_TAG(element_val) != T_FLOAT && VAL_TAG(element_val) != T_NONE) { \
 			SYNC_REGISTERS(interp, chain_ip, chain_sp); \

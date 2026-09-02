@@ -57,7 +57,7 @@ inline
 \ Fact database
 ( [cols] -- rel ) \ empty relation; cols is an array of symbols to index
 : relation
-	{ } [: { } ! :] reduce
+	{ } [: { } swap ! :] reduce
 	>side
 	{ :rows [< >] :index side> } ;
 
@@ -65,7 +65,7 @@ inline
 : bucket-add!
 	| column-index indexed-value row |
 	column-index indexed-value has? not if
-		column-index indexed-value [< >] ! drop
+		column-index [< >] indexed-value ! drop
 	then
 	column-index indexed-value @ row set-add! drop ; internal
 
@@ -171,19 +171,19 @@ inline internal
  ( rel rows-array -- rel ) \ load all rows: build :rows in one sorted pass, then index each row
 : bulk-load
 	| rel rows-array |
-	rel :rows rows-array array>set !
+	rel  rows-array array>set  :rows !
 	dup :index @ keys
 	rel rows-array
-	[: col rel rows-array | rel :index @ col  rows-array col group-by  ! :]
+	[: col rel rows-array | rel :index @  rows-array col group-by  col  ! :]
 	2curry map drop ;
 
 ( rel rows-array -- rel ) \ like bulk-load, but :rows stays a bag (array); only the index is built
 : load-bag
 	| rel rows-array |
-	rel :rows rows-array !
+	rel rows-array :rows !
 	dup :index @ keys
 	rel rows-array
-	[: col rel rows-array | rel :index @ col  rows-array col group-by  ! :]
+	[: col rel rows-array | rel :index @  rows-array col group-by  col  ! :]
 	2curry map drop ;
 
 ( rel cols -- rel ) \ index rel on cols: intern each indexed column's value to a symbol, then build the index
@@ -191,7 +191,7 @@ inline internal
 	| rel cols |
 	rel :rows @
 	cols
-	[: row cols | cols row [: ' string>symbol update-at :] reduce :]
+	[: row cols | cols row [: ' string>symbol swap update-at :] reduce :]
 	curry map
 
 	cols relation swap load-bag ;

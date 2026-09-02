@@ -136,7 +136,7 @@
 	:expiry 0
 	:queue [ ]
   } to fresh
-  mcp-sessions key fresh ! drop
+  mcp-sessions fresh key ! drop
 
   fresh ; internal
 

@@ -13,8 +13,8 @@ variable board
 : bswap ( a b -- )
   | a b |
   board a @i
-  board a  board b @i  !i drop
-  board b  rot         !i drop ;
+  board  board b @i  a  !i drop
+  board swap b !i drop ;
 inline
 
 : valid? ( -- flag )

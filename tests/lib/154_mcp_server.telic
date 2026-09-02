@@ -28,7 +28,7 @@ variable server
 ( id method params -- ) \ send one request, with the required _meta filled in
 : send-request
   | id method params |
-  params :_meta request-meta ! drop
+  params request-meta :_meta ! drop
   { :jsonrpc "2.0" :id id :method method :params params } frame>json send-line ;
 
 ( id name arguments -- ) \ send one tools/call

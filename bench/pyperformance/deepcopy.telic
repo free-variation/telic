@@ -15,11 +15,11 @@ variable dc
 : run-deepcopy ( -- )
   [: a copy drop :] 30 times
   [: ci |
-     dc :string colors ci @i ! drop
+     dc  colors ci @i  :string ! drop
      [: kk |
-        dc :lst @ 0 kk !i drop
-        dc :boolean :1 ! drop  dc copy drop
-        dc :boolean :0 ! drop  dc copy drop
+        dc :lst @ kk 0 !i drop
+        dc :1 :boolean ! drop  dc copy drop
+        dc :0 :boolean ! drop  dc copy drop
      :] 5 i-times
   :] 3 i-times ;
 

@@ -149,6 +149,14 @@ ex nip type-of . cr                    \ :continuation
 1 string? . "s" float? . :k lvar? . cr                                              \ 0 0 0
 y string? . cr                         \ 1   bound var answers as its value
 
+clear
+\ between? ( v low high -- bool ): low <= v <= high inclusive; matrix and
+\ array operands answer an element-wise mask (mask conjunction by *)
+3 3 8 between? . 8 3 8 between? . 2 3 8 between? . 9 3 8 between? . cr   \ 1 1 0 0
+[ 1 5 9 ] vector 2 8 between? matrix>array . cr    \ [ 0 1 0 ]
+[ "m" "a" "q" ] "b" "n" between? matrix>array . cr \ [ 1 0 0 ] — val_cmp, lexicographic
+50 ¢ 0 $ 1 $ between? . cr                         \ 1 — quantities rescale to compare
+
 bye
 
 clear

@@ -278,7 +278,7 @@ static inline __attribute__((always_inline)) int array_element_store(Interpreter
 
 static inline __attribute__((always_inline)) Val *array_element_store_fast(Interpreter *interp, cell *chain_ip, Val *chain_sp) {
 	Val target_val = chain_sp[-3];
-	Val index_val = chain_sp[-2];
+	Val index_val = chain_sp[-1];
 	if (VAL_TAG(target_val) != T_ARRAY || VAL_TAG(index_val) != T_FLOAT)
 		return NULL;
 	Object *array = OBJECT_AT(VAL_DATA(target_val));
@@ -288,7 +288,7 @@ static inline __attribute__((always_inline)) Val *array_element_store_fast(Inter
 		fail(interp, "array index %d out of bounds (length %d)", index, array->len);
 		return NULL;
 	}
-	array->items[index] = chain_sp[-1];
+	array->items[index] = chain_sp[-2];
 	return chain_sp;
 }
 
@@ -312,7 +312,7 @@ STORE_I_ARRAY_OP(p_store_i_drop_array, p_store_i_drop, 3)
 		REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 3); \
 		if (VAL_TAG(chain_sp[-3]) == T_ARRAY) \
 			RETARGET_OP(quickened); \
-		if (!array_element_store(interp, chain_ip, chain_sp, chain_sp[-3], chain_sp[-2], chain_sp[-1])) \
+		if (!array_element_store(interp, chain_ip, chain_sp, chain_sp[-3], chain_sp[-1], chain_sp[-2])) \
 			return; \
 		DISPATCH_REGISTERS(interp, chain_ip, chain_sp - (n_consumed)); \
 	}
@@ -322,9 +322,9 @@ STORE_I_OP(p_store_i_drop, p_store_i_drop_array, 3)
 
 #define ARRAY_INPLACE_OP(fn, word, n_operands, delta_expr, combine) \
 void fn(DISPATCH_ARGS) { \
-	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, n_operands); \
+	REQUIRE_STACK_DEPTH(interp, chain_ip + 1, chain_sp, n_operands); \
 	Val target_val = chain_sp[-(n_operands)]; \
-	int index = (int)VAL_NUMBER(chain_sp[-(n_operands) + 1]); \
+	int index = (int)interp->return_stack[interp->local_base + (int)chain_ip[0]].number; \
 	double delta = delta_expr; \
 	if (VAL_TAG(target_val) == T_ARRAY) { \
 		Object *array = OBJECT_AT(VAL_DATA(target_val)); \
@@ -353,12 +353,12 @@ void fn(DISPATCH_ARGS) { \
 		fail(interp, "expected an array or segment; got %s", tag_name(VAL_TAG(target_val))); \
 		return; \
 	} \
-	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - (n_operands)); \
+	DISPATCH_REGISTERS(interp, chain_ip + 1, chain_sp - (n_operands)); \
 }
 
-ARRAY_INPLACE_OP(p_inc_store_i, "(inc!i)", 2, 1.0, +)
-ARRAY_INPLACE_OP(p_dec_store_i, "(dec!i)", 2, -1.0, +)
-ARRAY_INPLACE_OP(p_add_store_i, "(+!i)", 3, VAL_NUMBER(chain_sp[-1]), +)
-ARRAY_INPLACE_OP(p_sub_store_i, "(-!i)", 3, VAL_NUMBER(chain_sp[-1]), -)
-ARRAY_INPLACE_OP(p_mul_store_i, "(*!i)", 3, VAL_NUMBER(chain_sp[-1]), *)
-ARRAY_INPLACE_OP(p_div_store_i, "(/!i)", 3, VAL_NUMBER(chain_sp[-1]), /)
+ARRAY_INPLACE_OP(p_inc_store_i, "(inc!i)", 1, 1.0, +)
+ARRAY_INPLACE_OP(p_dec_store_i, "(dec!i)", 1, -1.0, +)
+ARRAY_INPLACE_OP(p_add_store_i, "(+!i)", 2, VAL_NUMBER(chain_sp[-1]), +)
+ARRAY_INPLACE_OP(p_sub_store_i, "(-!i)", 2, VAL_NUMBER(chain_sp[-1]), -)
+ARRAY_INPLACE_OP(p_mul_store_i, "(*!i)", 2, VAL_NUMBER(chain_sp[-1]), *)
+ARRAY_INPLACE_OP(p_div_store_i, "(/!i)", 2, VAL_NUMBER(chain_sp[-1]), /)

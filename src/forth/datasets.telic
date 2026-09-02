@@ -69,7 +69,7 @@
 
 	column-keys  rows row-indices select-rows  [: 2 pick swap frame :] map  nip to row-frames
 	index-cols  row-frames
-	[: 2 pick swap [: ' string>symbol update-at :] reduce :] map  nip to row-frames
+	[: 2 pick swap [: ' string>symbol swap update-at :] reduce :] map  nip to row-frames
 
 	index-cols relation row-frames bulk-load ;
 
@@ -184,7 +184,7 @@
 	| pairs value |
 	pairs pairs size 1- @i to last-pair
 	last-pair 0 @i value = if
-		last-pair 1  last-pair 1 @i 1+  !i drop
+		last-pair  last-pair 1 @i 1+  1  !i drop
 	else
 		pairs [ value 1 ] add-last! drop
 	then
@@ -211,7 +211,7 @@
 	run 1 @i to length
 
 	null length array-of to indices
-	indices 0  permutation offset 1 length  slice! drop
+	permutation offset 1 length  indices 0  slice! drop
 	pairs [ run 0 @i indices ] add-last! drop
 
 	[ pairs  offset length +  permutation ] ; internal
@@ -226,17 +226,13 @@
 	0 @i ;
 
 ( dataset -- rows ) \ each row as a frame keyed by column name
-\ the column names are parked below the transposed rows, so the quotation keying
-\ each row reaches them at depth 2 under map
 : dataset-rows
 	| dataset |
 	dataset keys to column-names
 	column-names size 0= if [ ] exit then
 
-	column-names
 	dataset values ' column>array map transpose
-	[: 2 pick swap frame :] map
-	nip ; internal
+	column-names [: row names | names row frame :] curry map ; internal
 
 ( array/vector/dataset -- pairs ) \ occurrences of distinct values (dataset: whole rows), most frequent first
 : count
@@ -303,13 +299,25 @@
 ( dataset/matrix -- n ) \ number of columns
 : n-columns dim nip ;
 
-( dataset sym pred replacement -- ) \ replaces the column's cells passing pred, in place
+( dataset i -- fr ) \ row i as a frame of scalars, one key per column
+: row-at
+	| dataset i |
+	dataset n-rows to row-count
+	i 0 < i row-count >= or if
+		row-count i "row index {0} out of bounds for {1} rows" format throw
+	then
+
+	dataset keys
+	dataset values i [: swap column>array swap @i :] curry map
+	frame ;
+
+( dataset pred replacement sym -- ) \ replaces the column's cells passing pred, in place
 \ read, mesh, store back — what update-at did, without a quotation reaching outward
 : replace-where
-	| dataset column-name predicate replacement |
-	dataset column-name
+	| dataset predicate replacement column-name |
+	dataset
 	dataset column-name @  dup predicate execute  replacement mesh
-	! drop ;
+	column-name ! drop ;
 
 
 ( dataset key -- strings right? ) \ header + rendered cells; numeric columns align right
@@ -363,15 +371,39 @@
 	| dataset column-name |
 	dataset  dataset column-name @ argsort  select-rows ;
 
+( dataset sym -- dataset ) \ rows sorted descending by the named column, equal keys keeping dataset order
+\ argsort of the reversed column, each index remapped to rows-1-i, reversed:
+\ keys descend, ties keep dataset order, missing cells sort last
+: sort-rows-descending
+	| dataset column-name |
+	dataset column-name @ column>array reverse argsort
+	dup size [: 1- swap - :] curry map
+	reverse
+	dataset swap select-rows ;
+
 ( dataset by xt -- dataset ) \ split-apply-combine: for each distinct value of
-\ the by column, xt ( group-dataset -- frame ) answers one row frame; the by
-\ value is stored into it under its own key, and the rows reassemble
+\ the by column — or distinct value tuple of a by-symbol array — xt
+\ ( group-dataset -- frame ) answers one row frame; the group's key values are
+\ stored into it under their own keys, and the rows reassemble. Tuples group
+\ and order by val_cmp, so no composite string key is built
 : aggregate
 	| dataset by xt |
-	dataset by @ group-indices
+	by array? if
+		dataset by [: 2 pick swap @ column>array :] map nip transpose
+	else
+		dataset by @
+	then
+	group-indices
+
 	dataset by xt
 	[: pair dataset by xt |
 		dataset  pair 1 @i  select-rows  xt execute
-		by  pair 0 @i  !
+		by array? if
+			0 by size 1 do position
+				pair 0 @i position @i  by position @i  !
+			loop
+		else
+			pair 0 @i  by  !
+		then
 	:] 3 ncurry map
 	frames>dataset ;

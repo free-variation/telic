@@ -16,7 +16,7 @@
 		data i @e low - bin-width / round-down to bin
 		bin n-bins 1 - > if n-bins 1 - to bin then
 		counts bin @e 1+ to tally
-		counts bin tally !e drop
+		counts tally bin !e drop
 	loop
 	{ :counts counts :low low :bin-width bin-width } ;
 
@@ -95,13 +95,13 @@
 	else
 		{ }
 	then
-	n-missing 0 > if :missing n-missing ! then ; internal
+	n-missing 0 > if n-missing :missing ! then ; internal
 
 ( v -- fr ) \ the vector summary with each instant statistic rendered through time>iso
 : datetime-summary
 	vector-summary
 	dup keys swap
-	[: [: dup quantity? if time>iso then :] update-at :] reduce ; internal
+	[: [: dup quantity? if time>iso then :] swap update-at :] reduce ; internal
 
 ( v -- fr ) \ numeric summary; an instant vector (unit exactly s) renders as ISO
 : numeric-summary
@@ -113,7 +113,7 @@
 	cells size 0= if { } exit then
 	cells nan? sum to n-missing
 	{ :distinct cells [: none? not :] filter array>set size }
-	n-missing 0 > if :missing n-missing ! then ; internal
+	n-missing 0 > if n-missing :missing ! then ; internal
 
 ( column -- fr ) \ summary by column representation
 : column-summary
@@ -226,7 +226,7 @@
 		repeat
 		run-start run-end f+ 1.0 f- 2.0 f/ to mid
 		run-start run-end 1 do run-index
-			midranks  order run-index @e  mid !e drop
+			midranks mid  order run-index @e  !e drop
 		loop
 		run-end to run-start
 	repeat

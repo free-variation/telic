@@ -10,9 +10,9 @@
 "2026-07-09T12:34:56-0800" "%Y-%m-%dT%H:%M:%S%z" parse-time epoch>date :hour @ . cr   \ 20
 
 \ === local timezone words (POSIX fixed zones, no DST) ======================
-"TZ" "UTC" env!
+"UTC" "TZ" env!
 5 s epoch>date-local 5 s epoch>date = . cr               \ 1
-"TZ" "EST5" env!
+"EST5" "TZ" env!
 0 s epoch>date-local :day @ . cr                         \ 31
 0 s epoch>date-local :hour @ . cr                        \ 19
 { :year 2026 :month 7 :day 9 :hour 12 } date>epoch-local

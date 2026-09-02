@@ -41,7 +41,7 @@
   0 slot-count array-of to slot-commands
   0 slot-count 1 do slot
     commands slot @i start-process to proc
-    slotprocs slot proc !i drop
+    slotprocs proc slot !i drop
     slot-commands slot slot !i drop
   loop
   slot-count to next-command
@@ -52,15 +52,15 @@
       proc null = not if
         proc :pid @ running? not if
           slot-commands slot @i to command-index
-          results command-index { :out proc read-out :err proc read-err :status proc :pid @ wait } !i drop
+          results { :out proc read-out :err proc read-err :status proc :pid @ wait } command-index !i drop
           completed-count 1 + to completed-count
           next-command command-count < if
             commands next-command @i start-process to proc
-            slotprocs slot proc !i drop
-            slot-commands slot next-command !i drop
+            slotprocs proc slot !i drop
+            slot-commands next-command slot !i drop
             next-command 1 + to next-command
           else
-            slotprocs slot null !i drop
+            slotprocs null slot !i drop
           then
         then
       then

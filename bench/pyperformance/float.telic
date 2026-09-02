@@ -20,18 +20,18 @@ variable maxx variable maxy variable maxz
 : build-points
   [: i |
      i fsin to sxi
-     xs i sxi !i drop
-     ys i  i fcos 3.0 f*  !i drop
-     zs i  sxi sxi f* 2.0 f/  !i drop
+     xs sxi i !i drop
+     ys  i fcos 3.0 f*  i  !i drop
+     zs  sxi sxi f* 2.0 f/  i  !i drop
   :] points i-times ;
 
 : normalize-points
   [: i |
      xs i @i to xi  ys i @i to yi  zs i @i to zi
      xi xi f* yi yi f* f+ zi zi f* f+ fsqrt to length
-     xs i  xi length f/  !i drop
-     ys i  yi length f/  !i drop
-     zs i  zi length f/  !i drop
+     xs  xi length f/  i  !i drop
+     ys  yi length f/  i  !i drop
+     zs  zi length f/  i  !i drop
   :] points i-times ;
 
 : maximize-points ^maxx ^maxy ^maxz |

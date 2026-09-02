@@ -111,6 +111,13 @@ def emit_vim(auto):
     L.append("syn case match")
     L.append("syn iskeyword @,48-57,_,192-255,33,35-39,42-47,58,60-64,94,126")
     L.append("")
+    # Without a sync rule vim re-parses from near the top of the window, so a
+    # multi-line string whose opening quote has scrolled off is read as code.
+    # A string spans arbitrarily many lines and quote parity has no per-line
+    # pattern to sync on, so any bounded lookback (minlines=N) misparses a
+    # string longer than N; only parsing from the file start is correct.
+    L.append("syn sync fromstart")
+    L.append("")
     L.append("syn match   telicComment \"\\%(^\\|\\s\\)\\zs\\\\\\%(\\s.*\\)\\=$\" contains=@Spell")
     L.append('syn region  telicComment start="\\[\\@<!(\\s" end=")" contains=@Spell')
     L.append('syn region  telicString start=+"+ skip=+""+ end=+"+ contains=@Spell,telicFormat')

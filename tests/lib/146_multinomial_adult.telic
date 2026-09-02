@@ -16,10 +16,10 @@ classes size to K
 
 \ design: numeric columns + income (already 0/1) + one-hot sex + intercept
 { } to design
-design :age        adult :age @            ! drop
-design :education  adult :education-num @   ! drop
-design :hours      adult :hours-per-week @  ! drop
-design :income     adult :income @          ! drop
+design adult :age @            :age       ! drop
+design adult :education-num @  :education ! drop
+design adult :hours-per-week @ :hours     ! drop
+design adult :income @         :income    ! drop
 design adult :sex @ :sex indicators! drop
 design design keys dataset>matrix with-intercept to X
 

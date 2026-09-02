@@ -18,14 +18,14 @@ variable max-flips
   0 n array-of to perm
   [: dup perm swap rot !i drop :] n i-times
   0 n array-of to count
-  [: dup f1+  count rot rot  !i drop :] n i-times ;
+  [: dup f1+ swap count -rot !i drop :] n i-times ;
 
 : copy-perm1
-  perm 0 perm1 0 1 n slice! drop ;
+  perm1 0 1 n perm 0 slice! drop ;
 inline
 
 : flip-perm ( k -- )        \ reverse perm[0..k] inclusive, matching Python's perm[:k+1] = perm[k::-1]
-  perm 0 perm 3 roll dup f1+ -1 swap slice! drop ;
+  perm swap -1 over f1+ perm 0 slice! drop ;
 
 : count-flips ( -- flips )
   0
@@ -41,8 +41,8 @@ inline
   else
     perm1 0 @i >r
     >r
-    perm1 0 perm1 1 1 r@ slice! drop
-    perm1 r> r> !i drop
+    perm1 1 1 r@ perm1 0 slice! drop
+    perm1 r> r> swap !i drop
   then ;
 inline
 
@@ -57,7 +57,7 @@ inline
   begin
     \ Reset COUNT[r-1..0]
     begin r 1 > while
-      count r f1-  r  !i drop
+      count r  r f1-  !i drop
       f-- r
     repeat
 
@@ -77,7 +77,7 @@ inline
         -1
       else
         r rotate-perm1
-        count r  count r @i f1-  !i drop
+        count  count r @i f1-  r  !i drop
         count r @i 0 > if
           -1
         else

@@ -32,7 +32,7 @@ to aes
 	aes { :width width :height height :parts [ ] } merge to current-figure ;
 
 ( val sym -- ) \ set a property of the current figure: any aes key, or a domain bound
-: figure! current-figure swap rot ! drop ;
+: figure! current-figure -rot ! drop ;
 
 ( sym -- val ) \ read a property of the current figure
 : figure@ current-figure swap @ ;

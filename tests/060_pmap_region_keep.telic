@@ -8,6 +8,6 @@
 \ and A[0] aliases it -- so this would print the aliasing value, not 1234.
 variable shared
 [ 0 ] to shared
-1 1 range 1 1 [: drop shared 0 1234 "{0}" format !i drop shared :] pmap-ext drop
+1 1 range 1 1 [: drop shared 1234 "{0}" format 0 !i drop shared :] pmap-ext drop
 [: 5678 "{0}" format drop :] 3000 times
 shared 0 @i . cr

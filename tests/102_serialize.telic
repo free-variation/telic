@@ -46,8 +46,8 @@ clear
 [ 1 null 3 ] vector round-trip matrix>array . cr        \ [ 1 null 3 ] (NaN elements survive)
 [ 1 2 3 4 5 6 ] 2 3 matrix round-trip dim swap . . cr   \ 2 3
 0 0 0-matrix round-trip dim swap . . cr                 \ 0 0
-4 int-segment dup 2 7 !i round-trip dup 2 @i . 0 @i . cr   \ 7 0
-3 double-segment dup 1 1.5 !i round-trip 1 @i . cr         \ 1.5
+4 int-segment dup 7 2 !i round-trip dup 2 @i . 0 @i . cr   \ 7 0
+3 double-segment dup 1.5 1 !i round-trip 1 @i . cr         \ 1.5
 
 clear
 \ === dimensions: units, compound units, exotic magnitudes ===
@@ -66,19 +66,19 @@ clear
 
 [ 1 2 3 ] to shared
 [ shared shared ] round-trip to two
-two 0 @i 0 99 !i drop
+two 0 @i 99 0 !i drop
 two 1 @i . cr                                 \ [ 99 2 3 ] (one object, not two copies)
 
 { :tag 5 } to cyclic
-cyclic :self cyclic ! drop
+cyclic cyclic :self ! drop
 cyclic round-trip to restored
-restored :self @ :n 7 ! drop
+restored :self @ 7 :n ! drop
 restored :n @ . cr                            \ 7 (:self is the frame itself)
 restored :self @ :self @ :self @ :tag @ . cr  \ 5
 
 { :a [ 1 2 ] } to inner
 { :x inner :y inner } round-trip to twice-inner
-twice-inner :x @ :marker 1 ! drop
+twice-inner :x @ 1 :marker ! drop
 twice-inner :y @ :marker @ . cr               \ 1 (shared frame stays shared)
 
 clear
@@ -93,7 +93,7 @@ bound-var 42 ~ drop
 clear
 \ === large values ===
 
-200 200 0-matrix dup 0 0 7 !i,j drop to big-matrix
+200 200 0-matrix dup 7 0 0 !i,j drop to big-matrix
 big-matrix round-trip dup 0 0 @i,j . dim swap . . cr    \ 7 200 200
 big-matrix value>bytes byte-size . cr                   \ 320014 (8 bytes an element plus the header)
 20000 iota round-trip dup size . 19999 @i . cr          \ 20000 19999

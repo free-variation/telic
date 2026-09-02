@@ -27,8 +27,8 @@ variable gf-exp  variable gf-log  variable sbox  variable acc
   0 256 array-of to gf-log
   1 to acc
   0 255 1 do i
-     gf-exp i acc !i drop
-     gf-log acc i !i drop
+     gf-exp acc i !i drop
+     gf-log i acc !i drop
      acc gmul3 to acc
   loop ;
 
@@ -42,7 +42,7 @@ variable gf-exp  variable gf-log  variable sbox  variable acc
 : build-sbox ^sbox |
   build-gf
   0 256 array-of to sbox
-  0 256 1 do i  sbox i  i ginv affine  !i drop  loop ;
+  0 256 1 do i  sbox  i ginv affine  i  !i drop  loop ;
 
 \ --- T-tables: T1[a]=[2s,s,s,3s] (s=sbox[a]); T2..T4 are byte-rotations --------
 variable tab1  variable tab2  variable tab3  variable tab4
@@ -51,10 +51,10 @@ variable tab1  variable tab2  variable tab3  variable tab4
 : build-ttable-row
   | a |
   sbox a @i to sb  sb xtime to s2  sb gmul3 to s3
-  tab1 a  s2 24 lshift  sb  16 lshift bit-or  sb  8 lshift bit-or  s3 bit-or  !i drop
-  tab2 a  s3 24 lshift  s2 16 lshift bit-or  sb  8 lshift bit-or  sb  bit-or  !i drop
-  tab3 a  sb  24 lshift  s3 16 lshift bit-or  s2 8 lshift bit-or  sb  bit-or  !i drop
-  tab4 a  sb  24 lshift  sb  16 lshift bit-or  s3 8 lshift bit-or  s2 bit-or  !i drop ; internal
+  tab1  s2 24 lshift  sb  16 lshift bit-or  sb  8 lshift bit-or  s3 bit-or  a  !i drop
+  tab2  s3 24 lshift  s2 16 lshift bit-or  sb  8 lshift bit-or  sb  bit-or  a  !i drop
+  tab3  sb  24 lshift  s3 16 lshift bit-or  s2 8 lshift bit-or  sb  bit-or  a  !i drop
+  tab4  sb  24 lshift  sb  16 lshift bit-or  s3 8 lshift bit-or  s2 bit-or  a  !i drop ; internal
 
 : build-ttables ^tab1 ^tab2 ^tab3 ^tab4 |
   0 256 array-of to tab1  0 256 array-of to tab2
@@ -76,7 +76,7 @@ variable ke
   | key ^ke |
   0 44 array-of to ke
   key 0 be-word to tk0  key 4 be-word to tk1  key 8 be-word to tk2  key 12 be-word to tk3
-  ke 0 tk0 !i drop  ke 1 tk1 !i drop  ke 2 tk2 !i drop  ke 3 tk3 !i drop
+  ke tk0 0 !i drop  ke tk1 1 !i drop  ke tk2 2 !i drop  ke tk3 3 !i drop
   0 10 1 do slot
      tk3 to tt
      tk0
@@ -88,10 +88,10 @@ variable ke
      bit-xor to tk0
      tk1 tk0 bit-xor to tk1  tk2 tk1 bit-xor to tk2  tk3 tk2 bit-xor to tk3
      slot 1 + 4 *
-     dup 0 + tk0 ke rot rot !i drop
-     dup 1 + tk1 ke rot rot !i drop
-     dup 2 + tk2 ke rot rot !i drop
-         3 + tk3 ke rot rot !i drop
+     dup 0 + tk0 swap ke -rot !i drop
+     dup 1 + tk1 swap ke -rot !i drop
+     dup 2 + tk2 swap ke -rot !i drop
+         3 + tk3 swap ke -rot !i drop
   loop ;
 
 \ --- table-driven block encrypt: 16 input bytes -> 16 output bytes ------------
@@ -109,30 +109,30 @@ variable ke
      tab1 t3 24 rshift byte @i  tab2 t0 16 rshift byte @i bit-xor  tab3 t1 8 rshift byte @i bit-xor  tab4 t2 byte @i bit-xor  ke key-slot 3 + @i bit-xor to a3
      a0 to t0  a1 to t1  a2 to t2  a3 to t3
   loop
-  out 0   sbox t0 24 rshift byte @i  ke 40 @i 24 rshift bit-xor byte  !i drop
-  out 1   sbox t1 16 rshift byte @i  ke 40 @i 16 rshift bit-xor byte  !i drop
-  out 2   sbox t2 8 rshift  byte @i  ke 40 @i 8 rshift  bit-xor byte  !i drop
-  out 3   sbox t3          byte @i  ke 40 @i           bit-xor byte  !i drop
-  out 4   sbox t1 24 rshift byte @i  ke 41 @i 24 rshift bit-xor byte  !i drop
-  out 5   sbox t2 16 rshift byte @i  ke 41 @i 16 rshift bit-xor byte  !i drop
-  out 6   sbox t3 8 rshift  byte @i  ke 41 @i 8 rshift  bit-xor byte  !i drop
-  out 7   sbox t0          byte @i  ke 41 @i           bit-xor byte  !i drop
-  out 8   sbox t2 24 rshift byte @i  ke 42 @i 24 rshift bit-xor byte  !i drop
-  out 9   sbox t3 16 rshift byte @i  ke 42 @i 16 rshift bit-xor byte  !i drop
-  out 10  sbox t0 8 rshift  byte @i  ke 42 @i 8 rshift  bit-xor byte  !i drop
-  out 11  sbox t1          byte @i  ke 42 @i           bit-xor byte  !i drop
-  out 12  sbox t3 24 rshift byte @i  ke 43 @i 24 rshift bit-xor byte  !i drop
-  out 13  sbox t0 16 rshift byte @i  ke 43 @i 16 rshift bit-xor byte  !i drop
-  out 14  sbox t1 8 rshift  byte @i  ke 43 @i 8 rshift  bit-xor byte  !i drop
-  out 15  sbox t2          byte @i  ke 43 @i           bit-xor byte  !i drop ;
+  out  sbox t0 24 rshift byte @i  ke 40 @i 24 rshift bit-xor byte  0  !i drop
+  out  sbox t1 16 rshift byte @i  ke 40 @i 16 rshift bit-xor byte  1  !i drop
+  out  sbox t2 8 rshift  byte @i  ke 40 @i 8 rshift  bit-xor byte  2  !i drop
+  out  sbox t3          byte @i  ke 40 @i           bit-xor byte  3  !i drop
+  out  sbox t1 24 rshift byte @i  ke 41 @i 24 rshift bit-xor byte  4  !i drop
+  out  sbox t2 16 rshift byte @i  ke 41 @i 16 rshift bit-xor byte  5  !i drop
+  out  sbox t3 8 rshift  byte @i  ke 41 @i 8 rshift  bit-xor byte  6  !i drop
+  out  sbox t0          byte @i  ke 41 @i           bit-xor byte  7  !i drop
+  out  sbox t2 24 rshift byte @i  ke 42 @i 24 rshift bit-xor byte  8  !i drop
+  out  sbox t3 16 rshift byte @i  ke 42 @i 16 rshift bit-xor byte  9  !i drop
+  out  sbox t0 8 rshift  byte @i  ke 42 @i 8 rshift  bit-xor byte  10  !i drop
+  out  sbox t1          byte @i  ke 42 @i           bit-xor byte  11  !i drop
+  out  sbox t3 24 rshift byte @i  ke 43 @i 24 rshift bit-xor byte  12  !i drop
+  out  sbox t0 16 rshift byte @i  ke 43 @i 16 rshift bit-xor byte  13  !i drop
+  out  sbox t1 8 rshift  byte @i  ke 43 @i 8 rshift  bit-xor byte  14  !i drop
+  out  sbox t2          byte @i  ke 43 @i           bit-xor byte  15  !i drop ;
 
 \ --- CTR mode (symmetric): out[i] = in[i] xor E(counter)[i], counter from 1 ---
 : put-be32 ( arr off val -- )
   | arr off val |
-  arr off 0 +  val 24 rshift byte  !i drop
-  arr off 1 +  val 16 rshift byte  !i drop
-  arr off 2 +  val 8 rshift byte   !i drop
-  arr off 3 +  val byte            !i drop ;
+  arr  val 24 rshift byte  off 0 +  !i drop
+  arr  val 16 rshift byte  off 1 +  !i drop
+  arr  val 8 rshift byte   off 2 +  !i drop
+  arr  val byte            off 3 +  !i drop ;
 
 : ctr-crypt ( in out nbytes -- )
   | in out nbytes |
@@ -143,7 +143,7 @@ variable ke
      ctr ks encrypt-block
      0 16 1 do j
         block 16 * j + to idx
-        idx nbytes < if  out idx  in idx @i  ks j @i  bit-xor  !i drop  then
+        idx nbytes < if  out  in idx @i  ks j @i  bit-xor  idx  !i drop  then
      loop
   loop ;
 

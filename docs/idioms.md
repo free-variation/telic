@@ -232,7 +232,7 @@ quotation forms — for the top level, for an xt in hand, and for map-folds.
   : fill-xs
     0 4 1 do i
        i fsin to sxi
-       xs i sxi !i drop
+       xs sxi i !i drop
     loop ;
   fill-xs
   xs 1 @i . cr
@@ -618,7 +618,7 @@ coroutines are short compositions over them (exceptions.telic, generators.telic)
   intermediate frames:
 
   ```forth path-vivify
-  { } /a/b 5 ! /a/b @ . cr
+  { } 5 /a/b ! /a/b @ . cr
   ```
   ```output
   5
@@ -660,7 +660,7 @@ compiler's fusion targets.
   ```forth
   xs i @i to xi ys i @i to yi zs i @i to zi
   xi xi f* yi yi f* f+ zi zi f* f+ fsqrt to norm
-  xs i xi norm f/ !i drop
+  xs  xi norm f/  i !i drop
   ```
 
 - In-place matrix chains avoid allocation in an iteration
@@ -690,7 +690,7 @@ compiler's fusion targets.
 
   ```forth
   b1 spread  b2 spread  b1 b2 dt pair-kernel
-  vx1 vy1 vz1 b1 3 3 to-slice! drop
+  vx1 vy1 vz1 3 b1 3 to-slice! drop
   ```
 
 - Verify the fusion, don't assume it: `' word see-compiled` shows the

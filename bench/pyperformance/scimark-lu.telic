@@ -22,7 +22,7 @@ variable rm  variable ri  variable rj
 : rng-next ( -- d ) ^ri ^rj |
   rm ri @i  rm rj @i  f-  to k
   k 0 < if  k m1 f+ to k  then
-  rm rj k !i drop
+  rm k rj !i drop
   ri 0 = if 16 to ri else ri f1- to ri then
   rj 0 = if 16 to rj else rj f1- to rj then
   dm1 k f* ;
@@ -36,7 +36,7 @@ variable rm  variable ri  variable rj
   | i a n |
   a i @i to arow
   0 n 1 do k
-    arow k rng-next !i drop
+    arow rng-next k !i drop
   loop ;
 
 : build-filled ( n -- a )
@@ -50,7 +50,7 @@ variable rm  variable ri  variable rj
   src i @i to srow
   dst i @i to drow
   0 n 1 do k
-    drow k  srow k @i  !i drop
+    drow  srow k @i  k  !i drop
   loop ;
 
 : copy-into ( src dst n -- )
@@ -66,16 +66,16 @@ variable rm  variable ri  variable rj
       a i @i j @i fabs  dup t > if i to jp to t else drop then
     loop
     j jp = 0 = if
-      a j @i to rowj  a j  a jp @i  !i drop  a jp  rowj  !i drop
+      a j @i to rowj  a  a jp @i  j  !i drop  a rowj jp !i drop
     then
     1.0 a j @i j @i f/ to recp
     j 1+ n 1 do i
-      a i @i  j  a i @i j @i recp f*  !i drop
+      a i @i  a i @i j @i recp f*  j  !i drop
     loop
     j 1+ n 1 do ii
       a ii @i j @i to aiij  a ii @i to aii  a j @i to aj
       j 1+ n 1 do jj
-        aii jj  aii jj @i aiij aj jj @i f* f-  !i drop
+        aii  aii jj @i aiij aj jj @i f* f-  jj  !i drop
       loop
     loop
   loop ;

@@ -546,10 +546,10 @@ live here instead. File and function name each invariant's home.
   folds `matrix_sum_overall`'s `isnan` to false, and the NaN-skipping
   retry is deleted. `clang fp reassociate contract` gives the vectorizer
   what it needs without the no-NaN license (matrix.c).
-- The superword fuser rewrites `<arr> <idx> <arr> <idx> @i [<delta>]
-  <op> !i drop` into the single `(<op>!i)` ops by matching the compiled
-  dict shape; changes to how those idioms compile must update the
-  matcher (superwords.c).
+- The superword fuser rewrites `<arr> <arr> <idx> @i [<delta>] <op>
+  <idx> !i drop` into the single `(<op>!i) <idx-slot>` ops by matching
+  the compiled dict shape; changes to how those idioms compile must
+  update the matcher (superwords.c).
 - A pmap worker that finds its result chain too deep (possible cycle)
   conservatively keeps the whole region rather than rewinding it
   (functional.c).

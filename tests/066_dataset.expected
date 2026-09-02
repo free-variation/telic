@@ -270,5 +270,41 @@ in (@.symbol) ← sort-rows
 
 error: no key :missing
 in (@.symbol) ← aggregate
+{
+  :total <matrix 3x1:  1 2 12>
+  :fy <matrix 3x1:  2022 2022 2023>
+  :lea [ "a" "b" "a" ]
+}
+
+{
+  :n <matrix 2x1:  3 1>
+  :lea [ "a" "b" ]
+}
+
+{
+}
+
+error: no key :missing
+in (@.symbol) ← [: 2 pick swap @ column>array :] ← aggregate
 error: uncaught exception: "rows have differing keys"
 in throw ← frames>dataset ← aggregate
+[ :name "a" :height 180 m :score 2 ] 
+1 
+:string 
+error: uncaught exception: "row index 2 out of bounds for 2 rows"
+in throw ← row-at
+error: uncaught exception: "row index -1 out of bounds for 2 rows"
+in throw ← row-at
+error: uncaught exception: "row index 0 out of bounds for 0 rows"
+in throw ← row-at
+[ "b" "d" "a" "c" ] 
+[ "d" "c" "b" "a" ] 
+<matrix 1x4>
+          3          7          5          9
+
+<matrix 1x3>
+          2          1        nan
+
+0 
+error: no key :missing
+in (@.symbol) ← sort-rows-descending

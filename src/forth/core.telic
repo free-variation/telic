@@ -38,6 +38,10 @@ inline
 : -rot rot rot ;
 inline
 
+( a b -- b a b )
+: tuck swap over ;
+inline
+
 ( a b -- )
 : 2drop drop drop ;
 inline
@@ -48,6 +52,10 @@ inline
 
 ( val -- bool ) \ is tos 1?
 : 1= 1 = ; inline
+
+( v low high -- bool ) \ low <= v <= high; element-wise mask on a matrix or
+\ array operand, so * is the conjunction, not and (which tests whole values)
+: between? 2 pick >= -rot >= * ; inline
 
 : , peek ; inline
 

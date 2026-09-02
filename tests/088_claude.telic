@@ -4,7 +4,7 @@
 \ network. Responses are http-request's { :status :body } (lib/http.telic).
 
 "lib/claude.telic" load
-"ANTHROPIC_API_KEY" "test-key" env!
+"test-key" "ANTHROPIC_API_KEY" env!
 
 \ === message frames ===
 "hello" user-message . cr                    \ { :content hello :role user }

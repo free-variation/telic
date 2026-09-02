@@ -8,6 +8,7 @@ let b:did_indent = 1
 setlocal indentexpr=GetTelicIndent()
 setlocal indentkeys=!^F,o,O,0=then,0=else,0=until,0=again,0=repeat,0=;,0=:],0=},0=],0=>],0=)]
 setlocal nolisp nosmartindent
+setlocal autoindent
 
 if exists("*GetTelicIndent")
   finish
@@ -119,8 +120,11 @@ function! GetTelicIndent() abort
     endwhile
   endfor
 
+  " String interior: the bytes are content, so nothing here may move them.
+  " -1 keeps the line's indent on re-indent, and 'autoindent' (set above)
+  " gives a new line the previous line's indent.
   if in_string
-    return 0
+    return -1
   endif
   " Nothing is open. A definition header, and any line following one that closed a
   " definition, belongs at column 0. Otherwise this is top-level text the script has

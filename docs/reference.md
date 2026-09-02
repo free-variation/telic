@@ -67,6 +67,7 @@ is a full pass.
 | `2drop` | `( a b -- )` | core.telic: `drop drop` (inlined) | 2 | none | O(1) |
 | `identity` | `( a -- a )` | core.telic: the value unchanged (inlined) — the no-op xt for higher-order words | 1 | none | O(1) |
 | `nip` | `( a b -- b )` | Drop the second item, keeping the top | 1 | none | O(1) |
+| `tuck` | `( a b -- b a b )` | core.telic: copy the top under the second (`swap over`, inlined) — Forth's CORE EXT word | 9 | none | O(1) |
 
 ```forth dup
 3 dup * . cr
@@ -164,6 +165,13 @@ is a full pass.
 ```
 ```output
 2
+```
+
+```forth tuck
+1 2 tuck . . . cr
+```
+```output
+2 1 2
 ```
 
 ---
@@ -931,6 +939,7 @@ Result is `1.0` (true) or `0.0` (false), with a float fast path. `=` uses `val_c
 | `nan?` | `( v -- bool )` or `( mat/arr -- mat )` | NaN test: 1/0 mask over a matrix's elements; an array answers an n×1 mask marking `none` elements (a text column's missing cells), composing with `where`/`select-rows`; `1` on `null` itself (a scalar NaN *is* `null`), `0` on any float, exact, or complex. NaNs compare false under `<`/`>`/`eq`, so this is the word that masks them | 2 | `1m(r×c)` | O(1); matrix/array O(n) |
 | `0=` | `( a -- bool )` | `!truthy(a)`; any type | 2 | none | O(1) |
 | `1=` | `( a -- bool )` | core.telic: `1 =` (inlined) | 5 | none | O(1) |
+| `between?` | `( v low high -- bool )` or `( mat/arr low high -- mat )` | core.telic: low ≤ v ≤ high, inclusive — the two comparison masks conjoined by `*` (inlined), so a matrix or array operand answers an element-wise mask, and any `val_cmp`-ordered scalars compare (strings lexicographic, quantities rescaled within a dimension) | 9 | matrix `2m(r×c)` | O(1); matrix/array O(n) |
 | `type-of` | `( a -- sym )` | The value's type as a symbol: `:float` `:string` `:symbol` `:array` `:set` `:pair` `:frame` `:matrix` `:quantity` `:xt` `:continuation` `:stream` `:db` `:ptr` `:segment` `:none` `:wildcard` `:lvar` `:exact` `:complex`. A bound logic var reports its value's type; an unbound one is `:lvar` | 2 | none | O(1) |
 | `float?` | `( a -- bool )` | core.telic: `type-of :float =` (inlined) | 5 | none | O(1) |
 | `string?` | `( a -- bool )` | core.telic: `type-of :string =` (inlined) | 5 | none | O(1) |
@@ -1037,6 +1046,15 @@ null nan? . cr
 ```
 ```output
 1
+```
+
+```forth between?
+5 3 8 between? . 9 3 8 between? . cr
+[ 1 5 9 ] vector 2 8 between? matrix>array . cr
+```
+```output
+1 0
+[ 0 1 0 ]
 ```
 
 ```forth type-of
@@ -2095,28 +2113,28 @@ These compile-time words read a following local name and emit a single fused dep
 | `f--` | `( -- )` ⚠ | Unsafe float decrement: raw `.number` mutation, no tag check; a global target is declared `^name` in the head | 1 | none | O(1) |
 
 ```forth ++
-: count-up 0 to n ++ n ++ n n ; count-up . cr
+: count-up 0 to tally ++ tally ++ tally tally ; count-up . cr
 ```
 ```output
 2
 ```
 
 ```forth --
-: count-down 5 to n -- n n ; count-down . cr
+: count-down 5 to tally -- tally tally ; count-down . cr
 ```
 ```output
 4
 ```
 
 ```forth f++
-: fast-up 1.5 to x f++ x x ; fast-up . cr
+: fast-up 1.5 to reading f++ reading reading ; fast-up . cr
 ```
 ```output
 2.5
 ```
 
 ```forth f--
-: fast-down 1.5 to x f-- x x ; fast-down . cr
+: fast-down 1.5 to reading f-- reading reading ; fast-down . cr
 ```
 ```output
 0.5
@@ -2571,7 +2589,7 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 | `array` | `( v₀ … vₙ₋₁ n -- arr )` | Gather the top n values into an array | 2 + n | `1a(n)` | O(n) |
 | `array-of` | `( val n -- arr )` | New n-element array, every slot = val | 3 + n | `1a(n)` | O(n) |
 | `@i` | `( arr i -- val )` | Array element; on a matrix returns row i as a 1×c matrix | 3 (array) | matrix `1m(1×c)` | O(1) array; O(c) matrix |
-| `!i` | `( arr i val -- arr )` | Store val at index i in place; leaves arr on the stack | 4 | none | O(1) |
+| `!i` | `( arr val i -- arr )` | Store val at index i in place; leaves arr on the stack | 4 | none | O(1) |
 | `add-last!` | `( arr v -- arr )` | Append v at the end, doubling the backing buffer when full; leaves arr on the stack | 2 | `≤1a` on grow | amortized O(1) |
 | `remove-last!` | `( arr -- v )` | Remove and return the last element; errors on an empty array | 2 | none | O(1) |
 | `take` | `( arr/set n -- arr )` | First n elements (clamped) | 2 + n | `1a(n)` | O(n) |
@@ -2579,8 +2597,8 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 | `concat` | `( arr/set arr/set -- arr )` | Concatenated copy | 2 + m + n | `1a(m+n)` | O(m+n) |
 | `range` | `( from to -- arr )` | Inclusive integer range, step ±1 | 3 + n | `1a(n)` | O(n) |
 | `spread` | `( arr/set/fr -- v… )` | Spread the elements onto the stack; a frame spreads alternating sym/value | 1 + n | none | O(n) |
-| `slice!` | `( arr tstart src sstart sstep slen -- arr )` | Copy `slen` elements `src[sstart], src[sstart+sstep], …` into `arr[tstart…]` in place | 6 + slen | self-overlap may malloc slen | O(slen) |
-| `to-slice!` | `( v₀ … vₙ₋₁ arr offset n -- arr )` | Store the n values just below `arr` into `arr[offset…offset+n)`; leaves arr | 2 + n | none | O(n) |
+| `slice!` | `( src sstart sstep slen arr tstart -- arr )` | Copy `slen` elements `src[sstart], src[sstart+sstep], …` into `arr[tstart…]` in place | 6 + slen | self-overlap may malloc slen | O(slen) |
+| `to-slice!` | `( v₀ … vₙ₋₁ n arr offset -- arr )` | Store the n values under their count into `arr[offset…offset+n)`; leaves arr | 2 + n | none | O(n) |
 | `last` | `( arr n -- arr )` | arrays.telic: `swap reverse swap take reverse` | 3n | 3×`1a(n)` | O(n) |
 | `first` | `( arr/pair -- v )` | core.telic: element 0 of an array, or a cons's head — works on `count`/`group-indices` results and logic lists alike | 9 | none | O(1) |
 | `second` | `( arr/pair -- v )` | core.telic: element 1 of an array, or a cons's tail (`5 6 cons second` → 6; on a list literal the rest, not the next element) | 9 | none | O(1) |
@@ -2614,7 +2632,7 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 ```
 
 ```forth !i
-[ 1 2 3 ] 1 99 !i . cr
+[ 1 2 3 ] 99 1 !i . cr
 ```
 ```output
 [ 1 99 3 ]
@@ -2670,14 +2688,14 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 ```
 
 ```forth slice!
-[ 0 0 0 0 0 ] 1 [ 10 20 30 ] 0 1 3 slice! . cr
+[ 10 20 30 ] 0 1 3 [ 0 0 0 0 0 ] 1 slice! . cr
 ```
 ```output
 [ 0 10 20 30 0 ]
 ```
 
 ```forth to-slice!
-7 8 [ 0 0 0 0 ] 1 2 to-slice! . cr
+7 8 2 [ 0 0 0 0 ] 1 to-slice! . cr
 ```
 ```output
 [ 0 7 8 0 ]
@@ -2813,10 +2831,10 @@ Symbol-keyed sorted maps; binary-search lookup. A **path** is an array of steps;
 | `name@key` | `( -- val )` | Get in one token: the part left of `@` is a local, else a defined word, and it supplies the frame; `key` is interned at read time and compiled as the operand of one op, so `row@price` is a local fetch plus `(@key)` with no symbol on the stack. Chains left to right — `row@address@city` walks two frames. An empty left part takes the frame from the stack, `( fr -- val )`, so `@price` is the postfix form. Errors as `@` does when the key is absent or the value is not a frame. The rule applies only to tokens that are not defined words, so `@i`, `@or` and any word named with an `@` keep their meanings, and defining `row@total` shadows the token form for that spelling | 2 + log n | none | O(log n) |
 | `name!key` | `( val -- )` | Set in one token, dropping the frame `!` returns: `99 row!price` stores 99 at `:price` in `row`'s frame and leaves the stack empty. Same resolution of the left part as `name@key`, and an empty left part takes the frame from above the value, `( val fr -- )`. A chain may end in a set — `row@address!city` — but only its last step may, since a set leaves no frame to walk | 2 + log n | none | O(log n) |
 | `@or` | `( fr sym/path fallback -- val )` | Get by key or path, the fallback when absent — `has? if @` in one probe, no error on miss; the fallback is already evaluated, so it suits values, not expensive computations | 4 + d log n | none | O(d log n) |
-| `!` | `( fr sym/path val -- fr )` | Set by key or path, vivifying intermediates; mutates fr; errors on a search path | d log n | realloc on growth; `1o` per vivified frame | O(d log n) amortized |
+| `!` | `( fr val sym/path -- fr )` | Set by key or path, vivifying intermediates; mutates fr; errors on a search path. Writes take the address last, so the value is computed first and the destination named beside the word, as `to` and `name!key` already read | d log n | realloc on growth; `1o` per vivified frame | O(d log n) amortized |
 | `has?` | `( fr sym/path -- bool )` | Existence test for a frame key or path, no error on miss; a search path is true if any node matches (short-circuits at the first); on a string `( str pat -- bool )`, true if regex `pat` matches anywhere | 3 + d log n | none | O(d log n) |
 | `delete-at` | `( fr sym/path -- fr )` | Remove a key (errors if absent or on a search path); mutates fr | n | none | O(n) |
-| `update-at` | `( fr sym/path xt -- fr )` | Apply xt to the value at the key, store the result back; errors on a search path | d log n + xt | none | O(d log n + xt) |
+| `update-at` | `( fr xt sym/path -- fr )` | Apply xt to the value at the key, store the result back; errors on a search path | d log n + xt | none | O(d log n + xt) |
 | `keys` | `( fr -- arr )` | Keys (symbols) in sorted order | 1 + n | `1a(n)` | O(n) |
 | `values` | `( fr -- arr )` | Values in key order | 1 + n | `1a(n)` | O(n) |
 | `merge` | `( fr₁ fr₂ -- fr )` | New frame with all keys; fr₂ wins collisions. A linear two-pointer merge of the two sorted key arrays | m+n | `1o` | O(m+n) |
@@ -2873,7 +2891,7 @@ Symbol-keyed sorted maps; binary-search lookup. A **path** is an array of steps;
 ```
 
 ```forth !
-{ } /a/b 5 ! /a/b @ . cr
+{ } 5 /a/b ! /a/b @ . cr
 ```
 ```output
 5
@@ -2894,7 +2912,7 @@ Symbol-keyed sorted maps; binary-search lookup. A **path** is an array of steps;
 ```
 
 ```forth update-at
-{ :n 10 } :n ' 1+ update-at frame>array . cr
+{ :n 10 } ' 1+ :n update-at frame>array . cr
 ```
 ```output
 [ :n 11 ]
@@ -2922,7 +2940,7 @@ Symbol-keyed sorted maps; binary-search lookup. A **path** is an array of steps;
 ```
 
 ```forth copy
-{ :a 1 } dup copy :a 2 ! drop :a @ . cr
+{ :a 1 } dup copy 2 :a ! drop :a @ . cr
 ```
 ```output
 1
@@ -3133,8 +3151,8 @@ Row-major `double` storage. `r` rows, `c` columns.
 | `@j` | `( mat j -- col )` | Column j as an r×1 matrix (copy) | 2 + r | `1m(r×1)` | O(r) |
 | `@i,j` | `( mat i j -- f )` | Single element as a float | 4 | none | O(1) |
 | `@e` | `( mat i -- f )` | Element at flat row-major index i as a float — consumes `argmin`/`argmax`/`where` indices; the same access on n×1 and 1×n vectors | 3 | none | O(1) |
-| `!e` | `( mat i v -- mat )` | Store v (a float, or `null` for NaN) at flat row-major index i, in place | 4 | none | O(1) |
-| `!i,j` | `( mat i j v -- mat )` | Store v (a float, or `null` for NaN) at row i, column j, in place | 5 | none | O(1) |
+| `!e` | `( mat v i -- mat )` | Store v (a float, or `null` for NaN) at flat row-major index i, in place | 4 | none | O(1) |
+| `!i,j` | `( mat v i j -- mat )` | Store v (a float, or `null` for NaN) at row i, column j, in place | 5 | none | O(1) |
 | `dim` | `( mat/dataset -- r c )` | Push rows then columns; datasets.telic extends it to a dataset — rows from the first column's length, columns from the key count | 3 | none | O(1) |
 | `reshape` | `( mat r c -- mat' )` | Same elements, new shape (must match); memcpy | 3 + r×c | `1m(r×c)` | O(r×c) |
 | `transpose` | `( mat -- mat' )` | Rows/columns swapped | 1 + r×c | `1m(c×r)` | O(r×c) |
@@ -3168,14 +3186,14 @@ Row-major `double` storage. `r` rows, `c` columns.
 ```
 
 ```forth !e
-[ 1 2 3 4 ] 2 2 matrix 0 99 !e matrix>array . cr
+[ 1 2 3 4 ] 2 2 matrix 99 0 !e matrix>array . cr
 ```
 ```output
 [ 99 2 3 4 ]
 ```
 
 ```forth !i,j
-[ 1 2 3 4 ] 2 2 matrix 1 1 99 !i,j matrix>array . cr
+[ 1 2 3 4 ] 2 2 matrix 99 1 1 !i,j matrix>array . cr
 ```
 ```output
 [ 1 2 3 99 ]
@@ -3805,20 +3823,20 @@ Flat, fixed-length typed numeric buffers stored off the arena (one `calloc`, fre
 | `int-segment` | `( n -- seg )` | n-element int segment, zero-filled; errors if n < 0 | 1 | `1seg(n)` | O(n) |
 | `double-segment` | `( n -- seg )` | n-element double segment, zero-filled; errors if n < 0 | 1 | `1seg(n)` | O(n) |
 | `@i` | `( seg i -- f )` | Read element i as a float (see Arrays) | 3 | none | O(1) |
-| `!i` | `( seg i f -- seg )` | Store float f at index i in place; leaves seg | 4 | none | O(1) |
+| `!i` | `( seg f i -- seg )` | Store float f at index i in place; leaves seg | 4 | none | O(1) |
 | `segment>pointer` | `( seg -- ptr )` | Intern the backing buffer and return an FFI pointer handle (no copy; see Foreign function interface) | 1 | none | O(1)† |
 
 `†` amortized; the pointer-intern table grows occasionally.
 
 ```forth int-segment
-2 int-segment 1 7 !i dup 0 @i . 1 @i . cr
+2 int-segment 7 1 !i dup 0 @i . 1 @i . cr
 ```
 ```output
 0 7
 ```
 
 ```forth double-segment
-2 double-segment 0 1.5 !i 0 @i . cr
+2 double-segment 1.5 0 !i 0 @i . cr
 ```
 ```output
 1.5
@@ -3923,7 +3941,7 @@ wall-now time>iso . cr
 ```
 
 ```forth epoch>date-local
-"TZ" "UTC" env! 0 s epoch>date-local :year @ . cr
+"UTC" "TZ" env! 0 s epoch>date-local :year @ . cr
 ```
 ```output
 1970
@@ -3937,7 +3955,7 @@ wall-now time>iso . cr
 ```
 
 ```forth date>epoch-local
-"TZ" "UTC" env! { :year 2000 } date>epoch-local { :year 2000 } date>epoch = . cr
+"UTC" "TZ" env! { :year 2000 } date>epoch-local { :year 2000 } date>epoch = . cr
 ```
 ```output
 1
@@ -3951,7 +3969,7 @@ wall-now time>iso . cr
 ```
 
 ```forth format-time-local
-"TZ" "UTC" env! 0 s "%H:%M" format-time-local . cr
+"UTC" "TZ" env! 0 s "%H:%M" format-time-local . cr
 ```
 ```output
 00:00
@@ -4013,13 +4031,15 @@ wall-now time>iso . cr
 | `column-type` | `( dataset sym -- sym )` | datasets.telic: the named column's type from its representation — matrix `:numeric`, quantity in exactly `s` `:datetime`, other quantity `:quantity`, array `:text`; a missing key errors through `@` | 8 | 1 pair | O(log c) |
 | `column>array` | `( column -- arr )` | datasets.telic: a column in any representation as an array of its values — arrays pass through unchanged, matrix/quantity columns go through `matrix>array` (NaN → `null`, dimensioned elements become quantities) | n | `1a(n)` for matrix columns, none for arrays | O(n) |
 | `column>set` | `( column -- set )` | datasets.telic: the set of the column's distinct values — `column>array array>set` | 2n log n | `1a(n)` + `1o` | O(n log n) |
+| `row-at` | `( dataset i -- fr )` | datasets.telic: row i as a frame of scalars, one key per column, cells as `column>array` yields them (NaN → `null`, dimensioned cells as quantities) — the collapse from a dataset (a frame of columns) to one row (a frame of scalars), the form `aggregate`'s quotation answers; errors when i is outside [0, rows) | r·c | `1a(r)` per numeric column + `1fr` | O(r·c) |
 | `select-columns` | `( dataset cols -- dataset )` | datasets.telic: the named columns as a new dataset (a fresh frame sharing the column values); a missing name errors through `@` | k log c | `1a(k)` + `1o` | O(k log c) |
 | `sort-rows` | `( dataset sym -- dataset )` | datasets.telic: rows sorted ascending by the named column — `argsort` on the column, `select-rows` on the dataset, so every column reorders together and keeps its representation; a missing key errors through `@` | n log n + n·c | permutation + one column each | O(n log n + n·c) |
+| `sort-rows-descending` | `( dataset sym -- dataset )` | datasets.telic: rows sorted descending by the named column, by `val_cmp` (so text columns descend too); equal keys keep dataset order, so chained sorts compose — minor key first, major key last — and missing cells sort last as `sort-rows` leaves them; a missing key errors through `@` | n log n + n·c | permutation ×3 + one column each | O(n log n + n·c) |
 | `count` | `( arr/v/dataset -- pairs )` | datasets.telic: occurrences of each distinct value as `[ [ value n ] … ]`, most frequent first, ties in value order (`val_cmp`); a vector counts its elements (a dimensioned one counts quantities), a dataset counts whole rows, each a frame keyed by column name | 2n log n | rows + pairs + 3×`1a` | O(n log n) |
 | `group-indices` | `( column -- pairs )` | datasets.telic: `[ [ value [indices] ] … ]` per distinct value in `val_cmp` order — each index array holds the value's row positions, ascending (one `argsort`, the permutation cut at run boundaries); the same pair layout as `count`, with positions instead of tallies, so one pass replaces a per-value `eq where` scan | 2n log n | permutation + one pair and array per value | O(n log n) |
 | `frames>dataset` | `( rows -- dataset )` | datasets.telic: an array of row frames (as `query`, `db-query` `:rows`, or `map` over a dataset produce) as a column-oriented dataset, keys from row 0 — differing keys throw. Each column's representation is inferred: all-float cells (`none` → NaN) become an n×1 vector, uniform-unit quantities a dimensioned vector, anything else stays an array | n·k log k | one column per key + `1o` | O(n·k log k) |
-| `aggregate` | `( dataset by xt -- dataset )` | datasets.telic: split-apply-combine — rows group by the `by` column's distinct values (`group-indices`); for each group `xt` `( group-dataset -- frame )` answers one row frame, the group's value is stored into it under the `by` key (overwriting one the xt set), and the rows reassemble through `frames>dataset` | n log n + per-group xt | one sub-dataset and frame per group + result columns | O(n log n + n·c) |
-| `replace-where` | `( dataset sym pred replacement -- )` | datasets.telic: replace the named column's cells passing `pred` `( column -- mask )`, in place — `update-at` around `mesh`, so the replacement broadcasts and units reconcile: `pipeline :rep_touches [: -1 eq :] null replace-where` nulls a sentinel, `[: nan? :] 0` fills missing, `[: 10 $ < :] 5 $` floors prices | pred + n | mask + one column | O(n) |
+| `aggregate` | `( dataset by xt -- dataset )` | datasets.telic: split-apply-combine — rows group by the `by` column's distinct values (`group-indices`), or by the value tuple of a `by`-symbol array (tuples group and order by `val_cmp`, so no composite string key is built); for each group `xt` `( group-dataset -- frame )` answers one row frame, the group's key values are stored into it under their own keys (overwriting any the xt set), and the rows reassemble through `frames>dataset` | n log n + per-group xt | one sub-dataset and frame per group + result columns; array `by` adds one tuple array per row | O(n log n + n·c) |
+| `replace-where` | `( dataset pred replacement sym -- )` | datasets.telic: replace the named column's cells passing `pred` `( column -- mask )`, in place — `update-at` around `mesh`, so the replacement broadcasts and units reconcile: `pipeline [: -1 eq :] null :rep_touches replace-where` nulls a sentinel, `[: nan? :] 0` fills missing, `[: 10 $ < :] 5 $` floors prices | pred + n | mask + one column | O(n) |
 | `resample-indices` | `( n -- arr )` | datasets.telic: n indices drawn from [0,n) with replacement (bootstrap), from the global stream | 2n | `2×1a(n)` | O(n) |
 | `resample-indices-ext` | `( n seed -- arr )` | n indices drawn from [0,n) with replacement by a private generator seeded from `seed` (splitmix64-expanded) — same draw for the same seed regardless of thread or stream position; the bootstrap words seed replicate i at run-seed + i | n | `1a(n)` | O(n)† |
 
@@ -4120,6 +4140,13 @@ ann    34
 [< "a" "b" >]
 ```
 
+```forth row-at
+[ [ "name" "age" ] [ "ann" 34 ] [ "bo" 25 ] ] true rows>dataset 1 row-at frame>array . cr
+```
+```output
+[ :name "bo" :age 25 ]
+```
+
 ```forth select-columns
 [ [ "a" "b" ] [ 1 2 ] ] true rows>dataset [ :b ] select-columns keys . cr
 ```
@@ -4132,6 +4159,13 @@ ann    34
 ```
 ```output
 [ "c" "b" "a" ]
+```
+
+```forth sort-rows-descending
+{ :name [ "b" "a" "c" ] :score [ 2 3 1 ] vector } :score sort-rows-descending :name @ . cr
+```
+```output
+[ "a" "b" "c" ]
 ```
 
 ```forth count
@@ -4160,14 +4194,17 @@ ann    34
 ```
 
 ```forth aggregate
-{ :g [ "a" "b" "a" ] :x [ 1 2 3 ] vector } :g [: d | { :sum d :x @ sum } :] aggregate :sum @ matrix>array . cr
+{ :g [ "a" "b" "a" ] :x [ 1 2 3 ] vector } :g [: group | { :sum group :x @ sum } :] aggregate :sum @ matrix>array . cr
+{ :g [ "a" "b" "a" ] :h [ 1 1 2 ] vector :x [ 1 2 3 ] vector }
+[ :g :h ] [: group | { :sum group :x @ sum } :] aggregate :sum @ matrix>array . cr
 ```
 ```output
 [ 4 2 ]
+[ 1 3 2 ]
 ```
 
 ```forth replace-where
-[ [ "v" ] [ -1 ] [ 5 ] ] true rows>dataset dup :v [: -1 eq :] null replace-where :v @ nonmissing-count . cr
+[ [ "v" ] [ -1 ] [ 5 ] ] true rows>dataset dup [: -1 eq :] null :v replace-where :v @ nonmissing-count . cr
 ```
 ```output
 1
@@ -4573,9 +4610,9 @@ A producer drops nothing after `yield`. The word does not consume the value it e
 
 ```forth yield
 : nums 1 yield 2 yield ; ' nums 2 gen-take . cr
-: countdown-gen 3 to n begin n 0 > while n yield n 1- to n repeat ;
+: countdown-gen 3 to remaining begin remaining 0 > while remaining yield remaining 1- to remaining repeat ;
 ' countdown-gen 3 gen-take . cr
-: naturals 0 to n begin n yield n 1+ to n again ;
+: naturals 0 to natural begin natural yield natural 1+ to natural again ;
 ' naturals 4 gen-take . cr
 ```
 ```output
@@ -4930,64 +4967,64 @@ variable a 3 to a
 ```
 
 ```forth vfabs
-variable m -5 to m
-: abs-m vfabs m ; abs-m . cr
+variable a -5 to a
+: abs-a vfabs a ; abs-a . cr
 ```
 ```output
 5
 ```
 
 ```forth vfsqrt
-variable n 9 to n
-: root-n vfsqrt n ; root-n . cr
+variable a 9 to a
+: root-a vfsqrt a ; root-a . cr
 ```
 ```output
 3
 ```
 
 ```forth vfexp
-variable z 0 to z
-: exp-z vfexp z ; exp-z . cr
+variable a 0 to a
+: exp-a vfexp a ; exp-a . cr
 ```
 ```output
 1
 ```
 
 ```forth vflog
-variable h 100 to h
-: log-h vflog h ; log-h . cr
+variable a 100 to a
+: log-a vflog a ; log-a . cr
 ```
 ```output
 2
 ```
 
 ```forth vfsin
-variable z 0 to z
-: sin-z vfsin z ; sin-z . cr
+variable a 0 to a
+: sin-a vfsin a ; sin-a . cr
 ```
 ```output
 0
 ```
 
 ```forth vfcos
-variable z 0 to z
-: cos-z vfcos z ; cos-z . cr
+variable a 0 to a
+: cos-a vfcos a ; cos-a . cr
 ```
 ```output
 1
 ```
 
 ```forth vftan
-variable z 0 to z
-: tan-z vftan z ; tan-z . cr
+variable a 0 to a
+: tan-a vftan a ; tan-a . cr
 ```
 ```output
 0
 ```
 
 ```forth vftanh
-variable z 0 to z
-: tanh-z vftanh z ; tanh-z . cr
+variable a 0 to a
+: tanh-a vftanh a ; tanh-a . cr
 ```
 ```output
 0
@@ -5280,7 +5317,7 @@ reload
 | `file-exists?` | `( path -- bool )` | Whether the path exists (`access` with `F_OK`); follows symlinks, tests any file type, not just regular files | 1 | none | O(1) |
 | `args` | `( -- arr )` | The command-line arguments after the program file, as a string array — everything after the file belongs to the program, options included. A leading `#!` line is skipped | 1 + n | `1a(n)` + `1o` per argument | O(bytes) |
 | `env` | `( name -- val )` | Environment variable as a string, or the none value if unset (so set-empty `""` and unset stay distinct) | 1 | `1o` on hit | O(\|val\|) |
-| `env!` | `( name value -- )` | Set an environment variable (overwriting); process-wide, so subsequent `start-process` children inherit it | 1 | none | O(1) |
+| `env!` | `( value name -- )` | Set an environment variable (overwriting); process-wide, so subsequent `start-process` children inherit it — value first, name last, as `write-file` writes | 1 | none | O(1) |
 | `cwd` | `( -- path )` | The interpreter's current working directory as a string (`getcwd`) | 1 | `1o` | O(\|path\|) |
 | `binary-dir` | `( -- str )` | The directory holding the running telic binary, symlinks resolved (`realpath`), so an installation's resources are reachable from any cwd; errors on the wasm build (no executable path) | 1 | `1o` | O(\|path\|) |
 | `cd` | `( path -- )` | Change the interpreter's working directory (`chdir`); process-wide, so it moves the base for relative file I/O and is inherited by subsequent `start-process` children | 1 | none | O(1) |
@@ -5352,7 +5389,7 @@ args . cr
 ```
 
 ```forth env
-"DOCS_VAR" "42" env! "DOCS_VAR" env . cr
+"42" "DOCS_VAR" env! "DOCS_VAR" env . cr
 "NO_SUCH_VAR_XYZ" env none? . cr
 ```
 ```output
@@ -5361,7 +5398,7 @@ args . cr
 ```
 
 ```forth env!
-"DOCS_VAR" "42" env! "DOCS_VAR" env . cr
+"42" "DOCS_VAR" env! "DOCS_VAR" env . cr
 ```
 ```output
 42

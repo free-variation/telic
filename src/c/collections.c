@@ -1104,8 +1104,8 @@ void p_frame_get_symbol(DISPATCH_ARGS) {
 void p_frame_set_symbol(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 3);
 	Val frame_val = chain_sp[-3];
-	Val key = chain_sp[-2];
-	Val value = chain_sp[-1];
+	Val key = chain_sp[-1];
+	Val value = chain_sp[-2];
 	if (VAL_TAG(frame_val) != T_FRAME || VAL_TAG(key) != T_SYMBOL) {
 		RETARGET_OP(p_frame_set);
 		MUSTTAIL return p_frame_set(interp, chain_ip, chain_sp);
@@ -1191,8 +1191,8 @@ void p_frame_set(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 3);
 	Val frame_val = chain_sp[-3];
 	REQUIRE_CHAIN_TAG(frame_val, T_FRAME, "!", "a frame");
-	Val key_or_path = chain_sp[-2];
-	Val value = chain_sp[-1];
+	Val key_or_path = chain_sp[-1];
+	Val value = chain_sp[-2];
 	Object *frame = OBJECT_AT(VAL_DATA(frame_val));
 
 	DISPATCH_SYMBOL_OR_PATH(key_or_path, "!", {
@@ -1593,8 +1593,8 @@ void p_has(DISPATCH_ARGS) {
 
 void p_update_at(DISPATCH_ARGS) {
 	PEEK_TYPE_AT(frame_val, 2, "update-at", T_FRAME);
-	PEEK_AT(key_or_path, 1, "update-at");
-	PEEK_AT(xt, 0, "update-at");
+	PEEK_AT(key_or_path, 0, "update-at");
+	PEEK_AT(xt, 1, "update-at");
 	if (VAL_TAG(xt) != T_XT && VAL_TAG(xt) != T_CURRIED) {
 		fail(interp, "xt required on stack; got %s", tag_name(VAL_TAG(xt)));
 		return;
@@ -1765,25 +1765,25 @@ void p_spread(DISPATCH_ARGS) {
 
 void p_slice_store(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 6);
-	Val slen_val = chain_sp[-1];
+	Val tstart_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(tstart_val, T_FLOAT, "slice!", "a float target-start");
+	int tstart = (int)VAL_NUMBER(tstart_val);
+	Val target_val = chain_sp[-2];
+	REQUIRE_CHAIN_TAG(target_val, T_ARRAY, "slice!", "an array");
+	Val slen_val = chain_sp[-3];
 	REQUIRE_CHAIN_TAG(slen_val, T_FLOAT, "slice!", "a float length");
 	int slen = (int)VAL_NUMBER(slen_val);
-	Val sstep_val = chain_sp[-2];
+	Val sstep_val = chain_sp[-4];
 	REQUIRE_CHAIN_TAG(sstep_val, T_FLOAT, "slice!", "a float step");
 	int sstep = (int)VAL_NUMBER(sstep_val);
-	Val sstart_val = chain_sp[-3];
+	Val sstart_val = chain_sp[-5];
 	REQUIRE_CHAIN_TAG(sstart_val, T_FLOAT, "slice!", "a float source-start");
 	int sstart = (int)VAL_NUMBER(sstart_val);
-	Val src_val = chain_sp[-4];
+	Val src_val = chain_sp[-6];
 	if (VAL_TAG(src_val) != T_ARRAY && VAL_TAG(src_val) != T_SET) {
 		fail(interp, "source must be an array or set; got %s", tag_name(VAL_TAG(src_val)));
 		return;
 	}
-	Val tstart_val = chain_sp[-5];
-	REQUIRE_CHAIN_TAG(tstart_val, T_FLOAT, "slice!", "a float target-start");
-	int tstart = (int)VAL_NUMBER(tstart_val);
-	Val target_val = chain_sp[-6];
-	REQUIRE_CHAIN_TAG(target_val, T_ARRAY, "slice!", "an array");
 
 	Object *target = OBJECT_AT(VAL_DATA(target_val));
 	Object *src    = OBJECT_AT(VAL_DATA(src_val));
@@ -1792,8 +1792,10 @@ void p_slice_store(DISPATCH_ARGS) {
 		fail(interp, "length must be non-negative; got %d", slen);
 		return;
 	}
-	if (slen == 0)
+	if (slen == 0) {
+		chain_sp[-6] = target_val;
 		DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 5);
+	}
 
 	if (tstart < 0 || tstart + slen > target->len) {
 		fail(interp, "target [%d, %d) out of bounds for length %d",
@@ -1817,6 +1819,7 @@ void p_slice_store(DISPATCH_ARGS) {
 			target->items[tstart + i] = target->items[tstart + slen - 1 - i];
 			target->items[tstart + slen - 1 - i] = t;
 		}
+		chain_sp[-6] = target_val;
 		DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 5);
 	}
 
@@ -1837,19 +1840,20 @@ void p_slice_store(DISPATCH_ARGS) {
 			target->items[tstart + i] = src->items[sstart + i * sstep];
 	}
 
+	chain_sp[-6] = target_val;
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 5);
 }
 
 void p_to_slice(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 3);
-	Val n_val = chain_sp[-1];
-	REQUIRE_CHAIN_TAG(n_val, T_FLOAT, "to-slice!", "a float count");
-	int n = (int)VAL_NUMBER(n_val);
-	Val offset_val = chain_sp[-2];
+	Val offset_val = chain_sp[-1];
 	REQUIRE_CHAIN_TAG(offset_val, T_FLOAT, "to-slice!", "a float offset");
 	int offset = (int)VAL_NUMBER(offset_val);
-	Val target_val = chain_sp[-3];
+	Val target_val = chain_sp[-2];
 	REQUIRE_CHAIN_TAG(target_val, T_ARRAY, "to-slice!", "an array");
+	Val n_val = chain_sp[-3];
+	REQUIRE_CHAIN_TAG(n_val, T_FLOAT, "to-slice!", "a float count");
+	int n = (int)VAL_NUMBER(n_val);
 	Object *target = OBJECT_AT(VAL_DATA(target_val));
 
 	if (n < 0) {

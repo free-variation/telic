@@ -1,0 +1,66 @@
+\ fit-nonnegative ( X y -- beta ): nonnegative least squares, Lawson-Hanson.
+\ fit-simplex ( X y -- weights ): weights >= 0 summing to 1 (one rounding).
+"statistics" load-library
+
+\ === fit-nonnegative ===
+\ identity design: y passes through with negatives clamped to exact 0
+[ 1 0 0 1 ] 2 2 matrix [ 0.3 -0.9 ] vector fit-nonnegative matrix>array . cr  \ [ 0.3 0 ]
+[ 1 0 0 1 ] 2 2 matrix [ -1 -0.5 ] vector fit-nonnegative matrix>array . cr  \ [ 0 0 ]
+
+\ suppression design: x1 enters on the larger raw gradient, the joint solve
+\ sends it negative, the feasibility loop demotes it (the inner-loop path)
+[ 10 0.5 0 0.8660254037844386 ] 2 2 matrix to X
+[ 0.2 1.0392304845413263 ] vector to y
+X y fit-linear matrix>array [: 100 * round :] map . cr   \ [ -4 120 ] — OLS goes negative
+X y fit-nonnegative to beta
+beta matrix>array . cr                                   \ [ 0 1 ]
+
+\ KKT at the answer: beta >= 0, passive gradient ~0, active gradient <= 0
+beta min 0 >= . cr                                       \ 1
+X transpose  y X beta matmul -  matmul to kkt
+kkt 0 @e -3 0.0001 expect-near                           \ active: -3 <= 0
+kkt 1 @e 0 1e-10 expect-near "kkt holds" . cr            \ kkt holds
+
+\ correlated 6x2 design: OLS negative, nnls zeroes the suppressed column
+[ 1 1 1 1.05 1 0.95 1 1 1 1.02 1 0.98 ] 6 2 matrix to X
+[ 1 2.2 -0.1 1.1 2.0 0.1 ] vector to y
+X y fit-nonnegative to beta
+beta matrix>array [: 1e6 * round :] map . cr             \ [ 0 1074461 ]
+X transpose  y X beta matmul -  matmul 1 @e 0 1e-9 expect-near "passive flat" . cr
+
+\ === fit-simplex ===
+\ interior: the simplex projection of (0.3, 0.9) is (0.2, 0.8)
+[ 1 0 0 1 ] 2 2 matrix [ 0.3 0.9 ] vector fit-simplex to w
+w matrix>array [: 1e6 * round :] map . cr                \ [ 200000 800000 ] — the mu-penalty leaves ~3e-8 per weight
+w sum 1 1e-12 expect-near "sums to one" . cr             \ sums to one
+
+\ boundary of nothing: projection of (-1, -0.5) keeps both coordinates positive
+[ 1 0 0 1 ] 2 2 matrix [ -1 -0.5 ] vector fit-simplex matrix>array . cr  \ [ 0.25 0.75 ]
+
+\ y inside the column hull: exact barycentric weights, zero residual
+[ 0 1 1 0 ] 2 2 matrix [ 0.25 0.75 ] vector fit-simplex matrix>array . cr  \ [ 0.75 0.25 ]
+
+\ suppression design again: all weight on the second column
+[ 10 0.5 0 0.8660254037844386 ] 2 2 matrix
+[ 0.2 1.0392304845413263 ] vector fit-simplex matrix>array . cr  \ [ 0 1 ]
+
+\ === random designs: KKT verified whatever path the solver took ===
+: kkt-holds | design response |
+	design response fit-nonnegative to solution
+	solution min 0 >= expect
+	design transpose  response design solution matmul -  matmul to gradient
+	gradient max  design transpose response matmul abs max 1e-8 *  <= expect ;
+
+42 seed
+[: drop
+	[: drop random 2 * 1 - :] 60 iota swap map vector 20 3 reshape
+	[: drop random 2 * 1 - :] 20 iota swap map vector
+	kkt-holds
+:] 5 i-times
+"random kkt ok" . cr                                     \ random kkt ok
+
+\ === errors ===
+\ run-libs requires exit 0 of a golden-bearing test, so the error is caught
+clear
+[: [ 1 0 0 1 ] 2 2 matrix [ 1 2 3 ] vector fit-nonnegative :]
+[: . cr :] try-catch                \ the lib matmul throws its message string

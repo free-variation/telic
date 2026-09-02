@@ -20,20 +20,20 @@
 [< { :a 1 } { :a 2 } >] dup copy = . cr                                    \ -1
 
 \ --- independence: mutate the copy via ! at increasing depth, original intact ---
-{ :a 1 } dup copy /a 9 ! drop /a @ . cr                  \ 1
-{ :a { :b 1 } } dup copy /a/b 9 ! drop /a/b @ . cr       \ 1
-{ :a { :b { :c 1 } } } dup copy /a/b/c 9 ! drop /a/b/c @ . cr   \ 1
+{ :a 1 } dup copy 9 /a ! drop /a @ . cr                  \ 1
+{ :a { :b 1 } } dup copy 9 /a/b ! drop /a/b @ . cr       \ 1
+{ :a { :b { :c 1 } } } dup copy 9 /a/b/c ! drop /a/b/c @ . cr   \ 1
 
 \ --- independence via the other mutators ---
-{ :a 1 } dup copy /b 2 ! drop size . cr                  \ 1   (copy gained :b, not the original)
+{ :a 1 } dup copy 2 /b ! drop size . cr                  \ 1   (copy gained :b, not the original)
 { :a 1 :b 2 } dup copy /a delete-at drop /a @ . cr       \ 1   (delete on copy left original's :a)
-{ :n 5 } dup copy /n [: 100 + :] update-at drop /n @ . cr   \ 5
+{ :n 5 } dup copy [: 100 + :] /n update-at drop /n @ . cr   \ 5
 
 \ --- a nested non-frame value: overwriting it in the copy leaves the original's intact ---
-{ :a [ 1 2 3 ] } dup copy /a 99 ! drop /a @ . cr         \ [ 1 2 3 ]
+{ :a [ 1 2 3 ] } dup copy 99 /a ! drop /a @ . cr         \ [ 1 2 3 ]
 
 \ --- both sides independent: set the copy and the original to different values ---
-{ :a { :b 0 } } dup copy /a/b 2 ! swap /a/b 1 !
+{ :a { :b 0 } } dup copy 2 /a/b ! swap 1 /a/b !
 /a/b @ . cr                                              \ 1   (original)
 /a/b @ . cr                                              \ 2   (copy)
 

@@ -251,36 +251,44 @@ static int try_fuse_array_step(Interpreter *interp) {
 	int here = vocab.here;
 	int floor = compiler.fuse_floor;
 
-	if (here - 2 < floor)
+	/* new-order in-place step: [arr push][arr i @i fetch][delta?][arith][i push][!i][drop];
+	   the trailing index push feeds !i, and the emitted op carries the index slot inline */
+	if (here - 3 < floor)
 		return 0;
-	if (!dict_is_handler[here - 2])
+	if (!dict_op_is(here - 3, p_local_fetch_0depth))
 		return 0;
-	cfa_handler arith = (cfa_handler)dict[here - 2];
+	int store_idx_slot = (int)dict[here - 2];
+
+	if (here - 4 < floor)
+		return 0;
+	if (!dict_is_handler[here - 4])
+		return 0;
+	cfa_handler arith = (cfa_handler)dict[here - 4];
 	int op_cfa;
 	int has_delta;
 	int fetch_end;
 	if (arith == p_inc) {
-		op_cfa = inc_store_i_cfa; has_delta = 0; fetch_end = here - 2;
+		op_cfa = inc_store_i_cfa; has_delta = 0; fetch_end = here - 4;
 	} else if (arith == p_dec) {
-		op_cfa = dec_store_i_cfa; has_delta = 0; fetch_end = here - 2;
+		op_cfa = dec_store_i_cfa; has_delta = 0; fetch_end = here - 4;
 	} else if (arith == p_add_f) {
-		op_cfa = add_store_i_cfa; has_delta = 1; fetch_end = here - 4;
+		op_cfa = add_store_i_cfa; has_delta = 1; fetch_end = here - 6;
 	} else if (arith == p_sub_f) {
-		op_cfa = sub_store_i_cfa; has_delta = 1; fetch_end = here - 4;
+		op_cfa = sub_store_i_cfa; has_delta = 1; fetch_end = here - 6;
 	} else if (arith == p_mul_f) {
-		op_cfa = mul_store_i_cfa; has_delta = 1; fetch_end = here - 4;
+		op_cfa = mul_store_i_cfa; has_delta = 1; fetch_end = here - 6;
 	} else if (arith == p_div_f) {
-		op_cfa = div_store_i_cfa; has_delta = 1; fetch_end = here - 4;
+		op_cfa = div_store_i_cfa; has_delta = 1; fetch_end = here - 6;
 	} else {
 		return 0;
 	}
 
 	if (has_delta) {
-		if (here - 4 < floor)
+		if (here - 6 < floor)
 			return 0;
-		if (!dict_is_handler[here - 4])
+		if (!dict_is_handler[here - 6])
 			return 0;
-		cfa_handler push = (cfa_handler)dict[here - 4];
+		cfa_handler push = (cfa_handler)dict[here - 6];
 		if (push != p_literal && push != p_local_fetch_0depth
 		    && push != dovar)
 			return 0;
@@ -312,21 +320,19 @@ static int try_fuse_array_step(Interpreter *interp) {
 		idx_slot = (int)dict[fetch_end - 1];
 		fetch_start = fetch_end - 4;
 	}
+	if (idx_slot != store_idx_slot)
+		return 0;
 
-	if (fetch_start - 4 < floor)
+	if (fetch_start - 2 < floor)
 		return 0;
-	if (!dict_op_is(fetch_start - 2, p_local_fetch_0depth))
+	if (!dict_is_handler[fetch_start - 2])
 		return 0;
-	if ((int)dict[fetch_start - 1] != idx_slot)
-		return 0;
-	if (!dict_is_handler[fetch_start - 4])
-		return 0;
-	cfa_handler arr_push = (cfa_handler)dict[fetch_start - 4];
+	cfa_handler arr_push = (cfa_handler)dict[fetch_start - 2];
 	if (arr_form == 0 && arr_push != dovar)
 		return 0;
 	if (arr_form == 1 && arr_push != p_local_fetch_0depth)
 		return 0;
-	if ((int)dict[fetch_start - 3] != arr_key)
+	if ((int)dict[fetch_start - 1] != arr_key)
 		return 0;
 
 	if (has_delta) {
@@ -337,6 +343,7 @@ static int try_fuse_array_step(Interpreter *interp) {
 		vocab.here = fetch_start;
 	}
 	emit_call(interp, op_cfa);
+	emit(interp, (cell)idx_slot);
 	return 1;
 }
 
@@ -395,13 +402,13 @@ int superword_try_fuse(Interpreter *interp, int op_cfa) {
 		    && vocab.here - 5 == compiler.loadn_at
 		    && dict_op_is(vocab.here - 5, p_load3)) {
 			cell target_slot = vocab.dict[vocab.here - 4];
-			cell index_slot = vocab.dict[vocab.here - 3];
-			cell element_slot = vocab.dict[vocab.here - 2];
+			cell element_slot = vocab.dict[vocab.here - 3];
+			cell index_slot = vocab.dict[vocab.here - 2];
 			vocab.here -= 5;
 			emit_call(interp, store_e_lll0_cfa);
 			emit(interp, target_slot);
-			emit(interp, index_slot);
 			emit(interp, element_slot);
+			emit(interp, index_slot);
 			return 1;
 		}
 		vocab.here -= 1;

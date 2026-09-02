@@ -94,7 +94,7 @@ gc
 clear
 
 \ === update-at accepts one ===
-{ :n 5 } dup :n 10 ' + curry update-at :n @ . cr     \ 15
+{ :n 5 } dup 10 ' + curry :n update-at :n @ . cr     \ 15
 
 clear
 

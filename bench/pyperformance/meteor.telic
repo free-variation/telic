@@ -100,8 +100,8 @@ variable sols   variable done
      0 5 1 do x
         2.0 x f* 50.0 y f* f+ y 2.0 mod f+ to code
         y 5.0 f* x f+ to idx
-        board idx code !i drop
-        cti code idx !i drop
+        board code idx !i drop
+        cti idx code !i drop
      loop
   loop ;
 
@@ -110,7 +110,7 @@ variable sols   variable done
 : convert-piece
   | pi |
   pieces pi @i  pi 3.0 =  permute  ' convert map
-  pieces pi rot !i drop ; internal
+  pieces swap pi !i drop ; internal
 
 : init-pieces ^pieces |
   [ [ 2.0 2.0 2.0 51.0 ]
@@ -128,12 +128,12 @@ variable sols   variable done
 \ --- footprints: FPS[ci][pi] = list of piece pi's footprints with min cell ci
 : empty-row ( -- row )
   0.0 10.0 array-of to row
-  0 10 1 do i  row i [ ] !i drop  loop
+  0 10 1 do i  row [ ] i !i drop  loop
   row ;
 
 : init-fps ^fps |
   0.0 50.0 array-of to fps
-  0 50 1 do ci  fps ci empty-row !i drop  loop ;
+  0 50 1 do ci  fps empty-row ci !i drop  loop ;
 
 ( ppi c pps pi -- ) \ record piece pi's ppi-th placement at code c
 : record-footprint
@@ -143,7 +143,7 @@ variable sols   variable done
   fp set-min to min-cell
   fps min-cell @i to row
   row pi @i [ [ fp set>mask  fp dup size take ] ] concat to nb
-  row pi nb !i drop ; internal
+  row nb pi !i drop ; internal
 
 ( pi c -- ) \ every placement of piece pi at code c
 : record-piece
@@ -162,7 +162,7 @@ variable sols   variable done
 : get-senh ^se-nh |
   0.0 50.0 array-of to se-nh
   0 50 1 do ci
-     se-nh ci  board ci @i  [ 2.0 49.0 51.0 ] foot set>mask  !i drop
+     se-nh  board ci @i  [ 2.0 49.0 51.0 ] foot set>mask  ci  !i drop
   loop ;
 
 \ --- solution string from a finished board (and its reverse) --------------
@@ -186,7 +186,7 @@ variable sols   variable done
            fp 1 @i to fp_cells
            fp_cells size to n_cells
            0 n_cells 1 do cell_i
-              cb fp_cells cell_i @i p !i drop
+              cb p  fp_cells cell_i @i  !i drop
            loop
            pl_mask  pl_mask 1.0 f- bit-and  0.0 = 0= if
               free fp_mask bit-xor to n_free
@@ -203,7 +203,7 @@ variable sols   variable done
               sols size nsols < 0= if 1.0 to done exit then
            then
            0 n_cells 1 do cell_i
-              cb fp_cells cell_i @i -1.0 !i drop
+              cb -1.0  fp_cells cell_i @i  !i drop
            loop
         then
      loop

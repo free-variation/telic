@@ -24,11 +24,11 @@ variable row  variable col  variable val  variable x  variable y
   row 0.0 0.0 !i drop
   0 n 1 do r
      row r @i to rowr
-     row r 1.0 f+  rowr nr f+  !i drop
+     row  rowr nr f+  r 1.0 f+  !i drop
      r nr / ftruncate to step
      step 1.0 < if 1.0 to step then
      0 nr 1 do k
-        col  rowr k f+  k step f*  !i drop
+        col  k step f*  rowr k f+  !i drop
      loop
   loop ;
 
@@ -41,7 +41,7 @@ variable row  variable col  variable val  variable x  variable y
         lo hi 1 do i0
            x col i0 @i @i  val i0 @i f*  f+
         loop
-        y r rot !i drop
+        y swap r !i drop
      loop
   loop ;
 

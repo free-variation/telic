@@ -28,7 +28,7 @@ variable rand-m  variable ri  variable rj
      j0 k0 f* to jseed
      jseed 65536.0 f/  j0 k1 f* f+  j1 k0 f* f+  32768.0 fmod to j1
      jseed 65536.0 mod to j0
-     rand-m slot  j0 65536.0 j1 f* f+  !i drop
+     rand-m  j0 65536.0 j1 f* f+  slot  !i drop
   loop
   4.0 to ri  16.0 to rj ;
 
@@ -36,7 +36,7 @@ variable rand-m  variable ri  variable rj
   ri to ii  rj to jj
   rand-m ii @i  rand-m jj @i f- to k
   k 0.0 < if k m1 f+ to k then
-  rand-m jj k !i drop
+  rand-m k jj !i drop
   ii 0.0 = if 16.0 to ii else ii 1.0 f- to ii then  ii to ri
   jj 0.0 = if 16.0 to jj else jj 1.0 f- to jj then  jj to rj
   dm1 k f* ;

@@ -36,7 +36,7 @@ variable rng-seed
 : accumulate-into
   | running i probs out |
   running  probs i @i  +
-  dup  out i rot  !i drop ; internal
+  dup  out swap i  !i drop ; internal
 
 \ running cumulative sum of probabilities (matches CPython make_cumulative)
 : cumulative ( probs -- cumulative )
@@ -71,7 +71,7 @@ variable rng-seed
 ( i out cum chars -- ) \ out[i] = one random character
 : draw-into
   | i out cum chars |
-  out i  cum chars draw  !i drop ; internal
+  out  cum chars draw  i  !i drop ; internal
 
 \ n random characters as one string, in draw order
 : random-content ( cum chars n -- string )
@@ -90,9 +90,9 @@ variable rng-seed
 ( i out s width slen -- ) \ out[i] = the i-th width-wide line of s, newline-terminated
 : wrap-line
   | i out s width slen |
-  out i
+  out
     s  i width *  dup width +  dup slen > if drop slen then  substring  nl +
-  !i drop ; internal
+  i !i drop ; internal
 
 \ break s into width-wide lines, each ending in a newline
 : wrap ( s width -- wrapped )

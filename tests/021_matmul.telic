@@ -21,7 +21,7 @@
 [ 1 2 3 4 ] 2 2 matrix to a
 a 2 2 0-matrix matmul matrix>array . cr                                           \ [ 0 0 0 0 ]
 a a matmul to product
-product 0 0 99 !i,j drop
+product 99 0 0 !i,j drop
 a matrix>array . cr                                                               \ [ 1 2 3 4 ]  (unchanged)
 
 \ === it is not element-wise: * and matmul differ ===

@@ -44,37 +44,37 @@
 [< { :a 1 } { :a 1 } >] . cr
 
 \ ! : single-key set, leaves the frame
-{ :a 1 } [ :b ] 2 ! . cr
+{ :a 1 } 2 [ :b ] ! . cr
 
 \ ! : auto-vivifies missing intermediate frames
-{ } [ :a :b ] 9 ! . cr
+{ } 9 [ :a :b ] ! . cr
 
 \ ! : overwrites an existing key
-{ :a 1 } [ :a ] 2 ! . cr
+{ :a 1 } 2 [ :a ] ! . cr
 
 \ ! : leaves the frame, so sets chain
-{ } [ :a ] 1 ! [ :b ] 2 ! . cr
+{ } 1 [ :a ] ! 2 [ :b ] ! . cr
 
 \ ! then @ round-trips
-{ } [ :x :y ] 7 ! [ :x :y ] @ . cr
+{ } 7 [ :x :y ] ! [ :x :y ] @ . cr
 
 \ ! : empty path errors
-{ :a 1 } [ ] 5 ! . cr
+{ :a 1 } 5 [ ] ! . cr
 
 \ ! : symbol form overwrites
-{ :a 1 } :a 99 ! . cr
+{ :a 1 } 99 :a ! . cr
 
 \ ! : symbol form inserts a new key
-{ } :a 5 ! . cr
+{ } 5 :a ! . cr
 
 \ ! : symbol form chains
-{ } :a 1 ! :b 2 ! . cr
+{ } 1 :a ! 2 :b ! . cr
 
 \ ! : dynamic symbol via string>symbol
-{ :k 0 } "k" string>symbol 7 ! . cr
+{ :k 0 } 7 "k" string>symbol ! . cr
 
 \ ! : non-symbol non-array key errors
-{ } 42 5 ! . cr
+{ } 5 42 ! . cr
 
 \ keys : top-level keys as an array (sorted by symbol-id)
 { :b 2 :a 1 } keys . cr
@@ -166,45 +166,45 @@
 { } 5 has? . cr
 
 \ update-at : apply a quotation to a leaf, leaves the frame
-{ :n 5 } [ :n ] [: 1 + :] update-at . cr
+{ :n 5 } [: 1 + :] [ :n ] update-at . cr
 
 \ update-at : nested path
-{ :a { :b 10 } } [ :a :b ] [: 2 * :] update-at . cr
+{ :a { :b 10 } } [: 2 * :] [ :a :b ] update-at . cr
 
 \ update-at : leaves the frame, so it round-trips with @
-{ :n 5 } [ :n ] [: 10 + :] update-at [ :n ] @ . cr
+{ :n 5 } [: 10 + :] [ :n ] update-at [ :n ] @ . cr
 
 \ update-at : missing key errors
-{ :a 1 } [ :z ] [: 1 + :] update-at . cr
+{ :a 1 } [: 1 + :] [ :z ] update-at . cr
 
 \ update-at : non-xt errors
-{ :n 5 } [ :n ] 7 update-at . cr
+{ :n 5 } 7 [ :n ] update-at . cr
 
 \ update-at : empty path errors
-{ :n 5 } [ ] [: 1 + :] update-at . cr
+{ :n 5 } [: 1 + :] [ ] update-at . cr
 
 \ update-at : symbol form
-{ :a 5 } :a ' 1+ update-at . cr
+{ :a 5 } ' 1+ :a update-at . cr
 
 \ update-at : chained symbol form
-{ :a 1 :b 2 } :a ' 1+ update-at :b ' 1- update-at . cr
+{ :a 1 :b 2 } ' 1+ :a update-at ' 1- :b update-at . cr
 
 \ update-at : dynamic symbol
-{ :k 0 } "k" string>symbol [: 42 + :] update-at . cr
+{ :k 0 } [: 42 + :] "k" string>symbol update-at . cr
 
 \ update-at : symbol form, missing key
-{ :a 1 } :z [: drop 0 :] update-at . cr
+{ :a 1 } [: drop 0 :] :z update-at . cr
 
 \ update-at : non-symbol non-array key errors
-{ :a 1 } 42 [: drop 0 :] update-at . cr
+{ :a 1 } [: drop 0 :] 42 update-at . cr
 
 \ update-at : callback mutates the same frame — write-back re-resolves the key
 :aaa drop variable fr { :zzz 10 } to fr
-fr :zzz [: fr :aaa 99 ! drop 1000 + :] update-at drop fr :zzz @ . fr :aaa @ . cr
+fr [: fr 99 :aaa ! drop 1000 + :] :zzz update-at drop fr :zzz @ . fr :aaa @ . cr
 
 \ update-at : callback inserts two keys that both sort before the target
 :b1 drop :b2 drop variable fr2 { :zz 7 } to fr2
-fr2 :zz [: fr2 :b1 1 ! drop fr2 :b2 2 ! drop 700 + :] update-at drop fr2 :zz @ . fr2 :b1 @ . fr2 :b2 @ . cr
+fr2 [: fr2 1 :b1 ! drop fr2 2 :b2 ! drop 700 + :] :zz update-at drop fr2 :zz @ . fr2 :b1 @ . fr2 :b2 @ . cr
 
 \ merge : combine two frames, right wins on conflicts
 { :a 1 :b 2 } { :b 3 :c 4 } merge . cr
@@ -219,10 +219,10 @@ fr2 :zz [: fr2 :b1 1 ! drop fr2 :b2 2 ! drop 700 + :] update-at drop fr2 :zz @ .
 { :a 1 :b 2 } dup copy = . cr
 
 \ copy : deep — mutating a nested key in the copy leaves the original intact
-{ :a { :b 1 } } dup copy /a/b 9 ! drop /a/b @ . cr
+{ :a { :b 1 } } dup copy 9 /a/b ! drop /a/b @ . cr
 
 \ copy : independent at the top level too
-{ :a 1 } dup copy /a 9 ! drop /a @ . cr
+{ :a 1 } dup copy 9 /a ! drop /a @ . cr
 
 \ frame>array : flatten to a key-sorted alternating-kv array
 { :a 1 :b 2 } frame>array . cr
