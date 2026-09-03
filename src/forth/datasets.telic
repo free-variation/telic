@@ -407,3 +407,134 @@
 		then
 	:] 3 ncurry map
 	frames>dataset ;
+( v -- arr ) \ one grid axis normalized to an array of its values
+: grid-axis  dup matrix? if matrix>array then  dup set? if set>array then ; internal
+
+( grid-frame -- dataset ) \ every combination of the per-key value lists as a
+\ dataset; one column per key in keys order, the last key varying fastest, so the
+\ rows come out sorted left-to-right (odometer order, as itertools.product gives)
+: expand-grid
+	| grid-frame |
+	grid-frame keys to grid-keys
+	grid-keys size 0= if { } exit then
+
+	grid-keys grid-frame [: key gf | gf key @ grid-axis :] curry map to value-lists
+	value-lists [: size :] map to lengths
+	lengths 1 ' * reduce to total
+
+	[ ] to columns
+	0 grid-keys size 1 do axis
+		value-lists axis @i to axis-values
+		lengths axis @i to axis-length
+		lengths axis 1+ skip 1 ' * reduce to inner
+		total iota  inner axis-length [: row inner axis-length |
+			row inner quotient axis-length mod :] 2curry map to gather
+		columns  axis-values gather select-rows column-from-cells  add-last! to columns
+	loop
+	grid-keys columns frame ;
+
+( key -- keys ) \ normalize a merge key to a symbol array
+: merge-keys  dup array? not if 1 array then ; internal
+
+( dataset keys -- tuples ) \ array of each row's key-column values as a tuple
+: key-tuples
+	| dataset keys |
+	dataset keys [: 2 pick swap @ column>array :] map  nip  transpose ; internal
+
+( keys -- frame ) \ a frame mapping each key to null, the miss-fill template
+: null-frame  | keys |  keys { } [: | fr key | fr null key ! :] reduce ; internal
+
+( primary secondary keys secondary-null keep -- rows ) \ probe secondary (which
+\ must be unique) by each primary row's key tuple: a match merges the two rows, a
+\ miss (when keep) emits the primary row over the null template
+: join-pass
+	| primary secondary keys secondary-null keep |
+	secondary keys key-tuples to secondary-tuples
+	secondary-tuples array>set size  secondary n-rows  = not if
+		"merge-by: the probed side's key is not unique (use the fact database for many-to-many)" throw
+	then
+	primary keys key-tuples to primary-tuples
+	primary dataset-rows to primary-rows
+	secondary dataset-rows to secondary-rows
+
+	[ ] to out
+	0 primary n-rows 1 do row-index
+		secondary-tuples  primary-tuples row-index @i  ' = curry map vector where to matches
+		matches size 0 > if
+			out  primary-rows row-index @i  secondary-rows matches 0 @e @i  merge  add-last! to out
+		else keep if
+			out  secondary-null  primary-rows row-index @i  merge  add-last! to out
+		then then
+	loop
+	out ; internal
+
+( left right key join-type -- dataset ) \ join on key (a symbol or symbol array);
+\ join-type is :inner :left :right or :outer. The probed side's key must be unique
+\ (right for :inner/:left, left for :right, both for :outer); a shared non-key
+\ column errors. Misses fill with null, so numeric columns re-infer as vectors
+: merge-by
+	| left right key join-type |
+	key merge-keys to key-syms
+
+	left keys array>set  right keys array>set  intersection  key-syms array>set  difference to shared
+	shared size 0 > if
+		shared set>array render "merge-by: columns {0} are in both; rename before merging" format throw
+	then
+
+	right keys array>set  key-syms array>set  difference set>array null-frame to right-null
+	left keys array>set  key-syms array>set  difference set>array null-frame to left-null
+
+	join-type :inner = if left right key-syms right-null false join-pass frames>dataset exit then
+	join-type :left  = if left right key-syms right-null true  join-pass frames>dataset exit then
+	join-type :right = if right left key-syms left-null  true  join-pass frames>dataset exit then
+	join-type :outer = if
+		left right key-syms right-null true join-pass to rows
+
+		left key-syms key-tuples to left-tuples
+		left-tuples array>set size  left n-rows  = not if
+			"merge-by: :outer needs the left key unique too" throw
+		then
+		right key-syms key-tuples to right-tuples
+		right dataset-rows to right-rows
+		0 right n-rows 1 do row-index
+			left-tuples  right-tuples row-index @i  ' = curry map vector where size 0 = if
+				rows  left-null  right-rows row-index @i  merge  add-last! to rows
+			then
+		loop
+		rows frames>dataset exit
+	then
+
+	join-type "merge-by: join type must be :inner :left :right or :outer; got {0}" format throw ;
+
+\ hstack/vstack gain a dataset branch, as select-rows/dim/map/filter did; augment
+\ stays matrix-only. Capture the matrix words before redefining.
+' hstack constant (matrix-hstack) internal
+' vstack constant (matrix-vstack) internal
+
+( left right -- dataset ) \ side by side: same row count, disjoint columns
+: dataset-hstack
+	| left right |
+	left n-rows right n-rows = not if
+		left n-rows right n-rows "hstack: row counts differ ({1} vs {0})" format throw
+	then
+	left keys array>set  right keys array>set  intersection to shared
+	shared size 0 > if
+		shared set>array render "hstack: columns {0} are in both" format throw
+	then
+	left right merge ; internal
+
+( a b -- mat/dataset ) \ matrix column-concat, or two datasets side by side
+: hstack  over frame? if dataset-hstack exit then (matrix-hstack) execute ;
+
+( top bottom -- dataset ) \ stacked rows: identical columns, each concatenated
+: dataset-vstack
+	| top bottom |
+	top keys array>set  bottom keys array>set  = not if
+		"vstack: the two datasets have different columns" throw
+	then
+	top keys to cols
+	cols top bottom [: key t b | t key @ column>array  b key @ column>array  concat column-from-cells :] 2curry map
+	cols swap frame ; internal
+
+( a b -- mat/dataset ) \ matrix row-stack, or two datasets stacked by rows
+: vstack  over frame? if dataset-vstack exit then (matrix-vstack) execute ;

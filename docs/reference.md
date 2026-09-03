@@ -3415,8 +3415,8 @@ place.
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
 | `augment` | `( a b -- mat )` | Concatenate two matrices column-wise; errors unless row counts match | 2 + r·c | `1m(r×c)` | O(r·c) |
-| `vstack` | `( a b -- mat )` | Stack two matrices row-wise (a on top of b); errors unless column counts match | 2 + r·c | `1m(r×c)` | O(r·c) |
-| `hstack` | `( a b -- mat )` | matrix.telic: `augment` under its numpy name (inlined) | 2 + r·c | `1m(r×c)` | O(r·c) |
+| `vstack` | `( a b -- mat/dataset )` | Stack two matrices row-wise (a on top of b); errors unless column counts match. datasets.telic extends it to two datasets: identical column sets required, each column concatenated top-then-bottom and re-inferred (a numeric column stays a vector); differing columns error | 2 + r·c | `1m(r×c)`; dataset one column each | O(r·c) |
+| `hstack` | `( a b -- mat/dataset )` | matrix.telic: `augment` under its numpy name. datasets.telic extends it to two datasets set side by side: equal row counts and disjoint column names required (both error otherwise), rows aligned by position — the column-union counterpart of `vstack` | 2 + r·c | `1m(r×c)`; dataset shares columns | O(r·c) |
 | `submatrix` | `( mat rs re cs ce -- mat )` | Copy the half-open block rows [rs,re) × cols [cs,ce); errors out of bounds or start > end | 5 + r·c | `1m(r×c)` | O(r·c) |
 | `select-rows` | `( mat/dataset/arr idx -- same )` | New matrix of the rows named by `idx` — a float index array or an index vector (nx1 or 1xn, as `where`/`argsort` return); a dimensioned matrix keeps its unit; errors on a non-float or out-of-range index. datasets.telic extends it to a dataset (every column gathered by the same indices — matrix and dimensioned columns through the matrix path, array columns element-wise) and to a bare array (elements gathered by index) | 2 + k·c | `1m(k×c)`; dataset one column each; array `1a(k)` | O(k·c) |
 | `mesh` | `( v mask b -- v' )` | Masked substitution: element i of the result is `b`'s where `mask[i]` is a definite nonzero, `v`'s where it is 0 **or NaN** (an unknown mask cell changes nothing). `v` is a matrix, dimensioned matrix, or array; the mask a bare matrix of `v`'s shape (element count, for an array). `b` is shape-matched same-representation, or broadcasts: a float, `null` (→ NaN), a quantity, or — for an array subject — any single value. Units reconcile as `+`: `b` rescales into `v`'s unit, which the result keeps; a quantity against a bare number errors. Conditional-mutate idioms: `dup nan? 0 mesh` fills NaNs, `dup -1 eq null mesh` turns a sentinel into NaN, `dup 100 > 100 mesh` caps at 100 | 3 + n | `1m(r×c)` / `1a(n)` | O(n) |
@@ -3473,16 +3473,20 @@ place.
 
 ```forth vstack
 [ 1 2 ] vector [ 3 4 ] vector vstack matrix>array . cr
+{ :a [ 1 2 ] :b [ :x :y ] } { :a [ 3 ] :b [ :z ] } vstack :a @ transpose matrix>array . cr
 ```
 ```output
 [ 1 2 3 4 ]
+[ 1 2 3 ]
 ```
 
 ```forth hstack
 [ 1 2 ] vector [ 3 4 ] vector hstack matrix>array . cr
+{ :a [ 1 2 ] } { :b [ 3 4 ] } hstack keys . cr
 ```
 ```output
 [ 1 3 2 4 ]
+[ :a :b ]
 ```
 
 ```forth submatrix
@@ -4039,6 +4043,8 @@ wall-now time>iso . cr
 | `group-indices` | `( column -- pairs )` | datasets.telic: `[ [ value [indices] ] … ]` per distinct value in `val_cmp` order — each index array holds the value's row positions, ascending (one `argsort`, the permutation cut at run boundaries); the same pair layout as `count`, with positions instead of tallies, so one pass replaces a per-value `eq where` scan | 2n log n | permutation + one pair and array per value | O(n log n) |
 | `frames>dataset` | `( rows -- dataset )` | datasets.telic: an array of row frames (as `query`, `db-query` `:rows`, or `map` over a dataset produce) as a column-oriented dataset, keys from row 0 — differing keys throw. Each column's representation is inferred: all-float cells (`none` → NaN) become an n×1 vector, uniform-unit quantities a dimensioned vector, anything else stays an array | n·k log k | one column per key + `1o` | O(n·k log k) |
 | `aggregate` | `( dataset by xt -- dataset )` | datasets.telic: split-apply-combine — rows group by the `by` column's distinct values (`group-indices`), or by the value tuple of a `by`-symbol array (tuples group and order by `val_cmp`, so no composite string key is built); for each group `xt` `( group-dataset -- frame )` answers one row frame, the group's key values are stored into it under their own keys (overwriting any the xt set), and the rows reassemble through `frames>dataset` | n log n + per-group xt | one sub-dataset and frame per group + result columns; array `by` adds one tuple array per row | O(n log n + n·c) |
+| `expand-grid` | `( grid-frame -- dataset )` | datasets.telic: the cartesian product of the per-key value lists as a dataset — `grid-frame` maps each column key to its values (array, vector, or set), the result has one column per key and `∏ lengths` rows, every combination present. Columns follow `keys` order with the last key varying fastest, so rows come out sorted left to right (odometer order, as `itertools.product` gives). Numeric columns come back as vectors, text as arrays; a zero-length value list yields 0 rows, an empty frame `{ }` | ∏·k | one column each + index arrays | O(∏·k) |
+| `merge-by` | `( left right key join-type -- dataset )` | datasets.telic: join on `key` (a symbol or symbol array); `join-type` is `:inner` (matched pairs only), `:left` (every left row, right's columns `null` on a miss), `:right` (every right row, left's columns `null`), or `:outer` (left rows then unmatched right rows, missing side `null`). The probed side's key must be **unique** — right for `:inner`/`:left`, left for `:right`, both for `:outer` — a duplicate erroring toward the fact database's `inner-join` for many-to-many; a non-key column in both datasets errors naming it (no `.x`/`.y` suffixing). Columns are the union with key once; a null-filled numeric column re-infers as a vector with NaN | L·R | row frames + merged columns | O(L·R) |
 | `replace-where` | `( dataset pred replacement sym -- )` | datasets.telic: replace the named column's cells passing `pred` `( column -- mask )`, in place — `update-at` around `mesh`, so the replacement broadcasts and units reconcile: `pipeline [: -1 eq :] null :rep_touches replace-where` nulls a sentinel, `[: nan? :] 0` fills missing, `[: 10 $ < :] 5 $` floors prices | pred + n | mask + one column | O(n) |
 | `resample-indices` | `( n -- arr )` | datasets.telic: n indices drawn from [0,n) with replacement (bootstrap), from the global stream | 2n | `2×1a(n)` | O(n) |
 | `resample-indices-ext` | `( n seed -- arr )` | n indices drawn from [0,n) with replacement by a private generator seeded from `seed` (splitmix64-expanded) — same draw for the same seed regardless of thread or stream position; the bootstrap words seed replicate i at run-seed + i | n | `1a(n)` | O(n)† |
@@ -4201,6 +4207,20 @@ ann    34
 ```output
 [ 4 2 ]
 [ 1 3 2 ]
+```
+
+```forth expand-grid
+{ :a [ 1 2 ] :b [ :x :y :z ] } expand-grid dup :a @ matrix>array . :b @ . cr
+```
+```output
+[ 1 1 1 2 2 2 ] [ :x :y :z :x :y :z ]
+```
+
+```forth merge-by
+{ :id [ 1 2 3 ] :x [ :a :b :c ] } { :id [ 1 3 ] :y [ 10 30 ] } :id :left merge-by dup :x @ . :y @ column>array . cr
+```
+```output
+[ :a :b :c ] [ 10 null 30 ]
 ```
 
 ```forth replace-where

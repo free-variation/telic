@@ -237,6 +237,7 @@ exact?
 execute
 exit
 exp
+expand-grid
 expect
 expect-near
 expect-throws
@@ -411,6 +412,7 @@ mean
 median
 member?
 merge
+merge-by
 mesh
 min
 min2

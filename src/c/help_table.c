@@ -294,6 +294,7 @@ const HelpEntry help_entries[] = {
 	{ "execute", "( xt -- … )", "Call the word at xt", NULL, NULL, NULL, 12 },
 	{ "exit", "( -- )", "Return early from the current definition (this one runs at run time)", NULL, NULL, NULL, 10 },
 	{ "exp", "( a -- eᵃ )", "exp", "2", "matrix 1m(r×c)", "same", 3 },
+	{ "expand-grid", "( grid-frame -- dataset )", "datasets.telic: the cartesian product of the per-key value lists as a dataset — grid-frame maps each column key to its values (array, vector, or set), the result has one column per key and ∏ lengths rows, every combination present. Columns follow keys order with the last key varying fastest, so rows come out sorted left to right (odometer order, as itertools.product gives). Numeric columns come back as vectors, text as arrays; a zero-length value list yields 0 rows, an empty frame { }", "∏·k", "one column each + index arrays", "O(∏·k)", 25 },
 	{ "expect", "( flag -- )", "test.telic: pass silently when flag is truthy; else throw expectation was false", "—", "1s on fail", "O(1)", 27 },
 	{ "expect-near", "( actual expected tolerance -- )", "test.telic: pass when |actual − expected| <= tolerance; else throw the expected-range message", "—", "1s on fail", "O(1)", 27 },
 	{ "expect-throws", "( xt -- )", "test.telic: run xt under catch; pass iff it throws, else throw expected a throw", "—", "cont if thrown", "O(xt)", 27 },
@@ -399,7 +400,7 @@ const HelpEntry help_entries[] = {
 	{ "histogram", "( data n-bins -- )", "Equal-width bin-count bars over data; pins the domain; aes :bar-fill :bar-stroke", NULL, NULL, NULL, 46 },
 	{ "histogram-plot", "( data n-bins -- svg )", "Complete histogram, rendered", NULL, NULL, NULL, 46 },
 	{ "histogram-table", "( v n-bins -- fr )", "statistics.telic: equal-width bin counts over a vector's value range, as { :counts (n-bins×1) :low :bin-width }. NaNs dropped, the maximum value is counted in the last bin, a constant vector takes the range value ± 1; errors on n-bins < 1 or no finite values", "n + n-bins", "1m(n-bins) + 1fr", "O(n + n-bins)", 21 },
-	{ "hstack", "( a b -- mat )", "matrix.telic: augment under its numpy name (inlined)", "2 + r·c", "1m(r×c)", "O(r·c)", 21 },
+	{ "hstack", "( a b -- mat/dataset )", "matrix.telic: augment under its numpy name. datasets.telic extends it to two datasets set side by side: equal row counts and disjoint column names required (both error otherwise), rows aligned by position — the column-union counterpart of vstack", "2 + r·c", "1m(r×c); dataset shares columns", "O(r·c)", 21 },
 	{ "http-get", "( url -- body )", "GET, answering the response body; a non-2xx status throws http status NNN", NULL, NULL, NULL, 47 },
 	{ "http-post", "( url body -- body' )", "POST the body as-is (curl's default content-type), answering the response body; a non-2xx status throws", NULL, NULL, NULL, 47 },
 	{ "http-request", "( method url headers body -- response )", "One request; response is { :status :body } with the HTTP status code and the raw body. headers is an array of \"name: value\" strings, body a string or null (sent as-is, --data-binary). A non-HTTP URL (file://) reports status 0", NULL, NULL, NULL, 47 },
@@ -468,6 +469,7 @@ const HelpEntry help_entries[] = {
 	{ "median", "( mat -- f )", "statistics.telic: 0.5 quantile (inlined)", "n log n", "malloc(n)", "O(n log n)", 21 },
 	{ "member?", "( set v -- bool )", "Binary-search membership", "3 + log n", "none", "O(log n)", 15 },
 	{ "merge", "( fr₁ fr₂ -- fr )", "New frame with all keys; fr₂ wins collisions. A linear two-pointer merge of the two sorted key arrays", "m+n", "1o", "O(m+n)", 18 },
+	{ "merge-by", "( left right key join-type -- dataset )", "datasets.telic: join on key (a symbol or symbol array); join-type is :inner (matched pairs only), :left (every left row, right's columns null on a miss), :right (every right row, left's columns null), or :outer (left rows then unmatched right rows, missing side null). The probed side's key must be **unique** — right for :inner/:left, left for :right, both for :outer — a duplicate erroring toward the fact database's inner-join for many-to-many; a non-key column in both datasets errors naming it (no .x/.y suffixing). Columns are the union with key once; a null-filled numeric column re-infers as a vector with NaN", "L·R", "row frames + merged columns", "O(L·R)", 25 },
 	{ "mesh", "( v mask b -- v' )", "Masked substitution: element i of the result is b's where mask[i] is a definite nonzero, v's where it is 0 **or NaN** (an unknown mask cell changes nothing). v is a matrix, dimensioned matrix, or array; the mask a bare matrix of v's shape (element count, for an array). b is shape-matched same-representation, or broadcasts: a float, null (→ NaN), a quantity, or — for an array subject — any single value. Units reconcile as +: b rescales into v's unit, which the result keeps; a quantity against a bare number errors. Conditional-mutate idioms: dup nan? 0 mesh fills NaNs, dup -1 eq null mesh turns a sentinel into NaN, dup 100 > 100 mesh caps at 100", "3 + n", "1m(r×c) / 1a(n)", "O(n)", 21 },
 	{ "min", "( mat -- f )", "Minimum element", "1 + r×c", "none", "O(r×c)", 21 },
 	{ "min2", "( a b -- smaller )", "the val_cmp-ordered lesser of two values — floats, strings, quantities; NaN orders below every number, so a NaN operand answers NaN. With a matrix operand it is element-wise with scalar broadcast. min/max reduce one matrix, these order a pair", "3 (float)", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 1 },
@@ -734,7 +736,7 @@ const HelpEntry help_entries[] = {
 	{ "vftan", "vftan a", "tangent of variable a, push the result", NULL, NULL, NULL, 31 },
 	{ "vftanh", "vftanh a", "hyperbolic tangent of variable a, push the result", NULL, NULL, NULL, 31 },
 	{ "view-figure", "( name -- )", "Open the versioned carousel viewer for images-<name>/ without saving a new version (writing the viewer page if absent); figures must already have been saved there; native-only", NULL, NULL, NULL, 46 },
-	{ "vstack", "( a b -- mat )", "Stack two matrices row-wise (a on top of b); errors unless column counts match", "2 + r·c", "1m(r×c)", "O(r·c)", 21 },
+	{ "vstack", "( a b -- mat/dataset )", "Stack two matrices row-wise (a on top of b); errors unless column counts match. datasets.telic extends it to two datasets: identical column sets required, each column concatenated top-then-bottom and re-inferred (a numeric column stays a vector); differing columns error", "2 + r·c", "1m(r×c); dataset one column each", "O(r·c)", 21 },
 	{ "vvf*", "vvf* a b", "Load variables a and b, multiply, push the result", NULL, NULL, NULL, 31 },
 	{ "vvf*+", "vvf*+ b c", "( t -- t*b+c ), reading variables b and c", NULL, NULL, NULL, 31 },
 	{ "vvf*-", "vvf*- b c", "( t -- c-t*b ), reading variables b and c", NULL, NULL, NULL, 31 },
@@ -772,7 +774,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "C primitive alias of unify, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 29 },
 };
 
-const int help_entry_count = 715;
+const int help_entry_count = 717;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -1015,6 +1017,7 @@ const HelpExample help_examples[] = {
 	{ "execute", "7 ' 1+ execute . cr", "8" },
 	{ "exit", ": early dup 0 < if drop \"neg\" . cr exit then drop \"pos\" . cr ; -3 early", "neg" },
 	{ "exp", "0 exp . cr", "1" },
+	{ "expand-grid", "{ :a [ 1 2 ] :b [ :x :y :z ] } expand-grid dup :a @ matrix>array . :b @ . cr", "[ 1 1 1 2 2 2 ] [ :x :y :z :x :y :z ]" },
 	{ "expect", "1 expect \"ok\" . cr", "ok" },
 	{ "expect-near", "3.14 PI 0.01 expect-near \"near\" . cr", "near" },
 	{ "expect-throws", "[: \"x\" throw :] expect-throws \"threw\" . cr", "threw" },
@@ -1120,7 +1123,7 @@ const HelpExample help_examples[] = {
 	{ "histogram", "\"plot\" load-library\n320 240 figure [ 1 2 2 3 3 3 ] vector 3 histogram figure>svg \"<rect\" has? . cr", "1" },
 	{ "histogram-plot", "\"plot\" load-library\n[ 1 2 2 3 ] vector 2 histogram-plot \"<rect\" has? . cr", "1" },
 	{ "histogram-table", "[ 1 1 2 3 3 3 ] vector 3 histogram-table :counts @ matrix>array . cr", "[ 2 1 3 ]" },
-	{ "hstack", "[ 1 2 ] vector [ 3 4 ] vector hstack matrix>array . cr", "[ 1 3 2 4 ]" },
+	{ "hstack", "[ 1 2 ] vector [ 3 4 ] vector hstack matrix>array . cr\n{ :a [ 1 2 ] } { :b [ 3 4 ] } hstack keys . cr", "[ 1 3 2 4 ]\n[ :a :b ]" },
 	{ "http-get", "\"https://example.org/\" http-get", "" },
 	{ "http-post", "\"https://example.org/collect\" \"name=telic\" http-post", "" },
 	{ "http-request", "\"http\" load-library\n\"hi\" \"/tmp/docs-http.txt\" write-file\n\"GET\" \"file:///tmp/docs-http.txt\" [ ] null http-request dup :status @ . :body @ . cr", "0 hi" },
@@ -1189,6 +1192,7 @@ const HelpExample help_examples[] = {
 	{ "median", "[ 1 2 3 4 ] vector median . cr", "2.5" },
 	{ "member?", "[< 1 2 3 >] 2 member? . [< 1 2 3 >] 9 member? . cr", "1 0" },
 	{ "merge", "{ :a 1 :b 2 } { :b 20 :c 30 } merge frame>array . cr", "[ :a 1 :b 20 :c 30 ]" },
+	{ "merge-by", "{ :id [ 1 2 3 ] :x [ :a :b :c ] } { :id [ 1 3 ] :y [ 10 30 ] } :id :left merge-by dup :x @ . :y @ column>array . cr", "[ :a :b :c ] [ 10 null 30 ]" },
 	{ "mesh", "[ 1 -1 3 ] vector dup -1 eq null mesh matrix>array . cr", "[ 1 null 3 ]" },
 	{ "min", "[ 1 2 3 4 ] 2 2 matrix min . cr", "1" },
 	{ "min2", "3 7 min2 . cr", "3" },
@@ -1455,7 +1459,7 @@ const HelpExample help_examples[] = {
 	{ "vftan", "variable a 0 to a\n: tan-a vftan a ; tan-a . cr", "0" },
 	{ "vftanh", "variable a 0 to a\n: tanh-a vftanh a ; tanh-a . cr", "0" },
 	{ "view-figure", "\"plot\" load-library\n\"my-plot\" view-figure", "" },
-	{ "vstack", "[ 1 2 ] vector [ 3 4 ] vector vstack matrix>array . cr", "[ 1 2 3 4 ]" },
+	{ "vstack", "[ 1 2 ] vector [ 3 4 ] vector vstack matrix>array . cr\n{ :a [ 1 2 ] :b [ :x :y ] } { :a [ 3 ] :b [ :z ] } vstack :a @ transpose matrix>array . cr", "[ 1 2 3 4 ]\n[ 1 2 3 ]" },
 	{ "vvf*", "variable a 3 to a variable b 4 to b\n: prod-ab vvf* a b ; prod-ab . cr", "12" },
 	{ "vvf*+", "variable b 4 to b variable c 10 to c\n: fma-bc vvf*+ b c ; 2 fma-bc . cr", "18" },
 	{ "vvf*-", "variable b 4 to b variable c 10 to c\n: fms-bc vvf*- b c ; 2 fms-bc . cr", "2" },
@@ -1493,4 +1497,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 716;
+const int help_example_count = 718;
