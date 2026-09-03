@@ -565,6 +565,7 @@ series-plot
 set
 set-add!
 set-remove!
+set-unit
 set>array
 set?
 shift

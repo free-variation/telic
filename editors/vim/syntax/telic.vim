@@ -81,17 +81,17 @@ syn keyword telicBuiltin reload remove-last! rename-file render replace replace-
 syn keyword telicBuiltin retract reverse rm rmdir roll rot round round-down round-up row-at row-maxes row-means
 syn keyword telicBuiltin row-mins row-sums rows>dataset rows>relation rshift run run-result running? sample sample-with-replacement sample-without-replacement save
 syn keyword telicBuiltin save-tsv save-value se second see see-compiled see-compiled>string see-tree see-tree>string see>string seed segment>pointer
-syn keyword telicBuiltin segment? select-columns select-keys select-rows select-values set set-add! set-remove! set>array set? shift shift-with
-syn keyword telicBuiltin shuffle side-depth side-drop side-peek sigmoid sin sinh size skip sleep slice! solutions
-syn keyword telicBuiltin sort sort-by sort-rows sort-rows-descending spaces split spread sq sqrt start-generator start-process std
-syn keyword telicBuiltin stderr stdin stdout stdout>string stop stream? string>chars string>codepoints string>number string>symbol string? submatrix
-syn keyword telicBuiltin substring sum sum-times summary swap symbol? take take-solutions tan tanh telic telic-version
-syn keyword telicBuiltin test test-report throw time>iso timed to-slice! touch touch-file transpose trim true truncate
-syn keyword telicBuiltin try-catch tsv>db tty? tuck type-of unify? union unit unit-of update-at upper-case value>bytes
-syn keyword telicBuiltin values var variables vars vector vf* vf+ vf- vf/ vfabs vfcos vfexp
-syn keyword telicBuiltin vflog vfneg vfsin vfsq vfsqrt vftan vftanh vstack vvf* vvf*+ vvf*- vvf+
-syn keyword telicBuiltin vvf- vvf/ wait wait-readable wall-now where wildcard? with-db with-stream words write write-file
-syn keyword telicBuiltin write-in write-tsv xml-escape xt? yield
+syn keyword telicBuiltin segment? select-columns select-keys select-rows select-values set set-add! set-remove! set-unit set>array set? shift
+syn keyword telicBuiltin shift-with shuffle side-depth side-drop side-peek sigmoid sin sinh size skip sleep slice!
+syn keyword telicBuiltin solutions sort sort-by sort-rows sort-rows-descending spaces split spread sq sqrt start-generator start-process
+syn keyword telicBuiltin std stderr stdin stdout stdout>string stop stream? string>chars string>codepoints string>number string>symbol string?
+syn keyword telicBuiltin submatrix substring sum sum-times summary swap symbol? take take-solutions tan tanh telic
+syn keyword telicBuiltin telic-version test test-report throw time>iso timed to-slice! touch touch-file transpose trim true
+syn keyword telicBuiltin truncate try-catch tsv>db tty? tuck type-of unify? union unit unit-of update-at upper-case
+syn keyword telicBuiltin value>bytes values var variables vars vector vf* vf+ vf- vf/ vfabs vfcos
+syn keyword telicBuiltin vfexp vflog vfneg vfsin vfsq vfsqrt vftan vftanh vstack vvf* vvf*+ vvf*-
+syn keyword telicBuiltin vvf+ vvf- vvf/ wait wait-readable wall-now where wildcard? with-db with-stream words write
+syn keyword telicBuiltin write-file write-in write-tsv xml-escape xt? yield
 
 hi def link telicComment      Comment
 hi def link telicString       String

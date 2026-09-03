@@ -372,3 +372,16 @@ clear
 { :a [ 1 ] } { :a [ 1 ] } hstack                 \ (:a in both)
 clear
 { :a [ 1 ] } { :b [ 2 ] } vstack                 \ (different columns)
+
+clear
+\ set-unit ( dataset unit-xt sym -- dataset ): set a column's unit via a unit
+\ word (' m), replacing any existing one; text columns error.
+{ :height [ 170 180 ] vector :name [ "a" "b" ] } to measures
+measures ' m :height set-unit drop
+measures :height column-type . cr               \ :quantity
+measures :height @ mean . cr                    \ 175 m — stats keep the unit
+{ :d [ 1 2 ] vector km } ' m :d set-unit :d @ mean . cr   \ 1.5 m — replaces km, no compound
+{ :w [ 2 4 ] vector } ' kg :w set-unit :w @ unit-of . cr  \ 1 kg — leaves the dataset, chains
+
+\ errors
+{ :name [ "a" ] } ' m :name set-unit             \ (:name is not numeric)

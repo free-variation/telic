@@ -366,3 +366,9 @@ error: uncaught exception: "hstack: columns [ :a ] are in both"
 in throw ← dataset-hstack
 error: uncaught exception: "vstack: the two datasets have different columns"
 in throw ← dataset-vstack
+:quantity 
+175 m 
+1.5 m 
+1 kg 
+error: uncaught exception: "set-unit: column :name is not numeric"
+in throw ← set-unit

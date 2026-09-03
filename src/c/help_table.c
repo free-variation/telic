@@ -622,6 +622,7 @@ const HelpEntry help_entries[] = {
 	{ "set", "( v₀ … vₙ₋₁ n -- set )", "Gather the top n values into a new set (the set analog of array)", "2 + n log n", "1o + reallocs", "O(n log n)", 15 },
 	{ "set-add!", "( set v -- set )", "Insert v in sorted position if absent (dedups); leaves set on the stack", "log n + n", "reallocs", "O(n)", 15 },
 	{ "set-remove!", "( set v -- set )", "Remove v if present (no-op if absent); leaves set on the stack", "log n + n", "none", "O(n)", 15 },
+	{ "set-unit", "( dataset unit-xt sym -- dataset )", "datasets.telic: set the named column's unit to the one unit-xt attaches (' m), replacing any existing unit — magnitude strips first, then the unit word applies, so the column becomes a dimensioned vector and the stats keep the unit. In place, returns the dataset; a non-numeric (text) column errors naming it", "log c + n", "one column", "O(n)", 25 },
 	{ "set>array", "( set -- arr )", "arrays.telic: the elements as an array in val_cmp order — sort's set branch, which copies rather than compares", "1", "1o", "O(n)", 15 },
 	{ "set?", "( a -- bool )", "core.telic: type-of :set = (inlined)", "5", "none", "O(1)", 4 },
 	{ "shift", "( -- k )", "Capture the return-stack slice up to the nearest reset, remove the mark and that slice, push k", "L", "1o (cont)", "O(L)", 27 },
@@ -774,7 +775,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "C primitive alias of unify, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 29 },
 };
 
-const int help_entry_count = 717;
+const int help_entry_count = 718;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -1345,6 +1346,7 @@ const HelpExample help_examples[] = {
 	{ "set", "10 20 20 3 set . cr", "[< 10 20 >]" },
 	{ "set-add!", "[< 1 3 >] 2 set-add! . cr", "[< 1 2 3 >]" },
 	{ "set-remove!", "[< 1 2 3 >] 2 set-remove! . cr", "[< 1 3 >]" },
+	{ "set-unit", "{ :height [ 170 180 ] vector } ' m :height set-unit :height @ mean . cr", "175 m" },
 	{ "set>array", "[< 3 1 2 >] set>array . cr", "[ 1 2 3 ]" },
 	{ "set?", "[< 1 >] set? . cr", "1" },
 	{ "shift", ": two-step reset 1 . shift 2 . cr ;\ntwo-step \"mid\" . cr resume \"end\" . cr", "1 2\nmid\n2\nend" },
@@ -1497,4 +1499,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 718;
+const int help_example_count = 719;
