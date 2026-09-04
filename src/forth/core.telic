@@ -53,6 +53,12 @@ inline
 ( val -- bool ) \ is tos 1?
 : 1= 1 = ; inline
 
+( a -- bool ) \ truthy: 1 when the value is truthy, the positive twin of 0=
+: true? 0= 0= ; inline
+
+( a -- bool ) \ falsy: 1 when the value is falsy — 0= under a predicate name
+: false? 0= ; inline
+
 ( v low high -- bool ) \ low <= v <= high; element-wise mask on a matrix or
 \ array operand, so * is the conjunction, not and (which tests whole values)
 : between? 2 pick >= -rot >= * ; inline

@@ -262,6 +262,7 @@ fabs
 facos
 fail
 false
+false?
 fasin
 fatan
 fcos
@@ -299,6 +300,7 @@ flat-map
 flatten
 flatten-array
 fln
+fln1+
 float>exact
 float?
 floats>matrix
@@ -374,6 +376,7 @@ lgamma
 linear-regression
 list-directory
 ln
+ln1+
 load
 load-bag
 load-library
@@ -644,6 +647,7 @@ touch-file
 transpose
 trim
 true
+true?
 truncate
 try-catch
 tsv>db

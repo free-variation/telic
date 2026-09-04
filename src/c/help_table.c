@@ -230,7 +230,7 @@ const HelpEntry help_entries[] = {
 	{ "create-index", "( rel cols -- rel )", "Index a relation on the symbol columns cols: intern each indexed column's value to a symbol (so it keys the bucket and matches a { :col :val } pattern), then load-bag into a cols-indexed relation. Other columns keep their type; :rows stays a bag. The step that turns a db-query result into an indexed relation", "n", "frame + sets", "O(n)", 30 },
 	{ "cross-validate", "( units n-folds fit-xt score-xt -- fold-losses )", "statistics.telic: k-fold cross-validation — units deal round-robin into folds in the order given (shuffle first when order matters; reuse one shuffle to compare configurations on the same folds); per fold, fit ( train-units -- model ) then score ( model test-units -- loss ), both taking everything from the stack since they run in this word's frame; answers the per-fold losses as an n-folds vector (mean it for the CV estimate, std for the standard error). A unit is whatever the array holds — rows, or per-cluster index arrays for cluster CV", "k·(fit + score) + n·k", "fold index arrays", "O(k·(fit + score))", 21 },
 	{ "cumulative-sum", "( mat -- mat' )", "Running sum over the elements in row-major order, shape preserved — a vector's prefix sums", "1 + n", "1m(r×c)", "O(n)", 21 },
-	{ "curry", "( value xt -- xt' )", "Bind a value into a curried token: a heap value carrying the target xt and the bound value, accepted wherever an xt is. At invocation the bound value is pushed, then the target runs — so currying binds a word's **trailing** parameters. Collected like any array, so a word may curry on every call; usable inside a parallel region", NULL, NULL, NULL, 12 },
+	{ "curry", "( value xt -- xt' )", "Bind a value into a curried token: a heap value carrying the target xt and the bound value, accepted wherever an xt is. At invocation the bound value is pushed, then the target runs — so currying binds a word's **trailing** parameters. Collected like any array, so a word may curry on every call; usable inside a parallel region. Applied to a quotation with a head, the bound value fills a trailing head local, so the quotation can declare more locals than the combinator supplies (see Locals). The token is the pair (bound value, target): curry packages a witness with a body — existential introduction under Curry–Howard, the witness kept visible (see prints it, so it is a transparent dependent pair, not an opaque ∃) — and invoking the token unpacks the pair, binding the witness in the body", NULL, NULL, NULL, 12 },
 	{ "cv-folds", "( units n-folds -- folds )", "statistics.telic: deal units round-robin into n-folds [ train test ] index-array pairs in the given order — the split cross-validate runs on; errors on n-folds < 2 or fewer units than folds", "n", "fold index arrays", "O(n)", 21 },
 	{ "cv-logistic-ridge", "( X y units lambdas n-folds -- fr )", "k-fold cross-validation of ridge logistic over a lambdas grid, returning { :lambdas :deviances :best }; X excludes the intercept (added internally, unpenalized), units index rows so per-cluster index arrays give cluster CV", NULL, NULL, NULL, 41 },
 	{ "cwd", "( -- path )", "The interpreter's current working directory as a string (getcwd)", "1", "1o", "O(|path|)", 34 },
@@ -319,6 +319,7 @@ const HelpEntry help_entries[] = {
 	{ "facos", "( a -- acos a ) ⚠", "inverse cosine, in place", "1", "none", "O(1)", 1 },
 	{ "fail", "( -- )", "Backtrack to the nearest enclosing amb, failing the current branch; with no enclosing amb, an error", "1", "none", "O(L)", 29 },
 	{ "false", "( -- bool )", "core.telic: pushes 0 (inline)", "1", "none", "O(1)", 4 },
+	{ "false?", "( a -- bool )", "core.telic: 1 when the value is falsy — 0= under a predicate name (inlined); the same operation as not", "2", "none", "O(1)", 4 },
 	{ "fasin", "( a -- asin a ) ⚠", "inverse sine, in place", "1", "none", "O(1)", 1 },
 	{ "fatan", "( a -- atan a ) ⚠", "inverse tangent, in place", "1", "none", "O(1)", 1 },
 	{ "fcos", "( a -- cos a ) ⚠", "cosine (radians), in place", "1", "none", "O(1)", 1 },
@@ -356,6 +357,7 @@ const HelpEntry help_entries[] = {
 	{ "flatten", "( mat -- mat' )", "matrix.telic: 1×(r·c) reshape", "r×c", "1m(1×r·c)", "O(r×c)", 21 },
 	{ "flatten-array", "( arr -- arr )", "Flatten one level; returns the input unchanged if no element is itself an array", "1 + m", "1a(m)", "O(m)", 16 },
 	{ "fln", "( a -- ln a ) ⚠", "natural log, in place", "1", "none", "O(1)", 1 },
+	{ "fln1+", "( a -- ln(1+a) ) ⚠", "log1p, in place — natural log of 1+a, accurate for small a (the unsafe twin of ln1+)", "1", "none", "O(1)", 1 },
 	{ "float>exact", "( f -- x )", "The float's exact value — every float is an integer divided by a power of two, so nothing is lost; errors on NaN or an infinity. An exact passes through unchanged", "limbs", "1o", "O(limbs)", 6 },
 	{ "float?", "( a -- bool )", "core.telic: type-of :float = (inlined)", "5", "none", "O(1)", 4 },
 	{ "floats>matrix", "( ptr n -- mat )", "Copy n 32-bit floats from foreign memory at ptr into a fresh n×1 double matrix — the read-back for a C call that returns a float const* result buffer (e.g. predictions); errors if n < 1", "n", "1m(n×1)", "O(n)", 37 },
@@ -431,6 +433,7 @@ const HelpEntry help_entries[] = {
 	{ "linear-regression", "( dataset predictors response replications -- model )", "OLS with nonparametric bootstrap inference; the model frame is described below the table", NULL, NULL, NULL, 41 },
 	{ "list-directory", "( path -- arr )", "The directory's entry names as an array of strings, . and .. excluded, sorted in val_cmp order so a listing is the same on every filesystem. Names only, not paths — joining them to the parent is the caller's; errors when the path is missing or is not a directory", "n log n", "1a(n) + 1o per name", "O(n log n)", 34 },
 	{ "ln", "( a -- ln a )", "log — natural log", "2", "matrix 1m(r×c)", "same", 3 },
+	{ "ln1+", "( a -- ln(1+a) )", "log1p — natural log of 1+a, accurate for small a where 1+ ln loses precision to cancellation (1e-15 ln1+ is 1e-15, 1e-15 1+ ln is 1.11e-15); float or matrix element-wise, complex rejected", "2", "matrix 1m(r×c)", "same", 3 },
 	{ "load", "( str -- )", "Run a source file as if typed; record it for reload. Resolves the path as given (relative to the current directory, or absolute); if that open fails, retries relative to the directory of the file that ran the load. An error raised while loading is prefixed file:line:  (the line of the failing token); a nested load locates to the innermost file", "file read + run", "input buffer", "O(file)", 33 },
 	{ "load-bag", "( rel rows-array -- rel )", "Like bulk-load, but :rows stays a **bag** (the array, duplicates kept) rather than a deduped set; only :index is built", "n", "frame + sets", "O(n)", 30 },
 	{ "load-library", "( name -- )", "core.telic: load lib/<name> from beside the telic binary (binary-dir), so \"plot\" load-library works from any cwd; a name without .telic gains it", "file read + run", "input buffer", "O(file)", 33 },
@@ -450,7 +453,7 @@ const HelpEntry help_entries[] = {
 	{ "magnitude", "( v -- v' )", "A quantity's bare magnitude (float or matrix, the unit dropped); any other value passes through unchanged", "2", "none", "O(1)", 5 },
 	{ "make-directory", "( path -- )", "Create the directory, intermediate components included (mkdir -p); silent when it already exists, so it is idempotent. Errors when a component exists as a non-directory or the path is unwritable", "d", "none", "O(d), d = path components", 34 },
 	{ "man", "( xt -- fr )", "Frame of a word's reference entry (:word :effect :summary, plus :ops :alloc :order for runtime words); a unit word synthesizes its entry from the unit's definition (unit: m × 1000); T_NONE if undocumented", "dict scan + log n", "1o + strings", "O(|dict|)", 32 },
-	{ "map", "( arr/set xt -- arr ) or ( dataset xt -- dataset )", "Apply xt to each element; xt must net exactly one value. datasets.telic extends it to a dataset: xt maps each row frame to a new row frame — derive, rename, or drop fields — and the returned frames rebuild through frames>dataset, so all rows must share keys and columns re-infer their representation", "2 + n·xt", "1a(n); dataset rows + new columns", "O(n·xt); dataset O(n·(xt + k log k))", 26 },
+	{ "map", "( arr/set xt -- arr ) or ( dataset xt -- dataset )", "Apply xt to each element; xt must leave exactly one value. datasets.telic extends it to a dataset: xt maps each row frame to a new row frame — derive, rename, or drop fields — and the returned frames rebuild through frames>dataset, so all rows must share keys and columns re-infer their representation", "2 + n·xt", "1a(n); dataset rows + new columns", "O(n·xt); dataset O(n·(xt + k log k))", 26 },
 	{ "match", "( str pat -- [ whole cap… ] | 0 )", "First (leftmost) match as a flat array: whole match then each capture; no match returns 0", "n", "1a + captures", "O(n)", 14 },
 	{ "match-all", "( str pat -- [ [whole cap…] … ] | 0 )", "Every non-overlapping leftmost match, each a flat sub-array; a zero-width match advances one byte; no match returns 0", "n", "1a per match + captures", "O(n + m·g)", 14 },
 	{ "matches?", "( a b -- flag )", "Non-destructive unify test: mark the trail, unify a and b, roll the trail back, push whether they unified. Leaves no bindings and never backtracks, so it composes in straight-line code", "n", "none", "O(n)", 29 },
@@ -701,6 +704,7 @@ const HelpEntry help_entries[] = {
 	{ "transpose", "( mat -- mat' )", "Rows/columns swapped", "1 + r×c", "1m(c×r)", "O(r×c)", 21 },
 	{ "trim", "( str -- str' )", "Strip leading and trailing ASCII whitespace (' ' \\t \\n \\v \\f \\r); a backward/forward byte-scan, one allocation of the surviving span", "n", "1o", "O(n)", 14 },
 	{ "true", "( -- bool )", "core.telic: pushes 1 (inline)", "1", "none", "O(1)", 4 },
+	{ "true?", "( a -- bool )", "core.telic: 1 when the value is truthy — 0= 0=, the positive twin of 0= (inlined). A heap value is truthy by its handle, so an empty string, array, or frame is truthy; only 0, null, and an unbound handle are falsy", "3", "none", "O(1)", 4 },
 	{ "truncate", "( a -- trunc a )", "trunc", "2", "matrix 1m(r×c)", "same", 3 },
 	{ "try-catch", "( normal-xt err-xt -- … )", "exceptions.telic: run normal-xt; on a throw or interpreter error, run err-xt with the exception (the { :message :trace } error frame, for an interpreter error) on the stack", "—", "cont if thrown; 1f + 2s on a caught interpreter error", "O(normal-xt)", 27 },
 	{ "tsv>db", "( tsv-path db table -- info )", "database.telic: import a TSV file into a new table. The header row names the columns (identifiers quoted, so any header text works); a column whose every non-empty cell is numeric is REAL, else TEXT; empty cells insert as NULL; all rows go in one transaction. info is { :n-rows N :columns [ … ] } — a :real column carries { :name :type :summary } with a :summary from summary, a :text column { :name :type :distinct } with COUNT(DISTINCT) (NULLs uncounted). Errors before creating anything on a missing or ragged file; an existing table errors on the CREATE, leaving it untouched", "r·c", "rows + dataset + 1s/statement", "O(r·c)", 36 },
@@ -775,7 +779,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "C primitive alias of unify, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 29 },
 };
 
-const int help_entry_count = 718;
+const int help_entry_count = 722;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -1043,6 +1047,7 @@ const HelpExample help_examples[] = {
 	{ "facos", "1 facos . cr", "0" },
 	{ "fail", "[: fail :] [: \"fallback\" :] amb . cr", "fallback" },
 	{ "false", "false . true . cr", "0 1" },
+	{ "false?", "5 false? . 0 false? . null false? . cr", "0 1 1" },
 	{ "fasin", "1 fasin . cr", "1.5708" },
 	{ "fatan", "1 fatan . cr", "0.785398" },
 	{ "fcos", "0 fcos . cr", "1" },
@@ -1080,6 +1085,7 @@ const HelpExample help_examples[] = {
 	{ "flatten", "[ 1 2 3 4 ] 2 2 matrix flatten dim swap . . cr", "1 4" },
 	{ "flatten-array", "[ [ 1 2 ] [ 3 ] ] flatten-array . cr", "[ 1 2 3 ]" },
 	{ "fln", "E fln . cr", "1" },
+	{ "fln1+", "0 fln1+ . 1e-15 fln1+ . cr", "0 1e-15" },
 	{ "float>exact", "0.5 float>exact . cr\n0.1 float>exact denominator . cr", "1/2\n36028797018963968" },
 	{ "float?", "3 float? . \"x\" float? . cr", "1 0" },
 	{ "floats>matrix", "predictions-pointer 3 floats>matrix matrix>array . cr", "[ 0.12 0.87 0.44 ]" },
@@ -1155,6 +1161,7 @@ const HelpExample help_examples[] = {
 	{ "linear-regression", "\"statistics\" load-library\n42 seed [ [ \"x\" \"y\" ] [ 1 3 ] [ 2 5 ] [ 3 7 ] [ 4 9.1 ] [ 5 10.9 ] ] true rows>dataset [ :x ] :y 50 linear-regression\ndup :coefficients @ first :estimate @ . :predictors @ . cr", "1.03 [ :intercept :x ]" },
 	{ "list-directory", "\"/tmp/docs-fs\" make-directory\n\"a\" \"/tmp/docs-fs/one.txt\" write-file\n\"bb\" \"/tmp/docs-fs/two.txt\" write-file\n\"/tmp/docs-fs\" list-directory . cr", "[ \"one.txt\" \"two.txt\" ]" },
 	{ "ln", "E ln . cr", "1" },
+	{ "ln1+", "0 ln1+ . 1e-15 ln1+ . cr", "0 1e-15" },
 	{ "load", "\": loaded-word 11 ;\" \"/tmp/docs-load.telic\" write-file \"/tmp/docs-load.telic\" load loaded-word . cr", "11" },
 	{ "load-bag", "[ :k ] relation [ { :k :a :n 1 } { :k :a :n 2 } { :k :b :n 3 } ] load-bag { :k :a } count-matches . cr", "2" },
 	{ "load-library", "\"plot\" load-library ' scatter xt? . cr", "1" },
@@ -1425,6 +1432,7 @@ const HelpExample help_examples[] = {
 	{ "transpose", "[ 1 2 3 4 ] 2 2 matrix transpose matrix>array . cr", "[ 1 3 2 4 ]" },
 	{ "trim", "\"  pad  \" trim \"|\" + . cr", "pad|" },
 	{ "true", "true . false . cr", "1 0" },
+	{ "true?", "5 true? . 0 true? . null true? . cr", "1 0 0" },
 	{ "truncate", "-2.9 truncate . cr", "-2" },
 	{ "try-catch", "[: 1 0 / :] [: :message @ . cr :] try-catch", "division by zero" },
 	{ "tsv>db", "[ [ \"x\" ] [ 1 ] [ 2 ] ] \"/tmp/docs-db.tsv\" save-tsv \":memory:\" db-open dup \"/tmp/docs-db.tsv\" swap \"t\" tsv>db :n-rows @ . db-close cr", "2" },
@@ -1499,4 +1507,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 719;
+const int help_example_count = 723;

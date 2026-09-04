@@ -373,6 +373,7 @@ Operate directly on stack slots' `.number`, in place, with only a depth check �
 | `fexp` | `( a -- eᵃ )` ⚠ | in place | 1 | none | O(1) |
 | `flog` | `( a -- log₁₀ a )` ⚠ | base-10 log, in place | 1 | none | O(1) |
 | `fln` | `( a -- ln a )` ⚠ | natural log, in place | 1 | none | O(1) |
+| `fln1+` | `( a -- ln(1+a) )` ⚠ | `log1p`, in place — natural log of `1+a`, accurate for small `a` (the unsafe twin of `ln1+`) | 1 | none | O(1) |
 | `fsin` | `( a -- sin a )` ⚠ | sine (radians), in place | 1 | none | O(1) |
 | `fcos` | `( a -- cos a )` ⚠ | cosine (radians), in place | 1 | none | O(1) |
 | `ftan` | `( a -- tan a )` ⚠ | tangent (radians), in place | 1 | none | O(1) |
@@ -537,6 +538,13 @@ E fln . cr
 ```
 ```output
 1
+```
+
+```forth fln1+
+0 fln1+ . 1e-15 fln1+ . cr
+```
+```output
+0 1e-15
 ```
 
 ```forth fsin
@@ -736,6 +744,7 @@ matrix (`@i,j`, `@e`) surfaces as `null` the same way.
 | `exp` | `( a -- eᵃ )` | `exp` | 2 | matrix `1m(r×c)` | same |
 | `log` | `( a -- log₁₀ a )` | `log10` | 2 | matrix `1m(r×c)` | same |
 | `ln` | `( a -- ln a )` | `log` — natural log | 2 | matrix `1m(r×c)` | same |
+| `ln1+` | `( a -- ln(1+a) )` | `log1p` — natural log of `1+a`, accurate for small `a` where `1+ ln` loses precision to cancellation (`1e-15 ln1+` is `1e-15`, `1e-15 1+ ln` is `1.11e-15`); float or matrix element-wise, complex rejected | 2 | matrix `1m(r×c)` | same |
 | `log2` | `( a -- log2 a )` | base-2 log | 2 | matrix `1m(r×c)` | same |
 | `lgamma` | `( a -- ln Γ(a) )` | `lgamma` — log of the gamma function, which extends the factorial (`5 lgamma` is `ln 4!`). Γ overflows a double past 171, while `171 lgamma` is 706.57. Defined for positive arguments: it is `+inf` at zero and the negative integers, and for negative non-integers libm returns ln \|Γ(a)\| and the sign is discarded | 2 | matrix `1m(r×c)` | same |
 | `sin` | `( a -- sin a )` | sine (radians) | 2 | matrix `1m(r×c)` | same |
@@ -792,6 +801,13 @@ E ln . cr
 ```
 ```output
 1
+```
+
+```forth ln1+
+0 ln1+ . 1e-15 ln1+ . cr
+```
+```output
+0 1e-15
 ```
 
 ```forth log2
@@ -939,6 +955,8 @@ Result is `1.0` (true) or `0.0` (false), with a float fast path. `=` uses `val_c
 | `nan?` | `( v -- bool )` or `( mat/arr -- mat )` | NaN test: 1/0 mask over a matrix's elements; an array answers an n×1 mask marking `none` elements (a text column's missing cells), composing with `where`/`select-rows`; `1` on `null` itself (a scalar NaN *is* `null`), `0` on any float, exact, or complex. NaNs compare false under `<`/`>`/`eq`, so this is the word that masks them | 2 | `1m(r×c)` | O(1); matrix/array O(n) |
 | `0=` | `( a -- bool )` | `!truthy(a)`; any type | 2 | none | O(1) |
 | `1=` | `( a -- bool )` | core.telic: `1 =` (inlined) | 5 | none | O(1) |
+| `true?` | `( a -- bool )` | core.telic: `1` when the value is truthy — `0= 0=`, the positive twin of `0=` (inlined). A heap value is truthy by its handle, so an empty string, array, or frame is truthy; only `0`, `null`, and an unbound handle are falsy | 3 | none | O(1) |
+| `false?` | `( a -- bool )` | core.telic: `1` when the value is falsy — `0=` under a predicate name (inlined); the same operation as `not` | 2 | none | O(1) |
 | `between?` | `( v low high -- bool )` or `( mat/arr low high -- mat )` | core.telic: low ≤ v ≤ high, inclusive — the two comparison masks conjoined by `*` (inlined), so a matrix or array operand answers an element-wise mask, and any `val_cmp`-ordered scalars compare (strings lexicographic, quantities rescaled within a dimension) | 9 | matrix `2m(r×c)` | O(1); matrix/array O(n) |
 | `type-of` | `( a -- sym )` | The value's type as a symbol: `:float` `:string` `:symbol` `:array` `:set` `:pair` `:frame` `:matrix` `:quantity` `:xt` `:continuation` `:stream` `:db` `:ptr` `:segment` `:none` `:wildcard` `:lvar` `:exact` `:complex`. A bound logic var reports its value's type; an unbound one is `:lvar` | 2 | none | O(1) |
 | `float?` | `( a -- bool )` | core.telic: `type-of :float =` (inlined) | 5 | none | O(1) |
@@ -1046,6 +1064,20 @@ null nan? . cr
 ```
 ```output
 1
+```
+
+```forth true?
+5 true? . 0 true? . null true? . cr
+```
+```output
+1 0 0
+```
+
+```forth false?
+5 false? . 0 false? . null false? . cr
+```
+```output
+0 1 1
 ```
 
 ```forth between?
@@ -1905,7 +1937,7 @@ does a call through a word that is still `defer`red — mutual recursion via
 | `'` | `( "name" -- xt )` | Parse the following word at compile time and push its xt (immediate; folds the xt in as a literal) |
 | `lookup` | `( "name" -- xt )` | Parse the following word at run time and push its xt — the non-immediate counterpart of `'` |
 | `execute` | `( xt -- … )` | Call the word at xt |
-| `curry` | `( value xt -- xt' )` | Bind a value into a curried token: a heap value carrying the target xt and the bound value, accepted wherever an xt is. At invocation the bound value is pushed, then the target runs — so currying binds a word's **trailing** parameters. Collected like any array, so a word may curry on every call; usable inside a parallel region | 3 | `1o` | O(n bound) |
+| `curry` | `( value xt -- xt' )` | Bind a value into a curried token: a heap value carrying the target xt and the bound value, accepted wherever an xt is. At invocation the bound value is pushed, then the target runs — so currying binds a word's **trailing** parameters. Collected like any array, so a word may curry on every call; usable inside a parallel region. Applied to a quotation with a head, the bound value fills a trailing head local, so the quotation can declare more locals than the combinator supplies (see Locals). The token is the pair `(bound value, target)`: `curry` packages a witness with a body — existential introduction under Curry–Howard, the witness kept visible (`see` prints it, so it is a transparent dependent pair, not an opaque `∃`) — and invoking the token unpacks the pair, binding the witness in the body | 3 | `1o` | O(n bound) |
 | `2curry` | `( a b xt -- xt' )` | Bind two values into a curried token: at invocation it pushes `a`, then `b`, then calls xt. Same result as `curry curry` in one call | 4 | `1o` | O(n bound) |
 | `ncurry` | `( v₁ … v_N xt N -- xt' )` | Bind N values into a curried token: at invocation it pushes `v₁` … `v_N` in that order, then calls xt. `N` of 0 answers a token with the target's own bindings. The arity form of `curry`/`2curry`; the count is a value, so a caller binds as many as it has. Currying a token flattens — the outer values push first | 3 + N | `1o` | O(n bound) |
 | `inline` | — | Mark the most recent definition inline; future calls splice its body. A body containing a quotation is not spliced — such calls compile as plain calls, since a copied quotation header would have no recorded span |
@@ -4260,7 +4292,7 @@ The quotation/predicate cost dominates; `xt` denotes one call.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `map` | `( arr/set xt -- arr )` or `( dataset xt -- dataset )` | Apply xt to each element; xt must net exactly one value. datasets.telic extends it to a dataset: xt maps each row frame to a new row frame — derive, rename, or drop fields — and the returned frames rebuild through `frames>dataset`, so all rows must share keys and columns re-infer their representation | 2 + n·xt | `1a(n)`; dataset rows + new columns | O(n·xt); dataset O(n·(xt + k log k)) |
+| `map` | `( arr/set xt -- arr )` or `( dataset xt -- dataset )` | Apply xt to each element; xt must leave exactly one value. datasets.telic extends it to a dataset: xt maps each row frame to a new row frame — derive, rename, or drop fields — and the returned frames rebuild through `frames>dataset`, so all rows must share keys and columns re-infer their representation | 2 + n·xt | `1a(n)`; dataset rows + new columns | O(n·xt); dataset O(n·(xt + k log k)) |
 | `nmap` | `( arr₁ … arr_N xt N -- arr )` | N-ary zip-map over equal-length arrays | rows·(N+xt) | `1a(rows)` | O(rows·xt) |
 | `filter` | `( arr/set xt -- arr )` or `( dataset xt -- dataset )` | Keep elements where xt is truthy. datasets.telic extends it to a dataset: xt sees each row as a frame keyed by column name and answers a bool (1.0/0.0); the kept rows come back through `select-rows`, so every column keeps its representation | 2 + n·xt | malloc(n) flags + `1a(k)`; dataset rows + mask + one column each | O(n·xt) |
 | `reduce` | `( arr/set init xt -- val )` | Left fold; xt is `( acc elem -- acc )` | 3 + n·xt | none | O(n·xt) |

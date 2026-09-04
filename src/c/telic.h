@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.32.1"
+#define VERSION "0.32.2"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1240,6 +1240,7 @@ void p_fatan(DISPATCH_ARGS);
 void p_fcos(DISPATCH_ARGS);
 void p_fexp(DISPATCH_ARGS);
 void p_fln(DISPATCH_ARGS);
+void p_fln1p(DISPATCH_ARGS);
 void p_flog(DISPATCH_ARGS);
 void p_fmodop(DISPATCH_ARGS);
 void p_fnegate(DISPATCH_ARGS);
@@ -1269,6 +1270,7 @@ void p_inc(DISPATCH_ARGS);
 void p_inc_poly(DISPATCH_ARGS);
 void p_lgamma(DISPATCH_ARGS);
 void p_ln(DISPATCH_ARGS);
+void p_ln1p(DISPATCH_ARGS);
 void p_log(DISPATCH_ARGS);
 void p_log2(DISPATCH_ARGS);
 void p_lowest_bit(DISPATCH_ARGS);

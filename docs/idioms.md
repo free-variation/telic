@@ -542,6 +542,15 @@ How values reach a quotation body, beyond its own locals.
   rows 1 skip db statement ' insert-row 2 ncurry map drop
   ```
 
+  A curried token costs about twice a bare quotation per call — each
+  invocation pushes the bound values and dispatches through `execute`, where
+  a bare quotation is dispatched straight into its fused body. In the hottest
+  inner loop over a large array with a trivial body, prefer the bare form;
+  reach for `curry` when it binds a value a quotation cannot (an enclosing
+  local, or context crossing into a parallel region), where the choice is
+  expressibility, not speed. Build the token once and reuse it — hoist the
+  `curry` out of the loop, never curry per element.
+
 - Skeleton plus mapper injection: write the loop once taking a mapper xt;
   serial and parallel are one-line instantiations. Sound because each work
   cell is pre-curried and pre-seeded, so the mapper cannot change the result:

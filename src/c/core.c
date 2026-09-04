@@ -5047,6 +5047,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "fexp", p_fexp, 0);
 	define_primitive(interp, "flog", p_flog, 0);
 	define_primitive(interp, "fln", p_fln, 0);
+	define_primitive(interp, "fln1+", p_fln1p, 0);
 	define_primitive(interp, "fsin", p_fsin, 0);
 	define_primitive(interp, "fcos", p_fcos, 0);
 	define_primitive(interp, "ftan", p_ftan, 0);
@@ -5440,6 +5441,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "exp", p_exp, 0);
 	define_primitive(interp, "log", p_log, 0);
 	define_primitive(interp, "ln", p_ln, 0);
+	define_primitive(interp, "ln1+", p_ln1p, 0);
 	define_primitive(interp, "log2", p_log2, 0);
 	define_primitive(interp, "lgamma", p_lgamma, 0);
 	define_primitive(interp, "erf", p_erf, 0);

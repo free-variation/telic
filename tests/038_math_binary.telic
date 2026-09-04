@@ -91,6 +91,8 @@ clear
 0.0 fexp . cr         \ 1
 1.0 fln . cr          \ 0
 1000.0 flog . cr      \ 3
+0.0 fln1+ . cr        \ 0
+1e-15 fln1+ . cr      \ 1e-15  (accurate near zero)
 0.0 fsin . cr         \ 0
 0.0 fcos . cr         \ 1
 1.0 fatan . cr        \ 0.785398

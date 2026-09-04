@@ -19,6 +19,11 @@
 1.0 1= . cr
 "x" 1= . cr
 
+\ true? / false? test truthiness (heap values are truthy by handle)
+5 true? . 0 true? . null true? . cr        \ 1 0 0
+5 false? . 0 false? . null false? . cr     \ 0 1 1
+"" true? . [ ] true? . cr                  \ 1 1  (empty string/array are truthy)
+
 \ === array operands mask element-wise (val_cmp per element) ===
 [ "a" "b" "a" ] "a" eq . cr                     \ 1 0 1
 [ 1 2 3 ] 2 eq . cr                             \ 0 1 0

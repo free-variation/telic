@@ -5,7 +5,7 @@ general scripting: matrices and linear algebra, statistics and regression,
 dimensioned quantities and calendar arithmetic, sets/arrays/frames and columnar
 datasets, strings and regex, subprocesses and pipes, logic programming with
 backtracking, and multi-core data parallelism — with embedded SQLite, a
-runtime C FFI, and an SVG plotting library. A compact, self-contained C
+runtime C FFI, an SVG plotting library, and an MCP server. A compact, self-contained C
 interpreter: NaN-boxed tagged values, direct-threaded code with compile-time
 fusion, mark-and-sweep GC, and a WASI build from the same source.
 
@@ -285,7 +285,7 @@ exceptions.
 - **Descriptive statistics** — `var`, `quantile`, and `ks-distance` in C, with `std`, `se`, `median`, `percentile`, `quantiles`, `iqr`, `ci`, `summary`, `histogram-table`, `ecdf`, `binomial-deviance`, `cross-validate`, and the `bootstrap` family in the embedded library — LAPACK-free, so wasm-capable. NaN elements are missing values: the statistics skip them, and the correlations and regressions use complete cases.
 - **Correlations** — `covariance`, `correlation-pearson`, `correlation-spearman`, `correlation-kendall` (tau-b); `correlate-with` bootstraps a confidence interval for any of them, `cor` does it with kendall in one word. `qnorm` and `pnorm` are the standard normal quantile and CDF, `random-normal` a standard normal deviate.
 - **SVG plotting** (`lib/plot.telic`) — scatter, line series, histograms, bar charts, and Tukey boxplots over a deferred-rendering figure: marks accumulate with the style in effect and nothing maps to pixels until render, so draw order is free and the domain may be set after the data. `save-figure` writes a version, `show-figure` opens a browser view that later versions appear in.
-- **Element-wise math** — `abs`, `sqrt`, `exp`, `log`, `ln`, `log2`, `sin`, `cos`, `tan`, `sinh`, `cosh`, `tanh`, `asin`, `acos`, `atan`, `atan2`, `erf`, `erfc`, `round`, `truncate`, `round-up`, `round-down`. Polymorphic over floats and matrices.
+- **Element-wise math** — `abs`, `sqrt`, `exp`, `log`, `ln`, `ln1+`, `log2`, `sin`, `cos`, `tan`, `sinh`, `cosh`, `tanh`, `asin`, `acos`, `atan`, `atan2`, `erf`, `erfc`, `round`, `truncate`, `round-up`, `round-down`. Polymorphic over floats and matrices.
 - **Comparison** — `=` is structural, so matrices work as set members; `<`/`>`/`eq` on a matrix or array operand mask **element-wise** into a 1/0 matrix, so `names "ann" eq where` filters a text column. On scalars and strings all of them are structural.
 - **Sorting and masks** — `sort` (an ascending copy, NaNs last), `argsort` (the sorting permutation), `where` (the flat indices of a mask's nonzero elements), `nan?` (the missing-value mask), and `mesh` (masked substitution). Masks serve selection and alteration alike: `dup 0 @j 0 < where select-rows` keeps the rows whose first column is negative, `dup nan? 0 mesh` fills a column's NaNs, `dup -1 eq null mesh` turns a sentinel into missing.
 
@@ -494,13 +494,6 @@ the stdio server behind a stdio-to-Streamable-HTTP gateway such as mcp-proxy.
 - **`words`** — the dictionary grouped by reference section; **`apropos`** — every word whose name or summary matches a pattern.
 - **`variables`** — the current globals as `{ :name :value :type }` frames; **`vars`** prints them.
 - **`forget`**, **`bye`**, **`halt`**, **`gc`**, **`clear`**, **`.s`**, **`.a`** — interpreter utilities.
-
-## Absences
-
-Decisions, not gaps:
-
-- **No networking** — HTTP is a `curl` subprocess (`lib/http.telic`); anything else goes through a subprocess or the FFI.
-- **No CSV** — tabular I/O is TSV only; a tab or newline inside a cell is an error, not a quoting rule.
 
 ## Future work
 
