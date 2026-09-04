@@ -77,17 +77,24 @@ inline
 \ :minutes :seconds add exactly
 : date-shift
 	| instant delta |
+
 	delta :years 0 @or 12 *
 	delta :months 0 @or + to months
-	months 0 = not if
+	months 0= not if
 		instant epoch>date to date
-		date :year @ 12 * date :month @ + 1 - months + to months
+		date@year 12 * date@month + 1- months + to months
 		months 12 quotient to year
-		months 12 mod 1 + to month
+		months 12 mod 1+ to month
 		year month days-in-month to day-of-month
-		date :day @ day-of-month < if date :day @ to day-of-month then
-		{ :year year :month month :day day-of-month
-		  :hour date :hour @ :minute date :minute @ :second date :second @ } date>epoch to instant
+		date@day day-of-month < if date@day to day-of-month then
+		{ 
+		  :year year 
+		  :month month 
+		  :day day-of-month
+		  :hour date@hour 
+		  :minute date@minute
+		  :second date@second  
+		} date>epoch to instant
 	then
 	instant
 	delta :weeks   0 @or week +
