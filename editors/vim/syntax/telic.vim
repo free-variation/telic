@@ -77,11 +77,11 @@ syn keyword telicBuiltin pair? parallel-run parse-time partition pbootstrap peek
 syn keyword telicBuiltin pmap-reduce pmap-reduce-ext pnorm pointer-cell pointer-deref pointer-long pointer-string-at pointer>address print print-stack product-times ptr?
 syn keyword telicBuiltin pwd qnorm quantile quantiles quantity? query quotient r> r@ random random-int random-normal
 syn keyword telicBuiltin range ranks rationalize read read-available read-err read-file read-line read-out read-tsv real-part recurse
-syn keyword telicBuiltin reduce reify relation reload remove-last! rename-file render replace replace-where resample resample-indices resample-indices-ext
+syn keyword telicBuiltin reduce reify relation reload remove-last! rename-file render replace replace-where! resample resample-indices resample-indices-ext
 syn keyword telicBuiltin reset reshape resume retract reverse rm rmdir roll rot round round-down round-up
 syn keyword telicBuiltin row-at row-maxes row-means row-mins row-sums rows>dataset rows>relation rshift run run-result running? sample
 syn keyword telicBuiltin sample-with-replacement sample-without-replacement save save-tsv save-value se second see see-compiled see-compiled>string see-tree see-tree>string
-syn keyword telicBuiltin see>string seed segment>pointer segment? select-columns select-keys select-rows select-values set set-add! set-remove! set-unit
+syn keyword telicBuiltin see>string seed segment>pointer segment? select-columns select-keys select-rows select-values set set-add! set-remove! set-unit!
 syn keyword telicBuiltin set>array set? shift shift-with shuffle side-depth side-drop side-peek sigmoid sin sinh size
 syn keyword telicBuiltin skip sleep slice! solutions sort sort-by sort-rows sort-rows-descending spaces split spread sq
 syn keyword telicBuiltin sqrt start-generator start-process std stderr stdin stdout stdout>string stop stream? string>chars string>codepoints

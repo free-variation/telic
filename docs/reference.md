@@ -4077,8 +4077,8 @@ wall-now time>iso . cr
 | `aggregate` | `( dataset by xt -- dataset )` | datasets.telic: split-apply-combine — rows group by the `by` column's distinct values (`group-indices`), or by the value tuple of a `by`-symbol array (tuples group and order by `val_cmp`, so no composite string key is built); for each group `xt` `( group-dataset -- frame )` answers one row frame, the group's key values are stored into it under their own keys (overwriting any the xt set), and the rows reassemble through `frames>dataset` | n log n + per-group xt | one sub-dataset and frame per group + result columns; array `by` adds one tuple array per row | O(n log n + n·c) |
 | `expand-grid` | `( grid-frame -- dataset )` | datasets.telic: the cartesian product of the per-key value lists as a dataset — `grid-frame` maps each column key to its values (array, vector, or set), the result has one column per key and `∏ lengths` rows, every combination present. Columns follow `keys` order with the last key varying fastest, so rows come out sorted left to right (odometer order, as `itertools.product` gives). Numeric columns come back as vectors, text as arrays; a zero-length value list yields 0 rows, an empty frame `{ }` | ∏·k | one column each + index arrays | O(∏·k) |
 | `merge-by` | `( left right key join-type -- dataset )` | datasets.telic: join on `key` (a symbol or symbol array); `join-type` is `:inner` (matched pairs only), `:left` (every left row, right's columns `null` on a miss), `:right` (every right row, left's columns `null`), or `:outer` (left rows then unmatched right rows, missing side `null`). The probed side's key must be **unique** — right for `:inner`/`:left`, left for `:right`, both for `:outer` — a duplicate erroring toward the fact database's `inner-join` for many-to-many; a non-key column in both datasets errors naming it (no `.x`/`.y` suffixing). Columns are the union with key once; a null-filled numeric column re-infers as a vector with NaN | L·R | row frames + merged columns | O(L·R) |
-| `set-unit` | `( dataset unit-xt sym -- dataset )` | datasets.telic: set the named column's unit to the one `unit-xt` attaches (`' m`), replacing any existing unit — `magnitude` strips first, then the unit word applies, so the column becomes a dimensioned vector and the stats keep the unit. In place, returns the dataset; a non-numeric (text) column errors naming it | log c + n | one column | O(n) |
-| `replace-where` | `( dataset pred replacement sym -- )` | datasets.telic: replace the named column's cells passing `pred` `( column -- mask )`, in place — `update-at` around `mesh`, so the replacement broadcasts and units reconcile: `pipeline [: -1 eq :] null :rep_touches replace-where` nulls a sentinel, `[: nan? :] 0` fills missing, `[: 10 $ < :] 5 $` floors prices | pred + n | mask + one column | O(n) |
+| `set-unit!` | `( dataset unit-xt sym -- dataset )` | datasets.telic: set the named column's unit to the one `unit-xt` attaches (`' m`), replacing any existing unit — `magnitude` strips first, then the unit word applies, so the column becomes a dimensioned vector and the stats keep the unit. In place, returns the dataset; a non-numeric (text) column errors naming it | log c + n | one column | O(n) |
+| `replace-where!` | `( dataset pred replacement sym -- )` | datasets.telic: replace the named column's cells passing `pred` `( column -- mask )`, in place — `update-at` around `mesh`, so the replacement broadcasts and units reconcile: `pipeline [: -1 eq :] null :rep_touches replace-where!` nulls a sentinel, `[: nan? :] 0` fills missing, `[: 10 $ < :] 5 $` floors prices | pred + n | mask + one column | O(n) |
 | `resample-indices` | `( n -- arr )` | datasets.telic: n indices drawn from [0,n) with replacement (bootstrap), from the global stream | 2n | `2×1a(n)` | O(n) |
 | `resample-indices-ext` | `( n seed -- arr )` | n indices drawn from [0,n) with replacement by a private generator seeded from `seed` (splitmix64-expanded) — same draw for the same seed regardless of thread or stream position; the bootstrap words seed replicate i at run-seed + i | n | `1a(n)` | O(n)† |
 
@@ -4256,15 +4256,15 @@ ann    34
 [ :a :b :c ] [ 10 null 30 ]
 ```
 
-```forth set-unit
-{ :height [ 170 180 ] vector } ' m :height set-unit :height @ mean . cr
+```forth set-unit!
+{ :height [ 170 180 ] vector } ' m :height set-unit! :height @ mean . cr
 ```
 ```output
 175 m
 ```
 
-```forth replace-where
-[ [ "v" ] [ -1 ] [ 5 ] ] true rows>dataset dup [: -1 eq :] null :v replace-where :v @ nonmissing-count . cr
+```forth replace-where!
+[ [ "v" ] [ -1 ] [ 5 ] ] true rows>dataset dup [: -1 eq :] null :v replace-where! :v @ nonmissing-count . cr
 ```
 ```output
 1

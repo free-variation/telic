@@ -446,7 +446,7 @@ TSV is the one tabular file format (convert other formats to TSV before loading)
 - **`frames>dataset`** — an array of row frames, as `query` and `db-query` return, into a dataset with inferred column types.
 - **`aggregate`** — split-apply-combine: group rows by a column, reduce each group to a row frame, reassemble as a dataset.
 - **`head`** / **`headn`** — print the first rows as an aligned table, `headn` taking the row count and the columns to lead with.
-- **`replace-where`** — edit one column in place where a predicate holds.
+- **`replace-where!`** — edit one column in place where a predicate holds.
 - **`resample-indices`** — indices drawn with replacement, for bootstrap resampling.
 
 The statistics library (`lib/statistics.telic`, loaded on demand) builds on the matrix and FFI layers:

@@ -512,7 +512,7 @@ rename-file
 render
 repeat
 replace
-replace-where
+replace-where!
 resample
 resample-indices
 resample-indices-ext
@@ -568,7 +568,7 @@ series-plot
 set
 set-add!
 set-remove!
-set-unit
+set-unit!
 set>array
 set?
 shift

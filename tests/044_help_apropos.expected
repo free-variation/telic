@@ -52,7 +52,7 @@ se               ( mat -- f )             statistics.telic: standard error of th
 summary          ( v/dataset -- fr )      statistics.telic: a vector answers { :min :q1 :median :mean :q3 :max } over its finite elements — a dimensioned vector in its unit, an instant vector (unit exactly s) with each statistic rendered through time>iso — plus :missing with the NaN count when any; an all-missing vector answers { :missing n }, an empty one { }. A dataset answers that frame per numeric column and { :distinct } (distinct non-missing cells, plus :missing) per text column, keyed by column name; any other column value errors naming the column
 : 2dup over over ;
 map ( arr/set xt -- arr ) or ( dataset xt -- dataset )
-  Apply xt to each element; xt must net exactly one value. datasets.telic extends it to a dataset: xt maps each row frame to a new row frame — derive, rename, or drop fields — and the returned frames rebuild through frames>dataset, so all rows must share keys and columns re-infer their representation
+  Apply xt to each element; xt must leave exactly one value. datasets.telic extends it to a dataset: xt maps each row frame to a new row frame — derive, rename, or drop fields — and the returned frames rebuild through frames>dataset, so all rows must share keys and columns re-infer their representation
   ops 2 + n·xt, alloc 1a(n); dataset rows + new columns, O(n·xt); dataset O(n·(xt + k log k))
 
   > [ 1 2 3 ] [: dup * :] map . cr

@@ -313,7 +313,7 @@
 
 ( dataset pred replacement sym -- ) \ replaces the column's cells passing pred, in place
 \ read, mesh, store back — what update-at did, without a quotation reaching outward
-: replace-where
+: replace-where!
 	| dataset predicate replacement column-name |
 	dataset
 	dataset column-name @  dup predicate execute  replacement mesh
@@ -542,9 +542,9 @@
 ( dataset unit-xt sym -- dataset ) \ set the named column's unit, replacing any
 \ existing one: strips with magnitude, then applies the unit word (' m). In place,
 \ returns the dataset; a non-numeric column errors
-: set-unit
+: set-unit!
 	| dataset unit-xt column-name |
 	dataset column-name @  dup matrix? swap quantity? or  not if
-		column-name "set-unit: column :{0} is not numeric" format throw
+		column-name "set-unit!: column :{0} is not numeric" format throw
 	then
 	dataset  unit-xt [: column unit | column magnitude unit execute :] curry  column-name  update-at ;

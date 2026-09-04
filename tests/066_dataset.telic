@@ -208,21 +208,21 @@ clear
 [ 1 2 ] vector 1 [ 9 9 ] vector mesh                    \ (mask must be a matrix)
 
 clear
-\ replace-where ( dataset pred replacement sym -- ): conditionally edit one
+\ replace-where! ( dataset pred replacement sym -- ): conditionally edit one
 \ column in place; pred is ( column -- mask ), the replacement broadcasts.
 { :rep_touches [ 3 -1 7 ] vector :name [ "a" null "c" ] } to editable
-editable [: -1 eq :] null :rep_touches replace-where
+editable [: -1 eq :] null :rep_touches replace-where!
 editable :rep_touches @ transpose . cr          \ 3 nan 7
-editable ' nan? 0 :rep_touches replace-where
+editable ' nan? 0 :rep_touches replace-where!
 editable :rep_touches @ transpose . cr          \ 3 0 7
-editable ' nan? "?" :name replace-where
+editable ' nan? "?" :name replace-where!
 editable :name @ . cr                           \ [ "a" "?" "c" ]
 { :price [ 12 8 ] vector $ } to shop
-shop [: 10 $ < :] 5 $ :price replace-where
+shop [: 10 $ < :] 5 $ :price replace-where!
 shop :price @ transpose . cr                    \ 12 5, unit kept
 
 \ errors
-editable ' nan? 0 :missing replace-where    \ (no key :missing)
+editable ' nan? 0 :missing replace-where!    \ (no key :missing)
 
 clear
 \ sort-rows ( dataset sym -- dataset ): rows sorted ascending by the named
@@ -374,14 +374,14 @@ clear
 { :a [ 1 ] } { :b [ 2 ] } vstack                 \ (different columns)
 
 clear
-\ set-unit ( dataset unit-xt sym -- dataset ): set a column's unit via a unit
+\ set-unit! ( dataset unit-xt sym -- dataset ): set a column's unit via a unit
 \ word (' m), replacing any existing one; text columns error.
 { :height [ 170 180 ] vector :name [ "a" "b" ] } to measures
-measures ' m :height set-unit drop
+measures ' m :height set-unit! drop
 measures :height column-type . cr               \ :quantity
 measures :height @ mean . cr                    \ 175 m — stats keep the unit
-{ :d [ 1 2 ] vector km } ' m :d set-unit :d @ mean . cr   \ 1.5 m — replaces km, no compound
-{ :w [ 2 4 ] vector } ' kg :w set-unit :w @ unit-of . cr  \ 1 kg — leaves the dataset, chains
+{ :d [ 1 2 ] vector km } ' m :d set-unit! :d @ mean . cr   \ 1.5 m — replaces km, no compound
+{ :w [ 2 4 ] vector } ' kg :w set-unit! :w @ unit-of . cr  \ 1 kg — leaves the dataset, chains
 
 \ errors
-{ :name [ "a" ] } ' m :name set-unit             \ (:name is not numeric)
+{ :name [ "a" ] } ' m :name set-unit!             \ (:name is not numeric)

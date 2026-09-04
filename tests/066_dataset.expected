@@ -241,7 +241,7 @@ in mesh
          12          5
 
 error: no key :missing
-in (@.symbol) ← replace-where
+in (@.symbol) ← replace-where!
 {
   :name [ "c" "b" "a" ]
   :height <matrix 3x1:  190 180 170> m
@@ -370,5 +370,5 @@ in throw ← dataset-vstack
 175 m 
 1.5 m 
 1 kg 
-error: uncaught exception: "set-unit: column :name is not numeric"
-in throw ← set-unit
+error: uncaught exception: "set-unit!: column :name is not numeric"
+in throw ← set-unit!
