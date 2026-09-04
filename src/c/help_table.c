@@ -149,6 +149,7 @@ const HelpEntry help_entries[] = {
 	{ "array>frame", "( arr -- fr )", "Build from an even-length alternating-kv array; a path key (/a/b/c) vivifies nested frames", "1 + n log n", "1o + reallocs", "O(n log n)", 18 },
 	{ "array>set", "( array -- set )", "Sort a copy of the array once and dedup into a set — the fast bulk constructor (one sort, not n inserts); the source array is unchanged", "n log n", "1o + realloc", "O(n log n)", 15 },
 	{ "array?", "( a -- bool )", "core.telic: type-of :array = (inlined)", "5", "none", "O(1)", 4 },
+	{ "as", "( q unit-xt -- q' )", "units.telic: re-express q in the unit unit-xt attaches (' MiB) — 2 34 ^ B ' MiB as is 16384 MiB, 1 hour ' s as is 3600 s; magnitude after gives the bare count. Same dimension required; a different-dimension q or a bare-number q errors", "4", "1 pair", "O(1)", 5 },
 	{ "as-column", "( v -- v' )", "matrix.telic: any vector shape as n×1 (dup dim * 1 reshape, inlined)", "r×c", "1m(n×1)", "O(n)", 21 },
 	{ "asin", "( a -- asin a )", "inverse sine", "2", "matrix 1m(r×c)", "same", 3 },
 	{ "assert", "( rel row -- rel )", "Add row to :rows and to each indexed column's bucket; identical row is a no-op. Mutates rel in place, returns it", "k + n", "reallocs", "O(n)", 30 },
@@ -779,7 +780,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "C primitive alias of unify, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 29 },
 };
 
-const int help_entry_count = 722;
+const int help_entry_count = 723;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -877,6 +878,7 @@ const HelpExample help_examples[] = {
 	{ "array>frame", "[ :x 1 :y 2 ] array>frame frame>array . cr", "[ :x 1 :y 2 ]" },
 	{ "array>set", "[ 3 1 3 2 ] array>set . cr", "[< 1 2 3 >]" },
 	{ "array?", "[ ] array? . cr", "1" },
+	{ "as", "2 34 ^ B ' MiB as . cr\n1 hour ' s as . cr", "16384 MiB\n3600 s" },
 	{ "as-column", "[ 1 2 3 ] 1 3 matrix as-column dim swap . . cr", "3 1" },
 	{ "asin", "0.5 asin . cr", "0.523599" },
 	{ "assert", "[ :name ] relation { :name :ann :age 34 } assert { :name :ann } query first frame>array . cr", "[ :name :ann :age 34 ]" },
@@ -1507,4 +1509,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 723;
+const int help_example_count = 724;

@@ -10,7 +10,7 @@ lvar dup = . cr                            \ 1
 
 \ identity holds through storage
 lvar to A  A A = . cr                      \ 1
-lvar to B  A B = . cr                      \ 0
+lvar to Y  A Y = . cr                      \ 0
 
 \ a logic var on the stack survives GC
 lvar gc dup = . cr                         \ 1

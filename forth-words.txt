@@ -92,6 +92,7 @@ array>cons
 array>frame
 array>set
 array?
+as
 as-column
 asin
 assert

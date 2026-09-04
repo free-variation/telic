@@ -17,7 +17,7 @@ r { :bogus :anything } query size . cr                 \ 2   surprising but cons
 \ an indexed column queried with a non-symbol value can't narrow and matches no row
 r { :child 42 } query size . cr                        \ 0
 \ a bound logic var in the pattern behaves like its value
-lvar to B   B :a ~ drop   r { :child B } query size . cr   \ 1
+lvar to Y   Y :a ~ drop   r { :child Y } query size . cr   \ 1
 
 \ === empty-pattern query and retract ===
 r { } query size . cr                                  \ 2   empty pattern matches every row

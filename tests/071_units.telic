@@ -167,3 +167,23 @@ clear
 5 hertz . cr                            \ 5 hertz  (hertz is not renamed)
 
 clear
+\ ---- IEC binary data units, powers of 1024 (MiB is the base dimension) ----
+1 KiB 1 B / . cr                        \ 1024
+1 MiB 1 KiB / . cr                      \ 1024
+1 GiB 1 MiB / . cr                      \ 1024
+1 TiB 1 GiB / . cr                      \ 1024
+1 PiB 1 TiB / . cr                      \ 1024
+4 GiB 1 B / . cr                        \ 4294967296  (4 * 2^30)
+1536 MiB 1 GiB + 1 GiB / . cr           \ 2.5   (mixed-unit arithmetic reconciles)
+512 MiB . cr                            \ 512 MiB
+1 PiB . cr                              \ 1 PiB
+
+clear
+\ ---- as: re-express a quantity in the unit an xt attaches (' MiB) ----
+2 34 ^ B ' MiB as . cr                  \ 16384 MiB
+2 34 ^ B ' GiB as . cr                  \ 16 GiB
+2 34 ^ B ' MiB as magnitude . cr        \ 16384   (bare count)
+1 $ ' ¢ as . cr                         \ 100 ¢   (general, not memory-only)
+5 ' MiB as                              \ (cannot convert a bare number)
+
+clear

@@ -106,3 +106,18 @@ in *
 5 m 
 8 m 
 5 hertz 
+1024 
+1024 
+1024 
+1024 
+1024 
+4294967296 
+2.5 
+512 MiB 
+1 PiB 
+16384 MiB 
+16 GiB 
+16384 
+100 ¢ 
+error: cannot add a quantity and a plain number
+in + ← as

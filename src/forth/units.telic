@@ -80,6 +80,7 @@ inline
 
 	delta :years 0 @or 12 *
 	delta :months 0 @or + to months
+	
 	months 0= not if
 		instant epoch>date to date
 		date@year 12 * date@month + 1- months + to months
@@ -87,6 +88,7 @@ inline
 		months 12 mod 1+ to month
 		year month days-in-month to day-of-month
 		date@day day-of-month < if date@day to day-of-month then
+
 		{ 
 		  :year year 
 		  :month month 
@@ -96,14 +98,28 @@ inline
 		  :second date@second  
 		} date>epoch to instant
 	then
+	
 	instant
 	delta :weeks   0 @or week +
 	delta :days    0 @or day +
 	delta :hours   0 @or hour +
 	delta :minutes 0 @or minute +
 	delta :seconds 0 @or s + ;
+
 1000 m   unit km
 
 base unit $   1 $ 100 / unit ¢
 base unit £   1 £ 100 / unit penny
 base unit €   1 € 100 / unit eurocent
+
+\ data (IEC binary units, powers of 1024); MiB is the base, so B is 1/2^20 MiB
+\ and PiB is 2^30 MiB
+base unit MiB
+1 MiB 1024 / unit KiB
+1 KiB 1024 / unit B
+1024 MiB unit GiB
+1024 GiB unit TiB
+1024 TiB unit PiB
+
+( q unit-xt -- q' ) \ re-express q in the unit that unit-xt attaches (' MiB)
+: as  | q unit-xt |  1 unit-xt execute  0 *  q + ;

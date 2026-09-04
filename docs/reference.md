@@ -1365,12 +1365,14 @@ dimensioned inputs are computed over their magnitudes.
 |------|-------------|----------|-----|-------|---|
 | `magnitude` | `( v -- v' )` | A quantity's bare magnitude (float or matrix, the unit dropped); any other value passes through unchanged | 2 | none | O(1) |
 | `unit-of` | `( v -- q\|1 )` | A quantity's unit as the quantity `1` in that unit (`10 km` → `1 km`, a matrix column in `m` → `1 m`, computed units in dimensional form — `1 m.s^-1`); a bare value answers `1.0`. Composes: `x unit-of *` attaches x's unit, `1 s =` tests for a unit | 2 | 1 pair | O(1) |
+| `as` | `( q unit-xt -- q' )` | units.telic: re-express `q` in the unit `unit-xt` attaches (`' MiB`) — `2 34 ^ B ' MiB as` is `16384 MiB`, `1 hour ' s as` is `3600 s`; `magnitude` after gives the bare count. Same dimension required; a different-dimension `q` or a bare-number `q` errors | 4 | 1 pair | O(1) |
 
 `units.telic` predeclares a standard set (names spelled out and lowercase):
 length `m` (`km`), time `s` (`minute`, `hour`, `day`, `week`), mass `kg`, current `ampere`,
 temperature `kelvin`, amount `mol`; derived `hertz` `newton` `pascal` `joule`
-`watt` `coulomb` `volt`; and three currencies, each its own dimension —
-`$`/`¢`, `£`/`penny`, `€`/`eurocent`.
+`watt` `coulomb` `volt`; three currencies, each its own dimension —
+`$`/`¢`, `£`/`penny`, `€`/`eurocent`; and the IEC binary data units
+`B` `KiB` `MiB` `GiB` `TiB` `PiB`, each 1024× the last.
 
 ```forth magnitude
 10 km magnitude . cr
@@ -1384,6 +1386,15 @@ temperature `kelvin`, amount `mol`; derived `hertz` `newton` `pascal` `joule`
 ```
 ```output
 1 km
+```
+
+```forth as
+2 34 ^ B ' MiB as . cr
+1 hour ' s as . cr
+```
+```output
+16384 MiB
+3600 s
 ```
 
 ## Exact rationals

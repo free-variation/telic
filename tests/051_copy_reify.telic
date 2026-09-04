@@ -3,7 +3,7 @@
 \ ones; reify names them :_N canonically by first appearance.
 
 \ copy dereferences bound vars to their values
-lvar to A   lvar to B   [( 3 4 )] [( A B )] ~ drop   [( A B )] copy . cr     \ [( 3 4 )]
+lvar to A   lvar to Y   [( 3 4 )] [( A Y )] ~ drop   [( A Y )] copy . cr     \ [( 3 4 )]
 
 \ copy of a ground list is unchanged
 [( 1 2 3 null )] copy . cr                                                   \ [( 1 2 3 null )]
