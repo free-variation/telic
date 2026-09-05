@@ -1,11 +1,11 @@
 \ logic words
 \ (~ is registered in C as a primitive alias of unify, so cons ~ fuses to (cons~))
 
-( v -- val )  \ resolve a logic var to its current binding
+( v -- val ) \ resolve a logic var to its current binding
 : ? deref ;
 inline
 
-( list goal -- )  \ run goal with each element of list in turn; commit to the first element for which goal succeeds, fail if none do
+( list goal -- ) \ run goal with each element of list in turn; commit to the first element for which goal succeeds, fail if none do
 : choose
 	| list goal |
 	list null = if fail exit then
@@ -18,7 +18,7 @@ inline
 		amb
 	then ;
 
-( list goal -- arr )  \ goal's value for every element of the cons list it
+( list goal -- arr ) \ goal's value for every element of the cons list it
 \ succeeds on, in list order; answers snapshot through copy, and every
 \ binding rolls back — choose collects all instead of committing to one
 : solutions
@@ -36,7 +36,7 @@ inline
 	' identity amb
 	answers ;
 
-( list goal n -- arr )  \ the first n solutions; the goal stops running once
+( list goal n -- arr ) \ the first n solutions; the goal stops running once
 \ n are collected, and bindings roll back as in solutions
 : take-solutions
 	| list goal n |
@@ -84,7 +84,7 @@ inline
 	dup :rows @ row set-op execute drop
 	dup :index @ keys swap
 	row bucket-op
-	[: rel col row bucket-op | rel :index @ col @  row col @  row bucket-op execute  rel :]
+	[: rel col row bucket-op | rel :index @ col @ row col @ row bucket-op execute rel :]
 	2curry reduce ; internal
 
 ( rel row -- rel ) \ add row to :rows and to each indexed column's bucket
@@ -98,7 +98,7 @@ inline internal
 ( rel pattern col -- bucket ) \ rows bucket for pattern's value in column col, empty if that value was never asserted
 : bucket-of
 	| rel pattern col |
-	rel :index @ col @  pattern col @ ?
+	rel :index @ col @ pattern col @ ?
 	2dup has? if @ else 2drop [< >] then ; internal
 
 ( [sets] -- set ) \ the smallest set in a non-empty array
@@ -171,10 +171,10 @@ inline internal
  ( rel rows-array -- rel ) \ load all rows: build :rows in one sorted pass, then index each row
 : bulk-load
 	| rel rows-array |
-	rel  rows-array array>set  :rows !
+	rel rows-array array>set :rows !
 	dup :index @ keys
 	rel rows-array
-	[: col rel rows-array | rel :index @  rows-array col group-by  col  ! :]
+	[: col rel rows-array | rel :index @ rows-array col group-by col ! :]
 	2curry map drop ;
 
 ( rel rows-array -- rel ) \ like bulk-load, but :rows stays a bag (array); only the index is built
@@ -183,7 +183,7 @@ inline internal
 	rel rows-array :rows !
 	dup :index @ keys
 	rel rows-array
-	[: col rel rows-array | rel :index @  rows-array col group-by  col  ! :]
+	[: col rel rows-array | rel :index @ rows-array col group-by col ! :]
 	2curry map drop ;
 
 ( rel cols -- rel ) \ index rel on cols: intern each indexed column's value to a symbol, then build the index

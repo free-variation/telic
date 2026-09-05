@@ -24,9 +24,10 @@ plotting library is pure forth (no FFI) and works under wasm; only its
 | `dgemv-t` | `( α A x β y -- r )` | `r = α·Aᵀ·x + β·y` via cblas dgemv, with `x` A's row count and `y` its column count |
 | `svd` | `( A -- U S VT )` | Thin singular value decomposition via LAPACKE dgesvd: `A = U diag(S) VT`, with `S` the 1×min(m,n) singular values. Column signs of U/VT are not canonical, so pin goldens on S and the reconstruction, not raw U/VT entries |
 | `fit-linear` | `( mat y -- beta )` | Ordinary least squares via LAPACKE dgelsd; `mat` is observations×predictors (observations ≥ predictors), `y` the observations×1 response, `beta` the predictors×1 coefficients |
+| `fit-weighted-linear` | `( X y w -- beta )` | Weighted least squares: each row of `X` and `y` scaled by √wᵢ, then ordinary least squares, so a weight of 2 equals the row appearing twice; unit weights give `fit-linear`'s answer |
 | `fit-augmented` | `( augmented -- beta )` | Least squares of an `[X | y]` block whose last column is the response |
-| `fit-nonnegative` | `( X y -- beta )` | Nonnegative least squares — min ‖Xβ−y‖² with β ≥ 0 — by the Lawson–Hanson active set over `fit-linear` subset solves: terminates finitely with exact zeros on the active set, and at the answer the passive gradient is ~0 and the active gradient ≤ 0 (the KKT conditions, checkable as `X transpose y X beta matmul - matmul`) |
-| `fit-simplex` | `( X y -- weights )` | Least squares on the probability simplex — weights ≥ 0 summing to 1 (synthetic-control weights, mixture proportions). The sum constraint enters `fit-nonnegative` as a ones row weighted 1000·max(1, max\|X\|), the weights keep the penalty's O(1/mu²) deviation (~1e-7 relative), and a final renormalization reduces the sum error to one float rounding; throws `empty support` when every weight is 0 |
+| `fit-nonnegative` | `( X y -- beta )` | Nonnegative least squares — min ‖Xβ−y‖² with β ≥ 0 — by the Lawson–Hanson active-set method over least-squares subset solves: terminates finitely with exact zeros on the active set, and at the answer the passive gradient is ~0 and the active gradient ≤ 0 (the KKT conditions, checkable as `X transpose y X beta matmul - matmul`) |
+| `fit-simplex` | `( X y -- weights )` | Least squares on the probability simplex — weights ≥ 0 summing to 1 (synthetic-control weights, mixture proportions). The sum constraint enters the nonnegative least-squares solve as a ones row weighted 1000·max(1, max\|X\|), the weights keep the penalty's O(1/mu²) deviation (~1e-7 relative), and a final renormalization reduces the sum error to one float rounding; throws `empty support` when every weight is 0 |
 
 ```forth dgemm-nn
 "statistics" load-library
@@ -92,6 +93,14 @@ plotting library is pure forth (no FFI) and works under wasm; only its
 [ 1 2 ]
 ```
 
+```forth fit-weighted-linear
+"statistics" load-library
+[ 1 1 1 2 1 3 ] 3 2 matrix [ 1 2 4 ] vector [ 2 1 1 ] vector fit-weighted-linear matrix>array . cr
+```
+```output
+[ -0.545455 1.45455 ]
+```
+
 ```forth fit-augmented
 "statistics" load-library
 [ 1 1 3 1 2 5 1 3 7 ] 3 3 matrix fit-augmented matrix>array . cr
@@ -118,24 +127,37 @@ plotting library is pure forth (no FFI) and works under wasm; only its
 
 ## Regression (lib/statistics.telic)
 
-`linear-regression` and `logistic-regression` answer a model frame:
-`:coefficients` (one `{ :estimate :se :bias :ci-low :ci-high }` frame per
-coefficient, in design-column order), `:estimates` (the k×1 point estimate),
-`:predictors` (`:intercept` then the caller's symbols), `:response`,
-`:design` and `:responses` (the complete-case rows the fit saw, incomplete
-rows already dropped), `:n-rows`, and `:replications`. Everything in it is data, so
-the frame applies to new rows and stores whole; `:design delete-at` drops the
-bulk when only the coefficients are wanted.
+`linear-regression`, `logistic-regression`, and `glm-regression` answer a model
+frame: `:coefficients` (one frame per coefficient, in design-column order:
+`{ :estimate :se :ci-low :ci-high }` plus `:z :p` under Wald inference or
+`:bias` under bootstrap), `:covariance` (the k×k coefficient covariance: φ·(XᵀWX)⁻¹
+under Wald, the sample covariance of the replicate coefficient vectors under
+bootstrap — its diagonal is the `:se` column squared), `:estimates` (the k×1
+point estimate), `:predictors`
+(`:intercept` then the caller's symbols), `:response` (the response column's
+symbol, or `null` when the response was given as a matrix), `:design`, `:responses`,
+and `:weights` (the complete-case rows the fit saw, incomplete rows already
+dropped), `:family` (the GLM family object), `:n-rows`, `:replications`, and
+`:inference` (`:wald` when `replications` is 0, else `:bootstrap`). Everything
+in it is data, so the frame applies to new rows and stores whole; `:design
+delete-at` drops the bulk when only the coefficients are wanted.
+`regression-report` prints a model frame as fit statistics and a coefficient
+table; `regression-statistics` and `regression-coefficients` answer the two
+halves as values.
 
 | Word | Stack effect | Summary |
 | --- | --- | --- |
-| `linear-regression` | `( dataset predictors response replications -- model )` | OLS with nonparametric bootstrap inference; the model frame is described below the table |
+| `linear-regression` | `( dataset predictors response replications -- model )` | OLS point estimate; `replications` 0 gives Wald inference (σ̂²(XᵀX)⁻¹, z and p per coefficient), B > 0 a nonparametric bootstrap over B resamples; the model frame is described above the table |
 | `fit-logistic` | `( X y max-iterations tolerance -- beta )` | Binary logistic regression by Firth-penalized IRLS (estimates stay finite under separation); `X` includes the intercept column, `y` in {0,1} |
 | `fit-logistic-ridge` | `( X y max-iterations tolerance lambda -- beta )` | L2-penalized logistic by IRLS; `lambda` penalizes ‖beta‖²/2 with the intercept column unpenalized, `lambda` 0 the plain MLE (no Firth). Each step appends sqrt(`lambda`)·I rows to the weighted design and solves that least-squares system by Householder QR (`dgels`); a design `dgels` reports rank-deficient falls back to `dgelsd`, which answers a minimum-norm solution. The normal equations are not used: squaring the design costs about half the digits, which floors the beta step near 1e-6 at small `lambda` and prevents convergence at a 1e-8 tolerance |
 | `fit-augmented-logistic` | `( augmented -- beta )` | Firth logistic fit of an `[X | y]` block |
-| `logistic-regression` | `( dataset predictors response replications -- model )` | Firth logistic with the bootstrap inference and model frame of `linear-regression` |
+| `logistic-regression` | `( dataset predictors response replications -- model )` | Firth-penalized logistic regression; `replications` 0 gives Wald inference from the binomial-logit covariance at the Firth estimate (the penalty's curvature term is not included), B > 0 a nonparametric bootstrap over B resamples; the model frame is described above the table |
+| `glm-regression` | `( dataset predictors response weights family replications -- model )` | A GLM under `family` from a dataset: `predictors` name the design columns (an intercept is prepended); `response` is the outcome as a column symbol or an n×1 matrix; `weights` is the prior weights as a column symbol, an n×1 matrix, or `null` for unit weights. `replications` 0 gives Wald inference from `glm-covariance` (so a `:pearson` family's φ inflates the SEs), B > 0 a nonparametric bootstrap of B refits; the model frame is described above the table |
+| `regression-statistics` | `( model -- fr )` | `{ :n :n-terms :dispersion :deviance :null-deviance :pseudo-r2 }` for a model frame: the weighted deviance at the estimate, the intercept-only model's deviance under the same family and weights, McFadden's `1 − deviance/null-deviance`, and `glm-dispersion`'s φ. For `linear-regression` these are RSS, TSS, R², and σ̂² |
+| `regression-coefficients` | `( model -- dataset )` | One row per term: `:term` and the coefficient summary's keys (`:estimate :se :ci-low :ci-high`, plus `:z :p` or `:bias` by inference); when the family has an `:effect` — `:odds-ratio` for the logit families, `:rate-ratio` for the log-link families — three more columns carry exp of the estimate and of the two bounds under that name and its `-low`/`-high` |
+| `regression-report` | `( model -- )` | Print `regression-statistics` as `name value` lines, then `regression-coefficients` as an aligned table with columns in the order term, estimate, se, z and p (or bias), ci-low, ci-high, then the effect columns |
 | `cv-logistic-ridge` | `( X y units lambdas n-folds -- fr )` | k-fold cross-validation of ridge logistic over a `lambdas` grid, returning `{ :lambdas :deviances :best }`; `X` excludes the intercept (added internally, unpenalized), `units` index rows so per-cluster index arrays give cluster CV |
-| `pcv-logistic-ridge` | `( X y units lambdas n-folds -- fr )` | `cv-logistic-ridge` with the (lambda, fold) cells evaluated under `pmap`; results are identical, the cells being deterministic |
+| `pcv-logistic-ridge` | `( X y units lambdas n-folds -- fr )` | k-fold cross-validation of ridge logistic over a `lambdas` grid with the (lambda, fold) cells evaluated in parallel, returning `{ :lambdas :deviances :best }`; `X` excludes the intercept (added internally, unpenalized), `units` index rows so per-cluster index arrays give cluster CV; the answer matches a serial run, the cells being deterministic |
 
 ```forth linear-regression
 "statistics" load-library
@@ -178,6 +200,48 @@ dup :coefficients @ first :estimate @ . :predictors @ . cr
 -0.521648
 ```
 
+```forth glm-regression
+"statistics" load-library
+[ [ "x" "y" ] [ 1 0 ] [ 2 0 ] [ 3 1 ] [ 4 0 ] [ 5 1 ] [ 6 0 ] [ 7 1 ] [ 8 1 ] ] true rows>dataset
+[ :x ] :y null quasibinomial-logit 0 glm-regression dup :inference @ . :coefficients @ 1 @i :estimate @ . cr
+```
+```output
+:wald 0.594084
+```
+
+```forth regression-statistics
+"statistics" load-library
+[ [ "x" "y" ] [ 1 1 ] [ 2 2 ] [ 3 4 ] ] true rows>dataset [ :x ] :y 0 linear-regression regression-statistics dup :pseudo-r2 @ . :dispersion @ . cr
+```
+```output
+0.964286 0.166667
+```
+
+```forth regression-coefficients
+"statistics" load-library
+[ [ "x" "y" ] [ 1 0 ] [ 2 0 ] [ 3 1 ] [ 4 0 ] [ 5 1 ] [ 6 0 ] [ 7 1 ] [ 8 1 ] ] true rows>dataset
+[ :x ] :y null quasibinomial-logit 0 glm-regression regression-coefficients dup :term @ . :odds-ratio @ 1 @e . cr
+```
+```output
+[ :intercept :x ] 1.81137
+```
+
+```forth regression-report
+"statistics" load-library
+[ [ "x" "y" ] [ 1 1 ] [ 2 2 ] [ 3 4 ] ] true rows>dataset [ :x ] :y 0 linear-regression regression-report
+```
+```output
+n 3, terms 2
+inference wald
+dispersion 0.166667
+deviance 0.166667, null deviance 4.66667
+pseudo-r2 0.964286
+
+term         estimate        se         z            p    ci-low   ci-high
+:intercept  -0.666667   0.62361  -1.06904     0.285049  -1.88892  0.555586
+:x                1.5  0.288675   5.19615  2.03455e-07  0.934207   2.06579
+```
+
 ```forth cv-logistic-ridge
 "statistics" load-library
 42 seed [ 0 1 2 3 4 5 ] 6 1 matrix [ 0 0 0 1 1 1 ] vector 6 iota [ 0.1 1 ] 2 cv-logistic-ridge :best @ . cr
@@ -198,14 +262,17 @@ dup :coefficients @ first :estimate @ . :predictors @ . cr
 
 | Word | Stack effect | Summary |
 | --- | --- | --- |
-| `fit-glm` | `( X y family max-iterations tolerance -- beta )` | IRLS for a family object — a frame of three stack quotations `:inverse-link ( eta -- mu )`, `:mean-derivative ( eta -- dmu/deta )`, `:variance ( mu -- V )`. Each step solves a weighted least squares via `fit-linear`. Provided families: `gaussian-identity`, `poisson-log`, `gamma-log`, `binomial-logit` |
-| `fit-gamma` | `( X y max-iterations tolerance -- beta )` | Gamma regression, log link — `fit-glm` with `gamma-log` |
-| `fit-poisson` | `( X y max-iterations tolerance -- beta )` | Poisson regression, log link — `fit-glm` with `poisson-log` |
-| `negative-binomial-log` | `( theta -- family )` | The NB2 family at a known dispersion: log link, variance μ + μ²/θ, so a large θ approaches `poisson-log`. Pass to `fit-glm` to fit coefficients with θ held fixed; `theta` is curried into the variance quotation, costing one small anonymous word per call |
+| `fit-glm` | `( X y family max-iterations tolerance -- beta )` | IRLS for a family object — a frame of four stack quotations `:inverse-link ( eta -- mu )`, `:mean-derivative ( eta -- dmu/deta )`, `:variance ( mu -- V )`, `:deviance ( y mu -- d )` (the per-observation unit deviance), and `:dispersion`, `:fixed` (φ is 1) or `:pearson` (φ estimated from the fit; the default when the key is absent). Each step solves a weighted least squares with unit prior weights; iteration stops when the relative change in total deviance, `\|d − d′\| / (\|d\| + 0.1)`, falls below `tolerance`, or on `\|beta − beta′\| < tolerance` for a family without `:deviance`; exceeding `max-iterations` throws. Provided families: `gaussian-identity`, `poisson-log`, `gamma-log`, `binomial-logit`, and `quasibinomial-logit` — the binomial link and variance with `:dispersion :pearson`, so its coefficients equal `binomial-logit`'s on the same data while `glm-dispersion` and `glm-covariance` estimate φ instead of holding it at 1. The two logit families clamp η to [−30, 30] and floor dμ/dη at machine epsilon, so a separated or quasi-separated design fits to large finite coefficients with correspondingly large variances instead of failing to converge |
+| `fit-glm-weighted` | `( X y weights family max-iterations tolerance -- beta )` | IRLS with prior weights: `weights` is n×1 and multiplies each observation's working weight `(dμ/dη)²/V(μ)`, so a weight of 2 on a row equals stacking that row twice. For a proportion response, `y` is successes/trials and `weights` the trials |
+| `glm-dispersion` | `( X y weights beta family -- phi )` | The dispersion at a fitted `beta`: 1 when the family's `:dispersion` is `:fixed`; otherwise the Pearson estimate `Σ wᵢ (yᵢ−μᵢ)² / V(μᵢ)` over n−p, p the column count of `X`. Pass unit weights for an unweighted fit |
+| `glm-covariance` | `( X y weights beta family -- cov )` | The p×p coefficient covariance at a fitted `beta`: φ from `glm-dispersion` times `(XᵀWX)⁻¹`, W the IRLS working weight times the prior weights, through one thin SVD of `√W·X`; standard errors are the square roots of its diagonal. For `gaussian-identity` with unit weights this is the OLS covariance σ̂²(XᵀX)⁻¹ |
+| `fit-gamma` | `( X y max-iterations tolerance -- beta )` | Gamma regression by IRLS, log link |
+| `fit-poisson` | `( X y max-iterations tolerance -- beta )` | Poisson regression by IRLS, log link |
+| `negative-binomial-log` | `( theta -- family )` | The NB2 family at a known dispersion: log link, variance μ + μ²/θ, so a large θ approaches Poisson (negligible overdispersion). Pass to `fit-glm` to fit coefficients with θ held fixed; `theta` is curried into the variance quotation, costing one small anonymous word per call |
 | `negative-binomial-theta` | `( y mu -- theta )` | Maximum-likelihood NB2 dispersion at fitted means, by golden-section search on ln θ over the moment estimate widened a factor of 1000 each way. When the residual variance does not exceed the mean the likelihood rises monotonically in θ and the answer is the top of that window, which reports that Poisson fits rather than a dispersion |
 | `fit-negative-binomial` | `( X y max-iterations tolerance -- beta theta )` | Negative binomial (NB2) regression, log link, estimating the dispersion: starts from the Poisson fit, then alternates `negative-binomial-theta` at the current means with an IRLS `beta` at that θ. Answers both. `max-iterations` and `tolerance` bound both loops; θ cannot be pinned tighter than `beta` is, so the alternation also stops once a round no longer shrinks the change in θ |
 | `fit-multinomial` | `( X y reference-class max-iterations tolerance -- beta )` | Multinomial (softmax) logistic by Newton–Raphson, baseline-category parametrization with `reference-class` as the baseline; `y` holds integer labels 0..K−1, `beta` is predictors×(K−1), one coefficient column per non-reference class. As the plain MLE it diverges under separation |
-| `fit-multinomial-ridge` | `( X y reference-class max-iterations tolerance lambda -- beta )` | `fit-multinomial` with an L2 penalty λ·‖β‖²/2 on every coefficient except each class's intercept; `lambda` 0 is the plain MLE (what `fit-multinomial` calls), `lambda`  0 keeps the estimate finite under separation |
+| `fit-multinomial-ridge` | `( X y reference-class max-iterations tolerance lambda -- beta )` | Multinomial (softmax) logistic by Newton–Raphson, baseline-category parametrization with `reference-class` as the baseline, plus an L2 penalty λ·‖β‖²/2 on every coefficient except each class's intercept; `y` holds integer labels 0..K−1, `beta` is predictors×(K−1); `lambda` 0 is the plain MLE, `lambda` > 0 keeps the estimate finite under separation |
 | `predict-multinomial` | `( beta X reference-class -- probabilities )` | Softmax probabilities from a `fit-multinomial`/`fit-multinomial-ridge` model: n×K, columns in label order 0..K−1 (the `reference-class` column is `1/Σ` weights). Each row sums to 1 |
 
 ```forth fit-glm
@@ -214,6 +281,39 @@ dup :coefficients @ first :estimate @ . :predictors @ . cr
 ```
 ```output
 [ 1 2 ]
+```
+
+```forth fit-glm-weighted
+"statistics" load-library
+[ 1 0 1 1 1 2 1 3 ] 4 2 matrix to glm-x
+[ 1 2 4 9 ] vector to glm-y
+glm-x glm-y [ 2 1 1 1 ] vector poisson-log 100 1e-12 fit-glm-weighted
+glm-x 0 @i glm-x vstack glm-y 0 @i glm-y vstack poisson-log 100 1e-12 fit-glm - abs max 1e-8 < . cr
+```
+```output
+1
+```
+
+```forth glm-dispersion
+"statistics" load-library
+[ 1 1 1 2 1 3 1 4 ] 4 2 matrix to glm-x
+[ 2.1 3.9 6.2 7.8 ] vector to glm-y
+glm-x glm-y gaussian-identity 50 1e-10 fit-glm to glm-beta
+glm-x glm-y [ 1 1 1 1 ] vector glm-beta gaussian-identity glm-dispersion . cr
+```
+```output
+0.041
+```
+
+```forth glm-covariance
+"statistics" load-library
+[ 1 1 1 2 1 3 ] 3 2 matrix to glm-x
+[ 1 2 4 ] vector to glm-y
+glm-x glm-y fit-linear to glm-beta
+glm-x glm-y [ 1 1 1 ] vector glm-beta gaussian-identity glm-covariance matrix>array . cr
+```
+```output
+[ 0.388889 -0.166667 -0.166667 0.0833333 ]
 ```
 
 ```forth fit-gamma
@@ -237,7 +337,7 @@ dup :coefficients @ first :estimate @ . :predictors @ . cr
 10 negative-binomial-log keys . cr
 ```
 ```output
-[ :inverse-link :mean-derivative :variance ]
+[ :effect :inverse-link :mean-derivative :variance :deviance :dispersion ]
 ```
 
 ```forth negative-binomial-theta
@@ -253,7 +353,7 @@ dup :coefficients @ first :estimate @ . :predictors @ . cr
 [ 1 1 1 2 1 3 1 4 1 5 1 6 ] 6 2 matrix [ 0 3 1 8 2 25 ] vector 50 1e-6 fit-negative-binomial . matrix>array . cr
 ```
 ```output
-2.58028 [ -1.06913 0.667128 ]
+2.58028 [ -1.06913 0.667127 ]
 ```
 
 ```forth fit-multinomial
@@ -352,9 +452,10 @@ regressions answer. `linear-regression` and `logistic-regression` are
 | Word | Stack effect | Summary |
 | --- | --- | --- |
 | `column>indicators` | `( column -- mat )` | one 0/1 indicator column per distinct value above the first (the reference) — an n×(k−1) matrix from a numeric vector or text array column, levels in `val_cmp` order (`column>set` lists them); a missing cell leaves every indicator 0; errors on fewer than 2 distinct values | n·k + n log n | level masks + `1m` per fold | O(n·k + n log n) |
-| `indicators!` | `( design column sym -- design )` | `column>indicators` for a design dataset (a frame of columns): adds one 0/1 column per distinct value above the first (the reference), keyed `sym=level`, mutating and returning the frame — keys and columns derive from the same data, so a level change grows both together; `keys` then names the design and `dataset>matrix` over them is the aligned matrix; errors on fewer than 2 distinct values | n·k + n log n | level masks + frame growth | O(n·k + n log n) |
+| `indicators!` | `( design column sym -- design )` | Adds to a design dataset (a frame of columns) one 0/1 indicator column per distinct value of `column` above the first (the reference), keyed `sym=level`, mutating and returning the frame — keys and columns derive from the same data, so a level change grows both together; `keys` then names the design and `dataset>matrix` over them is the aligned matrix; errors on fewer than 2 distinct values | n·k + n log n | level masks + frame growth | O(n·k + n log n) |
+| `expand-indicators!` | `( design sym -- design )` | Replaces the categorical column `sym` of a design dataset with one 0/1 indicator column per distinct value above the first (the reference), keyed `sym=level`, mutating and returning the frame, so `dataset>matrix` over `keys` then succeeds; errors when `sym` is not a column or has fewer than 2 distinct values | n·k + n log n | level masks + frame growth | O(n·k + n log n) |
 | `with-intercept` | `( X/design -- X'/design )` | a matrix gets a prepended column of ones, so a fit's beta[0] is the intercept; a design dataset gets an `:intercept` ones column keyed like any term (errors on an empty design — the rows are read from it) | r×c | matrix `1m(r×(c+1))`; design `1m(r×1)` | O(r×c) |
-| `regress-with` | `( dataset predictors response B fit-xt -- model )` | the shared regression pipeline — design matrix with intercept, point estimate, then B bootstrap refits. The model frame carries `:coefficients` (a `{ :estimate :se :bias :ci-low :ci-high }` frame each), `:estimates` (the point-estimate vector), `:predictors`, `:response`, the complete-case `:design` and `:responses`, `:n-rows`, and `:replications`; the loadable statistics library's `linear-regression`/`logistic-regression` pass the fit | fit + B·fit | matrices + B refits + `1fr` | O(B·fit) |
+| `regress-with` | `( dataset predictors response weights replications fit-xt family -- model )` | the regression pipeline behind `linear-regression`, `logistic-regression`, and `glm-regression`: builds the design matrix with intercept, the response (`response` a column symbol or an n×1 matrix), and the prior-weight column (`weights` a column symbol, an n×1 matrix, or `null` for ones), drops rows with a missing cell, and calls `fit-xt ( X y w -- beta )` for the point estimate; `replications` 0 answers Wald summaries from `glm-covariance` under `family`, B > 0 bootstrap summaries from B refits of `fit-xt` over row resamples (the weight travels with its row). Answers the model frame described in the Regression section | fit + B·fit | matrices + B refits + `1fr` | O(B·fit) |
 
 ```forth column>indicators
 "statistics" load-library
@@ -372,6 +473,14 @@ regressions answer. `linear-regression` and `logistic-regression` are
 [ :color=r ]
 ```
 
+```forth expand-indicators!
+"statistics" load-library
+{ :x [ 1 2 3 ] vector :g [ :a :b :a ] } :g expand-indicators! keys . cr
+```
+```output
+[ :x :g=b ]
+```
+
 ```forth with-intercept
 "statistics" load-library
 [ 1 2 ] vector with-intercept matrix>array . cr
@@ -382,11 +491,11 @@ regressions answer. `linear-regression` and `logistic-regression` are
 
 ```forth regress-with
 "statistics" load-library
-42 seed [ [ "x" "y" ] [ 1 3 ] [ 2 5 ] [ 3 7 ] [ 4 9.1 ] ] true rows>dataset
-[ :x ] :y 20 ' fit-augmented regress-with :predictors @ . cr
+[ [ "x" "y" ] [ 1 3 ] [ 2 5 ] [ 3 7 ] [ 4 9.1 ] ] true rows>dataset
+[ :x ] :y null 0 [: drop fit-linear :] gaussian-identity regress-with dup :predictors @ . :inference @ . cr
 ```
 ```output
-[ :intercept :x ]
+[ :intercept :x ] :wald
 ```
 
 
@@ -399,7 +508,7 @@ observations pass a threshold, so they are positive and measured from zero.
 | --- | --- | --- |
 | `gpd-fit` | `( exceedances -- shape scale )` | maximum-likelihood generalized Pareto (GPD) fit to a vector of threshold exceedances — four refining rounds of a 9×9 grid over (shape, ln scale), reaching about [−0.8, 1.4] in shape at a resolution of 0.02, so a returned shape at either endpoint is the grid boundary, not an optimum | 324n | `4m(n)` per grid point | O(n) |
 | `gpd-quantile` | `( shape scale p -- q )` | the generalized-Pareto quantile — `scale/shape · ((1−p)^−shape − 1)`, and the exponential limit `−scale · ln(1−p)` when \|shape\| < 1e-9; errors unless p is in [0, 1) | 6 | none | O(1) |
-| `gpd-draw` | `( shape scale -- draw )` | one exceedance drawn from the tail by inverse transform — `random gpd-quantile` (inlined), and `random`'s [0, 1) is `gpd-quantile`'s domain. Draws from the shared stream, so `seed` fixes the sequence | 7 | none | O(1) |
+| `gpd-draw` | `( shape scale -- draw )` | one exceedance drawn from the generalized-Pareto tail (`shape`, `scale`) by inverse-transform sampling of a uniform [0, 1) variate on the shared RNG stream, so `seed` fixes the sequence | 7 | none | O(1) |
 
 ```forth gpd-fit
 "statistics" load-library
@@ -452,7 +561,7 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 | `stroke-width` | `( w -- )` | Set the current stroke width |
 | `text-anchor` | `( anchor -- )` | Set the current text anchor: `"start"`, `"middle"`, or `"end"` |
 | `axes` | `( -- )` | Plot-area border plus labeled x and y ticks, laid out at render time; tick labels use the aes `:tick-format` string (default `{0:g}` — whole numbers as integers, no forced scientific notation); an axis marked categorical (`:x-categorical`/`:y-categorical`, set by `barchart`/`y-categories`) shows no numeric ticks |
-| `panel` | `( -- )` | `axes`' themed twin: a filled ground (`:panel-fill`) with gridlines as negative space and labeled ticks, no border; call before the data so it draws underneath; honors the categorical flags like `axes` |
+| `panel` | `( -- )` | A filled plot ground (`:panel-fill`) with gridlines as negative space and labeled ticks, no border; call before the data so it draws underneath; on an axis marked categorical it drops the numeric ticks |
 | `x-label` | `( str -- )` | x-axis title, centered below the tick labels |
 | `y-label` | `( str -- )` | y-axis title, rotated, centered beside the tick labels |
 | `legend` | `( labels colors -- )` | Color key in a strip reserved to the right of the plot area (the plot narrows to fit); one row per label with a filled swatch, `labels`/`colors` equal-length parallel arrays; pixel-space, label text in `:ink` |
@@ -469,7 +578,7 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 | `count-barchart` | `( values -- )` | Frequency bars — one per distinct value, height its number of occurrences, most frequent first; labels the values rendered as strings; aes `:bar-fill` `:bar-stroke` |
 | `stacked-barchart` | `( matrix labels colors -- )` | Stacked vertical bars: row i is category i (a bar at x=i+1), column j is series j (a segment colored `colors[j]`), stacked from the y=0 baseline; `labels` names the categories under the bars, `colors` is the per-series palette (pass the same array to `legend`); pins the domain and sets `:x-categorical` so `axes`/`panel` drop the numeric x-ticks; aes `:bar-stroke` |
 | `annotate` | `( x y label -- )` | Text at data point `(x, y)`, current font size and `text-anchor` |
-| `rect-at` | `( x1 y1 x2 y2 -- )` | Rectangle between two data-space corners, mapped through the domain; current `:fill` `:stroke` `:stroke-width` (the data-space analog of `svg-rect`) |
+| `rect-at` | `( x1 y1 x2 y2 -- )` | Rectangle between two data-space corners, mapped through the domain; drawn with the current `:fill` `:stroke` `:stroke-width` |
 | `svg-line` | `( x1 y1 x2 y2 -- )` | Line segment in pixel coordinates, current stroke |
 | `svg-rect` | `( x y w h -- )` | Rectangle at pixel `(x, y)` of size `w`×`h`, current stroke and fill |
 | `svg-circle` | `( cx cy r -- )` | Circle of pixel radius `r`, current fill and stroke |

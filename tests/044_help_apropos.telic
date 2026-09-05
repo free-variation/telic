@@ -24,7 +24,7 @@
 ' if man size . cr                                \ 4 (base keys + :examples)
 
 \ an embedded-library word is documented like any other
-' 2dup man :summary @ "core.telic: over over (inlined)" = . cr   \ 1
+' 2dup man :summary @ "core.telic: duplicate the top two items" = . cr   \ 1
 
 \ man resolves its own entry
 ' man man :word @ "man" = . cr                    \ 1

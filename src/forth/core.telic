@@ -66,18 +66,18 @@ inline
 : , peek ; inline
 
 ( arr/pair -- v ) \ element 0: an array's first element, a cons's head
-: first  dup pair? if head-tail drop else 0 @i then ;
+: first dup pair? if head-tail drop else 0 @i then ;
 
 ( arr/pair -- v ) \ element 1: an array's second element, a cons's tail
-: second  dup pair? if head-tail nip else 1 @i then ;
+: second dup pair? if head-tail nip else 1 @i then ;
 
 \ arithmetic words
 
-( a b -- quotient )  \ integer quotient toward zero ( = % swap drop )
+( a b -- quotient ) \ integer quotient toward zero ( = % swap drop )
 : quotient % swap drop ;
 inline
 
-( xt -- ... )  \ run xt, print elapsed CLOCK_MONOTONIC seconds, pass its results through
+( xt -- ... ) \ run xt, print elapsed CLOCK_MONOTONIC seconds, pass its results through
 : timed now >r execute now r> - . cr ;
 
 ( val -- val ) \ The identity function

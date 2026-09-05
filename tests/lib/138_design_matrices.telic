@@ -14,6 +14,10 @@
 { } [ 1 2 3 2 1 ] vector :t indicators! dup keys . :t=3 @ . cr   \ [ :t=2 :t=3 ] then the 3-mask
 { } [ 1 1 ] vector [: :t indicators! :] catch . . cr       \ 1 then the single-level message
 
+\ expand-indicators! ( design sym -- design ): the column replaced by its indicators
+{ :x [ 1 2 3 ] vector :g [ :a :b :a ] } :g expand-indicators! dup keys . dup keys dataset>matrix dim . . cr   \ [ :x :g=b ] then 2 3
+{ :x [ 1 2 3 ] vector } [: :zzz expand-indicators! :] catch drop :message @ . cr   \ no key :zzz
+
 \ with-intercept ( X/design -- X'/design ): ones column, prepended or keyed
 [ 5 6 7 ] 3 1 matrix with-intercept . cr   \ [[1 5][1 6][1 7]]
 { :x [ 5 6 7 ] vector } with-intercept dup keys . :intercept @ . cr   \ [ :intercept :x ] then 3x1 ones

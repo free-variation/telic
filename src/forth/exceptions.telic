@@ -3,10 +3,10 @@
 : catch ( xt -- result 0 | exc 1 ) reset (execute-catching) 0 ;
 
 : try-catch ( normal-xt error-xt -- ... )
-	>side                    \ stash error-xt on the side stack
+	>side \ stash error-xt on the side stack
 	catch
-	if   side> execute       \ throw: pop handler, run with err on stack
-	else side-drop           \ success: discard saved handler, results stay
+	if side> execute \ throw: pop handler, run with err on stack
+	else side-drop \ success: discard saved handler, results stay
 	then ;
 
 \ Guaranteed cleanup: run cleanup-xt whether body-xt returns normally or throws,

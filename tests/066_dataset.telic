@@ -385,3 +385,21 @@ measures :height @ mean . cr                    \ 175 m — stats keep the unit
 
 \ errors
 { :name [ "a" ] } ' m :name set-unit!             \ (:name is not numeric)
+
+clear
+\ select-eq / select-neq ( dataset sym value -- dataset ): vectorized row select
+\ by column == value (and its complement); value on the stack, no curry.
+{ :program [ :a :b :a :c ] :n [ 1 2 3 4 ] vector } to picks
+picks :program :a select-eq :n @ transpose matrix>array . cr    \ [ 1 3 ]
+picks :program :a select-neq :n @ transpose matrix>array . cr   \ [ 2 4 ]
+picks :n 3 select-eq :program @ . cr                            \ [ :a ]  numeric column
+picks :program :z select-eq n-rows . cr                         \ 0   no match
+
+clear
+\ filter-columns ( dataset pred -- dataset ): the columns whose name and values
+\ satisfy pred ( column-name column -- binary ), order preserved. Non-mutating.
+{ :a [ 1 2 ] vector :b [ 0 0 ] vector :c [ 3 4 ] vector :d [ "p" "q" ] } to cols
+cols [: nip dup matrix? if sum 0 eq not else drop 1 then :] filter-columns keys . cr   \ [ :a :c :d ]  drop all-zero numeric
+cols keys . cr                                                                          \ [ :a :b :c :d ]  original intact
+cols [: drop dup :b = swap :d = or :] filter-columns keys . cr                          \ [ :b :d ]  by name
+cols [: 2drop 0 :] filter-columns keys . cr                                             \ [ ]  none kept

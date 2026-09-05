@@ -145,7 +145,7 @@
 \ in it is doubled — that is the only escape a Telic string has.
 : mcp-eval-source
   | code marker |
-  [ mcp-quote  code mcp-quote mcp-quote mcp-quote + replace  mcp-quote
+  [ mcp-quote code mcp-quote mcp-quote mcp-quote + replace mcp-quote
 	" ' evaluate curry [: dup frame? if :message @ then . cr "
 	mcp-quote mcp-error-mark mcp-quote
 	" stdout write cr :] try-catch "
@@ -249,7 +249,7 @@
   \ every complete line is acted on, not only up to the first marker: finishing a
   \ call dispatches the next one queued for this session, and the child may have
   \ answered it already inside this same chunk
-  pieces n-complete take  state ' mcp-take-line curry  each ; internal
+  pieces n-complete take state ' mcp-take-line curry each ; internal
 
 ( state -- ) \ a call that overran its deadline: kill the child, say so, drop the session
 : mcp-expire
@@ -268,7 +268,7 @@
 \ what keeps this to the single token help reads
 : mcp-help-text
   | word |
-  "help " word +  ' evaluate curry  ' stdout>string curry  catch if
+  "help " word + ' evaluate curry ' stdout>string curry catch if
 	dup frame? if :message @ then true exit
   then
 
@@ -297,14 +297,14 @@
 ( id arguments -- ) \ the telic-eval tool
 : mcp-eval-tool
   | id arguments |
-  arguments :code has? not  arguments :session has? not  or if
+  arguments :code has? not arguments :session has? not or if
 	id -32602 "Invalid params: telic-eval takes a code string and a session string" mcp-fail exit
   then
 
   arguments :code @ to code
   arguments :session @ to session
 
-  code string? not  session string? not  or if
+  code string? not session string? not or if
 	id -32602 "Invalid params: code and session must both be strings" mcp-fail exit
   then
 

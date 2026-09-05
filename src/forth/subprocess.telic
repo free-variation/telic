@@ -1,12 +1,12 @@
 \ subprocess convenience
 
-( string proc -- )  \ write the string to the child's stdin
+( string proc -- ) \ write the string to the child's stdin
 : write-in :in @ write ;
 
-( proc -- string )  \ read all of the child's stdout
+( proc -- string ) \ read all of the child's stdout
 : read-out :out @ read ;
 
-( proc -- string )  \ read all of the child's stderr
+( proc -- string ) \ read all of the child's stderr
 : read-err :err @ read ;
 
 ( string -- proc) \ start a process from an argv string
@@ -28,7 +28,7 @@
 	proc :err @ close
 	result ;
 
-( commands width -- results )  \ run each argv array in commands as a subprocess,
+( commands width -- results ) \ run each argv array in commands as a subprocess,
 \ at most width at a time; collect { :out :err :status } per command in input
 \ order, refilling a slot as soon as its child finishes (as-completed).
 : parallel-run

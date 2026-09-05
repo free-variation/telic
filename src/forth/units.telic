@@ -11,58 +11,58 @@ base unit ampere
 base unit kelvin
 base unit mol
 
-1 1 s /                 unit hertz
-1 kg 1 m * 1 s / 1 s /  unit newton
-1 newton 1 m / 1 m /    unit pascal
-1 newton 1 m *          unit joule
-1 joule 1 s /           unit watt
-1 ampere 1 s *          unit coulomb
-1 watt 1 ampere /       unit volt
+1 1 s / unit hertz
+1 kg 1 m * 1 s / 1 s / unit newton
+1 newton 1 m / 1 m / unit pascal
+1 newton 1 m * unit joule
+1 joule 1 s / unit watt
+1 ampere 1 s * unit coulomb
+1 watt 1 ampere / unit volt
 
-60 s     unit minute
-3600 s   unit hour
-86400 s  unit day
-7 day    unit week
+60 s unit minute
+3600 s unit hour
+86400 s unit day
+7 day unit week
 
-( -- instant )  \ wall-clock time: epoch seconds as a quantity in s
+( -- instant ) \ wall-clock time: epoch seconds as a quantity in s
 : wall-now (wall-now) s ;
 inline
 
-( instant -- date )  \ { :year :month :day :hour :minute :second :weekday :yearday }, UTC
-: epoch>date  1 s / (epoch>date) ;
+( instant -- date ) \ { :year :month :day :hour :minute :second :weekday :yearday }, UTC
+: epoch>date 1 s / (epoch>date) ;
 inline
 
-( date -- instant )  \ :year required; :month :day default 1, clock fields 0; UTC
-: date>epoch  (date>epoch) s ;
+( date -- instant ) \ :year required; :month :day default 1, clock fields 0; UTC
+: date>epoch (date>epoch) s ;
 inline
 
-( instant -- date )  \ epoch>date in the process's local timezone
-: epoch>date-local  1 s / (epoch>date-local) ;
+( instant -- date ) \ epoch>date in the process's local timezone
+: epoch>date-local 1 s / (epoch>date-local) ;
 inline
 
-( date -- instant )  \ date>epoch in the process's local timezone; mktime resolves DST
-: date>epoch-local  (date>epoch-local) s ;
+( date -- instant ) \ date>epoch in the process's local timezone; mktime resolves DST
+: date>epoch-local (date>epoch-local) s ;
 inline
 
-( instant format -- string )  \ render an instant with strftime, UTC
-: format-time  swap 1 s / swap (format-time) ;
+( instant format -- string ) \ render an instant with strftime, UTC
+: format-time swap 1 s / swap (format-time) ;
 inline
 
-( instant format -- string )  \ render an instant with strftime in the local timezone
-: format-time-local  swap 1 s / swap (format-time-local) ;
+( instant format -- string ) \ render an instant with strftime in the local timezone
+: format-time-local swap 1 s / swap (format-time-local) ;
 inline
 
-( string format -- instant )  \ parse with strptime; unmatched fields default to 1970-01-01
+( string format -- instant ) \ parse with strptime; unmatched fields default to 1970-01-01
 \ 00:00:00, read as UTC unless the format captures an offset with %z
-: parse-time  (parse-time) s ;
+: parse-time (parse-time) s ;
 inline
 
-( instant -- string )  \ ISO 8601 in UTC: 2026-07-09T12:34:56Z
-: time>iso  "%Y-%m-%dT%H:%M:%SZ" format-time ;
+( instant -- string ) \ ISO 8601 in UTC: 2026-07-09T12:34:56Z
+: time>iso "%Y-%m-%dT%H:%M:%SZ" format-time ;
 inline
 
-( string -- instant )  \ parse the ISO 8601 Z form time>iso emits
-: iso>time  "%Y-%m-%dT%H:%M:%SZ" parse-time ;
+( string -- instant ) \ parse the ISO 8601 Z form time>iso emits
+: iso>time "%Y-%m-%dT%H:%M:%SZ" parse-time ;
 inline
 
 ( year month -- days )
@@ -70,9 +70,9 @@ inline
 	| y m |
 	{ :year y :month m 1 + } date>epoch
 	{ :year y :month m } date>epoch
-	-  1 day / ;
+	- 1 day / ;
 
-( instant delta -- instant )  \ calendar shift, UTC: :years :months step the
+( instant delta -- instant ) \ calendar shift, UTC: :years :months step the
 \ calendar with the day clamped to the target month; :weeks :days :hours
 \ :minutes :seconds add exactly
 : date-shift
@@ -95,22 +95,22 @@ inline
 		  :day day-of-month
 		  :hour date@hour 
 		  :minute date@minute
-		  :second date@second  
+		  :second date@second 
 		} date>epoch to instant
 	then
 	
 	instant
-	delta :weeks   0 @or week +
-	delta :days    0 @or day +
-	delta :hours   0 @or hour +
+	delta :weeks 0 @or week +
+	delta :days 0 @or day +
+	delta :hours 0 @or hour +
 	delta :minutes 0 @or minute +
 	delta :seconds 0 @or s + ;
 
-1000 m   unit km
+1000 m unit km
 
-base unit $   1 $ 100 / unit ¢
-base unit £   1 £ 100 / unit penny
-base unit €   1 € 100 / unit eurocent
+base unit $ 1 $ 100 / unit ¢
+base unit £ 1 £ 100 / unit penny
+base unit € 1 € 100 / unit eurocent
 
 \ data (IEC binary units, powers of 1024); MiB is the base, so B is 1/2^20 MiB
 \ and PiB is 2^30 MiB
@@ -122,4 +122,4 @@ base unit MiB
 1024 TiB unit PiB
 
 ( q unit-xt -- q' ) \ re-express q in the unit that unit-xt attaches (' MiB)
-: as  | q unit-xt |  1 unit-xt execute  0 *  q + ;
+: as | q unit-xt | 1 unit-xt execute 0 * q + ;

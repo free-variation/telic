@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.32.4"
+#define VERSION "0.32.5"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1071,6 +1071,7 @@ int matrix_compare_gt(Interpreter *interp, Val left_val, Val right_val, const ch
 int matrix_compare_gte(Interpreter *interp, Val left_val, Val right_val, const char *word);
 int matrix_compare_lt(Interpreter *interp, Val left_val, Val right_val, const char *word);
 int matrix_compare_lte(Interpreter *interp, Val left_val, Val right_val, const char *word);
+int matrix_compare_neq(Interpreter *interp, Val left_val, Val right_val, const char *word);
 int matrix_div(Interpreter *interp, Val left_val, Val right_val);
 int matrix_max_columns(Interpreter *interp, Object *source);
 double matrix_max_overall(Object *source);
@@ -1293,6 +1294,7 @@ void p_mul_inplace(DISPATCH_ARGS);
 void p_nan(DISPATCH_ARGS);
 void p_ncurry(DISPATCH_ARGS);
 void p_neg(DISPATCH_ARGS);
+void p_neq_elements(DISPATCH_ARGS);
 void p_nip(DISPATCH_ARGS);
 void p_none(DISPATCH_ARGS);
 void p_not(DISPATCH_ARGS);

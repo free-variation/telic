@@ -5,7 +5,7 @@
 
 : user-message ( content -- message ) | content | { :role "user" :content content } ;
 
-: assistant-message ( content -- message )  | content | { :role "assistant" :content content } ;
+: assistant-message ( content -- message ) | content | { :role "assistant" :content content } ;
 
 : request-body ( prompt -- json )
   | messages |
@@ -98,9 +98,9 @@
 \ The API returns token usage, not a price, and rates are per model. Rates are
 \ in cents per token (¢ is the money base unit; a call is a fraction of a
 \ cent). Set to your plan; e.g. $75 / Mtoken output = 0.0075 ¢/token.
-{ :claude-opus-4-8           { :input 0.0015   :output 0.0075 }
-  :claude-sonnet-5           { :input 0.0003   :output 0.0015 }
-  :claude-haiku-4-5-20251001 { :input 0.00008  :output 0.0004 }
+{ :claude-opus-4-8 { :input 0.0015 :output 0.0075 }
+  :claude-sonnet-5 { :input 0.0003 :output 0.0015 }
+  :claude-haiku-4-5-20251001 { :input 0.00008 :output 0.0004 }
 } to claude-prices
 
 ( model -- price ) \ the { :input :output } rate frame for a model string
@@ -116,10 +116,10 @@
   body :usage has? not if 0 $ exit then
   body :usage @ to usage
   body :model @ model-price to price
-  usage :input_tokens  @ price :input  @ *
-  usage :output_tokens @ price :output @ * +  ¢ ;
+  usage :input_tokens @ price :input @ *
+  usage :output_tokens @ price :output @ * + ¢ ;
 
 ( -- $ ) \ worst-case output cost of one call at the current model
 : cot-cost-ceiling
-  claude-max-tokens  claude-model model-price :output @ *  ¢ ;
+  claude-max-tokens claude-model model-price :output @ * ¢ ;
 

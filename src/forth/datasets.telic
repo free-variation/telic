@@ -49,7 +49,7 @@
 	n-data-rows 0= if
 		column-keys size iota [: drop [ ] :] map
 	else
-		rows  start rows size 1- range select-rows  transpose
+		rows start rows size 1- range select-rows transpose
 		' column-from-cells map
 	then
 	frame ;
@@ -67,9 +67,9 @@
 	rows size start - to n-data-rows
 	n-data-rows 0= if [ ] else start rows size 1- range then to row-indices
 
-	column-keys  rows row-indices select-rows  [: 2 pick swap frame :] map  nip to row-frames
-	index-cols  row-frames
-	[: 2 pick swap [: ' string>symbol swap update-at :] reduce :] map  nip to row-frames
+	column-keys rows row-indices select-rows [: 2 pick swap frame :] map nip to row-frames
+	index-cols row-frames
+	[: 2 pick swap [: ' string>symbol swap update-at :] reduce :] map nip to row-frames
 
 	index-cols relation row-frames bulk-load ;
 
@@ -77,7 +77,7 @@
 \ a column may be an array, an n x 1 vector, or a dimensioned vector (magnitude taken)
 \ the dataset arrives below cols, so the quotation reaches it at depth 2 under map
 : dataset>matrix
-	[: 2 pick swap @ magnitude dup matrix? if as-column else vector then :] map  nip
+	[: 2 pick swap @ magnitude dup matrix? if as-column else vector then :] map nip
 	dup 0 @i swap 1 skip swap
 	' augment reduce ;
 
@@ -87,14 +87,14 @@
 	n iota n true sample ;
 
 ( arr -- arr ) \ new array, elements uniformly permuted; input untouched
-: shuffle  dup size false sample ;
+: shuffle dup size false sample ;
 
 ( array/set -- array ) \ same-size draw with replacement
 : resample
 	dup size true sample ;
 
 ( v -- bool ) \ matrix-represented column, dimensioned included
-: numeric-column?  dup matrix? swap quantity? or ; internal
+: numeric-column? dup matrix? swap quantity? or ; internal
 
 ( column -- arr ) \ a column in any representation as an array of its values
 : column>array
@@ -129,7 +129,7 @@
 	dataset keys to column-names
 
 	dataset indices column-names
-	[: 3 pick swap @  2 pick (matrix-select-rows) execute :] map
+	[: 3 pick swap @ 2 pick (matrix-select-rows) execute :] map
 	nip nip
 
 	column-names swap frame ; internal
@@ -179,12 +179,19 @@
 	dup [: 3 pick swap @ :] map
 	rot drop frame ;
 
+( dataset pred -- dataset ) \ the columns whose name and values satisfy
+\ pred ( column-name column -- binary ), order preserved
+: filter-columns
+	| dataset pred |
+	dataset keys dataset pred [: key ds pr | key ds key @ pr execute :] 2curry filter
+	dataset swap select-columns ;
+
 ( pairs value -- pairs ) \ extend the last run when the value repeats, else start one
 : extend-run
 	| pairs value |
 	pairs pairs size 1- @i to last-pair
 	last-pair 0 @i value = if
-		last-pair  last-pair 1 @i 1+  1  !i drop
+		last-pair last-pair 1 @i 1+ 1 !i drop
 	else
 		pairs [ value 1 ] add-last! drop
 	then
@@ -211,10 +218,10 @@
 	run 1 @i to length
 
 	null length array-of to indices
-	permutation offset 1 length  indices 0  slice! drop
+	permutation offset 1 length indices 0 slice! drop
 	pairs [ run 0 @i indices ] add-last! drop
 
-	[ pairs  offset length +  permutation ] ; internal
+	[ pairs offset length + permutation ] ; internal
 
 : group-indices
 	| column |
@@ -316,7 +323,7 @@
 : replace-where!
 	| dataset predicate replacement column-name |
 	dataset
-	dataset column-name @  dup predicate execute  replacement mesh
+	dataset column-name @ dup predicate execute replacement mesh
 	column-name ! drop ;
 
 
@@ -333,7 +340,7 @@
 : ordered-columns
 	| dataset leading-columns |
 	leading-columns
-	dataset keys array>set  leading-columns array>set  difference  set>array
+	dataset keys array>set leading-columns array>set difference set>array
 	[: "{0}" format :] sort-by
 	concat ; internal
 
@@ -366,10 +373,20 @@
 ( dataset -- ) \ print the first 10 rows as an aligned table
 : head 10 [ ] headn ;
 
+( dataset sym value -- dataset ) \ rows where the named column equals value
+: select-eq
+	| dataset column-name value |
+	dataset dataset column-name @ value eq where select-rows ;
+
+( dataset sym value -- dataset ) \ rows where the named column differs from value
+: select-neq
+	| dataset column-name value |
+	dataset dataset column-name @ value neq where select-rows ;
+
 ( dataset sym -- dataset ) \ rows sorted ascending by the named column
 : sort-rows
 	| dataset column-name |
-	dataset  dataset column-name @ argsort  select-rows ;
+	dataset dataset column-name @ argsort select-rows ;
 
 ( dataset sym -- dataset ) \ rows sorted descending by the named column, equal keys keeping dataset order
 \ argsort of the reversed column, each index remapped to rows-1-i, reversed:
@@ -397,18 +414,18 @@
 
 	dataset by xt
 	[: pair dataset by xt |
-		dataset  pair 1 @i  select-rows  xt execute
+		dataset pair 1 @i select-rows xt execute
 		by array? if
 			0 by size 1 do position
-				pair 0 @i position @i  by position @i  !
+				pair 0 @i position @i by position @i !
 			loop
 		else
-			pair 0 @i  by  !
+			pair 0 @i by !
 		then
 	:] 3 ncurry map
 	frames>dataset ;
 ( v -- arr ) \ one grid axis normalized to an array of its values
-: grid-axis  dup matrix? if matrix>array then  dup set? if set>array then ; internal
+: grid-axis dup matrix? if matrix>array then dup set? if set>array then ; internal
 
 ( grid-frame -- dataset ) \ every combination of the per-key value lists as a
 \ dataset; one column per key in keys order, the last key varying fastest, so the
@@ -427,22 +444,22 @@
 		value-lists axis @i to axis-values
 		lengths axis @i to axis-length
 		lengths axis 1+ skip 1 ' * reduce to inner
-		total iota  inner axis-length [: row inner axis-length |
+		total iota inner axis-length [: row inner axis-length |
 			row inner quotient axis-length mod :] 2curry map to gather
-		columns  axis-values gather select-rows column-from-cells  add-last! to columns
+		columns axis-values gather select-rows column-from-cells add-last! to columns
 	loop
 	grid-keys columns frame ;
 
 ( key -- keys ) \ normalize a merge key to a symbol array
-: merge-keys  dup array? not if 1 array then ; internal
+: merge-keys dup array? not if 1 array then ; internal
 
 ( dataset keys -- tuples ) \ array of each row's key-column values as a tuple
 : key-tuples
 	| dataset keys |
-	dataset keys [: 2 pick swap @ column>array :] map  nip  transpose ; internal
+	dataset keys [: 2 pick swap @ column>array :] map nip transpose ; internal
 
 ( keys -- frame ) \ a frame mapping each key to null, the miss-fill template
-: null-frame  | keys |  keys { } [: | fr key | fr null key ! :] reduce ; internal
+: null-frame | keys | keys { } [: | fr key | fr null key ! :] reduce ; internal
 
 ( primary secondary keys secondary-null keep -- rows ) \ probe secondary (which
 \ must be unique) by each primary row's key tuple: a match merges the two rows, a
@@ -450,7 +467,7 @@
 : join-pass
 	| primary secondary keys secondary-null keep |
 	secondary keys key-tuples to secondary-tuples
-	secondary-tuples array>set size  secondary n-rows  = not if
+	secondary-tuples array>set size secondary n-rows = not if
 		"merge-by: the probed side's key is not unique (use the fact database for many-to-many)" throw
 	then
 	primary keys key-tuples to primary-tuples
@@ -459,11 +476,11 @@
 
 	[ ] to out
 	0 primary n-rows 1 do row-index
-		secondary-tuples  primary-tuples row-index @i  ' = curry map vector where to matches
+		secondary-tuples primary-tuples row-index @i ' = curry map vector where to matches
 		matches size 0 > if
-			out  primary-rows row-index @i  secondary-rows matches 0 @e @i  merge  add-last! to out
+			out primary-rows row-index @i secondary-rows matches 0 @e @i merge add-last! to out
 		else keep if
-			out  secondary-null  primary-rows row-index @i  merge  add-last! to out
+			out secondary-null primary-rows row-index @i merge add-last! to out
 		then then
 	loop
 	out ; internal
@@ -476,29 +493,29 @@
 	| left right key join-type |
 	key merge-keys to key-syms
 
-	left keys array>set  right keys array>set  intersection  key-syms array>set  difference to shared
+	left keys array>set right keys array>set intersection key-syms array>set difference to shared
 	shared size 0 > if
 		shared set>array render "merge-by: columns {0} are in both; rename before merging" format throw
 	then
 
-	right keys array>set  key-syms array>set  difference set>array null-frame to right-null
-	left keys array>set  key-syms array>set  difference set>array null-frame to left-null
+	right keys array>set key-syms array>set difference set>array null-frame to right-null
+	left keys array>set key-syms array>set difference set>array null-frame to left-null
 
 	join-type :inner = if left right key-syms right-null false join-pass frames>dataset exit then
-	join-type :left  = if left right key-syms right-null true  join-pass frames>dataset exit then
-	join-type :right = if right left key-syms left-null  true  join-pass frames>dataset exit then
+	join-type :left = if left right key-syms right-null true join-pass frames>dataset exit then
+	join-type :right = if right left key-syms left-null true join-pass frames>dataset exit then
 	join-type :outer = if
 		left right key-syms right-null true join-pass to rows
 
 		left key-syms key-tuples to left-tuples
-		left-tuples array>set size  left n-rows  = not if
+		left-tuples array>set size left n-rows = not if
 			"merge-by: :outer needs the left key unique too" throw
 		then
 		right key-syms key-tuples to right-tuples
 		right dataset-rows to right-rows
 		0 right n-rows 1 do row-index
-			left-tuples  right-tuples row-index @i  ' = curry map vector where size 0 = if
-				rows  left-null  right-rows row-index @i  merge  add-last! to rows
+			left-tuples right-tuples row-index @i ' = curry map vector where size 0 = if
+				rows left-null right-rows row-index @i merge add-last! to rows
 			then
 		loop
 		rows frames>dataset exit
@@ -517,34 +534,34 @@
 	left n-rows right n-rows = not if
 		left n-rows right n-rows "hstack: row counts differ ({1} vs {0})" format throw
 	then
-	left keys array>set  right keys array>set  intersection to shared
+	left keys array>set right keys array>set intersection to shared
 	shared size 0 > if
 		shared set>array render "hstack: columns {0} are in both" format throw
 	then
 	left right merge ; internal
 
 ( a b -- mat/dataset ) \ matrix column-concat, or two datasets side by side
-: hstack  over frame? if dataset-hstack exit then (matrix-hstack) execute ;
+: hstack over frame? if dataset-hstack exit then (matrix-hstack) execute ;
 
 ( top bottom -- dataset ) \ stacked rows: identical columns, each concatenated
 : dataset-vstack
 	| top bottom |
-	top keys array>set  bottom keys array>set  = not if
+	top keys array>set bottom keys array>set = not if
 		"vstack: the two datasets have different columns" throw
 	then
 	top keys to cols
-	cols top bottom [: key t b | t key @ column>array  b key @ column>array  concat column-from-cells :] 2curry map
+	cols top bottom [: key t b | t key @ column>array b key @ column>array concat column-from-cells :] 2curry map
 	cols swap frame ; internal
 
 ( a b -- mat/dataset ) \ matrix row-stack, or two datasets stacked by rows
-: vstack  over frame? if dataset-vstack exit then (matrix-vstack) execute ;
+: vstack over frame? if dataset-vstack exit then (matrix-vstack) execute ;
 
 ( dataset unit-xt sym -- dataset ) \ set the named column's unit, replacing any
 \ existing one: strips with magnitude, then applies the unit word (' m). In place,
 \ returns the dataset; a non-numeric column errors
 : set-unit!
 	| dataset unit-xt column-name |
-	dataset column-name @  dup matrix? swap quantity? or  not if
+	dataset column-name @ dup matrix? swap quantity? or not if
 		column-name "set-unit!: column :{0} is not numeric" format throw
 	then
-	dataset  unit-xt [: column unit | column magnitude unit execute :] curry  column-name  update-at ;
+	dataset unit-xt [: column unit | column magnitude unit execute :] curry column-name update-at ;

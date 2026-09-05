@@ -64,7 +64,7 @@
 	[ ] db-query>dataset :distinct-count @ 0 @e ; internal
 
 ( row db statement -- n ) \ the row's cells as the statement's parameters
-: insert-row  rot db-exec ; internal
+: insert-row rot db-exec ; internal
 
 ( name type dataset db table -- info ) \ one column's entry in the import report
 \ the context trails the mapped values, so ncurry can bind it
@@ -100,10 +100,10 @@
 
 	names size table insert-statement to statement
 	db "BEGIN" [ ] db-exec drop
-	rows 1 skip  db statement ' insert-row 2 ncurry  map drop
+	rows 1 skip db statement ' insert-row 2 ncurry map drop
 	db "COMMIT" [ ] db-exec drop
 
-	names types  dataset db table ' column-info 3 ncurry  2 nmap to columns
+	names types dataset db table ' column-info 3 ncurry 2 nmap to columns
 
 	{ :n-rows rows size 1-
 	  :columns columns 

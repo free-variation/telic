@@ -5086,6 +5086,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	vocab.lte_cfa = define_primitive(interp, "<=", p_lte, 0);
 	vocab.gte_cfa = define_primitive(interp, ">=", p_gte, 0);
 	define_primitive(interp, "eq", p_eq_elements, 0);
+	define_primitive(interp, "neq", p_neq_elements, 0);
 	define_primitive(interp, "nan?", p_nan, 0);
 	vocab.zeq_cfa = define_primitive(interp, "0=", p_zeq, 0);
 	define_primitive(interp, "and", p_and, 0);

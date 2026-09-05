@@ -33,6 +33,12 @@
 [ 1 null 2 ] null eq . cr                       \ 0 1 0  (null matches null)
 [ "x" "y" "x" ] "x" eq where . cr               \ indices 0 2
 
+\ neq: negation of eq, same polymorphism
+3 4 neq . 4 4 neq . cr                          \ 1 0  (scalar)
+[ 1 2 1 3 ] 2 neq matrix>array . cr             \ [ 1 0 1 1 ]  (array mask)
+[ 1 null 2 ] vector 1 neq matrix>array . cr     \ 0 1 1  (NaN differs from everything)
+{ :a 1 } { :a 2 } neq . cr                      \ 1  (structural on frames)
+
 \ === <= / >= (<=, >=): equality holds, unlike </>; plus the unsafe float forms ===
 2 3 <= . 3 3 <= . 4 3 <= . cr                \ 1 1 0
 2 3 >= . 3 3 >= . 4 3 >= . cr                \ 0 1 1

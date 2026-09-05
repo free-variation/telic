@@ -33,8 +33,8 @@
 \ [1e-12, 1-1e-12] so overconfidence scores badly instead of dropping ln 0 terms
 : binomial-deviance
 	| y p |
-	p dup 1e-12 < 1e-12 mesh  dup 1 1e-12 - > 1 1e-12 - mesh to p
-	y p ln *  1 y -  1 p - ln  *  +  sum  -2 * ;
+	p dup 1e-12 < 1e-12 mesh dup 1 1e-12 - > 1 1e-12 - mesh to p
+	y p ln * 1 y - 1 p - ln * + sum -2 * ;
 
 ( units n-folds -- folds ) \ round-robin deal in the given order: [ [train test] .. ]
 : cv-folds
@@ -45,8 +45,8 @@
 	n-folds iota
 	fold-ids units
 	[: f fold-ids units |
-		fold-ids f eq  1 swap -  where  units swap select-rows
-		fold-ids f eq  where  units swap select-rows
+		fold-ids f eq 1 swap - where units swap select-rows
+		fold-ids f eq where units swap select-rows
 		2 array 
 	:] 2curry map ;
 
@@ -122,14 +122,14 @@
 ( dataset -- fr ) \ per-column summaries keyed by column name
 : dataset-summary
 	| dataset |
-	dataset  dataset keys
-	[: 2 pick swap @ dup numeric-column? swap array? or not :] filter  nip to unfit-columns
+	dataset dataset keys
+	[: 2 pick swap @ dup numeric-column? swap array? or not :] filter nip to unfit-columns
 	unfit-columns size 0 > if
 		dataset unfit-columns 0 @i @ type-of
 		unfit-columns 0 @i
 		"summary: column :{0} holds {1}; expected a matrix, quantity, or array" format throw
 	then
-	dataset  dataset keys dup
+	dataset dataset keys dup
 	[: 3 pick swap @ column-summary :] map
 	rot drop frame ; internal
 
@@ -165,7 +165,7 @@
 	replications iota
 	fit-xt 
 	[: i run-seed data fit |
-		data  dup n-observations  run-seed i +  resample-indices-ext  select-rows
+		data dup n-observations run-seed i + resample-indices-ext select-rows
 		fit execute 
 	:] curry
 	data swap curry
@@ -193,7 +193,7 @@
 	xs ys complete-cases to ys to xs
 	xs num-elements to n
 	n 2 < if n "covariance: expected at least 2 complete pairs; got {0}" format throw then
-	xs dup mean -  ys dup mean -  dot  n 1 - / ;
+	xs dup mean - ys dup mean - dot n 1 - / ;
 
 ( xs ys -- r ) \ Pearson correlation coefficient over the complete pairs
 : correlation-pearson
@@ -226,7 +226,7 @@
 		repeat
 		run-start run-end f+ 1.0 f- 2.0 f/ to mid
 		run-start run-end 1 do run-index
-			midranks mid  order run-index @e  !e drop
+			midranks mid order run-index @e !e drop
 		loop
 		run-end to run-start
 	repeat
@@ -248,9 +248,9 @@
 	
 	positives matrix>array negatives
 	[: positive-score negatives |
-		negatives positive-score < sum  negatives positive-score <= sum + 
+		negatives positive-score < sum negatives positive-score <= sum + 
 	:] curry map vector sum
-	0.5 *  positives num-elements negatives num-elements * / ;
+	0.5 * positives num-elements negatives num-elements * / ;
 
 ( outcomes probabilities -- f ) \ Brier score: mean squared error of probabilities against 0/1
 \ outcomes; NaN elements are skipped by mean
@@ -283,7 +283,7 @@
 : random-normal
 	begin random dup 0 = while drop repeat qnorm ;
 
-(  xs ys correlation-xt replications -- corr-summary ) \ bootstrap CI for a correlation
+( xs ys correlation-xt replications -- corr-summary ) \ bootstrap CI for a correlation
 : correlate-with
 	| xs ys correlation-xt replications |
 	xs ys correlation-xt execute to estimate

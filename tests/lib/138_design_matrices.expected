@@ -26,6 +26,8 @@
           0
 
 1 indicators!: needs at least 2 distinct values 
+[ :x :g=b ] 2 3 
+no key :zzz 
 <matrix 3x2>
           1          5
           1          6

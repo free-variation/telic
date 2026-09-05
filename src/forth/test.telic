@@ -53,7 +53,7 @@ variable tests-failed internal
 
 ( name xt -- ) \ run xt under catch; print ok/FAIL, count it, restore the stack, continue past a failure
 : test
-	| name xt  ^tests-passed ^tests-failed |
+	| name xt ^tests-passed ^tests-failed |
 	depth to baseline
 
 	xt catch if

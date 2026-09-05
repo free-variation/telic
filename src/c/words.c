@@ -58,6 +58,7 @@ static double scalar_gt(double a, double b) { return a > b; }
 static double scalar_lte(double a, double b) { return a <= b; }
 static double scalar_gte(double a, double b) { return a >= b; }
 static double scalar_eq(double a, double b) { return a == b; }
+static double scalar_neq(double a, double b) { return a != b; }
 static double scalar_nan(double element) { return isnan(element) ? 1.0 : 0.0; }
 static double scalar_add(double a, double b) { return a + b; }
 static double scalar_sub(double a, double b) { return a - b; }
@@ -1017,6 +1018,7 @@ MATRIX_COMPARISON_OP(p_gt, >, scalar_gt, "gt", matrix_compare_gt)
 MATRIX_COMPARISON_OP(p_lte, <=, scalar_lte, "lte", matrix_compare_lte)
 MATRIX_COMPARISON_OP(p_gte, >=, scalar_gte, "gte", matrix_compare_gte)
 MATRIX_COMPARISON_OP(p_eq_elements, ==, scalar_eq, "eq", matrix_compare_eq)
+MATRIX_COMPARISON_OP(p_neq_elements, !=, scalar_neq, "neq", matrix_compare_neq)
 
 void p_nan(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);

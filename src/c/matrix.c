@@ -95,6 +95,7 @@ MATRIX_COMPARISON_KERNEL(matrix_compare_gt, >)
 MATRIX_COMPARISON_KERNEL(matrix_compare_lte, <=)
 MATRIX_COMPARISON_KERNEL(matrix_compare_gte, >=)
 MATRIX_COMPARISON_KERNEL(matrix_compare_eq, ==)
+MATRIX_COMPARISON_KERNEL(matrix_compare_neq, !=)
 
 #define REQUIRE_CHAIN_INDEX(index, limit, op, axis_phrase, limit_phrase) \
 	do { \

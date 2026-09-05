@@ -370,8 +370,8 @@ to aes
 	q3 q1 - 1.5 * to reach
 	q1 reach - to fence-low
 	q3 reach + to fence-high
-	data  data fence-low < data fence-high > +  0 eq where select-rows to within
-	data  data fence-low < data fence-high > +  where select-rows to outliers
+	data data fence-low < data fence-high > + 0 eq where select-rows to within
+	data data fence-low < data fence-high > + where select-rows to outliers
 	:box-stroke figure@ to box-stroke
 	center-x half-width - q1 center-x half-width + q3
 	"none" box-stroke 1 :data :data rect-mark
@@ -664,7 +664,7 @@ to aes
 	xs 1 @e to x2
 	ys 1 @e to y2
 	x1 nan? y1 nan? or x2 nan? or y2 nan? or if "" exit then
-	x1 x2 min2  y1 y2 min2
+	x1 x2 min2 y1 y2 min2
 	x1 x2 max2 x1 x2 min2 -
 	y1 y2 max2 y1 y2 min2 -
 	mark :fill @ mark :stroke @ mark :stroke-width @ rect-element ; internal

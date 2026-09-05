@@ -148,6 +148,119 @@
 	bin-X bin-y 100 1e-10 0 fit-logistic-ridge 1e-9 expect-near
 :] test
 
+"fit-glm-weighted: weight 2 on a row equals stacking the row twice" [:
+	[ 1 0 1 0.5 1 1 1 1.5 1 2 1 2.5 ] 6 2 matrix to pois-X
+	[ 1 2 3 4 6 9 ] 6 1 matrix to pois-y
+	pois-X pois-y [ 2 1 1 1 1 1 ] 6 1 matrix poisson-log 100 1e-12 fit-glm-weighted
+	pois-X 0 @i pois-X vstack pois-y 0 @i pois-y vstack poisson-log 100 1e-12 fit-glm 1e-8 expect-near
+:] test
+
+"quasibinomial-logit: binomial coefficients, estimated dispersion" [:
+	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept to bin-X
+	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix to bin-y
+	8 1 0-matrix 1 + to unit-w
+	bin-X bin-y quasibinomial-logit 100 1e-10 fit-glm to quasi-beta
+	quasi-beta bin-X bin-y binomial-logit 100 1e-10 fit-glm 1e-12 expect-near
+	bin-X bin-y unit-w quasi-beta binomial-logit glm-dispersion 1 1e-12 expect-near
+	bin-X bin-y unit-w quasi-beta quasibinomial-logit glm-dispersion 1.17745 1e-5 expect-near
+:] test
+
+\ quasi-separation data: intercept, x, and a dummy whose rows are all y = 1; and
+\ binomial-logit as it was before the clamp — unclamped sigmoid, no :deviance,
+\ so fit-glm stops on |beta - beta'|, which never falls under tolerance here
+[ 1 0 0 1 1 0 1 2 0 1 3 0 1 4 0 1 5 0 1 6 1 1 7 1 1 8 1 1 9 1 ] 10 3 matrix to quasi-X
+[ 0 1 0 1 0 1 1 1 1 1 ] 10 1 matrix to quasi-y
+{ :inverse-link ' sigmoid :mean-derivative [: sigmoid dup 1 swap - * :] :variance [: dup 1 swap - * :] } to unclamped-logit
+
+"quasi-separation: the pre-clamp beta-norm family throws, binomial-logit fits finite" [:
+	[: quasi-X quasi-y unclamped-logit 25 1e-8 fit-glm :] expect-throws
+	quasi-X quasi-y binomial-logit 25 1e-8 fit-glm to quasi-beta
+	quasi-beta 2 0 @i,j 30 < 1 1e-12 expect-near
+	1 quasi-X quasi-beta matmul sigmoid max - 0 > 1 1e-12 expect-near
+	quasi-X quasi-y 10 1 0-matrix 1 + quasi-beta quasibinomial-logit glm-covariance 2 2 @i,j 1e6 > 1 1e-12 expect-near
+:] test
+
+"linear-regression at 0 replications: Wald se is sqrt of the hand covariance diagonal" [:
+	[ [ "x" "y" ] [ 1 1 ] [ 2 2 ] [ 3 4 ] ] true rows>dataset [ :x ] :y 0 linear-regression to wald-model
+	wald-model :inference @ :wald = 1 1e-12 expect-near
+	wald-model :coefficients @ 0 @i :se @ 0.388889 sqrt 1e-5 expect-near
+	wald-model :coefficients @ 1 @i :se @ 0.0833333 sqrt 1e-5 expect-near
+	wald-model :coefficients @ 1 @i dup :estimate @ swap :ci-low @ - 0.975 qnorm 0.0833333 sqrt * 1e-5 expect-near
+	wald-model regression-statistics :pseudo-r2 @ 0.964286 1e-5 expect-near
+	wald-model :covariance @ [ 0.388889 -0.166667 -0.166667 0.0833333 ] 2 2 matrix 1e-5 expect-near
+:] test
+
+"bootstrap :covariance diagonal reproduces the :se column" [:
+	7 seed [ [ "x" "y" ] [ 1 3.1 ] [ 2 4.9 ] [ 3 7.2 ] [ 4 8.8 ] [ 5 11.1 ] [ 6 12.9 ] ] true rows>dataset [ :x ] :y 200 linear-regression to boot-model
+	boot-model :covariance @ diagonal sqrt transpose
+	boot-model :coefficients @ [: :se @ :] map vector 1e-9 expect-near
+:] test
+
+"fit-weighted-linear: unit weights give fit-linear, weight 2 gives the stacked row" [:
+	[ 1 1 1 2 1 3 ] 3 2 matrix to wls-X
+	[ 1 2 4 ] 3 1 matrix to wls-y
+	wls-X wls-y [ 1 1 1 ] 3 1 matrix fit-weighted-linear wls-X wls-y fit-linear 1e-12 expect-near
+	wls-X wls-y [ 2 1 1 ] 3 1 matrix fit-weighted-linear wls-X 0 @i wls-X vstack wls-y 0 @i wls-y vstack fit-linear 1e-12 expect-near
+:] test
+
+"glm-regression: quasibinomial repeats binomial's estimates with se scaled by sqrt(phi)" [:
+	[ [ "x" "y" ] [ 1 0 ] [ 2 0 ] [ 3 1 ] [ 4 0 ] [ 5 1 ] [ 6 0 ] [ 7 1 ] [ 8 1 ] ] true rows>dataset to eight-rows
+	eight-rows [ :x ] :y null binomial-logit 0 glm-regression to binomial-model
+	eight-rows [ :x ] :y null quasibinomial-logit 0 glm-regression to quasi-model
+	binomial-model :estimates @ quasi-model :estimates @ 1e-12 expect-near
+	quasi-model :coefficients @ 1 @i :se @ binomial-model :coefficients @ 1 @i :se @ / dup *
+	quasi-model regression-statistics :dispersion @ 1e-9 expect-near
+	quasi-model regression-coefficients :odds-ratio @ 1 @e quasi-model :estimates @ 1 0 @i,j exp 1e-12 expect-near
+:] test
+
+"glm-regression takes the response and weights as symbols or as matrices" [:
+	[ [ "x" "y" ] [ 1 0 ] [ 2 0 ] [ 3 1 ] [ 4 0 ] [ 5 1 ] [ 6 0 ] [ 7 1 ] [ 8 1 ] ] true rows>dataset to spec-rows
+	spec-rows [ :x ] :y null binomial-logit 0 glm-regression to by-symbol
+	spec-rows [ :x ] spec-rows :y @ 8 1 0-matrix 1 + binomial-logit 0 glm-regression to by-matrix
+	by-symbol :estimates @ by-matrix :estimates @ 1e-12 expect-near
+	by-symbol :response @ :y expect=
+	by-matrix :response @ null expect=
+:] test
+
+"glm-regression weights column: weight 2 on a row equals the row stacked twice" [:
+	[ [ "x" "y" "w" ] [ 0 1 2 ] [ 0.5 2 1 ] [ 1 3 1 ] [ 1.5 4 1 ] [ 2 6 1 ] [ 2.5 9 1 ] ] true rows>dataset
+	[ :x ] :y :w poisson-log 0 glm-regression :estimates @
+	[ [ "x" "y" ] [ 0 1 ] [ 0 1 ] [ 0.5 2 ] [ 1 3 ] [ 1.5 4 ] [ 2 6 ] [ 2.5 9 ] ] true rows>dataset
+	[ :x ] :y null poisson-log 0 glm-regression :estimates @ 1e-8 expect-near
+:] test
+
+"glm-dispersion for gaussian is RSS over n - p" [:
+	[ 1 1 1 2 1 3 1 4 ] 4 2 matrix to gauss-X
+	[ 2.1 3.9 6.2 7.8 ] 4 1 matrix to gauss-y
+	gauss-X gauss-y fit-linear to ols
+	gauss-X gauss-y 4 1 0-matrix 1 + ols gaussian-identity glm-dispersion
+	gauss-y gauss-X ols matmul - dup * sum 2 / 1e-12 expect-near
+:] test
+
+"glm-covariance for gaussian is sigma^2 (X'X)^-1, (X'X)^-1 by hand" [:
+	[ 1 1 1 2 1 3 ] 3 2 matrix to hand-X
+	[ 1 2 4 ] 3 1 matrix to hand-y
+	hand-X hand-y fit-linear to hand-beta
+	hand-y hand-X hand-beta matmul - dup * sum to sigma2
+	hand-X hand-y 3 1 0-matrix 1 + hand-beta gaussian-identity glm-covariance
+	[ 14 -6 -6 3 ] 2 2 matrix 6 / sigma2 * 1e-9 expect-near
+:] test
+
+"glm-covariance weights: poisson weight 2 equals the stacked row; gaussian differs in n - p" [:
+	[ 1 0 1 0.5 1 1 1 1.5 1 2 1 2.5 ] 6 2 matrix to pois-X
+	[ 1 2 3 4 6 9 ] 6 1 matrix to pois-y
+	[ 2 1 1 1 1 1 ] 6 1 matrix to two-w
+	pois-X 0 @i pois-X vstack to stacked-X
+	pois-y 0 @i pois-y vstack to stacked-y
+	7 1 0-matrix 1 + to unit-w7
+	pois-X pois-y two-w poisson-log 100 1e-12 fit-glm-weighted to pois-beta
+	pois-X pois-y two-w pois-beta poisson-log glm-covariance
+	stacked-X stacked-y unit-w7 pois-beta poisson-log glm-covariance 1e-8 expect-near
+	pois-X pois-y two-w gaussian-identity 100 1e-12 fit-glm-weighted to gauss-beta
+	pois-X pois-y two-w gauss-beta gaussian-identity glm-covariance
+	stacked-X stacked-y unit-w7 gauss-beta gaussian-identity glm-covariance - abs max 1e-6 > 1 1e-12 expect-near
+:] test
+
 \ ===== negative binomial (NB2: variance mu + mu^2/theta, log link) =====
 \ Shared fixtures: one design, and two count vectors over it — mild is close to
 \ Poisson (residual variance barely above the mean), heavy is strongly

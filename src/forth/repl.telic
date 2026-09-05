@@ -70,7 +70,7 @@
 	depth 0= if cwd then
 	to path
 
-	path list-directory  path ' ls-entry curry map to entries
+	path list-directory path ' ls-entry curry map to entries
 	entries size 0= if exit then
 
 	entries ' size map 0 ' max2 reduce 2 + to width
@@ -79,7 +79,7 @@
 
 	0 entries size 1 do k
 		entries k @i to entry
-		k 1 + columns mod 0=  k 1 + entries size =  or if
+		k 1 + columns mod 0= k 1 + entries size = or if
 			entry print-raw cr
 		else
 			entry width pad-right print-raw

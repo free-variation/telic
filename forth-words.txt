@@ -239,6 +239,7 @@ execute
 exit
 exp
 expand-grid
+expand-indicators!
 expect
 expect-near
 expect-throws
@@ -280,6 +281,7 @@ file-exists?
 file-info
 fill
 filter
+filter-columns
 find-executable
 find-first
 first
@@ -287,6 +289,7 @@ fit-augmented
 fit-augmented-logistic
 fit-gamma
 fit-glm
+fit-glm-weighted
 fit-linear
 fit-logistic
 fit-logistic-ridge
@@ -296,6 +299,7 @@ fit-negative-binomial
 fit-nonnegative
 fit-poisson
 fit-simplex
+fit-weighted-linear
 fit-xgb
 flat-map
 flatten
@@ -331,6 +335,9 @@ ftruncate
 gc
 gen-each
 gen-take
+glm-covariance
+glm-dispersion
+glm-regression
 gpd-draw
 gpd-fit
 gpd-quantile
@@ -432,6 +439,7 @@ ncurry
 negate
 negative-binomial-log
 negative-binomial-theta
+neq
 new-tests
 nip
 nmap
@@ -505,6 +513,9 @@ rect-at
 recurse
 reduce
 regress-with
+regression-coefficients
+regression-report
+regression-statistics
 reify
 relation
 reload
@@ -561,7 +572,9 @@ seed
 segment>pointer
 segment?
 select-columns
+select-eq
 select-keys
+select-neq
 select-rows
 select-values
 series
