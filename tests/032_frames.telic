@@ -86,6 +86,11 @@
 { } keys . cr
 { } values . cr
 
+\ key-set : the keys as a set
+{ :b 2 :a 1 } key-set . cr                       \ [< :a :b >]
+{ :b 2 :a 1 } key-set :a member? . cr            \ 1
+{ } key-set . cr                                 \ [< >]
+
 \ size counts top-level entries
 { :a 1 :b 2 :c 3 } size . cr
 

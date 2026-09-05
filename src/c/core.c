@@ -5133,6 +5133,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "@or", p_frame_get_or, 0);
 	define_primitive(interp, "!", p_frame_set, 0);
 	define_primitive(interp, "keys", p_frame_keys, 0);
+	define_primitive(interp, "key-set", p_frame_key_set, 0);
 	define_primitive(interp, "values", p_frame_values, 0);
 	define_primitive(interp, "delete-at", p_frame_delete_at, 0);
 	define_primitive(interp, "has?", p_has, 0);

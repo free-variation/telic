@@ -1456,6 +1456,7 @@ void p_frame_get(DISPATCH_ARGS);
 void p_frame_get_inline_key(DISPATCH_ARGS);
 void p_frame_get_or(DISPATCH_ARGS);
 void p_frame_get_symbol(DISPATCH_ARGS);
+void p_frame_key_set(DISPATCH_ARGS);
 void p_frame_keys(DISPATCH_ARGS);
 void p_frame_set(DISPATCH_ARGS);
 void p_frame_set_inline_key(DISPATCH_ARGS);

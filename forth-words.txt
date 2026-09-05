@@ -375,6 +375,7 @@ iqr
 iso>time
 join
 json>frame
+key-set
 keys
 ks-distance
 last

@@ -2888,7 +2888,8 @@ Symbol-keyed sorted maps; binary-search lookup. A **path** is an array of steps;
 | `has?` | `( fr sym/path -- bool )` | Existence test for a frame key or path, no error on miss; a search path is true if any node matches (short-circuits at the first); on a string `( str pat -- bool )`, true if regex `pat` matches anywhere | 3 + d log n | none | O(d log n) |
 | `delete-at` | `( fr sym/path -- fr )` | Remove a key (errors if absent or on a search path); mutates fr | n | none | O(n) |
 | `update-at` | `( fr xt sym/path -- fr )` | Apply xt to the value at the key, store the result back; errors on a search path | d log n + xt | none | O(d log n + xt) |
-| `keys` | `( fr -- arr )` | Keys (symbols) in sorted order | 1 + n | `1a(n)` | O(n) |
+| `keys` | `( fr -- arr )` | The keys as an array of symbols, in the frame's storage order (by symbol id, the order of first interning); parallel to `values`, so `frame` rebuilds the frame from the two | 1 + n | `1a(n)` | O(n) |
+| `key-set` | `( fr -- set )` | The keys as a set of symbols, for membership tests and set algebra against other key sets | 1 + n log n | `1o` | O(n log n) |
 | `values` | `( fr -- arr )` | Values in key order | 1 + n | `1a(n)` | O(n) |
 | `merge` | `( fr₁ fr₂ -- fr )` | New frame with all keys; fr₂ wins collisions | m+n | `1o` | O(m+n) |
 | `copy` | `( a -- a' )` | Deep copy of any value: dereferences bound logic vars to their values and gives each unbound var a fresh shared var; recurses into frames, arrays, matrices, strings, sets, continuations, pairs; identity for scalars. Defined generally, not frame-specific. | tree size | one object per node | O(tree size) |
@@ -2976,6 +2977,13 @@ Symbol-keyed sorted maps; binary-search lookup. A **path** is an array of steps;
 ```
 ```output
 [ :a :b ]
+```
+
+```forth key-set
+{ :b 2 :a 1 } key-set dup :a member? . [< :a :c >] intersection . cr
+```
+```output
+1 [< :a >]
 ```
 
 ```forth values

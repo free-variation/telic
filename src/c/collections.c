@@ -1252,6 +1252,27 @@ void p_frame_keys(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
 
+void p_frame_key_set(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val frame_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(frame_val, T_FRAME, "key-set", "a frame");
+	Object *frame = OBJECT_AT(VAL_DATA(frame_val));
+	int n_keys = frame->len;
+
+	Val *key_symbols = (Val *)xmalloc(sizeof(Val) * (size_t)(n_keys > 0 ? n_keys : 1));
+	for (int i = 0; i < n_keys; i++)
+		key_symbols[i] = make_symbol((int)frame->frame.keys[i]);
+
+	int set_handle = build_set_from_values(interp, key_symbols, n_keys);
+	free(key_symbols);
+	if (interp->error_flag)
+		return;
+
+	chain_sp[-1] = make_set(set_handle);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
+
 void p_frame_values(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	Val frame_val = chain_sp[-1];

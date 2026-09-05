@@ -432,7 +432,8 @@ const HelpEntry help_entries[] = {
 	{ "iso>time", "( string -- instant )", "units.telic: parse an ISO 8601 UTC string (YYYY-MM-DDTHH:MM:SSZ) to an instant", "len", "1 pair", "O(1)", 24 },
 	{ "join", "( arr sep -- str )", "Concatenate the string elements of arr separated by sep; errors on a non-string element", "2 + total", "1o", "O(total)", 14 },
 	{ "json>frame", "( str -- val )", "Parse a JSON string. Escapes and \\uXXXX (with surrogate pairs) decode to UTF-8; depth-guarded; rejects trailing non-whitespace. Each object's keys are sorted after collection", "scan + build", "one object per node", "O(|s| log |s|)", 19 },
-	{ "keys", "( fr -- arr )", "Keys (symbols) in sorted order", "1 + n", "1a(n)", "O(n)", 18 },
+	{ "key-set", "( fr -- set )", "The keys as a set of symbols, for membership tests and set algebra against other key sets", "1 + n log n", "1o", "O(n log n)", 18 },
+	{ "keys", "( fr -- arr )", "The keys as an array of symbols, in the frame's storage order (by symbol id, the order of first interning); parallel to values, so frame rebuilds the frame from the two", "1 + n", "1a(n)", "O(n)", 18 },
 	{ "ks-distance", "( a b -- d )", "Two-sample Kolmogorov–Smirnov statistic: the largest absolute gap between the two samples' ECDFs, both advanced past each pooled value before measuring (ties). Symmetric; d ∈ [0, 1]; NaNs excluded per sample, each sample's own n; dimensioned inputs are computed over their magnitudes; errors when either sample has no finite values", "(n+m) log(n+m)", "malloc(n) + malloc(m)", "O((n+m) log(n+m)); above 8k elements the sorts are O(n) radix", 21 },
 	{ "last", "( arr n -- arr )", "arrays.telic: the last n elements of the array", "3n", "3×1a(n)", "O(n)", 16 },
 	{ "leave", "—", "Branch past the innermost loop's closing word; conditional form is if leave then", NULL, NULL, NULL, 10 },
@@ -793,7 +794,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, pairs head then tail, arrays element-wise, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails. A C primitive, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 29 },
 };
 
-const int help_entry_count = 736;
+const int help_entry_count = 737;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -1174,6 +1175,7 @@ const HelpExample help_examples[] = {
 	{ "iso>time", "\"2020-01-02T03:04:05Z\" iso>time epoch>date :day @ . cr", "2" },
 	{ "join", "[ \"a\" \"b\" \"c\" ] \"-\" join . cr", "a-b-c" },
 	{ "json>frame", "\"{\"\"a\"\": [1, 2]}\" json>frame /a @ . cr", "[ 1 2 ]" },
+	{ "key-set", "{ :b 2 :a 1 } key-set dup :a member? . [< :a :c >] intersection . cr", "1 [< :a >]" },
 	{ "keys", "{ :a 1 :b 2 } keys . cr", "[ :a :b ]" },
 	{ "ks-distance", "[ 1 2 3 ] vector [ 1 2 3 ] vector ks-distance . cr\n[ 1 2 3 ] vector [ 4 5 6 ] vector ks-distance . cr", "0\n1" },
 	{ "last", "[ 1 2 3 4 ] 2 last . cr", "[ 3 4 ]" },
@@ -1535,4 +1537,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 737;
+const int help_example_count = 738;
