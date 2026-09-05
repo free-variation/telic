@@ -1236,6 +1236,12 @@ void p_frame_delete_at(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 }
 
+static void fill_key_symbols(Object *frame, Val *key_symbols) {
+	int n_keys = frame->len;
+	for (int i = 0; i < n_keys; i++)
+		key_symbols[i] = make_symbol((int)frame->frame.keys[i]);
+}
+
 void p_frame_keys(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	Val frame_val = chain_sp[-1];
@@ -1243,10 +1249,7 @@ void p_frame_keys(DISPATCH_ARGS) {
 	Object *frame = OBJECT_AT(VAL_DATA(frame_val));
 
 	NEW_ARRAY(result_handle, result, frame->len);
-
-	for (int i = 0; i < frame->len; i++)
-		result->items[i] = make_symbol((int)frame->frame.keys[i]);
-
+	fill_key_symbols(frame, result->items);
 	chain_sp[-1] = make_array(result_handle);
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
@@ -1260,9 +1263,7 @@ void p_frame_key_set(DISPATCH_ARGS) {
 	int n_keys = frame->len;
 
 	Val *key_symbols = (Val *)xmalloc(sizeof(Val) * (size_t)(n_keys > 0 ? n_keys : 1));
-	for (int i = 0; i < n_keys; i++)
-		key_symbols[i] = make_symbol((int)frame->frame.keys[i]);
-
+	fill_key_symbols(frame, key_symbols);
 	int set_handle = build_set_from_values(interp, key_symbols, n_keys);
 	free(key_symbols);
 	if (interp->error_flag)
