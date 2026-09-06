@@ -1522,6 +1522,15 @@ void p_execute(DISPATCH_ARGS) {
 	if (interp->error_flag)
 		return;
 
+	if ((cfa_handler)vocab.dict[value] == docol) {
+		rpush(interp, make_addr(interp->ip));
+		if (interp->error_flag)
+			return;
+		interp->ip = value + 1;
+
+		DISPATCH(interp);
+	}
+
 	execute_xt(interp, value);
 
 	DISPATCH(interp);
@@ -1686,11 +1695,9 @@ void p_shift(DISPATCH_ARGS) {
 	if (cont_slot < 0)
 		return;
 
-	interp->rsp = mark_index;
-	restore_local_base_below(interp, mark_index);
+	unwind_to(interp, mark_index);
 	push(interp, make_continuation(cont_slot));
-
-	DISPATCH(interp);
+	interp->unwinding = 1;
 }
 
 void p_shift_with(DISPATCH_ARGS) {

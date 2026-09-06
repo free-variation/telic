@@ -43,12 +43,11 @@
 	units size n-folds < if units size n-folds "cross-validate: {0} folds exceed {1} units" format throw then
 	units size iota vector n-folds mod to fold-ids
 	n-folds iota
-	fold-ids units
-	[: f fold-ids units |
+	[: f |
 		fold-ids f eq 1 swap - where units swap select-rows
 		fold-ids f eq where units swap select-rows
-		2 array 
-	:] 2curry map ;
+		2 array
+	:] map ;
 
 ( units n-folds fit-xt score-xt -- fold-losses ) \ k-fold CV: units deal round-robin
 \ into folds in the given order (shuffle first; one shuffle compares configurations on
@@ -58,11 +57,10 @@
 : cross-validate
 	| units n-folds fit score |
 	units n-folds cv-folds
-	fit score
-	[: fold fit score |
+	[: fold |
 		fold 0 @i fit execute
-		fold 1 @i score execute 
-	:] 2curry map vector ;
+		fold 1 @i score execute
+	:] map vector ;
 
 ( matrix -- float ) \ standard deviation
 : std var sqrt ; inline
@@ -163,13 +161,10 @@
 	2147483647 random-int to run-seed
 
 	replications iota
-	fit-xt 
-	[: i run-seed data fit |
+	[: i |
 		data dup n-observations run-seed i + resample-indices-ext select-rows
-		fit execute 
-	:] curry
-	data swap curry
-	run-seed swap curry
+		fit-xt execute
+	:]
 	fit-mapper execute ;
 
 : bootstrap ' map bootstrap-with ;
@@ -246,10 +241,10 @@
 	positives num-elements 0 = negatives num-elements 0 = or if
 		"auc: both a positive and a negative outcome required" throw then
 	
-	positives matrix>array negatives
-	[: positive-score negatives |
-		negatives positive-score < sum negatives positive-score <= sum + 
-	:] curry map vector sum
+	positives matrix>array
+	[: positive-score |
+		negatives positive-score < sum negatives positive-score <= sum +
+	:] map vector sum
 	0.5 * positives num-elements negatives num-elements * / ;
 
 ( outcomes probabilities -- f ) \ Brier score: mean squared error of probabilities against 0/1
@@ -289,7 +284,7 @@
 	xs ys correlation-xt execute to estimate
 	
 	xs ys complete-cases augment
-	correlation-xt [: resample xt | resample 0 @j resample 1 @j xt execute :] curry
+	[: resample | resample 0 @j resample 1 @j correlation-xt execute :]
 	replications pbootstrap vector to replicate-estimates
 
 

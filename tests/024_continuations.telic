@@ -25,10 +25,9 @@ ex2 drop . cr
 : ex3 reset 0 shifter 1 + 2 * ;
 ex3 swap drop 3 swap resume . cr
 
-\ -- 6: nested resets, inner shift only escapes inner
-: shifter-drop shift drop ;
-: inner-body reset 1 shifter-drop 2 + ;
-: ex4 reset 100 inner-body 1000 + ;
+\ -- 6: nested resets, inner shift only escapes inner: k lands in ex4, which drops it
+: inner-body reset 1 shifter 2 + ;
+: ex4 reset 100 inner-body drop 1000 + ;
 ex4 .s cr
 
 \ -- 7: reset in a word with its own locals; shift unwinds past the locals scope
@@ -43,7 +42,18 @@ ex4 .s cr
 : locals-exec | producer | reset producer execute ;
 [: 9 shift :] locals-exec drop . cr
 
-\ -- 10: shift outside reset is a clean error
+\ -- 10: shift across an execute between the reset and the shift: the word that
+\ called execute is inside the captured slice, so its remaining body runs on resume
+: through-execute | x | [: shifter :] execute x 2 * ;
+: ex5 reset 7 through-execute ;
+ex5 resume . cr
+
+\ -- 11: the shifting word's own tail belongs to the continuation
+: shift-then-print shift "after" . ;
+: ex6 reset shift-then-print "outer" . ;
+ex6 "between" . resume cr
+
+\ -- 12: shift outside reset is a clean error
 shift
 
 clear

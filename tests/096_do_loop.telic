@@ -96,4 +96,4 @@ clear
 variable g
 : global-index 0 2 1 do g loop ;               \ (a global cannot be the index)
 [: 0 2 1 do k k . loop :] execute cr           \ quotations take do loops too: 0 1
-: capture 0 2 1 do k [: k :] drop loop ;       \ (a quotation cannot read the index)
+: capture 0 3 1 do k [: k :] execute . loop cr ; capture   \ a quotation captures the index by copy, per iteration: 0 1 2

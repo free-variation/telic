@@ -375,8 +375,16 @@ Building on the generator primitives:
   are the substrate; the interleaving combinators are the work.
 - **Occurs check** — `unify` builds cyclic terms today (docs/logic.md names the
   omission); add the check, or a guarded `unify-safe`, and measure the cost.
+- **`yield` inside a combinator body.** `map`/`each`/`times` run their bodies
+  in a nested `run_inner` with the loop state (`loop_n`, `loop_body_start`,
+  the `CallContext`) on the C side, so a `shift` inside the body unwinds out
+  correctly but a `resume` cannot re-enter the loop: the combinator's arity
+  check fires instead. Move the loop state into return-stack frames the
+  slice can carry, or run combinator bodies through ordinary return frames
+  as `execute` now does, so a producer may yield from inside `each`.
 
-All library forth on the existing primitives — no new C.
+All library forth on the existing primitives — no new C, except the combinator
+item above.
 
 ---
 
@@ -497,6 +505,18 @@ live here instead. File and function name each invariant's home.
   before running a body, so continuations captured inside see the same
   return-stack shape as a trampoline call. Changing either call path
   changes captured-continuation layout (core.c, `execute_xt`).
+- `execute` on a colon body must push an ordinary return frame and dispatch
+  inline, never through `execute_xt`: a nested loop's stop frame inside a
+  captured slice ends a resumed run early (words.c, `p_execute`).
+- A combinator running a primitive xt must set `running` before the call and
+  re-enter `run_inner` after the handler returns while `running` is still
+  set, as `dispatch_body_hoisted` does for a colon body: the primitive may be
+  `execute`, whose inline body contains ops that return to the loop rather
+  than dispatch (`sum`, the reductions), and a bare return there would end
+  the iteration mid-body, leaving its frames on the return stack for the next
+  element (telic.h, `call_step`).
+- `shift` must raise the unwinding flag as `shift-with` does; nothing after
+  `shift` in the shifting word runs at capture time (words.c, `p_shift`).
 - The `WORD_LINK` chain from `latest_cfa` is strictly descending: every
   `create_header` appends, so each new cfa exceeds the previous. `gc`
   relies on this — it walks the chain (descending) and reverses in place
@@ -513,9 +533,15 @@ live here instead. File and function name each invariant's home.
 - Unify walks a cons spine in a loop bounded by `LIST_SPINE_MAX`; only head
   recursion carries the nesting counter, so list length is not capped by
   `MAX_NESTING_DEPTH` (logic.c, `unify_depth`).
-- A local reference resolves only in the innermost locals-bearing scope:
-  name resolution rejects an outer reference before emitting, so no op
-  receives a frame depth above 0 (compiler.c, `reject_outer_local`).
+- No op receives a frame depth above 0. A quotation reaches an enclosing
+  local only as a capture: a trailing received slot of its own frame, copied
+  from the immediately enclosing scope at `:]`. The capture pre-scan must
+  declare every outside name the body reads, nested quotations included, and
+  must treat `to`/`do` targets and nested heads as shadowing, exactly as
+  token resolution does (compiler.c, `scan_body_captures`,
+  `reject_outer_local`).
+- `recurse` inside a capturing quotation must re-push the captured slots
+  before the call; the head expects them (compiler.c, `p_recurse`).
 - `forget_user` frees only objects above `object_space.init`; below it
   sit literals baked into the compiled-in vocabulary (e.g. `run`'s
   `" +"`), which must survive every reset (core.c, `forget_user`).

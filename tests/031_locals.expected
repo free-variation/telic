@@ -14,8 +14,8 @@
 9 
 7 
 770 
-error: x is not bound in this quotation; pass it in or use pick
-error: a is not bound in this quotation; pass it in or use pick
+[ 15 25 ] 
+[ [ 102 104 ] ] 
 error: |: locals are declared in one list; `to` declares the rest
 in |
 error: |: locals must be declared at the head of the body

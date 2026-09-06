@@ -116,6 +116,17 @@ clear
 
 clear
 
+\ === execute as a combinator's xt runs each token's whole body, including targets
+\ whose ops return to the loop rather than dispatch (sum and the reductions), and
+\ the loop's state is fresh for every element ===
+: reduce-then-more | m scale | m sum sqrt scale * ;
+[ [ 9 16 ] vector 2 ' reduce-then-more 2curry [ 1 3 ] vector 10 ' reduce-then-more 2curry ] ' execute map .a cr   \ [ 10 20 ]
+: a-thunk | mat | mat dup * sum sqrt "step" . ;
+[ [ 3 4 ] vector ' a-thunk curry dup ] ' execute map .a cr   \ step step [ 5 5 ]
+[ [ 9 16 ] vector 2 ' reduce-then-more 2curry [ 1 3 ] vector 10 ' reduce-then-more 2curry ] ' execute pmap .a cr  \ [ 10 20 ]
+
+clear
+
 \ === errors ===
 [: 1 2 curry :] [: . cr :] try-catch          \ (top is not an xt)
 [: 5 curry :] [: . cr :] try-catch            \ (needs two operands)

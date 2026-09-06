@@ -345,11 +345,9 @@ drop
 	column column>array [: none? not :] filter array>set sort to levels
 	levels size 2 < if "indicators!: needs at least 2 distinct values" throw then
 	levels 1 skip
-
-	design prefix column
-	[: level design prefix column |
-		design column level eq prefix level "{1}={0}" format string>symbol ! 
-	:] 3 ncurry map drop
+	[: level |
+		design column level eq prefix level "{1}={0}" format string>symbol !
+	:] map drop
 	design ;
 
 ( design sym -- design ) \ replace a categorical column with its sym=level indicators
@@ -513,15 +511,13 @@ drop
 	X with-intercept y augment to xy
 	units n-folds cv-folds to folds
 	lambdas
-	folds xy
-	[: lambda folds xy |
+	[: lambda |
 		folds
-		xy lambda
-		[: fold xy lambda |
+		[: fold |
 			fold 0 @i fold 1 @i xy lambda
 			' cv-ridge-cell curry curry curry curry :]
-		2curry map :]
-	2curry map flatten-array
+		map :]
+	map flatten-array
 	' execute mapper execute
 	vector lambdas size n-folds reshape row-means to losses
 	{ :lambdas lambdas
@@ -608,17 +604,15 @@ drop
 	booster-cell pointer-deref to booster
 
 	params keys [: :rounds = not :] filter
-	booster params
-	[: key booster params |
+	[: key |
 	   booster key "{0}" format
 	   params key @ "{0}" format
 	   (xgb-set-param) xgb-check
-	:] 2curry each
+	:] each
 
-	booster dmatrix
-	[: i booster dmatrix |
+	[: i |
 	   booster i dmatrix (xgb-update) xgb-check
-	:] 2curry rounds i-times
+	:] rounds i-times
 
 	dmatrix (xgd-free) xgb-check
 	dmatrix-cell ffi-free booster-cell ffi-free
@@ -683,10 +677,9 @@ drop
 	n 0 > if
 		scores-cell pointer-deref n floats>matrix matrix>array to scores
 		features-cell pointer-deref to names
-		dense names scores
-		[: i dense names scores |
+		[: i |
 		   dense scores i @i names i pointer-string-at string>number 0 !i,j drop
-		:] 3 ncurry n i-times
+		:] n i-times
 	then
 
 	k-cell ffi-free n-cell ffi-free features-cell ffi-free
@@ -859,7 +852,7 @@ drop
 ( betas replications j -- column )
 : coefficient-column
 	| betas replications j |
-	betas j [: b j | b j 0 @i,j :] curry map replications 1 matrix ; internal
+	betas [: b | b j 0 @i,j :] map replications 1 matrix ; internal
 
 ( beta betas replications j -- frame )
 : coefficient-summary
@@ -877,11 +870,10 @@ drop
 \ per coefficient, and the sample covariance of the replicate coefficient vectors
 : bootstrap-summaries
 	| augmented fit beta replications |
-	augmented fit [: fit | split-augmented fit execute :] curry replications bootstrap to betas
+	augmented [: split-augmented fit execute :] replications bootstrap to betas
 	0 beta size 1- range
-	beta betas replications
-	[: j beta betas replications | beta betas replications j coefficient-summary :]
-	3 ncurry map
+	[: j | beta betas replications j coefficient-summary :]
+	map
 
 	betas ' transpose map dup 1 skip swap 0 @i ' vstack reduce to stacked
 	stacked stacked column-means - to centered
@@ -895,8 +887,7 @@ drop
 	covariance diagonal sqrt matrix>array to standard-errors
 	0.975 qnorm to z-crit
 	0 beta size 1- range
-	beta standard-errors z-crit
-	[: j beta standard-errors z-crit |
+	[: j |
 		beta j 0 @i,j to estimate
 		standard-errors j @i to se
 		estimate se / to z
@@ -907,7 +898,7 @@ drop
 		  :ci-low estimate z-crit se * -
 		  :ci-high estimate z-crit se * +
 		} :]
-	3 ncurry map covariance ; internal
+	map covariance ; internal
 
 ( dataset spec -- mat ) \ a column named by a symbol, or the n x 1 matrix given
 : column-or-matrix
@@ -1000,8 +991,7 @@ drop
 	model :coefficients @ to summaries
 	model :family @ :effect null @or to effect
 	0 terms size 1- range
-	terms summaries effect
-	[: j terms summaries effect |
+	[: j |
 		summaries j @i { :term terms j @i } merge to row
 		effect none? not if
 			row
@@ -1011,7 +1001,7 @@ drop
 			merge to row
 		then
 		row :]
-	3 ncurry map frames>dataset ;
+	map frames>dataset ;
 
 ( model -- ) \ print the fit statistics, then the coefficient table
 : regression-report
@@ -1083,14 +1073,12 @@ drop
 		lambda beta penalty-mask * * - to gradient
 
 		n-nonreference-classes iota
-		n-nonreference-classes X probs
-		[: row-class n-nonreference-classes X probs |
+		[: row-class |
 		   n-nonreference-classes iota
-		   X probs row-class
-		   [: column-class X probs row-class |
+		   [: column-class |
 			  column-class X probs probs row-class @j row-class information-block :]
-		   3 ncurry map hstack-all
-		:] 3 ncurry map vstack-all penalty-diagonal + to information
+		   map hstack-all
+		:] map vstack-all penalty-diagonal + to information
 
 		information gradient transpose n-predictors n-nonreference-classes * 1 reshape
 		fit-linear to delta
@@ -1120,14 +1108,13 @@ drop
 	1 X beta 0 n-observations n-nonreference-classes 0-matrix dgemm-nn exp to class-weights
 	class-weights row-sums 1 + to weight-total
 	n-classes iota
-	reference-class class-weights weight-total
-	[: label reference-class class-weights weight-total |
+	[: label |
 		label reference-class = if
 			1 weight-total /
 		else
 			class-weights label reference-class > if label 1 - else label then @j weight-total /
 		then
-	:] 3 ncurry map hstack-all ;
+	:] map hstack-all ;
 
 \ ---- Negative binomial (NB2): variance mu + mu^2/theta, log link ----
 \ theta is the dispersion; as theta grows the variance approaches the mean and
@@ -1145,8 +1132,8 @@ drop
 	{ :inverse-link ' exp
 	  :mean-derivative ' exp
 	  :variance theta ' negative-binomial-variance curry
-	  :deviance theta [: y mu theta |
-		y 1e-300 max2 mu / ln y * y theta + mu theta + / ln y theta + * - 2 * :] curry
+	  :deviance [: y mu |
+		y 1e-300 max2 mu / ln y * y theta + mu theta + / ln y theta + * - 2 * :]
 	  :dispersion :fixed
 	  :effect :rate-ratio } ;
 

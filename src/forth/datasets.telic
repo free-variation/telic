@@ -183,7 +183,7 @@
 \ pred ( column-name column -- binary ), order preserved
 : filter-columns
 	| dataset pred |
-	dataset keys dataset pred [: key ds pr | key ds key @ pr execute :] 2curry filter
+	dataset keys [: key | key dataset key @ pred execute :] filter
 	dataset swap select-columns ;
 
 ( pairs value -- pairs ) \ extend the last run when the value repeats, else start one
@@ -239,7 +239,7 @@
 	column-names size 0= if [ ] exit then
 
 	dataset values ' column>array map transpose
-	column-names [: row names | names row frame :] curry map ; internal
+	[: row | column-names row frame :] map ; internal
 
 ( array/vector/dataset -- pairs ) \ occurrences of distinct values (dataset: whole rows), most frequent first
 : count
@@ -315,7 +315,7 @@
 	then
 
 	dataset keys
-	dataset values i [: swap column>array swap @i :] curry map
+	dataset values [: column>array i @i :] map
 	frame ;
 
 ( dataset pred replacement sym -- ) \ replaces the column's cells passing pred, in place
@@ -412,8 +412,7 @@
 	then
 	group-indices
 
-	dataset by xt
-	[: pair dataset by xt |
+	[: pair |
 		dataset pair 1 @i select-rows xt execute
 		by array? if
 			0 by size 1 do position
@@ -422,7 +421,7 @@
 		else
 			pair 0 @i by !
 		then
-	:] 3 ncurry map
+	:] map
 	frames>dataset ;
 ( v -- arr ) \ one grid axis normalized to an array of its values
 : grid-axis dup matrix? if matrix>array then dup set? if set>array then ; internal
@@ -435,7 +434,7 @@
 	grid-frame keys to grid-keys
 	grid-keys size 0= if { } exit then
 
-	grid-keys grid-frame [: key gf | gf key @ grid-axis :] curry map to value-lists
+	grid-keys [: key | grid-frame key @ grid-axis :] map to value-lists
 	value-lists [: size :] map to lengths
 	lengths 1 ' * reduce to total
 
@@ -444,8 +443,7 @@
 		value-lists axis @i to axis-values
 		lengths axis @i to axis-length
 		lengths axis 1+ skip 1 ' * reduce to inner
-		total iota inner axis-length [: row inner axis-length |
-			row inner quotient axis-length mod :] 2curry map to gather
+		total iota [: row | row inner quotient axis-length mod :] map to gather
 		columns axis-values gather select-rows column-from-cells add-last! to columns
 	loop
 	grid-keys columns frame ;
@@ -550,7 +548,7 @@
 		"vstack: the two datasets have different columns" throw
 	then
 	top keys to cols
-	cols top bottom [: key t b | t key @ column>array b key @ column>array concat column-from-cells :] 2curry map
+	cols [: key | top key @ column>array bottom key @ column>array concat column-from-cells :] map
 	cols swap frame ; internal
 
 ( a b -- mat/dataset ) \ matrix row-stack, or two datasets stacked by rows
@@ -564,4 +562,4 @@
 	dataset column-name @ dup matrix? swap quantity? or not if
 		column-name "set-unit!: column :{0} is not numeric" format throw
 	then
-	dataset unit-xt [: column unit | column magnitude unit execute :] curry column-name update-at ;
+	dataset [: column | column magnitude unit-xt execute :] column-name update-at ;

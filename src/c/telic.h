@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.32.5"
+#define VERSION "0.33.1"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -608,6 +608,9 @@ typedef struct {
 	int local_name_offsets[MAX_LOCAL_NAMES];
 	char local_fetched[MAX_LOCAL_NAMES];
 	char local_stored[MAX_LOCAL_NAMES];
+	char local_captured[MAX_LOCAL_NAMES];
+	char local_assigned_by_to[MAX_LOCAL_NAMES];
+	int local_capture_parent_slot[MAX_LOCAL_NAMES];
 	int found_local_name_idx;
 	int found_local_scope;
 	int n_local_names;
@@ -1789,8 +1792,11 @@ static inline void push_curried_bindings(Interpreter *interp, Val callable) {
 static inline void call_step(Interpreter *interp, CallContext *context, int cfa) {
 	if (context->fast) {
 		if (context->primitive) {
+			interp->running = 1;
 			context->primitive(interp, vocab.dict + interp->trampoline_base + 1,
 					interp->data_stack + interp->dsp);
+			if (interp->running && !interp->error_flag)
+				run_inner(interp, interp->run_floor);
 			return;
 		}
 		if (context->reuses_locals)

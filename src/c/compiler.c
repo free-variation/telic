@@ -9,6 +9,7 @@ static void hoist_assigned_locals(Interpreter *interp);
 static int explicit_head_follows(void);
 static int global_declared(const char *token);
 static int declare_local_in_scope(Interpreter *interp, const char *token);
+static const char *in_place_update_word(const char *token);
 static void rewrite_tail_calls(int body_start, int body_end);
 
 void rollback_partial_definition(void) {
@@ -539,10 +540,261 @@ void p_endcase(DISPATCH_ARGS) {
 	DISPATCH(interp);
 }
 
+static struct {
+	char pool[LOCAL_NAMES_POOL_SIZE];
+	int offsets[MAX_LOCAL_NAMES];
+	int pool_here;
+	int n_names;
+} capture_shadow;
+
+static void shadow_push(const char *name) {
+	int name_len = (int)strlen(name);
+	if (capture_shadow.pool_here + name_len + 1 > LOCAL_NAMES_POOL_SIZE
+			|| capture_shadow.n_names >= MAX_LOCAL_NAMES)
+		return;
+
+	int offset = capture_shadow.pool_here;
+	memcpy(&capture_shadow.pool[offset], name, (size_t)name_len);
+	capture_shadow.pool[offset + name_len] = 0;
+	capture_shadow.pool_here += name_len + 1;
+	capture_shadow.offsets[capture_shadow.n_names++] = offset;
+}
+
+static void shadow_truncate(int n_names) {
+	capture_shadow.n_names = n_names;
+	capture_shadow.pool_here = n_names > 0
+		? capture_shadow.offsets[n_names - 1]
+			+ (int)strlen(&capture_shadow.pool[capture_shadow.offsets[n_names - 1]]) + 1
+		: 0;
+}
+
+static int shadowed(const char *name) {
+	for (int i = 0; i < capture_shadow.n_names; i++)
+		if (strcmp(name, &capture_shadow.pool[capture_shadow.offsets[i]]) == 0)
+			return 1;
+	return 0;
+}
+
+static char *scan_next_token(void) {
+	for (;;) {
+		skip_whitespace_and_comments();
+		if (compiler.input_buffer_pos >= compiler.input_buffer_len) {
+			if (refill_input())
+				continue;
+			return NULL;
+		}
+		if (compiler.input_buffer[compiler.input_buffer_pos] == '"') {
+			if (read_string_literal() < 0) {
+				if (refill_input()) {
+					compiler.need_more = 0;
+					continue;
+				}
+				return NULL;
+			}
+			continue;
+		}
+
+		char *token = next_token();
+		if (token)
+			return token;
+		if (!refill_input())
+			return NULL;
+	}
+}
+
+static int region_closer(const char *token) {
+	return strcmp(token, ":]") == 0 || strcmp(token, ";") == 0;
+}
+
+static void collect_region_declarations(void) {
+	int saved_position = compiler.input_buffer_pos;
+	int saved_line = compiler.input_line;
+	int depth = 0;
+
+	for (;;) {
+		char *token = scan_next_token();
+		if (!token)
+			break;
+		if (strcmp(token, "[:") == 0) {
+			depth++;
+			continue;
+		}
+		if (strcmp(token, ":]") == 0) {
+			if (depth == 0)
+				break;
+			depth--;
+			continue;
+		}
+		if (strcmp(token, ";") == 0)
+			break;
+		if (depth != 0)
+			continue;
+		if (strcmp(token, "to") != 0 && strcmp(token, "do") != 0)
+			continue;
+
+		char *name = scan_next_token();
+		if (!name)
+			break;
+		shadow_push(name);
+	}
+
+	compiler.input_buffer_pos = saved_position;
+	compiler.input_line = saved_line;
+}
+
+static void consume_nested_head(void) {
+	int barless = barless_locals_follow();
+	if (!barless && !explicit_head_follows())
+		return;
+
+	if (!barless)
+		scan_next_token();
+	for (;;) {
+		char *name = scan_next_token();
+		if (!name || strcmp(name, "|") == 0)
+			break;
+		if (name[0] == '^' && name[1] != 0)
+			continue;
+		if (name[0] == '?' && name[1] != 0)
+			name++;
+		shadow_push(name);
+	}
+}
+
+static int declare_captured_local(Interpreter *interp, const char *name, int parent_slot) {
+	int slot = declare_local_in_scope(interp, name);
+	if (slot < 0)
+		return -1;
+
+	int name_idx = compiler.n_local_names - 1;
+	compiler.local_captured[name_idx] = 1;
+	compiler.local_assigned_by_to[name_idx] = 0;
+	compiler.local_capture_parent_slot[name_idx] = parent_slot;
+	return slot;
+}
+
+static int consider_captured_reference(Interpreter *interp, const char *name, int quotation_scope) {
+	if (shadowed(name))
+		return 1;
+
+	int local_depth;
+	int local_slot_idx;
+	if (!find_local(name, &local_depth, &local_slot_idx))
+		return 0;
+	if (compiler.found_local_scope >= quotation_scope)
+		return 1;
+	if (compiler.found_local_scope != quotation_scope - 1) {
+		rollback_partial_definition();
+		fail(interp, "%s is not bound in this quotation; pass it in or use pick", name);
+		return -1;
+	}
+
+	compiler.local_fetched[compiler.found_local_name_idx] = 1;
+	if (declare_captured_local(interp, name, local_slot_idx) < 0)
+		return -1;
+	return 1;
+}
+
+static int consider_scanned_token(Interpreter *interp, char *token, int quotation_scope) {
+	int considered = consider_captured_reference(interp, token, quotation_scope);
+	if (considered != 0)
+		return considered;
+	if (find(token))
+		return 1;
+
+	char *operator_at = token;
+	while (*operator_at && *operator_at != '@' && *operator_at != '!')
+		operator_at++;
+	if (!*operator_at || operator_at == token)
+		return 1;
+
+	char left[LOCAL_NAMES_POOL_SIZE];
+	int left_len = (int)(operator_at - token);
+	if (left_len >= LOCAL_NAMES_POOL_SIZE)
+		return 1;
+	memcpy(left, token, (size_t)left_len);
+	left[left_len] = 0;
+	return consider_captured_reference(interp, left, quotation_scope);
+}
+
+static int scan_region_captures(Interpreter *interp, int quotation_scope) {
+	int shadow_mark = capture_shadow.n_names;
+	collect_region_declarations();
+
+	for (;;) {
+		char *token = scan_next_token();
+		if (!token || region_closer(token))
+			break;
+
+		if (strcmp(token, "[:") == 0) {
+			int nested_mark = capture_shadow.n_names;
+			consume_nested_head();
+			if (scan_region_captures(interp, quotation_scope) < 0)
+				return -1;
+			shadow_truncate(nested_mark);
+			continue;
+		}
+		if (strcmp(token, "'") == 0 || strcmp(token, "lookup") == 0) {
+			scan_next_token();
+			continue;
+		}
+		if (strcmp(token, "to") == 0 || strcmp(token, "do") == 0) {
+			scan_next_token();
+			continue;
+		}
+		if (in_place_update_word(token)) {
+			token = scan_next_token();
+			if (!token)
+				break;
+		}
+
+		if (consider_scanned_token(interp, token, quotation_scope) < 0)
+			return -1;
+	}
+
+	shadow_truncate(shadow_mark);
+	return 0;
+}
+
+static int scan_body_captures(Interpreter *interp) {
+	if (compiler.n_local_scopes < 2)
+		return 0;
+
+	int saved_position = compiler.input_buffer_pos;
+	int saved_line = compiler.input_line;
+	int quotation_scope = compiler.n_local_scopes - 1;
+	int names_before = compiler.n_local_names;
+
+	shadow_truncate(0);
+	int scanned = scan_region_captures(interp, quotation_scope);
+
+	compiler.input_buffer_pos = saved_position;
+	compiler.input_line = saved_line;
+	if (scanned < 0)
+		return -1;
+	return compiler.n_local_names - names_before;
+}
+
+static void declare_headless_captures(Interpreter *interp) {
+	int n_captured = scan_body_captures(interp);
+	if (n_captured <= 0)
+		return;
+
+	int scope_idx = compiler.n_local_scopes - 1;
+	compiler.local_scope_entry_cells[scope_idx] = vocab.here;
+	emit_call(interp, vocab.enter_locals_to_cfa);
+	emit(interp, (cell)n_captured);
+	emit(interp, (cell)n_captured);
+}
+
 void p_qcolon(DISPATCH_ARGS) {
 	open_quotation(interp);
 	if (barless_locals_follow()) {
 		compile_locals_decl(interp);
+		if (interp->error_flag)
+			DISPATCH(interp);
+	} else if (!explicit_head_follows()) {
+		declare_headless_captures(interp);
 		if (interp->error_flag)
 			DISPATCH(interp);
 	}
@@ -581,6 +833,39 @@ void truncate_quotation_spans(void) {
 			vocab.quotation_spans[i].source_offset = 0;
 }
 
+static void warn_capture_in_loop(const int *parent_slots, int n_captured) {
+	int parent_start = compiler.local_scope_starts[compiler.n_local_scopes - 1];
+	for (int i = 0; i < n_captured; i++)
+		if (compiler.local_assigned_by_to[parent_start + parent_slots[i]])
+			return;
+
+	fprintf(stderr, "warning: quotation captures ");
+	for (int i = 0; i < n_captured; i++) {
+		int name_idx = parent_start + parent_slots[i];
+		fprintf(stderr, "%s%s", i > 0 ? ", " : "",
+				&compiler.local_names_pool[compiler.local_name_offsets[name_idx]]);
+	}
+	fprintf(stderr, " inside a loop; it builds a token each iteration; hoist it above the loop with to\n");
+	fflush(stderr);
+}
+
+static void emit_capture_construction(Interpreter *interp, int anon_cfa, const int *parent_slots, int n_captured) {
+	if (compiler.loop_begin != 0)
+		warn_capture_in_loop(parent_slots, n_captured);
+
+	compiler.fuse_floor = vocab.here;
+	compiler.loadn_at = -1;
+	compiler.fuse_prev_var = 0;
+	compiler.fuse_prev2_var = 0;
+	for (int i = 0; i < n_captured; i++)
+		emit_local_fetch(interp, 0, parent_slots[i]);
+	emit_val_literal(interp, make_xt(anon_cfa));
+	emit_val_literal(interp, make_float((double)n_captured));
+	emit_call(interp, find("ncurry"));
+	compiler.fuse_floor = vocab.here;
+	compiler.loadn_at = -1;
+}
+
 void p_qsemi(DISPATCH_ARGS) {
 	if (compiler.loop_begin != 0) {
 		fail(interp, ":] : unterminated loop (a begin has no until/again/repeat, or a do no loop)");
@@ -596,6 +881,14 @@ void p_qsemi(DISPATCH_ARGS) {
 	}
 	if (!check_locals_assigned(interp))
 		return;
+
+	int parent_slots[MAX_LOCAL_NAMES];
+	int n_captured = 0;
+	int scope_start = compiler.local_scope_starts[compiler.n_local_scopes - 1];
+	for (int name_idx = scope_start; name_idx < compiler.n_local_names; name_idx++)
+		if (compiler.local_captured[name_idx])
+			parent_slots[n_captured++] = compiler.local_capture_parent_slot[name_idx];
+
 	leave_compile_scope(interp);
 	emit_call(interp, vocab.exit_cfa);
 	POP(case_chain_val);
@@ -617,9 +910,12 @@ void p_qsemi(DISPATCH_ARGS) {
 	if (branch_slot < 0) {
 		compiler.compiling = 0;
 		push(interp, make_xt(anon_cfa));
-	} else {
+	} else if (n_captured == 0) {
 		vocab.dict[branch_slot] = (vocab.here - branch_slot);
 		emit_val_literal(interp, make_xt(anon_cfa));
+	} else {
+		vocab.dict[branch_slot] = (vocab.here - branch_slot);
+		emit_capture_construction(interp, anon_cfa, parent_slots, n_captured);
 	}
 
 	DISPATCH(interp);
@@ -631,7 +927,16 @@ void p_recurse(DISPATCH_ARGS) {
 		return;
 	}
 
-	int definition_cfa = compiler.local_scope_dict_starts[compiler.n_local_scopes - 1] - 1;
+	int scope_idx = compiler.n_local_scopes - 1;
+	int scope_start = compiler.local_scope_starts[scope_idx];
+	for (int name_idx = scope_start; name_idx < compiler.n_local_names; name_idx++) {
+		if (!compiler.local_captured[name_idx])
+			continue;
+		compiler.local_fetched[name_idx] = 1;
+		emit_local_fetch(interp, 0, name_idx - scope_start);
+	}
+
+	int definition_cfa = compiler.local_scope_dict_starts[scope_idx] - 1;
 	emit_call(interp, definition_cfa);
 
 	DISPATCH(interp);
@@ -868,9 +1173,12 @@ static void hoist_assigned_locals(Interpreter *interp) {
 			continue;
 
 		int already = 0;
-		for (int i = scope_start; i < compiler.n_local_names; i++)
-			if (strcmp(name, &compiler.local_names_pool[compiler.local_name_offsets[i]]) == 0)
-				already = 1;
+		for (int i = scope_start; i < compiler.n_local_names; i++) {
+			if (strcmp(name, &compiler.local_names_pool[compiler.local_name_offsets[i]]) != 0)
+				continue;
+			compiler.local_assigned_by_to[i] = 1;
+			already = 1;
+		}
 		if (already)
 			continue;
 
@@ -1316,6 +1624,9 @@ static void compile_locals_decl(Interpreter *interp) {
 		compiler.local_names_pool_here += name_len + 1;
 		compiler.local_fetched[compiler.n_local_names] = 0;
 		compiler.local_stored[compiler.n_local_names] = 0;
+		compiler.local_captured[compiler.n_local_names] = 0;
+		compiler.local_assigned_by_to[compiler.n_local_names] = 0;
+		compiler.local_capture_parent_slot[compiler.n_local_names] = -1;
 		compiler.local_name_offsets[compiler.n_local_names++] = offset;
 
 		if (has_receive_marker)
@@ -1324,12 +1635,21 @@ static void compile_locals_decl(Interpreter *interp) {
 			lvar_slots[n_lvars++] = slot;
 	}
 
-	int n_declared = compiler.n_local_names - scope_start;
-	if (n_declared == 0) {
-		if (n_globals == 0)
-			fail(interp, "|: empty locals list; omit it");
+	int n_head = compiler.n_local_names - scope_start;
+	if (n_head == 0 && n_globals == 0) {
+		fail(interp, "|: empty locals list; omit it");
 		return;
 	}
+
+	int n_captured = scan_body_captures(interp);
+	if (n_captured < 0)
+		return;
+	for (int i = 0; i < n_captured; i++)
+		receive_slots[n_received++] = n_head + i;
+
+	int n_declared = compiler.n_local_names - scope_start;
+	if (n_declared == 0)
+		return;
 
 	for (int i = 0; i < n_received; i++)
 		compiler.local_stored[scope_start + receive_slots[i]] = 1;
@@ -1424,6 +1744,9 @@ static int declare_local_in_scope(Interpreter *interp, const char *token) {
 	compiler.local_names_pool_here += name_len + 1;
 	compiler.local_fetched[compiler.n_local_names] = 0;
 	compiler.local_stored[compiler.n_local_names] = 1;
+	compiler.local_captured[compiler.n_local_names] = 0;
+	compiler.local_assigned_by_to[compiler.n_local_names] = 1;
+	compiler.local_capture_parent_slot[compiler.n_local_names] = -1;
 	compiler.local_name_offsets[compiler.n_local_names++] = offset;
 
 	return compiler.n_local_names - 1 - compiler.local_scope_starts[compiler.n_local_scopes - 1];
@@ -1507,6 +1830,11 @@ static void compile_local_unary(Interpreter *interp, const char *op,
 	if (find_local(token, &depth, &slot)) {
 		if (reject_outer_local(interp, token))
 			return;
+		if (compiler.local_captured[compiler.found_local_name_idx]) {
+			rollback_partial_definition();
+			fail(interp, "%s: %s is a copy captured from the enclosing body; %s would change only the copy", op, token, op);
+			return;
+		}
 		compiler.local_fetched[compiler.found_local_name_idx] = 1;
 		if (depth == 0) {
 			emit_call(interp, depth0_cfa);

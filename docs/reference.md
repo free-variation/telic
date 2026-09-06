@@ -1954,7 +1954,7 @@ does a call through a word that is still `defer`red — mutual recursion via
 | `unit` | `( q -- )` | Read the following name; pop a quantity whose magnitude is a positive whole number, and define a postfix word attaching that unit. The magnitude is the unit's integer scale relative to its dimension's base (`100 cent unit dollar`). A single unnamed base dimension gets named after the word |
 | `:name` | `( -- sym )` | Symbol literal; interns the name at read time |
 | `string>symbol` | `( str -- sym )` | Intern a computed string as a symbol |
-| `[:` | `( -- xt )` | Open an anonymous quotation (closed by `:]`); compiles its body and pushes its xt |
+| `[:` | `( -- xt )` | Open an anonymous quotation (closed by `:]`); compiles its body and pushes its xt. A body that names a local of the enclosing definition or quotation captures it by copy, and the literal then yields a curried token carrying those values (see Locals) |
 | `'` | `( "name" -- xt )` | Parse the following word at compile time and push its xt (immediate; folds the xt in as a literal) |
 | `lookup` | `( "name" -- xt )` | Parse the following word at run time and push its xt |
 | `execute` | `( xt -- … )` | Call the word at xt |
@@ -2065,9 +2065,12 @@ base unit inch 12 inch unit foot 2 foot 6 inch + . cr
 
 ```forth [:
 5 [: 2 * :] execute . cr
+: scale-all | rows factor | rows [: factor * :] map ;
+[ 1 2 3 ] 10 scale-all . cr
 ```
 ```output
 10
+[ 10 20 30 ]
 ```
 
 ```forth '
@@ -2144,7 +2147,9 @@ A name in the head that would otherwise resolve outward carries a marker. `^name
 
 A local may shadow an ordinary word, deliberately and visibly, but never a **compile-time** word: `| source to |`, `| ?case |`, `5 to if`, and a `do` index named `to` are all compile errors — `to is a compile-time word and cannot name a local; rename it` — because the name would shadow the construct that makes the body work, leaving `to` in that body no longer assigning. This holds however the local is declared: in the head, by a `to`, or as a `do` index.
 
-Locals live on the return stack: up to 128 names across up to 64 nested scopes. A slot reads as `null` before its first assignment. A body reads the locals **it declares itself** and nothing else: a reference to a name declared in an enclosing definition or an enclosing quotation is a compile error — `x is not bound in this quotation; pass it in or use pick` — and the partial definition rolls back. Values reach a quotation three ways: received into its own head, parked on the stack below the combinator's operands and read by depth with `pick`, or bound into a curried token by `curry`/`2curry`/`ncurry`.
+Locals live on the return stack: up to 128 names across up to 64 nested scopes. A slot reads as `null` before its first assignment. A body reads the locals **it declares itself**; a quotation that names a local of the enclosing body **captures** it: the name becomes a trailing head local of the quotation holding a copy of the enclosing slot's value, taken when the `[: … :]` literal is evaluated, and the literal's value is then a curried token rather than a bare xt — exactly what `enclosing-value [: … name | … :] curry` builds by hand. Values reach a quotation four ways: received into its own head, captured from the enclosing body, parked on the stack below the combinator's operands and read by depth with `pick`, or bound into a curried token by `curry`/`2curry`/`ncurry`.
+
+A capture is a copy. Reading it costs the same as any local; `to name` inside the quotation declares a fresh local shadowing the enclosing one, as it does for any name, and `++`/`--`/`f++`/`f--` on a captured name is a compile error, since they would change only the copy. A quotation nested inside a capturing quotation captures through it: each level copies from the one above, so every reference stays in the innermost frame. The token is built where the literal is evaluated, so a capturing quotation written inside a `do`/`begin` loop of its definition allocates a token every iteration; the compiler warns (`warning: quotation captures x inside a loop; …`) unless a captured name is assigned in that body, since then per-iteration construction is the only correct behavior. Hoist the literal above the loop with `to` when the captured values are fixed. A non-capturing quotation compiles as before: a constant xt, no allocation.
 
 The mechanism: a local reference compiles to the **slot index** in the frame that declares it, always the innermost locals-bearing scope, and the op reads `local_base + slot` with no frame walk. Names are discarded after compilation and no value is bound then. Because every reference is depth 0, a quotation's meaning does not depend on which frames happen to be live when it runs — it reads the same slots under `map`, under `i-times`, through `execute`, inside another word's frame, or after a continuation capture and resume.
 
@@ -4557,8 +4562,8 @@ The substrate for exceptions, coroutines, generators. See `docs/continuations.md
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
 | `reset` | `( -- )` | Push a unique mark on the return stack, delimiting the captured region | 1 | none | O(1) |
-| `shift` | `( -- k )` | Capture the return-stack slice up to the nearest `reset`, remove the mark and that slice, push k | L | `1o` (cont) | O(L) |
-| `shift-with` | `( xt -- )` | Capture as `shift`, then run xt in the outer context with k on the stack and begin unwinding | L + xt | `1o` (cont) | O(L + xt) |
+| `shift` | `( -- k )` | Capture the return-stack slice up to the nearest `reset`, push k, and unwind to the `reset`'s caller the way `shift-with` does, so the slice may span nested `execute` calls and combinator bodies. The rest of the shifting word's body belongs to k and runs on `resume`, not at capture | L | `1o` (cont) | O(L) |
+| `shift-with` | `( xt -- )` | Capture as `shift`, then run xt in the outer context with k on the stack before unwinding | L + xt | `1o` (cont) | O(L + xt) |
 | `resume` | `( k -- … )` | Pop k and re-enter it (multi-shot — the continuation object survives, so a retained copy can be resumed again); pushes whatever the resumed code yields | L + resumed | none | O(L + resumed) |
 | `throw` | `( exc -- )` | Unwind to the nearest exception prompt, leaving `exc 1` (what `catch` consumes); with no enclosing prompt it is an interpreter error, `uncaught exception: <value>`, the trace captured at the throw site. The prompt search skips locals regions, so local slots are never read as prompts | L | none | O(L) |
 | `catch` | `( xt -- result 0 \| exc 1 )` | exceptions.telic: run xt; `(result 0)` on success, `(exc 1)` on a `throw` **or** an interpreter error (an error frame `{ :message :trace }` becomes the exception value) | — | cont if thrown; `1f` + `2s` on a caught interpreter error | O(xt) |
@@ -4579,8 +4584,7 @@ The substrate for exceptions, coroutines, generators. See `docs/continuations.md
 two-step "mid" . cr resume "end" . cr
 ```
 ```output
-1 2
-mid
+1 mid
 2
 end
 ```
@@ -4590,8 +4594,7 @@ end
 two-step "mid" . cr resume "end" . cr
 ```
 ```output
-1 2
-mid
+1 mid
 2
 end
 ```
@@ -4609,8 +4612,7 @@ a b
 two-step "mid" . cr resume "end" . cr
 ```
 ```output
-1 2
-mid
+1 mid
 2
 end
 ```

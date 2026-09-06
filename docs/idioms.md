@@ -191,7 +191,7 @@ two interoperate — a `db-query` result is already relation-shaped.
   `matches?` under `filter` (logic.telic):
 
   ```forth
-  pattern [: row pattern | pattern row matches? :] curry filter
+  [: row | pattern row matches? :] filter
   ```
 
 - Keep a result past backtracking by snapshotting: `copy` (fresh variables)
@@ -536,20 +536,40 @@ How values reach a quotation body, beyond its own locals.
   [: 2 pick swap @ magnitude dup matrix? if as-column else vector then :] map nip
   ```
 
+- Name the enclosing local and the quotation captures it — a copy, taken
+  where the literal is evaluated, bound into a curried token the compiler
+  builds for you (`scale-all`):
+
+  ```forth capture-enclosing-local
+  : scale-all | rows factor | rows [: factor * :] map ;
+  [ 1 2 3 ] 10 scale-all . cr
+  ```
+  ```output
+  [ 10 20 30 ]
+  ```
+
+  This is `factor [: factor | factor * :] curry map` with the plumbing
+  removed; the per-element cost is the same. The copy is the point: `to`
+  on the name inside the quotation makes a fresh local, and `++` on it is a
+  compile error, since neither would reach the enclosing slot.
+
 - Curry a fixed context into a mapped word (`tsv>db`):
 
   ```forth
   rows 1 skip db statement ' insert-row 2 ncurry map drop
   ```
 
-  A curried token costs about twice a bare quotation per call — each
-  invocation pushes the bound values and dispatches through `execute`, where
-  a bare quotation is dispatched straight into its fused body. In the hottest
-  inner loop over a large array with a trivial body, prefer the bare form;
-  reach for `curry` when it binds a value a quotation cannot (an enclosing
-  local, or context crossing into a parallel region), where the choice is
-  expressibility, not speed. Build the token once and reuse it — hoist the
-  `curry` out of the loop, never curry per element.
+  A curried token — hand-built or from a capture — costs about twice a bare
+  quotation per call: each invocation pushes the bound values and dispatches
+  through `execute`, where a bare quotation is dispatched straight into its
+  fused body. In the hottest inner loop over a large array with a trivial
+  body, prefer a quotation that captures nothing; capture or `curry` when a
+  value must reach the body that `pick` cannot (an enclosing local, or
+  context crossing into a parallel region), where the choice is
+  expressibility, not speed. Build the token once and reuse it: a capturing
+  literal inside a `do`/`begin` loop is rebuilt every iteration, and the
+  compiler warns (`warning: quotation captures factor inside a loop; …`), so
+  hoist it above the loop with `to`, as you would hoist a manual `curry`.
 
 - Skeleton plus mapper injection: write the loop once taking a mapper xt;
   serial and parallel are one-line instantiations. Sound because each work

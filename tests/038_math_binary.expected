@@ -116,7 +116,7 @@ in %
 3 
 8 
 4 
-error: n is not bound in this quotation; pass it in or use pick
+error: f++: n is a copy captured from the enclosing body; f++ would change only the copy
 in f++
 error: %: division by zero
 in %

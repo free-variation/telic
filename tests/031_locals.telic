@@ -71,9 +71,11 @@ inline
 outer-inline . cr
 
 clear
-\ === errors: an outer local is not in scope inside a quotation ===
-: read-outer | x | [: x + :] map ;               \ (a read of the word's local)
-: read-outer-quotation | n | [: a | [: a n + :] map :] map ;  \ (the enclosing quotation's local)
+\ === a quotation captures an enclosing local by copy ===
+: read-outer | x | [: x + :] map ;               \ x is copied into the token when [: … :] is evaluated
+[ 10 20 ] 5 read-outer . cr                      \ [ 15 25 ]
+: read-outer-quotation | n | [: row | row [: row size * n + :] map :] map ;  \ the enclosing quotation's local and, through it, the word's
+[ [ 1 2 ] ] 100 read-outer-quotation . cr        \ [ [ 102 104 ] ]
 
 clear
 \ === errors: the head is one list, at the head, and never empty ===

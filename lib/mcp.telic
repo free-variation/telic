@@ -86,8 +86,8 @@
 ( name -- entry|none ) \ the registry entry a tools/call names
 : mcp-find-tool
   | name |
-  mcp-tool-registry name
-	[: entry wanted | entry :definition @ :name @ wanted = :] curry find-first ; internal
+  mcp-tool-registry
+	[: entry | entry :definition @ :name @ name = :] find-first ; internal
 
 \ ---- sessions ----
 
@@ -423,7 +423,7 @@
 ( line -- ) \ parse one request line and dispatch it; malformed JSON answers a parse error
 : mcp-accept
   | line |
-  line [: json>frame mcp-handle :] curry
+  [: line json>frame mcp-handle :]
   [: drop null -32700 "Parse error" mcp-fail :]
   try-catch ; internal
 
@@ -453,7 +453,7 @@
 ( source -- ) \ drain whichever session owns this stream
 : mcp-drain-stream
   | source |
-  mcp-sessions values source [: state stream | state@child :out @ stream = :] curry find-first to owner
+  mcp-sessions values [: state | state@child :out @ source = :] find-first to owner
   owner none? not if owner mcp-drain then ; internal
 
 ( -- ) \ close every live session and reap its child

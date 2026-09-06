@@ -1,0 +1,140 @@
+\ ==== implicit capture ====
+
+\ A quotation that names a local of the enclosing body captures it: the name
+\ becomes a trailing head local holding a copy taken when the literal is
+\ evaluated, and the literal yields a curried token. The explicit form
+\ `value [: … name | … :] curry` and the implicit form compile to the same
+\ per-element ops; a quotation that captures nothing stays a constant xt.
+
+\ -- 1: capture from a colon word, under map
+: scale-all | rows factor | rows [: factor * :] map ;
+[ 1 2 3 ] 10 scale-all . cr                                    \ [ 10 20 30 ]
+
+\ -- 2: the explicit curry spelling answers the same
+: scale-explicit | rows factor | rows factor [: factor | factor * :] curry map ;
+[ 1 2 3 ] 10 scale-explicit . cr                               \ [ 10 20 30 ]
+
+\ -- 3: the quotation bodies compile identically; only the construction differs
+' scale-all see-compiled>string "\(local@0\) 0\n \d+: \*\n \d+: \(leave-locals\) 1" has? . cr       \ 1
+' scale-explicit see-compiled>string "\(local@0\) 0\n \d+: \*\n \d+: \(leave-locals\) 1" has? . cr  \ 1
+' scale-all see-compiled>string "ncurry" has? . cr                        \ 1
+' scale-explicit see-compiled>string "curry" has? . cr                    \ 1
+
+\ -- 4: a non-capturing quotation is unchanged: a literal xt, no token
+: plain | rows | rows [: 2 * :] map ;
+' plain see-compiled>string "ncurry" has? . cr                 \ 0
+[ 1 2 ] plain . cr                                             \ [ 2 4 ]
+
+\ -- 5: several captures, in any order of mention
+: affine | a b | [ 1 2 ] [: a * b + :] map ;
+10 1 affine . cr                                               \ [ 11 21 ]
+: reversed | a b | [ 1 2 ] [: b + a * :] map ;
+10 1 reversed . cr                                             \ [ 20 30 ]
+
+\ -- 6: head and capture together: the head receives, the capture is copied
+: mixed | offset | [ 1 2 3 ] [: element | element offset + :] map ;
+100 mixed . cr                                                 \ [ 101 102 103 ]
+
+\ -- 7: transitive capture through an intermediate quotation
+: deep | x | [: [: x :] execute :] execute ;
+7 deep . cr                                                    \ 7
+: deep-map | n | [ [ 1 2 ] [ 3 ] ] [: row | row [: n + :] map :] map ;
+10 deep-map . cr                                               \ [ [ 11 12 ] [ 13 ] ]
+
+\ -- 8: a nested head shadows; the outer name is captured only where it is free
+: shadow-inner | x | [: [: x | x x * :] 9 swap execute :] execute x + ;
+4 shadow-inner . cr                                            \ 85
+
+\ -- 9: `to` in the quotation declares its own local, never a capture
+: to-shadows | x | [: 5 to x x :] execute x ;
+1 to-shadows . . cr                                            \ 1 5
+
+\ -- 10: the name@key form captures its left part
+: price-of | row | [ 0 ] [: drop row@price :] map first ;
+{ :price 9 } price-of . cr                                     \ 9
+
+\ -- 11: every combinator takes the token
+: over-filter | cutoff | [ 1 5 9 ] [: cutoff > :] filter ;
+4 over-filter . cr                                             \ [ 5 9 ]
+: over-reduce | w | [ 1 2 3 ] 0 [: w * + :] reduce ;
+10 over-reduce . cr                                            \ 60
+: over-times | step | 0 [: step + :] 3 times ;
+5 over-times . cr                                              \ 15
+: over-pmap | k | [ 1 2 3 4 ] [: k * :] pmap ;
+10 over-pmap . cr                                              \ [ 10 20 30 40 ]
+: over-each | prefix | [ 1 2 ] [: prefix + . :] each cr ;
+100 over-each                                                  \ 101 102
+
+\ -- 12: a heap value captures by handle, and the token survives collection
+: heap-cap | m | [ 0 1 ] [: m swap @e :] map ;
+[ 5 6 ] vector heap-cap . cr                                   \ [ 5 6 ]
+: held | a | [: a :] ;
+3 held constant keep-three
+gc
+keep-three execute . cr                                        \ 3
+
+\ -- 13: a further curry binds the next trailing head slot, as on any token
+: extra-curry | a | 5 [: y | a y + :] curry execute ;
+100 extra-curry . cr                                           \ 105
+
+\ -- 14: recurse inside a capturing quotation re-binds the captures
+: countdown | step | 10 [: n | n 0 > if n . n step - recurse then :] execute cr ;
+3 countdown                                                    \ 10 7 4 1
+
+\ -- 15: a ? slot of the enclosing word captures the same logic variable
+: unify-through | ?q | [: q 5 ~ drop :] execute q ? ;
+unify-through . cr                                             \ 5
+
+\ -- 16: a generator body captures its base
+: gen-cap | base | [: base yield base 1+ yield :] 2 gen-take ;
+10 gen-cap . cr                                                \ [ 10 11 ]
+
+\ -- 17: the copy is taken from the relocated frame after a continuation resumes,
+\ and a retained continuation resumes twice
+: shifter shift ;
+: worker | x | shifter [: x 2 * :] execute ;
+: ex reset 7 worker ;
+ex dup resume . resume . cr                                    \ 14 14
+
+\ -- 17b: a capturing quotation may itself shift; the reset lies in the caller
+: yields-x | x | [: shifter x :] execute ;
+: ex-cap reset 7 yields-x ;
+ex-cap resume . cr                                             \ 7
+
+\ -- 18: capture at top level, from an enclosing top-level quotation
+[: 3 to y [: y 2 * :] execute :] execute . cr                  \ 6
+
+\ -- 19: the token prints as a bound xt and `see` shows the binding, as any token
+: seen | a | [: a :] ;
+1 seen see>string "curried, binds 1" has? . cr                 \ 1
+1 seen type-of . cr                                            \ :xt
+
+clear
+\ === the loop warning ===
+
+\ -- a capturing literal inside a do loop builds a token every iteration; the
+\ compiler says so (stderr), and the loop still runs
+: in-loop | rows factor | 0 rows size 1 do k rows k @i [: factor * :] execute . loop cr ;
+[ 1 2 3 ] 10 in-loop                                           \ warning, then 10 20 30
+
+\ -- hoisted above the loop: one token, no warning
+: hoisted | rows factor | [: factor * :] to scaler 0 rows size 1 do k rows k @i scaler execute . loop cr ;
+[ 1 2 3 ] 10 hoisted                                           \ 10 20 30
+
+\ -- the captured name is the loop index: it changes per iteration, no warning
+: varying | rows | 0 rows size 1 do k rows k @i [: k * :] execute . loop cr ;
+[ 1 2 3 ] varying                                              \ 0 2 6
+
+\ -- the captured name is reassigned in the body: no warning
+: reassigned | factor | 0 3 1 do k factor 1+ to factor k [: factor * :] execute . loop cr ;
+10 reassigned                                                  \ 0 12 26
+
+\ -- a begin loop warns the same way
+: begin-loop | k | 0 begin dup 3 < while dup [: k * :] execute . 1+ repeat drop cr ;
+10 begin-loop                                                  \ warning, then 0 10 20
+
+clear
+\ === errors ===
+: inc-cap | n | [: ++ n :] execute ;             \ (++ would change only the copy)
+: finc-cap | n | [: f++ n :] execute ;           \ (f++ likewise)
+: dec-cap | n | [: -- n :] execute ;             \ (-- likewise)

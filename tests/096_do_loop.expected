@@ -37,4 +37,4 @@ in do
 error: do: g is a global; pick another index name
 in :
 0 1 
-error: k is not bound in this quotation; pass it in or use pick
+0 1 2 

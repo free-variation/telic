@@ -25,12 +25,11 @@ inline
 	| list goal |
 	[ ] to answers
 	list
-	goal answers 
-	[: element goal answers |
+	[: element |
 		element goal execute
 		answers swap copy add-last! drop
-		fail 
-	:] 2curry
+		fail
+	:]
 	' choose 2curry
 	
 	' identity amb
@@ -42,13 +41,12 @@ inline
 	| list goal n |
 	[ ] to answers
 	list
-	goal n answers 
-	[: element goal n answers |
+	[: element |
 		answers size n >= if fail then
 		element goal execute
 		answers swap copy add-last! drop
-		fail 
-	:] 3 ncurry
+		fail
+	:]
 	' choose 2curry
 	
 	' identity amb
@@ -83,9 +81,8 @@ inline
 	| row set-op bucket-op |
 	dup :rows @ row set-op execute drop
 	dup :index @ keys swap
-	row bucket-op
-	[: rel col row bucket-op | rel :index @ col @ row col @ row bucket-op execute rel :]
-	2curry reduce ; internal
+	[: rel col | rel :index @ col @ row col @ row bucket-op execute rel :]
+	reduce ; internal
 
 ( rel row -- rel ) \ add row to :rows and to each indexed column's bucket
 : assert ' set-add! ' bucket-add! update-row! ;
@@ -110,13 +107,11 @@ inline internal
 : candidates
 	| rel pattern |
 	rel :index @ keys
-	pattern
-	[: col pattern | pattern col has? if pattern col @ ? symbol? else 0 then :]
-	curry filter
+	[: col | pattern col has? if pattern col @ ? symbol? else 0 then :]
+	filter
 
-	rel pattern
-	[: col rel pattern | rel pattern col bucket-of :]
-	2curry map
+	[: col | rel pattern col bucket-of :]
+	map
 	dup size 0 = if
 		drop rel :rows @
 	else
@@ -127,9 +122,8 @@ inline internal
 : covering?
 	| rel pattern |
 	pattern keys 1
-	rel pattern
-	[: covered? col rel pattern | covered? rel :index @ col has? and pattern col @ ? symbol? and :]
-	2curry reduce ; internal
+	[: covered? col | covered? rel :index @ col has? and pattern col @ ? symbol? and :]
+	reduce ; internal
 
 ( rel pattern -- [rows] ) \ rows matching pattern; scans :rows
 : query
@@ -138,7 +132,7 @@ inline internal
 	rel pattern covering? if
 		dup size take
 	else
-		pattern [: row pattern | pattern row matches? :] curry filter
+		[: row | pattern row matches? :] filter
 	then ;
 
 ( rel row -- rel ) \ remove every row matching pattern
@@ -159,13 +153,12 @@ inline internal
 : inner-join
 	| driver probed col |
 	driver :rows @ null
-	probed col
-	[: joined driver-row probed col |
+	[: joined driver-row |
 		driver-row
 		probed driver-row col bucket-of joined
 		[: joined probed-row | 1 pick probed-row merge joined cons :] reduce
 		nip
-	:] 2curry reduce
+	:] reduce
 	cons>array dup size 1- take ;
 
  ( rel rows-array -- rel ) \ load all rows: build :rows in one sorted pass, then index each row
@@ -173,25 +166,22 @@ inline internal
 	| rel rows-array |
 	rel rows-array array>set :rows !
 	dup :index @ keys
-	rel rows-array
-	[: col rel rows-array | rel :index @ rows-array col group-by col ! :]
-	2curry map drop ;
+	[: col | rel :index @ rows-array col group-by col ! :]
+	map drop ;
 
 ( rel rows-array -- rel ) \ like bulk-load, but :rows stays a bag (array); only the index is built
 : load-bag
 	| rel rows-array |
 	rel rows-array :rows !
 	dup :index @ keys
-	rel rows-array
-	[: col rel rows-array | rel :index @ rows-array col group-by col ! :]
-	2curry map drop ;
+	[: col | rel :index @ rows-array col group-by col ! :]
+	map drop ;
 
 ( rel cols -- rel ) \ index rel on cols: intern each indexed column's value to a symbol, then build the index
 : create-index
 	| rel cols |
 	rel :rows @
-	cols
-	[: row cols | cols row [: ' string>symbol swap update-at :] reduce :]
-	curry map
+	[: row | cols row [: ' string>symbol swap update-at :] reduce :]
+	map
 
 	cols relation swap load-bag ;

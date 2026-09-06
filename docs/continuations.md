@@ -181,7 +181,7 @@ The return stack therefore directly reflects the call chain. If word A calls wor
 
 ### Nested run_inner invocations
 
-There's one more subtlety. When a primitive like `execute` or `resume` needs to run a colon-defined word *during its own execution*, it doesn't just modify `ip` and return — it calls `run_inner` again, recursively, from the C side. So the C call stack may have several `run_inner` frames active at once, each running its own inner loop.
+There's one more subtlety. When a primitive like `resume`, `catch`'s `(execute-catching)`, or a combinator such as `map` needs to run a colon-defined word *during its own execution*, it doesn't just modify `ip` and return — it calls `run_inner` again, recursively, from the C side. So the C call stack may have several `run_inner` frames active at once, each running its own inner loop. (`execute` on a colon body is the exception: it pushes an ordinary return frame and jumps into the body, so the caller's continuation stays on the return stack where `shift` can capture it.)
 
 This nesting matters for continuations. When `shift` fires, it might need to signal "unwind this whole region" across several `run_inner` levels, all the way back to wherever the matching `reset` was executed. We'll see in Part 9 how this works.
 
@@ -263,9 +263,9 @@ This is a different design from Scheme's `prompt`, which takes a body expression
 
 1. **Find** the nearest MARK on the return stack (the topmost one).
 2. **Capture** the frames *above* the mark — the call chain from `reset` to here.
-3. **Truncate** the return stack: drop both the mark and the captured frames.
+3. **Truncate** the return stack to the mark, keeping the mark itself as the unwind target.
 4. **Push k** onto the data stack: a `T_CONT` Val that wraps the captured slice.
-5. **Return** to the inner interpreter loop.
+5. **Raise the unwinding flag** and return to the inner interpreter loop, which unwinds to the mark exactly as it does for `shift-with` (Part 9).
 
 The find-and-capture logic is shared with `shift-with`. Finding the mark takes a *kind*: `shift` scans past any intervening choice marks to the nearest exception prompt (and errors if there's no enclosing `reset`). Capturing the frames above the mark also records where the word-locals frame sits relative to the captured region, and the live locals-frame pointer is rewound to before the discarded frames — so a slice captured mid-word restores its locals correctly when resumed.
 
@@ -274,7 +274,7 @@ The captured continuation, a heap object, contains:
 - A copy of the captured return-stack frames.
 - The *resume point* — the offset of the cell that would have executed next if shift hadn't fired (in practice, the cell after `shift` in whatever body called it).
 
-The data stack now has the `T_CONT` value `k`. The return stack has been pruned — both the mark and all the call frames that were sitting above it are gone.
+The data stack now has the `T_CONT` value `k`. The return stack has been pruned back to the mark; the unwinding step that follows removes the mark too.
 
 ### Anatomy of a captured continuation
 
@@ -294,9 +294,9 @@ The `resume_ip` is the address of the cell that the inner interpreter would have
 
 ### What happens next?
 
-After `shift` returns, the inner interpreter loop continues. It reads the next cell at `ip` and dispatches whatever's there. That cell is in the body of the word that called `shift` — typically EXIT (since `shift` is usually the last thing in a `yield`-like word). When EXIT fires, it pops the next frame from the return stack — but the captured frames are gone, so it pops something from *below* the original mark, which jumps to code that's outside the reset region entirely.
+After `shift` returns, the inner interpreter loop sees the unwinding flag and runs the cascade of Part 9: it pops frames down to the mark, clears the flag, and pops the frame below the mark — the return address into the caller of the word that ran `reset` — setting `ip` from it. Because the cascade crosses nested `run_inner` levels, it does not matter whether an `execute` or a combinator body sits between the `reset` and the `shift`: each level pops what it owns and hands the rest up.
 
-The net effect: `shift` "exits the reset region" from the inside, taking with it the captured slice as a Val on the data stack. The caller of the reset-containing word now sees `k` on its data stack.
+The net effect: `shift` "exits the reset region" from the inside, taking with it the captured slice as a Val on the data stack. The caller of the reset-containing word now sees `k` on its data stack. Nothing after `shift` in the shifting word's body runs at capture time; that code is part of the continuation and runs when `k` is resumed.
 
 This is the basic coroutine pattern. `shift` is `yield`. The driver (the code that called the reset-containing word) picks up `k` and decides what to do with it — typically, hold it for later and resume the producer when ready for another value.
 
@@ -327,13 +327,13 @@ Here's a concrete trace.
      - return_len = 2 (R_producer and R_yield are above MARK).
      - resume_ip = current ip = cell after shift in yield body (the EXIT cell).
      - Allocate continuation with those captured frames and resume_ip.
-     - rsp = mark_index. The mark and both captured frames are gone.
+     - rsp = mark_index + 1. Both captured frames are gone; the mark stays as
+       the unwind target.
      - Push k. dstack: [1, k].
-5. shift returned. Inner loop continues.
-   - ip is now at yield body's EXIT.
-   - EXIT runs: pops the top of rstack (which is now R_drive_tramp, since shift
-     removed everything above the mark). ip = R_drive_tramp.saved_ip =
-     trampoline+1 (a special "stop the loop" cell).
+     - Set unwinding = 1 and return to the loop without dispatching.
+5. The inner loop sees unwinding. It pops the MARK, which is the target: clears
+   the flag, pops the next frame (R_drive_tramp) and sets ip from it —
+   trampoline+1 (a special "stop the loop" cell).
 6. The inner loop reads stop_cfa, sets running=0, ends.
 7. drive's execute_cfa returns. The REPL sees the data stack: [1, k].
 ```
@@ -368,12 +368,13 @@ After `shift` does its work:
 
 ```
 Data stack:                Return stack:                ip:
-[ 1 ]                      [ ... outer ... ]            unchanged (still points to
-[ k ]                      [ R_drive_tramp  ]           yield's EXIT cell — the next
-       ^ dsp                                ^ rsp        instruction to execute)
+[ 1 ]                      [ ... outer ... ]            unchanged for now; the loop
+[ k ]                      [ R_drive_tramp  ]           is unwinding, and will set ip
+       ^ dsp               [ MARK id=1      ]           from the frame below the mark
+                                            ^ rsp
 ```
 
-The captured frames (R_producer and R_yield) plus the MARK are gone from the live return stack. They live inside `k` now. The data stack gained `k`. The next dispatch will execute EXIT, which pops R_drive_tramp, which sends the inner loop to the trampoline-stop cell, which ends the loop.
+The captured frames (R_producer and R_yield) are gone from the live return stack. They live inside `k` now. The data stack gained `k`. The loop's unwinding step pops the MARK, then pops R_drive_tramp and jumps to the trampoline-stop cell, which ends the loop. Nothing after `shift` in yield's body runs now; it runs when `k` is resumed.
 
 ---
 

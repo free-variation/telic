@@ -1,0 +1,46 @@
+[ 10 20 30 ] 
+[ 10 20 30 ] 
+1 
+1 
+1 
+1 
+0 
+[ 2 4 ] 
+[ 11 21 ] 
+[ 20 30 ] 
+[ 101 102 103 ] 
+7 
+[ [ 11 12 ]
+  [ 13 ] ] 
+85 
+1 5 
+9 
+[ 5 9 ] 
+60 
+15 
+[ 10 20 30 40 ] 
+101 102 
+[ 5 6 ] 
+3 
+105 
+10 7 4 1 
+5 
+[ 10 11 ] 
+14 14 
+7 
+6 
+1 
+:xt 
+warning: quotation captures factor inside a loop; it builds a token each iteration; hoist it above the loop with to
+10 20 30 
+10 20 30 
+0 2 6 
+0 12 26 
+warning: quotation captures k inside a loop; it builds a token each iteration; hoist it above the loop with to
+0 10 20 
+error: ++: n is a copy captured from the enclosing body; ++ would change only the copy
+in ++
+error: f++: n is a copy captured from the enclosing body; f++ would change only the copy
+in f++
+error: --: n is a copy captured from the enclosing body; -- would change only the copy
+in --

@@ -13,7 +13,7 @@ in % ← w1
 error: %: division by zero
 in % ← [: 0 % :]
 error: %: division by zero
-in % ← [: 1 0 % :]
+in % ← [: 1 0 % :] ← f1
 error: %: division by zero
 in % ← [: 2 0 % :]
 1 

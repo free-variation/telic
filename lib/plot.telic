@@ -267,10 +267,9 @@ to aes
 	0.5 :ymin figure! n-cats 0.5 + :ymax figure!
 	true :y-categorical figure!
 	:margin figure@ 8 - to pixel-x
-	pixel-x labels
-	[: i pixel-x labels |
+	[: i |
 		pixel-x i 1 + labels i @i "end" :pixel :data text-mark :]
-	2curry n-cats i-times ;
+	n-cats i-times ;
 
 ( xs ys -- ) \ scatter markers; aes keys :point-fill :point-stroke :point-radius
 : scatter
@@ -323,12 +322,11 @@ to aes
 		"intervals: expected equal-length lows, highs, positions; got {2}, {1}, {0}" format throw
 	then
 
-	lows highs positions
-	[: i lows highs positions |
+	[: i |
 		lows i @e highs i @e 2 array vector
 		positions i @e dup 2 array vector
 		series :]
-	3 ncurry n i-times ;
+	n i-times ;
 
 ( slope intercept -- ) \ the line y = slope*x + intercept, clipped to the domain
 \ at render time; aes keys :line-stroke :line-width
@@ -351,12 +349,11 @@ to aes
 	table :bin-width @ to bin-width
 	low :xmin figure! low n-bins bin-width * + :xmax figure!
 	0 :ymin figure! counts max :ymax figure!
-	low bin-width counts
-	[: i low bin-width counts |
+	[: i |
 		low i bin-width * + to bar-left
 		bar-left 0 bar-left bin-width + counts i @e
 		:bar-fill figure@ :bar-stroke figure@ 1 :data :data rect-mark :]
-	3 ncurry n-bins i-times ;
+	n-bins i-times ;
 
 ( data center-x half-width -- ) \ Tukey box: whiskers to the most extreme points
 \ within 1.5·IQR of the quartiles, points beyond drawn as outlier circles
@@ -420,11 +417,10 @@ to aes
 	0.5 :xmin figure! n-boxes 0.5 + :xmax figure!
 	low high pad-range :ymax figure! :ymin figure!
 	:height figure@ :margin figure@ - 16 + to label-y
-	arrays label-y labels
-	[: i arrays label-y labels |
+	[: i |
 		arrays i @i i 1 + 0.3 box-at
 		i 1 + label-y labels i @i "middle" :data :pixel text-mark :]
-	3 ncurry n-boxes i-times ;
+	n-boxes i-times ;
 
 ( heights labels -- ) \ vertical bars on a categorical x axis, one per height, from the
 \ y=0 baseline; labels is a parallel array of category strings; pins the domain; aes
