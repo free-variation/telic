@@ -491,7 +491,7 @@ the stdio server behind a stdio-to-Streamable-HTTP gateway such as mcp-proxy.
 - **`copy`** / **`reify`** — deep copy of a value (strings, arrays, sets, frames, matrices); `reify` additionally renames unbound logic vars to canonical `:_0`/`:_1`/… for a ground, storable, comparable snapshot.
 - **`type-of`** — `( a -- sym )` the value's type as a symbol (`:float`, `:frame`, `:lvar`, …), with a lib predicate per type (`float?` … `lvar?`); a bound logic var answers as its value.
 - **`now`** — monotonic seconds as a float, for timing intervals (`wall-now`, under Time and dates, is the absolute clock). **`timed`** — `( xt -- … )` runs xt, prints its elapsed `now` seconds, and passes its results through.
-- **`see`** — prints a word's source definition; **`see-compiled`** disassembles its threaded body.
+- **`see`** — prints a word's source definition; **`see-compiled`** disassembles its threaded body; **`trace`** runs a quotation printing every op with the stack before it (`docs/tracing.md`).
 - **`man`** — a word's reference entry as a frame; **`help name`** prints it.
 - **`words`** — the dictionary grouped by reference section; **`apropos`** — every word whose name or summary matches a pattern.
 - **`variables`** — the current globals as `{ :name :value :type }` frames; **`vars`** prints them.
@@ -530,7 +530,7 @@ external/              — vendored deps: pcre2, sqlite, isocline, lapacke
 tests/                 — golden-output test files
 bench/                 — benchmark suite (Telic vs CPython) and inventory
 docs/                  — the word reference (reference.md, reference-libraries.md), idioms.md,
-                         and the primers: continuations, logic
+                         and the primers: continuations, logic, tracing
 PLAN.md                — future work
 ```
 

@@ -87,12 +87,12 @@ syn keyword telicBuiltin side-depth side-drop side-peek sigmoid sin sinh size sk
 syn keyword telicBuiltin sort-by sort-rows sort-rows-descending spaces split spread sq sqrt start-generator start-process std stderr
 syn keyword telicBuiltin stdin stdout stdout>string stop stream? string>chars string>codepoints string>number string>symbol string? submatrix substring
 syn keyword telicBuiltin sum sum-times summary swap symbol? take take-solutions tan tanh telic telic-version test
-syn keyword telicBuiltin test-report throw time>iso timed to-slice! touch touch-file transpose trim true true? truncate
-syn keyword telicBuiltin try-catch tsv>db tty? tuck type-of unify? union unit unit-of update-at upper-case value>bytes
-syn keyword telicBuiltin values var variables vars vector vf* vf+ vf- vf/ vfabs vfcos vfexp
-syn keyword telicBuiltin vflog vfneg vfsin vfsq vfsqrt vftan vftanh vstack vvf* vvf*+ vvf*- vvf+
-syn keyword telicBuiltin vvf- vvf/ wait wait-readable wall-now where wildcard? with-db with-stream words write write-file
-syn keyword telicBuiltin write-in write-tsv xml-escape xt? yield
+syn keyword telicBuiltin test-report throw time>iso timed to-slice! touch touch-file trace transpose trim true true?
+syn keyword telicBuiltin truncate try-catch tsv>db tty? tuck type-of unify? union unit unit-of update-at upper-case
+syn keyword telicBuiltin value>bytes values var variables vars vector vf* vf+ vf- vf/ vfabs vfcos
+syn keyword telicBuiltin vfexp vflog vfneg vfsin vfsq vfsqrt vftan vftanh vstack vvf* vvf*+ vvf*-
+syn keyword telicBuiltin vvf+ vvf- vvf/ wait wait-readable wall-now where wildcard? with-db with-stream words write
+syn keyword telicBuiltin write-file write-in write-tsv xml-escape xt? yield
 
 hi def link telicComment      Comment
 hi def link telicString       String

@@ -444,7 +444,7 @@ const HelpEntry help_entries[] = {
 	{ "list-directory", "( path -- arr )", "The directory's entry names as an array of strings, . and .. excluded, sorted in ascending order so a listing is the same on every filesystem. Names only, not paths — joining them to the parent is the caller's; errors when the path is missing or is not a directory", "n log n", "1a(n) + 1o per name", "O(n log n)", 34 },
 	{ "ln", "( a -- ln a )", "log — natural log", "2", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 3 },
 	{ "ln1+", "( a -- ln(1+a) )", "log1p — natural log of 1+a, accurate for small a where adding 1 before taking the logarithm would lose precision to cancellation; float or matrix element-wise, complex rejected", "2", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 3 },
-	{ "load", "( str -- )", "Run a source file as if typed; record it for reload. Resolves the path as given (relative to the current directory, or absolute); if that open fails, retries relative to the directory of the file that ran the load. An error raised while loading is prefixed file:line:  (the line of the failing token); a nested load locates to the innermost file", "file read + run", "input buffer", "O(file)", 33 },
+	{ "load", "( str -- )", "Run a source file as if typed; record it for reload. Resolves the path as given (relative to the current directory, or absolute); if that open fails, retries relative to the directory of the file that ran the load. An error raised while loading is prefixed file:line:  (the line of the failing token); a nested load locates to the innermost file. Every colon word a load defines remembers its file and line, and a runtime error trace prints them after the word's name (in / ← faulty (/tmp/docs-trace.telic:1)); words typed at the REPL or given with -e carry no location", "file read + run", "input buffer", "O(file)", 33 },
 	{ "load-bag", "( rel rows-array -- rel )", "Like bulk-load, but :rows stays a **bag** (the array, duplicates kept) rather than a deduped set; only :index is built", "n", "frame + sets", "O(n)", 30 },
 	{ "load-library", "( name -- )", "core.telic: run lib/<name> from beside the telic binary as a source file, so \"plot\" load-library works from any cwd; a name without .telic gains it", "file read + run", "input buffer", "O(file)", 33 },
 	{ "load-tsv", "( path -- rows )", "Read a TSV file into an array of row-arrays; an empty cell → none, a numeric cell → float, else a string. No header handling", "1 + bytes", "1a(r) + one array per row + a string per text cell", "O(bytes)", 25 },
@@ -718,6 +718,7 @@ const HelpEntry help_entries[] = {
 	{ "to-slice!", "( v₀ … vₙ₋₁ n arr offset -- arr )", "Store the n values under their count into arr[offset…offset+n); leaves arr", "2 + n", "none", "O(n)", 16 },
 	{ "touch", "( path -- )", "io.telic: set the path's modification time to now, creating an empty file when nothing is there", "1", "none", "O(1)", 34 },
 	{ "touch-file", "( path -- )", "Set the path's modification time to now, creating an empty file when nothing is there; an existing file keeps its contents — the word never truncates — and a directory is touched in place. Errors when the path is unwritable", "1", "none", "O(1)", 34 },
+	{ "trace", "( xt -- … )", "Run xt printing one line per op to stderr before it executes: the op as see-compiled shows it, then | and the data stack (its top four values, deepest first, … when deeper). Covers every op the run reaches, combinator bodies and nested calls included; the traced code's own output interleaves on stdout. Costs nothing when not tracing: the hook rides the flag the dispatch macros already test for a pending collection", "per op: render + print", "none", "O(ops)", 32 },
 	{ "transpose", "( mat -- mat' )", "Rows/columns swapped", "1 + r×c", "1m(c×r)", "O(r×c)", 21 },
 	{ "trim", "( str -- str' )", "Strip leading and trailing ASCII whitespace (' ' \\t \\n \\v \\f \\r)", "n", "1o", "O(n)", 14 },
 	{ "true", "( -- bool )", "core.telic: pushes 1", "1", "none", "O(1)", 4 },
@@ -796,7 +797,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, pairs head then tail, arrays element-wise, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails. A C primitive, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 29 },
 };
 
-const int help_entry_count = 738;
+const int help_entry_count = 739;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -1462,6 +1463,7 @@ const HelpExample help_examples[] = {
 	{ "to-slice!", "7 8 2 [ 0 0 0 0 ] 1 to-slice! . cr", "[ 0 7 8 0 ]" },
 	{ "touch", "\"/tmp/docs-touched\" touch\n\"/tmp/docs-touched\" file-exists? . cr", "1" },
 	{ "touch-file", "\"/tmp/docs-touch\" touch-file\n\"/tmp/docs-touch\" file-exists? . cr\n\"kept\" \"/tmp/docs-touch\" write-file\n\"/tmp/docs-touch\" touch-file\n\"/tmp/docs-touch\" read-file . cr", "1\nkept" },
+	{ "trace", "[: 3 4 + :] trace . cr", "(lit) 3                 |\n(lit) 4                 | 3\n+                       | 3 4\nexit                    | 7\n7" },
 	{ "transpose", "[ 1 2 3 4 ] 2 2 matrix transpose matrix>array . cr", "[ 1 3 2 4 ]" },
 	{ "trim", "\"  pad  \" trim \"|\" + . cr", "pad|" },
 	{ "true", "true . false . cr", "1 0" },
@@ -1540,4 +1542,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 739;
+const int help_example_count = 740;

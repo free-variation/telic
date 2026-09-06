@@ -1,0 +1,6 @@
+in / ← faulty (/tmp/docs-trace.telic:1) ← caller (/tmp/docs-trace.telic:2) ← try-catch 
+in / ← faulty (/tmp/docs-trace.telic:1) ← try-catch 
+in / ← faulty ← try-catch 
+in / ← via-evaluate ← try-catch 
+error: division by zero
+in / ← faulty (/tmp/docs-trace.telic:1) ← caller (/tmp/docs-trace.telic:2)

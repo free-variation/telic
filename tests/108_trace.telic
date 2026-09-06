@@ -1,0 +1,27 @@
+\ ==== trace ( xt -- … ) ====
+
+\ Runs a quotation printing, to stderr, one line per op before it executes: the op
+\ as see-compiled renders it, a bar, and the data stack (top four, deepest first).
+\ The traced code's own output goes to stdout as usual.
+
+\ -- literals and an arithmetic op
+[: 3 4 + :] trace . cr
+
+\ -- a colon call with a head: the frame ops show, and the fused load
+: sq | x | x x * ;
+[: 5 sq :] trace . cr
+
+\ -- a loop: the fused compare-and-branch and the back branch
+: count-to | n | 0 begin dup n < while 1+ repeat ;
+[: 2 count-to :] trace . cr
+
+\ -- a deep stack shows the top four with an ellipsis
+[: 1 2 3 4 5 6 :] trace .s cr clear
+
+\ -- tracing ends with the quotation; the next line is untraced
+[: 1 :] trace drop
+"untraced" . cr
+
+\ -- combinator bodies and try-catch are traced too, but an xt on the stack prints
+\ by dictionary index, which moves with the embedded library, so those cases are
+\ not pinned here

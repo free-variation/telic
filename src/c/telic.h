@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.33.1"
+#define VERSION "0.34.0"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,6 +26,10 @@ typedef int64_t cell;
 #define SYMBOL_POOL (1 << 22)
 #define SYMBOL_HASH_SIZE (1 << 20)
 #define MAX_QUOTATION_SPANS (1 << 14)
+#define MAX_WORD_LOCATIONS (1 << 14)
+#define GC_PENDING 1
+#define TRACE_PENDING 2
+#define MAX_LOCATION_FILES (1 << 8)
 #define MAX_HANDLERS (1 << 10)
 #define MAX_LOADED_FILES (1 << 6)
 #define TRAMPOLINE_SLOT 0
@@ -74,6 +78,7 @@ typedef int64_t cell;
 #define TRACE_FRAMES_FIRST 10
 #define TRACE_FRAMES_LAST 3
 #define TRACE_FRAMES_MAX 512
+#define TRACE_STACK_SHOWN 4
 #define PRINT_FIRST 10
 #define PRINT_LAST 3
 #define LIST_PRINT_MAX 100000
@@ -467,6 +472,12 @@ typedef struct {
 	int source_offset;
 } QuotationSpan;
 
+typedef struct {
+	int cfa;
+	int file;
+	int line;
+} WordLocation;
+
 typedef struct Vocabulary {
 	cell dict[VOCABULARY_INIT_SIZE];
 	int here;
@@ -507,6 +518,10 @@ typedef struct Vocabulary {
 
 	QuotationSpan quotation_spans[MAX_QUOTATION_SPANS];
 	int n_quotation_spans;
+	WordLocation word_locations[MAX_WORD_LOCATIONS];
+	int n_word_locations;
+	char *location_files[MAX_LOCATION_FILES];
+	int n_location_files;
 } Vocabulary;
 
 extern Vocabulary vocab;
@@ -635,6 +650,7 @@ typedef struct {
 	int n_loaded_files, load_depth;
 	int nested_input_depth;
 	const char *current_load_dir;
+	const char *current_load_file;
 	int error_located;
 
 
@@ -992,6 +1008,8 @@ int quotation_extent_end(int start_cfa);
 const char *quotation_source(int start_cfa);
 void rebuild_symbol_hash(void);
 void record_loaded_file(Interpreter *interp, const char *filename);
+void record_word_location(int cfa, const char *file, int line);
+const WordLocation *word_location(int cfa);
 int refill_input(void);
 void render_curried_bindings(FILE *out, Interpreter *interp, Val target);
 void region_abort(ParallelRegion *region);
@@ -1045,6 +1063,7 @@ int create_variable(Interpreter *interp, const char *name);
 int reject_outer_local(Interpreter *interp, const char *token);
 void rollback_partial_definition(void);
 void truncate_quotation_spans(void);
+void truncate_word_locations(void);
 
 // collections.c
 int array_argsort_copy(Interpreter *interp, Object *source);
@@ -1177,6 +1196,7 @@ void p_reify(DISPATCH_ARGS);
 void p_reload(DISPATCH_ARGS);
 void p_save(DISPATCH_ARGS);
 void p_see_compiled_to_string(DISPATCH_ARGS);
+void p_trace(DISPATCH_ARGS);
 void p_see_tree_to_string(DISPATCH_ARGS);
 void p_stop(DISPATCH_ARGS);
 void p_tailcall(DISPATCH_ARGS);
@@ -1792,11 +1812,8 @@ static inline void push_curried_bindings(Interpreter *interp, Val callable) {
 static inline void call_step(Interpreter *interp, CallContext *context, int cfa) {
 	if (context->fast) {
 		if (context->primitive) {
-			interp->running = 1;
 			context->primitive(interp, vocab.dict + interp->trampoline_base + 1,
 					interp->data_stack + interp->dsp);
-			if (interp->running && !interp->error_flag)
-				run_inner(interp, interp->run_floor);
 			return;
 		}
 		if (context->reuses_locals)

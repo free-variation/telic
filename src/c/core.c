@@ -170,7 +170,7 @@ static inline int local_claim_handle(Interpreter *interp, LocalHandles *lh, Hand
 
 	if (lh->next >= lh->end) {
 		if (space->cap - space->n < HANDLE_PRESSURE_SLOTS)
-			interp->gc_pending = 1;
+			interp->gc_pending |= GC_PENDING;
 
 		int claimed = atomic_fetch_add(&space->n, SLOTS_PER_CLAIM);
 		if (claimed + SLOTS_PER_CLAIM > space->cap) {
@@ -431,9 +431,9 @@ int object_new_frame(Interpreter *interp) {
 static int object_new_matrix_sized(Interpreter *interp, int num_rows, int num_columns, int zeroed) {
 	if (in_parallel) {
 		if (thread_alloc.heap_bytes_live > thread_alloc.heap_gc_threshold)
-			interp->gc_pending = 1;
+			interp->gc_pending |= GC_PENDING;
 	} else if (!interp->gc_disabled && arena.heap_bytes_live > arena.heap_gc_threshold) {
-		interp->gc_pending = 1;
+		interp->gc_pending |= GC_PENDING;
 	}
 
 	NEW_OBJECT(obj, OBJECT_MATRIX);
@@ -474,9 +474,9 @@ int object_new_matrix_raw(Interpreter *interp, int num_rows, int num_columns) {
 int object_new_segment(Interpreter *interp, int length, SegmentType element_type) {
 	if (in_parallel) {
 		if (thread_alloc.heap_bytes_live > thread_alloc.heap_gc_threshold)
-			interp->gc_pending = 1;
+			interp->gc_pending |= GC_PENDING;
 	} else if (!interp->gc_disabled && arena.heap_bytes_live > arena.heap_gc_threshold) {
-		interp->gc_pending = 1;
+		interp->gc_pending |= GC_PENDING;
 	}
 
 	NEW_OBJECT(obj, OBJECT_SEGMENT);
@@ -1389,6 +1389,8 @@ void dodefer(DISPATCH_ARGS) {
 }
 
 
+static void trace_step(Interpreter *interp);
+
 static void unwind_locals_scopes(Interpreter *interp) {
 	while (interp->local_base > interp->run_floor
 			&& interp->rsp - 1 >= interp->local_base
@@ -1429,11 +1431,15 @@ void run_inner(Interpreter *interp, int floor) {
 		}
 
 		if (interp->gc_pending) {
-			interp->gc_pending = 0;
-			if (in_parallel)
-				worker_local_gc(interp);
-			else if (!interp->gc_disabled)
-				gc(interp);
+			if (interp->gc_pending & TRACE_PENDING)
+				trace_step(interp);
+			if (interp->gc_pending & GC_PENDING) {
+				interp->gc_pending &= ~GC_PENDING;
+				if (in_parallel)
+					worker_local_gc(interp);
+				else if (!interp->gc_disabled)
+					gc(interp);
+			}
 		}
 
 		cfa_handler handler = (cfa_handler)vocab.dict[interp->ip++];
@@ -1614,7 +1620,8 @@ void call_open(Interpreter *interp, int cfa, CallContext *context) {
 	context->rooted = 0;
 	context->primitive = handler == docol ? NULL : handler;
 
-	if (handler == dovar || handler == dosym || handler == dounit || handler == dodefer) {
+	if (handler == dovar || handler == dosym || handler == dounit || handler == dodefer
+			|| handler == p_execute || (interp->gc_pending & TRACE_PENDING)) {
 		context->fast = 0;
 		return;
 	}
@@ -1734,6 +1741,10 @@ void execute_xt(Interpreter *interp, int cfa) {
 	}
 
 	interp->running = 1;
+	if (unlikely(interp->gc_pending & TRACE_PENDING)) {
+		interp->ip = cfa + 1;
+		trace_step(interp);
+	}
 	interp->ip = cfa + 2;
 	((cfa_handler)vocab.dict[cfa + 1])(interp, vocab.dict + cfa + 2, interp->data_stack + interp->dsp);
 
@@ -1994,6 +2005,64 @@ int quotation_extent_end(int start_cfa) {
 	return (span && span->start_cfa == start_cfa) ? span->end_cfa : start_cfa + 1;
 }
 
+static int location_file_index(const char *file) {
+	for (int i = 0; i < vocab.n_location_files; i++)
+		if (strcmp(vocab.location_files[i], file) == 0)
+			return i;
+	if (vocab.n_location_files >= MAX_LOCATION_FILES)
+		return -1;
+
+	vocab.location_files[vocab.n_location_files] = strdup(file);
+	return vocab.n_location_files++;
+}
+
+static const char *strip_binary_dir(const char *file) {
+	static char binary_dir[PATH_MAX];
+	static int binary_dir_len = -1;
+
+	if (binary_dir_len < 0) {
+		binary_dir_len = 0;
+		if (platform_executable_path(binary_dir, sizeof binary_dir)) {
+			char *last_slash = strrchr(binary_dir, '/');
+			if (last_slash) {
+				*last_slash = 0;
+				binary_dir_len = (int)strlen(binary_dir);
+			}
+		}
+	}
+
+	if (binary_dir_len > 0 && strncmp(file, binary_dir, (size_t)binary_dir_len) == 0
+			&& file[binary_dir_len] == '/')
+		return file + binary_dir_len + 1;
+	return file;
+}
+
+void record_word_location(int cfa, const char *file, int line) {
+	if (vocab.n_word_locations >= MAX_WORD_LOCATIONS)
+		return;
+	int file_index = location_file_index(strip_binary_dir(file));
+	if (file_index < 0)
+		return;
+
+	WordLocation *location = &vocab.word_locations[vocab.n_word_locations++];
+	location->cfa = cfa;
+	location->file = file_index;
+	location->line = line;
+}
+
+const WordLocation *word_location(int cfa) {
+	LOWER_BOUND(vocab.n_word_locations, mid, vocab.word_locations[mid].cfa < cfa, at);
+	if (at < vocab.n_word_locations && vocab.word_locations[at].cfa == cfa)
+		return &vocab.word_locations[at];
+	return NULL;
+}
+
+void truncate_word_locations(void) {
+	while (vocab.n_word_locations > 0
+			&& vocab.word_locations[vocab.n_word_locations - 1].cfa >= vocab.here)
+		vocab.n_word_locations--;
+}
+
 static int word_containing(int addr) {
 	for (int cfa = vocab.latest_cfa; cfa != 0; cfa = (int)WORD_LINK(cfa))
 		if (cfa <= addr)
@@ -2082,6 +2151,15 @@ static const char *running_op_name(int fault_cell, int body_start, int body_end)
 		cursor += cell_count;
 	}
 	return NULL;
+}
+
+static void trace_write_location(Interpreter *interp, int *len, int cfa) {
+	const WordLocation *location = word_location(cfa);
+	if (!location)
+		return;
+	char located[PATH_MAX + 16];
+	snprintf(located, sizeof located, " (%s:%d)", vocab.location_files[location->file], location->line);
+	trace_write(interp, len, located);
 }
 
 static void capture_error_trace(Interpreter *interp) {
@@ -2184,8 +2262,10 @@ static void capture_error_trace(Interpreter *interp) {
 		trace_write(interp, &len, (i == 0 && len == 0) ? "in " : " ← ");
 		if (frames[i].span)
 			trace_write_snippet(interp, &len, frames[i].span->source_offset);
-		else
+		else {
 			trace_write(interp, &len, &vocab.name_pool[WORD_NAME(frames[i].cfa)]);
+			trace_write_location(interp, &len, frames[i].cfa);
+		}
 		if (frames[i].repeats > 1) {
 			char multiple[16];
 			snprintf(multiple, sizeof(multiple), " ×%d", frames[i].repeats);
@@ -3823,9 +3903,12 @@ static void run_input_text(Interpreter *interp, const char *text, int length, co
 	compiler.input_buffer_pos = 0;
 	compiler.need_more = 0;
 
+	const char *saved_load_file = compiler.current_load_file;
+	compiler.current_load_file = origin;
 	compiler.nested_input_depth++;
 	run_outer(interp);
 	compiler.nested_input_depth--;
+	compiler.current_load_file = saved_load_file;
 
 	if (!interp->error_flag && compiler.need_more)
 		fail(interp, "unterminated string literal");
@@ -4577,6 +4660,75 @@ static void see_print_op(FILE *out, Interpreter *interp, int cursor, int cell_co
 	}
 }
 
+static int see_print_cell(FILE *out, Interpreter *interp, int cursor) {
+	cell handler = vocab.dict[cursor];
+	cfa_handler handler_fn = (cfa_handler)handler;
+
+	int is_tailcall = handler == vocab.dict[vocab.tailcall_cfa];
+	if (is_tailcall || handler_fn == docol || handler_fn == dovar || handler_fn == dounit || handler_fn == dodefer) {
+		int target = (int)vocab.dict[cursor + 1];
+		if (is_tailcall)
+			fputs("(tailcall) ", out);
+		const QuotationSpan *quotation = (handler_fn == docol || is_tailcall)
+			? quotation_span_containing(target) : NULL;
+		if (quotation && quotation->start_cfa == target) {
+			if (quotation->source_offset == 0) {
+				fputs("[:?]", out);
+			} else {
+				char cleaned[TRACE_SNIPPET_MAX + 8];
+				clean_snippet(cleaned, TRACE_SNIPPET_MAX, quotation->source_offset);
+				fputs(cleaned, out);
+			}
+		} else if (target >= 4 && target < vocab.here) {
+			fputs(&vocab.name_pool[WORD_NAME(target)], out);
+		} else {
+			fputs("?", out);
+		}
+		return 2;
+	}
+	if (handler_fn == dosym) {
+		fprintf(out, ":%s", &vocab.symbol_pool[vocab.dict[cursor + 1]]);
+		return 2;
+	}
+
+	int cell_count = op_cell_count(cursor);
+	see_print_op(out, interp, cursor, cell_count);
+	return cell_count;
+}
+
+static void trace_step(Interpreter *interp) {
+	int cursor = interp->ip;
+	if (cursor >= interp->trampoline_base && cursor < interp->trampoline_base + 3)
+		return;
+	if (cursor < DICT_RESERVED || cursor >= vocab.here)
+		return;
+	if (vocab.dict[cursor] == vocab.dict[vocab.stop_cfa])
+		return;
+
+	char *rendered = NULL;
+	size_t rendered_len = 0;
+	FILE *out = open_memstream(&rendered, &rendered_len);
+	if (!out)
+		return;
+	if (vocab.dict[cursor] == vocab.dict[vocab.exit_cfa])
+		fputs("exit", out);
+	else
+		see_print_cell(out, interp, cursor);
+	fclose(out);
+
+	fprintf(stderr, "%-24s|", rendered ? rendered : "?");
+	free(rendered);
+	int shown_from = interp->dsp > TRACE_STACK_SHOWN ? interp->dsp - TRACE_STACK_SHOWN : 0;
+	if (shown_from > 0)
+		fputs(" …", stderr);
+	for (int i = shown_from; i < interp->dsp; i++) {
+		putc(' ', stderr);
+		print_val(stderr, interp, interp->data_stack[i]);
+	}
+	putc('\n', stderr);
+	fflush(stderr);
+}
+
 static void see_compiled_body(FILE *out, Interpreter *interp, int body_start, int body_end) {
 	cell exit_handler = vocab.dict[vocab.exit_cfa];
 	cell docol_handler = (cell)docol;
@@ -4585,7 +4737,6 @@ static void see_compiled_body(FILE *out, Interpreter *interp, int body_start, in
 
 	while (cursor < body_end) {
 		cell handler = vocab.dict[cursor];
-		cfa_handler handler_fn = (cfa_handler)handler;
 
 		fprintf(out, " %d: ", cursor - body_start);
 
@@ -4605,39 +4756,8 @@ static void see_compiled_body(FILE *out, Interpreter *interp, int body_start, in
 			continue;
 		}
 
-		int is_tailcall = handler == vocab.dict[vocab.tailcall_cfa];
-		if (is_tailcall || handler_fn == docol || handler_fn == dovar || handler_fn == dounit || handler_fn == dodefer) {
-			int target = (int)vocab.dict[cursor + 1];
-			if (is_tailcall)
-				fputs("(tailcall) ", out);
-			const QuotationSpan *quotation = (handler_fn == docol || is_tailcall)
-				? quotation_span_containing(target) : NULL;
-			if (quotation && quotation->start_cfa == target) {
-				if (quotation->source_offset == 0) {
-					fputs("[:?]\n", out);
-				} else {
-					char cleaned[TRACE_SNIPPET_MAX + 8];
-					clean_snippet(cleaned, TRACE_SNIPPET_MAX, quotation->source_offset);
-					fprintf(out, "%s\n", cleaned);
-				}
-			} else if (target >= 4 && target < vocab.here) {
-				fprintf(out, "%s\n", &vocab.name_pool[WORD_NAME(target)]);
-			} else {
-				fputs("?\n", out);
-			}
-			cursor += 2;
-			continue;
-		}
-		if (handler_fn == dosym) {
-			fprintf(out, ":%s\n", &vocab.symbol_pool[vocab.dict[cursor + 1]]);
-			cursor += 2;
-			continue;
-		}
-
-		int cell_count = op_cell_count(cursor);
-		see_print_op(out, interp, cursor, cell_count);
+		cursor += see_print_cell(out, interp, cursor);
 		putc('\n', out);
-		cursor += cell_count;
 	}
 }
 
@@ -4811,6 +4931,21 @@ static void see_compiled_render(FILE *out, Interpreter *interp, Val target) {
 
 SEE_WORD_PAIR(p_see_compiled, p_see_compiled_to_string, "see-compiled", "see-compiled>string", see_compiled_render)
 
+void p_trace(DISPATCH_ARGS) {
+	POP_CALLABLE(xt, "trace");
+	push_curried_bindings(interp, xt_val);
+	if (interp->error_flag)
+		return;
+
+	int already_tracing = interp->gc_pending & TRACE_PENDING;
+	interp->gc_pending |= TRACE_PENDING;
+	execute_xt(interp, xt);
+	if (!already_tracing)
+		interp->gc_pending &= ~TRACE_PENDING;
+
+	DISPATCH(interp);
+}
+
 static void see_tree_render(FILE *out, Interpreter *interp, Val target) {
 	render_curried_bindings(out, interp, target);
 
@@ -4960,6 +5095,7 @@ void forget_user(Interpreter *interp) {
 	vocab.source_here = vocab.init_source_here;
 	vocab.symbol_pool_here = vocab.init_symbol_pool_here;
 	truncate_quotation_spans();
+	truncate_word_locations();
 	rebuild_symbol_hash();
 }
 
@@ -5244,6 +5380,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "see>string", p_see_to_string, 0);
 	define_primitive(interp, "man", p_man, 0);
 	define_primitive(interp, "see-compiled", p_see_compiled, 0);
+	define_primitive(interp, "trace", p_trace, 0);
 	define_primitive(interp, "see-compiled>string", p_see_compiled_to_string, 0);
 	define_primitive(interp, "see-tree", p_see_tree, 0);
 	define_primitive(interp, "see-tree>string", p_see_tree_to_string, 0);

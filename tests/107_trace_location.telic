@@ -1,0 +1,38 @@
+\ ==== word locations in error traces ====
+
+\ A colon word defined by load remembers its file and line; a runtime error
+\ trace prints them after the word's name. REPL definitions carry none, and
+\ forget drops the record with the word.
+
+": faulty | x | x 0 / ;
+: caller faulty 1 + ;
+: chain caller ;" "/tmp/docs-trace.telic" write-file
+"/tmp/docs-trace.telic" load
+
+\ -- the trace names each loaded word with its file and line (chain tail-calls
+\ caller, so its frame is gone by the time the error fires)
+[: 5 chain :] [: :trace @ . cr :] try-catch
+\ in / ← faulty (/tmp/docs-trace.telic:1) ← caller (/tmp/docs-trace.telic:2) ← try-catch
+
+\ -- a REPL definition calling a loaded word: only the loaded frame is located
+\ (top-level tail-calls faulty, so its own frame is already gone)
+: top-level 7 faulty ;
+[: top-level :] [: :trace @ . cr :] try-catch
+\ in / ← faulty (/tmp/docs-trace.telic:1) ← top-level ← try-catch
+
+\ -- forget drops the location with the word; a redefinition at the REPL has none
+forget faulty
+: faulty | x | x 0 / ;
+[: 3 faulty :] [: :trace @ . cr :] try-catch
+\ in / ← faulty ← try-catch
+
+\ -- a definition through evaluate inside a loaded file has no location either
+""": via-evaluate 1 0 / ;"" evaluate" "/tmp/docs-trace2.telic" write-file
+"/tmp/docs-trace2.telic" load
+[: via-evaluate :] [: :trace @ . cr :] try-catch
+\ in / ← via-evaluate ← try-catch
+
+clear
+\ === an uncaught error prints the located trace on stderr ===
+"/tmp/docs-trace.telic" load
+2 chain

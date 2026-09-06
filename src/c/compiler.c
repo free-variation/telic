@@ -20,6 +20,7 @@ void rollback_partial_definition(void) {
 	vocab.names_here = (int)WORD_NAME(partial_cfa);
 	vocab.latest_cfa = (int)WORD_LINK(partial_cfa);
 	truncate_quotation_spans();
+	truncate_word_locations();
 	compiler.compiling = 0;
 	compiler.compiling_src_start = 0;
 	compiler.n_local_scopes = 0;
@@ -97,6 +98,13 @@ void p_semicolon(DISPATCH_ARGS) {
 			vocab.source_pool[vocab.source_here + src_len] = 0;
 			vocab.source_here += src_len + 1;
 			WORD_SOURCE(vocab.latest_cfa) = source_offset;
+		}
+		if (compiler.current_load_file) {
+			int line = 1;
+			for (int i = 0; i < compiler.compiling_src_start && i < compiler.input_buffer_len; i++)
+				if (compiler.input_buffer[i] == '\n')
+					line++;
+			record_word_location(vocab.latest_cfa, compiler.current_load_file, line);
 		}
 	}
 	compiler.compiling = 0;
@@ -1974,6 +1982,7 @@ void p_forget(DISPATCH_ARGS) {
 	}
 	vocab.source_here = max_src_end;
 	truncate_quotation_spans();
+	truncate_word_locations();
 
 	DISPATCH(interp);
 }

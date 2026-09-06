@@ -660,6 +660,7 @@ to
 to-slice!
 touch
 touch-file
+trace
 transpose
 trim
 true

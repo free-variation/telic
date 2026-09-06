@@ -5191,6 +5191,7 @@ variable b 4 to b variable c 10 to c
 | `now` | `( -- f )` | Monotonic-clock seconds as a float | 1 | none | O(1) |
 | `sleep` | `( seconds -- )` | Block for the given float seconds (sub-second supported) | blocks | none | O(1) |
 | `timed` | `( xt -- … )` | Run xt, print its elapsed monotonic-clock seconds, then pass through whatever it left on the stack | 2 + xt + print | none | O(xt) |
+| `trace` | `( xt -- … )` | Run xt printing one line per op to stderr before it executes: the op as `see-compiled` shows it, then `\|` and the data stack (its top four values, deepest first, `…` when deeper). Covers every op the run reaches, combinator bodies and nested calls included; the traced code's own output interleaves on stdout. Costs nothing when not tracing: the hook rides the flag the dispatch macros already test for a pending collection | per op: render + print | none | O(ops) |
 
 ```forth-noexec words
 words
@@ -5375,6 +5376,17 @@ woke
 [ 2 3 4 ]
 ```
 
+```forth trace
+[: 3 4 + :] trace . cr
+```
+```output
+(lit) 3                 |
+(lit) 4                 | 3
++                       | 3 4
+exit                    | 7
+7
+```
+
 ---
 
 ## Persistence
@@ -5382,7 +5394,7 @@ woke
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
 | `evaluate` | `( str -- )` | Run the string's characters as source, as if they had been typed at that point: the reader takes its tokens, compile-time words act, definitions enter the dictionary, and the code runs against the same stacks. Unlike loading a file, nothing is recorded for `reload` and an error names only the failing word instead of carrying a `file:line:` prefix. A colon definition works here, where one inside a quotation does not. Errors on an unterminated string literal or definition in the text, and on text at or above the input buffer size | text + run | input buffer copy | O(text + run) |
-| `load` | `( str -- )` | Run a source file as if typed; record it for `reload`. Resolves the path as given (relative to the current directory, or absolute); if that open fails, retries relative to the directory of the file that ran the `load`. An error raised while loading is prefixed `file:line: ` (the line of the failing token); a nested `load` locates to the innermost file | file read + run | input buffer | O(file) |
+| `load` | `( str -- )` | Run a source file as if typed; record it for `reload`. Resolves the path as given (relative to the current directory, or absolute); if that open fails, retries relative to the directory of the file that ran the `load`. An error raised while loading is prefixed `file:line: ` (the line of the failing token); a nested `load` locates to the innermost file. Every colon word a load defines remembers its file and line, and a runtime error trace prints them after the word's name (`in / ← faulty (/tmp/docs-trace.telic:1)`); words typed at the REPL or given with `-e` carry no location | file read + run | input buffer | O(file) |
 | `load-library` | `( name -- )` | core.telic: run `lib/<name>` from beside the telic binary as a source file, so `"plot" load-library` works from any cwd; a name without `.telic` gains it | file read + run | input buffer | O(file) |
 | `reload` | `( -- )` | Truncate user state, re-run every loaded file in order | forget + N loads | — | O(Σ files) |
 | `save` | `( str -- )` | Write all user words as re-loadable `.telic` source | dict scan + write | file I/O | O(\|user dict\|) |

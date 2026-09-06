@@ -461,6 +461,19 @@ live here instead. File and function name each invariant's home.
 - `compiler.case_chain` is 0 outside a `case`, -1 inside one with no `endof`
   yet, else the endof-branch chain head; quotations save and zero it
   (compiler.c, `p_case`).
+- `word_locations` is ordered by cfa because `create_header` appends, so
+  `word_location` binary-searches it; every path that lowers `vocab.here`
+  (`forget`, `rollback_partial_definition`, `forget_user`) must call
+  `truncate_word_locations` right after, or a later word at a reused cfa
+  inherits a stale file and line. A path under the binary's directory is
+  recorded relative to it, so a library word's location reads
+  `lib/plot.telic:412` on every install and goldens stay portable (core.c,
+  `record_word_location`).
+- `gc_pending` is a bit set: `GC_PENDING` from the allocators, `TRACE_PENDING`
+  from `trace`. Setters use `|=` and the loop clears only its own bit, so a
+  collection requested while tracing does not end the trace and a trace does
+  not swallow a collection. The dispatch macros test the whole word, which is
+  what makes tracing free when off (core.c, `run_inner`, `trace_step`).
 - A serial tag's meaning never changes; a new type takes the next tag and
   bumps SERIAL_VERSION (serialize.c, `write_value`).
 - Serialized numbers are little-endian whatever the host; every new numeric
@@ -508,13 +521,17 @@ live here instead. File and function name each invariant's home.
 - `execute` on a colon body must push an ordinary return frame and dispatch
   inline, never through `execute_xt`: a nested loop's stop frame inside a
   captured slice ends a resumed run early (words.c, `p_execute`).
-- A combinator running a primitive xt must set `running` before the call and
-  re-enter `run_inner` after the handler returns while `running` is still
-  set, as `dispatch_body_hoisted` does for a colon body: the primitive may be
-  `execute`, whose inline body contains ops that return to the loop rather
-  than dispatch (`sum`, the reductions), and a bare return there would end
-  the iteration mid-body, leaving its frames on the return stack for the next
-  element (telic.h, `call_step`).
+- A combinator's fast path calls a primitive xt's handler once per element and
+  takes its return as the end of the element, so it may run only primitives
+  whose dispatch chain completes before returning. `execute` dispatches inline
+  into a body whose ops may return to the loop (`sum`, the reductions), so
+  `call_open` routes it through `execute_cfa` like `dovar`; a new primitive
+  that jumps into compiled code must join that exclusion (core.c, `call_open`;
+  telic.h, `call_step`).
+- While `TRACE_PENDING` is set, `call_open` disables the fast path so every
+  combinator element runs under a `run_inner` whose loop prints each op,
+  first op included; the fast path itself carries no trace check, which is
+  what keeps `map` at its measured per-element cost (core.c, `call_open`).
 - `shift` must raise the unwinding flag as `shift-with` does; nothing after
   `shift` in the shifting word runs at capture time (words.c, `p_shift`).
 - The `WORD_LINK` chain from `latest_cfa` is strictly descending: every
