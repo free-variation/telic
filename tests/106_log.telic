@@ -1,0 +1,33 @@
+\ ==== log ( str level -- ) ====
+
+\ One stamped line per call: <iso time> <level> <message>. Filtering by level is
+\ the reader's job. Destination: stderr unless TELIC_LOG_DIR is set; the first
+\ write then derives dir/telic-log-<datetime>, stores it in TELIC_LOG_FILE, and
+\ every write appends there. Timestamps vary, so the lines are checked by regex.
+
+\ -- the default destination is stderr: the line appears in this output, its stamp
+\ normalized to <time> by 106_log.sed
+"to stderr" :info log
+"still stderr" :error log
+
+\ -- the first write under TELIC_LOG_DIR names the file and records it
+"/tmp/telic-test-log" "TELIC_LOG_DIR" env!
+"first" :info log
+"TELIC_LOG_FILE" env "^/tmp/telic-test-log/telic-log-\d{4}-\d\d-\d\dT\d\d-\d\d-\d\dZ$" has? . cr   \ 1
+"TELIC_LOG_FILE" env read-file "\n" split size . cr                                              \ 2 (one line, then the empty tail)
+
+\ -- later writes append to the same file
+"second" :warn log
+"TELIC_LOG_FILE" env read-file "\n" split
+dup size . cr                                                                                    \ 3
+dup 0 @i "^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ info first$" has? . cr                              \ 1
+1 @i "^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ warn second$" has? . cr                                 \ 1
+
+\ -- an explicit TELIC_LOG_FILE is used as is; the directory is not consulted
+"/tmp/telic-test-log/explicit.log" "TELIC_LOG_FILE" env!
+"third" :debug log
+"/tmp/telic-test-log/explicit.log" read-file "debug third$" has? . cr                          \ 1
+
+\ -- any level symbol is accepted; the reader decides what it means
+"fourth" :trace log
+"/tmp/telic-test-log/explicit.log" read-file "trace fourth$" has? . cr                         \ 1

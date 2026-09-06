@@ -1,9 +1,9 @@
-\ log is base-10, ln is natural, ^ is polymorphic power ( base exp -- base^exp ).
+\ log10 is base-10, ln is natural, ^ is polymorphic power ( base exp -- base^exp ).
 
-\ ---- log base-10 ----
-100 log .            \ 2
-1000 log .           \ 3
-1 log .              \ 0
+\ ---- log10 base-10 ----
+100 log10 .            \ 2
+1000 log10 .           \ 3
+1 log10 .              \ 0
 
 \ ---- ln natural ----
 1 ln .               \ 0

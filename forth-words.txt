@@ -392,6 +392,7 @@ load-library
 load-tsv
 load-value
 log
+log10
 log2
 logistic-regression
 lookup

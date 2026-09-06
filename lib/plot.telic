@@ -56,7 +56,7 @@ to aes
 ( span n -- step ) \ the {1,2,5}x10^k step giving about n intervals over span
 : nice-step
 	/ to raw
-	10 raw log round-down ^ to power-of-ten
+	10 raw log10 round-down ^ to power-of-ten
 	raw power-of-ten / to ratio
 	ratio 1.5 < if power-of-ten exit then
 	ratio 3.5 < if power-of-ten 2 * exit then

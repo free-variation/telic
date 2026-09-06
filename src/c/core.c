@@ -5441,7 +5441,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "abs", p_abs, 0);
 	define_primitive(interp, "sqrt", p_sqrt, 0);
 	define_primitive(interp, "exp", p_exp, 0);
-	define_primitive(interp, "log", p_log, 0);
+	define_primitive(interp, "log10", p_log, 0);
 	define_primitive(interp, "ln", p_ln, 0);
 	define_primitive(interp, "ln1+", p_ln1p, 0);
 	define_primitive(interp, "log2", p_log2, 0);

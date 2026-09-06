@@ -81,9 +81,9 @@ through consumption to its destination — a `to name`, a store, a print, an
   ```
 
 - A name a sentence stores into must be free of the dictionary, because `to`
-  on an existing word means that word: `to m` and `to log` both fail, `m`
-  being the metre unit and `log` the base-10 logarithm. The short nouns are
-  largely spoken for — `m` `s` `kg` `day` `week` are units, and `log` `min`
+  on an existing word means that word: `to m` and `to ln` both fail, `m`
+  being the metre unit and `ln` the natural logarithm. The short nouns are
+  largely spoken for — `m` `s` `kg` `day` `week` are units, and `ln` `min`
   `max` `sum` `mean` `size` `count` `first` `last` are words — so a value
   takes a name that says what it holds: `price-column`, `daily-totals`. A
   local that does need a taken name is declared in the head, where the

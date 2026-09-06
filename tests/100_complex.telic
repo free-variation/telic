@@ -41,7 +41,7 @@ clear
 \ === transcendentals answer principal values ===
 
 -1+0i sqrt . 0+2i sqrt . cr                   \ 0+1i 1+1i
--1+0i ln . 100+0i log . 0+0i exp . cr         \ 0+3.14159i 2+0i 1+0i
+-1+0i ln . 100+0i log10 . 0+0i exp . cr         \ 0+3.14159i 2+0i 1+0i
 1i sin . 1i cos . cr                          \ 0+1.1752i 1.54308+0i
 2+0i asin . cr                                \ 1.5708+1.31696i (leaves the real interval)
 1i 2 ^ . 1+1i 1+1i ^ . cr                     \ -1+1.22465e-16i 0.273957+0.583701i

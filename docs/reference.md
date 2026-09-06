@@ -742,7 +742,7 @@ matrix (`@i,j`, `@e`) surfaces as `null` the same way.
 | `abs` | `( a -- \|a\| )` | `fabs` | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `sqrt` | `( a -- √a )` | `sqrt` | 2 | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `exp` | `( a -- eᵃ )` | `exp` | 2 | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
-| `log` | `( a -- log₁₀ a )` | `log10` | 2 | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
+| `log10` | `( a -- log₁₀ a )` | `log10` | 2 | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `ln` | `( a -- ln a )` | `log` — natural log | 2 | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `ln1+` | `( a -- ln(1+a) )` | `log1p` — natural log of `1+a`, accurate for small `a` where adding 1 before taking the logarithm would lose precision to cancellation; float or matrix element-wise, complex rejected | 2 | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `log2` | `( a -- log2 a )` | base-2 log | 2 | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
@@ -789,8 +789,8 @@ null
 1
 ```
 
-```forth log
-100 log . cr
+```forth log10
+100 log10 . cr
 ```
 ```output
 2
@@ -1355,7 +1355,7 @@ A unit word is postfix — it attaches its unit to the number before it (`10 m`,
   dimension, or a quantity ± a bare number, errors.
 - `^` — rational exponent only; raises the unit's exponents (`q 2 ^`, `q 0.5 ^`).
 - `sqrt` — halves the unit's exponents (`sqrt(m²) → m`).
-- `negate` / `abs` — keep the unit; transcendentals (`sin`, `log`, …) reject a quantity.
+- `negate` / `abs` — keep the unit; transcendentals (`sin`, `log10`, …) reject a quantity.
 - `=` `<` `>` — compare by value, normalizing scale within a dimension (`100 ¢ 1 $ = → 1`). On a dimensioned matrix, `<`/`>`/`eq` answer an element-wise bare mask with the same normalization (`prices 10 $ <`); `=` stays structural everywhere.
 
 Printing shows magnitude then unit: a named unit prints its name (`3 newton`); an
@@ -1495,7 +1495,7 @@ A complex is a pair of floats, real and imaginary. `3+4i`, `-1.5-2i`, and
 `i`), and output round-trips as input. `+` `-` `*` `/` take two complexes or
 a complex and a float, which promotes losslessly (a float is a complex with
 imaginary part 0); `negate` keeps the type; `abs` answers the modulus as a
-float. `sqrt`, `exp`, `ln`, `log`, the trigonometric and hyperbolic words,
+float. `sqrt`, `exp`, `ln`, `log10`, the trigonometric and hyperbolic words,
 `sq`, `1+`, and `1-` are closed over complexes, answering principal values
 (`-1+0i sqrt` is `0+1i`, `-1+0i ln` is `0+3.14159i`); `^` takes a complex
 base or exponent. A NaN part is refused at construction. Comparison and
@@ -5704,6 +5704,34 @@ duplicated
 ```forth touch
 "/tmp/docs-touched" touch
 "/tmp/docs-touched" file-exists? . cr
+```
+```output
+1
+```
+
+---
+
+## Logging
+
+One word. Filtering by level is the reader's job, so the writer carries no
+threshold: every call emits one line, `<iso time> <level> <message>`, the level
+in the second field for a reader to cut on. Configuration is environment
+variables, as for every adjustable setting: `TELIC_LOG_DIR` names a directory
+for a per-run file; unset, lines go to stderr. The first `log` call under
+`TELIC_LOG_DIR` derives `dir/telic-log-<datetime>` from that write's time
+(`telic-log-2026-09-06T09-14-02Z`, hyphens so the name is filesystem-safe and
+sorts), creates the directory, stores the path in `TELIC_LOG_FILE`, and every
+later call appends to it. Setting `TELIC_LOG_FILE` yourself before the first
+write names the file directly. The library holds no state of its own.
+
+| Word | Stack effect | Behavior | Ops | Alloc | O |
+|------|-------------|----------|-----|-------|---|
+| `log` | `( str level -- )` | io.telic: write one line, the UTC stamp, the level symbol by name and the message, to the log file under `TELIC_LOG_DIR`/`TELIC_LOG_FILE`, else to stderr; `level` is any symbol | 20 | `1s` per line | O(\|s\|) |
+
+```forth log
+"/tmp/docs-log" "TELIC_LOG_DIR" env!
+"fit converged" :info log
+"TELIC_LOG_FILE" env read-file "^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ info fit converged$" has? . cr
 ```
 ```output
 1

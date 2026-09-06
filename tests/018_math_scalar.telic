@@ -36,7 +36,7 @@ clear
 1 sqrt .
 0 exp .
 1 exp .
-1 log .
+1 log10 .
 0 sin .
 0 cos .
 0 tan .
@@ -46,7 +46,7 @@ clear
 [ -1 2 -3 4 ] 2 2 matrix abs .
 [ 1 4 9 16 ] 2 2 matrix sqrt .
 [ 0 1 ] 1 2 matrix exp .
-[ 1 ] 1 1 matrix log .
+[ 1 ] 1 1 matrix log10 .
 [ 0 0 0 0 ] 2 2 matrix sin .
 [ 0 0 0 0 ] 2 2 matrix cos .
 [ 0 0 ] 1 2 matrix tanh .

@@ -412,6 +412,7 @@ Worker threads over one shared object heap: a quotation runs across the collecti
 - **`find-executable`** — `( name -- path/none )` the absolute path of `name` on `$PATH`, or the none value if not found.
 - **`load-library`** — `"plot" load-library` loads `lib/plot.telic` from beside the telic binary (`binary-dir`, symlinks resolved), from any cwd; the statistics library locates its LAPACK shared library the same way.
 - **`env`** / **`env!`** — read an environment variable as a string (the none value if unset) and set one (process-wide, so `start-process` children inherit it).
+- **`log`** — `( str level -- )` writes one stamped line, `<time> <level> <message>`, to stderr, or under `TELIC_LOG_DIR` to a per-run file named at the first write and recorded in `TELIC_LOG_FILE`.
 - **`stdin`** / **`stdout`** / **`stderr`** — the standard streams as `T_STREAM` values (fds 0/1/2), composing with `read`/`write`/`close` — `s stdout write` emits, `stdin read` reads input whole.
 
 ### Subprocesses and pipes

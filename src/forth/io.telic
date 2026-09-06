@@ -61,3 +61,19 @@
 	name swap ":" split
 	[: "/" + 2 pick + :] map nip
 	' file-exists? find-first ;
+
+( -- path|none ) \ the log file: TELIC_LOG_FILE, else derived from TELIC_LOG_DIR
+\ at first use and stored there; none means stderr
+: log-destination
+	"TELIC_LOG_FILE" env dup none? not if exit then drop
+	"TELIC_LOG_DIR" env dup none? if exit then to log-dir
+
+	log-dir make-directory
+	log-dir "/telic-log-" + wall-now "%Y-%m-%dT%H-%M-%SZ" format-time +
+	dup "TELIC_LOG_FILE" env! ; internal
+
+( str level -- ) \ one line, <iso time> <level> <message>, to the log file or stderr
+: log | message level |
+	wall-now time>iso level message "{2} {1} {0}{nl}" format
+	log-destination dup none? if drop stderr write exit then
+	append-file ;
