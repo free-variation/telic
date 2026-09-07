@@ -36,11 +36,133 @@ void rollback_partial_definition(void) {
 	compiler.declared_globals_pool_here = 0;
 }
 
+static int store_source_text(const char *text, int length) {
+	if (length <= 0 || vocab.source_here + length + 1 > SOURCE_POOL)
+		return 0;
+
+	int offset = vocab.source_here;
+	memcpy(&vocab.source_pool[offset], text, (size_t)length);
+	vocab.source_pool[offset + length] = 0;
+	vocab.source_here += length + 1;
+	return offset;
+}
+
+static int line_start_before(int position) {
+	int start = position;
+	while (start > 0 && compiler.input_buffer[start - 1] != '\n')
+		start--;
+	return start;
+}
+
+static const char *first_nonblank(int start, int end) {
+	const char *cursor = &compiler.input_buffer[start];
+	const char *limit = &compiler.input_buffer[end];
+	while (cursor < limit && (*cursor == ' ' || *cursor == '\t'))
+		cursor++;
+	return cursor;
+}
+
+static void append_trimmed(char *summary, int *summary_len, const char *text, const char *limit) {
+	while (text < limit && (*text == ' ' || *text == '\t'))
+		text++;
+	while (limit > text && (limit[-1] == ' ' || limit[-1] == '\t' || limit[-1] == '\r'))
+		limit--;
+	if (text >= limit)
+		return;
+	if (*summary_len > 0 && *summary_len < SUMMARY_MAX - 1)
+		summary[(*summary_len)++] = ' ';
+	int room = SUMMARY_MAX - 1 - *summary_len;
+	int length = (int)(limit - text);
+	if (length > room)
+		length = room;
+	memcpy(summary + *summary_len, text, (size_t)length);
+	*summary_len += length;
+}
+
+static void definition_comment(int colon_end, int *effect_offset, int *summary_offset) {
+	int colon_line = line_start_before(colon_end - 1);
+	if (first_nonblank(colon_line, colon_end - 1) != &compiler.input_buffer[colon_end - 1])
+		return;
+
+	int continuation_starts[SUMMARY_LINES_MAX];
+	int continuation_ends[SUMMARY_LINES_MAX];
+	int n_continuations = 0;
+	int line_end = colon_line - 1;
+	int effect_line = -1;
+	while (line_end > 0) {
+		int line_start = line_start_before(line_end);
+		const char *lead = first_nonblank(line_start, line_end);
+		if (lead < &compiler.input_buffer[line_end] && *lead == '(') {
+			effect_line = line_start;
+			break;
+		}
+		if (lead < &compiler.input_buffer[line_end] && *lead == '\\' && n_continuations < SUMMARY_LINES_MAX) {
+			continuation_starts[n_continuations] = (int)(lead + 1 - compiler.input_buffer);
+			continuation_ends[n_continuations++] = line_end;
+			line_end = line_start - 1;
+			continue;
+		}
+		return;
+	}
+	if (effect_line < 0)
+		return;
+
+	const char *effect_start = first_nonblank(effect_line, line_end);
+	const char *effect_end = memchr(effect_start, ')', (size_t)(&compiler.input_buffer[line_end] - effect_start));
+	if (!effect_end)
+		return;
+	effect_end++;
+	*effect_offset = store_source_text(effect_start, (int)(effect_end - effect_start));
+
+	char summary[SUMMARY_MAX];
+	int summary_len = 0;
+	const char *after_effect = effect_end;
+	const char *line_limit = &compiler.input_buffer[line_end];
+	while (after_effect < line_limit && (*after_effect == ' ' || *after_effect == '\t'))
+		after_effect++;
+	if (after_effect < line_limit && *after_effect == '\\')
+		append_trimmed(summary, &summary_len, after_effect + 1, line_limit);
+	for (int i = n_continuations - 1; i >= 0; i--)
+		append_trimmed(summary, &summary_len, &compiler.input_buffer[continuation_starts[i]],
+				&compiler.input_buffer[continuation_ends[i]]);
+	*summary_offset = store_source_text(summary, summary_len);
+}
+
+static int definition_line(void) {
+	int line = 1;
+	for (int i = 0; i < compiler.compiling_src_start && i < compiler.input_buffer_len; i++)
+		if (compiler.input_buffer[i] == '\n')
+			line++;
+	return line;
+}
+
+static void warn_unread_locals(int scope_idx) {
+	int scope_start = compiler.local_scope_starts[scope_idx];
+	const char *definition = compiler.compiling_src_start > 0 && vocab.latest_cfa != 0
+		? &vocab.name_pool[WORD_NAME(vocab.latest_cfa)] : "quotation";
+
+	for (int name_idx = scope_start; name_idx < compiler.n_local_names; name_idx++) {
+		if (compiler.local_fetched[name_idx] || !compiler.local_stored[name_idx])
+			continue;
+		const char *name = &compiler.local_names_pool[compiler.local_name_offsets[name_idx]];
+		if (strchr(name, ' '))
+			continue;
+
+		fprintf(stderr, "warning: %s", definition);
+		if (compiler.current_load_file)
+			fprintf(stderr, " (%s:%d)", display_load_path(compiler.current_load_file), definition_line());
+		fprintf(stderr, ": local %s is %s but never read\n", name,
+				compiler.local_assigned_by_to[name_idx] ? "assigned" : "received");
+	}
+	fflush(stderr);
+}
+
 static int check_locals_assigned(Interpreter *interp) {
 	int scope_idx = compiler.n_local_scopes - 1;
 	if (scope_idx < 0)
 		return 1;
 
+	warn_unread_locals(scope_idx);
 	int scope_start = compiler.local_scope_starts[scope_idx];
 	for (int name_idx = scope_start; name_idx < compiler.n_local_names; name_idx++) {
 		if (!compiler.local_fetched[name_idx] || compiler.local_stored[name_idx])
@@ -100,11 +222,11 @@ void p_semicolon(DISPATCH_ARGS) {
 			WORD_SOURCE(vocab.latest_cfa) = source_offset;
 		}
 		if (compiler.current_load_file) {
-			int line = 1;
-			for (int i = 0; i < compiler.compiling_src_start && i < compiler.input_buffer_len; i++)
-				if (compiler.input_buffer[i] == '\n')
-					line++;
-			record_word_location(vocab.latest_cfa, compiler.current_load_file, line);
+			int line = definition_line();
+			int effect_offset = 0;
+			int summary_offset = 0;
+			definition_comment(compiler.compiling_colon_pos, &effect_offset, &summary_offset);
+			record_word_location(vocab.latest_cfa, compiler.current_load_file, line, effect_offset, summary_offset);
 		}
 	}
 	compiler.compiling = 0;
@@ -353,6 +475,7 @@ void p_do(DISPATCH_ARGS) {
 			}
 		}
 		compiler.local_stored[compiler.found_local_name_idx] = 1;
+		compiler.local_fetched[compiler.found_local_name_idx] = 1;
 		index_slot = local_slot_idx;
 	} else {
 		int existing_cfa = find(token);
@@ -373,6 +496,7 @@ void p_do(DISPATCH_ARGS) {
 		index_slot = declare_local_in_scope(interp, token);
 		if (index_slot < 0)
 			return;
+		compiler.local_fetched[compiler.n_local_names - 1] = 1;
 	}
 
 	if (compiler.n_active_do_loops >= MAX_LOCAL_SCOPES) {
@@ -1213,6 +1337,7 @@ static void hoist_assigned_locals(Interpreter *interp) {
 }
 
 void p_colon(DISPATCH_ARGS) {
+	compiler.compiling_colon_pos = compiler.input_buffer_pos;
 	char *token = next_token();
 	if (!token) {
 		fail(interp, ": expected a name for the new definition");

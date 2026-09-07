@@ -224,7 +224,7 @@ drop
 \ set; at the answer the passive gradient is ~0 and the active gradient <= 0
 : fit-nonnegative
 	| X y |
-	X dim to n-predictors to n-observations
+	X dim to n-predictors drop
 	X transpose to Xt
 	Xt y matmul to gradient
 	gradient abs max 1e-10 * to tolerance

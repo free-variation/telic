@@ -1,0 +1,10 @@
+warning: leftover: local scratch is assigned but never read
+4 
+warning: ignores: local a is received but never read
+2 
+0 5 
+x x x 
+warning: loaded-leftover (/tmp/docs-unread.telic:1): local unused is assigned but never read
+7 
+warning: outer: local inner-scratch is assigned but never read
+2 

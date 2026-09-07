@@ -9,6 +9,7 @@ ran-zero
 0 1 5 6 7 
 0 1 2 
 0 1 
+warning: word-as-index-headed: local x is received but never read
 0 1 
 5 
 30 

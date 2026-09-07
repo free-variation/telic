@@ -2016,7 +2016,7 @@ static int location_file_index(const char *file) {
 	return vocab.n_location_files++;
 }
 
-static const char *strip_binary_dir(const char *file) {
+const char *display_load_path(const char *file) {
 	static char binary_dir[PATH_MAX];
 	static int binary_dir_len = -1;
 
@@ -2037,10 +2037,10 @@ static const char *strip_binary_dir(const char *file) {
 	return file;
 }
 
-void record_word_location(int cfa, const char *file, int line) {
+void record_word_location(int cfa, const char *file, int line, int effect_offset, int summary_offset) {
 	if (vocab.n_word_locations >= MAX_WORD_LOCATIONS)
 		return;
-	int file_index = location_file_index(strip_binary_dir(file));
+	int file_index = location_file_index(display_load_path(file));
 	if (file_index < 0)
 		return;
 
@@ -2048,6 +2048,8 @@ void record_word_location(int cfa, const char *file, int line) {
 	location->cfa = cfa;
 	location->file = file_index;
 	location->line = line;
+	location->effect_offset = effect_offset;
+	location->summary_offset = summary_offset;
 }
 
 const WordLocation *word_location(int cfa) {

@@ -1,0 +1,11 @@
+[ :summary "the larger of two numbers, as a float" :effect "( a b -- c )" :word "larger" ] 
+the sum of an array of floats, folded left with + 
+larger ( a b -- c )
+  the larger of two numbers, as a float
+total ( xs -- total )
+  the sum of an array of floats, folded left with +
+total            ( xs -- total )          the sum of an array of floats, folded left with +
+null 
+null 
+null 
+7 6 6 

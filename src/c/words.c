@@ -2104,8 +2104,14 @@ void p_apropos(DISPATCH_ARGS) {
 		if (WORD_IS_INTERNAL(cfa))
 			continue;
 		const char *name = &vocab.name_pool[WORD_NAME(cfa)];
-		if (contains_case_insensitive(name, query) && !help_lookup(name))
-			printf("%-16s %-24s defined this session\n", name, "");
+		if (help_lookup(name))
+			continue;
+		const WordLocation *location = word_location(cfa);
+		const char *effect = location && location->effect_offset ? &vocab.source_pool[location->effect_offset] : "";
+		const char *summary = location && location->summary_offset ? &vocab.source_pool[location->summary_offset] : "";
+		if (!contains_case_insensitive(name, query) && !contains_case_insensitive(summary, query))
+			continue;
+		printf("%-16s %-24s %s\n", name, effect, *summary ? summary : "defined this session");
 	}
 	fflush(stdout);
 
@@ -2215,6 +2221,21 @@ void p_man(DISPATCH_ARGS) {
 		gc_root_pop(interp);
 
 		chain_sp[-1] = make_frame(unit_frame_handle);
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+	}
+
+	const WordLocation *location = entry ? NULL : word_location(target_cfa);
+	if (location && location->effect_offset) {
+		NEW_FRAME(loaded_frame_handle, loaded_frame);
+		(void)loaded_frame;
+		gc_root_push(interp, make_frame(loaded_frame_handle));
+		help_put(interp, loaded_frame_handle, "word", name);
+		help_put(interp, loaded_frame_handle, "effect", &vocab.source_pool[location->effect_offset]);
+		help_put(interp, loaded_frame_handle, "summary",
+				location->summary_offset ? &vocab.source_pool[location->summary_offset] : "");
+		gc_root_pop(interp);
+
+		chain_sp[-1] = make_frame(loaded_frame_handle);
 		DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 	}
 

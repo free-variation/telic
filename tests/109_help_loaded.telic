@@ -1,0 +1,43 @@
+\ ==== help for words defined in loaded files ====
+
+\ The ( a b -- c ) \ summary line above a definition in a loaded file becomes the
+\ word's entry: man answers { :word :effect :summary }, help prints it, and
+\ apropos matches the summary. Continuation lines starting with \ extend the
+\ summary. A definition without the comment, or typed at the REPL, has no entry.
+
+"( a b -- c ) \ the larger of two numbers, as a float
+: larger 2dup < if nip else drop then ;
+
+( xs -- total ) \ the sum of an array of floats,
+\ folded left with +
+: total 0 ' + reduce ;
+
+: undocumented 1 ;
+
+( -- ) \ a comment two lines up does not count
+
+: separated 2 ;" "/tmp/docs-help.telic" write-file
+"/tmp/docs-help.telic" load
+
+\ -- man answers a frame built from the comment
+' larger man frame>array . cr
+' total man :summary @ . cr
+
+\ -- help prints it like a reference entry
+help larger
+help total
+
+\ -- apropos matches the summary of a loaded word and shows its effect
+"folded left" apropos
+
+\ -- no comment, or a blank line between comment and definition: no entry
+' undocumented man . cr
+' separated man . cr
+
+\ -- a REPL definition has no entry, comment or not
+( n -- n' ) \ typed here, not loaded
+: at-repl 1+ ;
+' at-repl man . cr
+
+\ -- the words still run
+3 7 larger . [ 1 2 3 ] total . 5 at-repl . cr

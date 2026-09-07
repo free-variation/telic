@@ -467,8 +467,11 @@ live here instead. File and function name each invariant's home.
   `truncate_word_locations` right after, or a later word at a reused cfa
   inherits a stale file and line. A path under the binary's directory is
   recorded relative to it, so a library word's location reads
-  `lib/plot.telic:412` on every install and goldens stay portable (core.c,
-  `record_word_location`).
+  `lib/plot.telic:412` on every install and goldens stay portable. The same
+  record carries the definition's `( a b -- c ) \ summary` comment as two
+  source-pool offsets, 0 when absent; `man` and `apropos` read them only when
+  the help table has no row for the name, so a reference row always wins
+  (core.c, `record_word_location`; compiler.c, `definition_comment`).
 - `gc_pending` is a bit set: `GC_PENDING` from the allocators, `TRACE_PENDING`
   from `trace`. Setters use `|=` and the loop clears only its own bit, so a
   collection requested while tracing does not end the trace and a trace does

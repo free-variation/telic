@@ -11,8 +11,11 @@ in times
 
 45 
 30 
+warning: quotation: local a is received but never read
 error: insufficient values on data stack; need 1
 in (enter-locals-to) ← [: a | :]
+warning: quotation: local a is received but never read
+warning: quotation: local b is received but never read
 error: insufficient values on data stack; need 2
 in (enter-locals-to) ← [: | a b | :]
 error: length must be non-negative; got -1

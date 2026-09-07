@@ -79,6 +79,8 @@ typedef int64_t cell;
 #define TRACE_FRAMES_LAST 3
 #define TRACE_FRAMES_MAX 512
 #define TRACE_STACK_SHOWN 4
+#define SUMMARY_MAX 1024
+#define SUMMARY_LINES_MAX 16
 #define PRINT_FIRST 10
 #define PRINT_LAST 3
 #define LIST_PRINT_MAX 100000
@@ -476,6 +478,8 @@ typedef struct {
 	int cfa;
 	int file;
 	int line;
+	int effect_offset;
+	int summary_offset;
 } WordLocation;
 
 typedef struct Vocabulary {
@@ -604,6 +608,7 @@ typedef struct {
 	int definition_redefined;
 	int compiling_src_start;
 	int compiling_src_line;
+	int compiling_colon_pos;
 
 	int fuse_prev_var, fuse_prev2_var;
 	int fuse_prev_cmp;
@@ -1008,7 +1013,8 @@ int quotation_extent_end(int start_cfa);
 const char *quotation_source(int start_cfa);
 void rebuild_symbol_hash(void);
 void record_loaded_file(Interpreter *interp, const char *filename);
-void record_word_location(int cfa, const char *file, int line);
+const char *display_load_path(const char *file);
+void record_word_location(int cfa, const char *file, int line, int effect_offset, int summary_offset);
 const WordLocation *word_location(int cfa);
 int refill_input(void);
 void render_curried_bindings(FILE *out, Interpreter *interp, Val target);
