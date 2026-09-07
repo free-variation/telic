@@ -472,6 +472,12 @@ live here instead. File and function name each invariant's home.
   source-pool offsets, 0 when absent; `man` and `apropos` read them only when
   the help table has no row for the name, so a reference row always wins
   (core.c, `record_word_location`; compiler.c, `definition_comment`).
+- `cell_lines` maps every handler cell `emit_call` lays down while compiling a
+  loaded file to its source line, ordered by address; a trace takes a frame's
+  line from the greatest recorded cell below its return address, guarded by
+  the owning word's cfa so a word with no recorded cells falls back to its
+  definition line. Every path that lowers `vocab.here` truncates it with the
+  location table (core.c, `record_cell_line`, `cell_line_at`).
 - `gc_pending` is a bit set: `GC_PENDING` from the allocators, `TRACE_PENDING`
   from `trace`. Setters use `|=` and the loop clears only its own bit, so a
   collection requested while tracing does not end the trace and a trace does

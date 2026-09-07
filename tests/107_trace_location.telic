@@ -36,3 +36,18 @@ clear
 \ === an uncaught error prints the located trace on stderr ===
 "/tmp/docs-trace.telic" load
 2 chain
+
+clear
+\ === the line is the call executing in the frame, not the definition's line ===
+\ (call-multi does not end in the call: as a tail call its frame would be gone)
+": multi | x |
+  x 1 +
+  x 0 /
+  drop ;
+: call-multi
+  1 2 +
+  multi
+  drop ;" "/tmp/docs-trace3.telic" write-file
+"/tmp/docs-trace3.telic" load
+[: 4 call-multi :] [: :trace @ . cr :] try-catch
+\ in / ← multi (/tmp/docs-trace3.telic:3) ← call-multi (/tmp/docs-trace3.telic:7) ← try-catch

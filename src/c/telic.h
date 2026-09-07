@@ -27,6 +27,7 @@ typedef int64_t cell;
 #define SYMBOL_HASH_SIZE (1 << 20)
 #define MAX_QUOTATION_SPANS (1 << 14)
 #define MAX_WORD_LOCATIONS (1 << 14)
+#define MAX_CELL_LINES (1 << 16)
 #define GC_PENDING 1
 #define TRACE_PENDING 2
 #define MAX_LOCATION_FILES (1 << 8)
@@ -482,6 +483,11 @@ typedef struct {
 	int summary_offset;
 } WordLocation;
 
+typedef struct {
+	int address;
+	int line;
+} CellLine;
+
 typedef struct Vocabulary {
 	cell dict[VOCABULARY_INIT_SIZE];
 	int here;
@@ -526,6 +532,8 @@ typedef struct Vocabulary {
 	int n_word_locations;
 	char *location_files[MAX_LOCATION_FILES];
 	int n_location_files;
+	CellLine cell_lines[MAX_CELL_LINES];
+	int n_cell_lines;
 } Vocabulary;
 
 extern Vocabulary vocab;
@@ -656,6 +664,8 @@ typedef struct {
 	int nested_input_depth;
 	const char *current_load_dir;
 	const char *current_load_file;
+	int line_cursor_pos;
+	int line_cursor_line;
 	int error_located;
 
 
@@ -1013,7 +1023,10 @@ int quotation_extent_end(int start_cfa);
 const char *quotation_source(int start_cfa);
 void rebuild_symbol_hash(void);
 void record_loaded_file(Interpreter *interp, const char *filename);
+int cell_line_at(int address, int floor_address);
+int current_source_line(void);
 const char *display_load_path(const char *file);
+void record_cell_line(int address, int line);
 void record_word_location(int cfa, const char *file, int line, int effect_offset, int summary_offset);
 const WordLocation *word_location(int cfa);
 int refill_input(void);
@@ -1069,6 +1082,7 @@ int create_variable(Interpreter *interp, const char *name);
 int reject_outer_local(Interpreter *interp, const char *token);
 void rollback_partial_definition(void);
 void truncate_quotation_spans(void);
+void truncate_cell_lines(void);
 void truncate_word_locations(void);
 
 // collections.c

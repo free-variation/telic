@@ -26,4 +26,4 @@ the answer
 0 $ 
 491.52 ¢ 
 error: uncaught exception: "no price for model: no-such-model"
-in throw ← model-price (lib/claude.telic:107)
+in throw ← model-price (lib/claude.telic:110)

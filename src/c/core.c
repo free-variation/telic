@@ -1960,6 +1960,8 @@ void emit(Interpreter *interp, cell value) {
 }
 
 void emit_call(Interpreter *interp, int target_cfa) {
+	if (compiler.current_load_file && compiler.compiling)
+		record_cell_line(vocab.here, current_source_line());
 	cfa_handler handler = (cfa_handler)vocab.dict[target_cfa];
 	emit(interp, (cell)handler);
 	dict_is_handler[vocab.here - 1] = 1;
@@ -2059,6 +2061,47 @@ const WordLocation *word_location(int cfa) {
 	return NULL;
 }
 
+int current_source_line(void) {
+	if (compiler.input_buffer_pos < compiler.line_cursor_pos) {
+		compiler.line_cursor_pos = 0;
+		compiler.line_cursor_line = 1;
+	}
+	while (compiler.line_cursor_pos < compiler.input_buffer_pos
+			&& compiler.line_cursor_pos < compiler.input_buffer_len) {
+		if (compiler.input_buffer[compiler.line_cursor_pos] == '\n')
+			compiler.line_cursor_line++;
+		compiler.line_cursor_pos++;
+	}
+	return compiler.line_cursor_line;
+}
+
+void record_cell_line(int address, int line) {
+	if (vocab.n_cell_lines >= MAX_CELL_LINES)
+		return;
+	if (vocab.n_cell_lines > 0 && vocab.cell_lines[vocab.n_cell_lines - 1].address >= address)
+		return;
+
+	CellLine *entry = &vocab.cell_lines[vocab.n_cell_lines++];
+	entry->address = address;
+	entry->line = line;
+}
+
+int cell_line_at(int address, int floor_address) {
+	LOWER_BOUND(vocab.n_cell_lines, mid, vocab.cell_lines[mid].address < address, at);
+	if (at == 0)
+		return 0;
+	const CellLine *entry = &vocab.cell_lines[at - 1];
+	if (entry->address < floor_address)
+		return 0;
+	return entry->line;
+}
+
+void truncate_cell_lines(void) {
+	while (vocab.n_cell_lines > 0
+			&& vocab.cell_lines[vocab.n_cell_lines - 1].address >= vocab.here)
+		vocab.n_cell_lines--;
+}
+
 void truncate_word_locations(void) {
 	while (vocab.n_word_locations > 0
 			&& vocab.word_locations[vocab.n_word_locations - 1].cfa >= vocab.here)
@@ -2155,12 +2198,15 @@ static const char *running_op_name(int fault_cell, int body_start, int body_end)
 	return NULL;
 }
 
-static void trace_write_location(Interpreter *interp, int *len, int cfa) {
+static void trace_write_location(Interpreter *interp, int *len, int cfa, int addr) {
 	const WordLocation *location = word_location(cfa);
 	if (!location)
 		return;
+	int line = cell_line_at(addr, cfa);
+	if (line == 0)
+		line = location->line;
 	char located[PATH_MAX + 16];
-	snprintf(located, sizeof located, " (%s:%d)", vocab.location_files[location->file], location->line);
+	snprintf(located, sizeof located, " (%s:%d)", vocab.location_files[location->file], line);
 	trace_write(interp, len, located);
 }
 
@@ -2262,11 +2308,14 @@ static void capture_error_trace(Interpreter *interp) {
 			continue;
 		}
 		trace_write(interp, &len, (i == 0 && len == 0) ? "in " : " ← ");
-		if (frames[i].span)
+		if (frames[i].span) {
 			trace_write_snippet(interp, &len, frames[i].span->source_offset);
-		else {
+			int owner = word_containing(frames[i].addr);
+			if (owner)
+				trace_write_location(interp, &len, owner, frames[i].addr);
+		} else {
 			trace_write(interp, &len, &vocab.name_pool[WORD_NAME(frames[i].cfa)]);
-			trace_write_location(interp, &len, frames[i].cfa);
+			trace_write_location(interp, &len, frames[i].cfa, frames[i].addr);
 		}
 		if (frames[i].repeats > 1) {
 			char multiple[16];
@@ -3906,11 +3955,17 @@ static void run_input_text(Interpreter *interp, const char *text, int length, co
 	compiler.need_more = 0;
 
 	const char *saved_load_file = compiler.current_load_file;
+	int saved_cursor_pos = compiler.line_cursor_pos;
+	int saved_cursor_line = compiler.line_cursor_line;
 	compiler.current_load_file = origin;
+	compiler.line_cursor_pos = 0;
+	compiler.line_cursor_line = 1;
 	compiler.nested_input_depth++;
 	run_outer(interp);
 	compiler.nested_input_depth--;
 	compiler.current_load_file = saved_load_file;
+	compiler.line_cursor_pos = saved_cursor_pos;
+	compiler.line_cursor_line = saved_cursor_line;
 
 	if (!interp->error_flag && compiler.need_more)
 		fail(interp, "unterminated string literal");
@@ -5098,6 +5153,7 @@ void forget_user(Interpreter *interp) {
 	vocab.symbol_pool_here = vocab.init_symbol_pool_here;
 	truncate_quotation_spans();
 	truncate_word_locations();
+	truncate_cell_lines();
 	rebuild_symbol_hash();
 }
 

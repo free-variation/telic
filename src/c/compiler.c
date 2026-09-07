@@ -21,6 +21,7 @@ void rollback_partial_definition(void) {
 	vocab.latest_cfa = (int)WORD_LINK(partial_cfa);
 	truncate_quotation_spans();
 	truncate_word_locations();
+	truncate_cell_lines();
 	compiler.compiling = 0;
 	compiler.compiling_src_start = 0;
 	compiler.n_local_scopes = 0;
@@ -2108,6 +2109,7 @@ void p_forget(DISPATCH_ARGS) {
 	vocab.source_here = max_src_end;
 	truncate_quotation_spans();
 	truncate_word_locations();
+	truncate_cell_lines();
 
 	DISPATCH(interp);
 }

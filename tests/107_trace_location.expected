@@ -4,3 +4,4 @@ in / ← faulty ← try-catch
 in / ← via-evaluate ← try-catch 
 error: division by zero
 in / ← faulty (/tmp/docs-trace.telic:1) ← caller (/tmp/docs-trace.telic:2)
+in / ← multi (/tmp/docs-trace3.telic:3) ← call-multi (/tmp/docs-trace3.telic:7) ← try-catch 
