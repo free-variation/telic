@@ -422,6 +422,14 @@ int cpu_count(void) {
 	return n_cores > 0 ? (int)n_cores : 1;
 }
 
+int worker_pool_count(void) {
+	int n_workers = 0;
+	for (int i = 0; i < MAX_WORKER_THREADS; i++)
+		if (worker_pool[i])
+			n_workers++;
+	return n_workers;
+}
+
 void p_num_cores(DISPATCH_ARGS) {
 	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);
 	*chain_sp = make_float(cpu_count());

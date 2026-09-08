@@ -390,6 +390,7 @@ const HelpEntry help_entries[] = {
 	{ "ftan", "( a -- tan a ) ⚠", "tangent (radians), in place", "1", "none", "O(1)", 1 },
 	{ "ftanh", "( a -- tanh a ) ⚠", "hyperbolic tangent, in place", "1", "none", "O(1)", 1 },
 	{ "ftruncate", "( a -- trunc a ) ⚠", "toward zero, in place", "1", "none", "O(1)", 1 },
+	{ "gauges", "( -- fr )", "repl.telic: the interpreter's resource readings as a frame of six frames; memory is in MiB (dictionary pools in KiB), processor time in s, counts are floats, and a [ used capacity ] pair is an array. :dictionary: :cells, :name-pool, :source-pool, :symbol-pool, :quotations, :word-locations, :cell-lines, :loaded-files as pairs, plus :words, :session-words (defined since the embedded library), :symbols. :heap: :arena [ used reserved ], :live, :gc-threshold, :memory-headroom (until the next collection), :objects [ live table-size ] (live is claimed handles minus the free list), :handles-claimed [ claimed table-size ] (the high-water mark; a collection refills the free list rather than lowering it), :max-objects, :free-handles, :handle-headroom [ unclaimed trigger ] (a collection is requested when unclaimed falls under trigger), :pairs [ live table-size ], :collections. :stacks: :data, :return, :side, :calls, :trail, :logic-vars, :roots, each [ depth capacity ]. :resources: :databases, :regex-cache, :workers, each [ in-use capacity ]. :computer: :cpu-count, :physical-memory, the load averages :load-1 :load-5 :load-15, and this process's :user-time, :system-time, :max-rss (peak resident memory), :minor-faults, :major-faults, :voluntary-switches, :involuntary-switches — null under wasm, which has no such calls. :session: :line, :interactive, :load-depth, :gc-disabled, :tracing", "dict walk + symbol scan", "1fr × 6 + pairs", "O(words + symbols)", 32 },
 	{ "gc", "( -- )", "Force a mark-sweep now", "walks stacks + dict + roots, frees unmarked", "none", "O(objects + dict)", 32 },
 	{ "gen-each", "( producer consumer -- )", "generators.telic: run consumer on each value the producer yields until the producer finishes (a :gen-end sentinel marks exhaustion)", "—", "cont/step", "O(values · consumer)", 28 },
 	{ "gen-take", "( producer count -- array )", "generators.telic: the first count values the producer yields, collected into an array", "—", "1a(count) + cont/step", "O(count · L)", 28 },
@@ -543,6 +544,7 @@ const HelpEntry help_entries[] = {
 	{ "pointer>address", "( ptr -- n )", "The pointer's numeric address as a float, for embedding in an __array_interface__ JSON string; errors if the address exceeds 2^53 (not float-exact — macOS arm64 user addresses are well under it)", "1", "none", "O(1)", 38 },
 	{ "predict-multinomial", "( beta X reference-class -- probabilities )", "Softmax probabilities from a fit-multinomial/fit-multinomial-ridge model: n×K, columns in label order 0..K−1 (the reference-class column is 1/Σ weights). Each row sums to 1", NULL, NULL, NULL, 43 },
 	{ "print", "( x -- )", "core.telic: print value then a space; matrices print as a grid, frames pretty-print", "1 + print", "none", "O(size printed)", 13 },
+	{ "print-gauges", "( -- )", "repl.telic: print the readings of gauges that move during a run as a six-row table: live memory, objects, pairs, and arena against their capacities with a percentage; collections with their rate; data, return, and call depth; trail and logic-variable depth; CPU percentage, peak resident memory, major faults per second, load average against the core count, involuntary switches per second; then the interval since the previous call and the clock. Rates are computed against the previous print-gauges call, so a first call shows them as 0. On a terminal the labels are dim and a percentage or rate is yellow above 60% of its capacity, red above 85%", "gauges + format", "strings", "O(words + symbols)", 32 },
 	{ "print-stack", "( -- )", "core.telic: print every stack value, bottom to top; leaves the stack intact", "print", "none", "O(depth)", 13 },
 	{ "product-times", "( xt n -- product )", "arrays.telic: the product of xt ( i -- term ) over i in 0..n-1", "3 + n·(1+xt)", "none", "O(n·xt)", 26 },
 	{ "ptr?", "( a -- bool )", "core.telic: 1 when the value is a C pointer, else 0", "5", "none", "O(1)", 4 },
@@ -797,7 +799,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, pairs head then tail, arrays element-wise, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails. A C primitive, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 29 },
 };
 
-const int help_entry_count = 739;
+const int help_entry_count = 741;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -1135,6 +1137,7 @@ const HelpExample help_examples[] = {
 	{ "ftan", "PI 4 f/ ftan . cr", "1" },
 	{ "ftanh", "0 ftanh . cr", "0" },
 	{ "ftruncate", "2.9 ftruncate . cr", "2" },
+	{ "gauges", "gauges dup keys [: \"{0}\" format :] sort-by . :stacks @ :data @ . cr", "[ :computer :dictionary :heap :resources :session :stacks ] [ 0 65536 ]" },
 	{ "gc", "gc \"collected\" . cr", "collected" },
 	{ "gen-each", ": pair-gen 10 yield 20 yield ; ' pair-gen [: . :] gen-each cr", "10 20" },
 	{ "gen-take", ": odds 1 yield 3 yield 5 yield ; ' odds 3 gen-take . cr", "[ 1 3 5 ]" },
@@ -1288,6 +1291,7 @@ const HelpExample help_examples[] = {
 	{ "pointer>address", "pointer-cell pointer>address 0 > . cr", "1" },
 	{ "predict-multinomial", "\"statistics\" load-library\n[ 1 0 1 1 1 2 1 3 1 4 1 5 ] 6 2 matrix [ 0 0 1 1 2 2 ] vector 0 50 1e-6 1 fit-multinomial-ridge [ 1 0 1 5 ] 2 2 matrix 0 predict-multinomial row-sums matrix>array . cr", "[ 1 1 ]" },
 	{ "print", "\"hello\" print cr", "hello" },
+	{ "print-gauges", "print-gauges", "live     33.7 / 256 MiB       13% │ data     2        cpu      81%\nobjects  1.9M / 2.1M          89% │ return   35       rss      612 MiB\npairs    660.2k / 1.0M        63% │ calls    1 / 4096 faults   0/s\ngc       3  0.1/s                 │ trail    0        load     2.6 / 16\narena    464.1 / 16384 MiB     3% │ lvars    0        switches 4/s\ninterval 16.9 s at 02:26:34" },
 	{ "print-stack", "7 8 print-stack cr clear", "7 8" },
 	{ "product-times", "' 1+ 4 product-times . cr", "24" },
 	{ "ptr?", "3 ptr? . cr", "0" },
@@ -1542,4 +1546,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 740;
+const int help_example_count = 742;

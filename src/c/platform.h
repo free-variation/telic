@@ -99,6 +99,17 @@ static inline void platform_mutex_lock(platform_mutex_t *mutex) { pthread_mutex_
 static inline void platform_mutex_unlock(platform_mutex_t *mutex) { pthread_mutex_unlock(mutex); }
 #endif
 
+typedef struct {
+	double cpu_count;
+	double physical_bytes;
+	double load_1, load_5, load_15;
+	double user_seconds, system_seconds;
+	double max_rss_bytes;
+	double minor_faults, major_faults;
+	double voluntary_switches, involuntary_switches;
+} ComputerGauges;
+
+int platform_computer_gauges(ComputerGauges *out);
 void *platform_reserve(size_t requested, size_t *reserved_out);
 void platform_init(void);
 int platform_executable_path(char *out, size_t cap);

@@ -5185,6 +5185,8 @@ variable b 4 to b variable c 10 to c
 | `man` | `( xt -- fr )` | Frame of a word's reference entry (`:word :effect :summary`, plus `:ops :alloc :order` for runtime words); a unit word synthesizes its entry from the unit's definition (`unit: m × 1000`); a word a `load` defined under a `( a b -- c ) \\ summary` comment answers `{ :word :effect :summary }` from that comment, continuation lines starting with `\\` extending the summary; the none value otherwise | dict scan + log n | `1o` + strings | O(\|dict\|) |
 | `help` | `( "name" -- )` | repl.telic: parse the next word and print its reference entry, or the entry `man` builds from the comment above a loaded definition; bare `help` (no name on the line) prints a starter cheat sheet, and an unknown name prints `unknown word: <name>` without erroring | dict scan + log n | `1o` + strings + print | O(\|dict\|) |
 | `gc` | `( -- )` | Force a mark-sweep now | walks stacks + dict + roots, frees unmarked | none | O(objects + dict) |
+| `gauges` | `( -- fr )` | repl.telic: the interpreter's resource readings as a frame of six frames; memory is in MiB (dictionary pools in KiB), processor time in s, counts are floats, and a `[ used capacity ]` pair is an array. `:dictionary`: `:cells`, `:name-pool`, `:source-pool`, `:symbol-pool`, `:quotations`, `:word-locations`, `:cell-lines`, `:loaded-files` as pairs, plus `:words`, `:session-words` (defined since the embedded library), `:symbols`. `:heap`: `:arena` `[ used reserved ]`, `:live`, `:gc-threshold`, `:memory-headroom` (until the next collection), `:objects` `[ live table-size ]` (live is claimed handles minus the free list), `:handles-claimed` `[ claimed table-size ]` (the high-water mark; a collection refills the free list rather than lowering it), `:max-objects`, `:free-handles`, `:handle-headroom` `[ unclaimed trigger ]` (a collection is requested when unclaimed falls under trigger), `:pairs` `[ live table-size ]`, `:collections`. `:stacks`: `:data`, `:return`, `:side`, `:calls`, `:trail`, `:logic-vars`, `:roots`, each `[ depth capacity ]`. `:resources`: `:databases`, `:regex-cache`, `:workers`, each `[ in-use capacity ]`. `:computer`: `:cpu-count`, `:physical-memory`, the load averages `:load-1` `:load-5` `:load-15`, and this process's `:user-time`, `:system-time`, `:max-rss` (peak resident memory), `:minor-faults`, `:major-faults`, `:voluntary-switches`, `:involuntary-switches` — `null` under wasm, which has no such calls. `:session`: `:line`, `:interactive`, `:load-depth`, `:gc-disabled`, `:tracing` | dict walk + symbol scan | `1fr` × 6 + pairs | O(words + symbols) |
+| `print-gauges` | `( -- )` | repl.telic: print the readings of `gauges` that move during a run as a six-row table: live memory, objects, pairs, and arena against their capacities with a percentage; collections with their rate; data, return, and call depth; trail and logic-variable depth; CPU percentage, peak resident memory, major faults per second, load average against the core count, involuntary switches per second; then the interval since the previous call and the clock. Rates are computed against the previous `print-gauges` call, so a first call shows them as 0. On a terminal the labels are dim and a percentage or rate is yellow above 60% of its capacity, red above 85% | gauges + format | strings | O(words + symbols) |
 | `alloc-stats` | `( -- )` | Print and reset the allocation counters since the last call (`lvars=… arrays=…`) | 2 | none | O(1) |
 | `bye` | `( -- )` | Exit the process with status 0 | — | — | — |
 | `halt` | `( code -- )` | Exit the process with the given code as its exit status | — | — | — |
@@ -5333,6 +5335,25 @@ gc "collected" . cr
 ```
 ```output
 collected
+```
+
+```forth gauges
+gauges dup keys [: "{0}" format :] sort-by . :stacks @ :data @ . cr
+```
+```output
+[ :computer :dictionary :heap :resources :session :stacks ] [ 0 65536 ]
+```
+
+```forth-noexec print-gauges
+print-gauges
+```
+```output
+live     33.7 / 256 MiB       13% │ data     2        cpu      81%
+objects  1.9M / 2.1M          89% │ return   35       rss      612 MiB
+pairs    660.2k / 1.0M        63% │ calls    1 / 4096 faults   0/s
+gc       3  0.1/s                 │ trail    0        load     2.6 / 16
+arena    464.1 / 16384 MiB     3% │ lvars    0        switches 4/s
+interval 16.9 s at 02:26:34
 ```
 
 ```forth-noexec alloc-stats

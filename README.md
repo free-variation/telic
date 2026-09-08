@@ -400,7 +400,7 @@ Worker threads over one shared object heap: a quotation runs across the collecti
 
 ### I/O and persistence
 
-- **Interactive REPL** on isocline: theme-adaptive syntax highlighting, matching-brace highlighting, inline hints, Tab completion (dictionary words, filenames inside string literals), persistent history, and multi-line editing. Each entry answers `ok` with the stack depth and top value, or the error message and its trace; a failed entry leaves the data stack as it was.
+- **Interactive REPL** on isocline: theme-adaptive syntax highlighting, matching-brace highlighting, inline hints, Tab completion (dictionary words, filenames inside string literals), persistent history, and multi-line editing. Each entry answers `ok` with the stack depth and top value, or the error message and its trace; a failed entry leaves the data stack as it was. Ctrl-C while an entry runs aborts it with `interrupted` and returns to the prompt.
 - **`load`** runs a source file as if typed.
 - **`save`** writes the user's vocabulary as a re-loadable `.telic` source file.
 - **`reload`** truncates user state and re-runs every file `load`ed this session, in order.
@@ -491,7 +491,7 @@ the stdio server behind a stdio-to-Streamable-HTTP gateway such as mcp-proxy.
 - **`copy`** / **`reify`** — deep copy of a value (strings, arrays, sets, frames, matrices); `reify` additionally renames unbound logic vars to canonical `:_0`/`:_1`/… for a ground, storable, comparable snapshot.
 - **`type-of`** — `( a -- sym )` the value's type as a symbol (`:float`, `:frame`, `:lvar`, …), with a lib predicate per type (`float?` … `lvar?`); a bound logic var answers as its value.
 - **`now`** — monotonic seconds as a float, for timing intervals (`wall-now`, under Time and dates, is the absolute clock). **`timed`** — `( xt -- … )` runs xt, prints its elapsed `now` seconds, and passes its results through.
-- **`see`** — prints a word's source definition; **`see-compiled`** disassembles its threaded body; **`trace`** runs a quotation printing each op with the stack before it, filtered by an array of regexes (`docs/tracing.md`).
+- **`see`** — prints a word's source definition; **`see-compiled`** disassembles its threaded body; **`trace`** runs a quotation printing each op with the stack before it, filtered by an array of regexes (`docs/tracing.md`). **`gauges`** answers the interpreter's resource readings — dictionary, heap and collection headroom, stacks, open resources — as a frame of `[ used capacity ]` pairs.
 - **`man`** — a word's reference entry as a frame, or for a word defined in a loaded file the `( a b -- c ) \ summary` comment above its definition; **`help name`** prints it.
 - **`words`** — the dictionary grouped by reference section; **`apropos`** — every word whose name or summary matches a pattern.
 - **`variables`** — the current globals as `{ :name :value :type }` frames; **`vars`** prints them.

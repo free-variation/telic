@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.34.1"
+#define VERSION "0.34.2"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,6 +30,7 @@ typedef int64_t cell;
 #define MAX_CELL_LINES (1 << 16)
 #define GC_PENDING 1
 #define TRACE_PENDING 2
+#define INTERRUPT_PENDING 4
 #define MAX_LOCATION_FILES (1 << 8)
 #define MAX_HANDLERS (1 << 10)
 #define MAX_LOADED_FILES (1 << 6)
@@ -1307,6 +1308,7 @@ void p_fsqrt(DISPATCH_ARGS);
 void p_ftan(DISPATCH_ARGS);
 void p_ftanh(DISPATCH_ARGS);
 void p_ftruncate(DISPATCH_ARGS);
+void p_gauges(DISPATCH_ARGS);
 void p_gc(DISPATCH_ARGS);
 void p_globals(DISPATCH_ARGS);
 void p_gt(DISPATCH_ARGS);
@@ -1619,6 +1621,7 @@ void p_store_i_drop_array(DISPATCH_ARGS);
 void p_sub_store_i(DISPATCH_ARGS);
 
 // functional.c
+int worker_pool_count(void);
 void p_filter(DISPATCH_ARGS);
 void p_find_first(DISPATCH_ARGS);
 void p_fold_times(DISPATCH_ARGS);

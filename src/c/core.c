@@ -1489,6 +1489,11 @@ void run_inner(Interpreter *interp, int floor) {
 		}
 
 		if (interp->gc_pending) {
+			if (interp->gc_pending & INTERRUPT_PENDING) {
+				interp->gc_pending &= ~INTERRUPT_PENDING;
+				fail(interp, "interrupted");
+				break;
+			}
 			if (interp->gc_pending & TRACE_PENDING)
 				trace_step(interp);
 			if (interp->gc_pending & GC_PENDING) {
@@ -5239,6 +5244,137 @@ static void see_compiled_render(FILE *out, Interpreter *interp, Val target) {
 
 SEE_WORD_PAIR(p_see_compiled, p_see_compiled_to_string, "see-compiled", "see-compiled>string", see_compiled_render)
 
+static void gauge_put(Interpreter *interp, int frame_handle, const char *key, double value) {
+	frame_put(OBJECT_AT(frame_handle), intern_symbol(interp, key), make_float(value));
+}
+
+static void gauge_put_pair(Interpreter *interp, int frame_handle, const char *key, double used, double capacity) {
+	int pair_handle = object_new_array(interp, 2);
+	if (interp->error_flag)
+		return;
+	Object *pair = OBJECT_AT(pair_handle);
+	pair->items[0] = make_float(used);
+	pair->items[1] = make_float(capacity);
+	frame_put(OBJECT_AT(frame_handle), intern_symbol(interp, key), make_array(pair_handle));
+}
+
+static int gauge_group(Interpreter *interp, int top_handle, const char *key) {
+	int group_handle = object_new_frame(interp);
+	if (interp->error_flag)
+		return -1;
+	frame_put(OBJECT_AT(top_handle), intern_symbol(interp, key), make_frame(group_handle));
+	return group_handle;
+}
+
+static int dictionary_word_count(int stop_cfa) {
+	int n_words = 0;
+	for (int cfa = vocab.latest_cfa; cfa != 0 && cfa != stop_cfa; cfa = (int)WORD_LINK(cfa))
+		n_words++;
+	return n_words;
+}
+
+static int symbol_count(void) {
+	int n_symbols = 0;
+	for (int i = 0; i < SYMBOL_HASH_SIZE; i++)
+		if (vocab.symbol_hash[i])
+			n_symbols++;
+	return n_symbols;
+}
+
+void p_gauges(DISPATCH_ARGS) {
+	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);
+	SYNC_REGISTERS(interp, chain_ip, chain_sp);
+	int roots_before = interp->n_gc_roots;
+	int top = object_new_frame(interp);
+	if (interp->error_flag)
+		return;
+	gc_root_push(interp, make_frame(top));
+
+	int dictionary = gauge_group(interp, top, "dictionary");
+	if (dictionary >= 0) {
+		gauge_put_pair(interp, dictionary, "cells", vocab.here, VOCABULARY_INIT_SIZE);
+		gauge_put(interp, dictionary, "words", dictionary_word_count(0));
+		gauge_put(interp, dictionary, "session-words", dictionary_word_count(vocab.lib_end_latest_cfa));
+		gauge_put_pair(interp, dictionary, "name-pool", vocab.names_here, NAME_POOL);
+		gauge_put_pair(interp, dictionary, "source-pool", vocab.source_here, SOURCE_POOL);
+		gauge_put(interp, dictionary, "symbols", symbol_count());
+		gauge_put_pair(interp, dictionary, "symbol-pool", vocab.symbol_pool_here, SYMBOL_POOL);
+		gauge_put_pair(interp, dictionary, "quotations", vocab.n_quotation_spans, MAX_QUOTATION_SPANS);
+		gauge_put_pair(interp, dictionary, "word-locations", vocab.n_word_locations, MAX_WORD_LOCATIONS);
+		gauge_put_pair(interp, dictionary, "cell-lines", vocab.n_cell_lines, MAX_CELL_LINES);
+		gauge_put_pair(interp, dictionary, "loaded-files", compiler.n_loaded_files, MAX_LOADED_FILES);
+	}
+
+	int heap = gauge_group(interp, top, "heap");
+	if (heap >= 0) {
+		int free_handles = arena.object_space.cap - arena.object_space.n;
+		gauge_put_pair(interp, heap, "arena", (double)arena.used, (double)arena.reserved);
+		gauge_put(interp, heap, "live", (double)arena.heap_bytes_live);
+		gauge_put(interp, heap, "gc-threshold", (double)arena.heap_gc_threshold);
+		gauge_put(interp, heap, "memory-headroom", (double)arena.heap_gc_threshold - (double)arena.heap_bytes_live);
+		gauge_put_pair(interp, heap, "objects", arena.object_space.n - arena.object_space.n_free, arena.object_space.cap);
+		gauge_put_pair(interp, heap, "handles-claimed", arena.object_space.n, arena.object_space.cap);
+		gauge_put(interp, heap, "max-objects", MAX_OBJECTS);
+		gauge_put(interp, heap, "free-handles", arena.object_space.n_free);
+		gauge_put_pair(interp, heap, "handle-headroom", free_handles, HANDLE_PRESSURE_SLOTS);
+		gauge_put_pair(interp, heap, "pairs", pairs.space.n - pairs.space.n_free, pairs.space.cap);
+		gauge_put(interp, heap, "collections", (double)arena.current_epoch);
+	}
+
+	int stacks = gauge_group(interp, top, "stacks");
+	if (stacks >= 0) {
+		gauge_put_pair(interp, stacks, "data", interp->dsp, DATA_STACK_DEPTH);
+		gauge_put_pair(interp, stacks, "return", interp->rsp, RETURN_STACK_DEPTH);
+		gauge_put_pair(interp, stacks, "side", interp->side_dsp, SIDESTACK_DEPTH);
+		gauge_put_pair(interp, stacks, "calls", interp->call_depth, MAX_CALL_DEPTH);
+		gauge_put_pair(interp, stacks, "trail", interp->bind_trail_top, interp->bind_trail_cap);
+		gauge_put_pair(interp, stacks, "logic-vars", interp->lvar_top, interp->lvar_cap);
+		gauge_put_pair(interp, stacks, "roots", roots_before, MAX_GC_ROOTS);
+	}
+
+	int resources = gauge_group(interp, top, "resources");
+	if (resources >= 0) {
+		int regex_in_use = 0;
+		for (int i = 0; i < REGEX_CACHE_SIZE; i++)
+			regex_in_use += interp->regex_cache[i].in_use ? 1 : 0;
+		gauge_put_pair(interp, resources, "databases", interp->n_databases, MAX_DATABASES);
+		gauge_put_pair(interp, resources, "regex-cache", regex_in_use, REGEX_CACHE_SIZE);
+		gauge_put_pair(interp, resources, "workers", worker_pool_count(), MAX_WORKER_THREADS);
+	}
+
+	int computer = gauge_group(interp, top, "computer");
+	if (computer >= 0) {
+		ComputerGauges readings = { 0 };
+		int available = platform_computer_gauges(&readings);
+		const char *keys[] = { "cpu-count", "physical-memory", "load-1", "load-5", "load-15", "user-time", "system-time",
+			"max-rss", "minor-faults", "major-faults", "voluntary-switches", "involuntary-switches" };
+		const double values[] = { readings.cpu_count, readings.physical_bytes, readings.load_1, readings.load_5, readings.load_15,
+			readings.user_seconds, readings.system_seconds, readings.max_rss_bytes, readings.minor_faults, readings.major_faults,
+			readings.voluntary_switches, readings.involuntary_switches };
+		int n_keys = (int)(sizeof(keys) / sizeof(keys[0]));
+		for (int i = 0; i < n_keys; i++) {
+			Val reading = available ? make_float(values[i]) : make_tagged(T_NONE, 0);
+			frame_put(OBJECT_AT(computer), intern_symbol(interp, keys[i]), reading);
+		}
+	}
+
+	int session = gauge_group(interp, top, "session");
+	if (session >= 0) {
+		gauge_put(interp, session, "line", compiler.input_line);
+		gauge_put(interp, session, "interactive", compiler.interactive ? 1 : 0);
+		gauge_put(interp, session, "load-depth", compiler.load_depth);
+		gauge_put(interp, session, "gc-disabled", interp->gc_disabled ? 1 : 0);
+		gauge_put(interp, session, "tracing", (interp->gc_pending & TRACE_PENDING) ? 1 : 0);
+	}
+
+	gc_root_pop(interp);
+	if (interp->error_flag)
+		return;
+	*chain_sp = make_frame(top);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
+}
+
 void p_trace(DISPATCH_ARGS) {
 	POP_ARRAY(patterns, "trace");
 	POP_CALLABLE(xt, "trace");
@@ -5594,6 +5730,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "halt", p_halt, 0);
 	define_primitive(interp, "clear", p_clear, 0);
 	define_primitive(interp, "gc", p_gc, 0);
+	define_primitive(interp, "(gauges)", p_gauges, 4);
 	define_primitive(interp, "evaluate", p_evaluate, 0);
 	define_primitive(interp, "load", p_load, 0);
 	define_primitive(interp, "save", p_save, 0);
@@ -6229,6 +6366,7 @@ int main(int argc, char **argv) {
 			compiler.input_buffer_len += chunk;
 
 		if (fresh_entry) {
+			interp->gc_pending &= ~INTERRUPT_PENDING;
 			compiler.input_line++;
 			if (interp->dsp > interp->entry_snapshot_cap) {
 				interp->entry_snapshot = realloc(interp->entry_snapshot,

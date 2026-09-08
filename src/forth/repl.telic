@@ -85,3 +85,141 @@
 			entry width pad-right print-raw
 		then
 	loop ;
+
+( bytes -- q ) \ a byte count as a MiB quantity; null passes through (wasm has no reading)
+: bytes>mebibytes dup none? not if 1048576 / MiB then ; internal
+
+( bytes -- q ) \ a byte count as a KiB quantity
+: bytes>kibibytes 1024 / KiB ; internal
+
+( f -- q ) \ a second count as an s quantity; null passes through
+: seconds>quantity dup none? not if s then ; internal
+
+( -- fr ) \ the interpreter's resource readings: memory in MiB (dictionary pools
+\ in KiB), processor time in s
+: gauges
+	(gauges)
+	[: ' bytes>kibibytes map :] /dictionary/name-pool update-at
+	[: ' bytes>kibibytes map :] /dictionary/source-pool update-at
+	[: ' bytes>kibibytes map :] /dictionary/symbol-pool update-at
+	[: ' bytes>mebibytes map :] /heap/arena update-at
+	' bytes>mebibytes /heap/live update-at
+	' bytes>mebibytes /heap/gc-threshold update-at
+	' bytes>mebibytes /heap/memory-headroom update-at
+	' bytes>mebibytes /computer/physical-memory update-at
+	' bytes>mebibytes /computer/max-rss update-at
+	' seconds>quantity /computer/user-time update-at
+	' seconds>quantity /computer/system-time update-at ;
+
+\ ---- print-gauges: the moving readings as three fixed-width rows ----
+
+( value fraction template -- str ) \ format value with the template, inked by the fraction:
+\ plain under 0.6, yellow to 0.85, red above
+: gauge-inked
+	| value fraction template |
+	fraction 0.85 > if "{red}" else fraction 0.6 > if "{yellow}" else "" then then
+	template + "{plain}" + to inked
+	value inked format ; internal
+
+( n -- str ) \ a count with a k or M suffix past four digits
+: gauge-count
+	dup 1e6 >= if 1e6 / "{0:.1f}M" format exit then
+	dup 1e4 >= if 1e3 / "{0:.1f}k" format exit then
+	"{0:d}" format ; internal
+
+( q -- f ) \ the magnitude of a quantity, or the float itself
+: gauge-magnitude dup quantity? if magnitude then ; internal
+
+( label -- str ) \ a row label padded to the label column
+: gauge-label 9 pad-right ; internal
+
+( used capacity unit label -- str ) \ a capped reading as "label used / capacity unit  NN%",
+\ the percentage inked by its fraction; counts take k/M suffixes, quantities one decimal
+: gauge-capped
+	| used capacity unit label |
+	used capacity / to fraction
+	unit "" = if used gauge-count capacity gauge-count "{1} / {0}" format
+	else used capacity unit "{2:.1f} / {1:.0f} {0}" format then
+	label gauge-label swap + 29 pad-right
+	fraction 100 * fraction "{0:3.0f}%" gauge-inked + ; internal
+
+( -- fr ) \ the previous sample's clock, cpu seconds and counters, for the rates
+variable gauges-previous internal
+null to gauges-previous
+
+( g -- fr ) \ the fields a rate compares against
+: gauge-sample
+	| g |
+	{ :time now
+	  :cpu g /computer/user-time @ gauge-magnitude g /computer/system-time @ gauge-magnitude +
+	  :collections g /heap/collections @
+	  :faults g /computer/major-faults @
+	  :switches g /computer/involuntary-switches @ } ; internal
+
+( sample key -- rate ) \ per-second change of the key since the previous sample; 0 on the first
+: gauge-rate
+	| sample key |
+	gauges-previous none? if 0 exit then
+	sample :time @ gauges-previous :time @ - to seconds
+	seconds 0 <= if 0 exit then
+	sample key @ gauges-previous key @ - seconds / ; internal
+
+( -- rows ) \ the moving readings as six row strings: heap, stacks and process, footer
+: gauges-rows
+	| ^gauges-previous |
+	gauges to g
+	g gauge-sample to sample
+
+	g /heap/live @ gauge-magnitude to live
+	g /heap/gc-threshold @ gauge-magnitude to threshold
+	g /heap/objects @ to objects
+	g /heap/pairs @ to pairs
+	g /heap/collections @ to collections
+	sample :collections gauge-rate to collection-rate
+	g /heap/arena @ 0 @i gauge-magnitude to arena
+
+	g /stacks/data @ 0 @i to data-depth
+	g /stacks/return @ 0 @i to return-depth
+	g /stacks/calls @ to calls
+	g /stacks/trail @ 0 @i to trail
+	g /stacks/logic-vars @ 0 @i to lvars
+	sample :switches gauge-rate to switch-rate
+	sample :cpu gauge-rate 100 * to cpu-percent
+	g /computer/max-rss @ gauge-magnitude to rss
+	sample :faults gauge-rate to fault-rate
+	g /computer/load-1 @ to load
+	g /computer/cpu-count @ to cores
+
+	g /heap/arena @ 1 @i gauge-magnitude to arena-reserved
+
+	\ left pane: every capped reading is "used / capacity unit" then its inked percentage
+	live threshold "MiB" "live" gauge-capped
+	objects 0 @i objects 1 @i "" "objects" gauge-capped
+	pairs 0 @i pairs 1 @i "" "pairs" gauge-capped
+	"gc" gauge-label collections collection-rate "{1:.0f}  {0:.1f}/s" format + 33 pad-right
+	arena arena-reserved "MiB" "arena" gauge-capped
+	to left-5 to left-4 to left-3 to left-2 to left-1
+
+	\ right pane: label, value; two columns
+	"data" gauge-label data-depth "{0:d}" format + 18 pad-right "cpu" gauge-label + cpu-percent "{0:.0f}%" format +
+	"return" gauge-label return-depth "{0:d}" format + 18 pad-right "rss" gauge-label + rss "{0:.0f} MiB" format +
+	"calls" gauge-label calls 0 @i calls 1 @i "{1:d} / {0:d}" format + 18 pad-right "faults" gauge-label + fault-rate fault-rate 100 / "{0:.0f}/s" gauge-inked +
+	"trail" gauge-label trail "{0:d}" format + 18 pad-right "load" gauge-label + load load cores / "{0:.1f}" gauge-inked + cores " / {0:.0f}" format +
+	"lvars" gauge-label lvars "{0:d}" format + 18 pad-right "switches" gauge-label + switch-rate "{0:.0f}/s" format +
+	to right-5 to right-4 to right-3 to right-2 to right-1
+
+	left-1 right-1 "{1} {dim}│{plain} {0}" format
+	left-2 right-2 "{1} {dim}│{plain} {0}" format
+	left-3 right-3 "{1} {dim}│{plain} {0}" format
+	left-4 right-4 "{1} {dim}│{plain} {0}" format
+	left-5 right-5 "{1} {dim}│{plain} {0}" format
+
+	sample :time @ gauges-previous none? if sample :time @ else gauges-previous :time @ then -
+	wall-now "%H:%M:%S" format-time
+	"{dim}interval {1:.1f} s at {0}{plain}" format
+	6 array
+
+	sample to gauges-previous ; internal
+
+( -- ) \ print the moving readings once as a six-row table
+: print-gauges gauges-rows [: print-raw cr :] each ;

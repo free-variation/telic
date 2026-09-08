@@ -1,0 +1,21 @@
+[ :computer :dictionary :heap :resources :session :stacks ] 
+[ :cell-lines :cells :loaded-files :name-pool :quotations :session-words :source-pool :symbol-pool :symbols :word-locations :words ] 
+[ :arena :collections :free-handles :gc-threshold :handle-headroom :handles-claimed :live :max-objects :memory-headroom :objects :pairs ] 
+[ :calls :data :logic-vars :return :roots :side :trail ] 
+[ :databases :regex-cache :workers ] 
+[ :cpu-count :involuntary-switches :load-1 :load-15 :load-5 :major-faults :max-rss :minor-faults :physical-memory :system-time :user-time :voluntary-switches ] 
+[ :gc-disabled :interactive :line :load-depth :tracing ] 
+[ 1 1 1 1 1 1 1 1 1 1 1 1 ] 
+[ 0 65536 ] 
+0 
+3 
+[ 1 1 1 1 1 1 1 1 1 1 1 ] 
+1 
+0 
+4 
+4 
+1 
+1 
+1 
+256 KiB 
+1 

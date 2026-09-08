@@ -1,0 +1,49 @@
+\ ==== gauges ( -- fr ) ====
+
+\ The interpreter's resource readings: five group frames, every leaf a float or a
+\ [ used capacity ] pair. Values that depend on the build (bytes, word counts)
+\ are checked by relation, not pinned.
+
+gauges to g
+
+\ -- the groups and their keys, sorted by name (frame order is symbol-id order)
+: sorted-keys keys [: "{0}" format :] sort-by ;
+g sorted-keys . cr                                \ [ :computer :dictionary :heap :resources :session :stacks ]
+g :dictionary @ sorted-keys . cr
+g :heap @ sorted-keys . cr
+g :stacks @ sorted-keys . cr
+g :resources @ sorted-keys . cr
+g :computer @ sorted-keys . cr
+g :session @ sorted-keys . cr
+
+\ -- the computer readings are floats or quantities where the platform supplies them, null otherwise
+g :computer @ values [: dup none? over float? or swap quantity? or :] map . cr
+
+\ -- stacks read at the call: data depth was 0, one call frame, no roots
+g :stacks @ :data @ . cr                          \ [ 0 65536 ]
+g :stacks @ :roots @ 0 @i . cr                    \ 0
+1 2 3 gauges :stacks @ :data @ 0 @i . cr          \ 3
+clear
+
+\ -- pairs are [ used capacity ] with used <= capacity
+g :dictionary @ values [: dup array? if dup 0 @i swap 1 @i <= else drop 1 then :] map . cr
+g :heap @ :objects @ dup 0 @i swap 1 @i <= . cr   \ 1
+
+\ -- readings that move: the globals g and words-before and the words sorted-keys
+\ and gauge-probe are four dictionary entries since the first reading
+g :dictionary @ :words @ to words-before
+g :dictionary @ :session-words @ . cr             \ 0
+: gauge-probe 1 ;
+gauges :dictionary @ :words @ words-before - . cr \ 4
+gauges :dictionary @ :session-words @ . cr        \ 4
+
+\ -- a collection advances the counter
+g :heap @ :collections @ to collections-before
+gc
+gauges :heap @ :collections @ collections-before - . cr   \ 1
+
+\ -- headroom is threshold minus live memory, all three MiB quantities
+gauges :heap @ dup :memory-headroom @ swap dup :gc-threshold @ swap :live @ - = . cr   \ 1
+gauges :heap @ :live @ quantity? . cr             \ 1
+gauges :dictionary @ :name-pool @ 1 @i . cr       \ 256 KiB
+gauges :computer @ :physical-memory @ dup none? swap quantity? or . cr   \ 1

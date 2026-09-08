@@ -16,6 +16,11 @@ void *platform_reserve(size_t requested, size_t *reserved_out) {
 void platform_init(void) {
 }
 
+int platform_computer_gauges(ComputerGauges *out) {
+	(void)out;
+	return 0;
+}
+
 int platform_executable_path(char *out, size_t cap) {
 	(void)out;
 	(void)cap;

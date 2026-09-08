@@ -332,6 +332,7 @@ fsqrt
 ftan
 ftanh
 ftruncate
+gauges
 gc
 gen-each
 gen-take
@@ -485,6 +486,7 @@ pointer-string-at
 pointer>address
 predict-multinomial
 print
+print-gauges
 print-stack
 product-times
 ptr?

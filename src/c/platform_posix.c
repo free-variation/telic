@@ -3,6 +3,7 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 
 void *platform_reserve(size_t requested, size_t *reserved_out) {
@@ -17,6 +18,32 @@ void *platform_reserve(size_t requested, size_t *reserved_out) {
 
 void platform_init(void) {
 	signal(SIGPIPE, SIG_IGN);
+}
+
+int platform_computer_gauges(ComputerGauges *out) {
+	struct rusage usage;
+	if (getrusage(RUSAGE_SELF, &usage) != 0)
+		return 0;
+	double loads[3] = { 0, 0, 0 };
+	getloadavg(loads, 3);
+
+	out->cpu_count = (double)sysconf(_SC_NPROCESSORS_ONLN);
+	out->physical_bytes = (double)sysconf(_SC_PHYS_PAGES) * (double)sysconf(_SC_PAGESIZE);
+	out->load_1 = loads[0];
+	out->load_5 = loads[1];
+	out->load_15 = loads[2];
+	out->user_seconds = (double)usage.ru_utime.tv_sec + (double)usage.ru_utime.tv_usec / 1e6;
+	out->system_seconds = (double)usage.ru_stime.tv_sec + (double)usage.ru_stime.tv_usec / 1e6;
+#ifdef __APPLE__
+	out->max_rss_bytes = (double)usage.ru_maxrss;
+#else
+	out->max_rss_bytes = (double)usage.ru_maxrss * 1024.0;
+#endif
+	out->minor_faults = (double)usage.ru_minflt;
+	out->major_faults = (double)usage.ru_majflt;
+	out->voluntary_switches = (double)usage.ru_nvcsw;
+	out->involuntary_switches = (double)usage.ru_nivcsw;
+	return 1;
 }
 
 #ifdef __APPLE__
@@ -253,8 +280,16 @@ static void repl_completer(ic_completion_env_t *cenv, const char *prefix) {
 	ic_complete_filename(cenv, prefix, '/', NULL, NULL);
 }
 
+static void on_interrupt(int signal_number) {
+	(void)signal_number;
+	if (repl_interp)
+		repl_interp->gc_pending |= INTERRUPT_PENDING;
+}
+
 int platform_repl_begin(struct Interpreter *interp, int want_interactive) {
 	if (want_interactive) {
+		repl_interp = interp;
+		signal(SIGINT, on_interrupt);
 		printf("telic %s\n", VERSION);
 		printf("%swords%s lists every word; %shelp%s shows a quick start; %sbye%s quits\n",
 				term_bold(), term_plain(), term_bold(), term_plain(), term_bold(), term_plain());
