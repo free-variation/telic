@@ -4853,9 +4853,10 @@ static int trace_line_selected(Interpreter *interp, const char *line, int length
 #define TRACE_HIGHLIGHT_ON "\033[1;33m"
 #define TRACE_HIGHLIGHT_OFF "\033[0m"
 
-static int trace_print_span(const char *line, int from, int start, int end) {
-	if (start < from)
+static int trace_print_span(const char *line, int length, int from, int start, int end) {
+	if (start < from || start >= length)
 		return from;
+	end = MIN(end, length);
 	fwrite(line + from, 1, (size_t)(start - from), stderr);
 	fputs(TRACE_HIGHLIGHT_ON, stderr);
 	fwrite(line + start, 1, (size_t)(end - start), stderr);
@@ -4866,9 +4867,9 @@ static int trace_print_span(const char *line, int from, int start, int end) {
 static void trace_print_highlighted(const char *line, int length, int word_start, int word_end, int line_start, int line_end) {
 	int from = 0;
 	if (word_start >= 0)
-		from = trace_print_span(line, from, word_start, word_end);
+		from = trace_print_span(line, length, from, word_start, word_end);
 	if (line_start >= 0)
-		from = trace_print_span(line, from, line_start, line_end);
+		from = trace_print_span(line, length, from, line_start, line_end);
 	fwrite(line + from, 1, (size_t)(length - from), stderr);
 }
 
