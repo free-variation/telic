@@ -1173,6 +1173,19 @@ void print_val_inspect(FILE *out, Interpreter *interp, Val value) {
 	print_depth_leave();
 }
 
+#define COMPACT_ELEMENTS 3
+
+static void compact_elements(FILE *out, Interpreter *interp, const Val *items, int n_items, const cell *keys) {
+	for (int i = 0; i < n_items && i < COMPACT_ELEMENTS; i++) {
+		if (keys)
+			fprintf(out, " :%s", &vocab.symbol_pool[keys[i]]);
+		putc(' ', out);
+		print_val_compact(out, interp, items[i]);
+	}
+	if (n_items > COMPACT_ELEMENTS)
+		fputs(" …", out);
+}
+
 void print_val_compact(FILE *out, Interpreter *interp, Val value) {
 	if (VAL_TAG(value) == T_LOGIC_VAR) { print_logic_var(out, interp, value, print_val_compact); return; }
 	value = deref(interp, value);
@@ -1205,27 +1218,50 @@ void print_val_compact(FILE *out, Interpreter *interp, Val value) {
 						   break;
 					   }
 		case T_SET:
-					   print_depth_enter();
-					   fprintf(out, "[<%d>]", OBJECT_AT(VAL_DATA(value))->len);
-					   print_depth_leave();
-					   break;
-		case T_ARRAY:
-					   print_depth_enter();
-					   fprintf(out, "[%d]", OBJECT_AT(VAL_DATA(value))->len);
-					   print_depth_leave();
-					   break;
+		case T_ARRAY: {
+						  Object *obj = OBJECT_AT(VAL_DATA(value));
+						  int is_set = VAL_TAG(value) == T_SET;
+						  if (print_depth > 0) {
+							  fprintf(out, is_set ? "[<%d>]" : "[%d]", obj->len);
+							  break;
+						  }
+						  print_depth_enter();
+						  fprintf(out, is_set ? "[<%d:" : "[%d:", obj->len);
+						  compact_elements(out, interp, obj->items, obj->len, NULL);
+						  fputs(is_set ? " >]" : " ]", out);
+						  print_depth_leave();
+						  break;
+					  }
 		case T_PAIR:
 					   fputs("[(…)]", out);
 					   break;
-		case T_FRAME:
-					   print_depth_enter();
-					   fprintf(out, "{%d}", OBJECT_AT(VAL_DATA(value))->len);
-					   print_depth_leave();
-					   break;
+		case T_FRAME: {
+						  Object *frame = OBJECT_AT(VAL_DATA(value));
+						  if (print_depth > 0) {
+							  fprintf(out, "{%d}", frame->len);
+							  break;
+						  }
+						  print_depth_enter();
+						  fprintf(out, "{%d:", frame->len);
+						  compact_elements(out, interp, frame->frame.values, frame->len, frame->frame.keys);
+						  fputs(" }", out);
+						  print_depth_leave();
+						  break;
+					  }
 		case T_MATRIX: {
 						   Object *m = OBJECT_AT(VAL_DATA(value));
+						   int n_elements = m->matrix.rows * m->matrix.columns;
+						   if (print_depth > 0) {
+							   fprintf(out, "[%dx%d]", m->matrix.rows, m->matrix.columns);
+							   break;
+						   }
 						   print_depth_enter();
-						   fprintf(out, "[%dx%d]", m->matrix.rows, m->matrix.columns);
+						   fprintf(out, "[%dx%d:", m->matrix.rows, m->matrix.columns);
+						   for (int i = 0; i < n_elements && i < COMPACT_ELEMENTS; i++)
+							   fprintf(out, " %.4g", m->matrix.elements[i]);
+						   if (n_elements > COMPACT_ELEMENTS)
+							   fputs(" …", out);
+						   fputs(" ]", out);
 						   print_depth_leave();
 						   break;
 					   }
@@ -1329,13 +1365,33 @@ int find(const char *name) {
 	return 0;
 }
 
-const char *name_of(int cfa) {
-	for (int cf = vocab.latest_cfa; cf != 0; cf = (int)WORD_LINK(cf)) {
-		if (cf == cfa) {
-			return &vocab.name_pool[WORD_NAME(cf)];
+#define NAME_CACHE_SIZE 1024
+
+static struct { cell key; int by_handler; const char *name; } name_cache[NAME_CACHE_SIZE];
+static int name_cache_latest_cfa = -1;
+
+static const char *cached_name(cell key, int by_handler) {
+	if (name_cache_latest_cfa != vocab.latest_cfa) {
+		memset(name_cache, 0, sizeof(name_cache));
+		name_cache_latest_cfa = vocab.latest_cfa;
+	}
+	unsigned slot = (unsigned)(((uint64_t)key ^ ((uint64_t)key >> 3)) & (NAME_CACHE_SIZE - 1));
+	if (name_cache[slot].name && name_cache[slot].key == key && name_cache[slot].by_handler == by_handler)
+		return name_cache[slot].name;
+
+	for (int cfa = vocab.latest_cfa; cfa != 0; cfa = (int)WORD_LINK(cfa)) {
+		if (by_handler ? vocab.dict[cfa] == key : (cell)cfa == key) {
+			name_cache[slot].key = key;
+			name_cache[slot].by_handler = by_handler;
+			name_cache[slot].name = &vocab.name_pool[WORD_NAME(cfa)];
+			return name_cache[slot].name;
 		}
 	}
 	return NULL;
+}
+
+const char *name_of(int cfa) {
+	return cached_name((cell)cfa, 0);
 }
 
 
@@ -1390,6 +1446,8 @@ void dodefer(DISPATCH_ARGS) {
 
 
 static void trace_step(Interpreter *interp);
+static void trace_call(Interpreter *interp, int cfa);
+static const char *quotation_header(int cfa);
 
 static void unwind_locals_scopes(Interpreter *interp) {
 	while (interp->local_base > interp->run_floor
@@ -1579,12 +1637,18 @@ void call_open_callable(Interpreter *interp, Val callable, CallContext *context)
 	}
 
 	context->rooted = 0;
+	context->callable = callable;
 	gc_root_push(interp, callable);
 	if (interp->error_flag) {
 		context->fast = 0;
 		return;
 	}
 	context->rooted = 1;
+
+	if (interp->gc_pending & TRACE_PENDING) {
+		context->fast = 0;
+		return;
+	}
 
 	context->reuses_locals = 0;
 	context->primitive = NULL;
@@ -1618,6 +1682,7 @@ void call_open(Interpreter *interp, int cfa, CallContext *context) {
 
 	context->reuses_locals = 0;
 	context->rooted = 0;
+	context->callable = make_xt(cfa);
 	context->primitive = handler == docol ? NULL : handler;
 
 	if (handler == dovar || handler == dosym || handler == dounit || handler == dodefer
@@ -1742,6 +1807,8 @@ void execute_xt(Interpreter *interp, int cfa) {
 
 	interp->running = 1;
 	if (unlikely(interp->gc_pending & TRACE_PENDING)) {
+		if (cfa != interp->trace_root_cfa)
+			trace_call(interp, cfa);
 		interp->ip = cfa + 1;
 		trace_step(interp);
 	}
@@ -4669,11 +4736,7 @@ void gc(Interpreter *interp) {
 }
 
 static const char *handler_word_name(cell handler) {
-	for (int cfa = vocab.latest_cfa; cfa != 0; cfa = (int)WORD_LINK(cfa)) {
-		if (vocab.dict[cfa] == handler)
-			return &vocab.name_pool[WORD_NAME(cfa)];
-	}
-	return NULL;
+	return cached_name(handler, 1);
 }
 
 static const char *var_name_from_slot(cell slot) {
@@ -4753,8 +4816,187 @@ static int see_print_cell(FILE *out, Interpreter *interp, int cursor) {
 	return cell_count;
 }
 
+static Object *trace_patterns_array(Interpreter *interp) {
+	Val patterns_val = interp->trace_patterns;
+	if (VAL_TAG(patterns_val) != T_ARRAY)
+		return NULL;
+	Object *patterns = OBJECT_AT(VAL_DATA(patterns_val));
+	return patterns->len > 0 ? patterns : NULL;
+}
+
+static int trace_word_selected(Interpreter *interp, const char *op_text, int length, int *start, int *end) {
+	Object *patterns = trace_patterns_array(interp);
+	if (!patterns)
+		return 1;
+	return bytes_match_span(interp, op_text, length, OBJECT_AT(VAL_DATA(patterns->items[0])), start, end);
+}
+
+static int trace_line_selected(Interpreter *interp, const char *line, int length, int *start, int *end) {
+	Object *patterns = trace_patterns_array(interp);
+	if (!patterns || patterns->len == 1)
+		return 1;
+
+	int n_patterns = patterns->len;
+	for (int i = 1; i < n_patterns; i++) {
+		Object *pattern = OBJECT_AT(VAL_DATA(patterns->items[i]));
+		if (bytes_match_span(interp, line, length, pattern, start, end))
+			return 1;
+		if (interp->error_flag)
+			return 0;
+	}
+	return 0;
+}
+
+#define TRACE_MARK "> "
+#define TRACE_MARK_WIDTH 2
+#define TRACE_MARK_ON "\033[35m"
+#define TRACE_HIGHLIGHT_ON "\033[1;33m"
+#define TRACE_HIGHLIGHT_OFF "\033[0m"
+
+static int trace_print_span(const char *line, int from, int start, int end) {
+	if (start < from)
+		return from;
+	fwrite(line + from, 1, (size_t)(start - from), stderr);
+	fputs(TRACE_HIGHLIGHT_ON, stderr);
+	fwrite(line + start, 1, (size_t)(end - start), stderr);
+	fputs(TRACE_HIGHLIGHT_OFF, stderr);
+	return end;
+}
+
+static void trace_print_highlighted(const char *line, int length, int word_start, int word_end, int line_start, int line_end) {
+	int from = 0;
+	if (word_start >= 0)
+		from = trace_print_span(line, from, word_start, word_end);
+	if (line_start >= 0)
+		from = trace_print_span(line, from, line_start, line_end);
+	fwrite(line + from, 1, (size_t)(length - from), stderr);
+}
+
+static void trace_emit(Interpreter *interp, const char *op_text, int op_len) {
+	int word_start = -1;
+	int word_end = -1;
+	if (!trace_word_selected(interp, op_text, op_len, &word_start, &word_end))
+		return;
+
+	int shown_from = interp->dsp > TRACE_STACK_SHOWN ? interp->dsp - TRACE_STACK_SHOWN : 0;
+	int n_shown = interp->dsp - shown_from;
+	int terminal = isatty(fileno(stderr));
+	if (!trace_patterns_array(interp)) {
+		fputs(terminal ? TRACE_MARK_ON TRACE_MARK TRACE_HIGHLIGHT_OFF : TRACE_MARK, stderr);
+		fprintf(stderr, "%-24.*s|", op_len, op_text);
+		if (shown_from > 0)
+			fputs(" …", stderr);
+		for (int i = 0; i < n_shown; i++) {
+			putc(' ', stderr);
+			print_val_compact(stderr, interp, interp->data_stack[shown_from + i]);
+		}
+		putc('\n', stderr);
+		fflush(stderr);
+		return;
+	}
+
+	char *value_text[TRACE_STACK_SHOWN];
+	size_t value_len[TRACE_STACK_SHOWN];
+	int value_offset[TRACE_STACK_SHOWN];
+
+	char *rendered = NULL;
+	size_t rendered_len = 0;
+	FILE *out = open_memstream(&rendered, &rendered_len);
+	if (!out)
+		return;
+	fprintf(out, TRACE_MARK "%-24.*s|", op_len, op_text);
+	if (shown_from > 0)
+		fputs(" …", out);
+	for (int i = 0; i < n_shown; i++) {
+		value_text[i] = NULL;
+		value_len[i] = 0;
+		FILE *value_out = open_memstream(&value_text[i], &value_len[i]);
+		if (value_out) {
+			print_val(value_out, interp, interp->data_stack[shown_from + i]);
+			fclose(value_out);
+		}
+		fflush(out);
+		putc(' ', out);
+		value_offset[i] = (int)ftell(out);
+		if (value_text[i])
+			fwrite(value_text[i], 1, value_len[i], out);
+	}
+	fclose(out);
+
+	int line_start = -1;
+	int line_end = -1;
+	if (rendered && trace_line_selected(interp, rendered, (int)rendered_len, &line_start, &line_end)) {
+		int filtering = trace_patterns_array(interp) != NULL;
+		int highlight = filtering && isatty(fileno(stderr));
+		if (filtering)
+			putc('\n', stderr);
+
+		int head_len = n_shown > 0 ? value_offset[0] : (int)rendered_len;
+		if (terminal)
+			fputs(TRACE_MARK_ON TRACE_MARK TRACE_HIGHLIGHT_OFF, stderr);
+		else
+			fputs(TRACE_MARK, stderr);
+		if (highlight)
+			trace_print_highlighted(rendered + TRACE_MARK_WIDTH, head_len - TRACE_MARK_WIDTH, word_start, word_end, line_start - TRACE_MARK_WIDTH, line_end - TRACE_MARK_WIDTH);
+		else
+			fwrite(rendered + TRACE_MARK_WIDTH, 1, (size_t)(head_len - TRACE_MARK_WIDTH), stderr);
+		for (int i = 0; i < n_shown; i++) {
+			int start = value_offset[i];
+			int end = start + (int)value_len[i];
+			int matched_here = line_start >= start && line_start < end;
+			if (matched_here || (int)value_len[i] <= TRACE_VALUE_WIDTH) {
+				if (highlight && matched_here)
+					trace_print_highlighted(rendered + start, (int)value_len[i], -1, -1, line_start - start, MIN(line_end, end) - start);
+				else
+					fwrite(rendered + start, 1, value_len[i], stderr);
+			} else {
+				fwrite(rendered + start, 1, (size_t)TRACE_VALUE_WIDTH, stderr);
+				fputs("…", stderr);
+			}
+			if (i + 1 < n_shown)
+				putc(' ', stderr);
+		}
+		putc('\n', stderr);
+		if (filtering)
+			putc('\n', stderr);
+		fflush(stderr);
+	}
+	for (int i = 0; i < n_shown; i++)
+		free(value_text[i]);
+	free(rendered);
+}
+
+static int trace_op_text(Interpreter *interp, int cursor, char *buffer, int capacity) {
+	(void)interp;
+	cell handler = vocab.dict[cursor];
+	cfa_handler handler_fn = (cfa_handler)handler;
+	if (handler == vocab.dict[vocab.exit_cfa])
+		return snprintf(buffer, (size_t)capacity, "exit");
+
+	int is_tailcall = handler == vocab.dict[vocab.tailcall_cfa];
+	if (is_tailcall || handler_fn == docol || handler_fn == dovar || handler_fn == dounit || handler_fn == dodefer) {
+		const char *name = name_of((int)vocab.dict[cursor + 1]);
+		if (!name)
+			return -1;
+		return snprintf(buffer, (size_t)capacity, "%s%s", is_tailcall ? "(tailcall) " : "", name);
+	}
+	if (handler_fn == dosym)
+		return snprintf(buffer, (size_t)capacity, ":%s", &vocab.symbol_pool[vocab.dict[cursor + 1]]);
+	if (op_cell_count(cursor) != 1)
+		return -1;
+
+	const char *name = handler_word_name(handler);
+	if (!name)
+		return -1;
+	return snprintf(buffer, (size_t)capacity, "%s", name);
+}
+
 static void trace_step(Interpreter *interp) {
 	int cursor = interp->ip;
+	if (cursor == interp->trampoline_base && (cfa_handler)vocab.dict[cursor] == docol) {
+		trace_call(interp, (int)vocab.dict[cursor + 1]);
+		return;
+	}
 	if (cursor >= interp->trampoline_base && cursor < interp->trampoline_base + 3)
 		return;
 	if (cursor < DICT_RESERVED || cursor >= vocab.here)
@@ -4762,28 +5004,36 @@ static void trace_step(Interpreter *interp) {
 	if (vocab.dict[cursor] == vocab.dict[vocab.stop_cfa])
 		return;
 
-	char *rendered = NULL;
-	size_t rendered_len = 0;
-	FILE *out = open_memstream(&rendered, &rendered_len);
-	if (!out)
+	char op_buffer[TRACE_SNIPPET_MAX + 64];
+	int op_len = trace_op_text(interp, cursor, op_buffer, (int)sizeof(op_buffer));
+	if (op_len >= 0) {
+		trace_emit(interp, op_buffer, op_len);
 		return;
-	if (vocab.dict[cursor] == vocab.dict[vocab.exit_cfa])
-		fputs("exit", out);
-	else
-		see_print_cell(out, interp, cursor);
-	fclose(out);
-
-	fprintf(stderr, "%-24s|", rendered ? rendered : "?");
-	free(rendered);
-	int shown_from = interp->dsp > TRACE_STACK_SHOWN ? interp->dsp - TRACE_STACK_SHOWN : 0;
-	if (shown_from > 0)
-		fputs(" …", stderr);
-	for (int i = shown_from; i < interp->dsp; i++) {
-		putc(' ', stderr);
-		print_val(stderr, interp, interp->data_stack[i]);
 	}
-	putc('\n', stderr);
-	fflush(stderr);
+
+	FILE *op_out = interp->trace_op_out;
+	if (!op_out)
+		return;
+	rewind(op_out);
+	see_print_cell(op_out, interp, cursor);
+	fflush(op_out);
+	trace_emit(interp, interp->trace_op_text, (int)ftell(op_out));
+}
+
+static void trace_call(Interpreter *interp, int cfa) {
+	FILE *op_out = interp->trace_op_out;
+	if (!op_out)
+		return;
+	rewind(op_out);
+	const QuotationSpan *quotation = quotation_span_containing(cfa);
+	if (quotation && quotation->start_cfa == cfa) {
+		fputs(quotation_header(cfa), op_out);
+	} else {
+		const char *name = name_of(cfa);
+		fputs(name ? name : "?", op_out);
+	}
+	fflush(op_out);
+	trace_emit(interp, interp->trace_op_text, (int)ftell(op_out));
 }
 
 static void see_compiled_body(FILE *out, Interpreter *interp, int body_start, int body_end) {
@@ -4989,16 +5239,48 @@ static void see_compiled_render(FILE *out, Interpreter *interp, Val target) {
 SEE_WORD_PAIR(p_see_compiled, p_see_compiled_to_string, "see-compiled", "see-compiled>string", see_compiled_render)
 
 void p_trace(DISPATCH_ARGS) {
+	POP_ARRAY(patterns, "trace");
 	POP_CALLABLE(xt, "trace");
+	int n_patterns = patterns->len;
+	for (int i = 0; i < n_patterns; i++) {
+		Val pattern_val = patterns->items[i];
+		if (VAL_TAG(pattern_val) != T_STRING) {
+			fail(interp, "expected an array of pattern strings; element %d is %s", i, tag_name(VAL_TAG(pattern_val)));
+			return;
+		}
+		bytes_match(interp, "", 0, OBJECT_AT(VAL_DATA(pattern_val)));
+		if (interp->error_flag)
+			return;
+	}
 	push_curried_bindings(interp, xt_val);
 	if (interp->error_flag)
 		return;
 
+	Val outer_patterns = interp->trace_patterns;
+	int outer_root_cfa = interp->trace_root_cfa;
+	FILE *outer_op_out = interp->trace_op_out;
+	char *outer_op_text = interp->trace_op_text;
+	size_t outer_op_capacity = interp->trace_op_capacity;
 	int already_tracing = interp->gc_pending & TRACE_PENDING;
+	gc_root_push(interp, patterns_val);
+	interp->trace_patterns = patterns_val;
+	interp->trace_root_cfa = xt;
+	interp->trace_op_text = NULL;
+	interp->trace_op_capacity = 0;
+	interp->trace_op_out = open_memstream(&interp->trace_op_text, &interp->trace_op_capacity);
 	interp->gc_pending |= TRACE_PENDING;
 	execute_xt(interp, xt);
 	if (!already_tracing)
 		interp->gc_pending &= ~TRACE_PENDING;
+	if (interp->trace_op_out)
+		fclose(interp->trace_op_out);
+	free(interp->trace_op_text);
+	interp->trace_patterns = outer_patterns;
+	interp->trace_root_cfa = outer_root_cfa;
+	interp->trace_op_out = outer_op_out;
+	interp->trace_op_text = outer_op_text;
+	interp->trace_op_capacity = outer_op_capacity;
+	gc_root_pop(interp);
 
 	DISPATCH(interp);
 }

@@ -194,13 +194,26 @@ static int next_match(pcre2_code *compiled, const char *bytes, int length, int f
 	return resume_from;
 }
 
-int string_matches(Interpreter *interp, Object *subject, Object *pattern) {
+int bytes_match_span(Interpreter *interp, const char *bytes, int length, Object *pattern, int *start, int *end) {
 	pcre2_code *compiled = compiled_pattern(interp, pattern);
 	if (interp->error_flag) return 0;
 	pcre2_match_data *md = pcre2_match_data_create(1, NULL);
-	int rc = pcre2_match(compiled, (PCRE2_SPTR)subject->bytes, (PCRE2_SIZE)subject->len, 0, 0, md, NULL);
+	int match_offsets[2];
+	int matched = next_match(compiled, bytes, length, 0, 1, match_offsets, md) >= 0;
 	pcre2_match_data_free(md);
-	return rc >= 0;
+	*start = match_offsets[0];
+	*end = match_offsets[1];
+	return matched;
+}
+
+int bytes_match(Interpreter *interp, const char *bytes, int length, Object *pattern) {
+	int start;
+	int end;
+	return bytes_match_span(interp, bytes, length, pattern, &start, &end);
+}
+
+int string_matches(Interpreter *interp, Object *subject, Object *pattern) {
+	return bytes_match(interp, subject->bytes, subject->len, pattern);
 }
 
 void p_match_all(DISPATCH_ARGS) {

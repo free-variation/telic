@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.34.0"
+#define VERSION "0.34.1"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -80,6 +80,7 @@ typedef int64_t cell;
 #define TRACE_FRAMES_LAST 3
 #define TRACE_FRAMES_MAX 512
 #define TRACE_STACK_SHOWN 4
+#define TRACE_VALUE_WIDTH 48
 #define SUMMARY_MAX 1024
 #define SUMMARY_LINES_MAX 16
 #define PRINT_FIRST 10
@@ -565,6 +566,11 @@ typedef struct Interpreter {
 	int error_flag;
 	int gc_disabled;
 	int gc_pending;
+	Val trace_patterns;
+	int trace_root_cfa;
+	FILE *trace_op_out;
+	char *trace_op_text;
+	size_t trace_op_capacity;
 	cell gc_epoch;
 	int gc_object_base, gc_pair_base;
 
@@ -717,6 +723,7 @@ typedef struct {
 	int saved_loop_slots_ip;
 	int leave_ip;
 	cell saved_leave;
+	Val callable;
 } CallContext;
 
 typedef struct {
@@ -1144,6 +1151,8 @@ int superword_try_fuse_store(Interpreter *interp, int dst_cfa);
 int *decoded_codepoints(Interpreter *interp, const char *bytes, int byte_len, int *count_out);
 int string_codepoint_count(Object *string);
 int string_edit_distance(Interpreter *interp, const char *first_bytes, int first_len, const char *second_bytes, int second_len);
+int bytes_match(Interpreter *interp, const char *bytes, int length, Object *pattern);
+int bytes_match_span(Interpreter *interp, const char *bytes, int length, Object *pattern, int *start, int *end);
 int string_matches(Interpreter *interp, Object *subject, Object *pattern);
 int utf8_codepoint_count(const char *bytes, int length);
 int utf8_encode(int codepoint, char *out);
@@ -1839,8 +1848,10 @@ static inline void call_step(Interpreter *interp, CallContext *context, int cfa)
 		if (context->reuses_locals)
 			interp->loop_local_refill = 1;
 		call_invoke(interp);
-	} else
+	} else {
+		push_curried_bindings(interp, context->callable);
 		execute_cfa(interp, cfa);
+	}
 }
 
 static inline __attribute__((always_inline))

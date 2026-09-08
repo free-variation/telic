@@ -5191,7 +5191,7 @@ variable b 4 to b variable c 10 to c
 | `now` | `( -- f )` | Monotonic-clock seconds as a float | 1 | none | O(1) |
 | `sleep` | `( seconds -- )` | Block for the given float seconds (sub-second supported) | blocks | none | O(1) |
 | `timed` | `( xt -- … )` | Run xt, print its elapsed monotonic-clock seconds, then pass through whatever it left on the stack | 2 + xt + print | none | O(xt) |
-| `trace` | `( xt -- … )` | Run xt printing one line per op to stderr before it executes: the op as `see-compiled` shows it, then `\|` and the data stack (its top four values, deepest first, `…` when deeper). Covers every op the run reaches, combinator bodies and nested calls included; the traced code's own output interleaves on stdout. Costs nothing when not tracing: the hook rides the flag the dispatch macros already test for a pending collection | per op: render + print | none | O(ops) |
+| `trace` | `( xt patterns -- … )` | Run xt printing one line per op to stderr before it executes: the op as `see-compiled` shows it, then `\|` and the data stack (its top four values, deepest first, `…` when deeper). `patterns` is an array of regex strings: the first selects ops by their op text (`^sort`); any further ones keep a selected op only when one matches the whole line (`[ "^sort" "\\| .*nan" ]`); `[ ]` prints every line. Patterns see every stack value in full; the printed line shows a value longer than 48 characters cut to that width with `…`, except the value holding the match. Filtered lines print set apart by blank lines, the matched text highlighted on a terminal. Every op the run reaches is covered, and a word or quotation a combinator runs is announced by name before its body. The traced code's own output interleaves on stdout. A non-string element or an invalid pattern errors before xt runs | per op: render + match + print | none | O(ops × patterns) |
 
 ```forth-noexec words
 words
@@ -5377,14 +5377,20 @@ woke
 ```
 
 ```forth trace
-[: 3 4 + :] trace . cr
+[: 3 4 + :] [ ] trace . cr
+: sq-traced | x | x x * ;
+[: 5 sq-traced 2 + :] [ "^sq" ] trace . cr
 ```
 ```output
-(lit) 3                 |
-(lit) 4                 | 3
-+                       | 3 4
-exit                    | 7
+> (lit) 3                 |
+> (lit) 4                 | 3
+> +                       | 3 4
+> exit                    | 7
 7
+
+> sq-traced               | 5
+
+27
 ```
 
 ---

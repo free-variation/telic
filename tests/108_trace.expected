@@ -1,44 +1,97 @@
-(lit) 3                 |
-(lit) 4                 | 3
-+                       | 3 4
-exit                    | 7
+> (lit) 3                 |
+> (lit) 4                 | 3
+> +                       | 3 4
+> exit                    | 7
 7 
-(lit) 5                 |
-(tailcall) sq           | 5
-(enter-locals-to) 1 1   | 5
-(load2) 0 0             |
-*                       | 5 5
-(leave-locals) 1        | 25
-exit                    | 25
+> (lit) 5                 |
+> (tailcall) sq           | 5
+> (enter-locals-to) 1 1   | 5
+> (load2) 0 0             |
+> *                       | 5 5
+> (leave-locals) 1        | 25
+> exit                    | 25
 25 
-(lit) 2                 |
-(tailcall) count-to     | 2
-(enter-locals-to) 1 1   | 2
-(lit) 0                 |
-dup                     | 0
-(local@0) 0             | 0 0
-(<0branch) 4            | 0 0 2
-1+                      | 0
-(branch) -7             | 1
-dup                     | 1
-(local@0) 0             | 1 1
-(<0branch) 4            | 1 1 2
-1+                      | 1
-(branch) -7             | 2
-dup                     | 2
-(local@0) 0             | 2 2
-(<0branch) 4            | 2 2 2
-(leave-locals) 1        | 2
-exit                    | 2
+> (lit) 2                 |
+> (tailcall) count-to     | 2
+> (enter-locals-to) 1 1   | 2
+> (lit) 0                 |
+> dup                     | 0
+> (local@0) 0             | 0 0
+> (<0branch) 4            | 0 0 2
+> 1+                      | 0
+> (branch) -7             | 1
+> dup                     | 1
+> (local@0) 0             | 1 1
+> (<0branch) 4            | 1 1 2
+> 1+                      | 1
+> (branch) -7             | 2
+> dup                     | 2
+> (local@0) 0             | 2 2
+> (<0branch) 4            | 2 2 2
+> (leave-locals) 1        | 2
+> exit                    | 2
 2 
-(lit) 1                 |
-(lit) 2                 | 1
-(lit) 3                 | 1 2
-(lit) 4                 | 1 2 3
-(lit) 5                 | 1 2 3 4
-(lit) 6                 | … 2 3 4 5
-exit                    | … 3 4 5 6
+> (lit) 1                 |
+> (lit) 2                 | 1
+> (lit) 3                 | 1 2
+> (lit) 4                 | 1 2 3
+> (lit) 5                 | 1 2 3 4
+> (lit) 6                 | … 2 3 4 5
+> exit                    | … 3 4 5 6
 1 2 3 4 5 6 
-(lit) 1                 |
-exit                    | 1
+> (lit) 1                 |
+> exit                    | 1
 untraced 
+
+> sq                      | 5
+
+27 
+
+> exit                    | 25
+
+
+> exit                    | 27
+
+27 
+
+> exit                    | 27
+
+27 
+
+> exit                    | 27
+
+27 
+27 
+
+> sq                      | [ 1 2 3 ] 1
+
+
+> sq                      | [ 1 2 3 ] 2
+
+
+> sq                      | [ 1 2 3 ] 3
+
+[ 1 4 9 ] 
+
+> [: a k | a k * sq :]    | [ 1 2 ] 1 10
+
+
+> (tailcall) sq           | [ 1 2 ] 10
+
+
+> [: a k | a k * sq :]    | [ 1 2 ] 2 10
+
+
+> (tailcall) sq           | [ 1 2 ] 20
+
+[ 100 400 ] 
+1 {
+  :message expected an array of pattern strings; element 0 is a float
+  :trace in trace
+}
+
+1 {
+  :message missing closing parenthesis
+  :trace in trace
+}
+

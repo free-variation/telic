@@ -1,19 +1,22 @@
 # Tracing in Telic
 
-`trace ( xt -- … )` runs a quotation and prints, to stderr, one line for every
-op the run reaches before that op executes: the op as `see-compiled` renders it,
-a bar, and the data stack at that moment, deepest first, the top four values
-with `…` when there are more. The quotation's own output goes to stdout as
-usual, so the two streams can be kept apart or read together.
+`trace ( xt patterns -- … )` runs a quotation and prints, to stderr, one line
+for every op the run reaches before that op executes: the op as `see-compiled`
+renders it, a bar, and the data stack at that moment, deepest first, the top
+four values with `…` when there are more. `patterns` is an array of regex
+strings: the first selects ops by their op text, any further ones keep a
+selected op only when one of them matches the whole line; `[ ]` prints them
+all. The quotation's own output goes to stdout as usual, so the two streams can
+be kept apart or read together.
 
 ```forth trace-basic
-[: 3 4 + :] trace . cr
+[: 3 4 + :] [ ] trace . cr
 ```
 ```output
-(lit) 3                 |
-(lit) 4                 | 3
-+                       | 3 4
-exit                    | 7
+> (lit) 3                 |
+> (lit) 4                 | 3
+> +                       | 3 4
+> exit                    | 7
 7
 ```
 
@@ -23,6 +26,30 @@ per element, `catch` handlers, code behind `execute`. Two kinds of cell are left
 out because they are interpreter plumbing rather than program: the trampoline
 cells a combinator or `execute` dispatches through, and the header cell of a
 body, which is never dispatched itself.
+
+A run of any size prints too much to read, which is what the patterns are for.
+The first pattern is tested against the op text alone — `"^sort"` selects the
+`sort` ops, `"."` every op. Any further patterns are tested against the whole
+rendered line — op text, bar, stack window — and a selected op prints only when
+one of them matches, so `[ "^exit" "\| 27" ]` shows the exits that leave 27 on
+top and `[ "." "nan" ]` every op with a NaN in the stack window. The patterns
+see each stack value in full; the printed line cuts a value longer than 48
+characters to that width with `…`, except the one holding the match, and a
+filtered line prints between blank lines with the match highlighted on a
+terminal. A word or quotation that a combinator runs is announced by name
+before its body, so `[ "^fit-program" ]` finds a word called only through
+`map`.
+
+```forth trace-filtered
+: sq-traced | x | x x * ;
+[: 5 sq-traced 2 + :] [ "^exit" "\| 27" ] trace . cr
+```
+```output
+
+> exit                    | 27
+
+27
+```
 
 ## How it works
 

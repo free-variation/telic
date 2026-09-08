@@ -1,26 +1,48 @@
-\ ==== trace ( xt -- … ) ====
+\ ==== trace ( xt patterns -- … ) ====
 
 \ Runs a quotation printing, to stderr, one line per op before it executes: the op
 \ as see-compiled renders it, a bar, and the data stack (top four, deepest first).
-\ The traced code's own output goes to stdout as usual.
+\ patterns is an array of regexes: the first selects ops by their op text, the
+\ rest (if any) keep a selected line only when one of them matches the whole
+\ line; [ ] prints every line. The traced code's own output goes to stdout.
 
 \ -- literals and an arithmetic op
-[: 3 4 + :] trace . cr
+[: 3 4 + :] [ ] trace . cr
 
 \ -- a colon call with a head: the frame ops show, and the fused load
 : sq | x | x x * ;
-[: 5 sq :] trace . cr
+[: 5 sq :] [ ] trace . cr
 
 \ -- a loop: the fused compare-and-branch and the back branch
 : count-to | n | 0 begin dup n < while 1+ repeat ;
-[: 2 count-to :] trace . cr
+[: 2 count-to :] [ ] trace . cr
 
 \ -- a deep stack shows the top four with an ellipsis
-[: 1 2 3 4 5 6 :] trace .s cr clear
+[: 1 2 3 4 5 6 :] [ ] trace .s cr clear
 
 \ -- tracing ends with the quotation; the next line is untraced
-[: 1 :] trace drop
+[: 1 :] [ ] trace drop
 "untraced" . cr
+
+\ -- the first pattern selects ops by op text
+[: 5 sq 2 + :] [ "^sq" ] trace . cr
+[: 5 sq 2 + :] [ "^exit" ] trace . cr
+
+\ -- further patterns keep a selected op only when one matches the whole line
+[: 5 sq 2 + :] [ "^exit" "\| 27" ] trace . cr
+[: 5 sq 2 + :] [ "." "\| .*7" ] trace . cr
+
+\ -- the first pattern sees the op text only, so a stack pattern there selects nothing
+[: 5 sq 2 + :] [ "\| .*7" ] trace . cr
+
+\ -- a body a combinator runs gets a line naming the callee, so a word called only
+\ through map is selectable by name
+[: [ 1 2 3 ] ' sq map :] [ "^sq" ] trace . cr
+[: [ 1 2 ] 10 [: a k | a k * sq :] curry map :] [ "sq" ] trace . cr
+
+\ -- error cases (grouped): a non-string pattern, an invalid regex
+[: 1 :] [ 3 ] ' trace catch . . cr                       \ (element 0 is a float)
+[: 1 :] [ "(" ] ' trace catch . . cr                     \ (missing closing parenthesis)
 
 \ -- combinator bodies and try-catch are traced too, but an xt on the stack prints
 \ by dictionary index, which moves with the embedded library, so those cases are
