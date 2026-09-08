@@ -1,0 +1,11 @@
+\ ==== print-gauges ( -- ) ====
+
+\ The moving readings of gauges as a six-row table. Every number depends on the
+\ machine and the moment, so the runner's .sed replaces each with N; what the golden
+\ pins is the rows, labels, units, and columns.
+
+print-gauges
+
+\ -- a second call after work: the same layout, with rates against the first sample
+10000 iota [: dup * :] map drop
+print-gauges

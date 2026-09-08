@@ -1,0 +1,12 @@
+live     0.0 / 256 MiB         0% │ data     0        cpu      0%
+objects  1024 / 65.5k          2% │ return   35       rss      9 MiB
+pairs    78 / 1.0M             0% │ calls    1 / 4096 faults   0/s
+gc       0  0.0/s                 │ trail    0        load     2.3 / 16
+arena    0.1 / 16384 MiB       0% │ lvars    0        switches 0/s
+interval 0.0 s at 06:38:59
+live     0.0 / 256 MiB         0% │ data     0        cpu      66%
+objects  1024 / 65.5k          2% │ return   35       rss      9 MiB
+pairs    95 / 1.0M             0% │ calls    1 / 4096 faults   0/s
+gc       0  0.0/s                 │ trail    0        load     2.3 / 16
+arena    0.4 / 16384 MiB       0% │ lvars    0        switches 10443/s
+interval 0.0 s at 06:38:59
