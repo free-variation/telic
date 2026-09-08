@@ -5856,6 +5856,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "telic-version", p_telic_version, 0);
 	define_primitive(interp, "see", p_see, 0);
 	define_primitive(interp, "see>string", p_see_to_string, 0);
+	define_primitive(interp, "edit", p_edit, 0);
 	define_primitive(interp, "man", p_man, 0);
 	define_primitive(interp, "see-compiled", p_see_compiled, 0);
 	define_primitive(interp, "trace", p_trace, 0);
@@ -6181,6 +6182,8 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	vocab.init_symbol_pool_here = vocab.symbol_pool_here;
 	arena.object_space.init = arena.object_space.n;
 	pairs.space.init = pairs.space.n;
+	alloc_count_lvar = 0;
+	alloc_count_array = 0;
 	dimension_freeze();
 
 	vocab.lib_end_latest_cfa = vocab.latest_cfa;

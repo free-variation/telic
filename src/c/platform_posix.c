@@ -286,6 +286,42 @@ static void on_interrupt(int signal_number) {
 		repl_interp->gc_pending |= INTERRUPT_PENDING;
 }
 
+int platform_temp_file(char *path, int capacity, const char *suffix) {
+	char stem[] = "/tmp/telic-XXXXXX";
+	int descriptor = mkstemp(stem);
+	if (descriptor < 0)
+		return 0;
+	close(descriptor);
+	if (snprintf(path, (size_t)capacity, "%s%s", stem, suffix) >= capacity || rename(stem, path) != 0) {
+		unlink(stem);
+		return 0;
+	}
+	return 1;
+}
+
+int platform_edit_file(const char *path) {
+	if (!isatty(STDIN_FILENO) || !isatty(STDOUT_FILENO))
+		return 0;
+	const char *editor = getenv("EDITOR");
+	if (!editor || !editor[0])
+		editor = "vi";
+	fflush(stdout);
+
+	pid_t child = fork();
+	if (child < 0)
+		return 0;
+	if (child == 0) {
+		signal(SIGINT, SIG_DFL);
+		execlp("/bin/sh", "sh", "-c", "exec $0 \"$1\"", editor, path, (char *)NULL);
+		_exit(127);
+	}
+	int status = 0;
+	while (waitpid(child, &status, 0) < 0 && errno == EINTR)
+		;
+	fflush(stdout);
+	return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+}
+
 int platform_repl_begin(struct Interpreter *interp, int want_interactive) {
 	if (want_interactive) {
 		repl_interp = interp;

@@ -21,6 +21,18 @@ int platform_computer_gauges(ComputerGauges *out) {
 	return 0;
 }
 
+int platform_edit_file(const char *path) {
+	(void)path;
+	return 0;
+}
+
+int platform_temp_file(char *path, int capacity, const char *suffix) {
+	(void)path;
+	(void)capacity;
+	(void)suffix;
+	return 0;
+}
+
 int platform_executable_path(char *out, size_t cap) {
 	(void)out;
 	(void)cap;

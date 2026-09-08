@@ -132,7 +132,7 @@ const HelpEntry help_entries[] = {
 	{ "again", "—", "Unconditional branch back to begin", NULL, NULL, NULL, 10 },
 	{ "aggregate", "( dataset by xt -- dataset )", "datasets.telic: split-apply-combine — rows group by the by column's distinct values, or by the value tuple of a by-symbol array (tuples group and order in natural order); for each group xt ( group-dataset -- frame ) answers one row frame, the group's key values are stored into it under their own keys (overwriting any the xt set), and the rows reassemble into a dataset", "n log n + per-group xt", "one sub-dataset and frame per group + result columns; array by adds one tuple array per row", "O(n log n + n·c)", 25 },
 	{ "all?", "( items pred -- bool )", "arrays.telic: true when every element satisfies pred, vacuously true on empty. Runs pred over **every** element, so it does not short-circuit and a side-effecting pred runs n times", "2n·xt", "1a(n)", "O(n·xt)", 26 },
-	{ "alloc-stats", "( -- )", "Print and reset the allocation counters since the last call (lvars=… arrays=…)", "2", "none", "O(1)", 32 },
+	{ "alloc-stats", "( -- )", "Print and reset the allocation counters (lvars=… arrays=…) since the last call, or since the embedded library finished loading — its own allocations are not counted", "2", "none", "O(1)", 32 },
 	{ "amb", "( xt1 xt2 -- … )", "Run xt1; if it fails (a unify mismatch or fail), roll its bindings back through the trail and run xt2. Commits to the first branch that succeeds.", "xt1", "none", "O(xt1 + xt2)", 29 },
 	{ "and", "( a b -- bool )", "logical and of truthiness", "3", "none", "O(1)", 4 },
 	{ "annotate", "( x y label -- )", "Text at data point (x, y), current font size and text-anchor", NULL, NULL, NULL, 47 },
@@ -274,6 +274,7 @@ const HelpEntry help_entries[] = {
 	{ "dup", "( a -- a a )", "Duplicate top", "3", "none", "O(1)", 0 },
 	{ "each", "( items xt -- )", "Run xt ( element -- ) on every element for its side effects; the element is the only thing the quotation may consume, and it must leave nothing. No result, no allocation", "2 + n·xt", "none", "O(n·xt)", 26 },
 	{ "ecdf", "( v -- xs ys )", "statistics.telic: the empirical CDF as two n×1 vectors — the finite elements sorted ascending, and the cumulative fractions (i+1)/n, so ys at index i is F(xs at i). Ties stay as consecutive points; NaNs are excluded from the points and from n; errors when no finite values remain", "2n log n", "2m(n) + 1a(n)", "O(n log n)", 21 },
+	{ "edit", "( \"name\" -- )", "Parse the following word and open its source — what see prints — in $EDITOR (vi when unset) on a temporary .telic file, waiting until the editor exits; a saved change runs the edited text as a load, so the definition is replaced, and an unchanged file leaves the word as it was. A name not yet defined opens as : name on one line and ; on the next. Needs a terminal on stdin and stdout and an editor exiting with status 0; errors otherwise", "editor", "temp file", "—", 32 },
 	{ "edit-distance", "( a b -- n )", "Edit distance between two strings over codepoints: insertions, deletions, substitutions, and adjacent transpositions each cost 1 (Levenshtein with transpositions — optimal string alignment); symmetric", "n·m", "none", "O(n·m)", 14 },
 	{ "else", "—", "Separate the true and false arms", NULL, NULL, NULL, 10 },
 	{ "embodies", "( xt \"name\" -- )", "Pop an xt (a colon word or quotation) and read the following name; install it as the named deferred word's target. Retargetable — each later call re-reads it — so a call to the deferred word forwards through one dispatch. Top-level only", NULL, NULL, NULL, 12 },
@@ -799,7 +800,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, pairs head then tail, arrays element-wise, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails. A C primitive, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 29 },
 };
 
-const int help_entry_count = 741;
+const int help_entry_count = 742;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -1021,6 +1022,7 @@ const HelpExample help_examples[] = {
 	{ "dup", "3 dup * . cr", "9" },
 	{ "each", "[ 1 2 3 ] [: . :] each cr", "1 2 3" },
 	{ "ecdf", "[ 3 1 2 ] vector ecdf matrix>array . matrix>array . cr", "[ 0.333333 0.666667 1 ] [ 1 2 3 ]" },
+	{ "edit", "edit sq", "" },
 	{ "edit-distance", "\"kitten\" \"sitting\" edit-distance . cr", "3" },
 	{ "else", ": parity 2 mod 0= if \"even\" else \"odd\" then . cr ; 7 parity", "odd" },
 	{ "embodies", "defer greeting : hello-word \"hello\" . cr ; ' hello-word embodies greeting greeting", "hello" },
@@ -1546,4 +1548,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 742;
+const int help_example_count = 743;

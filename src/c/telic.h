@@ -1273,6 +1273,7 @@ void p_dot_all(DISPATCH_ARGS);
 void p_dots(DISPATCH_ARGS);
 void p_drop(DISPATCH_ARGS);
 void p_dup(DISPATCH_ARGS);
+void p_edit(DISPATCH_ARGS);
 void p_emit_(DISPATCH_ARGS);
 void p_eq(DISPATCH_ARGS);
 void p_eq_elements(DISPATCH_ARGS);

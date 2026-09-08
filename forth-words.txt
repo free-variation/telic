@@ -216,6 +216,7 @@ drop-nans
 dup
 each
 ecdf
+edit
 edit-distance
 else
 embodies

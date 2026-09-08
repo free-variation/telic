@@ -398,9 +398,23 @@ Worker threads over one shared object heap: a quotation runs across the collecti
 
 - **`value>bytes`** / **`bytes>value`** — a whole value graph as bytes and back, sharing and cycles preserved; compiled code and OS handles are refused by type. **`save-value`** / **`load-value`** do the same through a file.
 
+### The REPL
+
+- **Line editing** on isocline: theme-adaptive syntax highlighting, matching-brace highlighting, inline hints, Tab completion (dictionary words, filenames inside string literals), persistent history, and multi-line editing with auto-indent.
+- **Each entry answers** `ok` with the stack depth and top value, or the error message and its trace with file and line; a failed entry leaves the data stack as it was. Ctrl-C while an entry runs aborts it with `interrupted` and returns to the prompt.
+- **`help name`** prints a word's reference entry — stack effect, summary, cost line, examples as a transcript — and for a word defined in a loaded file, the `( a b -- c ) \ summary` comment above its definition; bare `help` prints a cheat sheet. **`man`** answers the same entry as a frame; **`apropos`** finds words by name or summary; **`words`** lists the dictionary by reference section.
+- **`see`** prints a word's source; **`see-compiled`** disassembles its threaded body; **`see-tree`** expands the calls inside it down to primitives.
+- **`edit name`** opens the word's source in `$EDITOR` (`vi` when unset); saving redefines the word from the edited text, quitting without a change leaves it; a name not yet defined starts as an empty definition.
+- **`trace`** runs a quotation printing each op with the stack before it, filtered by an array of regexes — the first selects ops by name, the rest match the whole line (`docs/tracing.md`).
+- **`gauges`** answers the interpreter's resource readings — dictionary, heap and collection headroom, stacks, open resources, the computer — as a frame with units; **`print-gauges`** prints the readings that move during a run as a table with rates against the previous call.
+- **`timed`** runs a quotation and prints its elapsed seconds; **`,`** prints the top of the stack without consuming it; **`.s`** shows the whole stack, **`.a`** prints a value in full precision without truncation; **`alloc-stats`** prints and resets the allocation counters since its last call.
+- **`log`** — `( str level -- )` writes one stamped line, `<time> <level> <message>`, to stderr, or under `TELIC_LOG_DIR` to a per-run file named at the first write and recorded in `TELIC_LOG_FILE`.
+- **`vars`** prints the current globals, **`variables`** answers them as frames; **`forget`** truncates the dictionary back to a word; **`reload`** re-runs every file `load`ed this session; **`save`** writes the session's definitions as source.
+- **Shell names** at the prompt: **`ls`**, **`pwd`**, **`cat`**, **`mkdir`**, **`rm`**, **`mv`**, **`cp`**, **`touch`**.
+- **`bye`** quits; **`clear`** empties the data stack; **`gc`** collects now.
+
 ### I/O and persistence
 
-- **Interactive REPL** on isocline: theme-adaptive syntax highlighting, matching-brace highlighting, inline hints, Tab completion (dictionary words, filenames inside string literals), persistent history, and multi-line editing. Each entry answers `ok` with the stack depth and top value, or the error message and its trace; a failed entry leaves the data stack as it was. Ctrl-C while an entry runs aborts it with `interrupted` and returns to the prompt.
 - **`load`** runs a source file as if typed.
 - **`save`** writes the user's vocabulary as a re-loadable `.telic` source file.
 - **`reload`** truncates user state and re-runs every file `load`ed this session, in order.
@@ -412,7 +426,6 @@ Worker threads over one shared object heap: a quotation runs across the collecti
 - **`find-executable`** — `( name -- path/none )` the absolute path of `name` on `$PATH`, or the none value if not found.
 - **`load-library`** — `"plot" load-library` loads `lib/plot.telic` from beside the telic binary (`binary-dir`, symlinks resolved), from any cwd; the statistics library locates its LAPACK shared library the same way.
 - **`env`** / **`env!`** — read an environment variable as a string (the none value if unset) and set one (process-wide, so `start-process` children inherit it).
-- **`log`** — `( str level -- )` writes one stamped line, `<time> <level> <message>`, to stderr, or under `TELIC_LOG_DIR` to a per-run file named at the first write and recorded in `TELIC_LOG_FILE`.
 - **`stdin`** / **`stdout`** / **`stderr`** — the standard streams as `T_STREAM` values (fds 0/1/2), composing with `read`/`write`/`close` — `s stdout write` emits, `stdin read` reads input whole.
 
 ### Subprocesses and pipes
@@ -490,12 +503,8 @@ the stdio server behind a stdio-to-Streamable-HTTP gateway such as mcp-proxy.
 - **`dup`**, **`drop`**, **`swap`**, **`over`**, **`nip`**, **`rot`**, **`depth`**, **`pick`**, **`roll`**, **`clear`** — stack-manipulation primitives; `pick` copies the nth item and `roll` moves it, both counting from the top.
 - **`copy`** / **`reify`** — deep copy of a value (strings, arrays, sets, frames, matrices); `reify` additionally renames unbound logic vars to canonical `:_0`/`:_1`/… for a ground, storable, comparable snapshot.
 - **`type-of`** — `( a -- sym )` the value's type as a symbol (`:float`, `:frame`, `:lvar`, …), with a lib predicate per type (`float?` … `lvar?`); a bound logic var answers as its value.
-- **`now`** — monotonic seconds as a float, for timing intervals (`wall-now`, under Time and dates, is the absolute clock). **`timed`** — `( xt -- … )` runs xt, prints its elapsed `now` seconds, and passes its results through.
-- **`see`** — prints a word's source definition; **`see-compiled`** disassembles its threaded body; **`trace`** runs a quotation printing each op with the stack before it, filtered by an array of regexes (`docs/tracing.md`). **`gauges`** answers the interpreter's resource readings — dictionary, heap and collection headroom, stacks, open resources — as a frame of `[ used capacity ]` pairs.
-- **`man`** — a word's reference entry as a frame, or for a word defined in a loaded file the `( a b -- c ) \ summary` comment above its definition; **`help name`** prints it.
-- **`words`** — the dictionary grouped by reference section; **`apropos`** — every word whose name or summary matches a pattern.
-- **`variables`** — the current globals as `{ :name :value :type }` frames; **`vars`** prints them.
-- **`forget`**, **`bye`**, **`halt`**, **`gc`**, **`clear`**, **`.s`**, **`.a`** — interpreter utilities.
+- **`now`** — monotonic seconds as a float, for timing intervals (`wall-now`, under Time and dates, is the absolute clock).
+- **`halt`** — stop the program with an exit status.
 
 ## Future work
 

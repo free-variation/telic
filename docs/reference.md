@@ -5178,6 +5178,7 @@ variable b 4 to b variable c 10 to c
 | `apropos` | `( str -- )` | Print every word whose name or reference summary contains s (case-insensitive): name, stack effect, summary per line; a word defined by a `load` matches by name or by the summary of the comment above its definition and prints that effect and summary, and other session words match by name | table scan | none | O(entries) |
 | `see` | `( xt -- )` | Print a word's source (`: name … ;`), a quotation's `[: … :]` text from its recorded span, or `variable`/`symbol`/primitive form; a curried token prints its bound values, then its target | dict scan | none | O(\|dict\|) |
 | `see>string` | `( xt -- str )` | A word's source (`: name … ;`), a quotation's `[: … :]` text, or a `variable`/`symbol`/primitive form (a curried token's bound values then its target), returned as a string (trailing newline stripped) | dict scan | `1o` | O(\|dict\|) |
+| `edit` | `( "name" -- )` | Parse the following word and open its source — what `see` prints — in `$EDITOR` (`vi` when unset) on a temporary `.telic` file, waiting until the editor exits; a saved change runs the edited text as a `load`, so the definition is replaced, and an unchanged file leaves the word as it was. A name not yet defined opens as `: name` on one line and `;` on the next. Needs a terminal on stdin and stdout and an editor exiting with status 0; errors otherwise | editor | temp file | — |
 | `see-compiled` | `( xt -- )` | Disassemble a colon definition's compiled cells; a curried token prints its bound values, then disassembles its target | body scan | none | O(body) |
 | `see-compiled>string` | `( xt -- str )` | The disassembly of a colon definition's compiled cells (a curried token's bound values then its target), returned as a string (trailing newline stripped) | body scan | `1o` | O(body) |
 | `see-tree` | `( xt -- )` | Disassemble a colon definition's compiled cells, but each colon-word call is expanded inline, indented two spaces, recursively down to primitives; recursive calls print as `name ...` | body scan | none | O(expanded body) |
@@ -5187,7 +5188,7 @@ variable b 4 to b variable c 10 to c
 | `gc` | `( -- )` | Force a mark-sweep now | walks stacks + dict + roots, frees unmarked | none | O(objects + dict) |
 | `gauges` | `( -- fr )` | repl.telic: the interpreter's resource readings as a frame of six frames; memory is in MiB (dictionary pools in KiB), processor time in s, counts are floats, and a `[ used capacity ]` pair is an array. `:dictionary`: `:cells`, `:name-pool`, `:source-pool`, `:symbol-pool`, `:quotations`, `:word-locations`, `:cell-lines`, `:loaded-files` as pairs, plus `:words`, `:session-words` (defined since the embedded library), `:symbols`. `:heap`: `:arena` `[ used reserved ]`, `:live`, `:gc-threshold`, `:memory-headroom` (until the next collection), `:objects` `[ live table-size ]` (live is claimed handles minus the free list), `:handles-claimed` `[ claimed table-size ]` (the high-water mark; a collection refills the free list rather than lowering it), `:max-objects`, `:free-handles`, `:handle-headroom` `[ unclaimed trigger ]` (a collection is requested when unclaimed falls under trigger), `:pairs` `[ live table-size ]`, `:collections`. `:stacks`: `:data`, `:return`, `:side`, `:calls`, `:trail`, `:logic-vars`, `:roots`, each `[ depth capacity ]`. `:resources`: `:databases`, `:regex-cache`, `:workers`, each `[ in-use capacity ]`. `:computer`: `:cpu-count`, `:physical-memory`, the load averages `:load-1` `:load-5` `:load-15`, and this process's `:user-time`, `:system-time`, `:max-rss` (peak resident memory), `:minor-faults`, `:major-faults`, `:voluntary-switches`, `:involuntary-switches` — `null` under wasm, which has no such calls. `:session`: `:line`, `:interactive`, `:load-depth`, `:gc-disabled`, `:tracing` | dict walk + symbol scan | `1fr` × 6 + pairs | O(words + symbols) |
 | `print-gauges` | `( -- )` | repl.telic: print the readings of `gauges` that move during a run as a six-row table: live memory, objects, pairs, and arena against their capacities with a percentage; collections with their rate; data, return, and call depth; trail and logic-variable depth; CPU percentage, peak resident memory, major faults per second, load average against the core count, involuntary switches per second; then the interval since the previous call and the clock. Rates are computed against the previous `print-gauges` call, so a first call shows them as 0. On a terminal the labels are dim and a percentage or rate is yellow above 60% of its capacity, red above 85% | gauges + format | strings | O(words + symbols) |
-| `alloc-stats` | `( -- )` | Print and reset the allocation counters since the last call (`lvars=… arrays=…`) | 2 | none | O(1) |
+| `alloc-stats` | `( -- )` | Print and reset the allocation counters (`lvars=… arrays=…`) since the last call, or since the embedded library finished loading — its own allocations are not counted | 2 | none | O(1) |
 | `bye` | `( -- )` | Exit the process with status 0 | — | — | — |
 | `halt` | `( code -- )` | Exit the process with the given code as its exit status | — | — | — |
 | `now` | `( -- f )` | Monotonic-clock seconds as a float | 1 | none | O(1) |
@@ -5259,6 +5260,12 @@ correlation-kendall ( xs ys -- f )           Kendall tau-b: concordant minus dis
 ```
 ```output
 : sq-see2 dup * ;
+```
+
+```forth-noexec edit
+edit sq
+```
+```output
 ```
 
 ```forth see-compiled

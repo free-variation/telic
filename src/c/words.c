@@ -2179,6 +2179,85 @@ void p_see_to_string(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
 
+static int write_whole_file(const char *path, const char *bytes, int length) {
+	FILE *out = fopen(path, "w");
+	if (!out)
+		return 0;
+	int written = fwrite(bytes, 1, (size_t)length, out) == (size_t)length;
+	fclose(out);
+	return written;
+}
+
+static char *read_whole_file(const char *path, int *length_out) {
+	FILE *in = fopen(path, "r");
+	if (!in)
+		return NULL;
+	fseek(in, 0, SEEK_END);
+	long size = ftell(in);
+	fseek(in, 0, SEEK_SET);
+	char *bytes = (char *)xmalloc((size_t)(size > 0 ? size : 1));
+	size_t read_count = fread(bytes, 1, (size_t)size, in);
+	fclose(in);
+	*length_out = (int)read_count;
+	return bytes;
+}
+
+void p_edit(DISPATCH_ARGS) {
+	SYNC_REGISTERS(interp, chain_ip, chain_sp);
+	char *token = next_token();
+	if (!token) {
+		fail(interp, "edit : expected a word name");
+		return;
+	}
+	char name[NAME_MAX_LENGTH];
+	snprintf(name, sizeof(name), "%s", token);
+
+	int target_cfa = find(name);
+	int source_handle;
+	if (target_cfa) {
+		source_handle = capture_render(interp, see_source_render, make_xt(target_cfa));
+	} else {
+		char skeleton[NAME_MAX_LENGTH + 16];
+		int skeleton_length = snprintf(skeleton, sizeof(skeleton), ": %s\n\t;\n", name);
+		source_handle = object_new_string(interp, skeleton, skeleton_length);
+	}
+	if (interp->error_flag)
+		return;
+	Object *source = OBJECT_AT(source_handle);
+
+	char path[64];
+	if (!platform_temp_file(path, (int)sizeof(path), ".telic")) {
+		fail(interp, "edit: cannot create a temporary file");
+		return;
+	}
+	if (!write_whole_file(path, source->bytes, source->len)) {
+		unlink(path);
+		fail(interp, "edit: cannot write %s", path);
+		return;
+	}
+
+	if (!platform_edit_file(path)) {
+		unlink(path);
+		fail(interp, "edit needs a terminal and an editor ($EDITOR, else vi) that exits with status 0");
+		return;
+	}
+
+	int edited_length = 0;
+	char *edited = read_whole_file(path, &edited_length);
+	if (!edited) {
+		unlink(path);
+		fail(interp, "edit: cannot read the edited file back");
+		return;
+	}
+	int unchanged = edited_length == source->len && memcmp(edited, source->bytes, (size_t)edited_length) == 0;
+	free(edited);
+	if (!unchanged)
+		load_file(interp, path);
+	unlink(path);
+
+	DISPATCH(interp);
+}
+
 static void help_put(Interpreter *interp, int frame_handle, const char *key, const char *text) {
 	int string_handle = object_new_string(interp, text, (int)strlen(text));
 	if (interp->error_flag) {

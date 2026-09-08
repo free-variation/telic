@@ -110,6 +110,8 @@ typedef struct {
 } ComputerGauges;
 
 int platform_computer_gauges(ComputerGauges *out);
+int platform_edit_file(const char *path);
+int platform_temp_file(char *path, int capacity, const char *suffix);
 void *platform_reserve(size_t requested, size_t *reserved_out);
 void platform_init(void);
 int platform_executable_path(char *out, size_t cap);
