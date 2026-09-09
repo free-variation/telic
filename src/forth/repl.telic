@@ -127,8 +127,11 @@
 	dup 1e4 >= if 1e3 / "{0:.1f}k" format exit then
 	"{0:d}" format ; internal
 
-( q -- f ) \ the magnitude of a quantity, or the float itself
-: gauge-magnitude dup quantity? if magnitude then ; internal
+( q -- f ) \ the magnitude of a quantity, the float itself, or 0 for null (a
+\ platform without the reading)
+: gauge-magnitude
+	dup none? if drop 0 exit then
+	dup quantity? if magnitude then ; internal
 
 ( label -- str ) \ a row label padded to the label column
 : gauge-label 9 pad-right ; internal
@@ -153,8 +156,8 @@ null to gauges-previous
 	{ :time now
 	  :cpu g /computer/user-time @ gauge-magnitude g /computer/system-time @ gauge-magnitude +
 	  :collections g /heap/collections @
-	  :faults g /computer/major-faults @
-	  :switches g /computer/involuntary-switches @ } ; internal
+	  :faults g /computer/major-faults @ gauge-magnitude
+	  :switches g /computer/involuntary-switches @ gauge-magnitude } ; internal
 
 ( sample key -- rate ) \ per-second change of the key since the previous sample; 0 on the first
 : gauge-rate
@@ -187,8 +190,8 @@ null to gauges-previous
 	sample :cpu gauge-rate 100 * to cpu-percent
 	g /computer/max-rss @ gauge-magnitude to rss
 	sample :faults gauge-rate to fault-rate
-	g /computer/load-1 @ to load
-	g /computer/cpu-count @ to cores
+	g /computer/load-1 @ gauge-magnitude to load
+	g /computer/cpu-count @ gauge-magnitude 1 max2 to cores
 
 	g /heap/arena @ 1 @i gauge-magnitude to arena-reserved
 
