@@ -40,13 +40,13 @@ variable solution-sig
 \ --- per-cell set helpers (cells = array of 19 candidate-value sets) -------
 : already-done? ( cells i -- f )  @i size 1.0 = ;
 : cell-val      ( cells i -- v )  @i 1.0 take 0.0 @i ;
-: member-cell?  ( cells i v -- f )  | cells i v |  cells i @i v member? ;
+: member-cell?  ( cells i v -- f )  | cells i v |  cells i @i v in? ;
 : set-done      ( cells i v -- )  1.0 set swap !i drop ;
 
 : cell-remove ( cells i v -- removed? )      \ remove v from cell i; was it present?
   | cells i v |
   cells i @i to c
-  c v member? if c v set-remove! drop 1.0 else 0.0 then ;
+  c v in? if c v set-remove! drop 1.0 else 0.0 then ;
 
 \ vmin/vmax over cell i's neighbours (done+nonEMPTY bump both, free bumps vmax)
 : nb-vminvmax ( cells i -- vmin vmax )
@@ -186,7 +186,7 @@ variable solution-sig
   cells cid @i to c
   c dup size take to arr
   arr [: empty = 0= :] filter reverse to moves
-  c empty member? if moves [ empty ] concat to moves then
+  c empty in? if moves [ empty ] concat to moves then
   cid moves ;
 
 \ --- backtracking solver (the timed kernel) ------------------------------

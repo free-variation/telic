@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.34.5"
+#define VERSION "0.34.6"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1526,12 +1526,12 @@ void p_frameopen(DISPATCH_ARGS);
 void p_group_by(DISPATCH_ARGS);
 void p_has(DISPATCH_ARGS);
 void p_head_tail(DISPATCH_ARGS);
+void p_in(DISPATCH_ARGS);
 void p_int_segment(DISPATCH_ARGS);
 void p_intersect(DISPATCH_ARGS);
 void p_json_to_frame(DISPATCH_ARGS);
 void p_list_close(DISPATCH_ARGS);
 void p_list_open(DISPATCH_ARGS);
-void p_member(DISPATCH_ARGS);
 void p_merge(DISPATCH_ARGS);
 void p_range(DISPATCH_ARGS);
 void p_remove_last(DISPATCH_ARGS);

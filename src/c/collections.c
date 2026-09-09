@@ -482,12 +482,70 @@ void p_byte_size(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
 
-void p_member(DISPATCH_ARGS) {
+static int set_holds_only_floats(Object *set) {
+	int n_items = set->len;
+	for (int i = 0; i < n_items; i++)
+		if (VAL_TAG(set->items[i]) != T_FLOAT)
+			return 0;
+	return 1;
+}
+
+static int float_set_member(Object *set, double value) {
+	LOWER_BOUND(set->len, mid, VAL_NUMBER(set->items[mid]) < value, low);
+	return low < set->len && VAL_NUMBER(set->items[low]) == value;
+}
+
+void p_in(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
 	Val set_val = chain_sp[-2];
-	REQUIRE_CHAIN_TAG(set_val, T_SET, "member?", "a set");
-	SYNC_REGISTERS(interp, chain_ip, chain_sp - 2);
-	int present = set_member(interp, (int)VAL_DATA(set_val), chain_sp[-1]);
+	Val elements = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(set_val, T_SET, "(in?)", "a set");
+	SYNC_REGISTERS(interp, chain_ip, chain_sp);
+	int set_handle = (int)VAL_DATA(set_val);
+
+	if (VAL_TAG(elements) == T_MATRIX) {
+		Object *source = OBJECT_AT(VAL_DATA(elements));
+		Object *set = OBJECT_AT(set_handle);
+		int n_rows = source->matrix.rows;
+		int n_columns = source->matrix.columns;
+		int n_elements = n_rows * n_columns;
+		int floats_only = set_holds_only_floats(set);
+
+		NEW_MATRIX(mask_handle, mask, n_rows, n_columns);
+		for (int i = 0; i < n_elements; i++) {
+			double element = source->matrix.elements[i];
+			if (isnan(element))
+				mask->matrix.elements[i] = 0.0;
+			else if (floats_only)
+				mask->matrix.elements[i] = (double)float_set_member(set, element);
+			else
+				mask->matrix.elements[i] = (double)set_member(interp, set_handle, make_float(element));
+		}
+		if (interp->error_flag)
+			return;
+
+		chain_sp[-2] = make_matrix(mask_handle);
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+	}
+
+	if (VAL_TAG(elements) == T_ARRAY) {
+		Object *source = OBJECT_AT(VAL_DATA(elements));
+		int n_elements = source->len;
+
+		NEW_MATRIX(mask_handle, mask, n_elements, 1);
+		for (int i = 0; i < n_elements; i++) {
+			Val element = source->items[i];
+			mask->matrix.elements[i] = VAL_TAG(element) == T_NONE
+				? 0.0 : (double)set_member(interp, set_handle, element);
+		}
+		if (interp->error_flag)
+			return;
+
+		chain_sp[-2] = make_matrix(mask_handle);
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+	}
+
+	int present = VAL_TAG(elements) != T_NONE && set_member(interp, set_handle, elements);
 	if (interp->error_flag)
 		return;
 	chain_sp[-2] = make_bool(present);

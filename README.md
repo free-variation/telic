@@ -340,7 +340,7 @@ A thread-local xoshiro256\*\* stream. Each worker thread derives its own stream 
 
 ### Sets, arrays, higher-order
 
-- **Set literals** — `[< 1 2 3 >]`, set operations, `member?`, `size`, in-place `set-add!`/`set-remove!`, and `array>set` (sort-and-dedup an array into a set in one pass).
+- **Set literals** — `[< 1 2 3 >]`, set operations, `in?` (membership of a scalar, or an element-wise mask of an array or vector), `size`, in-place `set-add!`/`set-remove!`, and `array>set` (sort-and-dedup an array into a set in one pass).
 - **`group-by`** — `array :col group-by` groups frames by a symbol field into a frame from each value to a set of rows.
 - **Array literals** — `[ 1 2 3 ]`, `array` to gather N from the stack, `array-of` to fill, `range` and `iota` for integer sequences, `@i` and `!i` to read and store by index.
 - **Array operations** — `sort`, `reverse`, `take`, `concat`, `flatten-array`, `sample` (with or without replacement), `shuffle`, `resample` (the bootstrap draw), and `first`/`second`.

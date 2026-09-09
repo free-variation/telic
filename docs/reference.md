@@ -2554,7 +2554,7 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 | `difference` | `( set₁ set₂ -- set₃ )` | set₁ − set₂ into a new set, merging the two sorted arrays | m+n | `1o` + reallocs | O(m+n) |
 | `set-add!` | `( set v -- set )` | Insert v in sorted position if absent (dedups); leaves set on the stack | log n + n | reallocs | O(n) |
 | `set-remove!` | `( set v -- set )` | Remove v if present (no-op if absent); leaves set on the stack | log n + n | none | O(n) |
-| `member?` | `( set v -- bool )` | Binary-search membership | 3 + log n | none | O(log n) |
+| `in?` | `( members values -- mask/binary )` | datasets.telic: membership by binary search — a scalar `values` answers 1 when it is a member of `members` (a set, array, or vector; a dimensioned vector contributes quantities, so units reconcile); an array answers an n×1 mask, a vector a mask of its shape, each element 1 when a member; a NaN or `null` answers 0. `[ 10 20 ] vector prices in? where select-rows` keeps the rows at listed prices | log m per element | `1m(n)`; a non-set `members` adds `1a(m)` + `1o`; a dimensioned `values` adds `2a(n)` | O(n log m), plus O(m log m) to build the set |
 | `array>set` | `( array -- set )` | Sort a copy of the array and dedup into a set; the source array is unchanged | n log n | `1o` + realloc | O(n log n) |
 | `set>array` | `( set -- arr )` | arrays.telic: the elements as an array in sorted order | 1 | `1o` | O(n) |
 | `group-by` | `( array col -- frame )` | Group an array of frames by their symbol-valued `col` into a frame from each value to a set of the matching rows; one sorted pass, distinct values sorted | n log n | frame + sets | O(n log n) |
@@ -2603,11 +2603,15 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 [< 1 3 >]
 ```
 
-```forth member?
-[< 1 2 3 >] 2 member? . [< 1 2 3 >] 9 member? . cr
+```forth in?
+[< 1 2 3 >] 2 in? . [< 1 2 3 >] 9 in? . cr
+[ 2 4 ] vector [ 1 2 3 4 ] vector in? matrix>array . cr
+[< "b" "c" >] [ "a" "b" ] in? matrix>array . cr
 ```
 ```output
 1 0
+[ 0 1 0 1 ]
+[ 0 1 ]
 ```
 
 ```forth array>set
@@ -2910,6 +2914,7 @@ Symbol-keyed sorted maps; binary-search lookup. A **path** is an array of steps;
 | `!` | `( fr val sym/path -- fr )` | Set by key or path, vivifying intermediates; mutates fr; errors on a search path. Writes take the address last, so the value is computed first and the destination named beside the word | d log n | realloc on growth; `1o` per vivified frame | O(d log n) amortized |
 | `has?` | `( fr sym/path -- bool )` | Existence test for a frame key or path, no error on miss; a search path is true if any node matches (short-circuits at the first); on a string `( str pat -- bool )`, true if regex `pat` matches anywhere | 3 + d log n | none | O(d log n) |
 | `delete-at` | `( fr sym/path -- fr )` | Remove a key (errors if absent or on a search path); mutates fr | n | none | O(n) |
+| `rename-key!` | `( fr old new -- fr )` | core.telic: move the value at key `old` to key `new` in place and leave fr — a dataset column renames the same way (`ds :price :cost rename-key!`); `old` absent errors, an existing `new` is overwritten; keys stay in symbol-id order | 2n | none | O(n) |
 | `update-at` | `( fr xt sym/path -- fr )` | Apply xt to the value at the key, store the result back; errors on a search path | d log n + xt | none | O(d log n + xt) |
 | `keys` | `( fr -- arr )` | The keys as an array of symbols, in the frame's storage order (by symbol id, the order of first interning); parallel to `values`, so `frame` rebuilds the frame from the two | 1 + n | `1a(n)` | O(n) |
 | `key-set` | `( fr -- set )` | The keys as a set of symbols, for membership tests and set algebra against other key sets | 1 + n log n | `1o` | O(n log n) |
@@ -2988,6 +2993,13 @@ Symbol-keyed sorted maps; binary-search lookup. A **path** is an array of steps;
 [ :b 2 ]
 ```
 
+```forth rename-key!
+{ :a 1 :b 2 } :a :x rename-key! frame>array . cr
+```
+```output
+[ :b 2 :x 1 ]
+```
+
 ```forth update-at
 { :n 10 } ' 1+ :n update-at frame>array . cr
 ```
@@ -3003,7 +3015,7 @@ Symbol-keyed sorted maps; binary-search lookup. A **path** is an array of steps;
 ```
 
 ```forth key-set
-{ :b 2 :a 1 } key-set dup :a member? . [< :a :c >] intersection . cr
+{ :b 2 :a 1 } key-set dup :a in? . [< :a :c >] intersection . cr
 ```
 ```output
 1 [< :a >]
@@ -4132,6 +4144,7 @@ wall-now time>iso . cr
 | `filter-columns` | `( dataset pred -- dataset )` | datasets.telic: the columns whose name and values satisfy `pred` `( column-name column -- binary )`, in dataset order, as a fresh frame sharing the column values; every column is offered, so selecting by name is the predicate's job. Non-mutating | c·(pred + log c) | kept-key array + `1o` | O(c·(pred + log c)) |
 | `select-eq` | `( dataset sym value -- dataset )` | datasets.telic: the rows whose `sym` column equals `value`; other rows drop | n + n·c | mask + index vector + one column each | O(n·c) |
 | `select-neq` | `( dataset sym value -- dataset )` | datasets.telic: the rows whose `sym` column differs from `value`; other rows drop | n + n·c | mask + index vector + one column each | O(n·c) |
+| `complete-rows` | `( dataset cols -- dataset )` | datasets.telic: the rows where none of the named columns is missing — NaN in a vector or dimensioned vector, `null` in a text column; `cols` is a symbol, a symbol array, or `[ ]` for every column; a missing name errors. Every column reorders together and keeps its representation | n·k + n·c | one array and mask per named column, index vector, one column each | O(n·(k + c)) |
 | `sort-rows` | `( dataset sym -- dataset )` | datasets.telic: rows sorted ascending by the named column, so every column reorders together and keeps its representation; a missing key errors | n log n + n·c | permutation + one column each | O(n log n + n·c) |
 | `sort-rows-descending` | `( dataset sym -- dataset )` | datasets.telic: rows sorted descending by the named column in natural order (so text columns descend too); equal keys keep dataset order, so chained sorts compose — minor key first, major key last — and missing cells sort last; a missing key errors | n log n + n·c | permutation ×3 + one column each | O(n log n + n·c) |
 | `count` | `( arr/v/dataset -- pairs )` | datasets.telic: occurrences of each distinct value as `[ [ value n ] … ]`, most frequent first, ties in value order; a vector counts its elements (a dimensioned one counts quantities), a dataset counts whole rows, each a frame keyed by column name | 2n log n | rows + pairs + 3×`1a` | O(n log n) |
@@ -4278,6 +4291,15 @@ cols [: drop dup :b = swap :d = or :] filter-columns keys . cr
 ```
 ```output
 [ 2 ]
+```
+
+```forth complete-rows
+{ :x [ 1 null 3 ] vector :y [ "a" "b" null ] } :x complete-rows :y @ . cr
+{ :x [ 1 null 3 ] vector :y [ "a" "b" null ] } [ ] complete-rows :y @ . cr
+```
+```output
+[ "a" null ]
+[ "a" ]
 ```
 
 ```forth sort-rows

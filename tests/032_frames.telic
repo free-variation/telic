@@ -88,7 +88,7 @@
 
 \ key-set : the keys as a set
 { :b 2 :a 1 } key-set . cr                       \ [< :a :b >]
-{ :b 2 :a 1 } key-set :a member? . cr            \ 1
+{ :b 2 :a 1 } key-set :a in? . cr                \ 1
 { } key-set . cr                                 \ [< >]
 
 \ size counts top-level entries
@@ -132,6 +132,16 @@
 
 \ delete-at : non-symbol non-array key errors
 { :a 1 } 42 delete-at . cr
+
+\ rename-key! : moves the value to the new key in place, leaves the frame
+{ :a 1 :b 2 } :a :x rename-key! frame>array . cr        \ [ :b 2 :x 1 ]
+{ :a 1 } to record record :a :b rename-key! drop record frame>array . cr   \ [ :b 1 ]  same frame mutated
+
+\ rename-key! : an existing new key is overwritten
+{ :a 1 :b 2 } :a :b rename-key! frame>array . cr        \ [ :b 1 ]
+
+\ rename-key! : missing old key errors
+{ :a 1 } :z :x rename-key! . cr
 
 \ has? : present nested path is true
 { :a { :b 1 } } [ :a :b ] has? . cr

@@ -206,6 +206,7 @@ const HelpEntry help_entries[] = {
 	{ "column>indicators", "( column -- mat )", "one 0/1 indicator column per distinct value above the first (the reference) — an n×(k−1) matrix from a numeric vector or text array column, levels in val_cmp order (column>set lists them); a missing cell leaves every indicator 0; errors on fewer than 2 distinct values", NULL, NULL, NULL, 45 },
 	{ "column>set", "( column -- set )", "datasets.telic: the set of the column's distinct values", "2n log n", "1a(n) + 1o", "O(n log n)", 25 },
 	{ "complete-cases", "( xs ys -- xs' ys' )", "statistics.telic: drop the paired rows where either vector is NaN, keeping the two aligned and returned as n×1; magnitudes are taken, so dimensioned inputs come back unitless", "4n", "index vector + 2 gathers", "O(n)", 21 },
+	{ "complete-rows", "( dataset cols -- dataset )", "datasets.telic: the rows where none of the named columns is missing — NaN in a vector or dimensioned vector, null in a text column; cols is a symbol, a symbol array, or [ ] for every column; a missing name errors. Every column reorders together and keeps its representation", "n·k + n·c", "one array and mask per named column, index vector, one column each", "O(n·(k + c))", 25 },
 	{ "complex", "( re im -- z )", "Build a complex from two floats", "3", "1 pair", "O(1)", 7 },
 	{ "complex?", "( a -- bool )", "core.telic: 1 when the value is a complex, else 0", "5", "none", "O(1)", 7 },
 	{ "concat", "( arr/set arr/set -- arr )", "Concatenated copy", "2 + m + n", "1a(m+n)", "O(m+n)", 16 },
@@ -424,6 +425,7 @@ const HelpEntry help_entries[] = {
 	{ "identity-matrix", "( n -- mat )", "matrix.telic: n×n matrix with 1 on the diagonal", "n", "1m(n×n)", "O(n)", 21 },
 	{ "if", "( flag -- )", "Branch past the then/else if flag is falsy", NULL, NULL, NULL, 10 },
 	{ "imaginary-part", "( z -- f )", "The imaginary part; a float answers 0", "2", "none", "O(1)", 7 },
+	{ "in?", "( members values -- mask/binary )", "datasets.telic: membership by binary search — a scalar values answers 1 when it is a member of members (a set, array, or vector; a dimensioned vector contributes quantities, so units reconcile); an array answers an n×1 mask, a vector a mask of its shape, each element 1 when a member; a NaN or null answers 0. [ 10 20 ] vector prices in? where select-rows keeps the rows at listed prices", "log m per element", "1m(n); a non-set members adds 1a(m) + 1o; a dimensioned values adds 2a(n)", "O(n log m), plus O(m log m) to build the set", 15 },
 	{ "index-of", "( str pat -- i )", "strings.telic: codepoint index of pat's first regex match in str, or -1 if none", "n", "1a + pieces", "O(n)", 14 },
 	{ "indicators!", "( design column sym -- design )", "Adds to a design dataset (a frame of columns) one 0/1 indicator column per distinct value of column above the first (the reference), keyed sym=level, mutating and returning the frame — keys and columns derive from the same data, so a level change grows both together; keys then names the design and dataset>matrix over them is the aligned matrix; errors on fewer than 2 distinct values", NULL, NULL, NULL, 45 },
 	{ "inline", "—", "Mark the most recent definition inline; future calls splice its body. A body containing a quotation is not spliced — such calls compile as plain calls, since a copied quotation header would have no recorded span", NULL, NULL, NULL, 12 },
@@ -485,7 +487,6 @@ const HelpEntry help_entries[] = {
 	{ "mcp-tool-result", "( id text failed -- )", "Answer a tools/call with one text content block, failed setting isError. The only way a handler should answer, since writing to stdout directly would corrupt the protocol stream", NULL, NULL, NULL, 49 },
 	{ "mean", "( mat -- f )", "matrix.telic: the arithmetic mean of the elements, NaNs skipped", "r×c", "none", "O(r×c)", 21 },
 	{ "median", "( mat -- f )", "statistics.telic: the median (the 0.5 quantile) of all elements", "n log n", "malloc(n)", "O(n log n)", 21 },
-	{ "member?", "( set v -- bool )", "Binary-search membership", "3 + log n", "none", "O(log n)", 15 },
 	{ "merge", "( fr₁ fr₂ -- fr )", "New frame with all keys; fr₂ wins collisions", "m+n", "1o", "O(m+n)", 18 },
 	{ "merge-by", "( left right key join-type -- dataset )", "datasets.telic: join on key (a symbol or symbol array); join-type is :inner (matched pairs only), :left (every left row, right's columns null on a miss), :right (every right row, left's columns null), or :outer (left rows then unmatched right rows, missing side null). The probed side's key must be **unique** — right for :inner/:left, left for :right, both for :outer — a duplicate on the probed side errors; a non-key column in both datasets errors naming it (no .x/.y suffixing). Columns are the union with key once; a null-filled numeric column re-infers as a vector with NaN", "L·R", "row frames + merged columns", "O(L·R)", 25 },
 	{ "mesh", "( v mask b -- v' )", "Masked substitution: element i of the result is b's where mask[i] is a definite nonzero, v's where it is 0 **or NaN** (an unknown mask cell changes nothing). v is a matrix, dimensioned matrix, or array; the mask a bare matrix of v's shape (element count, for an array). b is shape-matched same-representation, or broadcasts: a float, null (→ NaN), a quantity, or — for an array subject — any single value. Units reconcile as +: b rescales into v's unit, which the result keeps; a quantity against a bare number errors. Conditional-mutate idioms: dup nan? 0 mesh fills NaNs, dup -1 eq null mesh turns a sentinel into NaN, dup 100 > 100 mesh caps at 100", "3 + n", "1m(r×c) / 1a(n)", "O(n)", 21 },
@@ -587,6 +588,7 @@ const HelpEntry help_entries[] = {
 	{ "reload", "( -- )", "Truncate user state, re-run every loaded file in order", "forget + N loads", "—", "O(Σ files)", 33 },
 	{ "remove-last!", "( arr -- v )", "Remove and return the last element; errors on an empty array", "2", "none", "O(1)", 16 },
 	{ "rename-file", "( from to -- )", "Rename from to to, replacing an existing to — a move within one filesystem, files and directories alike; errors across filesystems", "1", "none", "O(1)", 34 },
+	{ "rename-key!", "( fr old new -- fr )", "core.telic: move the value at key old to key new in place and leave fr — a dataset column renames the same way (ds :price :cost rename-key!); old absent errors, an existing new is overwritten; keys stay in symbol-id order", "2n", "none", "O(n)", 18 },
 	{ "render", "( a -- str )", "The text . would print, returned as a string instead of printed: no truncation, no trailing separator (a matrix grid's final newline is dropped). Strings render raw, symbols by name, collections/frames/matrices in their laid-out form", "1 + size", "1o", "O(size)", 13 },
 	{ "repeat", "—", "Branch back to begin; patches the while exit", NULL, NULL, NULL, 10 },
 	{ "replace", "( str pat rep -- str' )", "Replace **all** matches; in rep, & or \\0 is the whole match, \\1–\\9 a capture, \\& and \\\\ literals", "n", "1o + buffer growth", "O(n)", 14 },
@@ -804,7 +806,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, pairs head then tail, arrays element-wise, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails. A C primitive, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 29 },
 };
 
-const int help_entry_count = 746;
+const int help_entry_count = 748;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -958,6 +960,7 @@ const HelpExample help_examples[] = {
 	{ "column>indicators", "\"statistics\" load-library\n[ \"a\" \"b\" \"a\" \"c\" ] column>indicators matrix>array . cr", "[ 0 0 1 0 0 0 0 1 ]" },
 	{ "column>set", "[ \"b\" \"a\" \"b\" ] column>set . cr", "[< \"a\" \"b\" >]" },
 	{ "complete-cases", "[ 1 null 3 ] vector [ 4 5 null ] vector complete-cases matrix>array . matrix>array . cr", "[ 4 ] [ 1 ]" },
+	{ "complete-rows", "{ :x [ 1 null 3 ] vector :y [ \"a\" \"b\" null ] } :x complete-rows :y @ . cr\n{ :x [ 1 null 3 ] vector :y [ \"a\" \"b\" null ] } [ ] complete-rows :y @ . cr", "[ \"a\" null ]\n[ \"a\" ]" },
 	{ "complex", "3 4 complex . cr", "3+4i" },
 	{ "complex?", "3+4i complex? . 5 complex? . cr", "1 0" },
 	{ "concat", "[ 1 2 ] [ 3 4 ] concat . cr", "[ 1 2 3 4 ]" },
@@ -1176,6 +1179,7 @@ const HelpExample help_examples[] = {
 	{ "identity-matrix", "2 identity-matrix render print cr", "<matrix 2x2>\n          1          0\n          0          1" },
 	{ "if", ": absolute dup 0 < if negate then ; -7 absolute . cr", "7" },
 	{ "imaginary-part", "3+4i imaginary-part . 5 imaginary-part . cr", "4 0" },
+	{ "in?", "[< 1 2 3 >] 2 in? . [< 1 2 3 >] 9 in? . cr\n[ 2 4 ] vector [ 1 2 3 4 ] vector in? matrix>array . cr\n[< \"b\" \"c\" >] [ \"a\" \"b\" ] in? matrix>array . cr", "1 0\n[ 0 1 0 1 ]\n[ 0 1 ]" },
 	{ "index-of", "\"hello\" \"l+\" index-of . cr", "2" },
 	{ "indicators!", "\"statistics\" load-library\n{ } [ \"r\" \"g\" \"r\" ] :color indicators! keys . cr", "[ :color=r ]" },
 	{ "inline", ": double 2 * ; inline : quadruple double double ; 5 quadruple . cr", "20" },
@@ -1189,7 +1193,7 @@ const HelpExample help_examples[] = {
 	{ "iso>time", "\"2020-01-02T03:04:05Z\" iso>time epoch>date :day @ . cr", "2" },
 	{ "join", "[ \"a\" \"b\" \"c\" ] \"-\" join . cr", "a-b-c" },
 	{ "json>frame", "\"{\"\"a\"\": [1, 2]}\" json>frame /a @ . cr", "[ 1 2 ]" },
-	{ "key-set", "{ :b 2 :a 1 } key-set dup :a member? . [< :a :c >] intersection . cr", "1 [< :a >]" },
+	{ "key-set", "{ :b 2 :a 1 } key-set dup :a in? . [< :a :c >] intersection . cr", "1 [< :a >]" },
 	{ "keys", "{ :a 1 :b 2 } keys . cr", "[ :a :b ]" },
 	{ "ks-distance", "[ 1 2 3 ] vector [ 1 2 3 ] vector ks-distance . cr\n[ 1 2 3 ] vector [ 4 5 6 ] vector ks-distance . cr", "0\n1" },
 	{ "last", "[ 7 8 9 ] last . [ 1 2 3 4 ] 2 2 matrix last . cr", "9 4" },
@@ -1237,7 +1241,6 @@ const HelpExample help_examples[] = {
 	{ "mcp-tool-result", "id \"hello \" arguments :who @ + false mcp-tool-result", "" },
 	{ "mean", "[ 2 4 6 ] vector mean . cr", "4" },
 	{ "median", "[ 1 2 3 4 ] vector median . cr", "2.5" },
-	{ "member?", "[< 1 2 3 >] 2 member? . [< 1 2 3 >] 9 member? . cr", "1 0" },
 	{ "merge", "{ :a 1 :b 2 } { :b 20 :c 30 } merge frame>array . cr", "[ :a 1 :b 20 :c 30 ]" },
 	{ "merge-by", "{ :id [ 1 2 3 ] :x [ :a :b :c ] } { :id [ 1 3 ] :y [ 10 30 ] } :id :left merge-by dup :x @ . :y @ column>array . cr", "[ :a :b :c ] [ 10 null 30 ]" },
 	{ "mesh", "[ 1 -1 3 ] vector dup -1 eq null mesh matrix>array . cr", "[ 1 null 3 ]" },
@@ -1339,6 +1342,7 @@ const HelpExample help_examples[] = {
 	{ "reload", "reload", "" },
 	{ "remove-last!", "[ 1 2 3 ] remove-last! . cr", "3" },
 	{ "rename-file", "\"moved\" \"/tmp/docs-from.txt\" write-file\n\"/tmp/docs-from.txt\" \"/tmp/docs-to.txt\" rename-file\n\"/tmp/docs-to.txt\" read-file . cr\n\"/tmp/docs-from.txt\" file-exists? . cr", "moved\n0" },
+	{ "rename-key!", "{ :a 1 :b 2 } :a :x rename-key! frame>array . cr", "[ :b 2 :x 1 ]" },
 	{ "render", "{ :a 1 } render print cr", "{\n  :a 1\n}" },
 	{ "repeat", ": powers 1 begin dup 100 < while dup . 2 * repeat drop cr ; powers", "1 2 4 8 16 32 64" },
 	{ "replace", "\"hello world\" \"o\" \"0\" replace . cr", "hell0 w0rld" },
@@ -1556,4 +1560,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 747;
+const int help_example_count = 749;

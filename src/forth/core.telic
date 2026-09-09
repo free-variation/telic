@@ -66,9 +66,9 @@ inline
 ( x low high -- x' ) \ x limited to [low, high]: a float, quantity, or matrix
 \ (element-wise, scalar bounds broadcast); an array clamps each element
 : clamp
-	| values low high |
-	values array? if values [: low high clamp :] map exit then
-	values low max2 high min2 ;
+	| operand lower-bound upper-bound |
+	operand array? if operand [: lower-bound upper-bound clamp :] map exit then
+	operand lower-bound max2 upper-bound min2 ;
 
 : , peek ; inline
 
@@ -82,6 +82,12 @@ inline
 : last
 	dup matrix? if dup dim * 1- @e exit then
 	dup size 1- @i ;
+
+( fr old new -- fr ) \ move the value at key old to key new in place; old absent
+\ errors, an existing new is overwritten
+: rename-key!
+	| target-frame old-key new-key |
+	target-frame target-frame old-key @ new-key ! old-key delete-at ;
 
 ( arr/pair -- v ) \ element 1: an array's second element, a cons's tail
 : second dup pair? if head-tail nip else 1 @i then ;

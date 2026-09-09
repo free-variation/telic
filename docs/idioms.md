@@ -375,11 +375,14 @@ masks, `where`, and `select-rows` replaces row loops.
   ```forth
   dup nan? 0 mesh          \ fill missing with 0
   dup nan? 9999 mesh       \ missing → sentinel, so a comparison can run
-  dup 10 > 10 mesh         \ cap at 10
-  dup 1e-10 < 1e-10 mesh   \ clamp away from zero (fit-logistic-ridge)
   ```
 
-- Drop missing entirely (`drop-nans`): `dup nan? 0 eq where select-rows`.
+  Bounds need no mask: `10 min2` caps at 10, `1e-10 max2` holds away from
+  zero (fit-logistic-ridge), `0 1 clamp` bounds both sides — all element-wise
+  on a matrix.
+
+- Drop missing entirely: `drop-nans` on a vector (it is
+  `dup nan? 0 eq where select-rows`), `complete-rows` on a dataset.
 
 ## Strings are regex
 

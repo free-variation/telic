@@ -148,6 +148,7 @@ column>array
 column>indicators
 column>set
 complete-cases
+complete-rows
 complex
 complex?
 concat
@@ -366,6 +367,7 @@ identity
 identity-matrix
 if
 imaginary-part
+in?
 index-of
 indicators!
 inline
@@ -427,7 +429,6 @@ mcp-serve
 mcp-tool-result
 mean
 median
-member?
 merge
 merge-by
 mesh
@@ -529,6 +530,7 @@ relation
 reload
 remove-last!
 rename-file
+rename-key!
 render
 repeat
 replace

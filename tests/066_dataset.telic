@@ -111,6 +111,19 @@ typed :height @ column>array . cr               \ quantities, unit kept
 typed :score @ column>set size . cr             \ 3
 [ 2 2 2 ] vector column>set . cr                \ [< 2 >]
 
+\ in? ( members values -- mask ): 1 where an element of values is in members
+[< 2 4 >] [ 1 2 3 4 ] in? matrix>array . cr                    \ [ 0 1 0 1 ]  array against a set
+[ 2 4 ] vector [ 1 2 3 4 ] vector in? matrix>array . cr        \ [ 0 1 0 1 ]  vector against a vector
+[ "b" "c" ] [ "a" "b" ] in? matrix>array . cr                  \ [ 0 1 ]      strings, array members
+[< 2 >] [ 1 2 ] 1 2 matrix in? dim . . cr                      \ 2 1          a 1x2 vector keeps its shape
+[ 1 ] vector [ 1 nan ] vector in? matrix>array . cr            \ [ 1 0 ]      NaN is in nothing
+[ 1 ] [ 1 null 2 ] in? matrix>array . cr                       \ [ 1 0 0 ]    null likewise
+[ 200 ] vector ¢ [ 1 2 3 ] vector $ in? matrix>array . cr      \ [ 0 1 0 ]    200 ¢ is 2 $
+[ 1 2 3 4 ] vector dup [< 2 4 >] swap in? where select-rows matrix>array . cr  \ [ 2 4 ]  the mask drives select-rows
+[< 1 5 >] 5 in? . [ "b" ] "a" in? . [< null >] null in? . cr    \ 1 0 0        scalars answer a bare 1/0
+[ 200 ] vector ¢ 2 $ in? . cr                                  \ 1
+5 [ 1 ] in?                                                    \ (members must be a set, array, or vector)
+
 clear
 \ select-columns ( dataset cols -- dataset ): the named columns as a new
 \ dataset; the values are shared, the frame is fresh.
@@ -394,6 +407,17 @@ picks :program :a select-eq :n @ transpose matrix>array . cr    \ [ 1 3 ]
 picks :program :a select-neq :n @ transpose matrix>array . cr   \ [ 2 4 ]
 picks :n 3 select-eq :program @ . cr                            \ [ :a ]  numeric column
 picks :program :z select-eq n-rows . cr                         \ 0   no match
+
+clear
+\ complete-rows ( dataset cols -- dataset ): rows where none of the named
+\ columns is missing; cols a symbol, a symbol array, or [ ] for every column
+{ :x [ 1 null 3 ] vector :y [ "a" "b" null ] } to gapped
+gapped :x complete-rows :y @ . cr                               \ [ "a" null ]  only :x tested
+gapped :y complete-rows :x @ transpose matrix>array . cr        \ [ 1 null ]    only :y tested
+gapped [ ] complete-rows :y @ . cr                              \ [ "a" ]       every column
+gapped [ :x :y ] complete-rows n-rows . cr                      \ 1
+{ :x [ 1 null 3 ] vector $ } :x complete-rows :x @ . cr         \ 1 3 $         dimensioned column
+gapped :z complete-rows                                         \ (no key :z)
 
 clear
 \ filter-columns ( dataset pred -- dataset ): the columns whose name and values

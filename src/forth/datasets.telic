@@ -104,6 +104,20 @@
 : column>set
 	column>array array>set ;
 
+( v -- bool ) \ a matrix carrying a unit
+: dimensioned-matrix? dup quantity? if magnitude matrix? else drop 0 then ; internal
+
+( members values -- mask/binary ) \ 1 where an element of values (array or vector)
+\ is a member of members (set, array, or vector); an array answers n×1, a vector
+\ keeps its shape, a scalar answers a bare 1/0; a NaN or null element answers 0
+: in?
+	| members elements |
+	members set? not if members column>set to members then
+	elements dimensioned-matrix? if
+		elements column>array [: members swap (in?) :] map vector elements dim reshape exit
+	then
+	members elements (in?) ;
+
 ( dataset -- rows ) \ the inverse of true rows>dataset: row-arrays led by a header
 \ row of the column names, columns in key order, cells through column>array
 : dataset>rows
@@ -382,6 +396,17 @@
 : select-neq
 	| dataset column-name value |
 	dataset dataset column-name @ value neq where select-rows ;
+
+( dataset cols -- dataset ) \ rows where none of the named columns is missing — NaN
+\ in a vector, null in a text column; cols a symbol, a symbol array, or [ ] for
+\ every column
+: complete-rows
+	| dataset column-names |
+	column-names symbol? if [ column-names ] to column-names then
+	column-names size 0= if dataset keys to column-names then
+	column-names [: dataset swap @ column>array nan? 0 eq :] map to present-masks
+	present-masks 1 skip present-masks 0 @i ' * reduce to complete-mask
+	dataset complete-mask where select-rows ;
 
 ( dataset sym -- dataset ) \ rows sorted ascending by the named column
 : sort-rows
