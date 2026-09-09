@@ -1,0 +1,36 @@
+\ ==== callers ( xt -- arr ) ====
+
+\ The names of the colon definitions whose compiled bodies reference a word, as
+\ strings in definition order.
+
+: sq dup * ;
+: direct 3 sq 1+ ;
+: tail 4 sq ;
+: quoted [ 1 2 ] [: sq :] map drop ;
+: ticked ' sq execute ;
+: unrelated 1 2 + ;
+variable counter
+: reads-counter counter ;
+: writes-counter | ^counter | 5 to counter ;
+: recursive dup 0 > if 1- recursive then ;
+
+\ -- a call, a tail call, a call inside a quotation, and a ' literal all count
+' sq callers . cr                                 \ [ "direct" "tail" "quoted" "ticked" ]
+
+\ -- a primitive: the session's own callers among the many
+' 1+ callers [: "direct" = :] filter . cr         \ [ "direct" ]
+
+\ -- a variable: its readers and its writers
+' counter callers . cr                            \ [ "reads-counter" "writes-counter" ]
+
+\ -- recursion lists the word itself; a word nobody calls answers an empty array
+' recursive callers . cr                          \ [ "recursive" ]
+' unrelated callers . cr                          \ [ ]
+
+\ -- a top-level quotation mentioning a word is not a definition, so it never appears
+[: sq :] drop
+' sq callers size . cr                            \ 4
+
+\ -- error cases (grouped): a quotation, a curried token
+[: 1 :] ' callers catch drop :message @ . cr      \ (expected a named word; got a quotation)
+1 ' sq curry ' callers catch drop :message @ . cr \ (expected a named word; got a curried token)

@@ -5178,6 +5178,7 @@ variable b 4 to b variable c 10 to c
 | `apropos` | `( str -- )` | Print every word whose name or reference summary contains s (case-insensitive): name, stack effect, summary per line; a word defined by a `load` matches by name or by the summary of the comment above its definition and prints that effect and summary, and other session words match by name | table scan | none | O(entries) |
 | `see` | `( xt -- )` | Print a word's source (`: name … ;`), a quotation's `[: … :]` text from its recorded span, or `variable`/`symbol`/primitive form; a curried token prints its bound values, then its target | dict scan | none | O(\|dict\|) |
 | `see>string` | `( xt -- str )` | A word's source (`: name … ;`), a quotation's `[: … :]` text, or a `variable`/`symbol`/primitive form (a curried token's bound values then its target), returned as a string (trailing newline stripped) | dict scan | `1o` | O(\|dict\|) |
+| `callers` | `( xt -- arr )` | The names, as strings in definition order, of the colon definitions whose compiled bodies reference the word: a call or tail call, an `' word` literal, a primitive's op, a variable's read or store, a unit or deferred word's use. A quotation's body counts for the definition enclosing it; a recursive word lists itself. `xt` must name a dictionary word — a quotation or curried token errors | dict scan × body | `1a` + strings | O(\|dict\|²) |
 | `edit` | `( "name" -- )` | Parse the following word and open its source — what `see` prints — in `$EDITOR` (`vi` when unset) on a temporary `.telic` file, waiting until the editor exits; a saved change runs the edited text as a `load`, so the definition is replaced, and an unchanged file leaves the word as it was. A name not yet defined opens as `: name` on one line and `;` on the next. Needs a terminal on stdin and stdout and an editor exiting with status 0; errors otherwise | editor | temp file | — |
 | `see-compiled` | `( xt -- )` | Disassemble a colon definition's compiled cells; a curried token prints its bound values, then disassembles its target | body scan | none | O(body) |
 | `see-compiled>string` | `( xt -- str )` | The disassembly of a colon definition's compiled cells (a curried token's bound values then its target), returned as a string (trailing newline stripped) | body scan | `1o` | O(body) |
@@ -5260,6 +5261,16 @@ correlation-kendall ( xs ys -- f )           Kendall tau-b: concordant minus dis
 ```
 ```output
 : sq-see2 dup * ;
+```
+
+```forth callers
+: sq-called dup * ;
+: uses-sq-called 3 sq-called ;
+: maps-sq-called [ 1 2 ] [: sq-called :] map drop ;
+' sq-called callers . cr
+```
+```output
+[ "uses-sq-called" "maps-sq-called" ]
 ```
 
 ```forth-noexec edit

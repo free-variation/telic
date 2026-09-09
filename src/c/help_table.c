@@ -183,6 +183,7 @@ const HelpEntry help_entries[] = {
 	{ "byte-size", "( str -- n )", "Byte length of a string", "2", "none", "O(1)", 15 },
 	{ "byte-substring", "( str start end -- sub )", "Half-open **byte** range [start, end); bounds-checked. Pairs with byte offsets from match/match-all", "2 + k", "1o", "O(k), k = end − start", 14 },
 	{ "bytes>value", "( str -- v )", "Rebuild the value a value>bytes string holds; errors on damaged or truncated data", "n", "one object per node", "O(n)", 20 },
+	{ "callers", "( xt -- arr )", "The names, as strings in definition order, of the colon definitions whose compiled bodies reference the word: a call or tail call, an ' word literal, a primitive's op, a variable's read or store, a unit or deferred word's use. A quotation's body counts for the definition enclosing it; a recursive word lists itself. xt must name a dictionary word — a quotation or curried token errors", "dict scan × body", "1a + strings", "O(|dict|²)", 32 },
 	{ "case", "( sel -- )", "Open pattern dispatch on the selector; clauses follow, each pattern of … endof, then an optional default region, then endcase", NULL, NULL, NULL, 10 },
 	{ "cat", "( path -- )", "io.telic: write the file's bytes to stdout. Byte-exact: nothing is added, so a file with no closing newline leaves the cursor mid-line", "file read + write", "1o + buffer", "O(file)", 34 },
 	{ "catch", "( xt -- result 0 | exc 1 )", "exceptions.telic: run xt; (result 0) on success, (exc 1) on a throw **or** an interpreter error (an error frame { :message :trace } becomes the exception value)", "—", "cont if thrown; 1f + 2s on a caught interpreter error", "O(xt)", 27 },
@@ -800,7 +801,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, pairs head then tail, arrays element-wise, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails. A C primitive, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 29 },
 };
 
-const int help_entry_count = 742;
+const int help_entry_count = 743;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -931,6 +932,7 @@ const HelpExample help_examples[] = {
 	{ "byte-size", "\"héllo\" byte-size . cr", "6" },
 	{ "byte-substring", "\"héllo\" 0 3 byte-substring . cr", "hé" },
 	{ "bytes>value", "{ :name \"ann\" :scores [ 1 2 3 ] vector } value>bytes bytes>value :scores @ mean . cr", "2" },
+	{ "callers", ": sq-called dup * ;\n: uses-sq-called 3 sq-called ;\n: maps-sq-called [ 1 2 ] [: sq-called :] map drop ;\n' sq-called callers . cr", "[ \"uses-sq-called\" \"maps-sq-called\" ]" },
 	{ "case", ": kind case 1 of \"one\" endof 2 of \"two\" endof drop \"many\" endcase . cr ;\n1 kind 5 kind", "one\nmany" },
 	{ "cat", "\"two{nl}lines{nl}\" format \"/tmp/docs-cat.txt\" write-file\n\"/tmp/docs-cat.txt\" cat", "two\nlines" },
 	{ "catch", "[: 42 :] catch . . cr", "0 42" },
@@ -1548,4 +1550,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 743;
+const int help_example_count = 744;

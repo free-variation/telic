@@ -1,0 +1,8 @@
+[ "direct" "tail" "quoted" "ticked" ] 
+[ "direct" ] 
+[ "reads-counter" "writes-counter" ] 
+[ "recursive" ] 
+[ ] 
+4 
+expected a named word; got a quotation 
+expected a named word; got a curried token 

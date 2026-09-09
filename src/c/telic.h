@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.34.2"
+#define VERSION "0.34.4"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,6 +26,7 @@ typedef int64_t cell;
 #define SYMBOL_POOL (1 << 22)
 #define SYMBOL_HASH_SIZE (1 << 20)
 #define MAX_QUOTATION_SPANS (1 << 14)
+#define MAX_CALLERS (1 << 12)
 #define MAX_WORD_LOCATIONS (1 << 14)
 #define MAX_CELL_LINES (1 << 16)
 #define GC_PENDING 1
@@ -1198,6 +1199,7 @@ void dosym(DISPATCH_ARGS);
 void dovar(DISPATCH_ARGS);
 void p_0branch(DISPATCH_ARGS);
 void p_branch(DISPATCH_ARGS);
+void p_callers(DISPATCH_ARGS);
 void p_copy(DISPATCH_ARGS);
 void p_do_enter(DISPATCH_ARGS);
 void p_do_loop(DISPATCH_ARGS);

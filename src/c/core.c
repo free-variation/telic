@@ -5375,6 +5375,99 @@ void p_gauges(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
 }
 
+static int body_end_of(int target_cfa) {
+	int body_end = vocab.here;
+	for (int cfa = vocab.latest_cfa; cfa != 0; cfa = (int)WORD_LINK(cfa))
+		if (cfa > target_cfa && cfa - 4 < body_end)
+			body_end = cfa - 4;
+	return body_end;
+}
+
+static int body_references(int body_start, int body_end, int target_cfa) {
+	cell target_handler = vocab.dict[target_cfa];
+	int target_is_primitive = (cfa_handler)target_handler != docol && (cfa_handler)target_handler != dovar
+		&& (cfa_handler)target_handler != dounit && (cfa_handler)target_handler != dodefer;
+	cell store_handler = vocab.dict[vocab.to_var_cfa];
+	cell branch_handler = vocab.dict[vocab.branch_cfa];
+	cell previous_handler = 0;
+	int cursor = body_start;
+	while (cursor < body_end) {
+		cell handler = vocab.dict[cursor];
+		cfa_handler handler_fn = (cfa_handler)handler;
+		if (handler_fn == docol && quotation_starts_at(cursor)) {
+			if (previous_handler != branch_handler)
+				return 0;
+			previous_handler = handler;
+			cursor++;
+			continue;
+		}
+		previous_handler = handler;
+		int is_tailcall = handler == vocab.dict[vocab.tailcall_cfa];
+		if (is_tailcall || handler == store_handler || handler_fn == docol || handler_fn == dovar
+				|| handler_fn == dounit || handler_fn == dodefer) {
+			if ((int)vocab.dict[cursor + 1] == target_cfa)
+				return 1;
+			cursor += 2;
+			continue;
+		}
+		if (handler_fn == dosym) {
+			cursor += 2;
+			continue;
+		}
+		if (handler == vocab.dict[vocab.literal_cfa]) {
+			Val literal;
+			literal.bits = (uint64_t)vocab.dict[cursor + 1];
+			if (VAL_TAG(literal) == T_XT && (int)VAL_DATA(literal) == target_cfa)
+				return 1;
+		} else if (target_is_primitive && handler == target_handler) {
+			return 1;
+		} else if (superword_cell_count(handler) && !superword_is_lit_fold(handler)) {
+			int n_cells = op_cell_count(cursor);
+			for (int operand = 1; operand < n_cells; operand++)
+				if ((int)vocab.dict[cursor + operand] - 1 == target_cfa)
+					return 1;
+		}
+		cursor += op_cell_count(cursor);
+	}
+	return 0;
+}
+
+void p_callers(DISPATCH_ARGS) {
+	POP_CALLABLE(target_cfa, "callers");
+	if (VAL_TAG(target_cfa_val) == T_CURRIED || !name_of(target_cfa)) {
+		fail(interp, "expected a named word; got %s", VAL_TAG(target_cfa_val) == T_CURRIED ? "a curried token" : "a quotation");
+		return;
+	}
+
+	int n_callers = 0;
+	int caller_cfas[MAX_CALLERS];
+	for (int cfa = vocab.latest_cfa; cfa != 0 && n_callers < MAX_CALLERS; cfa = (int)WORD_LINK(cfa)) {
+		if ((cfa_handler)vocab.dict[cfa] != docol)
+			continue;
+		if (body_references(cfa + 1, body_end_of(cfa), target_cfa))
+			caller_cfas[n_callers++] = cfa;
+	}
+
+	int result_handle = object_new_array(interp, n_callers);
+	if (interp->error_flag)
+		return;
+	memset(OBJECT_AT(result_handle)->items, 0, sizeof(Val) * (size_t)(n_callers > 0 ? n_callers : 1));
+	gc_root_push(interp, make_array(result_handle));
+	for (int i = 0; i < n_callers; i++) {
+		const char *caller_name = name_of(caller_cfas[n_callers - 1 - i]);
+		int name_handle = object_new_string(interp, caller_name, (int)strlen(caller_name));
+		if (interp->error_flag) {
+			gc_root_pop(interp);
+			return;
+		}
+		OBJECT_AT(result_handle)->items[i] = make_string(name_handle);
+	}
+	gc_root_pop(interp);
+	push(interp, make_array(result_handle));
+
+	DISPATCH(interp);
+}
+
 void p_trace(DISPATCH_ARGS) {
 	POP_ARRAY(patterns, "trace");
 	POP_CALLABLE(xt, "trace");
@@ -5857,6 +5950,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "see", p_see, 0);
 	define_primitive(interp, "see>string", p_see_to_string, 0);
 	define_primitive(interp, "edit", p_edit, 0);
+	define_primitive(interp, "callers", p_callers, 0);
 	define_primitive(interp, "man", p_man, 0);
 	define_primitive(interp, "see-compiled", p_see_compiled, 0);
 	define_primitive(interp, "trace", p_trace, 0);

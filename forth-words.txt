@@ -125,6 +125,7 @@ bye
 byte-size
 byte-substring
 bytes>value
+callers
 case
 cat
 catch
