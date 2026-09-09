@@ -133,6 +133,7 @@ cd
 char-at
 choose
 ci
+clamp
 clear
 close
 codepoint-at
@@ -447,6 +448,7 @@ negative-binomial-theta
 neq
 new-tests
 nip
+nlast
 nmap
 none?
 nonmissing-count
@@ -635,6 +637,7 @@ stroke
 stroke-width
 submatrix
 substring
+successive-differences
 sum
 sum-times
 summary

@@ -168,6 +168,29 @@ clear
 [ "m" "a" "q" ] "b" "n" between? matrix>array . cr \ [ 1 0 0 ] — val_cmp, lexicographic
 50 ¢ 0 $ 1 $ between? . cr                         \ 1 — quantities rescale to compare
 
+\ clamp ( x low high -- x' ): x limited to [low, high]
+5 0 3 clamp . -1 0 3 clamp . 2 0 3 clamp . cr      \ 3 0 2
+[ -5 2 9 ] vector 0 3 clamp matrix>array . cr      \ [ 0 2 3 ]
+[ -5 2 9 ] 0 3 clamp . cr                          \ [ 0 2 3 ]  array, element-wise
+[ [ 1 9 ] [ -4 2 ] ] 0 3 clamp . cr                \ [ [ 1 3 ] [ 0 2 ] ]  nested
+7 m 0 m 5 m clamp . cr                             \ 5 m
+[ -5 2 9 ] vector $ 0 $ 3 $ clamp . cr             \ [ 0 2 3 ] $  matrix magnitude
+
+\ === ordering across dimensions: within a dimension the right side rescales ===
+10 $ 300 ¢ > . 300 ¢ 10 $ < . cr                   \ 1 1
+[ 100 900 ] vector ¢ 3 $ max2 . cr                 \ [ 300 900 ] ¢  left unit kept
+: gt-fused 10 $ 300 ¢ > if 1 else 0 then ;
+gt-fused . cr                                      \ 1
+
+\ errors
+10 $ 3 >                                           \ (a quantity and a plain number)
+10 $ 3 m >                                         \ (unit mismatch: money vs length)
+10 $ 3 max2                                        \ (a quantity and a plain number)
+[ 1 9 ] vector m 3 s max2                          \ (unit mismatch: length vs time)
+10 $ 0 5 clamp                                     \ (a quantity and plain bounds)
+: gt-fused-mixed 10 $ 3 > if 1 else 0 then ;
+gt-fused-mixed                                     \ (a quantity and a plain number, fused form)
+
 bye
 
 clear

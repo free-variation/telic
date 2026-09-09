@@ -191,6 +191,7 @@ const HelpEntry help_entries[] = {
 	{ "char-at", "( str index -- char )", "The one-character string at codepoint index; bounds-checked against the codepoint count", "2 + n", "1o", "O(n)", 14 },
 	{ "choose", "( list goal -- )", "logic.telic: run the goal with each element of a cons list in turn, committing to the first for which it succeeds; fail if none do", "n·goal", "none", "O(n·goal)", 29 },
 	{ "ci", "( mat level -- low high )", "statistics.telic: percentile confidence interval — level 0.95 gives the 0.025 and 0.975 quantiles", "2n log n", "malloc(n) ×2", "O(n log n)", 21 },
+	{ "clamp", "( x low high -- x' )", "core.telic: x limited to [low, high] — values under low answer low, over high answer high; a matrix clamps element-wise with scalar bounds, an array clamps each element (nested arrays included), and quantities clamp within their dimension", "6", "matrix 2m(r×c); array 1a(n)", "O(1); matrix/array O(n)", 4 },
 	{ "clear", "( … -- )", "Reset data stack depth to 0", "1", "none", "O(1)", 0 },
 	{ "close", "( stream -- )", "Close the fd; closing a child's :in sends it EOF. Idempotent; a closed handle stays stale — reading or writing it reports stream is closed even after the descriptor number is reissued to another stream. A dropped handle holds its descriptor until process exit; with-stream scopes one", "1 syscall", "none", "O(1)", 36 },
 	{ "codepoint-at", "( str index -- code )", "The integer codepoint at codepoint index; bounds-checked", "2 + n", "none", "O(n)", 14 },
@@ -344,7 +345,7 @@ const HelpEntry help_entries[] = {
 	{ "filter-columns", "( dataset pred -- dataset )", "datasets.telic: the columns whose name and values satisfy pred ( column-name column -- binary ), in dataset order, as a fresh frame sharing the column values; every column is offered, so selecting by name is the predicate's job. Non-mutating", "c·(pred + log c)", "kept-key array + 1o", "O(c·(pred + log c))", 25 },
 	{ "find-executable", "( name -- path|none )", "io.telic: the absolute path of name on $PATH (first directory holding it), or the none value if unset or not found; a name containing / matches no bare PATH entry, so it answers the none value", "split + probe", "1o per candidate", "O(dirs)", 34 },
 	{ "find-first", "( items pred -- element )", "The first element for which pred is truthy, or the none value; short-circuits at the first hit (does not run pred over the rest)", "n·xt", "none", "O(n·xt)", 26 },
-	{ "first", "( arr/pair -- v )", "core.telic: element 0 of an array, or a cons's head", "9", "none", "O(1)", 16 },
+	{ "first", "( arr/matrix/pair -- v )", "core.telic: element 0 of an array, the first row-major element of a matrix (as a float), or a cons's head", "9", "none", "O(1)", 16 },
 	{ "fit-augmented", "( augmented -- beta )", "Least squares of an [X", NULL, NULL, NULL, 41 },
 	{ "fit-augmented-logistic", "( augmented -- beta )", "Firth logistic fit of an [X", NULL, NULL, NULL, 42 },
 	{ "fit-gamma", "( X y max-iterations tolerance -- beta )", "Gamma regression by IRLS, log link", NULL, NULL, NULL, 43 },
@@ -439,7 +440,7 @@ const HelpEntry help_entries[] = {
 	{ "key-set", "( fr -- set )", "The keys as a set of symbols, for membership tests and set algebra against other key sets", "1 + n log n", "1o", "O(n log n)", 18 },
 	{ "keys", "( fr -- arr )", "The keys as an array of symbols, in the frame's storage order (by symbol id, the order of first interning); parallel to values, so frame rebuilds the frame from the two", "1 + n", "1a(n)", "O(n)", 18 },
 	{ "ks-distance", "( a b -- d )", "Two-sample Kolmogorov–Smirnov statistic: the largest absolute gap between the two samples' ECDFs, both advanced past each pooled value before measuring (ties). Symmetric; d ∈ [0, 1]; NaNs excluded per sample, each sample's own n; dimensioned inputs are computed over their magnitudes; errors when either sample has no finite values", "(n+m) log(n+m)", "malloc(n) + malloc(m)", "O((n+m) log(n+m)); above 8k elements the sorts are O(n) radix", 21 },
-	{ "last", "( arr n -- arr )", "arrays.telic: the last n elements of the array", "3n", "3×1a(n)", "O(n)", 16 },
+	{ "last", "( arr/matrix -- v )", "core.telic: the final element of an array, or the last row-major element of a matrix (as a float); empty array errors", "9", "none", "O(1)", 16 },
 	{ "leave", "—", "Branch past the innermost loop's closing word; conditional form is if leave then", NULL, NULL, NULL, 10 },
 	{ "legend", "( labels colors -- )", "Color key in a strip reserved to the right of the plot area (the plot narrows to fit); one row per label with a filled swatch, labels/colors equal-length parallel arrays; pixel-space, label text in :ink", NULL, NULL, NULL, 47 },
 	{ "lgamma", "( a -- ln Γ(a) )", "lgamma — log of the gamma function, which extends the factorial (5 lgamma is ln 4!). Γ overflows a double past 171, while 171 lgamma is 706.57. Defined for positive arguments: it is +inf at zero and the negative integers, and for negative non-integers it returns ln |Γ(a)| and the sign is discarded", "2", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 3 },
@@ -478,7 +479,7 @@ const HelpEntry help_entries[] = {
 	{ "matrix>pointer", "( mat -- ptr )", "Intern the matrix's row-major element buffer and return a T_PTR handle to pass as a :ptr argument; no copy — aliases the live buffer (amortized intern)", "1", "none", "O(1)", 38 },
 	{ "matrix?", "( a -- bool )", "core.telic: 1 when the value is a matrix, else 0", "5", "none", "O(1)", 4 },
 	{ "max", "( mat -- f )", "Maximum element", "1 + r×c", "none", "O(r×c)", 21 },
-	{ "max2", "( a b -- larger )", "the greater of two values in natural order — floats, strings, quantities; a NaN operand answers the other value. With a matrix operand it is element-wise with scalar broadcast; it orders a pair rather than reducing one collection", "3 (float)", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 1 },
+	{ "max2", "( a b -- larger )", "the greater of two values in natural order — floats, strings, quantities (within one dimension — a plain number or another dimension errors; the right side rescales and a matrix result keeps the left unit); a NaN operand answers the other value. With a matrix operand it is element-wise with scalar broadcast; it orders a pair rather than reducing one collection", "3 (float)", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 1 },
 	{ "mcp-add-tool", "( definition handler -- )", "Register a tool: the definition frame a client sees and the ( id arguments -- ) word that runs it. Call it before mcp-serve. A name already registered is not replaced — two entries with one name would make tools/call answer the first", NULL, NULL, NULL, 49 },
 	{ "mcp-serve", "( -- )", "Serve MCP over stdin and stdout until end of input, then close every session and reap its child. stdout carries protocol messages only, which is why evaluated output is captured rather than printed. Reads requests as whole lines, so a partial line is held until its newline arrives; a malformed line answers JSON-RPC −32700", NULL, NULL, NULL, 49 },
 	{ "mcp-tool-result", "( id text failed -- )", "Answer a tools/call with one text content block, failed setting isError. The only way a handler should answer, since writing to stdout directly would corrupt the protocol stream", NULL, NULL, NULL, 49 },
@@ -489,7 +490,7 @@ const HelpEntry help_entries[] = {
 	{ "merge-by", "( left right key join-type -- dataset )", "datasets.telic: join on key (a symbol or symbol array); join-type is :inner (matched pairs only), :left (every left row, right's columns null on a miss), :right (every right row, left's columns null), or :outer (left rows then unmatched right rows, missing side null). The probed side's key must be **unique** — right for :inner/:left, left for :right, both for :outer — a duplicate on the probed side errors; a non-key column in both datasets errors naming it (no .x/.y suffixing). Columns are the union with key once; a null-filled numeric column re-infers as a vector with NaN", "L·R", "row frames + merged columns", "O(L·R)", 25 },
 	{ "mesh", "( v mask b -- v' )", "Masked substitution: element i of the result is b's where mask[i] is a definite nonzero, v's where it is 0 **or NaN** (an unknown mask cell changes nothing). v is a matrix, dimensioned matrix, or array; the mask a bare matrix of v's shape (element count, for an array). b is shape-matched same-representation, or broadcasts: a float, null (→ NaN), a quantity, or — for an array subject — any single value. Units reconcile as +: b rescales into v's unit, which the result keeps; a quantity against a bare number errors. Conditional-mutate idioms: dup nan? 0 mesh fills NaNs, dup -1 eq null mesh turns a sentinel into NaN, dup 100 > 100 mesh caps at 100", "3 + n", "1m(r×c) / 1a(n)", "O(n)", 21 },
 	{ "min", "( mat -- f )", "Minimum element", "1 + r×c", "none", "O(r×c)", 21 },
-	{ "min2", "( a b -- smaller )", "the lesser of two values in natural order — floats, strings, quantities; NaN orders below every number, so a NaN operand answers NaN. With a matrix operand it is element-wise with scalar broadcast; it orders a pair rather than reducing one collection", "3 (float)", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 1 },
+	{ "min2", "( a b -- smaller )", "the lesser of two values in natural order — floats, strings, quantities (within one dimension — a plain number or another dimension errors; the right side rescales and a matrix result keeps the left unit); NaN orders below every number, so a NaN operand answers NaN. With a matrix operand it is element-wise with scalar broadcast; it orders a pair rather than reducing one collection", "3 (float)", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 1 },
 	{ "mkdir", "( path -- )", "io.telic: create the directory, intermediate components included; idempotent", "d", "none", "O(d)", 34 },
 	{ "mod", "( a b -- remainder )", "remainder with the sign of the dividend (fmod); float or matrix element-wise with scalar broadcast, or exact over exacts; a zero divisor or zero element errors", "3 (float)", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 1 },
 	{ "mv", "( from to -- )", "io.telic: rename from to to, replacing an existing to; a move within one filesystem", "1", "none", "O(1)", 34 },
@@ -505,6 +506,7 @@ const HelpEntry help_entries[] = {
 	{ "neq", "( a b -- bool ) or ( mat/arr x -- mat )", "not-equal: element-wise 1/0 mask on matrix and array operands (scalar broadcast; per array element in natural order), structural inequality on other collections and scalars. A NaN element differs from everything, so it masks 1", "3 (float)", "matrix 1m(r×c)", "float O(1); string O(|s|); array/set O(n); frame O(n); matrix O(r×c)", 4 },
 	{ "new-tests", "( -- )", "test.telic: zero the passed and failed counters test tallies into, so the next test-report covers only the tests run after it — one file's independent groups, or a re-run suite in a session", "—", "none", "O(1)", 27 },
 	{ "nip", "( a b -- b )", "Drop the second item, keeping the top", "1", "none", "O(1)", 0 },
+	{ "nlast", "( arr n -- arr )", "arrays.telic: the last n elements of the array", "3n", "3×1a(n)", "O(n)", 16 },
 	{ "nmap", "( arr₁ … arr_N xt N -- arr )", "N-ary zip-map over equal-length arrays", "rows·(N+xt)", "1a(rows)", "O(rows·xt)", 26 },
 	{ "none?", "( a -- bool )", "True when the value is the none value (null); a bound logic var reports as its value", "2", "none", "O(1)", 4 },
 	{ "nonmissing-count", "( mat -- n )", "The number of non-NaN elements", "1 + n", "none", "O(n)", 21 },
@@ -693,6 +695,7 @@ const HelpEntry help_entries[] = {
 	{ "stroke-width", "( w -- )", "Set the current stroke width", NULL, NULL, NULL, 47 },
 	{ "submatrix", "( mat rs re cs ce -- mat )", "Copy the half-open block rows [rs,re) × cols [cs,ce); errors out of bounds or start > end", "5 + r·c", "1m(r×c)", "O(r·c)", 21 },
 	{ "substring", "( str start end -- sub )", "Half-open **codepoint** range [start, end); bounds-checked against the codepoint count", "2 + n", "1o", "O(n)", 14 },
+	{ "successive-differences", "( v -- differences )", "matrix.telic: v[i+1] − v[i] over an n×1 vector as an (n−1)×1 vector; one element answers 0×1; a matrix with more than one column errors", "2n", "3×1m(n×1)", "O(n)", 21 },
 	{ "sum", "( mat -- f )", "Sum of all elements", "1 + r×c", "none", "O(r×c)", 21 },
 	{ "sum-times", "( xt n -- total )", "arrays.telic: the sum of xt ( i -- term ) over i in 0..n-1", "3 + n·(1+xt)", "none", "O(n·xt)", 26 },
 	{ "summary", "( v/dataset -- fr )", "statistics.telic: a vector answers { :min :q1 :median :mean :q3 :max } over its finite elements — a dimensioned vector in its unit, an instant vector (unit exactly s) with each statistic rendered as an ISO time string — plus :missing with the NaN count when any; an all-missing vector answers { :missing n }, an empty one { }. A dataset answers that frame per numeric column and { :distinct } (distinct non-missing cells, plus :missing) per text column, keyed by column name; any other column value errors naming the column", "4n log n (per column)", "malloc(n) ×4 + 1fr (per column)", "O(n log n)", 21 },
@@ -801,7 +804,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, pairs head then tail, arrays element-wise, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails. A C primitive, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 29 },
 };
 
-const int help_entry_count = 743;
+const int help_entry_count = 746;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -940,6 +943,7 @@ const HelpExample help_examples[] = {
 	{ "char-at", "\"héllo\" 1 char-at . cr", "é" },
 	{ "choose", "[( 1 2 3 null )] [: dup 2 < if fail then . cr :] choose", "2" },
 	{ "ci", "[ 1 2 3 4 5 6 7 8 9 10 ] vector 0.8 ci . . cr", "9.1 1.9" },
+	{ "clamp", "5 0 3 clamp . -1 0 3 clamp . cr\n[ -5 2 9 ] vector 0 3 clamp matrix>array . cr", "3 0\n[ 0 2 3 ]" },
 	{ "clear", "1 2 3 clear depth . cr", "0" },
 	{ "close", "[ \"cat\" ] start-process dup :in @ \"ping\" swap write dup :in @ close dup read-out trim . :pid @ wait drop cr", "ping" },
 	{ "codepoint-at", "\"A\" 0 codepoint-at . cr", "65" },
@@ -1093,7 +1097,7 @@ const HelpExample help_examples[] = {
 	{ "filter-columns", "{ :a [ 1 2 ] vector :b [ 0 0 ] vector :c [ 3 4 ] vector :d [ \"p\" \"q\" ] } to cols\ncols [: nip dup matrix? if sum 0 eq not else drop 1 then :] filter-columns keys . cr\ncols [: drop dup :b = swap :d = or :] filter-columns keys . cr", "[ :a :c :d ]\n[ :b :d ]" },
 	{ "find-executable", "\"sh\" find-executable none? 0= . cr", "1" },
 	{ "find-first", "[ 3 8 5 ] [: 4 > :] find-first . cr", "8" },
-	{ "first", "[ 7 8 9 ] first . cr", "7" },
+	{ "first", "[ 7 8 9 ] first . [ 1 2 3 4 ] 2 2 matrix first . cr", "7 1" },
 	{ "fit-augmented", "\"statistics\" load-library\n[ 1 1 3 1 2 5 1 3 7 ] 3 3 matrix fit-augmented matrix>array . cr", "[ 1 2 ]" },
 	{ "fit-augmented-logistic", "\"statistics\" load-library\n[ 1 0 0 1 1 0 1 2 1 1 3 1 ] 4 3 matrix fit-augmented-logistic matrix>array . cr", "[ -1.96485 1.3099 ]" },
 	{ "fit-gamma", "\"statistics\" load-library\n[ 1 1 1 2 1 3 1 4 ] 4 2 matrix [ 1 2 4 8 ] vector 50 1e-8 fit-gamma matrix>array . cr", "[ -0.693147 0.693147 ]" },
@@ -1188,7 +1192,7 @@ const HelpExample help_examples[] = {
 	{ "key-set", "{ :b 2 :a 1 } key-set dup :a member? . [< :a :c >] intersection . cr", "1 [< :a >]" },
 	{ "keys", "{ :a 1 :b 2 } keys . cr", "[ :a :b ]" },
 	{ "ks-distance", "[ 1 2 3 ] vector [ 1 2 3 ] vector ks-distance . cr\n[ 1 2 3 ] vector [ 4 5 6 ] vector ks-distance . cr", "0\n1" },
-	{ "last", "[ 1 2 3 4 ] 2 last . cr", "[ 3 4 ]" },
+	{ "last", "[ 7 8 9 ] last . [ 1 2 3 4 ] 2 2 matrix last . cr", "9 4" },
 	{ "leave", ": stop-at-zero begin dup . 1- dup 0 < if leave then again drop cr ; 2 stop-at-zero", "2 1 0" },
 	{ "legend", "\"plot\" load-library\n320 240 figure [ 1 2 ] vector [ 3 4 ] vector data-domain [ \"a\" ] [ \"red\" ] legend figure>svg \"red\" has? . cr", "1" },
 	{ "lgamma", "5 lgamma . cr", "3.17805" },
@@ -1254,6 +1258,7 @@ const HelpExample help_examples[] = {
 	{ "neq", "\"ab\" \"ac\" neq . cr\n[ 1 2 1 ] vector 1 neq matrix>array . cr", "1\n[ 0 1 0 ]" },
 	{ "new-tests", "new-tests \"adds\" [: 3 4 + 7 expect= :] test test-report", "ok adds\n1 passed, 0 failed" },
 	{ "nip", "1 2 nip . cr", "2" },
+	{ "nlast", "[ 1 2 3 4 ] 2 nlast . cr", "[ 3 4 ]" },
 	{ "nmap", "[ 1 2 ] [ 10 20 ] ' + 2 nmap . cr", "[ 11 22 ]" },
 	{ "none?", "null none? . 0 none? . cr", "1 0" },
 	{ "nonmissing-count", "[ 1 null 3 ] vector nonmissing-count . cr", "2" },
@@ -1442,6 +1447,7 @@ const HelpExample help_examples[] = {
 	{ "stroke-width", "\"plot\" load-library\n320 240 figure 7 stroke-width 0 0 9 9 svg-line figure>svg \"stroke-width='7'\" has? . cr", "1" },
 	{ "submatrix", "[ 1 2 3 4 5 6 7 8 9 ] 3 3 matrix 0 2 1 3 submatrix matrix>array . cr", "[ 2 3 5 6 ]" },
 	{ "substring", "\"telic\" 1 3 substring . cr", "el" },
+	{ "successive-differences", "[ 1 4 9 16 ] vector successive-differences matrix>array . cr", "[ 3 5 7 ]" },
 	{ "sum", "[ 1 2 3 4 ] 2 2 matrix sum . cr", "10" },
 	{ "sum-times", "[: dup * :] 4 sum-times . cr", "14" },
 	{ "summary", "[ 1 2 3 4 ] vector summary /median @ . cr", "2.5" },
@@ -1550,4 +1556,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 744;
+const int help_example_count = 747;

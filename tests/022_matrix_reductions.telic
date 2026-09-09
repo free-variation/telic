@@ -137,6 +137,12 @@
 [ 5 ] 1 1 matrix cumulative-sum . cr                 \ [5]
 [ 1 -1 1 -1 ] 1 4 matrix cumulative-sum print        \ 1 0 1 0 as 1x4
 
+\ successive-differences: v[i+1] - v[i] as an (n-1)x1 vector
+[ 1 4 9 16 ] vector successive-differences matrix>array . cr   \ [ 3 5 7 ]
+[ 3 1 ] vector successive-differences matrix>array . cr        \ [ -2 ]
+[ 5 ] vector successive-differences dim . . cr                 \ 1 0  (0x1)
+[ 1 2 3 ] 1 3 matrix ' successive-differences catch drop . cr  \ (expected a column vector (nx1); got 1x3)
+
 \ errors on a non-matrix
 [ 1 2 ] norm .                                        \ error: not a matrix
 "x" frobenius-norm .                                  \ error: not a matrix

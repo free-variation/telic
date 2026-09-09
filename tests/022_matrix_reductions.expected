@@ -157,6 +157,10 @@ in row-maxes
 
 <matrix 1x4>
           1          0          1          0
+[ 3 5 7 ] 
+[ -2 ] 
+1 0 
+expected a column vector (nx1); got 1x3 
 error: expected a matrix; got an array
 in frobenius-norm ← norm
 error: expected a matrix; got a string

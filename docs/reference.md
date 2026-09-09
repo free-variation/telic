@@ -194,8 +194,8 @@ float fast path first; the heavy cases are captured by the O column.
 | `1+` | `( a -- a+1 )` | float, matrix, or exact | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `1-` | `( a -- a-1 )` | float, matrix, or exact | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `sq` | `( a -- a² )` | float, matrix, or exact | 2 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
-| `min2` | `( a b -- smaller )` | the lesser of two values in natural order — floats, strings, quantities; NaN orders below every number, so a NaN operand answers NaN. With a matrix operand it is element-wise with scalar broadcast; it orders a pair rather than reducing one collection | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
-| `max2` | `( a b -- larger )` | the greater of two values in natural order — floats, strings, quantities; a NaN operand answers the other value. With a matrix operand it is element-wise with scalar broadcast; it orders a pair rather than reducing one collection | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
+| `min2` | `( a b -- smaller )` | the lesser of two values in natural order — floats, strings, quantities (within one dimension — a plain number or another dimension errors; the right side rescales and a matrix result keeps the left unit); NaN orders below every number, so a NaN operand answers NaN. With a matrix operand it is element-wise with scalar broadcast; it orders a pair rather than reducing one collection | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
+| `max2` | `( a b -- larger )` | the greater of two values in natural order — floats, strings, quantities (within one dimension — a plain number or another dimension errors; the right side rescales and a matrix result keeps the left unit); a NaN operand answers the other value. With a matrix operand it is element-wise with scalar broadcast; it orders a pair rather than reducing one collection | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 | `atan2` | `( y x -- f )` | the angle of the point (x, y) in (−π, π] — `atan2(y, x)`, using the signs of both arguments to place the quadrant; float, or matrix element-wise with scalar broadcast | 3 (float) | matrix `1m(r×c)` | float O(1); matrix O(r×c) |
 
 ```forth +
@@ -940,7 +940,7 @@ PI cos . cr
 
 ## Comparison and logic
 
-Result is `1.0` (true) or `0.0` (false), with a float fast path. `=` uses `val_cmp` (structural): matrices compare by shape then row-major contents, so they order for set membership. `<`/`>` are structural too, **except on matrices**, where they compare element-wise and return a 1.0/0.0 matrix (same shape, or a scalar broadcasts over the matrix). A dimensioned matrix on either side of `<`/`>`/`eq` also masks element-wise: the right operand rescales into the left's unit (`prices 10 $ <` works whether prices are in `$` or `¢`), the mask comes back bare, and a quantity against a plain number or a different dimension errors. An array operand masks element-wise too: each element compares by `val_cmp` against the other operand (or pairwise against an equal-length array — unequal lengths error), yielding an n×1 mask, so `names "ann" eq where` filters a text column and string order is lexicographic. Directly before `if`/`while`/`until` a comparison fuses into a compare-and-branch, which stays structural.
+Result is `1.0` (true) or `0.0` (false), with a float fast path. `=` uses `val_cmp` (structural): matrices compare by shape then row-major contents, so they order for set membership. `<`/`>` are structural too, **except on matrices**, where they compare element-wise and return a 1.0/0.0 matrix (same shape, or a scalar broadcasts over the matrix). A quantity on either side of `<`/`>`/`<=`/`>=`/`eq`/`neq` compares within its dimension: the right operand rescales into the left's unit (`prices 10 $ <` works whether prices are in `$` or `¢`; a dimensioned matrix masks element-wise, the mask coming back bare), and a quantity against a plain number or a different dimension errors — including the fused compare-and-branch form. `=` stays structural: differing dimensions answer 0. An array operand masks element-wise too: each element compares by `val_cmp` against the other operand (or pairwise against an equal-length array — unequal lengths error), yielding an n×1 mask, so `names "ann" eq where` filters a text column and string order is lexicographic. Directly before `if`/`while`/`until` a comparison fuses into a compare-and-branch, which stays structural.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
@@ -959,6 +959,7 @@ Result is `1.0` (true) or `0.0` (false), with a float fast path. `=` uses `val_c
 | `true?` | `( a -- bool )` | core.telic: `1` when the value is truthy, else `0`. A heap value is truthy by its handle, so an empty string, array, or frame is truthy; only `0`, `null`, and an unbound handle are falsy | 3 | none | O(1) |
 | `false?` | `( a -- bool )` | core.telic: `1` when the value is falsy, else `0` | 2 | none | O(1) |
 | `between?` | `( v low high -- bool )` or `( mat/arr low high -- mat )` | core.telic: low ≤ v ≤ high, inclusive; a matrix or array operand answers an element-wise mask, and any ordered scalars compare (strings lexicographic, quantities rescaled within a dimension) | 9 | matrix `2m(r×c)` | O(1); matrix/array O(n) |
+| `clamp` | `( x low high -- x' )` | core.telic: x limited to [low, high] — values under low answer low, over high answer high; a matrix clamps element-wise with scalar bounds, an array clamps each element (nested arrays included), and quantities clamp within their dimension | 6 | matrix `2m(r×c)`; array `1a(n)` | O(1); matrix/array O(n) |
 | `type-of` | `( a -- sym )` | The value's type as a symbol: `:float` `:string` `:symbol` `:array` `:set` `:pair` `:frame` `:matrix` `:quantity` `:xt` `:continuation` `:stream` `:db` `:ptr` `:segment` `:none` `:wildcard` `:lvar` `:exact` `:complex`. A bound logic var reports its value's type; an unbound one is `:lvar` | 2 | none | O(1) |
 | `float?` | `( a -- bool )` | core.telic: `1` when the value is a float, else `0` | 5 | none | O(1) |
 | `string?` | `( a -- bool )` | core.telic: `1` when the value is a string, else `0` | 5 | none | O(1) |
@@ -1097,6 +1098,15 @@ null nan? . cr
 ```output
 1 0
 [ 0 1 0 ]
+```
+
+```forth clamp
+5 0 3 clamp . -1 0 3 clamp . cr
+[ -5 2 9 ] vector 0 3 clamp matrix>array . cr
+```
+```output
+3 0
+[ 0 2 3 ]
 ```
 
 ```forth type-of
@@ -2657,8 +2667,9 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 | `spread` | `( arr/set/fr -- v… )` | Spread the elements onto the stack; a frame spreads alternating sym/value | 1 + n | none | O(n) |
 | `slice!` | `( src sstart sstep slen arr tstart -- arr )` | Copy `slen` elements `src[sstart], src[sstart+sstep], …` into `arr[tstart…]` in place | 6 + slen | self-overlap may malloc slen | O(slen) |
 | `to-slice!` | `( v₀ … vₙ₋₁ n arr offset -- arr )` | Store the n values under their count into `arr[offset…offset+n)`; leaves arr | 2 + n | none | O(n) |
-| `last` | `( arr n -- arr )` | arrays.telic: the last n elements of the array | 3n | 3×`1a(n)` | O(n) |
-| `first` | `( arr/pair -- v )` | core.telic: element 0 of an array, or a cons's head | 9 | none | O(1) |
+| `nlast` | `( arr n -- arr )` | arrays.telic: the last n elements of the array | 3n | 3×`1a(n)` | O(n) |
+| `first` | `( arr/matrix/pair -- v )` | core.telic: element 0 of an array, the first row-major element of a matrix (as a float), or a cons's head | 9 | none | O(1) |
+| `last` | `( arr/matrix -- v )` | core.telic: the final element of an array, or the last row-major element of a matrix (as a float); empty array errors | 9 | none | O(1) |
 | `second` | `( arr/pair -- v )` | core.telic: element 1 of an array, or a cons's tail (`5 6 cons second` → 6; on a list literal the rest, not the next element) | 9 | none | O(1) |
 | `skip` | `( arr n -- arr )` | arrays.telic: all but the first n elements | 3n | 3×`1a(n)` | O(n) |
 | `sort` | `( arr/set/v -- arr/v )` | Sorted copy: an array orders ascending in natural order; a set projects its already-ordered elements to an array; an nx1 or 1xn vector sorts ascending with NaNs last (other matrix shapes error) | 1 + n log n | `1a(n)` / `1m(n)` | O(n log n); vectors above 8k elements O(n) radix |
@@ -2759,18 +2770,25 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 [ 0 7 8 0 ]
 ```
 
-```forth last
-[ 1 2 3 4 ] 2 last . cr
+```forth nlast
+[ 1 2 3 4 ] 2 nlast . cr
 ```
 ```output
 [ 3 4 ]
 ```
 
 ```forth first
-[ 7 8 9 ] first . cr
+[ 7 8 9 ] first . [ 1 2 3 4 ] 2 2 matrix first . cr
 ```
 ```output
-7
+7 1
+```
+
+```forth last
+[ 7 8 9 ] last . [ 1 2 3 4 ] 2 2 matrix last . cr
+```
+```output
+9 4
 ```
 
 ```forth second
@@ -3358,6 +3376,7 @@ platform BLAS (`"statistics" load-library`).
 | `mean` | `( mat -- f )` | matrix.telic: the arithmetic mean of the elements, NaNs skipped | r×c | none | O(r×c) |
 | `row-means` | `( mat -- mat' )` | matrix.telic: r×1 of per-row means | r×c | 2×`1m(r×1)` | O(r×c) |
 | `column-means` | `( mat -- mat' )` | matrix.telic: 1×c of per-column means | r×c | 2×`1m(1×c)` | O(r×c) |
+| `successive-differences` | `( v -- differences )` | matrix.telic: `v[i+1] − v[i]` over an n×1 vector as an (n−1)×1 vector; one element answers 0×1; a matrix with more than one column errors | 2n | 3×`1m(n×1)` | O(n) |
 
 ```forth matmul
 [ 1 2 3 4 5 6 ] 2 3 matrix [ 7 8 9 10 11 12 ] 3 2 matrix matmul matrix>array . cr
@@ -3462,6 +3481,13 @@ platform BLAS (`"statistics" load-library`).
 ```
 ```output
 [ 2 3 ]
+```
+
+```forth successive-differences
+[ 1 4 9 16 ] vector successive-differences matrix>array . cr
+```
+```output
+[ 3 5 7 ]
 ```
 
 ### Reshaping, selection, statistics

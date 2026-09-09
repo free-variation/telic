@@ -906,6 +906,18 @@ void p_eq_string(DISPATCH_ARGS) {
 }
 
 
+static int quantities_comparable(Interpreter *interp, int left_unit, int right_unit, double *conversion) {
+	if ((left_unit == 0) != (right_unit == 0)) {
+		fail(interp, "cannot compare a quantity and a plain number");
+		return 0;
+	}
+	if (left_unit != right_unit && !unit_conversion(right_unit, left_unit, conversion)) {
+		fail(interp, "unit mismatch");
+		return 0;
+	}
+	return 1;
+}
+
 static int quantity_comparison_mask(Interpreter *interp, Val left, Val right,
 		scalar_operator scalar_op, const char *word) {
 	int left_unit;
@@ -913,22 +925,16 @@ static int quantity_comparison_mask(Interpreter *interp, Val left, Val right,
 	Val left_magnitude = quantity_unwrap(left, &left_unit);
 	Val right_magnitude = quantity_unwrap(right, &right_unit);
 
+	double conversion = 1.0;
+	if (!quantities_comparable(interp, left_unit, right_unit, &conversion))
+		return 1;
+
 	if (VAL_TAG(left_magnitude) != T_MATRIX && VAL_TAG(right_magnitude) != T_MATRIX)
 		return 0;
-
-	if ((left_unit == 0) != (right_unit == 0)) {
-		fail(interp, "cannot compare a quantity and a plain number");
-		return 1;
-	}
 
 	int base = interp->dsp - 2;
 
 	if (left_unit != right_unit) {
-		double conversion;
-		if (!unit_conversion(right_unit, left_unit, &conversion)) {
-			fail(interp, "unit mismatch");
-			return 1;
-		}
 		binary_op(interp, right_magnitude, make_float(conversion), scalar_mul, "*");
 		if (interp->error_flag)
 			return 1;
@@ -1066,7 +1072,7 @@ void p_zeq(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
 
-#define COMPARISON_ZBRANCH(name, op, word) \
+#define COMPARISON_ZBRANCH(name, op, word, orders_quantities) \
 	void name(DISPATCH_ARGS) { \
 		REQUIRE_STACK_DEPTH(interp, chain_ip + 1, chain_sp, 2); \
 		Val right = chain_sp[-1]; \
@@ -1076,6 +1082,15 @@ void p_zeq(DISPATCH_ARGS) {
 			is_true = VAL_NUMBER(left) op VAL_NUMBER(right); \
 		} else { \
 			SYNC_REGISTERS(interp, chain_ip + 1, chain_sp - 2); \
+			if (orders_quantities && (VAL_TAG(left) == T_QUANTITY || VAL_TAG(right) == T_QUANTITY)) { \
+				int left_unit; \
+				int right_unit; \
+				double conversion; \
+				quantity_unwrap(left, &left_unit); \
+				quantity_unwrap(right, &right_unit); \
+				if (!quantities_comparable(interp, left_unit, right_unit, &conversion)) \
+				return; \
+			} \
 			is_true = val_cmp(interp, left, right) op 0; \
 			if (interp->error_flag) \
 			return; \
@@ -1084,11 +1099,11 @@ void p_zeq(DISPATCH_ARGS) {
 		DISPATCH_REGISTERS(interp, continue_ip, chain_sp - 2); \
 	}
 
-COMPARISON_ZBRANCH(p_eq_zbranch, ==, "(=0branch)");
-COMPARISON_ZBRANCH(p_lt_zbranch, <, "(lt0branch)");
-COMPARISON_ZBRANCH(p_gt_zbranch, >, "(gt0branch)");
-COMPARISON_ZBRANCH(p_lte_zbranch, <=, "(lte0branch)");
-COMPARISON_ZBRANCH(p_gte_zbranch, >=, "(gte0branch)");
+COMPARISON_ZBRANCH(p_eq_zbranch, ==, "(=0branch)", 0);
+COMPARISON_ZBRANCH(p_lt_zbranch, <, "(lt0branch)", 1);
+COMPARISON_ZBRANCH(p_gt_zbranch, >, "(gt0branch)", 1);
+COMPARISON_ZBRANCH(p_lte_zbranch, <=, "(lte0branch)", 1);
+COMPARISON_ZBRANCH(p_gte_zbranch, >=, "(gte0branch)", 1);
 
 
 #define FLOAT_COMPARISON_ZBRANCH(name, op, word) \
@@ -3084,8 +3099,40 @@ static double greater_of(double left, double right) {
 }
 
 static void push_ordered_choice(Interpreter *interp, Val left, Val right, int want_lesser, const char *name) {
-	if (VAL_TAG(left) == T_MATRIX || VAL_TAG(right) == T_MATRIX) {
-		binary_op(interp, left, right, want_lesser ? lesser_of : greater_of, name);
+	int left_unit;
+	int right_unit;
+	Val left_magnitude = quantity_unwrap(left, &left_unit);
+	Val right_magnitude = quantity_unwrap(right, &right_unit);
+
+	double conversion = 1.0;
+	if ((left_unit || right_unit) && !quantities_comparable(interp, left_unit, right_unit, &conversion))
+		return;
+
+	if (VAL_TAG(left_magnitude) == T_MATRIX || VAL_TAG(right_magnitude) == T_MATRIX) {
+		int base = interp->dsp;
+		gc_root_push(interp, left);
+		gc_root_push(interp, right);
+		if (left_unit != right_unit) {
+			binary_op(interp, right_magnitude, make_float(conversion), scalar_mul, "*");
+			if (interp->error_flag) {
+				gc_root_pop(interp);
+				gc_root_pop(interp);
+				return;
+			}
+			right_magnitude = interp->data_stack[interp->dsp - 1];
+		}
+		binary_op(interp, left_magnitude, right_magnitude, want_lesser ? lesser_of : greater_of, name);
+		gc_root_pop(interp);
+		gc_root_pop(interp);
+		if (interp->error_flag)
+			return;
+
+		Val chosen = pop(interp);
+		interp->dsp = base;
+		if (left_unit)
+			push_quantity(interp, chosen, left_unit);
+		else
+			push(interp, chosen);
 		return;
 	}
 

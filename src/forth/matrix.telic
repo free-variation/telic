@@ -26,6 +26,16 @@
 ( m -- column-means ) \ each column's sum divided by the number of rows
 : column-means dup dim drop swap column-sums swap / ;
 
+( v -- differences ) \ v[i+1] - v[i] as an (n-1)x1 vector; one element answers 0x1
+: successive-differences
+	| values |
+	values dim to n-columns to n-values
+	n-columns 1 = not if
+		n-values n-columns "expected a column vector (nx1); got {1}x{0}" format throw
+	then
+	values 1 n-values 0 1 submatrix
+	values 0 n-values 1- 0 1 submatrix - ;
+
 ( a b -- m ) \ column-wise concatenation: vstack's twin, augment's numpy name
 : hstack augment ; inline
 

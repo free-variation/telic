@@ -63,10 +63,25 @@ inline
 \ array operand, so * is the conjunction, not and (which tests whole values)
 : between? 2 pick >= -rot >= * ; inline
 
+( x low high -- x' ) \ x limited to [low, high]: a float, quantity, or matrix
+\ (element-wise, scalar bounds broadcast); an array clamps each element
+: clamp
+	| values low high |
+	values array? if values [: low high clamp :] map exit then
+	values low max2 high min2 ;
+
 : , peek ; inline
 
-( arr/pair -- v ) \ element 0: an array's first element, a cons's head
-: first dup pair? if head-tail drop else 0 @i then ;
+( arr/matrix/pair -- v ) \ element 0: an array's first element, a matrix's
+\ first row-major element, a cons's head
+: first
+	dup matrix? if 0 @e exit then
+	dup pair? if head-tail drop else 0 @i then ;
+
+( arr/matrix -- v ) \ the final element: an array's, or a matrix's last row-major element
+: last
+	dup matrix? if dup dim * 1- @e exit then
+	dup size 1- @i ;
 
 ( arr/pair -- v ) \ element 1: an array's second element, a cons's tail
 : second dup pair? if head-tail nip else 1 @i then ;

@@ -1,7 +1,7 @@
 \ array words
 
 ( arr n -- arr' ) \ last n elements (clamped to [0, length])
-: last swap reverse swap take reverse ;
+: nlast swap reverse swap take reverse ;
 
 ( arr n -- arr' ) \ all but the first n elements (clamped)
 : skip over size swap - swap reverse swap take reverse ;
