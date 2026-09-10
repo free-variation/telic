@@ -93,7 +93,7 @@ syn keyword telicBuiltin tty? tuck type-of unify? union unit unit-of update-at u
 syn keyword telicBuiltin variables vars vector vf* vf+ vf- vf/ vfabs vfcos vfexp vflog vfneg
 syn keyword telicBuiltin vfsin vfsq vfsqrt vftan vftanh vstack vvf* vvf*+ vvf*- vvf+ vvf- vvf/
 syn keyword telicBuiltin wait wait-readable wall-now where wildcard? with-db with-stream words write write-file write-in write-tsv
-syn keyword telicBuiltin xml-escape xt? yield
+syn keyword telicBuiltin xml-escape xt? yield zero-variance?
 
 hi def link telicComment      Comment
 hi def link telicString       String

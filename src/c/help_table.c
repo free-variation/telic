@@ -416,7 +416,7 @@ const HelpEntry help_entries[] = {
 	{ "histogram", "( data n-bins -- )", "Equal-width bin-count bars over data; pins the domain; aes :bar-fill :bar-stroke", NULL, NULL, NULL, 47 },
 	{ "histogram-plot", "( data n-bins -- svg )", "Complete histogram, rendered", NULL, NULL, NULL, 47 },
 	{ "histogram-table", "( v n-bins -- fr )", "statistics.telic: equal-width bin counts over a vector's value range, as { :counts (n-bins×1) :low :bin-width }. NaNs dropped, the maximum value is counted in the last bin, a constant vector takes the range value ± 1; errors on n-bins < 1 or no finite values", "n + n-bins", "1m(n-bins) + 1fr", "O(n + n-bins)", 21 },
-	{ "hstack", "( a b -- mat/dataset )", "matrix.telic: concatenate two matrices column-wise; errors unless row counts match. datasets.telic extends it to two datasets set side by side: equal row counts and disjoint column names required (both error otherwise), rows aligned by position, the columns of both retained", "2 + r·c", "1m(r×c); dataset shares columns", "O(r·c)", 21 },
+	{ "hstack", "( a b -- mat/dataset )", "matrix.telic: concatenate two matrices column-wise; errors unless row counts match. datasets.telic extends it to two datasets set side by side: equal row counts and disjoint column names required (both error otherwise), rows aligned by position, the columns of both retained. A null operand answers the other, so columns null ' hstack reduce folds a list of columns", "2 + r·c", "1m(r×c); dataset shares columns", "O(r·c)", 21 },
 	{ "http-get", "( url -- body )", "GET, answering the response body; a non-2xx status throws http status NNN", NULL, NULL, NULL, 48 },
 	{ "http-post", "( url body -- body' )", "POST the body as-is (curl's default content-type), answering the response body; a non-2xx status throws", NULL, NULL, NULL, 48 },
 	{ "http-request", "( method url headers body -- response )", "One request; response is { :status :body } with the HTTP status code and the raw body. headers is an array of \"name: value\" strings, body a string or null (sent as-is, --data-binary). A non-HTTP URL (file://) reports status 0", NULL, NULL, NULL, 48 },
@@ -547,6 +547,7 @@ const HelpEntry help_entries[] = {
 	{ "pointer-long", "( ptr -- n )", "Load the 64-bit integer stored at cell ptr (*(int64_t*)ptr) as a float — reads a bst_ulong/long out-value a C call wrote into a cell; errors above 2^53 (not float-exact)", "1", "none", "O(1)", 38 },
 	{ "pointer-string-at", "( ptr i -- str )", "Copy the C string at index i of a char** at ptr (ptr[i], NUL-terminated) into a Telic string — reads one entry of a returned string array (e.g. XGBoosterFeatureScore's feature names)", "1 + |s|", "1o", "O(|s|)", 38 },
 	{ "pointer>address", "( ptr -- n )", "The pointer's numeric address as a float, for embedding in an __array_interface__ JSON string; errors if the address exceeds 2^53 (not float-exact — macOS arm64 user addresses are well under it)", "1", "none", "O(1)", 38 },
+	{ "predict-glm", "( model dataset -- mu )", "The mean response a linear-regression/logistic-regression/glm-regression model predicts for every row of the dataset, as n×1: the model's predictor columns gather from the dataset (its :predictors less :intercept, a missing column errors), an intercept column is prepended, dgemm applies :estimates, and the family's :inverse-link maps the linear predictor — the fitted line for the gaussian family, probabilities for the logit families, rates for Poisson; a row with a NaN predictor answers NaN", NULL, NULL, NULL, 42 },
 	{ "predict-multinomial", "( beta X reference-class -- probabilities )", "Softmax probabilities from a fit-multinomial/fit-multinomial-ridge model: n×K, columns in label order 0..K−1 (the reference-class column is 1/Σ weights). Each row sums to 1", NULL, NULL, NULL, 43 },
 	{ "print", "( x -- )", "core.telic: print value then a space; matrices print as a grid, frames pretty-print", "1 + print", "none", "O(size printed)", 13 },
 	{ "print-gauges", "( -- )", "repl.telic: print the readings of gauges that move during a run as a six-row table: live memory, objects, pairs, and arena against their capacities with a percentage; collections with their rate; data, return, and call depth; trail and logic-variable depth; CPU percentage, peak resident memory, major faults per second, load average against the core count, involuntary switches per second; then the interval since the previous call and the clock. Rates are computed against the previous print-gauges call, so a first call shows them as 0. On a terminal the labels are dim and a percentage or rate is yellow above 60% of its capacity, red above 85%", "gauges + format", "strings", "O(words + symbols)", 32 },
@@ -768,7 +769,7 @@ const HelpEntry help_entries[] = {
 	{ "vftan", "vftan a", "tangent of variable a, push the result", NULL, NULL, NULL, 31 },
 	{ "vftanh", "vftanh a", "hyperbolic tangent of variable a, push the result", NULL, NULL, NULL, 31 },
 	{ "view-figure", "( name -- )", "Open the versioned carousel viewer for images-<name>/ without saving a new version (writing the viewer page if absent); figures must already have been saved there; native-only", NULL, NULL, NULL, 47 },
-	{ "vstack", "( a b -- mat/dataset )", "Stack two matrices row-wise (a on top of b); errors unless column counts match. datasets.telic extends it to two datasets: identical column sets required, each column concatenated top-then-bottom and re-inferred (a numeric column stays a vector); differing columns error", "2 + r·c", "1m(r×c); dataset one column each", "O(r·c)", 21 },
+	{ "vstack", "( a b -- mat/dataset )", "Stack two matrices row-wise (a on top of b); errors unless column counts match. datasets.telic extends it to two datasets: identical column sets required, each column concatenated top-then-bottom and re-inferred (a numeric column stays a vector); differing columns error. A null operand answers the other, so blocks null ' vstack reduce folds a list of blocks", "2 + r·c", "1m(r×c); dataset one column each", "O(r·c)", 21 },
 	{ "vvf*", "vvf* a b", "Load variables a and b, multiply, push the result", NULL, NULL, NULL, 31 },
 	{ "vvf*+", "vvf*+ b c", "( t -- t*b+c ), reading variables b and c", NULL, NULL, NULL, 31 },
 	{ "vvf*-", "vvf*- b c", "( t -- c-t*b ), reading variables b and c", NULL, NULL, NULL, 31 },
@@ -800,13 +801,14 @@ const HelpEntry help_entries[] = {
 	{ "y-categories", "( labels -- )", "Place category names along the y axis at positions 1..n (right-anchored, just left of the axis) in place of numeric y-ticks; pins the y domain to [0.5, n+0.5] and sets :y-categorical, so axes/panel drop the numeric y-ticks", NULL, NULL, NULL, 47 },
 	{ "y-label", "( str -- )", "y-axis title, rotated, centered beside the tick labels", NULL, NULL, NULL, 47 },
 	{ "yield", "( v -- … )", "generators.telic: emit v to the driver and suspend. The driver decides what is on the stack when the producer resumes, so a producer loop drops nothing after yield (see the note above the table)", "L", "1o (cont)", "O(L)", 28 },
+	{ "zero-variance?", "( column -- bool )", "datasets.telic: 1 when the column (array or vector) has fewer than two distinct values — a constant or empty column; null/NaN counts as a value, so [ 1 null ] vector answers 0. [: nip zero-variance? not :] filter-columns drops constant columns from a dataset", "2n log n", "count's", "O(n log n)", 25 },
 	{ "{", "—", "Open a frame literal (alternating key/value); } closes it", NULL, NULL, NULL, 11 },
 	{ "|", "—", "Close a body's locals head, and open it when no name precedes: | x y | and x y | both receive x and y (see Locals)", NULL, NULL, NULL, 11 },
 	{ "}", "—", "Close a frame literal", NULL, NULL, NULL, 11 },
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, pairs head then tail, arrays element-wise, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails. A C primitive, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 29 },
 };
 
-const int help_entry_count = 748;
+const int help_entry_count = 750;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -1170,7 +1172,7 @@ const HelpExample help_examples[] = {
 	{ "histogram", "\"plot\" load-library\n320 240 figure [ 1 2 2 3 3 3 ] vector 3 histogram figure>svg \"<rect\" has? . cr", "1" },
 	{ "histogram-plot", "\"plot\" load-library\n[ 1 2 2 3 ] vector 2 histogram-plot \"<rect\" has? . cr", "1" },
 	{ "histogram-table", "[ 1 1 2 3 3 3 ] vector 3 histogram-table :counts @ matrix>array . cr", "[ 2 1 3 ]" },
-	{ "hstack", "[ 1 2 ] vector [ 3 4 ] vector hstack matrix>array . cr\n{ :a [ 1 2 ] } { :b [ 3 4 ] } hstack keys . cr", "[ 1 3 2 4 ]\n[ :a :b ]" },
+	{ "hstack", "[ 1 2 ] vector [ 3 4 ] vector hstack matrix>array . cr\n{ :a [ 1 2 ] } { :b [ 3 4 ] } hstack keys . cr\n[ [ 1 ] vector [ 2 ] vector [ 3 ] vector ] null ' hstack reduce dim . . cr", "[ 1 3 2 4 ]\n[ :a :b ]\n3 1" },
 	{ "http-get", "\"https://example.org/\" http-get", "" },
 	{ "http-post", "\"https://example.org/collect\" \"name=telic\" http-post", "" },
 	{ "http-request", "\"http\" load-library\n\"hi\" \"/tmp/docs-http.txt\" write-file\n\"GET\" \"file:///tmp/docs-http.txt\" [ ] null http-request dup :status @ . :body @ . cr", "0 hi" },
@@ -1301,6 +1303,7 @@ const HelpExample help_examples[] = {
 	{ "pointer-long", "pointer-cell pointer-long . cr", "0" },
 	{ "pointer-string-at", "names-cell pointer-deref 0 pointer-string-at . cr", "age" },
 	{ "pointer>address", "pointer-cell pointer>address 0 > . cr", "1" },
+	{ "predict-glm", "\"statistics\" load-library\n[ [ \"x\" \"y\" ] [ 1 1 ] [ 2 2 ] [ 3 4 ] ] true rows>dataset [ :x ] :y 0 linear-regression\n{ :x [ 4 5 ] vector } predict-glm transpose matrix>array . cr", "[ 5.33333 6.83333 ]" },
 	{ "predict-multinomial", "\"statistics\" load-library\n[ 1 0 1 1 1 2 1 3 1 4 1 5 ] 6 2 matrix [ 0 0 1 1 2 2 ] vector 0 50 1e-6 1 fit-multinomial-ridge [ 1 0 1 5 ] 2 2 matrix 0 predict-multinomial row-sums matrix>array . cr", "[ 1 1 ]" },
 	{ "print", "\"hello\" print cr", "hello" },
 	{ "print-gauges", "print-gauges", "live     33.7 / 256 MiB       13% │ data     2        cpu      81%\nobjects  1.9M / 2.1M          89% │ return   35       rss      612 MiB\npairs    660.2k / 1.0M        63% │ calls    1 / 4096 faults   0/s\ngc       3  0.1/s                 │ trail    0        load     2.6 / 16\narena    464.1 / 16384 MiB     3% │ lvars    0        switches 4/s\ninterval 16.9 s at 02:26:34" },
@@ -1522,7 +1525,7 @@ const HelpExample help_examples[] = {
 	{ "vftan", "variable a 0 to a\n: tan-a vftan a ; tan-a . cr", "0" },
 	{ "vftanh", "variable a 0 to a\n: tanh-a vftanh a ; tanh-a . cr", "0" },
 	{ "view-figure", "\"plot\" load-library\n\"my-plot\" view-figure", "" },
-	{ "vstack", "[ 1 2 ] vector [ 3 4 ] vector vstack matrix>array . cr\n{ :a [ 1 2 ] :b [ :x :y ] } { :a [ 3 ] :b [ :z ] } vstack :a @ transpose matrix>array . cr", "[ 1 2 3 4 ]\n[ 1 2 3 ]" },
+	{ "vstack", "[ 1 2 ] vector [ 3 4 ] vector vstack matrix>array . cr\n{ :a [ 1 2 ] :b [ :x :y ] } { :a [ 3 ] :b [ :z ] } vstack :a @ transpose matrix>array . cr\nnull [ 5 ] vector vstack matrix>array . cr", "[ 1 2 3 4 ]\n[ 1 2 3 ]\n[ 5 ]" },
 	{ "vvf*", "variable a 3 to a variable b 4 to b\n: prod-ab vvf* a b ; prod-ab . cr", "12" },
 	{ "vvf*+", "variable b 4 to b variable c 10 to c\n: fma-bc vvf*+ b c ; 2 fma-bc . cr", "18" },
 	{ "vvf*-", "variable b 4 to b variable c 10 to c\n: fms-bc vvf*- b c ; 2 fms-bc . cr", "2" },
@@ -1554,10 +1557,11 @@ const HelpExample help_examples[] = {
 	{ "y-categories", "\"plot\" load-library\n320 240 figure 0 :xmin figure! 10 :xmax figure! [ \"one\" \"two\" ] y-categories figure>svg \"one\" has? . cr", "1" },
 	{ "y-label", "\"plot\" load-library\n320 240 figure [ 1 2 ] vector [ 3 4 ] vector data-domain \"level\" y-label figure>svg \"level\" has? . cr", "1" },
 	{ "yield", ": nums 1 yield 2 yield ; ' nums 2 gen-take . cr\n: countdown-gen 3 to remaining begin remaining 0 > while remaining yield remaining 1- to remaining repeat ;\n' countdown-gen 3 gen-take . cr\n: naturals 0 to natural begin natural yield natural 1+ to natural again ;\n' naturals 4 gen-take . cr", "[ 1 2 ]\n[ 3 2 1 ]\n[ 0 1 2 3 ]" },
+	{ "zero-variance?", "[ 1 1 1 ] vector zero-variance? . [ 1 2 ] vector zero-variance? . cr", "1 0" },
 	{ "{", "{ :a 1 :b 2 } frame>array . cr", "[ :a 1 :b 2 ]" },
 	{ "|", ": hyp | a b | a a * b b * + sqrt ; 3 4 hyp . cr\n: discounted | price | 0.2 to rate price price rate * - ; 100 discounted . cr\n: staged 10 to start-value  start-value 3 * to scaled  start-value scaled + ; staged . cr", "5\n80\n40" },
 	{ "}", "{ :x 9 } :x @ . cr", "9" },
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 749;
+const int help_example_count = 751;

@@ -489,6 +489,7 @@ pointer-deref
 pointer-long
 pointer-string-at
 pointer>address
+predict-glm
 predict-multinomial
 print
 print-gauges
@@ -742,6 +743,7 @@ xt?
 y-categories
 y-label
 yield
+zero-variance?
 {
 |
 }

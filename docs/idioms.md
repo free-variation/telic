@@ -271,16 +271,19 @@ quotation forms — for the top level, for an xt in hand, and for map-folds.
   The stack-accumulator form `0 swap [: + :] swap i-times` is the fallback
   when the body already leaves values.
 
-- First-element-as-init fold over a pairwise word (lib/statistics.telic,
-  `hstack-all`):
+- Fold a pairwise word whose identity is `null`: `hstack` and `vstack` answer
+  the other operand for a `null`, so a list of blocks folds from a `null` seed
+  with no first-element peel (lib/statistics.telic, `passive-columns`):
 
-  ```forth head-init-fold
+  ```forth null-seed-fold
   [ [ 1 ] vector [ 2 ] vector [ 3 ] vector ]
-  dup 1 skip swap 0 @i ' hstack reduce matrix>array . cr
+  null ' hstack reduce matrix>array . cr
   ```
   ```output
   [ 1 2 3 ]
   ```
+
+  A word without such an identity peels the head: `dup 1 skip swap 0 @i xt reduce`.
 
 - Chunked parallel sum: indices as the work list, one partial per worker,
   serial combine (bench/variants/leibniz-parallel.telic):
@@ -398,6 +401,8 @@ dup "\.telic$" has? not if ".telic" + then \ ensure a suffix (load-library)
 : basename "^.*/" "" replace ;     \ last path component (strings.telic)
 : run " +" split start-process ;   \ tokenize on space runs (subprocess.telic)
 "x=42" "(\w+)=(\d+)" match         \ parse by capture → [ "x=42" "x" "42" ]
+model@predictors [: render "^:due_year=" has? :] filter
+                                   \ keys by name pattern: render the symbol, then match (engine1)
 ```
 
 Anchor with `^`/`$` to test prefixes and suffixes.
@@ -482,6 +487,12 @@ a quantity in `s`, so the units machinery is the date arithmetic.
   The same shape shifts dates — `wall-now 2 hour +` is an instant, and
   `date-shift` adds exact components as `delta :weeks 0 @or week +`.
 
+- A bound compared against or applied to a dimensioned column carries the
+  column's unit: `decision@annual_dollars 0 $ >`, `due-dollars sum 1e-9 $ max2`
+  (engine1). The ordering words, `max2`/`min2` and `clamp` reject a quantity
+  against a plain number, and a different dimension, as errors; only `=`
+  answers 0 across dimensions.
+
 - Unit tests and transfers via `unit-of`: `unit-of 1 s =` detects an instant
   column (`column-type`'s `:datetime` branch); `x unit-of *` attaches one
   value's unit to another.
@@ -509,13 +520,79 @@ a quantity in `s`, so the units machinery is the date arithmetic.
   } merge to panel
   ```
 
-- The design-matrix pipeline (the statistics library, with the fits):
-  `select-columns` for the verbatim numerics, categorical levels via
-  `indicators!`, indicator columns as `eq` masks, `with-intercept`, then the
-  matrix — keeping the key array so coefficients stay addressable by name:
+- `filter` and `map` over a dataset are row-wise: the quotation receives each
+  row as a frame and the result is a dataset again. A receiver named for the
+  row makes `name@key` reads the predicate's nouns (engine1, `fit-renewal`):
 
   ```forth
-  dup keys dup -rot dataset>matrix
+  training-decisions
+  [: decision |
+     decision@due_year min-due >=
+     programs decision@program in?
+     decision@account_kind "state" neq
+     and and
+  :] filter to training-exemplars
+  ```
+
+- Split-apply-combine is `aggregate`: the group keys (a symbol or symbol
+  array), a quotation from the group dataset to one row frame, the key values
+  written back into every row. Aggregates chain — a per-(program, year) table
+  feeds a per-program one (engine1, `derive-nonstate-renewed-per-due`):
+
+  ```forth
+  [ :program :due_year ]
+  [: group |
+     { :due-dollars group@annual_dollars group@training_weight * sum
+       :renewed-dollars group@renewed_dollars group@training_weight * sum }
+  :] aggregate
+  [: :due-dollars @ 0 $ > :] filter
+  dup :renewed-dollars @ over :due-dollars @ / :renewed-per-due !
+  [ :program ]
+  [: group |
+     { :last-renewed-per-due group@renewed-dollars group@due-dollars / last
+       :log-change-sd group@renewed-per-due 0.05 max2 ln successive-differences
+                      dup size 2 < if drop 0.20 else std then 0.1 0.35 clamp }
+  :] aggregate
+  ```
+
+- A join aligns its key by renaming, joins, then drops the unmatched rows
+  (engine1, `fit-owner-effects`):
+
+  ```forth
+  owner-history [ :lea_id :year :owner_id ] select-columns
+  :year :due_year rename-key!
+  [ :lea_id :due_year ] :left merge-by
+  [ :owner_id ] complete-rows
+  ```
+
+- The regression pipeline (the statistics library): keep the predictor
+  columns that vary, expand each categorical present into indicator columns,
+  and hand the dataset with its key array to the fit; `predict-glm` scores a
+  dataset against the model frame (engine1, `fit-program`):
+
+  ```forth
+  [: column-name column |
+     predictors column-name in? if column zero-variance? not else false then
+  :] filter-columns
+  dup key-set :due_year in? if :due_year expand-indicators! then
+  dup key-set :account_kind in? if :account_kind expand-indicators! then
+  dup keys outcome training-weights quasibinomial-logit 0 glm-regression
+  ```
+
+  Scenario scoring toggles an indicator column and folds the predictions
+  side by side, `null` seeding the fold because `hstack` answers the other
+  operand for a `null` (engine1, `predict-program-renewal`):
+
+  ```forth
+  year-columns 2 nlast
+  null
+  [: renewal-probs year-column |
+     scoring-design 1 year-column constant-column! drop
+     model scoring-design predict-glm
+     scoring-design 0 year-column constant-column! drop
+     renewal-probs hstack
+  :] reduce
+  row-means
   ```
 
 - The checked pipeline: every materialization is pinned immediately with
@@ -666,6 +743,19 @@ coroutines are short compositions over them (exceptions.telic, generators.telic)
   [ 1 2 ]
   ```
 
+- `null` is the answer for "nothing to fit" or "nothing to join": a word
+  whose guard fails logs the reason and answers `null` through an early exit,
+  the caller's `map` collects the nulls, and downstream `none?` guards or the
+  `null`-identity of `hstack`/`vstack` absorb them (engine1, `fit-program`):
+
+  ```forth
+  dup n-rows 200 < over :renewed @ zero-variance? or if
+      program over n-rows
+      "{1} skipped: {0} rows or one renewal outcome" format :warn log
+      drop null exit
+  then
+  ```
+
 - Key arithmetic runs through sets — difference, then back to an array
   (`ordered-columns`):
 
@@ -783,6 +873,15 @@ anything failed — so a test file run as a program exits non-zero.
   "program additions per account-year: mean {1:.3f} variance {0:.3f}" format print cr
   ```
 
+- The same words serve as preconditions inside production definitions —
+  `expect` throws with its message on a violated assumption (engine1,
+  `forecast-cutoff`):
+
+  ```forth
+  origin-year 2015 >= expect
+  cut-month 1 >= cut-month 12 <= and expect
+  ```
+
 - Seed anything random first — `42 seed` — so expected values are exact, and
   the vector form of `expect-near` compares whole results at once:
 
@@ -794,6 +893,26 @@ anything failed — so a test file run as a program exits non-zero.
 ## External systems
 
 - Subprocess capture: `run-result :out @ trim`.
+- SQL is the loading layer: a string literal spans lines, so the query is
+  written as SQL; one word binds and runs it inside `with-db`, so the
+  connection closes on either exit (engine1, `query-db-bound`):
+
+  ```forth
+  : query-db-bound | sql params |
+      db-path sql params ' db-query>dataset 2curry with-db ;
+  ```
+
+  `format` substitutes values into the text (`cutoff@origin sql format`),
+  leaving SQLite's `?1 ?2` binds for the parameter array; the two coexist in
+  one query because `format` only rewrites `{n}`. A query fragment kept in a
+  global becomes a CTE the same way — `"WITH decisions AS ({0}), …" format`.
+  Units attach at the boundary, directly after the load:
+
+  ```forth
+  query-at-origin
+  ' $ :dollars set-unit!
+  ```
+
 - Transaction bracket (`tsv>db`):
 
   ```forth

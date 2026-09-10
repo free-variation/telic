@@ -217,7 +217,7 @@ drop
 ( X passive -- mat ) \ the passive columns of X, side by side in passive order
 : passive-columns
 	[: 2 pick swap @j :] map nip
-	dup 0 @i swap 1 skip swap ' augment reduce ; internal
+	null ' hstack reduce ; internal
 
 ( X y -- beta ) \ nonnegative least squares (beta >= 0) by the Lawson-Hanson
 \ active set over fit-linear subset solves: finite, exact zeros on the active
@@ -336,7 +336,7 @@ drop
 	levels size 2 < if "column>indicators: needs at least 2 distinct values" throw then
 	column levels 1 skip
 	[: 2 pick swap eq :] map nip
-	dup 0 @i swap 1 skip swap ' augment reduce ;
+	null ' hstack reduce ;
 
 ( design column sym -- design ) \ add one 0/1 column per non-reference level to a
 \ design dataset, keyed sym=level; levels and keys derive from the same data
@@ -1026,6 +1026,16 @@ drop
 		effect effect "{0}-low" format string>symbol effect "{0}-high" format string>symbol 3 array concat
 	then to ordered
 	model regression-coefficients dup n-rows ordered headn ;
+
+( model dataset -- mu ) \ the mean response the model predicts for every row of
+\ the dataset, as n×1: the model's predictors gather from the dataset with an
+\ intercept column, dgemm applies the estimates, the family's inverse link maps
+\ the linear predictor; a row with a NaN predictor answers NaN
+: predict-glm
+	| model dataset |
+	dataset model :predictors @ 1 skip dataset>matrix with-intercept
+	model :estimates @ glm-eta
+	model :family @ :inverse-link @ execute ;
 
 ( mats -- m)
 : hstack-all 

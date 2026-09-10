@@ -3519,8 +3519,8 @@ place.
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
 | `augment` | `( a b -- mat )` | Concatenate two matrices column-wise; errors unless row counts match | 2 + r·c | `1m(r×c)` | O(r·c) |
-| `vstack` | `( a b -- mat/dataset )` | Stack two matrices row-wise (a on top of b); errors unless column counts match. datasets.telic extends it to two datasets: identical column sets required, each column concatenated top-then-bottom and re-inferred (a numeric column stays a vector); differing columns error | 2 + r·c | `1m(r×c)`; dataset one column each | O(r·c) |
-| `hstack` | `( a b -- mat/dataset )` | matrix.telic: concatenate two matrices column-wise; errors unless row counts match. datasets.telic extends it to two datasets set side by side: equal row counts and disjoint column names required (both error otherwise), rows aligned by position, the columns of both retained | 2 + r·c | `1m(r×c)`; dataset shares columns | O(r·c) |
+| `vstack` | `( a b -- mat/dataset )` | Stack two matrices row-wise (a on top of b); errors unless column counts match. datasets.telic extends it to two datasets: identical column sets required, each column concatenated top-then-bottom and re-inferred (a numeric column stays a vector); differing columns error. A `null` operand answers the other, so `blocks null ' vstack reduce` folds a list of blocks | 2 + r·c | `1m(r×c)`; dataset one column each | O(r·c) |
+| `hstack` | `( a b -- mat/dataset )` | matrix.telic: concatenate two matrices column-wise; errors unless row counts match. datasets.telic extends it to two datasets set side by side: equal row counts and disjoint column names required (both error otherwise), rows aligned by position, the columns of both retained. A `null` operand answers the other, so `columns null ' hstack reduce` folds a list of columns | 2 + r·c | `1m(r×c)`; dataset shares columns | O(r·c) |
 | `submatrix` | `( mat rs re cs ce -- mat )` | Copy the half-open block rows [rs,re) × cols [cs,ce); errors out of bounds or start > end | 5 + r·c | `1m(r×c)` | O(r·c) |
 | `select-rows` | `( mat/dataset/arr idx -- same )` | New matrix of the rows named by `idx` — a float index array or an index vector (nx1 or 1xn); a dimensioned matrix keeps its unit; errors on a non-float or out-of-range index. datasets.telic extends it to a dataset (every column gathered by the same indices, matrix and array columns alike) and to a bare array (elements gathered by index) | 2 + k·c | `1m(k×c)`; dataset one column each; array `1a(k)` | O(k·c) |
 | `mesh` | `( v mask b -- v' )` | Masked substitution: element i of the result is `b`'s where `mask[i]` is a definite nonzero, `v`'s where it is 0 **or NaN** (an unknown mask cell changes nothing). `v` is a matrix, dimensioned matrix, or array; the mask a bare matrix of `v`'s shape (element count, for an array). `b` is shape-matched same-representation, or broadcasts: a float, `null` (→ NaN), a quantity, or — for an array subject — any single value. Units reconcile as `+`: `b` rescales into `v`'s unit, which the result keeps; a quantity against a bare number errors. Conditional-mutate idioms: `dup nan? 0 mesh` fills NaNs, `dup -1 eq null mesh` turns a sentinel into NaN, `dup 100 > 100 mesh` caps at 100 | 3 + n | `1m(r×c)` / `1a(n)` | O(n) |
@@ -3578,19 +3578,23 @@ place.
 ```forth vstack
 [ 1 2 ] vector [ 3 4 ] vector vstack matrix>array . cr
 { :a [ 1 2 ] :b [ :x :y ] } { :a [ 3 ] :b [ :z ] } vstack :a @ transpose matrix>array . cr
+null [ 5 ] vector vstack matrix>array . cr
 ```
 ```output
 [ 1 2 3 4 ]
 [ 1 2 3 ]
+[ 5 ]
 ```
 
 ```forth hstack
 [ 1 2 ] vector [ 3 4 ] vector hstack matrix>array . cr
 { :a [ 1 2 ] } { :b [ 3 4 ] } hstack keys . cr
+[ [ 1 ] vector [ 2 ] vector [ 3 ] vector ] null ' hstack reduce dim . . cr
 ```
 ```output
 [ 1 3 2 4 ]
 [ :a :b ]
+3 1
 ```
 
 ```forth submatrix
@@ -4148,6 +4152,7 @@ wall-now time>iso . cr
 | `sort-rows` | `( dataset sym -- dataset )` | datasets.telic: rows sorted ascending by the named column, so every column reorders together and keeps its representation; a missing key errors | n log n + n·c | permutation + one column each | O(n log n + n·c) |
 | `sort-rows-descending` | `( dataset sym -- dataset )` | datasets.telic: rows sorted descending by the named column in natural order (so text columns descend too); equal keys keep dataset order, so chained sorts compose — minor key first, major key last — and missing cells sort last; a missing key errors | n log n + n·c | permutation ×3 + one column each | O(n log n + n·c) |
 | `count` | `( arr/v/dataset -- pairs )` | datasets.telic: occurrences of each distinct value as `[ [ value n ] … ]`, most frequent first, ties in value order; a vector counts its elements (a dimensioned one counts quantities), a dataset counts whole rows, each a frame keyed by column name | 2n log n | rows + pairs + 3×`1a` | O(n log n) |
+| `zero-variance?` | `( column -- bool )` | datasets.telic: 1 when the column (array or vector) has fewer than two distinct values — a constant or empty column; `null`/NaN counts as a value, so `[ 1 null ] vector` answers 0. `[: nip zero-variance? not :] filter-columns` drops constant columns from a dataset | 2n log n | `count`'s | O(n log n) |
 | `group-indices` | `( column -- pairs )` | datasets.telic: `[ [ value [indices] ] … ]` per distinct value in natural order — each index array holds the value's row positions, ascending | 2n log n | permutation + one pair and array per value | O(n log n) |
 | `frames>dataset` | `( rows -- dataset )` | datasets.telic: an array of row frames as a column-oriented dataset, keys from row 0 — differing keys throw. Each column's representation is inferred: all-float cells (`none` → NaN) become an n×1 vector, uniform-unit quantities a dimensioned vector, anything else stays an array | n·k log k | one column per key + `1o` | O(n·k log k) |
 | `aggregate` | `( dataset by xt -- dataset )` | datasets.telic: split-apply-combine — rows group by the `by` column's distinct values, or by the value tuple of a `by`-symbol array (tuples group and order in natural order); for each group `xt` `( group-dataset -- frame )` answers one row frame, the group's key values are stored into it under their own keys (overwriting any the xt set), and the rows reassemble into a dataset | n log n + per-group xt | one sub-dataset and frame per group + result columns; array `by` adds one tuple array per row | O(n log n + n·c) |
@@ -4322,6 +4327,13 @@ cols [: drop dup :b = swap :d = or :] filter-columns keys . cr
 ```output
 [ [ :b 2 ]
   [ :a 1 ] ]
+```
+
+```forth zero-variance?
+[ 1 1 1 ] vector zero-variance? . [ 1 2 ] vector zero-variance? . cr
+```
+```output
+1 0
 ```
 
 ```forth group-indices

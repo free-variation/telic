@@ -156,6 +156,7 @@ halves as values.
 | `regression-statistics` | `( model -- fr )` | `{ :n :n-terms :dispersion :deviance :null-deviance :pseudo-r2 }` for a model frame: the weighted deviance at the estimate, the intercept-only model's deviance under the same family and weights, McFadden's `1 − deviance/null-deviance`, and `glm-dispersion`'s φ. For `linear-regression` these are RSS, TSS, R², and σ̂² |
 | `regression-coefficients` | `( model -- dataset )` | One row per term: `:term` and the coefficient summary's keys (`:estimate :se :ci-low :ci-high`, plus `:z :p` or `:bias` by inference); when the family has an `:effect` — `:odds-ratio` for the logit families, `:rate-ratio` for the log-link families — three more columns carry exp of the estimate and of the two bounds under that name and its `-low`/`-high` |
 | `regression-report` | `( model -- )` | Print `regression-statistics` as `name value` lines, then `regression-coefficients` as an aligned table with columns in the order term, estimate, se, z and p (or bias), ci-low, ci-high, then the effect columns |
+| `predict-glm` | `( model dataset -- mu )` | The mean response a `linear-regression`/`logistic-regression`/`glm-regression` model predicts for every row of the dataset, as n×1: the model's predictor columns gather from the dataset (its `:predictors` less `:intercept`, a missing column errors), an intercept column is prepended, `dgemm` applies `:estimates`, and the family's `:inverse-link` maps the linear predictor — the fitted line for the gaussian family, probabilities for the logit families, rates for Poisson; a row with a NaN predictor answers NaN |
 | `cv-logistic-ridge` | `( X y units lambdas n-folds -- fr )` | k-fold cross-validation of ridge logistic over a `lambdas` grid, returning `{ :lambdas :deviances :best }`; `X` excludes the intercept (added internally, unpenalized), `units` index rows so per-cluster index arrays give cluster CV |
 | `pcv-logistic-ridge` | `( X y units lambdas n-folds -- fr )` | k-fold cross-validation of ridge logistic over a `lambdas` grid with the (lambda, fold) cells evaluated in parallel, returning `{ :lambdas :deviances :best }`; `X` excludes the intercept (added internally, unpenalized), `units` index rows so per-cluster index arrays give cluster CV; the answer matches a serial run, the cells being deterministic |
 
@@ -240,6 +241,15 @@ pseudo-r2 0.964286
 term         estimate        se         z            p    ci-low   ci-high
 :intercept  -0.666667   0.62361  -1.06904     0.285049  -1.88892  0.555586
 :x                1.5  0.288675   5.19615  2.03455e-07  0.934207   2.06579
+```
+
+```forth predict-glm
+"statistics" load-library
+[ [ "x" "y" ] [ 1 1 ] [ 2 2 ] [ 3 4 ] ] true rows>dataset [ :x ] :y 0 linear-regression
+{ :x [ 4 5 ] vector } predict-glm transpose matrix>array . cr
+```
+```output
+[ 5.33333 6.83333 ]
 ```
 
 ```forth cv-logistic-ridge

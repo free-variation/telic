@@ -266,6 +266,9 @@
 	sort value-runs
 	[: 1 @i negate :] sort-by ;
 
+( column -- bool ) \ fewer than two distinct values (null/NaN counting as a value)
+: zero-variance? count size 2 < ;
+
 ' filter constant (array-filter) internal
 
 ( dataset xt -- dataset) \ keep the rows whose filter satisfies xt ( row -- bool)
@@ -563,8 +566,12 @@
 	then
 	left right merge ; internal
 
-( a b -- mat/dataset ) \ matrix column-concat, or two datasets side by side
-: hstack over frame? if dataset-hstack exit then (matrix-hstack) execute ;
+( a b -- mat/dataset ) \ matrix column-concat, or two datasets side by side; a
+\ null operand answers the other, so null is the identity for a fold
+: hstack
+	dup none? if drop exit then
+	over none? if nip exit then
+	over frame? if dataset-hstack exit then (matrix-hstack) execute ;
 
 ( top bottom -- dataset ) \ stacked rows: identical columns, each concatenated
 : dataset-vstack
@@ -576,8 +583,12 @@
 	cols [: key | top key @ column>array bottom key @ column>array concat column-from-cells :] map
 	cols swap frame ; internal
 
-( a b -- mat/dataset ) \ matrix row-stack, or two datasets stacked by rows
-: vstack over frame? if dataset-vstack exit then (matrix-vstack) execute ;
+( a b -- mat/dataset ) \ matrix row-stack, or two datasets stacked by rows; a
+\ null operand answers the other, so null is the identity for a fold
+: vstack
+	dup none? if drop exit then
+	over none? if nip exit then
+	over frame? if dataset-vstack exit then (matrix-vstack) execute ;
 
 ( dataset unit-xt sym -- dataset ) \ set the named column's unit, replacing any
 \ existing one: strips with magnitude, then applies the unit word (' m). In place,

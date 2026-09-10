@@ -398,21 +398,6 @@ Worker threads over one shared object heap: a quotation runs across the collecti
 
 - **`value>bytes`** / **`bytes>value`** — a whole value graph as bytes and back, sharing and cycles preserved; compiled code and OS handles are refused by type. **`save-value`** / **`load-value`** do the same through a file.
 
-### The REPL
-
-- **Line editing** on isocline: theme-adaptive syntax highlighting, matching-brace highlighting, inline hints, Tab completion (dictionary words, filenames inside string literals), persistent history, and multi-line editing with auto-indent.
-- **Each entry answers** `ok` with the stack depth and top value, or the error message and its trace with file and line; a failed entry leaves the data stack as it was. Ctrl-C while an entry runs aborts it with `interrupted` and returns to the prompt.
-- **`help name`** prints a word's reference entry — stack effect, summary, cost line, examples as a transcript — and for a word defined in a loaded file, the `( a b -- c ) \ summary` comment above its definition; bare `help` prints a cheat sheet. **`man`** answers the same entry as a frame; **`apropos`** finds words by name or summary; **`words`** lists the dictionary by reference section.
-- **`see`** prints a word's source; **`see-compiled`** disassembles its threaded body; **`see-tree`** expands the calls inside it down to primitives; **`callers`** names every definition that calls a word, reads a variable, or holds the word as a literal.
-- **`edit name`** opens the word's source in `$EDITOR` (`vi` when unset); saving redefines the word from the edited text, quitting without a change leaves it; a name not yet defined starts as an empty definition.
-- **`trace`** runs a quotation printing each op with the stack before it, filtered by an array of regexes — the first selects ops by name, the rest match the whole line (`docs/tracing.md`).
-- **`gauges`** answers the interpreter's resource readings — dictionary, heap and collection headroom, stacks, open resources, the computer — as a frame with units; **`print-gauges`** prints the readings that move during a run as a table with rates against the previous call.
-- **`timed`** runs a quotation and prints its elapsed seconds; **`,`** prints the top of the stack without consuming it; **`.s`** shows the whole stack, **`.a`** prints a value in full precision without truncation; **`alloc-stats`** prints and resets the allocation counters since its last call.
-- **`log`** — `( str level -- )` writes one stamped line, `<time> <level> <message>`, to stderr, or under `TELIC_LOG_DIR` to a per-run file named at the first write and recorded in `TELIC_LOG_FILE`.
-- **`vars`** prints the current globals, **`variables`** answers them as frames; **`forget`** truncates the dictionary back to a word; **`reload`** re-runs every file `load`ed this session; **`save`** writes the session's definitions as source.
-- **Shell names** at the prompt: **`ls`**, **`pwd`**, **`cat`**, **`mkdir`**, **`rm`**, **`mv`**, **`cp`**, **`touch`**.
-- **`bye`** quits; **`clear`** empties the data stack; **`gc`** collects now.
-
 ### I/O and persistence
 
 - **`load`** runs a source file as if typed.
@@ -469,7 +454,7 @@ The statistics library (`lib/statistics.telic`, loaded on demand) builds on the 
 - **Resampling** — `bootstrap` / `pbootstrap` (parallel) over a fit quotation.
 - **Linear algebra** — matrix multiply (`dgemm-nn`/`tn`/`nt`/`tt`) and matrix-vector products (`dgemv-n` / `dgemv-t`) on the platform BLAS, `svd` and `fit-linear` on LAPACK, all through the FFI.
 - **Design matrices** — `column>indicators` expands a categorical column to 0/1 level columns, `indicators!` adds them to a design dataset under `sym=level` keys, `expand-indicators!` replaces a design's categorical column with them in place, and `with-intercept` prepends the ones column.
-- **Regression** — `linear-regression`, `logistic-regression` (Firth-penalized IRLS), and `glm-regression` (any GLM family, with prior weights), each answering a model frame of per-coefficient estimates and confidence intervals — Wald at 0 replications, bootstrap above — with the predictor names and the complete-case data it fitted; `regression-report` prints a model as fit statistics (deviance, null deviance, pseudo-R², dispersion) and a coefficient table with odds or rate ratios. `fit-logistic-ridge` is the L2-penalized fit, with `cv-logistic-ridge` / `pcv-logistic-ridge` choosing `lambda` by cross-validation.
+- **Regression** — `linear-regression`, `logistic-regression` (Firth-penalized IRLS), and `glm-regression` (any GLM family, with prior weights), each answering a model frame of per-coefficient estimates and confidence intervals — Wald at 0 replications, bootstrap above — with the predictor names and the complete-case data it fitted; `regression-report` prints a model as fit statistics (deviance, null deviance, pseudo-R², dispersion) and a coefficient table with odds or rate ratios; `predict-glm` applies a model to a dataset. `fit-logistic-ridge` is the L2-penalized fit, with `cv-logistic-ridge` / `pcv-logistic-ridge` choosing `lambda` by cross-validation.
 - **Generalized linear models** — `fit-glm` takes a family as three quotations and a dispersion mode, with `gaussian-identity`, `poisson-log`, `gamma-log`, `binomial-logit`, `quasibinomial-logit`, and `negative-binomial-log` provided and `fit-poisson` / `fit-gamma` wrapping the log-link fits; `fit-glm-weighted` takes prior weights, `glm-dispersion` answers φ (Pearson for quasi families), and `glm-covariance` the coefficient covariance. `fit-negative-binomial` estimates the dispersion alongside the coefficients; `fit-multinomial`, `fit-multinomial-ridge`, and `predict-multinomial` handle several classes.
 - **Gradient boosting** — `fit-xgb` trains an XGBoost booster on a feature matrix and response through the system `libxgboost`, taking a params frame keyed by XGBoost parameter names; `xgb-predict` scores, `xgb-importance` ranks the features, `xgb-free` releases the booster, and `xgb-save`/`xgb-load` use XGBoost's own model format, readable by Python and R.
 
@@ -505,6 +490,21 @@ the stdio server behind a stdio-to-Streamable-HTTP gateway such as mcp-proxy.
 - **`type-of`** — `( a -- sym )` the value's type as a symbol (`:float`, `:frame`, `:lvar`, …), with a lib predicate per type (`float?` … `lvar?`); a bound logic var answers as its value.
 - **`now`** — monotonic seconds as a float, for timing intervals (`wall-now`, under Time and dates, is the absolute clock).
 - **`halt`** — stop the program with an exit status.
+
+## The REPL
+
+- **Line editing** on isocline: theme-adaptive syntax highlighting, matching-brace highlighting, inline hints, Tab completion (dictionary words, filenames inside string literals), persistent history, and multi-line editing with auto-indent.
+- **Each entry answers** `ok` with the stack depth and top value, or the error message and its trace with file and line; a failed entry leaves the data stack as it was. Ctrl-C while an entry runs aborts it with `interrupted` and returns to the prompt.
+- **`help name`** prints a word's reference entry — stack effect, summary, cost line, examples as a transcript — and for a word defined in a loaded file, the `( a b -- c ) \ summary` comment above its definition; bare `help` prints a cheat sheet. **`man`** answers the same entry as a frame; **`apropos`** finds words by name or summary; **`words`** lists the dictionary by reference section.
+- **`see`** prints a word's source; **`see-compiled`** disassembles its threaded body; **`see-tree`** expands the calls inside it down to primitives; **`callers`** names every definition that calls a word, reads a variable, or holds the word as a literal.
+- **`edit name`** opens the word's source in `$EDITOR` (`vi` when unset); saving redefines the word from the edited text, quitting without a change leaves it; a name not yet defined starts as an empty definition.
+- **`trace`** runs a quotation printing each op with the stack before it, filtered by an array of regexes — the first selects ops by name, the rest match the whole line (`docs/tracing.md`).
+- **`gauges`** answers the interpreter's resource readings — dictionary, heap and collection headroom, stacks, open resources, the computer — as a frame with units; **`print-gauges`** prints the readings that move during a run as a table with rates against the previous call.
+- **`timed`** runs a quotation and prints its elapsed seconds; **`,`** prints the top of the stack without consuming it; **`.s`** shows the whole stack, **`.a`** prints a value in full precision without truncation; **`alloc-stats`** prints and resets the allocation counters since its last call.
+- **`log`** — `( str level -- )` writes one stamped line, `<time> <level> <message>`, to stderr, or under `TELIC_LOG_DIR` to a per-run file named at the first write and recorded in `TELIC_LOG_FILE`.
+- **`vars`** prints the current globals, **`variables`** answers them as frames; **`forget`** truncates the dictionary back to a word; **`reload`** re-runs every file `load`ed this session; **`save`** writes the session's definitions as source.
+- **Shell names** at the prompt: **`ls`**, **`pwd`**, **`cat`**, **`mkdir`**, **`rm`**, **`mv`**, **`cp`**, **`touch`**.
+- **`bye`** quits; **`clear`** empties the data stack; **`gc`** collects now.
 
 ## Future work
 

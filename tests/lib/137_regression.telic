@@ -46,6 +46,28 @@
 	fit :responses @ - fabs max 0.4 < expect         \ the estimates apply to their own design
 :] test
 
+"predict-glm on a linear model is the design times the estimates" [:
+
+	[ [ "x" "y" ]
+	  [ 1 3.1 ] [ 2 4.9 ] [ 3 7.2 ] [ 4 8.8 ] [ 5 11.1 ] [ 6 12.9 ] ] 1 rows>dataset to points
+	points [ :x ] :y 0 linear-regression to line
+	line points predict-glm
+	1 line :design @ line :estimates @ 0 6 1 0-matrix dgemm-nn 1e-12 expect-near
+	line { :x [ 0 10 ] vector } predict-glm dim drop 2 expect=          \ new data, any row count
+	line { :x [ 1 null ] vector } predict-glm nan? transpose matrix>array [ 0 1 ] expect=   \ NaN predictor, NaN prediction
+:] test
+
+"predict-glm on a logistic model agrees with predict-logistic" [:
+
+	[ [ "x" "hit" ] [ 1 0 ] [ 2 0 ] [ 3 1 ] [ 4 0 ] [ 5 1 ] [ 6 1 ] [ 7 1 ] ] 1 rows>dataset to trials
+	trials [ :x ] :hit 0 logistic-regression to logit
+	logit trials predict-glm
+	logit :design @ logit :estimates @ predict-logistic 1e-12 expect-near
+	logit { :x [ 10 -10 ] vector } predict-glm to probabilities
+	probabilities 0 @e 0.9 > expect
+	probabilities 1 @e 0.01 < expect
+:] test
+
 "linear-regression on iris reproduces textbook OLS" [:
 
 	7 seed

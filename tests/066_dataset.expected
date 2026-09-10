@@ -134,6 +134,10 @@ in (@.symbol) ← [: 3 pick swap @ :]
 [ [ { :name "ann" :score 5 } 2 ]
   [ { :name "bob" :score 1 } 1 ] ] 
 [ ] 
+1 0 
+1 1 
+0 
+[ ] 
 error: expected an array, set, or vector; got a float
 in sort ← count
 [ [ "a"
@@ -372,6 +376,11 @@ in throw ← merge-by
 [ 1 2 3 ] 
 [ :p :q :r ] 
 :numeric 
+[ :a :x ] 
+[ :a :x ] 
+[ 5 ] 
+3 1 
+null 
 error: uncaught exception: "hstack: row counts differ (2 vs 1)"
 in throw ← dataset-hstack
 error: uncaught exception: "hstack: columns [ :a ] are in both"

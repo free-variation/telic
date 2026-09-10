@@ -147,6 +147,12 @@ clear
 { :name [ "ann" "bob" "ann" ] :score [ 5 1 5 ] vector } count . cr
 { } count . cr                                  \ [ ]
 
+\ zero-variance? ( column -- bool ): fewer than two distinct values
+[ 1 1 1 ] vector zero-variance? . [ 1 2 ] vector zero-variance? . cr   \ 1 0
+[ "a" "a" ] zero-variance? . [ ] zero-variance? . cr                   \ 1 1
+[ 1 null ] vector zero-variance? . cr           \ 0  null counts as a value
+{ :x [ 1 1 ] vector :y [ 2 2 ] vector } [: nip zero-variance? not :] filter-columns keys . cr  \ [ ]  drops constant columns
+
 \ errors
 5 count                                         \ (not countable, sort rejects)
 
@@ -378,6 +384,13 @@ wide [: :a @ 1 > :] filter :b @ . cr            \ [ "q" ] — result is a real d
 tall :a @ transpose matrix>array . cr           \ [ 1 2 3 ]
 tall :x @ . cr                                  \ [ :p :q :r ]
 tall :a column-type . cr                        \ :numeric
+
+\ null is the identity of both stacks, so a fold needs no seed block
+null tall vstack keys . cr                      \ [ :a :x ]
+tall null hstack keys . cr                      \ [ :a :x ]
+null [ 5 ] vector vstack matrix>array . cr      \ [ 5 ]
+[ [ 1 ] vector [ 2 ] vector [ 3 ] vector ] null ' hstack reduce dim . . cr   \ 3 1
+[ ] null ' vstack reduce . cr                   \ null  an empty fold answers the seed
 
 \ errors
 { :a [ 1 2 ] } { :b [ 9 ] } hstack               \ (row counts differ)
