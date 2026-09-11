@@ -122,6 +122,7 @@ typed :score @ column>set size . cr             \ 3
 [ 1 2 3 4 ] vector dup [< 2 4 >] swap in? where select-rows matrix>array . cr  \ [ 2 4 ]  the mask drives select-rows
 [< 1 5 >] 5 in? . [ "b" ] "a" in? . [< null >] null in? . cr    \ 1 0 0        scalars answer a bare 1/0
 [ 200 ] vector ¢ 2 $ in? . cr                                  \ 1
+[< 1 $ >] 1 in? . [ 1 ] vector $ 1 m in? . cr                  \ 0 0  a plain number or another dimension is not a member (as =)
 5 [ 1 ] in?                                                    \ (members must be a set, array, or vector)
 
 clear
@@ -152,6 +153,8 @@ clear
 [ "a" "a" ] zero-variance? . [ ] zero-variance? . cr                   \ 1 1
 [ 1 null ] vector zero-variance? . cr           \ 0  null counts as a value
 { :x [ 1 1 ] vector :y [ 2 2 ] vector } [: nip zero-variance? not :] filter-columns keys . cr  \ [ ]  drops constant columns
+[ 1 1 ] vector m zero-variance? . [ 1 2 ] vector m zero-variance? . cr   \ 1 0  dimensioned column
+[ "a" null ] zero-variance? . [ null null ] vector zero-variance? . cr    \ 0 1  null is a value; all-null is constant
 
 \ errors
 5 count                                         \ (not countable, sort rejects)
@@ -162,7 +165,7 @@ clear
 [ "b" "a" "b" "a" "b" ] group-indices . cr      \ a: 1 3; b: 0 2 4
 [ 5 5 1 ] vector group-indices . cr             \ 1: 2; 5: 0 1
 [ 1 2 3 ] group-indices . cr                    \ singletons
-[ 1 null 1 null ] vector group-indices . cr     \ nulls group, ordered first
+[ 1 null 1 null ] vector group-indices . cr     \ nulls group, ordered last as a vector sorts
 [ ] group-indices . cr                          \ [ ]
 { :name [ "ann" "bob" "ann" ] :score [ 5 1 4 ] vector } dup
 :name @ group-indices 0 @i 1 @i select-rows . cr \ the ann rows
@@ -274,6 +277,49 @@ sales :region [: g | { :region "x" :n g n-rows } :] aggregate :region @ . cr \ b
 sales :missing [: n-rows :] aggregate           \ (no key :missing)
 
 clear
+\ split-by ( dataset by -- pairs ): [ key sub-dataset ] per distinct by value
+\ (tuple key for a by array), in group-indices order, every column kept
+{ :g [ "b" "a" "b" ] :x [ 1 2 3 ] vector :y [ :p :q :r ] } to splittable
+splittable :g split-by to parts
+parts size . parts [: 0 @i :] map . cr                                  \ 2 [ "a" "b" ]
+parts 1 @i 1 @i :x @ transpose matrix>array . parts 1 @i 1 @i :y @ . cr  \ [ 1 3 ] [ :p :r ]  the b group, rows 0 and 2
+parts 0 @i 1 @i n-rows . parts 0 @i 1 @i keys ' render sort-by . cr     \ 1 [ :g :x :y ]
+{ :g [ "a" "b" "a" ] :h [ 1 1 2 ] vector :x [ 1 2 3 ] vector } [ :g :h ] split-by [: 0 @i :] map . cr  \ tuple keys [ "a" 1 ] [ "a" 2 ] [ "b" 1 ]
+{ :g [ ] :x [ ] vector } :g split-by . cr                                \ [ ]
+splittable :z split-by                                                  \ (no key :z)
+
+clear
+\ within-groups ( dataset by xt -- column ): the grouped transform — xt answers
+\ one value per group row (or one scalar for the group); values return to their
+\ rows as an n-row column the caller stores or masks with
+{ :g [ :a :b :a ] :x [ 1 2 3 ] vector } to grouped
+grouped :g [: group | group@x dup sum / :] within-groups transpose matrix>array . cr   \ [ 0.25 1 0.75 ]  share of the group
+grouped :g [: group | group@x sum :] within-groups transpose matrix>array . cr         \ [ 4 2 4 ]        a scalar fills the group
+grouped dup :g [: group | group@x sum :] within-groups :total ! keys ' render sort-by . cr  \ [ :g :total :x ] stored by the caller
+{ :g [ :a :b :a ] :h [ 1 1 2 ] vector :x [ 1 2 3 ] vector }
+[ :g :h ] [: group | group@x dup mean - :] within-groups transpose matrix>array . cr  \ [ 0 0 0 ]  tuple groups, each a singleton
+grouped :g [: group | group@x matrix>array [: 2 > if "big" else "small" then :] map :] within-groups . cr  \ [ "small" "small" "big" ]
+{ :g [ :a :b :a ] :x [ 1 2 3 ] vector $ } :g [: group | group@x dup sum - :] within-groups unit-of . cr   \ 1 $  units survive
+grouped dup :g [: group | group@x dup max eq :] within-groups where select-rows :x @ transpose matrix>array . cr  \ [ 2 3 ]  the group maxima as a mask
+
+\ order within interleaved groups: each value returns to its own row
+{ :g [ :a :b :a :b :a ] :x [ 5 1 3 2 4 ] vector } to interleaved
+interleaved :g [: group | group@x cumulative-sum :] within-groups transpose matrix>array . cr   \ [ 5 1 8 3 12 ]  a: 5 3 4, b: 1 2
+interleaved :g [: group | group@x ranks :] within-groups transpose matrix>array . cr            \ [ 2 0 0 1 1 ]
+{ :g [ :a :b :a :b ] :h [ 1 1 1 2 ] vector :x [ 1 2 3 4 ] vector }
+[ :g :h ] [: group | group@x dup sum / :] within-groups transpose matrix>array . cr           \ [ 0.25 1 0.75 1 ]  tuple (a,1) spans rows 0 and 2
+{ :year [ 2020 2021 2020 ] vector :x [ 1 2 3 ] vector } :year [: group | group@x sum :] within-groups transpose matrix>array . cr  \ [ 4 2 4 ]  numeric by column
+{ :g [ :a null :a ] :x [ 1 2 3 ] vector } :g [: group | group@x sum :] within-groups transpose matrix>array . cr   \ [ 4 2 4 ]  null is its own group
+grouped :g [: group | group@x matrix>array [: 10 * :] map :] within-groups transpose matrix>array . cr           \ [ 10 20 30 ]  an array answer
+grouped :g [: group | group@x transpose :] within-groups transpose matrix>array . cr                            \ [ 1 2 3 ]     a 1xn answer
+grouped :g [: group | group@x matrix>array [: 2 = if null else 0 then :] map :] within-groups nan? transpose matrix>array . cr  \ [ 0 1 0 ]  null in the answer is NaN
+{ :g [ :a ] :x [ 7 ] vector } :g [: group | group@x sum :] within-groups transpose matrix>array . cr             \ [ 7 ]  one row
+{ :g [ ] :x [ ] vector } :g [: group | group@x sum :] within-groups . cr                                        \ [ ]    no rows, no groups
+
+\ errors
+grouped :g [: drop [ 1 2 3 ] :] within-groups   \ (group a has 2 rows but the quotation answered 3 values)
+
+clear
 \ aggregate with a by-symbol array: rows group by the value tuple, each key
 \ column is stored back under its own key, tuples order by val_cmp
 { :fy [ 2022 2022 2023 2023 ] vector
@@ -296,7 +342,7 @@ clear
   :height [ 180 170 ] vector m } to rowable
 
 rowable 0 row-at frame>array . cr               \ [ :name "a" :height 180 m :score 2 ] — interning order
-rowable 1 row-at :score @ none? . cr            \ 1 — NaN cell answers null
+rowable 1 row-at :score @ null? . cr            \ 1 — NaN cell answers null
 rowable 0 row-at :name @ type-of . cr           \ :string — a scalar, not a length-1 column
 
 \ errors
@@ -413,6 +459,24 @@ measures :height @ mean . cr                    \ 175 m — stats keep the unit
 { :name [ "a" ] } ' m :name set-unit!             \ (:name is not numeric)
 
 clear
+\ repeat-column! ( dataset value sym -- dataset ): the value repeated over the
+\ rows as a column; a scalar fills, a length-k value cycles n-rows/k times
+{ :x [ 1 2 3 4 ] vector } to four-rows
+four-rows 7 :c repeat-column! :c @ transpose matrix>array . cr           \ [ 7 7 7 7 ]
+four-rows [ 1 2 ] :c repeat-column! :c @ transpose matrix>array . cr     \ [ 1 2 1 2 ]  array cycles
+four-rows [ 1 2 ] vector :c repeat-column! :c @ transpose matrix>array . cr  \ [ 1 2 1 2 ]  vector cycles
+four-rows [ "a" "b" ] :c repeat-column! :c @ . cr                        \ [ "a" "b" "a" "b" ]  text column
+four-rows "a" :c repeat-column! :c @ . cr                                \ [ "a" "a" "a" "a" ]
+four-rows 7 $ :c repeat-column! :c @ unit-of . cr                        \ 1 $  dimensioned column
+four-rows null :c repeat-column! :c @ nan? sum . cr                      \ 4    null fills NaN
+four-rows keys . cr                                                      \ [ :x :c ]  in place, one column
+{ } 7 :c repeat-column! :c @ . cr                                        \ [ ]  no rows, empty column
+
+\ errors
+four-rows [ 1 2 3 ] :c repeat-column!             \ (4 rows is not a multiple of 3)
+four-rows [ ] :c repeat-column!                   \ (the value is empty)
+
+clear
 \ select-eq / select-neq ( dataset sym value -- dataset ): vectorized row select
 \ by column == value (and its complement); value on the stack, no curry.
 { :program [ :a :b :a :c ] :n [ 1 2 3 4 ] vector } to picks
@@ -430,6 +494,9 @@ gapped :y complete-rows :x @ transpose matrix>array . cr        \ [ 1 null ]    
 gapped [ ] complete-rows :y @ . cr                              \ [ "a" ]       every column
 gapped [ :x :y ] complete-rows n-rows . cr                      \ 1
 { :x [ 1 null 3 ] vector $ } :x complete-rows :x @ . cr         \ 1 3 $         dimensioned column
+{ :x [ 1 2 ] vector :y [ "a" "b" ] } [ ] complete-rows n-rows . cr             \ 2  nothing missing, every row kept
+{ :x [ null null ] vector :y [ "a" "b" ] } :x complete-rows dup n-rows . keys ' render sort-by . cr  \ 0 [ :x :y ]  no rows, columns kept
+{ :x [ 1 null ] vector :y [ "a" null ] } :y complete-rows :x @ transpose matrix>array . cr  \ [ 1 ]  a text column's null is missing
 gapped :z complete-rows                                         \ (no key :z)
 
 clear

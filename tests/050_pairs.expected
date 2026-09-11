@@ -35,7 +35,7 @@ V=[( 1 2 null )]
 null 
 error: expected a pair; got a float
 in head-tail
-error: expected a pair; got none
+error: expected a pair; got null
 in head-tail
 [( 1 2 3 )] 
 [ 1 2 3 ] 

@@ -733,7 +733,7 @@ All but `lgamma` and the rounding words also take a complex, answering
 principal values; `abs` on one answers the modulus as a float.
 A float result that would be NaN (`-1 sqrt`, `-1 ln`) is `null` — NaN-boxing
 reserves NaN bit patterns for tags, so `null` is Telic's NaN, and it is falsy,
-`none?`, and `= null`. Matrix buffers hold raw NaN elements untouched
+`null?`, and `= null`. Matrix buffers hold raw NaN elements untouched
 (element-wise math writes them, `sort` places them last); a NaN read out of a
 matrix (`@i,j`, `@e`) surfaces as `null` the same way.
 
@@ -953,14 +953,14 @@ Result is `1.0` (true) or `0.0` (false), with a float fast path. `=` uses `val_c
 | `>=` | `( a b -- bool )` or `( mat/arr x -- mat )` | greater-than-or-equal (≥); element-wise 1/0 mask on matrix operands (scalar broadcast) and on array operands (compared in natural order per element, n×1) | 3 (float) | matrix `1m(r×c)` | float O(1); string O(\|s\|); array/set O(n); frame O(n); matrix O(r×c) |
 | `eq` | `( a b -- bool )` or `( mat/arr x -- mat )` | equality; element-wise 1/0 mask on matrix and array operands (scalar broadcast; per array element in natural order), structural equality on other collections and scalars. NaN elements equal nothing | 3 (float) | matrix `1m(r×c)` | float O(1); string O(\|s\|); array/set O(n); frame O(n); matrix O(r×c) |
 | `neq` | `( a b -- bool )` or `( mat/arr x -- mat )` | not-equal: element-wise 1/0 mask on matrix and array operands (scalar broadcast; per array element in natural order), structural inequality on other collections and scalars. A NaN element differs from everything, so it masks 1 | 3 (float) | matrix `1m(r×c)` | float O(1); string O(\|s\|); array/set O(n); frame O(n); matrix O(r×c) |
-| `nan?` | `( v -- bool )` or `( mat/arr -- mat )` | NaN test: 1/0 mask over a matrix's elements; an array answers an n×1 mask marking `none` elements (a text column's missing cells), composing with `where`/`select-rows`; `1` on `null` itself (a scalar NaN *is* `null`), `0` on any float, exact, or complex. NaNs compare false under `<`/`>`/`eq`, so this is the word that masks them | 2 | `1m(r×c)` | O(1); matrix/array O(n) |
+| `nan?` | `( v -- bool )` or `( mat/arr -- mat )` | NaN test: 1/0 mask over a matrix's elements; an array answers an n×1 mask marking `null` elements (a text column's missing cells), composing with `where`/`select-rows`; `1` on `null` itself (a scalar NaN *is* `null`), `0` on any float, exact, or complex. NaNs compare false under `<`/`>`/`eq`, so this is the word that masks them | 2 | `1m(r×c)` | O(1); matrix/array O(n) |
 | `0=` | `( a -- bool )` | `!truthy(a)`; any type | 2 | none | O(1) |
 | `1=` | `( a -- bool )` | core.telic: `1` when the value equals 1, else `0` | 5 | none | O(1) |
 | `true?` | `( a -- bool )` | core.telic: `1` when the value is truthy, else `0`. A heap value is truthy by its handle, so an empty string, array, or frame is truthy; only `0`, `null`, and an unbound handle are falsy | 3 | none | O(1) |
 | `false?` | `( a -- bool )` | core.telic: `1` when the value is falsy, else `0` | 2 | none | O(1) |
 | `between?` | `( v low high -- bool )` or `( mat/arr low high -- mat )` | core.telic: low ≤ v ≤ high, inclusive; a matrix or array operand answers an element-wise mask, and any ordered scalars compare (strings lexicographic, quantities rescaled within a dimension) | 9 | matrix `2m(r×c)` | O(1); matrix/array O(n) |
 | `clamp` | `( x low high -- x' )` | core.telic: x limited to [low, high] — values under low answer low, over high answer high; a matrix clamps element-wise with scalar bounds, an array clamps each element (nested arrays included), and quantities clamp within their dimension | 6 | matrix `2m(r×c)`; array `1a(n)` | O(1); matrix/array O(n) |
-| `type-of` | `( a -- sym )` | The value's type as a symbol: `:float` `:string` `:symbol` `:array` `:set` `:pair` `:frame` `:matrix` `:quantity` `:xt` `:continuation` `:stream` `:db` `:ptr` `:segment` `:none` `:wildcard` `:lvar` `:exact` `:complex`. A bound logic var reports its value's type; an unbound one is `:lvar` | 2 | none | O(1) |
+| `type-of` | `( a -- sym )` | The value's type as a symbol: `:float` `:string` `:symbol` `:array` `:set` `:pair` `:frame` `:matrix` `:quantity` `:xt` `:continuation` `:stream` `:db` `:ptr` `:segment` `:null` `:wildcard` `:lvar` `:exact` `:complex`. A bound logic var reports its value's type; an unbound one is `:lvar` | 2 | none | O(1) |
 | `float?` | `( a -- bool )` | core.telic: `1` when the value is a float, else `0` | 5 | none | O(1) |
 | `string?` | `( a -- bool )` | core.telic: `1` when the value is a string, else `0` | 5 | none | O(1) |
 | `symbol?` | `( a -- bool )` | core.telic: `1` when the value is a symbol, else `0` | 5 | none | O(1) |
@@ -976,7 +976,7 @@ Result is `1.0` (true) or `0.0` (false), with a float fast path. `=` uses `val_c
 | `db?` | `( a -- bool )` | core.telic: `1` when the value is a database, else `0` | 5 | none | O(1) |
 | `ptr?` | `( a -- bool )` | core.telic: `1` when the value is a C pointer, else `0` | 5 | none | O(1) |
 | `segment?` | `( a -- bool )` | core.telic: `1` when the value is a segment, else `0` | 5 | none | O(1) |
-| `none?` | `( a -- bool )` | True when the value is the none value (`null`); a bound logic var reports as its value | 2 | none | O(1) |
+| `null?` | `( a -- bool )` | True when the value is `null`; a logic variable is tested through its binding, so one bound to `null` answers 1 and an unbound one 0 | 2 | none | O(1) |
 | `wildcard?` | `( a -- bool )` | core.telic: `1` when the value is a wildcard, else `0` | 5 | none | O(1) |
 | `lvar?` | `( a -- bool )` | core.telic: `1` when the value is an unbound logic variable, else `0` | 5 | none | O(1) |
 | `and` | `( a b -- bool )` | logical and of truthiness | 3 | none | O(1) |
@@ -1221,8 +1221,8 @@ stdout stream? . cr
 1
 ```
 
-```forth none?
-null none? . 0 none? . cr
+```forth null?
+null null? . 0 null? . cr
 ```
 ```output
 1 0
@@ -2338,7 +2338,7 @@ Regex words run on PCRE2 with JIT-compiled patterns. Each distinct pattern is co
 | `spaces` | `( k -- str )` | strings.telic: a string of k spaces | k | `1a` + `1o` | O(k) |
 | `pad-left` | `( str width -- str' )` | strings.telic: s left-padded with spaces to width (unchanged when already that wide; codepoint widths) | n | `1a` + `1o` | O(n) |
 | `pad-right` | `( str width -- str' )` | strings.telic: s right-padded with spaces to width (unchanged when already that wide; codepoint widths) | n | `1a` + `1o` | O(n) |
-| `string>number` | `( str -- n \| none )` | Parse a decimal/float string to a float, ignoring surrounding whitespace; the none value if `str` is not entirely a number | n | none | O(n) |
+| `string>number` | `( str -- n \| null )` | Parse a decimal/float string to a float, ignoring surrounding whitespace; `null` if `str` is not entirely a number | n | none | O(n) |
 | `edit-distance` | `( a b -- n )` | Edit distance between two strings over codepoints: insertions, deletions, substitutions, and adjacent transpositions each cost 1 (Levenshtein with transpositions — optimal string alignment); symmetric | n·m | none | O(n·m) |
 | `format` | `( … template -- str )` | Fill `template`'s `{n}` (or `{n:spec}`) placeholders with the nth-from-top stack value, then drop exactly the referenced positions (unreferenced values stay); renders floats/strings/symbols/exacts/quantities. `{nl}` and `{tab}` emit a newline and a tab — string literals have no escapes, so format is where control characters come from. When stdout is a terminal, the ink directives `{black}` `{red}` `{green}` `{yellow}` `{blue}` `{magenta}` `{cyan}` `{white}` and `{bold}` `{dim}` emit the SGR escape styling the following text until `{plain}` reverts to plain ink; when it is not (piped, batch), they vanish, so redirected output carries no escape bytes. Only these directives substitute; other brace content is left literal | len + refs | `1o` | O(len) |
 
@@ -2513,7 +2513,7 @@ a-b-c
 ```
 
 ```forth string>number
-"3.5" string>number . "x" string>number none? . cr
+"3.5" string>number . "x" string>number null? . cr
 ```
 ```output
 3.5 1
@@ -2675,6 +2675,7 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 | `first` | `( arr/matrix/pair -- v )` | core.telic: element 0 of an array, the first row-major element of a matrix (as a float), or a cons's head | 9 | none | O(1) |
 | `last` | `( arr/matrix -- v )` | core.telic: the final element of an array, or the last row-major element of a matrix (as a float); empty array errors | 9 | none | O(1) |
 | `second` | `( arr/pair -- v )` | core.telic: element 1 of an array, or a cons's tail (`5 6 cons second` → 6; on a list literal the rest, not the next element) | 9 | none | O(1) |
+| `assoc` | `( entries key -- value )` | core.telic: the value paired with `key`, the first match by structural equality (so tuple arrays, frames and pairs serve as keys, `1` and `"1"` are distinct, quantities match within a dimension, `null` is a key). An array holds entries — `[ key value ]` arrays or conses, `first` the key and `second` the value — as `count`, `group-indices` and `split-by` answer them; a chain of pairs is a property chain, heads alternating key and value along the tails, `[( k1 v1 k2 v2 )]`, the last value the terminal tail or the element before a closing `null`. A missing key answers `null`, as a stored `null` value does | 3 + entries scanned | none | O(n) |
 | `skip` | `( arr n -- arr )` | arrays.telic: all but the first n elements | 3n | 3×`1a(n)` | O(n) |
 | `sort` | `( arr/set/v -- arr/v )` | Sorted copy: an array orders ascending in natural order; a set projects its already-ordered elements to an array; an nx1 or 1xn vector sorts ascending with NaNs last (other matrix shapes error) | 1 + n log n | `1a(n)` / `1m(n)` | O(n log n); vectors above 8k elements O(n) radix |
 | `flatten-array` | `( arr -- arr )` | Flatten one level; returns the input unchanged if no element is itself an array | 1 + m | `1a(m)` | O(m) |
@@ -2800,6 +2801,15 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 ```
 ```output
 8
+```
+
+```forth assoc
+[ [ "a" 1 ] [ "b" 2 ] ] "b" assoc . cr
+[( :x 10 :y 20 )] :y assoc . cr
+```
+```output
+2
+20
 ```
 
 ```forth skip
@@ -3085,13 +3095,13 @@ So `/users/*/name` is the `:name` of every child of `:users`, `/root//city` is e
 
 ## JSON
 
-Objects ↔ frames (keys interned as symbols), arrays ↔ arrays, strings ↔ strings, numbers ↔ floats, except that an integer too large for a float to hold exactly reads as an integer exact and an integer exact writes as its digits (a non-integer exact errors on write). JSON `true`/`false` ↔ the reserved `:1`/`:0` symbols; `null` ↔ the none value.
+Objects ↔ frames (keys interned as symbols), arrays ↔ arrays, strings ↔ strings, numbers ↔ floats, except that an integer too large for a float to hold exactly reads as an integer exact and an integer exact writes as its digits (a non-integer exact errors on write). JSON `true`/`false` ↔ the reserved `:1`/`:0` symbols; `null` ↔ `null`.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
 | `json>frame` | `( str -- val )` | Parse a JSON string. Escapes and `\uXXXX` (with surrogate pairs) decode to UTF-8; depth-guarded; rejects trailing non-whitespace. Each object's keys are sorted after collection | scan + build | one object per node | O(\|s\| log \|s\|) |
 | `frame>json` | `( val -- str )` | Serialize a value to JSON. Floats use the shortest round-trip form; strings are escaped (non-ASCII emitted raw); object keys are the symbol names | walk + build | `1o` string | O(tree size) |
-| `null` | `( -- none )` | Push the none value — what JSON `null` parses to, and what an unset `env` returns | 1 | none | O(1) |
+| `null` | `( -- null )` | Push `null` — what JSON `null` parses to, and what an unset `env` returns | 1 | none | O(1) |
 
 ```forth json>frame
 "{""a"": [1, 2]}" json>frame /a @ . cr
@@ -3108,7 +3118,7 @@ Objects ↔ frames (keys interned as symbols), arrays ↔ arrays, strings ↔ st
 ```
 
 ```forth null
-null . null none? . cr
+null . null null? . cr
 ```
 ```output
 null 1
@@ -4130,11 +4140,11 @@ wall-now time>iso . cr
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `load-tsv` | `( path -- rows )` | Read a TSV file into an array of row-arrays; an empty cell → `none`, a numeric cell → float, else a string. No header handling | 1 + bytes | `1a(r)` + one array per row + a string per text cell | O(bytes) |
-| `read-tsv` | `( path -- dataset )` | datasets.telic: read a TSV file with a header row into a column-oriented dataset; columns are typed — uniformly float-or-`none` cells become an n×1 vector (`none` → NaN), uniform-unit quantity cells a dimensioned vector, anything else a cell array | bytes + 2·r·c | rows + one array per column + `1m` per numeric column + `1fr` | O(bytes + r·c) |
+| `load-tsv` | `( path -- rows )` | Read a TSV file into an array of row-arrays; an empty cell → `null`, a numeric cell → float, else a string. No header handling | 1 + bytes | `1a(r)` + one array per row + a string per text cell | O(bytes) |
+| `read-tsv` | `( path -- dataset )` | datasets.telic: read a TSV file with a header row into a column-oriented dataset; columns are typed — uniformly float-or-`null` cells become an n×1 vector (`null` → NaN), uniform-unit quantity cells a dimensioned vector, anything else a cell array | bytes + 2·r·c | rows + one array per column + `1m` per numeric column + `1fr` | O(bytes + r·c) |
 | `write-tsv` | `( dataset path -- )` | datasets.telic: write a dataset as a TSV with a header row of the column names; a dimensioned column errors (strip its unit with `magnitude` first) | 2·r·c | transient rows | O(r·c) |
-| `save-tsv` | `( rows path -- )` | Write an array of row-arrays as TSV; `none` → empty, a whole-number float → integer, strings raw; errors on a tab/newline inside a string or a non-array row | 2 + r·c | none (to file) | O(r·c) |
-| `rows>dataset` | `( rows header? -- dataset )` | datasets.telic: column-oriented frame from rows with typed columns — uniformly float-or-`none` cells become an n×1 vector (`none` → NaN), uniform-unit quantity cells a dimensioned vector, anything else stays the cell array; keys come from row 0 when header? is true, else `:col1…` are synthesized | 2·r·c | `k×1a(r)` + `1m` per numeric column + `1fr` | O(r·c) |
+| `save-tsv` | `( rows path -- )` | Write an array of row-arrays as TSV; `null` → empty, a whole-number float → integer, strings raw; errors on a tab/newline inside a string or a non-array row | 2 + r·c | none (to file) | O(r·c) |
+| `rows>dataset` | `( rows header? -- dataset )` | datasets.telic: column-oriented frame from rows with typed columns — uniformly float-or-`null` cells become an n×1 vector (`null` → NaN), uniform-unit quantity cells a dimensioned vector, anything else stays the cell array; keys come from row 0 when header? is true, else `:col1…` are synthesized | 2·r·c | `k×1a(r)` + `1m` per numeric column + `1fr` | O(r·c) |
 | `rows>relation` | `( rows index-cols header? -- relation )` | datasets.telic: deduped relation indexed on `index-cols` (coerced to symbols) | r·c | one frame per row + relation + index buckets | O(r·c) |
 | `dataset>rows` | `( dataset -- rows )` | datasets.telic: an array of row-arrays led by a header row of the column names as strings, columns in key order; each cell is its column's value (NaN → `null`, dimensioned cells as quantities) | r·c | header + one array per row + `1a(r·c)` cells | O(r·c) |
 | `headn` | `( dataset n leading-columns -- )` | datasets.telic: print the first min(n, rows) rows as an aligned table — the `leading-columns` symbols appear first in the given order, the remaining columns alphabetical by name (an empty `leading-columns` orders every column alphabetically); column names as the header line, two-space gutter, numeric/quantity columns right-aligned, text left, `:datetime` columns as ISO time strings, other cells in their default rendering; empty dataset prints nothing | r·c | rendered cells | O(r·c) |
@@ -4153,11 +4163,14 @@ wall-now time>iso . cr
 | `sort-rows-descending` | `( dataset sym -- dataset )` | datasets.telic: rows sorted descending by the named column in natural order (so text columns descend too); equal keys keep dataset order, so chained sorts compose — minor key first, major key last — and missing cells sort last; a missing key errors | n log n + n·c | permutation ×3 + one column each | O(n log n + n·c) |
 | `count` | `( arr/v/dataset -- pairs )` | datasets.telic: occurrences of each distinct value as `[ [ value n ] … ]`, most frequent first, ties in value order; a vector counts its elements (a dimensioned one counts quantities), a dataset counts whole rows, each a frame keyed by column name | 2n log n | rows + pairs + 3×`1a` | O(n log n) |
 | `zero-variance?` | `( column -- bool )` | datasets.telic: 1 when the column (array or vector) has fewer than two distinct values — a constant or empty column; `null`/NaN counts as a value, so `[ 1 null ] vector` answers 0. `[: nip zero-variance? not :] filter-columns` drops constant columns from a dataset | 2n log n | `count`'s | O(n log n) |
-| `group-indices` | `( column -- pairs )` | datasets.telic: `[ [ value [indices] ] … ]` per distinct value in natural order — each index array holds the value's row positions, ascending | 2n log n | permutation + one pair and array per value | O(n log n) |
-| `frames>dataset` | `( rows -- dataset )` | datasets.telic: an array of row frames as a column-oriented dataset, keys from row 0 — differing keys throw. Each column's representation is inferred: all-float cells (`none` → NaN) become an n×1 vector, uniform-unit quantities a dimensioned vector, anything else stays an array | n·k log k | one column per key + `1o` | O(n·k log k) |
+| `group-indices` | `( column -- pairs )` | datasets.telic: `[ [ value [indices] ] … ]` per distinct value in natural order — each index array holds the value's row positions, ascending; a numeric column's NaN group orders last, a text column's `null` group first | 2n log n | permutation + one pair and array per value | O(n log n) 
+| `split-by` | `( dataset by -- pairs )` | datasets.telic: `[ [ key sub-dataset ] … ]`, one pair per distinct value of the `by` column, or per value tuple of a `by`-symbol array (the key then an array), in `group-indices` order; each sub-dataset is the group's rows with every column and representation kept | n log n + per-group select | one sub-dataset per group | O(n log n + n·c) |
+| `frames>dataset` | `( rows -- dataset )` | datasets.telic: an array of row frames as a column-oriented dataset, keys from row 0 — differing keys throw. Each column's representation is inferred: all-float cells (`null` → NaN) become an n×1 vector, uniform-unit quantities a dimensioned vector, anything else stays an array | n·k log k | one column per key + `1o` | O(n·k log k) |
 | `aggregate` | `( dataset by xt -- dataset )` | datasets.telic: split-apply-combine — rows group by the `by` column's distinct values, or by the value tuple of a `by`-symbol array (tuples group and order in natural order); for each group `xt` `( group-dataset -- frame )` answers one row frame, the group's key values are stored into it under their own keys (overwriting any the xt set), and the rows reassemble into a dataset | n log n + per-group xt | one sub-dataset and frame per group + result columns; array `by` adds one tuple array per row | O(n log n + n·c) |
+| `within-groups` | `( dataset by xt -- column )` | datasets.telic: the grouped transform, `aggregate`'s non-collapsing twin — rows group as `aggregate` groups them; for each group `xt` `( group-dataset -- column/scalar )` answers one value per group row (a column or array of the group's length) or one scalar that fills the group; the values return to their original row positions and the assembled n-row column is answered, in the representation `column-from-cells` infers, for the caller to store (`… within-groups :share !`) or use as a mask. A quotation answering the wrong count errors naming the group | n log n + per-group xt | one sub-dataset per group + `2a(n)` + one column | O(n log n + n·c) |
 | `expand-grid` | `( grid-frame -- dataset )` | datasets.telic: the cartesian product of the per-key value lists as a dataset — `grid-frame` maps each column key to its values (array, vector, or set), the result has one column per key and `∏ lengths` rows, every combination present. Columns follow the frame's key order with the last key varying fastest, so rows come out sorted left to right (odometer order). Numeric columns come back as vectors, text as arrays; a zero-length value list yields 0 rows, an empty frame `{ }` | ∏·k | one column each + index arrays | O(∏·k) |
 | `merge-by` | `( left right key join-type -- dataset )` | datasets.telic: join on `key` (a symbol or symbol array); `join-type` is `:inner` (matched pairs only), `:left` (every left row, right's columns `null` on a miss), `:right` (every right row, left's columns `null`), or `:outer` (left rows then unmatched right rows, missing side `null`). The probed side's key must be **unique** — right for `:inner`/`:left`, left for `:right`, both for `:outer` — a duplicate on the probed side errors; a non-key column in both datasets errors naming it (no `.x`/`.y` suffixing). Columns are the union with key once; a null-filled numeric column re-infers as a vector with NaN | L·R | row frames + merged columns | O(L·R) |
+| `repeat-column!` | `( dataset value sym -- dataset )` | datasets.telic: store `value` repeated over the rows as the named column, in place, and leave the dataset: a scalar fills every row; an array or vector of length k repeats n-rows/k times, and n-rows not a multiple of k errors. The column takes the representation `column-from-cells` infers — floats and `null` a vector, one-unit quantities a dimensioned vector, else an array; an existing key is overwritten | 4n | `2a(n)` + one column | O(n) |
 | `set-unit!` | `( dataset unit-xt sym -- dataset )` | datasets.telic: set the named column's unit to the one `unit-xt` attaches (`' m`), replacing any existing unit, so the column becomes a dimensioned vector and the stats keep the unit. In place, returns the dataset; a non-numeric (text) column errors naming it | log c + n | one column | O(n) |
 | `replace-where!` | `( dataset pred replacement sym -- )` | datasets.telic: replace the named column's cells passing `pred` `( column -- mask )`, in place, so the replacement broadcasts and units reconcile: `pipeline [: -1 eq :] null :rep_touches replace-where!` nulls a sentinel, `[: nan? :] 0` fills missing, `[: 10 $ < :] 5 $` floors prices | pred + n | mask + one column | O(n) |
 | `resample-indices` | `( n -- arr )` | datasets.telic: n indices drawn from [0,n) with replacement (bootstrap), from the global stream | 2n | `2×1a(n)` | O(n) |
@@ -4346,6 +4359,15 @@ cols [: drop dup :b = swap :d = or :] filter-columns keys . cr
     [ 1 ] ] ]
 ```
 
+```forth split-by
+{ :g [ "b" "a" "b" ] :x [ 1 2 3 ] vector } :g split-by
+[: key-group | key-group 0 @i . key-group 1 @i :x @ transpose matrix>array . cr :] each
+```
+```output
+a [ 2 ]
+b [ 1 3 ]
+```
+
 ```forth frames>dataset
 [ { :a 1 } { :a 2 } ] frames>dataset :a @ matrix>array . cr
 ```
@@ -4363,6 +4385,16 @@ cols [: drop dup :b = swap :d = or :] filter-columns keys . cr
 [ 1 3 2 ]
 ```
 
+```forth within-groups
+{ :g [ "a" "b" "a" ] :x [ 1 2 3 ] vector } to grouped
+grouped :g [: group | group :x @ dup sum / :] within-groups transpose matrix>array . cr
+grouped :g [: group | group :x @ sum :] within-groups transpose matrix>array . cr
+```
+```output
+[ 0.25 1 0.75 ]
+[ 4 2 4 ]
+```
+
 ```forth expand-grid
 { :a [ 1 2 ] :b [ :x :y :z ] } expand-grid dup :a @ matrix>array . :b @ . cr
 ```
@@ -4375,6 +4407,14 @@ cols [: drop dup :b = swap :d = or :] filter-columns keys . cr
 ```
 ```output
 [ :a :b :c ] [ 10 null 30 ]
+```
+
+```forth repeat-column!
+{ :x [ 1 2 3 4 ] vector } 7 :seven repeat-column! [ 1 2 ] :cycle repeat-column!
+dup :seven @ transpose matrix>array . :cycle @ transpose matrix>array . cr
+```
+```output
+[ 7 7 7 7 ] [ 1 2 1 2 ]
 ```
 
 ```forth set-unit!
@@ -4422,7 +4462,7 @@ The quotation/predicate cost dominates; `xt` denotes one call.
 | `product-times` | `( xt n -- product )` | arrays.telic: the product of `xt` `( i -- term )` over i in 0..n-1 | 3 + n·(1+xt) | none | O(n·xt) |
 | `i-times` | `( xt n -- )` | Run xt n times, pushing index 0..n-1 first | 2 + n·(1+xt) | none | O(n·xt) |
 | `fold-times` | `( acc map-xt combine-xt n -- acc' )` | Counted map-fold: for i in 0..n-1 push i, run `map-xt` `( i -- term )`, then combine the accumulator with the term. The accumulator never appears on the data stack — with `' f+`, `' f-`, `' f*`, `' f/` or their polymorphic counterparts the arithmetic runs inside the loop with no dispatch, and any other combiner is invoked as `( acc term -- acc' )`. `0 [: dup f* :] ' f+ 5 fold-times` answers 30; values the body needs beyond the index are parked below and read with `pick` | 4 + n·(1+xt) | none | O(n·xt) |
-| `find-first` | `( items pred -- element )` | The first element for which pred is truthy, or the none value; short-circuits at the first hit (does not run pred over the rest) | n·xt | none | O(n·xt) |
+| `find-first` | `( items pred -- element )` | The first element for which pred is truthy, or `null`; short-circuits at the first hit (does not run pred over the rest) | n·xt | none | O(n·xt) |
 | `any?` | `( items pred -- bool )` | arrays.telic: true when pred is truthy for some element, false otherwise; short-circuits at the first hit | n·xt | none | O(n·xt) |
 | `all?` | `( items pred -- bool )` | arrays.telic: true when every element satisfies pred, vacuously true on empty. Runs pred over **every** element, so it does not short-circuit and a side-effecting pred runs n times | 2n·xt | `1a(n)` | O(n·xt) |
 | `each` | `( items xt -- )` | Run xt `( element -- )` on every element for its side effects; the element is the only thing the quotation may consume, and it must leave nothing. No result, no allocation | 2 + n·xt | none | O(n·xt) |
@@ -5244,7 +5284,7 @@ variable b 4 to b variable c 10 to c
 | `see-compiled>string` | `( xt -- str )` | The disassembly of a colon definition's compiled cells (a curried token's bound values then its target), returned as a string (trailing newline stripped) | body scan | `1o` | O(body) |
 | `see-tree` | `( xt -- )` | Disassemble a colon definition's compiled cells, but each colon-word call is expanded inline, indented two spaces, recursively down to primitives; recursive calls print as `name ...` | body scan | none | O(expanded body) |
 | `see-tree>string` | `( xt -- str )` | The disassembly with each colon-word call expanded inline, indented two spaces, recursively down to primitives (recursive calls as `name ...`), returned as a string (trailing newline stripped) | body scan | `1o` | O(expanded body) |
-| `man` | `( xt -- fr )` | Frame of a word's reference entry (`:word :effect :summary`, plus `:ops :alloc :order` for runtime words); a unit word synthesizes its entry from the unit's definition (`unit: m × 1000`); a word a `load` defined under a `( a b -- c ) \\ summary` comment answers `{ :word :effect :summary }` from that comment, continuation lines starting with `\\` extending the summary; the none value otherwise | dict scan + log n | `1o` + strings | O(\|dict\|) |
+| `man` | `( xt -- fr )` | Frame of a word's reference entry (`:word :effect :summary`, plus `:ops :alloc :order` for runtime words); a unit word synthesizes its entry from the unit's definition (`unit: m × 1000`); a word a `load` defined under a `( a b -- c ) \\ summary` comment answers `{ :word :effect :summary }` from that comment, continuation lines starting with `\\` extending the summary; `null` otherwise | dict scan + log n | `1o` + strings | O(\|dict\|) |
 | `help` | `( "name" -- )` | repl.telic: parse the next word and print its reference entry, or the entry `man` builds from the comment above a loaded definition; bare `help` (no name on the line) prints a starter cheat sheet, and an unknown name prints `unknown word: <name>` without erroring | dict scan + log n | `1o` + strings + print | O(\|dict\|) |
 | `gc` | `( -- )` | Force a mark-sweep now | walks stacks + dict + roots, frees unmarked | none | O(objects + dict) |
 | `gauges` | `( -- fr )` | repl.telic: the interpreter's resource readings as a frame of six frames; memory is in MiB (dictionary pools in KiB), processor time in s, counts are floats, and a `[ used capacity ]` pair is an array. `:dictionary`: `:cells`, `:name-pool`, `:source-pool`, `:symbol-pool`, `:quotations`, `:word-locations`, `:cell-lines`, `:loaded-files` as pairs, plus `:words`, `:session-words` (defined since the embedded library), `:symbols`. `:heap`: `:arena` `[ used reserved ]`, `:live`, `:gc-threshold`, `:memory-headroom` (until the next collection), `:objects` `[ live table-size ]` (live is claimed handles minus the free list), `:handles-claimed` `[ claimed table-size ]` (the high-water mark; a collection refills the free list rather than lowering it), `:max-objects`, `:free-handles`, `:handle-headroom` `[ unclaimed trigger ]` (a collection is requested when unclaimed falls under trigger), `:pairs` `[ live table-size ]`, `:collections`. `:stacks`: `:data`, `:return`, `:side`, `:calls`, `:trail`, `:logic-vars`, `:roots`, each `[ depth capacity ]`. `:resources`: `:databases`, `:regex-cache`, `:workers`, each `[ in-use capacity ]`. `:computer`: `:cpu-count`, `:physical-memory`, the load averages `:load-1` `:load-5` `:load-15`, and this process's `:user-time`, `:system-time`, `:max-rss` (peak resident memory), `:minor-faults`, `:major-faults`, `:voluntary-switches`, `:involuntary-switches` — `null` under wasm, which has no such calls. `:session`: `:line`, `:interactive`, `:load-depth`, `:gc-disabled`, `:tracing` | dict walk + symbol scan | `1fr` × 6 + pairs | O(words + symbols) |
@@ -5551,14 +5591,14 @@ reload
 | `open-file` | `( path -- stream )` | The file as a read-only stream, so `read-line` / `read` / `read-available` / `wait-readable` / `close` walk a file too large to read whole line by line; errors if it can't be opened | 1 | none | O(1) |
 | `file-exists?` | `( path -- bool )` | Whether the path exists; follows symlinks, tests any file type, not just regular files | 1 | none | O(1) |
 | `args` | `( -- arr )` | The command-line arguments after the program file, as a string array — everything after the file belongs to the program, options included. A leading `#!` line is skipped | 1 + n | `1a(n)` + `1o` per argument | O(bytes) |
-| `env` | `( name -- val )` | Environment variable as a string, or the none value if unset (so set-empty `""` and unset stay distinct) | 1 | `1o` on hit | O(\|val\|) |
+| `env` | `( name -- val )` | Environment variable as a string, or `null` if unset (so set-empty `""` and unset stay distinct) | 1 | `1o` on hit | O(\|val\|) |
 | `env!` | `( value name -- )` | Set an environment variable (overwriting); process-wide, so subsequent `start-process` children inherit it — value first, name last | 1 | none | O(1) |
 | `cwd` | `( -- path )` | The interpreter's current working directory as a string | 1 | `1o` | O(\|path\|) |
 | `binary-dir` | `( -- str )` | The directory holding the running telic binary, symlinks resolved, so an installation's resources are reachable from any cwd; errors on the wasm build (no executable path) | 1 | `1o` | O(\|path\|) |
 | `cd` | `( path -- )` | Change the interpreter's working directory; process-wide, so it moves the base for relative file I/O and is inherited by subsequent `start-process` children | 1 | none | O(1) |
-| `find-executable` | `( name -- path\|none )` | `io.telic`: the absolute path of `name` on `$PATH` (first directory holding it), or the none value if unset or not found; a name containing `/` matches no bare `PATH` entry, so it answers the none value | split + probe | `1o` per candidate | O(dirs) |
+| `find-executable` | `( name -- path\|null )` | `io.telic`: the absolute path of `name` on `$PATH` (first directory holding it), or `null` if unset or not found; a name containing `/` matches no bare `PATH` entry, so it answers `null` | split + probe | `1o` per candidate | O(dirs) |
 | `list-directory` | `( path -- arr )` | The directory's entry names as an array of strings, `.` and `..` excluded, sorted in ascending order so a listing is the same on every filesystem. Names only, not paths — joining them to the parent is the caller's; errors when the path is missing or is not a directory | n log n | `1a(n)` + `1o` per name | O(n log n) |
-| `file-info` | `( path -- fr\|none )` | `io.telic`: `{ :kind :size :modified }` for one path — `:kind` is `:file`, `:directory`, or `:other`, `:size` the byte count, `:modified` the modification time as an instant (a quantity in `s`, whole seconds). Symlinks are followed, so a link to a directory reports `:directory`; a missing path — a dangling symlink included — answers the none value rather than erroring, so `dup none? if … then` guards it | 20 | `1o` + 1 pair | O(1) |
+| `file-info` | `( path -- fr\|null )` | `io.telic`: `{ :kind :size :modified }` for one path — `:kind` is `:file`, `:directory`, or `:other`, `:size` the byte count, `:modified` the modification time as an instant (a quantity in `s`, whole seconds). Symlinks are followed, so a link to a directory reports `:directory`; a missing path — a dangling symlink included — answers `null` rather than erroring, so `dup null? if … then` guards it | 20 | `1o` + 1 pair | O(1) |
 | `make-directory` | `( path -- )` | Create the directory, intermediate components included; silent when it already exists, so it is idempotent. Errors when a component exists as a non-directory or the path is unwritable | d | none | O(d), d = path components |
 | `delete-file` | `( path -- )` | Remove the file; errors when it is missing or is a directory | 1 | none | O(1) |
 | `delete-directory` | `( path -- )` | Remove the directory; errors unless it exists and is empty. There is no recursive form | 1 | none | O(1) |
@@ -5625,7 +5665,7 @@ args . cr
 
 ```forth env
 "42" "DOCS_VAR" env! "DOCS_VAR" env . cr
-"NO_SUCH_VAR_XYZ" env none? . cr
+"NO_SUCH_VAR_XYZ" env null? . cr
 ```
 ```output
 42
@@ -5661,7 +5701,7 @@ cwd "/tmp" cd cwd "tmp" has? . cd cr
 ```
 
 ```forth find-executable
-"sh" find-executable none? 0= . cr
+"sh" find-executable null? 0= . cr
 ```
 ```output
 1
@@ -5681,7 +5721,7 @@ cwd "/tmp" cd cwd "tmp" has? . cd cr
 "hello" "/tmp/docs-info.txt" write-file
 "/tmp/docs-info.txt" file-info dup :kind @ . :size @ . cr
 "/tmp/docs-info.txt" file-info@modified 1 s / 0 > . cr
-"/tmp/docs-no-such-file" file-info none? . cr
+"/tmp/docs-no-such-file" file-info null? . cr
 ```
 ```output
 :file 5
@@ -5866,9 +5906,9 @@ A stream (`T_STREAM`) wraps an OS file descriptor — a pipe to a child process,
 | `run-result` | `( argv -- frame )` | subprocess.telic: run `argv` to completion and return `{ :out :err :status }`, closing the streams and reaping the child | fork + drain | `1fr` + output strings | O(output) |
 | `write` | `( str stream -- )` | Write the string's bytes to the stream; loops over partial writes, retries `EINTR` | write syscalls | none | O(\|s\|) |
 | `read` | `( stream -- str )` | Read the stream to EOF into one string | read syscalls | `1o` + buffer growth | O(bytes) |
-| `read-line` | `( stream -- str \| none )` | Read up to and including the next `\n` and answer the line without that terminator; a `\r` before it is content and stays, as it does under `"\n" split`. Bytes after the terminator are left in the stream, so `read` on the same stream answers the rest — the word holds no buffer and costs one `read` syscall per byte, for line protocols rather than bulk input. At end of input with nothing accumulated it answers `none`; a final unterminated run of bytes answers as a line, and the call after it answers `none`. Retries `EINTR` | bytes | `1o` + buffer growth | O(bytes) |
-| `read-available` | `( stream -- str )` | The bytes already waiting on the stream, without blocking: up to 65536 of them as a string, `""` when none are waiting, `none` at end of input. A zero-timeout `poll` decides, then one `read`. Used with `wait-readable` when one thread serves several streams: `read-line` blocks until its newline arrives, so a writer that flushes a partial line and then computes would stall every other stream, while this word takes what is there and leaves the caller to assemble lines | 1 + bytes | `1o` | O(bytes) |
-| `wait-readable` | `( streams seconds -- ready )` | Wait until at least one of `streams` has bytes to read, and answer a new array of those that do — empty when the wait expires first. `seconds` is a float with sub-second granularity: `0` polls without waiting, a negative value waits indefinitely. End of input counts as readable, so a stream whose writer has exited comes back and the read that follows answers `none` instead of blocking. `poll(2)` underneath, retrying `EINTR`; errors on a non-stream element, a closed stream, or more than 256 streams | 1 + n | `1a(k)` | O(n) |
+| `read-line` | `( stream -- str \| null )` | Read up to and including the next `\n` and answer the line without that terminator; a `\r` before it is content and stays, as it does under `"\n" split`. Bytes after the terminator are left in the stream, so `read` on the same stream answers the rest — the word holds no buffer and costs one `read` syscall per byte, for line protocols rather than bulk input. At end of input with nothing accumulated it answers `null`; a final unterminated run of bytes answers as a line, and the call after it answers `null`. Retries `EINTR` | bytes | `1o` + buffer growth | O(bytes) |
+| `read-available` | `( stream -- str )` | The bytes already waiting on the stream, without blocking: up to 65536 of them as a string, `""` when none are waiting, `null` at end of input. A zero-timeout `poll` decides, then one `read`. Used with `wait-readable` when one thread serves several streams: `read-line` blocks until its newline arrives, so a writer that flushes a partial line and then computes would stall every other stream, while this word takes what is there and leaves the caller to assemble lines | 1 + bytes | `1o` | O(bytes) |
+| `wait-readable` | `( streams seconds -- ready )` | Wait until at least one of `streams` has bytes to read, and answer a new array of those that do — empty when the wait expires first. `seconds` is a float with sub-second granularity: `0` polls without waiting, a negative value waits indefinitely. End of input counts as readable, so a stream whose writer has exited comes back and the read that follows answers `null` instead of blocking. `poll(2)` underneath, retrying `EINTR`; errors on a non-stream element, a closed stream, or more than 256 streams | 1 + n | `1a(k)` | O(n) |
 | `close` | `( stream -- )` | Close the fd; closing a child's `:in` sends it EOF. Idempotent; a closed handle stays stale — reading or writing it reports `stream is closed` even after the descriptor number is reissued to another stream. A dropped handle holds its descriptor until process exit; `with-stream` scopes one | 1 syscall | none | O(1) |
 | `stdin` | `( -- stream )` | Standard input as a `T_STREAM` over fd 0; `stdin read` reads it whole. (The REPL reads its own program from stdin, so this word suits file-loaded programs.) | 1 | none | O(1) |
 | `stdout` | `( -- stream )` | Standard output as a `T_STREAM` over fd 1; `s stdout write` emits | 1 | none | O(1) |
@@ -6067,7 +6107,7 @@ Embedded relational storage via the vendored SQLite amalgamation, built into the
 | `db-close` | `( db -- )` | Close the connection and free its registry slot. Idempotent — closing an already-closed handle is a no-op. A closed handle stays stale: using it reports `database is closed` even after the slot is reissued to another database. A handle that is dropped without closing holds the connection until process exit; `with-db` scopes one | 1 syscall | none | O(1) |
 | `db-exec` | `( db statement params -- n )` | Bind `params` to the statement's `?` placeholders and run it with no result set (INSERT / UPDATE / DELETE / CREATE / …); return the affected-row count as a float (0 for DDL). One statement per call. On a bad statement, errors with SQLite's message | per statement | none | O(statement) |
 | `db-query` | `( db query params -- rel )` | Bind `params` to the query's `?` placeholders and run it; return an index-less relation `{ :rows <array of row frames> :index { } }`. Each row is a frame keyed by column-name symbols, with INTEGER/REAL → float, TEXT → string, NULL → `null`, BLOB → string of raw bytes. `:rows` is a **bag** — duplicates kept, in result order. On a bad query, errors with SQLite's message | n·c | `1o` relation + `1a(n)` + `1o`/row + a string per text/blob cell | O(n·c) |
-| `db-query>dataset` | `( db query params -- dataset )` | database.telic: the same query, returned as a column-oriented dataset with **typed columns**: a column whose every cell is numeric or NULL becomes an n×1 vector (NULL → NaN), a column declared DATE/DATETIME/TIMESTAMP becomes a vector of instants in `s` (numeric cells read as epoch seconds, text cells parsed as ISO Z), and anything else stays an array with `none` for NULL. An empty column declared numeric stays an empty vector, so the type survives an empty result; a repeated column name keeps its last occurrence | n·c | `1o` frame + `1a`/column + `1m` per numeric column + a string per text cell | O(n·c) |
+| `db-query>dataset` | `( db query params -- dataset )` | database.telic: the same query, returned as a column-oriented dataset with **typed columns**: a column whose every cell is numeric or NULL becomes an n×1 vector (NULL → NaN), a column declared DATE/DATETIME/TIMESTAMP becomes a vector of instants in `s` (numeric cells read as epoch seconds, text cells parsed as ISO Z), and anything else stays an array with `null` for NULL. An empty column declared numeric stays an empty vector, so the type survives an empty result; a repeated column name keeps its last occurrence | n·c | `1o` frame + `1a`/column + `1m` per numeric column + a string per text cell | O(n·c) |
 | `tsv>db` | `( tsv-path db table -- info )` | database.telic: import a TSV file into a new table. The header row names the columns (identifiers quoted, so any header text works); a column whose every non-empty cell is numeric is REAL, else TEXT; empty cells insert as NULL; all rows go in one transaction. `info` is `{ :n-rows N :columns [ … ] }` — a `:real` column carries `{ :name :type :summary }` with a `:summary` statistics frame of its distribution, a `:text` column `{ :name :type :distinct }` with `COUNT(DISTINCT)` (NULLs uncounted). Errors before creating anything on a missing or ragged file; an existing table errors on the CREATE, leaving it untouched | r·c | rows + dataset + `1s`/statement | O(r·c) |
 
 Using a closed handle errors (`database is closed`). Do selection, projection, and joins in the SQL itself; Telic materializes the result. Indexing a result is a separate, explicit step — `create-index` (see Fact database) — because it interns the indexed columns to symbols, which suits low-cardinality categorical columns.

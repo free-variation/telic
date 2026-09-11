@@ -60,7 +60,7 @@
 : ls-entry
 	| name path |
 	path "/" + name + file-info to info
-	info none? if name exit then
+	info null? if name exit then
 
 	info@kind :directory = if name "/" + else name then ; internal
 
@@ -87,13 +87,13 @@
 	loop ;
 
 ( bytes -- q ) \ a byte count as a MiB quantity; null passes through (wasm has no reading)
-: bytes>mebibytes dup none? not if 1048576 / MiB then ; internal
+: bytes>mebibytes dup null? not if 1048576 / MiB then ; internal
 
 ( bytes -- q ) \ a byte count as a KiB quantity
 : bytes>kibibytes 1024 / KiB ; internal
 
 ( f -- q ) \ a second count as an s quantity; null passes through
-: seconds>quantity dup none? not if s then ; internal
+: seconds>quantity dup null? not if s then ; internal
 
 ( -- fr ) \ the interpreter's resource readings: memory in MiB (dictionary pools
 \ in KiB), processor time in s
@@ -130,7 +130,7 @@
 ( q -- f ) \ the magnitude of a quantity, the float itself, or 0 for null (a
 \ platform without the reading)
 : gauge-magnitude
-	dup none? if drop 0 exit then
+	dup null? if drop 0 exit then
 	dup quantity? if magnitude then ; internal
 
 ( label -- str ) \ a row label padded to the label column
@@ -162,7 +162,7 @@ null to gauges-previous
 ( sample key -- rate ) \ per-second change of the key since the previous sample; 0 on the first
 : gauge-rate
 	| sample key |
-	gauges-previous none? if 0 exit then
+	gauges-previous null? if 0 exit then
 	sample :time @ gauges-previous :time @ - to seconds
 	seconds 0 <= if 0 exit then
 	sample key @ gauges-previous key @ - seconds / ; internal
@@ -217,7 +217,7 @@ null to gauges-previous
 	left-4 right-4 "{1} {dim}│{plain} {0}" format
 	left-5 right-5 "{1} {dim}│{plain} {0}" format
 
-	sample :time @ gauges-previous none? if sample :time @ else gauges-previous :time @ then -
+	sample :time @ gauges-previous null? if sample :time @ else gauges-previous :time @ then -
 	wall-now "%H:%M:%S" format-time
 	"{dim}interval {1:.1f} s at {0}{plain}" format
 	6 array

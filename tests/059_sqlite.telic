@@ -58,7 +58,7 @@ ds keys . cr
 ds :id @ . cr
 ds :name @ . cr
 ds :score @ . cr
-ds :note @ 1 @i none? . cr
+ds :note @ 1 @i null? . cr
 ds [ :id :score ] dataset>matrix dim swap . . cr
 
 \ === db-query>dataset: empty result keeps its columns; duplicate name keeps one ===

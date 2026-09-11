@@ -20,7 +20,7 @@
   1 xt ' f* n fold-times ;
 
 ( items pred -- flag ) \ does any element satisfy pred?
-: any? find-first none? not ;
+: any? find-first null? not ;
 inline
 
 ( items pred -- flag ) \ do all elements satisfy pred?

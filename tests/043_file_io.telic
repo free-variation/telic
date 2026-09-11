@@ -45,7 +45,7 @@ tail" "/tmp/lf_fileio.txt" write-file
 lines read-line . cr                           \ first
 lines read-line . cr                           \ second
 lines read . cr                                \ tail (unterminated final run)
-lines read-line none? . cr                     \ 1  end of input
+lines read-line null? . cr                     \ 1  end of input
 lines close
 
 "/tmp/lf_fileio.txt" open-file to peeking

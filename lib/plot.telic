@@ -537,7 +537,7 @@ to aes
 	0 to i
 	begin i parts size < while
 		parts i @i to mark
-		mark space-key :none @or :data = if
+		mark space-key :null @or :data = if
 			mark coords-key @ drop-nans to coords
 			coords num-elements 0 > if
 				low null = if

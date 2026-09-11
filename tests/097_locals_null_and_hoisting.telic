@@ -7,7 +7,7 @@
 
 : dead-branch 0 if 5 to x then x ;
 dead-branch . cr                               \ null
-dead-branch none? . cr                         \ 1
+dead-branch null? . cr                         \ 1
 
 : taken-branch 1 if 5 to x then x ;
 taken-branch . cr                              \ 5

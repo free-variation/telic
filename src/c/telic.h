@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.34.6"
+#define VERSION "0.34.9"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1353,9 +1353,9 @@ void p_ncurry(DISPATCH_ARGS);
 void p_neg(DISPATCH_ARGS);
 void p_neq_elements(DISPATCH_ARGS);
 void p_nip(DISPATCH_ARGS);
-void p_none(DISPATCH_ARGS);
 void p_not(DISPATCH_ARGS);
 void p_null(DISPATCH_ARGS);
+void p_null_(DISPATCH_ARGS);
 void p_or(DISPATCH_ARGS);
 void p_over(DISPATCH_ARGS);
 void p_pick(DISPATCH_ARGS);

@@ -20,7 +20,7 @@
 \ === end of input counts as readable, so the read after it answers none ===
 talker :out @ read-line . cr                          \ hello
 [ talker :out @ ] 5 wait-readable size . cr           \ 1
-talker :out @ read-line none? . cr                    \ 1
+talker :out @ read-line null? . cr                    \ 1
 
 \ === zero seconds polls without waiting ===
 [ sleeper :out @ ] 0 wait-readable size . cr          \ 0
@@ -46,11 +46,11 @@ clear
 [ "printf" "chunk" ] start-process to talker
 [ "sleep" "30" ] start-process to quiet
 
-quiet :out @ read-available dup byte-size . none? . cr   \ 0 0  (nothing waiting)
+quiet :out @ read-available dup byte-size . null? . cr   \ 0 0  (nothing waiting)
 [ talker :out @ ] 5 wait-readable drop
 talker :out @ read-available . cr                        \ chunk
 [ talker :out @ ] 5 wait-readable drop
-talker :out @ read-available none? . cr                  \ 1  (end of input)
+talker :out @ read-available null? . cr                  \ 1  (end of input)
 
 quiet :pid @ stop drop
 quiet :in @ close  quiet :out @ close  quiet :err @ close

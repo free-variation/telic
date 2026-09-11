@@ -21,7 +21,7 @@ info :columns @                              \ real columns carry a :summary fra
 
 \ === the table queries back typed; the empty cell became NULL ===
 db "SELECT score FROM t WHERE name = ?" [ "alice" ] db-query>dataset :score @ . cr    \ 2x1 grid: 9.5 7.25
-db "SELECT note FROM t WHERE id = ?" [ 2 ] db-query>dataset :note @ 0 @i none? . cr   \ 1
+db "SELECT note FROM t WHERE id = ?" [ 2 ] db-query>dataset :note @ 0 @i null? . cr   \ 1
 
 \ === iris: the vendored 150-row fixture ===
 "data/iris.tsv" db "iris" tsv>db to info

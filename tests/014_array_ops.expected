@@ -163,6 +163,33 @@ in remove-last!
 a 
 error: array index 1 out of bounds (length 1)
 in (@i.lit) ← second
+2 
+10 
+20 
+20 
+10 
+test2 
+null 
+one 
+other 
+str 
+frame 
+dollar 
+1 
+null 
+[ 1 2 ] 
+[( 1 2 null )] 
+2 
+[ 1 ] 
+null 
+null null 
+null 
+null 
+null 
+error: array index 1 out of bounds (length 1)
+in (@i.lit) ← second ← assoc
+error: expected array or set; got null
+in find-first ← assoc
 error: array index 0 out of bounds (length 0)
 in (@i.lit) ← first
 error: expected an array or matrix; got a float

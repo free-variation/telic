@@ -31,7 +31,7 @@
 "" "/tmp/lf_findexec_tool" write-file
 "/tmp" "PATH" env!
 "lf_findexec_tool" find-executable . cr          \ /tmp/lf_findexec_tool
-"lf_no_such_tool_zzz" find-executable none? . cr \ 1
+"lf_no_such_tool_zzz" find-executable null? . cr \ 1
 "/nonexistent_zzz:/tmp" "PATH" env!
 "lf_findexec_tool" find-executable . cr          \ /tmp/lf_findexec_tool (skips missing dirs)
 

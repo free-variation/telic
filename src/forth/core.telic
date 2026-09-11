@@ -92,6 +92,28 @@ inline
 ( arr/pair -- v ) \ element 1: an array's second element, a cons's tail
 : second dup pair? if head-tail nip else 1 @i then ;
 
+( chain key -- value ) \ the value after key in a property chain: the heads
+\ alternate key, value along the tails, and the value of the last key may be
+\ the terminal tail itself; null when the key is absent
+: chain-assoc
+	| chain key |
+	begin chain pair? while
+		chain head-tail to rest to entry-key
+		rest pair? if rest head-tail to chain to value else rest to value null to chain then
+		entry-key key = if value exit then
+	repeat
+	null ; internal
+
+( entries key -- value ) \ the value paired with key, the first match by
+\ structural equality: in an array, entries are [ key value ] arrays or conses
+\ (first is the key, second the value); a chain of pairs is a property chain,
+\ [( k1 v1 k2 v2 )]; null when the key is absent
+: assoc
+	| entries key |
+	entries pair? if entries key chain-assoc exit then
+	entries [: first key = :] find-first
+	dup null? not if second then ;
+
 \ arithmetic words
 
 ( a b -- quotient ) \ integer quotient toward zero ( = % swap drop )

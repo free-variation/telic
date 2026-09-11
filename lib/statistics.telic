@@ -332,7 +332,7 @@ drop
 \ missing cell lands in no column
 : column>indicators
 	| column |
-	column column>array [: none? not :] filter array>set sort to levels
+	column column>array [: null? not :] filter array>set sort to levels
 	levels size 2 < if "column>indicators: needs at least 2 distinct values" throw then
 	column levels 1 skip
 	[: 2 pick swap eq :] map nip
@@ -342,7 +342,7 @@ drop
 \ design dataset, keyed sym=level; levels and keys derive from the same data
 : indicators!
 	| design column prefix |
-	column column>array [: none? not :] filter array>set sort to levels
+	column column>array [: null? not :] filter array>set sort to levels
 	levels size 2 < if "indicators!: needs at least 2 distinct values" throw then
 	levels 1 skip
 	[: level |
@@ -448,7 +448,7 @@ drop
 		sqrt-w x * penalty vstack to design
 		sqrt-w z * zeros vstack to target
 		design target solve-qr to new-beta
-		new-beta none? if
+		new-beta null? if
 			design target fit-linear to new-beta
 		then
 		new-beta beta - dup * sum sqrt to delta
@@ -551,12 +551,12 @@ drop
 ( -- path ) \ XGBOOST_LIB if set, else the first install location present, else
 \ the bare soname, leaving the search to the loader's own path
 : xgb-lib-path
-	"XGBOOST_LIB" env dup none? not if
+	"XGBOOST_LIB" env dup null? not if
 		exit
 	then drop
 
 	mac-xgboost-libs linux-xgboost-libs concat ' file-exists? find-first
-	dup none? if
+	dup null? if
 		drop "libxgboost.so"
 	then ; internal
 
@@ -778,7 +778,7 @@ drop
 		new-beta to beta
 
 		++ iterations
-		deviance none? if
+		deviance null? if
 			delta tolerance < to converged
 		else
 			y mu deviance execute prior-weights * sum to deviance-total
@@ -914,7 +914,7 @@ drop
 	| dataset predictors response weights replications fit family |
 	dataset predictors dataset>matrix with-intercept to x
 	dataset response column-or-matrix to y
-	weights none? if x dim drop 1 0-matrix 1 + else dataset weights column-or-matrix then to w
+	weights null? if x dim drop 1 0-matrix 1 + else dataset weights column-or-matrix then to w
 	x y augment w augment to augmented
 	augmented dup nan? row-sums 0 eq where select-rows to augmented
 	augmented split-augmented to weight-column to responses to design
@@ -993,7 +993,7 @@ drop
 	0 terms size 1- range
 	[: j |
 		summaries j @i { :term terms j @i } merge to row
-		effect none? not if
+		effect null? not if
 			row
 			{ } row :estimate @ exp effect !
 			row :ci-low @ exp effect "{0}-low" format string>symbol !
@@ -1022,7 +1022,7 @@ drop
 	[ :term :estimate :se ]
 	inference :wald = if [ :z :p ] else [ :bias ] then concat
 	[ :ci-low :ci-high ] concat
-	effect none? not if
+	effect null? not if
 		effect effect "{0}-low" format string>symbol effect "{0}-high" format string>symbol 3 array concat
 	then to ordered
 	model regression-coefficients dup n-rows ordered headn ;

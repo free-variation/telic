@@ -5,7 +5,7 @@
 \
 \ Clause selection is hand-compiled to what a first-argument-indexed system
 \ generates: dispatch on the dereferenced tag of the first argument (`type-of`
-\ — :pair / :none), committing without a choice point, and destructure a
+\ — :pair / :null), committing without a choice point, and destructure a
 \ known-bound cons with `head-tail` instead of general unification (no fresh
 \ lvars, no trail). An unbound first argument falls back to the relational
 \ committed-`amb` clauses, so the predicates stay complete.
@@ -19,7 +19,7 @@
      lvar to r1
      R  h r1 cons ~ drop                  \ R = [H|R1]
      t B r1 lappend                       \ append(T, B, R1)
-  else A type-of :none = if
+  else A type-of :null = if
      R B ~ drop                           \ append([], B, B)
   else
      A B R
@@ -39,7 +39,7 @@
      lvar to rt
      t rt nrev                            \ nrev(T, RT)
      rt  h null cons  R lappend           \ append(RT, [H], R)
-  else L type-of :none = if
+  else L type-of :null = if
      R null ~ drop                        \ nrev([], [])
   else
      L R

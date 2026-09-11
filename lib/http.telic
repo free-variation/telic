@@ -11,7 +11,7 @@
 	headers
 	[ "curl" "-sS" "-X" method url "-w" "\n%{http_code}" ]
 	[: argv header | argv "-H" add-last! header add-last! :] reduce
-	body none? not if "--data-binary" add-last! body add-last! then
+	body null? not if "--data-binary" add-last! body add-last! then
 	run-result to result
 	result :status @ 0 = not if result :err @ trim throw then
 

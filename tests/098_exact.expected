@@ -42,7 +42,7 @@ in /
 error: exact literal 1/0 has a zero denominator
 error: expected a float or a matrix; got an exact
 in sqrt
-error: expected a float; got none
+error: expected a float; got null
 in rationalize
 error: exact ^ needs an integer exponent; got 0.5
 in ^

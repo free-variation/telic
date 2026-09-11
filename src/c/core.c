@@ -2409,7 +2409,7 @@ void fail(Interpreter *interp, const char *fmt, ...) {
 
 const char *tag_name(Tag t) {
 	switch (t) {
-		case T_NONE:   return "none";
+		case T_NONE:   return "null";
 		case T_SYMBOL:    return "a symbol";
 		case T_FLOAT:  return "a float";
 		case T_STRING: return "a string";
@@ -5799,7 +5799,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "or", p_or, 0);
 	define_primitive(interp, "not", p_not, 0);
 	define_primitive(interp, "null", p_null, 0);
-	define_primitive(interp, "none?", p_none, 0);
+	define_primitive(interp, "null?", p_null_, 0);
 	define_primitive(interp, "type-of", p_type_of, 0);
 
 	type_of_intern_names(interp);

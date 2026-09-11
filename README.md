@@ -212,7 +212,7 @@ departs from its pyperformance original the file's header says so.
 
 ### Core language
 
-- **Tagged Vals** — the none value, floats, strings, symbols, sets, arrays, cons pairs, frames, matrices, quantities, segments, execution tokens, curried tokens, dictionary addresses, continuations, logic variables and the unbound/wildcard sentinel, process streams, database handles, C pointers, internal marks. A single 8-byte NaN-boxed representation; the tag determines interpretation.
+- **Tagged Vals** — `null`, floats, strings, symbols, sets, arrays, cons pairs, frames, matrices, quantities, segments, execution tokens, curried tokens, dictionary addresses, continuations, logic variables and the unbound/wildcard sentinel, process streams, database handles, C pointers, internal marks. A single 8-byte NaN-boxed representation; the tag determines interpretation.
 - **Direct-threaded inner interpreter** — each dictionary cell is a handler function pointer, dispatched by an indirect tail call (`musttail`); a colon call, literal, or branch carries its operand in the cell(s) right after the handler. The dictionary *is* the threaded code.
 - **Compile-time instruction fusion** — a float op collapses with its operands and its store into one instruction, whether they are globals (`vvf+ a b`), locals (`zr zr f* to zr2`), a literal, or a stack slot read by depth (`2 pick f+`), so a quotation reading values parked below a combinator's operands costs the same as one reading locals. Also fused: `f*+` / `f*-` multiply-add, a comparison before a branch (`= if`, `> while`), an array read-modify-write (`arr i arr i @i f1- !i`), and `++ name` / `f++ name`. `see-compiled` shows the fused ops.
 - **Program image and execution state separated** — the dictionary, symbol pool, and object heap are global (`Vocabulary`, `Compiler`, `Arena`); the three stacks, instruction pointer, locals, and GC roots live in a per-run `Interpreter`. Several execution contexts share one image, which is how the parallel words give each worker its own stacks over the shared heap — and why a worker xt must not mutate shared inputs or print.
@@ -392,7 +392,7 @@ Worker threads over one shared object heap: a quotation runs across the collecti
 
 ### JSON
 
-- **`json>frame`** / **`frame>json`** — parse and serialize: objects ↔ frames with interned symbol keys, arrays ↔ arrays, strings ↔ strings, numbers ↔ floats, `true`/`false` ↔ the reserved `:1`/`:0` symbols, `null` ↔ the none value. An integer too large for a float reads as an exact and writes back without loss.
+- **`json>frame`** / **`frame>json`** — parse and serialize: objects ↔ frames with interned symbol keys, arrays ↔ arrays, strings ↔ strings, numbers ↔ floats, `true`/`false` ↔ the reserved `:1`/`:0` symbols, `null` ↔ `null`. An integer too large for a float reads as an exact and writes back without loss.
 
 ### Value serialization
 
@@ -408,9 +408,9 @@ Worker threads over one shared object heap: a quotation runs across the collecti
 - **`args`** — the command-line arguments after the program file, as a string array; a leading `#!` line is skipped.
 - **`file-exists?`** — whether a path exists (`access`, `F_OK`); follows symlinks, any file type.
 - **Files and directories** — **`list-directory`**, **`file-info`**, **`make-directory`**, **`delete-file`**, **`delete-directory`**, **`rename-file`**, **`copy-file`**, **`touch-file`**, with **`ls`** **`mkdir`** **`rm`** **`rmdir`** **`mv`** **`pwd`** **`cat`** **`cp`** **`touch`** as shell names.
-- **`find-executable`** — `( name -- path/none )` the absolute path of `name` on `$PATH`, or the none value if not found.
+- **`find-executable`** — `( name -- path/null )` the absolute path of `name` on `$PATH`, or `null` if not found.
 - **`load-library`** — `"plot" load-library` loads `lib/plot.telic` from beside the telic binary (`binary-dir`, symlinks resolved), from any cwd; the statistics library locates its LAPACK shared library the same way.
-- **`env`** / **`env!`** — read an environment variable as a string (the none value if unset) and set one (process-wide, so `start-process` children inherit it).
+- **`env`** / **`env!`** — read an environment variable as a string (`null` if unset) and set one (process-wide, so `start-process` children inherit it).
 - **`stdin`** / **`stdout`** / **`stderr`** — the standard streams as `T_STREAM` values (fds 0/1/2), composing with `read`/`write`/`close` — `s stdout write` emits, `stdin read` reads input whole.
 
 ### Subprocesses and pipes

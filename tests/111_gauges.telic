@@ -17,7 +17,7 @@ g :computer @ sorted-keys . cr
 g :session @ sorted-keys . cr
 
 \ -- the computer readings are floats or quantities where the platform supplies them, null otherwise
-g :computer @ values [: dup none? over float? or swap quantity? or :] map . cr
+g :computer @ values [: dup null? over float? or swap quantity? or :] map . cr
 
 \ -- stacks read at the call: data depth was 0, one call frame, no roots
 g :stacks @ :data @ . cr                          \ [ 0 65536 ]
@@ -46,4 +46,4 @@ gauges :heap @ :collections @ collections-before - . cr   \ 1
 gauges :heap @ dup :memory-headroom @ swap dup :gc-threshold @ swap :live @ - = . cr   \ 1
 gauges :heap @ :live @ quantity? . cr             \ 1
 gauges :dictionary @ :name-pool @ 1 @i . cr       \ 256 KiB
-gauges :computer @ :physical-memory @ dup none? swap quantity? or . cr   \ 1
+gauges :computer @ :physical-memory @ dup null? swap quantity? or . cr   \ 1

@@ -239,7 +239,7 @@ clear
 1 "{3000000000}" format                                      \ index past INT_MAX: reported, not a wild read
 
 clear
-\ string>number ( s -- n | none ) — parse a decimal/float string to a float
+\ string>number ( s -- n | null ) — parse a decimal/float string to a float
 \ (via strtod, like a numeric literal), surrounding whitespace ignored; the
 \ none value when the whole string is not a number.
 

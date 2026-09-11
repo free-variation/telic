@@ -35,5 +35,5 @@ clear
 partial :out @ to partial-source
 partial-source read-line . cr                        \ head
 partial-source read-line . cr                        \ tail
-partial-source read-line none? . cr                  \ 1
+partial-source read-line null? . cr                  \ 1
 partial-source close  partial :in @ close  partial :err @ close  partial :pid @ wait drop

@@ -14,7 +14,7 @@
   else f1- dup recurse swap recurse cons then ;
 
 : tree-check ( tree -- n )
-  dup none? if drop 1
+  dup null? if drop 1
   else head-tail recurse swap recurse f+ f1+ then ;
 
 : run-trees ( -- checksum )

@@ -83,7 +83,7 @@
 : mcp-tool-definitions
   mcp-tool-registry [: :definition @ :] map ; internal
 
-( name -- entry|none ) \ the registry entry a tools/call names
+( name -- entry|null ) \ the registry entry a tools/call names
 : mcp-find-tool
   | name |
   mcp-tool-registry
@@ -98,7 +98,7 @@
 ( state -- bool ) \ whether the session is waiting for its child to answer
 : mcp-busy?
   | state |
-  state@request-id none? not ; internal
+  state@request-id null? not ; internal
 
 ( -- bool ) \ close the least recently used idle session, if any session is idle
 : mcp-evict-idle
@@ -110,7 +110,7 @@
   mcp-sessions oldest@session string>symbol delete-at drop
   true ; internal
 
-( session -- state|none ) \ the session's state, with a live child; none when the server is full
+( session -- state|null ) \ the session's state, with a live child; null when the server is full
 : mcp-session
   | session |
   session string>symbol to key
@@ -233,7 +233,7 @@
 
   state@child :out @ read-available to chunk
 
-  chunk none? if
+  chunk null? if
 	state@output "the session ended without answering" add-last! drop
 	true state!failed
 	state@child :pid @ wait drop
@@ -310,7 +310,7 @@
 
   session mcp-session to state
 
-  state none? if
+  state null? if
 	id mcp-max-sessions "the server holds {0:d} live sessions, all of them busy; retry when one finishes" format
 	true mcp-tool-result exit
   then
@@ -327,7 +327,7 @@
   params :name "" @or to wanted
   wanted mcp-find-tool to entry
 
-  entry none? if
+  entry null? if
 	id -32602 "Unknown tool: " wanted + mcp-fail exit
   then
 
@@ -362,7 +362,7 @@
 
 \ ---- version negotiation and dispatch ----
 
-( params -- version|none ) \ the protocol version a request declares
+( params -- version|null ) \ the protocol version a request declares
 : mcp-declared-version
   | params |
   params :_meta { } @or :io.modelcontextprotocol/protocolVersion null @or ; internal
@@ -454,7 +454,7 @@
 : mcp-drain-stream
   | source |
   mcp-sessions values [: state | state@child :out @ source = :] find-first to owner
-  owner none? not if owner mcp-drain then ; internal
+  owner null? not if owner mcp-drain then ; internal
 
 ( -- ) \ close every live session and reap its child
 : mcp-close-sessions
@@ -474,7 +474,7 @@
 	ready [: stdin = :] any? if
 	  stdin read-available to chunk
 
-	  chunk none? if
+	  chunk null? if
 		true to finished
 	  else
 		pending chunk + "\n" split to pieces

@@ -110,7 +110,7 @@
 	| cells |
 	cells size 0= if { } exit then
 	cells nan? sum to n-missing
-	{ :distinct cells [: none? not :] filter array>set size }
+	{ :distinct cells [: null? not :] filter array>set size }
 	n-missing 0 > if n-missing :missing ! then ; internal
 
 ( column -- fr ) \ summary by column representation

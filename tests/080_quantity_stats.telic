@@ -44,7 +44,7 @@ holes nonmissing-count . holes norm . cr                       \ 2 3.16228
 holes argmax . [ null 1 2 ] vector argmax . cr                 \ 2 1
 [ 1 null 3 null 5 ] vector 0.5 quantile . cr                   \ 3
 [ 1 null 3 null 5 ] vector var . cr                            \ 4
-[ inf -inf ] vector sum none? . cr                             \ 1 (inf - inf is NaN, returned as null, not an error)
+[ inf -inf ] vector sum null? . cr                             \ 1 (inf - inf is NaN, returned as null, not an error)
 
 \ === correlations and regression drop incomplete pairs/rows ===
 [ 1 2 null 4 ] vector [ 2 4 null 9 ] vector correlation-pearson . cr    \ 0.998625

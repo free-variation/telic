@@ -33,7 +33,7 @@ info :modified @ epoch>date :year @ 2020 > . cr       \ 1
 info :modified @ time>iso size . cr                   \ 20
 
 \ a missing path answers null, not an error
-"/tmp/telic-fs-test/absent" file-info none? . cr      \ 1
+"/tmp/telic-fs-test/absent" file-info null? . cr      \ 1
 "/tmp/telic-fs-test/absent" file-info null = . cr     \ 1
 
 clear

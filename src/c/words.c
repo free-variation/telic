@@ -1160,7 +1160,7 @@ int type_of_symbols[T_COMPLEX + 1];
 
 void type_of_intern_names(Interpreter *interp) {
 	static const char *names[T_COMPLEX + 1] = {
-		[T_NONE] = "none",        [T_SYMBOL] = "symbol",  [T_FLOAT] = "float",
+		[T_NONE] = "null",        [T_SYMBOL] = "symbol",  [T_FLOAT] = "float",
 		[T_STRING] = "string",    [T_SET] = "set",        [T_ARRAY] = "array",
 		[T_PAIR] = "pair",        [T_FRAME] = "frame",    [T_MATRIX] = "matrix",
 		[T_XT] = "xt",            [T_ADDR] = "addr",      [T_CONT] = "continuation",
@@ -1186,7 +1186,7 @@ void p_type_of(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
 
-void p_none(DISPATCH_ARGS) {
+void p_null_(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 
 	Val value = chain_sp[-1];

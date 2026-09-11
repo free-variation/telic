@@ -1,7 +1,7 @@
 ( column -- sym) \ :real for a vector column or all-float cells, else :text
 : column-sql-type
 	dup matrix? if drop :real exit then
-	[: none? not :] filter
+	[: null? not :] filter
 	dup size 0= if drop :text exit then
 	' float? all? if :real else :text then ; internal
 
@@ -12,16 +12,16 @@
 
 ( declaration -- flag ) \ is a declared sql type date-like?
 : declared-instant?
-	dup none? if drop false else "(?i)date|time" has? then ; internal
+	dup null? if drop false else "(?i)date|time" has? then ; internal
 
 ( declaration -- flag ) \ is a declared sql type numeric?
 : declared-numeric?
-	dup none? if drop false else "(?i)int|real|floa|doub|num" has? then ; internal
+	dup null? if drop false else "(?i)int|real|floa|doub|num" has? then ; internal
 
 ( column -- instants ) \ an epoch vector takes s directly; ISO text parses per cell
 : column>instants
 	dup matrix? if s exit then
-	[: dup none? if else iso>time 1 s / then :] map vector s ; internal
+	[: dup null? if else iso>time 1 s / then :] map vector s ; internal
 
 ( db query params -- dataset ) \ typed columns: numeric -> n x 1 vector (NaN for
 \ NULL), declared date/time -> instant vector in s, text -> array; an empty

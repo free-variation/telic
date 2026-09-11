@@ -96,6 +96,7 @@ as
 as-column
 asin
 assert
+assoc
 atan
 atan2
 auc
@@ -451,12 +452,12 @@ new-tests
 nip
 nlast
 nmap
-none?
 nonmissing-count
 norm
 not
 now
 null
+null?
 num-cores
 num-elements
 numerator
@@ -534,6 +535,7 @@ rename-file
 rename-key!
 render
 repeat
+repeat-column!
 replace
 replace-where!
 resample
@@ -618,6 +620,7 @@ sort-rows
 sort-rows-descending
 spaces
 split
+split-by
 spread
 sq
 sqrt
@@ -727,6 +730,7 @@ wildcard?
 with-db
 with-intercept
 with-stream
+within-groups
 words
 write
 write-file

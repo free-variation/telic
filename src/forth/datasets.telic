@@ -12,14 +12,14 @@
 		column-keys 0
 	then ; internal
 
-( cells -- column ) \ vector when uniformly numeric (none -> NaN) or one-unit quantities
+( cells -- column ) \ vector when uniformly numeric (null -> NaN) or one-unit quantities
 : column-from-cells
 	| cells |
 	cells size 0= if
 		cells exit
 	then
 
-	cells [: dup float? swap none? or :] all? if
+	cells [: dup float? swap null? or :] all? if
 		cells vector exit
 	then
 
@@ -36,7 +36,7 @@
 	cells ; internal
 
 ( rows header? -- dataset) \ column frame, each column typed by column-from-cells:
-\ uniformly numeric cells become an nx1 vector (none -> NaN), else the cell array
+\ uniformly numeric cells become an nx1 vector (null -> NaN), else the cell array
 : rows>dataset
 	| rows header? |
 
@@ -239,9 +239,14 @@
 
 : group-indices
 	| column |
-	column column>array to column
-	column argsort to permutation
 
+	column numeric-column? if
+		column dup quantity? if magnitude then argsort matrix>array
+	else
+		column argsort
+	then to permutation
+
+	column column>array to column
 	column permutation (matrix-select-rows) execute value-runs
 	[ [ ] 0 permutation ] ' take-run reduce
 	0 @i ;
@@ -426,6 +431,29 @@
 	reverse
 	dataset swap select-rows ;
 
+( dataset by -- pairs ) \ group-indices over the by column, or over the value
+\ tuples of a by-symbol array
+: dataset-group-indices
+	| dataset by |
+	by array? if
+		dataset by [: 2 pick swap @ column>array :] map nip transpose
+	else
+		dataset by @
+	then
+	group-indices ; internal
+
+( dataset by -- pairs ) \ [ [ key sub-dataset ] … ] per distinct value of the by
+\ column (or value tuple of a by-symbol array, the key then an array), in natural
+\ key order; each sub-dataset is the group's rows with every column kept
+: split-by
+	| dataset by |
+
+	dataset by dataset-group-indices
+	[: key-indices |
+	   key-indices spread to indices to key
+	   [ key dataset indices select-rows ]
+	:] map ;
+
 ( dataset by xt -- dataset ) \ split-apply-combine: for each distinct value of
 \ the by column — or distinct value tuple of a by-symbol array — xt
 \ ( group-dataset -- frame ) answers one row frame; the group's key values are
@@ -433,24 +461,44 @@
 \ and order by val_cmp, so no composite string key is built
 : aggregate
 	| dataset by xt |
-	by array? if
-		dataset by [: 2 pick swap @ column>array :] map nip transpose
-	else
-		dataset by @
-	then
-	group-indices
 
-	[: pair |
-		dataset pair 1 @i select-rows xt execute
-		by array? if
-			0 by size 1 do position
-				pair 0 @i position @i by position @i !
-			loop
-		else
-			pair 0 @i by !
-		then
+	dataset by split-by
+	[: key-group |
+	   key-group spread xt execute to row
+	   by array? if
+		   0 by size 1 do position
+			   row over position @i by position @i ! drop
+		   loop
+		   drop row
+	   else
+		   row swap by !
+	   then
 	:] map
 	frames>dataset ;
+
+( dataset by xt -- column ) \ grouped transform: for each group of the by column
+\ (or by-symbol array) xt ( group-dataset -- column/scalar ) answers one value
+\ per group row, or one scalar for every row of the group; the values return to
+\ their rows and the assembled n-row column is answered, not stored
+: within-groups
+	| dataset by xt |
+	null dataset n-rows array-of to cells
+	dataset by dataset-group-indices
+	[: pair |
+		pair 1 @i to indices
+		dataset indices select-rows xt execute to group-values
+		group-values array? group-values matrix? group-values dimensioned-matrix? or or if
+			group-values column>array to group-values
+		else
+			group-values indices size array-of to group-values
+		then
+		group-values size indices size = not if
+			pair 0 @i group-values size indices size
+			"within-groups: group {2} has {0} rows but the quotation answered {1} values" format throw
+		then
+		indices group-values [: row-index value | cells value row-index !i :] 2 nmap drop
+	:] each
+	cells column-from-cells ;
 ( v -- arr ) \ one grid axis normalized to an array of its values
 : grid-axis dup matrix? if matrix>array then dup set? if set>array then ; internal
 
@@ -569,8 +617,8 @@
 ( a b -- mat/dataset ) \ matrix column-concat, or two datasets side by side; a
 \ null operand answers the other, so null is the identity for a fold
 : hstack
-	dup none? if drop exit then
-	over none? if nip exit then
+	dup null? if drop exit then
+	over null? if nip exit then
 	over frame? if dataset-hstack exit then (matrix-hstack) execute ;
 
 ( top bottom -- dataset ) \ stacked rows: identical columns, each concatenated
@@ -586,9 +634,25 @@
 ( a b -- mat/dataset ) \ matrix row-stack, or two datasets stacked by rows; a
 \ null operand answers the other, so null is the identity for a fold
 : vstack
-	dup none? if drop exit then
-	over none? if nip exit then
+	dup null? if drop exit then
+	over null? if nip exit then
 	over frame? if dataset-vstack exit then (matrix-vstack) execute ;
+
+( dataset value sym -- dataset ) \ store value repeated over the rows as the named
+\ column, in place: a scalar fills every row, an array or vector of length k
+\ repeats n-rows/k times (n-rows must be a multiple of k); the representation
+\ follows column-from-cells
+: repeat-column!
+	| dataset value column-name |
+	dataset n-rows to rows
+	value array? value matrix? value dimensioned-matrix? or or not if [ value ] to value then
+	value column>array to cells
+	cells size to period
+	period 0= if "repeat-column!: the value is empty" throw then
+	rows period % drop if
+		rows period "repeat-column!: {1} rows is not a multiple of {0}" format throw
+	then
+	dataset cells rows period / array-of flatten-array column-from-cells column-name ! ;
 
 ( dataset unit-xt sym -- dataset ) \ set the named column's unit, replacing any
 \ existing one: strips with magnitude, then applies the unit word (' m). In place,

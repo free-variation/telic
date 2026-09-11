@@ -11,7 +11,7 @@
 : file-info
 	| path |
 	path (file-info) to info
-	info none? if info exit then
+	info null? if info exit then
 
 	info@modified s info!modified
 	info ;
@@ -20,7 +20,7 @@
 : copy-file
 	| source target |
 	source file-info to info
-	info none? if source "cannot copy {0}: no such file" format throw then
+	info null? if source "cannot copy {0}: no such file" format throw then
 	info@kind :file = 0= if source "cannot copy {0}: not a file" format throw then
 
 	source read-file target write-file ;
@@ -51,10 +51,10 @@
 ( path -- ) \ touch-file
 : touch touch-file ; inline
 
-( name -- path|none ) \ absolute path of name on $PATH, or none if not found
+( name -- path|null ) \ absolute path of name on $PATH, or null if not found
 : find-executable
 	| name |
-	"PATH" env dup none? if 
+	"PATH" env dup null? if 
 		drop null exit 
 	then
 
@@ -62,11 +62,11 @@
 	[: "/" + 2 pick + :] map nip
 	' file-exists? find-first ;
 
-( -- path|none ) \ the log file: TELIC_LOG_FILE, else derived from TELIC_LOG_DIR
-\ at first use and stored there; none means stderr
+( -- path|null ) \ the log file: TELIC_LOG_FILE, else derived from TELIC_LOG_DIR
+\ at first use and stored there; null means stderr
 : log-destination
-	"TELIC_LOG_FILE" env dup none? not if exit then drop
-	"TELIC_LOG_DIR" env dup none? if exit then to log-dir
+	"TELIC_LOG_FILE" env dup null? not if exit then drop
+	"TELIC_LOG_DIR" env dup null? if exit then to log-dir
 
 	log-dir make-directory
 	log-dir "/telic-log-" + wall-now "%Y-%m-%dT%H-%M-%SZ" format-time +
@@ -75,5 +75,5 @@
 ( str level -- ) \ one line, <iso time> <level> <message>, to the log file or stderr
 : log | message level |
 	wall-now time>iso level message "{2} {1} {0}{nl}" format
-	log-destination dup none? if drop stderr write exit then
+	log-destination dup null? if drop stderr write exit then
 	append-file ;

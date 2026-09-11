@@ -1,9 +1,9 @@
 \ open a file or URL in a browser (a frameless app window when one is available)
 
-( -- path|none ) \ TELIC_BROWSER if it resolves to a runnable browser, else none
+( -- path|null ) \ TELIC_BROWSER if it resolves to a runnable browser, else null
 : env-browser
 	"TELIC_BROWSER" env to browser
-	browser none? if
+	browser null? if
 		null exit
 	then
 
@@ -17,7 +17,7 @@
 		browser find-executable
 	then to resolved
 
-	resolved none? if 
+	resolved null? if 
 		null exit 
 	then
 
@@ -39,25 +39,25 @@
 	  "microsoft-edge-stable" "microsoft-edge" 
 	] ; internal
 
-( -- path|none ) \ TELIC_BROWSER, else the first installed Chromium-family browser, else none
+( -- path|null ) \ TELIC_BROWSER, else the first installed Chromium-family browser, else null
 : find-browser
-	env-browser dup none? not if 
+	env-browser dup null? not if 
 		exit 
 	then drop
 
 	mac-browsers ' file-exists? find-first
-	dup none? not if 
+	dup null? not if 
 		exit 
 	then drop
 	
-	linux-browsers ' find-executable map [: none? not :] find-first ; internal
+	linux-browsers ' find-executable map [: null? not :] find-first ; internal
 
 ( path -- ) \ open path in a frameless --app window when a browser is found, else the
 \ platform default handler (a normal tab); a relative path resolves against cwd
 : open-app-window
 	| path |
 	find-browser to browser
-	browser none? if
+	browser null? if
 		[ "open" path ] run-result :status @ 0 = not if
 			[ "xdg-open" path ] run-result drop
 		then
