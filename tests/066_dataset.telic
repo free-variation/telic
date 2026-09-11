@@ -1,4 +1,4 @@
-\ TSV -> dataset (column frame) and -> relation (indexed, deduped).
+\ TSV -> dataset (column frame), queried in place.
 \ A dataset is just a frame: columns are reached with native @ / keys / values,
 \ and a uniformly numeric column arrives as an n x 1 vector, flowing straight
 \ into the matrix/stats side.
@@ -40,15 +40,15 @@ dataset>rows "/tmp/lf_ds.tsv" save-tsv          \ feeds save-tsv directly
 { } dataset>rows . cr                           \ [ ]
 [ [ "k" ] ] true rows>dataset dataset>rows .a cr \ [ [ "k" ] ]  zero rows keep the header
 
-\ rows>relation: indexed on :id, deduped (the repeated u1/NYC row collapses), queryable
+\ a TSV dataset is queryable as it is; rows are a bag, so the repeated u1/NYC row stays
 [ [ "id" "city" ]
   [ "u1" "NYC" ]
   [ "u2" "LA"  ]
   [ "u1" "NYC" ] ] "/tmp/lf_ds.tsv" save-tsv
-"/tmp/lf_ds.tsv" load-tsv [ :id ] 1 rows>relation
-dup { } query size . cr                 \ 2   duplicate collapsed (relation is a set)
-dup { :id :u2 } query . cr              \ [ { :city "LA" :id :u2 } ]
-{ :id :u1 } count-matches . cr          \ 1
+"/tmp/lf_ds.tsv" read-tsv
+dup { } query n-rows . cr               \ 3
+dup { :id "u2" } query :city @ . cr     \ [ "LA" ]
+{ :id "u1" } query n-rows . cr          \ 2
 
 clear
 \ select-rows ( dataset indices -- dataset ): every column gathered by the

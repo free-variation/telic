@@ -140,13 +140,13 @@ Reach for unification early, not as a last resort: it is the shortest way to
 destructure and test nested data, and backtracking search comes with it. The
 machinery: `lvar` pushes a fresh logic variable, `| ?x |` declares one fresh
 per call, `~` (`unify`) binds through the trail, `amb`/`fail` backtrack, and
-a relation is plain frames and sets — `{ :rows <set> :index <frame> }` — so
-everything composes with the ordinary collection words. For the data store
-itself, pick by fit: the embedded SQLite (`":memory:" db-open`) is the better
-engine when the work is aggregation, large tables, or multi-way SQL joins;
-the fact database wins when rows are frames you already hold, patterns need
-logic variables, or the result must compose with `map`/`filter`/`unify`. The
-two interoperate — a `db-query` result is already relation-shaped.
+facts are held in a dataset, so `query` (a pattern frame over columns),
+`merge-by`, `aggregate` and the rest of the dataset words serve them. For the
+data store itself, pick by fit: the embedded SQLite (`":memory:" db-open`) is
+the better engine for large tables and multi-way SQL joins; the dataset wins
+when the rows are already in hand, patterns carry logic variables, or the
+result must compose with `map`/`filter`/`unify`. The two interoperate — a
+`db-query` result is a dataset.
 
 - Unify for its bindings: `~ drop` asserts a structural equation and keeps
   only the side effects. A variable buried anywhere in the term comes out
@@ -187,8 +187,8 @@ two interoperate — a `db-query` result is already relation-shaped.
   ```
 
 - `matches?` is the non-destructive test — unify, roll the trail back, answer
-  a flag — so pattern tests compose in straight-line code; `query` is exactly
-  `matches?` under `filter` (logic.telic):
+  a flag — so pattern tests compose in straight-line code; over an array of
+  row frames it is a filter:
 
   ```forth
   [: row | pattern row matches? :] filter
@@ -198,23 +198,24 @@ two interoperate — a `db-query` result is already relation-shaped.
   or `reify` (unbound variables become canonical `:_0`, `:_1`, … — ground,
   storable, comparable).
 
-- The fact database: rows are frames, a query pattern is an open record —
-  shared keys must unify, a logic variable projects, extra columns are
-  ignored:
+- Facts are a dataset and a query is a pattern frame over its columns: a
+  ground value selects, a logic variable or `_` constrains nothing, and the
+  rows come back as a dataset; `query-rows` answers them as frames so the
+  variables bind row by row:
 
-  ```forth relation-query
-  [ :name ] relation
-  { :name :ann :age 34 } assert
-  { :name :ann } query first frame>array . cr
+  ```forth dataset-query
+  { :name [ :ann :bo ] :age [ 34 25 ] vector } to people
+  people { :name :ann } query :age @ 0 @e . cr
+  lvar to Age
+  people { :name :bo } query-rows [: row | { :age Age } row ~ drop :] each Age ? . cr
   ```
   ```output
-  [ :name :ann :age 34 ]
+  34
+  25
   ```
 
-  `bulk-load` for bulk (one sort, not n inserts), `inner-join` to merge two
-  relations on a shared column, `create-index` to index a fetched SQLite
-  table for pattern queries. A database of several relations is just a frame
-  keyed by relation name.
+  Joins are `merge-by`, grouping `aggregate`, loading `rows>dataset` or
+  `db-query`; several fact tables are a frame keyed by table name.
 
 ## Counted iteration and folds
 
@@ -897,7 +898,7 @@ anything failed — so a test file run as a program exits non-zero.
 
   ```forth
   : query-db-bound | sql params |
-      db-path sql params ' db-query>dataset 2curry with-db ;
+      db-path sql params ' db-query 2curry with-db ;
   ```
 
   `format` substitutes values into the text (`cutoff@year sql format`),

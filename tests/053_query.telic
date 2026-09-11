@@ -1,0 +1,64 @@
+\ ==== query ( dataset pattern -- dataset ), query-rows ( dataset pattern -- rows ) ====
+
+\ A relation is a dataset. query keeps the rows whose columns equal the pattern
+\ frame's ground values; a value that is an unbound logic variable or the
+\ wildcard constrains nothing. query-rows answers the same rows as frames, for
+\ binding the pattern's variables row by row.
+
+{ :id [ 1 2 3 4 ] vector
+  :parent [ :john :john :anne :bob ]
+  :child [ :django :bob :django :sue ] } to family
+
+\ === one column, symbol values ===
+family { :child :django } query n-rows . cr             \ 2
+family { :child :bob } query n-rows . cr                \ 1
+family { :child :nope } query n-rows . cr               \ 0
+
+\ === a numeric column; the answer is a dataset ===
+family { :id 2 } query n-rows . cr                      \ 1
+family { :id 4 } query :child @ . cr                    \ [ :sue ]
+family { :id 4 } query keys ' render sort-by . cr       \ [ :child :id :parent ]  every column kept
+
+\ === several keys: every constraint holds ===
+family { :parent :john :child :bob } query n-rows . cr  \ 1
+family { :parent :john :child :sue } query n-rows . cr  \ 0
+family { :child :django } query :id @ transpose matrix>array . cr   \ [ 1 3 ]  in row order
+
+\ === an empty pattern keeps every row; the source is untouched ===
+family { } query n-rows . cr                            \ 4
+family n-rows . cr                                      \ 4
+
+\ === logic variables and the wildcard constrain nothing and take no binding ===
+lvar to Parent
+family { :child :django :parent Parent } query n-rows . cr   \ 2
+Parent 5 ~ drop Parent ? 5 = . cr                       \ 1   Parent was still free
+family { :child _ } query n-rows . cr                   \ 4
+lvar to Same
+family { :parent Same :child Same } query n-rows . cr   \ 4   a repeated variable is not a constraint on columns
+lvar to Bound Bound :bob ~ drop
+family { :child Bound } query n-rows . cr               \ 1   a bound variable is its value
+
+\ === text and quantity columns ===
+{ :name [ "ann" "bo" "ann" ] :paid [ 1 2 3 ] vector $ } to ledger
+ledger { :name "ann" } query :paid @ transpose . cr     \ 1 3 $
+ledger { :paid 200 ¢ } query :name @ . cr               \ [ "bo" ]  quantities compare within their dimension
+
+\ === query-rows: bind the variables per row ===
+lvar to Age
+family { :child :django } query-rows [: row | lvar to Id { :id Id } row ~ drop Id ? . :] each cr   \ 1 3
+family { :child :django } query-rows 0 @i :parent @ . cr                \ :john
+family { :parent :john } query-rows null add-last! array>cons
+[: row | lvar to Kid { :child Kid } row ~ drop Kid ? :bob = not if fail then row :id @ . :] choose cr   \ 2  choose backtracks to the row that binds :bob
+family { :child :nope } query-rows . cr                 \ [ ]
+
+\ === an empty dataset ===
+{ :child [ ] } { :child :anything } query n-rows . cr   \ 0
+
+\ === scale: 1000 rows, no index needed ===
+{ :id 0 999 range vector :cat 0 999 range [: 4 % drop [ :w :x :y :z ] swap @i :] map } to categorized
+categorized { :cat :w } query n-rows . cr               \ 250
+categorized { :cat :w :id 4 } query n-rows . cr         \ 1
+
+\ errors
+family { :zip 1 } query                                 \ (no key :zip: a pattern key must be a column)
+5 { :a 1 } query                                        \ (not a dataset)

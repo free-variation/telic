@@ -147,7 +147,7 @@ adult@income  50 1e-8 1  fit-logistic-ridge transpose .
 ":memory:" db-open
 dup "create table t(x)" [ ] db-exec drop
 dup "insert into t values (?)" [ 42 ] db-exec drop
-"select x from t" [ ] db-query :rows @ 0 @i :x @ .   \ 42
+"select x from t" [ ] db-query :x @ 0 @e .   \ 42
 ```
 
 ## Benchmarks
@@ -267,7 +267,7 @@ exceptions.
 - **Search** — `amb` runs the first of two quotations; if it fails — a mismatch, or an explicit `fail` — its bindings are undone and the second runs. `choose` does the same across a cons list. The first branch that succeeds is the one kept; `solutions` and `take-solutions` collect every success instead of the first.
 - **Tests** — `matches?` answers whether two terms could unify and leaves nothing bound; `unify?` keeps the bindings when they do. `case`/`of` dispatches through `unify?`, so a clause pattern may hold variables that bind for its body.
 - **Lists** — `[( a b c )]` builds cons pairs and `[( H T )]` is Prolog's `[H|T]` under `unify`, with `cons`, `head-tail`, and `array`↔`cons` conversions.
-- **Fact database** — `relation` / `assert` / `query` / `retract` / `count-matches` / `inner-join`. A relation is a frame of a row-set plus per-column indexes (declared symbol columns); rows are column-keyed frames that dedup; `query` matches a pattern by unification, narrowing through the index. `inner-join` merges two relations on a shared column, and `bulk-load` builds a whole relation in one sorted pass. The same row-frame shape is what a SQLite query returns.
+- **Pattern queries over datasets** — `query` keeps the rows whose columns equal a pattern frame's ground values (logic variables and `_` constrain nothing), and `query-rows` answers them as frames for binding the pattern's variables row by row under `~`, `matches?` or `choose`. Joins, grouping and loading are the dataset words (`merge-by`, `aggregate`, `rows>dataset`, `db-query`).
 
 ### Numeric / matrix
 
@@ -429,10 +429,9 @@ Embedded relational storage via the vendored SQLite amalgamation — built into 
 
 - **`db-open`** / **`db-close`** — open a file, or `":memory:"`, and close it.
 - **`db-exec`** — run a statement with no result set, answering the affected-row count.
-- **`db-query`** — run a query, answering a fact-database relation of row frames keyed by column name, so the result drops straight into `query` / `inner-join`. **`db-query>dataset`** answers the same query as a column-oriented dataset with typed columns.
+- **`db-query`** — run a query, answering the result as a dataset with typed columns.
 - **`tsv>db`** — import a TSV into a new table, inferring each column's type.
 - **Bound parameters** — every query and statement takes an array bound to its `?` placeholders, so values need no hand-escaping.
-- **`create-index`** — index a query result so the fact-database `query` can use it.
 
 ### Data: TSV, datasets, and statistics
 
@@ -440,9 +439,9 @@ TSV is the one tabular file format (convert other formats to TSV before loading)
 
 - **`read-tsv`** / **`write-tsv`** — a header TSV to a column-oriented dataset with typed columns, and back.
 - **`load-tsv`** / **`save-tsv`** — the same file as an array of row-arrays, untyped and in file column order.
-- **Conversions** — **`rows>dataset`** types the columns of an array of row-arrays, **`rows>relation`** builds an indexed fact-database relation, **`dataset>rows`** inverts `rows>dataset`, and **`dataset>matrix`** builds an observations×columns matrix from named columns.
+- **Conversions** — **`rows>dataset`** types the columns of an array of row-arrays, **`dataset>rows`** inverts it, and **`dataset>matrix`** builds an observations×columns matrix from named columns.
 - **Dataset verbs** — `select-rows`, `select-columns`, `sort-rows`, `filter`, `map`, `dim`, `column-type`, and `count` work on a dataset directly, `filter` and `map` seeing each row as a frame keyed by column name and every column keeping its representation. `column>array` reads any column as an array, `column>set` its distinct values, `column-type` its type (`:numeric` `:datetime` `:quantity` `:text`), and `group-indices` maps each distinct value to its row positions in one sort.
-- **`frames>dataset`** — an array of row frames, as `query` and `db-query` return, into a dataset with inferred column types.
+- **`frames>dataset`** — an array of row frames, as `query-rows` answers, into a dataset with inferred column types.
 - **`aggregate`** — split-apply-combine: group rows by a column, reduce each group to a row frame, reassemble as a dataset.
 - **`head`** / **`headn`** — print the first rows as an aligned table, `headn` taking the row count and the columns to lead with.
 - **`replace-where!`** — edit one column in place where a predicate holds.
@@ -528,7 +527,7 @@ src/c/dimension.c      — dimensioned quantities: base dimensions, units, quant
 src/c/functional.c     — higher-order operations (map, nmap, …) and multi-core parallelism
 src/c/superwords.c     — compile-time instruction fusion (superwords)
 src/c/strings.c        — string and PCRE2 regex operations
-src/c/logic.c          — logic variables, unification, amb, fact database
+src/c/logic.c          — logic variables, unification, amb
 src/c/database.c       — SQLite integration
 src/c/foreign.c        — FFI (libffi), pointer registry, matrix/segment bridges
 src/c/platform_posix.c — POSIX platform: arena mmap, isocline REPL, subprocesses

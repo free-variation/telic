@@ -6263,8 +6263,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "pointer>address", p_pointer_to_address, 0);
 	define_primitive(interp, "db-close", p_db_close, 0);
 	define_primitive(interp, "db-exec", p_db_exec, 0);
-	define_primitive(interp, "db-query", p_db_query, 0);
-	define_primitive(interp, "(db-query>dataset)", p_db_query_to_dataset, 4);
+	define_primitive(interp, "(db-query)", p_db_query, 4);
 	define_primitive(interp, "wait", p_wait, 0);
 	define_primitive(interp, "stop", p_stop_process, 0);
 	define_primitive(interp, "running?", p_running, 0);

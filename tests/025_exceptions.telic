@@ -112,7 +112,7 @@ clear
 \ ---- with-db: body queries the handle; it is closed afterward ----
 ":memory:" [: dup "create table t(x)" [ ] db-exec drop
             dup "insert into t values (42)" [ ] db-exec drop
-            "select x from t" [ ] db-query :rows @ 0 @i :x @ :] with-db . cr   \ 42
+            "select x from t" [ ] db-query :x @ 0 @e :] with-db . cr   \ 42
 
 \ ---- with-db: throw mid-body still closes the db; the exception propagates ----
 [: ":memory:" [: drop "kaboom" throw :] with-db :] [: "db-caught " . . :] try-catch cr

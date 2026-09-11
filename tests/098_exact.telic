@@ -60,7 +60,7 @@ clear
 ":memory:" db-open to db
 db "create table t(id integer)" [ ] db-exec drop
 db "insert into t values (?)" [ 9223372036854775807/1 ] db-exec drop
-db "select id from t" [ ] db-query :rows @ 0 @i :id @ dup . type-of . cr  \ 9223372036854775807 :exact
+db "select id from t" [ ] db-query :id @ 0 @i dup . type-of . cr  \ 9223372036854775807 :exact
 db db-close
 
 clear

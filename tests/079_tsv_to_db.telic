@@ -20,15 +20,15 @@ info :columns @                              \ real columns carry a :summary fra
 [: dup :type @ :real = if :summary @ :median @ else :distinct @ then :] map . cr   \ text a :distinct: [ 2 2 8 2 ]
 
 \ === the table queries back typed; the empty cell became NULL ===
-db "SELECT score FROM t WHERE name = ?" [ "alice" ] db-query>dataset :score @ . cr    \ 2x1 grid: 9.5 7.25
-db "SELECT note FROM t WHERE id = ?" [ 2 ] db-query>dataset :note @ 0 @i null? . cr   \ 1
+db "SELECT score FROM t WHERE name = ?" [ "alice" ] db-query :score @ . cr    \ 2x1 grid: 9.5 7.25
+db "SELECT note FROM t WHERE id = ?" [ 2 ] db-query :note @ 0 @i null? . cr   \ 1
 
 \ === iris: the vendored 150-row fixture ===
 "data/iris.tsv" db "iris" tsv>db to info
 info :n-rows @ . cr                          \ 150
 info :columns @ [: :name @ :] map . cr       \ [ :sepal_length :sepal_width :petal_length :petal_width :species ]
 info :columns @ [: :type @ :] map . cr       \ [ :real :real :real :real :text ]
-db "SELECT COUNT(*) AS c FROM iris WHERE species = ?" [ "Iris-setosa" ] db-query>dataset :c @ 0 @e . cr   \ 50
+db "SELECT COUNT(*) AS c FROM iris WHERE species = ?" [ "Iris-setosa" ] db-query :c @ 0 @e . cr   \ 50
 
 \ === errors, grouped at the end: each recovers ===
 [ [ "a" "b" ] [ 1 2 ] [ 3 ] ] "/tmp/lf_ragged.tsv" save-tsv

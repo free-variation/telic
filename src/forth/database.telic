@@ -26,8 +26,8 @@
 ( db query params -- dataset ) \ typed columns: numeric -> n x 1 vector (NaN for
 \ NULL), declared date/time -> instant vector in s, text -> array; an empty
 \ column declared numeric stays typed as an empty vector
-: db-query>dataset
-	(db-query>dataset) to types to dataset
+: db-query
+	(db-query) to types to dataset
 
 	dataset keys
 	dataset values types values
@@ -61,7 +61,7 @@
 	sql-identifier swap sql-identifier
 
 	"SELECT COUNT(DISTINCT {1}) AS ""distinct-count"" FROM {0}" format
-	[ ] db-query>dataset :distinct-count @ 0 @e ; internal
+	[ ] db-query :distinct-count @ 0 @e ; internal
 
 ( row db statement -- n ) \ the row's cells as the statement's parameters
 : insert-row rot db-exec ; internal

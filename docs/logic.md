@@ -13,7 +13,7 @@ should understand:
 - How disjunction (`amb`) and failure (`fail`) turn a program into a search over a
   tree of choices
 - How *reification* extracts a finished answer from the mutable machinery
-- How these pieces compose into a relational fact database
+- How these pieces compose with datasets into pattern queries over facts
 
 It's a conceptual tour. The engine lives in `src/c/logic.c` and parts of
 `src/c/core.c`; the fact-database layer is in the standard library. Telic's
@@ -281,26 +281,24 @@ of Part 3 — what lets the same engine serve as a relational query.
 
 ---
 
-## Part 8: A worked application — the fact database
+## Part 8: A worked application — querying a dataset
 
-The fact database is logic programming over frames, built entirely in the standard
-library on the primitives above. A *relation* is a frame of a row-set plus an
-index from each indexed column to the rows holding each value; a *row* is a frame
-keyed by column name; a *query pattern* is also a frame — a partial row.
+Facts are held in a dataset — a frame of typed columns — and a *query
+pattern* is a frame naming some of its columns: a partial row. `query` keeps
+the rows whose columns equal the pattern's ground values (each key an `eq` mask
+over one column, the masks multiplied), and a value that is an unbound logic
+variable or `_` constrains nothing: that is relational *select*, done by the
+column kernels, with projection left to `@` on the answer.
 
-The whole query mechanism rests on the open-record rule. Asking "which rows match
-this pattern?" is asking "which rows unify with this pattern frame?", and
-`matches?` answers exactly that without disturbing the store — it is the relational
-*select* (keep the rows that fit) and *project* (the pattern names only the columns
-it cares about; open-record unification ignores the rest) in one operation. The
-surrounding machinery — narrowing to candidate rows through the indexes, and
-recognizing when the indexes alone settle the answer — is ordinary optimization;
-the *meaning* of a query is the unification. Asserting a row adds it to the row-set
-and each indexed bucket; retraction removes by exact row or by pattern (running a
-query and removing each match). Because rows and buckets are value-keyed sets,
-duplicate rows collapse and a row is found by content, not identity. None of it
-needs new primitives: it's logic variables, open-record unification, and the set
-and frame data structures, assembled in a library.
+Unification applies to single rows. `query-rows` answers the selected rows as
+frames, and unifying the pattern with each row frame — `{ :age Age } row ~` —
+binds the pattern's variables by the open-record rule of Part 3: shared keys
+must agree, the variable takes the cell, extra columns are ignored. `matches?`
+does the same without disturbing the store, and `choose` over the rows turns
+"which row satisfies this goal?" into the search of Part 5, backtracking to the
+next row when a goal fails. Nothing here needs new primitives: column masks
+select, unification binds, and the dataset words (`merge-by`, `aggregate`,
+`rows>dataset`, `db-query`) hold, join and load the facts.
 
 ---
 

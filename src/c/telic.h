@@ -1677,7 +1677,6 @@ void p_db_close(DISPATCH_ARGS);
 void p_db_exec(DISPATCH_ARGS);
 void p_db_open(DISPATCH_ARGS);
 void p_db_query(DISPATCH_ARGS);
-void p_db_query_to_dataset(DISPATCH_ARGS);
 
 // foreign.c
 void p_ffi_call(DISPATCH_ARGS);

@@ -191,40 +191,6 @@ static Val db_column_value(Interpreter *interp, sqlite3_stmt *statement, int col
 	}
 }
 
-static int db_build_row(Interpreter *interp, sqlite3_stmt *statement, const cell *keys, int columns) {
-	int row_handle = object_new_frame(interp);
-	if (interp->error_flag)
-		return -1;
-	gc_root_push(interp, make_frame(row_handle));
-
-	for (int j = 0; j < columns && !interp->error_flag; j++) {
-		Val value = db_column_value(interp, statement, j);
-		frame_put(OBJECT_AT(row_handle), keys[j], value);
-	}
-
-	gc_root_pop(interp);
-
-	return row_handle;
-}
-
-typedef struct {
-	const cell *keys;
-	int n_columns;
-	int rows_handle;
-} RelationRowsContext;
-
-static int relation_consume_row(Interpreter *interp, sqlite3_stmt *statement, void *context) {
-	RelationRowsContext *rows_context = context;
-
-	int row_handle = db_build_row(interp, statement, rows_context->keys, rows_context->n_columns);
-	if (interp->error_flag) return -1;
-
-	Object *rows = OBJECT_AT(rows_context->rows_handle);
-	GROW_IF_FULL(rows->len, rows->capacity, rows->items);
-	rows->items[rows->len++] = make_frame(row_handle);
-	return 0;
-}
-
 #define DB_QUERY_OPERANDS(word) \
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 3); \
 	Val params_val = chain_sp[-1]; \
@@ -239,64 +205,6 @@ static int relation_consume_row(Interpreter *interp, sqlite3_stmt *statement, vo
 			OBJECT_AT(VAL_DATA(query_val)), OBJECT_AT(VAL_DATA(params_val))); \
 	if (!statement) \
 		return
-
-static __attribute__((noinline)) int db_query_build(Interpreter *interp, sqlite3 *db, sqlite3_stmt *statement) {
-	int n_columns = sqlite3_column_count(statement);
-	cell keys[n_columns];
-	for (int j = 0; j < n_columns; j++)
-		keys[j] = intern_symbol(interp, sqlite3_column_name(statement, j));
-
-	int rows_handle = object_new_array(interp, 0);
-	if (interp->error_flag) {
-		sqlite3_finalize(statement);
-		return -1;
-	}
-	gc_root_push(interp, make_array(rows_handle));
-
-	RelationRowsContext rows_context = {
-		.keys = keys,
-		.n_columns = n_columns,
-		.rows_handle = rows_handle
-	};
-	if (db_step_rows(interp, db, statement, relation_consume_row, &rows_context) != 0) {
-		gc_root_pop(interp);
-		return -1;
-	}
-
-	int index_handle = object_new_frame(interp);
-	if (interp->error_flag) {
-		gc_root_pop(interp);
-		return -1;
-	}
-	gc_root_push(interp, make_frame(index_handle));
-
-	int relation_handle = object_new_frame(interp);
-	if (interp->error_flag) {
-		gc_root_pop(interp);
-		gc_root_pop(interp);
-		return -1;
-	}
-
-	Object *relation = OBJECT_AT(relation_handle);
-	frame_put(relation, intern_symbol(interp, "rows"), make_array(rows_handle));
-	frame_put(relation, intern_symbol(interp, "index"), make_frame(index_handle));
-
-	gc_root_pop(interp);
-	gc_root_pop(interp);
-	return relation_handle;
-}
-
-void p_db_query(DISPATCH_ARGS) {
-	DB_QUERY_OPERANDS("db-query");
-
-	int relation_handle = db_query_build(interp, db, statement);
-	if (interp->error_flag)
-		return;
-
-	chain_sp[-3] = make_frame(relation_handle);
-
-	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 2);
-}
 
 typedef struct {
 	const int *column_handles;
@@ -430,8 +338,8 @@ static __attribute__((noinline)) int db_query_dataset_build(Interpreter *interp,
 	return dataset_handle;
 }
 
-void p_db_query_to_dataset(DISPATCH_ARGS) {
-	DB_QUERY_OPERANDS("(db-query>dataset)");
+void p_db_query(DISPATCH_ARGS) {
+	DB_QUERY_OPERANDS("(db-query)");
 
 	int types_handle;
 	int dataset_handle = db_query_dataset_build(interp, db, statement, &types_handle);

@@ -11,7 +11,7 @@
 #
 # Tests:
 #   image-load       save-image / load-image round-trip over a 100k-object heap
-#   sqlite-load      db-query / create-index materializing 1M row frames
+#   sqlite-load      db-query materializing a 1M-row dataset, then query / group-indices over it
 #   parallel-stress  pmap / pfilter / pmap-reduce over a large domain, 500 rounds
 #   extreme-load     drives every structure to and past its limit; fills the
 #                    64M object table (~7 GB) unless MAX_OBJECTS caps it

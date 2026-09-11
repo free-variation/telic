@@ -4,7 +4,6 @@
 1 
 2 
 1 
-0 
 2 
 1 
 10.5 
@@ -16,11 +15,9 @@ o'brien
 1 
 0 
 4 
-[ :alice :o'brien :carol ] 
-2 
 2 
 1 
-:alice 
+[ 1 3 ] 
 [ :name :id :score :note ] 
 <matrix 4x1>
           1
@@ -40,20 +37,20 @@ o'brien
 [ :name :id ] 0 
 [ :name ] 4 
 error: query takes 1 parameter(s) 0 given
-in db-query
+in (db-query) ← db-query
 error: query takes 0 parameter(s) 1 given
-in db-query
+in (db-query) ← db-query
 error: cannot bind a set as a parameter
-in db-query
+in (db-query) ← db-query
 error: expected a database; got a float
 in db-close
 error: near "SELCT": syntax error
-in db-query
+in (db-query) ← db-query
 error: near "SELCT": syntax error
-in (db-query>dataset) ← db-query>dataset
+in (db-query) ← db-query
 error: expected a database; got a float
-in (db-query>dataset) ← db-query>dataset
+in (db-query) ← db-query
 error: no such table: nope
 in db-exec
 error: database is closed
-in db-query
+in (db-query) ← db-query

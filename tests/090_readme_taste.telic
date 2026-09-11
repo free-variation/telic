@@ -87,4 +87,4 @@ dup :age @ mean .                       \ 40  (a numeric column is already a vec
 ":memory:" db-open
 dup "create table t(x)" [ ] db-exec drop
 dup "insert into t values (?)" [ 42 ] db-exec drop
-"select x from t" [ ] db-query :rows @ 0 @i :x @ .   \ 42
+"select x from t" [ ] db-query :x @ 0 @e .   \ 42

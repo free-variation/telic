@@ -22,9 +22,9 @@
 1 
 [ ] 
 [ [ "k" ] ] 
+3 
+[ "LA" ] 
 2 
-[ { :city "LA" :id :u2 } ] 
-1 
 {
   :name [ "cal" "ann" ]
   :height <matrix 2x1:  190 170> m

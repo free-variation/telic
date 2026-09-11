@@ -96,7 +96,6 @@ array?
 as
 as-column
 asin
-assert
 assoc
 atan
 atan2
@@ -122,7 +121,6 @@ boxplot-plot
 boxplots
 boxplots-plot
 brier
-bulk-load
 bye
 byte-size
 byte-substring
@@ -172,11 +170,9 @@ cosh
 count
 count-barchart
 count-barchart-plot
-count-matches
 covariance
 cp
 cr
-create-index
 cross-validate
 cumulative-sum
 curry
@@ -194,7 +190,6 @@ db-close
 db-exec
 db-open
 db-query
-db-query>dataset
 db?
 defer
 delete-at
@@ -377,7 +372,6 @@ in?
 index-of
 indicators!
 inline
-inner-join
 int-segment
 internal
 intersection
@@ -399,7 +393,6 @@ list-directory
 ln
 ln1+
 load
-load-bag
 load-library
 load-tsv
 load-value
@@ -510,6 +503,7 @@ quantile
 quantiles
 quantity?
 query
+query-rows
 quotient
 r>
 r@
@@ -535,7 +529,6 @@ regression-coefficients
 regression-report
 regression-statistics
 reify
-relation
 reload
 remove-last!
 rename-file
@@ -551,7 +544,6 @@ resample-indices-ext
 reset
 reshape
 resume
-retract
 reverse
 rm
 rmdir
@@ -566,7 +558,6 @@ row-means
 row-mins
 row-sums
 rows>dataset
-rows>relation
 rshift
 run
 run-result

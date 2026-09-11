@@ -2873,7 +2873,7 @@ Cons cells in a dense, GC'd table — the linked, recursively-decomposable count
 | `cons` | `( head tail -- pair )` | Build a cons cell | 2 | `1 pair` | O(1) |
 | `head-tail` | `( pair -- head tail )` | Split a pair — head under, tail on top; no auto-deref; errors on a non-pair | 1 | none | O(1) |
 | `array>cons` | `( arr -- list )` | Cons chain from an array's elements (last element becomes the tail; `[ ]` → `null`) | n | `n−1` pairs | O(n) |
-| `cons>array` | `( list -- arr )` | Walk a cons chain into an array, **dereferencing** the spine and each element and including the terminal (works on relational results) | n | `1a(n)` | O(n) |
+| `cons>array` | `( list -- arr )` | Walk a cons chain into an array, **dereferencing** the spine and each element and including the terminal | n | `1a(n)` | O(n) |
 
 ```forth cons
 1 2 cons . cr
@@ -4136,7 +4136,7 @@ wall-now time>iso . cr
 
 ## Datasets and TSV
 
-*Rows* are an array of row-arrays (as `load-tsv` returns) — the raw I/O interchange, the only form preserving a file's physical column order. A *dataset* is a column-oriented frame; a *relation* is a deduped, indexed fact set (see Fact database). `r`/`c` are rows/columns, `n`/`k` observations/selected columns. `select-rows` (under Matrices) accepts a dataset, gathering every column by one index array or vector — with `where` masks and `argsort` that is filtering and sorting.
+*Rows* are an array of row-arrays (as `load-tsv` returns) — the raw I/O interchange, the only form preserving a file's physical column order. A *dataset* is a column-oriented frame; `query` selects its rows by a pattern frame, `query-rows` answers them as frames for the logic words. `r`/`c` are rows/columns, `n`/`k` observations/selected columns. `select-rows` (under Matrices) accepts a dataset, gathering every column by one index array or vector — with `where` masks and `argsort` that is filtering and sorting.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
@@ -4145,7 +4145,6 @@ wall-now time>iso . cr
 | `write-tsv` | `( dataset path -- )` | datasets.telic: write a dataset as a TSV with a header row of the column names; a dimensioned column errors (strip its unit with `magnitude` first) | 2·r·c | transient rows | O(r·c) |
 | `save-tsv` | `( rows path -- )` | Write an array of row-arrays as TSV; `null` → empty, a whole-number float → integer, strings raw; errors on a tab/newline inside a string or a non-array row | 2 + r·c | none (to file) | O(r·c) |
 | `rows>dataset` | `( rows header? -- dataset )` | datasets.telic: column-oriented frame from rows with typed columns — uniformly float-or-`null` cells become an n×1 vector (`null` → NaN), uniform-unit quantity cells a dimensioned vector, anything else stays the cell array; keys come from row 0 when header? is true, else `:col1…` are synthesized | 2·r·c | `k×1a(r)` + `1m` per numeric column + `1fr` | O(r·c) |
-| `rows>relation` | `( rows index-cols header? -- relation )` | datasets.telic: deduped relation indexed on `index-cols` (coerced to symbols) | r·c | one frame per row + relation + index buckets | O(r·c) |
 | `dataset>rows` | `( dataset -- rows )` | datasets.telic: an array of row-arrays led by a header row of the column names as strings, columns in key order; each cell is its column's value (NaN → `null`, dimensioned cells as quantities) | r·c | header + one array per row + `1a(r·c)` cells | O(r·c) |
 | `headn` | `( dataset n leading-columns -- )` | datasets.telic: print the first min(n, rows) rows as an aligned table — the `leading-columns` symbols appear first in the given order, the remaining columns alphabetical by name (an empty `leading-columns` orders every column alphabetically); column names as the header line, two-space gutter, numeric/quantity columns right-aligned, text left, `:datetime` columns as ISO time strings, other cells in their default rendering; empty dataset prints nothing | r·c | rendered cells | O(r·c) |
 | `head` | `( dataset -- )` | datasets.telic: print the first 10 rows as an aligned table, columns alphabetical by name | r·c | rendered cells | O(r·c) |
@@ -4158,6 +4157,8 @@ wall-now time>iso . cr
 | `filter-columns` | `( dataset pred -- dataset )` | datasets.telic: the columns whose name and values satisfy `pred` `( column-name column -- binary )`, in dataset order, as a fresh frame sharing the column values; every column is offered, so selecting by name is the predicate's job. Non-mutating | c·(pred + log c) | kept-key array + `1o` | O(c·(pred + log c)) |
 | `select-eq` | `( dataset sym value -- dataset )` | datasets.telic: the rows whose `sym` column equals `value`; other rows drop | n + n·c | mask + index vector + one column each | O(n·c) |
 | `select-neq` | `( dataset sym value -- dataset )` | datasets.telic: the rows whose `sym` column differs from `value`; other rows drop | n + n·c | mask + index vector + one column each | O(n·c) |
+| `query` | `( dataset pattern -- dataset )` | datasets.telic: the rows whose columns equal the pattern frame's ground values — each key names a column (a key that is not a column errors), each value is dereferenced and compared with `eq` (so symbols, strings, floats and quantities within their dimension all serve; `1` and `"1"` differ), and a value that is an unbound logic variable or `_` constrains nothing and takes no binding; the masks multiply, and `{ }` keeps every row. Rows keep their order and every column | n·k + n·c | k masks + index vector + one column each | O(n·(k + c)) |
+| `query-rows` | `( dataset pattern -- rows )` | datasets.telic: `query`'s rows as frames, one per row keyed by column, for binding the pattern's logic variables row by row — `[: row | pattern row ~ drop … :]` under `each`, or `choose` over `null add-last! array>cons` of them | query + n·c | query + `1o` per row | O(n·(k + c)) |
 | `complete-rows` | `( dataset cols -- dataset )` | datasets.telic: the rows where none of the named columns is missing — NaN in a vector or dimensioned vector, `null` in a text column; `cols` is a symbol, a symbol array, or `[ ]` for every column; a missing name errors. Every column reorders together and keeps its representation | n·k + n·c | one array and mask per named column, index vector, one column each | O(n·(k + c)) |
 | `sort-rows` | `( dataset sym -- dataset )` | datasets.telic: rows sorted ascending by the named column, so every column reorders together and keeps its representation; a missing key errors | n log n + n·c | permutation + one column each | O(n log n + n·c) |
 | `sort-rows-descending` | `( dataset sym -- dataset )` | datasets.telic: rows sorted descending by the named column in natural order (so text columns descend too); equal keys keep dataset order, so chained sorts compose — minor key first, major key last — and missing cells sort last; a missing key errors | n log n + n·c | permutation ×3 + one column each | O(n log n + n·c) |
@@ -4211,13 +4212,6 @@ wall-now time>iso . cr
 ```
 ```output
 [ 1 2 ]
-```
-
-```forth rows>relation
-[ [ "team" ] [ "red" ] [ "red" ] ] [ :team ] true rows>relation { } query size . cr
-```
-```output
-1
 ```
 
 ```forth dataset>rows
@@ -4309,6 +4303,24 @@ cols [: drop dup :b = swap :d = or :] filter-columns keys . cr
 ```
 ```output
 [ 2 ]
+```
+
+```forth query
+{ :parent [ :john :john :anne ] :child [ :django :bob :django ] } to family
+family { :child :django } query :parent @ . cr
+lvar to Who family { :parent :john :child Who } query n-rows . cr
+```
+```output
+[ :john :anne ]
+2
+```
+
+```forth query-rows
+{ :parent [ :john :john :anne ] :child [ :django :bob :django ] } to family
+family { :parent :john } query-rows [: row | lvar to Kid { :child Kid } row ~ drop Kid ? . :] each cr
+```
+```output
+:django :bob
 ```
 
 ```forth complete-rows
@@ -4975,96 +4987,6 @@ lvar to W
 ```
 ```output
 1 5
-```
-
----
-
-## Fact database
-
-A relational store built entirely from frames and sets. A **relation** is `{ :rows <set of rows> :index <index> }`; a **row** is a frame keyed by column name; a **database** holding several relations is a frame keyed by relation name (`db :father @` reads one); the frame words serve it. A SQLite query result has the same layout, so a fetched table and a hand-built relation are interchangeable (see the SQLite section below).
-
-Rows live in a set, so an identical row asserted twice dedups to one (a relation is a set of tuples). A caller-supplied `:id` column keeps otherwise-identical rows distinct. Indexed columns are declared at creation and must be symbol-valued; `:index` maps each to a `{ value → <rows> }` frame whose buckets share the row frames in `:rows`.
-
-`query` is unification: a pattern frame unifies against rows as an open record — shared keys must match, a logic var matches anything (projection), extra columns are ignored — which is SQL selection and projection. It collects every match (returning an array of the matching rows) by testing each candidate with `matches?` and rolling bindings back, so the pattern is left unbound. Candidates come from the index when the pattern grounds an indexed column to a symbol (intersecting buckets across several such columns, empty when a value was never asserted); otherwise it scans `:rows`.
-
-The relation/query machinery is built from logic.telic helpers (`bucket-of`, `candidates`, `covering?`, `smallest-set`, `tsv-keys`, `retract-row`, `update-row!`) that are internal implementation details and are not listed individually.
-
-| Word | Stack effect | Behavior | Ops | Alloc | O |
-|------|-------------|----------|-----|-------|---|
-| `relation` | `( [cols] -- rel )` | New empty relation; `cols` is an array of column symbols to index | k | frames + sets | O(k) |
-| `assert` | `( rel row -- rel )` | Add row to `:rows` and to each indexed column's bucket; identical row is a no-op. Mutates rel in place, returns it | k + n | reallocs | O(n) |
-| `retract` | `( rel pattern -- rel )` | Remove every row matching pattern from `:rows` and all buckets. Mutates rel, returns it | matches·(k+n) | `1a` | O(matches·n) |
-| `query` | `( rel pattern -- [rows] )` | Array of rows matching pattern; uses an index when the pattern grounds an indexed column, else scans. When every constraint is a ground indexed column the narrowed bucket *is* the answer, so the per-row `matches?` is skipped (covering query) | candidates·n | `1a` + set ops | O(candidates·n) |
-| `count-matches` | `( rel pattern -- n )` | How many rows match; for a covering query this is the bucket's `size` with no scan, otherwise `query size` | — | (covering: none) | O(candidates) |
-| `inner-join` | `( driver probed col -- [rows] )` | Inner join: each `driver` row merged (`probed` columns win collisions) with each `probed` row sharing `col`'s value; `probed` must index `col` | — | `1a` | O(driver·log probed) |
-| `bulk-load` | `( rel rows-array -- rel )` | Load all rows at once: builds `:rows` (a deduped set) and each declared column's index, instead of row-by-row | — | sets + frame | O(n log n) |
-| `load-bag` | `( rel rows-array -- rel )` | Like `bulk-load`, but `:rows` stays a **bag** (the array, duplicates kept) rather than a deduped set; only `:index` is built | n | frame + sets | O(n) |
-| `create-index` | `( rel cols -- rel )` | Index a relation on the symbol columns `cols`: intern each indexed column's value to a symbol (so it keys the bucket and matches a `{ :col :val }` pattern), then `load-bag` into a `cols`-indexed relation. Other columns keep their type; `:rows` stays a bag. The step that turns a `db-query` result into an indexed relation | n | frame + sets | O(n) |
-
-These are logic.telic over the C primitives `matches?`, `set-add!`, `set-remove!`, `array>set`, and `group-by`, plus the `symbol?` type predicate. Building a relation with one `assert` per row is super-linear (each insert shifts the sorted `:rows` set, and per-value frames grow the same way); `bulk-load` avoids that with `array>set` for `:rows` (one sort) and a one-pass `group-by` per indexed column (which buckets by the interned symbol value, then sorts each small bucket — no global sort). `load-bag` and `create-index` skip the `:rows` dedup entirely, keeping a bag; `create-index` also interns the indexed columns to symbols. Queries take their candidate rows from the smallest matching bucket.
-
-```forth relation
-[ :name ] relation { :name :ann :age 34 } assert { :name :ann } query first frame>array . cr
-```
-```output
-[ :name :ann :age 34 ]
-```
-
-```forth assert
-[ :name ] relation { :name :ann :age 34 } assert { :name :ann } query first frame>array . cr
-```
-```output
-[ :name :ann :age 34 ]
-```
-
-```forth retract
-[ ] relation { :x 1 } assert { :x 1 } retract { } query size . cr
-```
-```output
-0
-```
-
-```forth query
-[ :name ] relation { :name :ann :age 34 } assert { :name :ann } query first frame>array . cr
-```
-```output
-[ :name :ann :age 34 ]
-```
-
-```forth count-matches
-[ :t ] relation { :t :a :id 1 } assert { :t :a :id 2 } assert { :t :a } count-matches . cr
-```
-```output
-2
-```
-
-```forth inner-join
-[ :dept ] relation { :dept :eng :floor 3 } assert to floors
-[ :dept ] relation { :name :bo :dept :eng } assert floors :dept inner-join first frame>array . cr
-```
-```output
-[ :name :bo :dept :eng :floor 3 ]
-```
-
-```forth bulk-load
-[ :k ] relation [ { :k :a } { :k :b } { :k :a } ] bulk-load { :k :a } count-matches . cr
-```
-```output
-1
-```
-
-```forth load-bag
-[ :k ] relation [ { :k :a :n 1 } { :k :a :n 2 } { :k :b :n 3 } ] load-bag { :k :a } count-matches . cr
-```
-```output
-2
-```
-
-```forth create-index
-[ ] relation [ { :city "nyc" :id 1 } { :city "sf" :id 2 } { :city "nyc" :id 3 } ] load-bag [ :city ] create-index { :city :nyc } count-matches . cr
-```
-```output
-2
 ```
 
 ---
@@ -6134,18 +6056,17 @@ a b
 
 ## SQLite
 
-Embedded relational storage via the vendored SQLite amalgamation, built into the binary. A database is a `T_DB` value — an inline handle into a per-interpreter registry of open connections, like a stream. `db-exec` and `db-query` take a `params` array bound positionally to the statement's `?` placeholders (`[ ]` for none): a float binds as a double, a string or symbol as text, `null` as NULL, anything else errors — so string parameters need no hand-escaping. A `db-query` result is a fact-database relation (see Fact database), so `query` / `inner-join` accept it unchanged and `create-index` indexes it. `n` = rows returned, `c` = columns.
+Embedded relational storage via the vendored SQLite amalgamation, built into the binary. A database is a `T_DB` value — an inline handle into a per-interpreter registry of open connections, like a stream. `db-exec` and `db-query` take a `params` array bound positionally to the statement's `?` placeholders (`[ ]` for none): a float binds as a double, a string or symbol as text, `null` as NULL, anything else errors — so string parameters need no hand-escaping. A `db-query` result is a dataset, so every dataset word — `query`, `merge-by`, `aggregate`, `select-rows` — applies to it unchanged. `n` = rows returned, `c` = columns.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
 | `db-open` | `( path -- db )` | Open (creating if absent) the database file at `path` and push a handle; `":memory:"` is a private in-memory database. Errors if it can't be opened | open | 1 connection (not GC'd) | O(1)+ |
 | `db-close` | `( db -- )` | Close the connection and free its registry slot. Idempotent — closing an already-closed handle is a no-op. A closed handle stays stale: using it reports `database is closed` even after the slot is reissued to another database. A handle that is dropped without closing holds the connection until process exit; `with-db` scopes one | 1 syscall | none | O(1) |
 | `db-exec` | `( db statement params -- n )` | Bind `params` to the statement's `?` placeholders and run it with no result set (INSERT / UPDATE / DELETE / CREATE / …); return the affected-row count as a float (0 for DDL). One statement per call. On a bad statement, errors with SQLite's message | per statement | none | O(statement) |
-| `db-query` | `( db query params -- rel )` | Bind `params` to the query's `?` placeholders and run it; return an index-less relation `{ :rows <array of row frames> :index { } }`. Each row is a frame keyed by column-name symbols, with INTEGER/REAL → float, TEXT → string, NULL → `null`, BLOB → string of raw bytes. `:rows` is a **bag** — duplicates kept, in result order. On a bad query, errors with SQLite's message | n·c | `1o` relation + `1a(n)` + `1o`/row + a string per text/blob cell | O(n·c) |
-| `db-query>dataset` | `( db query params -- dataset )` | database.telic: the same query, returned as a column-oriented dataset with **typed columns**: a column whose every cell is numeric or NULL becomes an n×1 vector (NULL → NaN), a column declared DATE/DATETIME/TIMESTAMP becomes a vector of instants in `s` (numeric cells read as epoch seconds, text cells parsed as ISO Z), and anything else stays an array with `null` for NULL. An empty column declared numeric stays an empty vector, so the type survives an empty result; a repeated column name keeps its last occurrence | n·c | `1o` frame + `1a`/column + `1m` per numeric column + a string per text cell | O(n·c) |
+| `db-query` | `( db query params -- dataset )` | database.telic: bind `params` to the query's `?` placeholders and run it, answering the result as a column-oriented dataset with **typed columns**: a column whose every cell is INTEGER, REAL or NULL becomes an n×1 vector (NULL → NaN; an integer beyond 2⁵³ stays an exact in an array column), a column declared DATE/DATETIME/TIMESTAMP becomes a vector of instants in `s` (numeric cells read as epoch seconds, text cells parsed as ISO Z), and anything else stays an array with TEXT → string, BLOB → string of raw bytes, NULL → `null`. Rows keep result order, duplicates included. An empty column declared numeric stays an empty vector, so the type survives an empty result; a repeated column name keeps its last occurrence. On a bad query, errors with SQLite's message | n·c | `1o` frame + `1a`/column + `1m` per numeric column + a string per text cell | O(n·c) |
 | `tsv>db` | `( tsv-path db table -- info )` | database.telic: import a TSV file into a new table. The header row names the columns (identifiers quoted, so any header text works); a column whose every non-empty cell is numeric is REAL, else TEXT; empty cells insert as NULL; all rows go in one transaction. `info` is `{ :n-rows N :columns [ … ] }` — a `:real` column carries `{ :name :type :summary }` with a `:summary` statistics frame of its distribution, a `:text` column `{ :name :type :distinct }` with `COUNT(DISTINCT)` (NULLs uncounted). Errors before creating anything on a missing or ragged file; an existing table errors on the CREATE, leaving it untouched | r·c | rows + dataset + `1s`/statement | O(r·c) |
 
-Using a closed handle errors (`database is closed`). Do selection, projection, and joins in the SQL itself; Telic materializes the result. Indexing a result is a separate, explicit step — `create-index` (see Fact database) — because it interns the indexed columns to symbols, which suits low-cardinality categorical columns.
+Using a closed handle errors (`database is closed`). Do selection, projection, and joins in the SQL itself where the table is large; Telic materializes the result as a dataset.
 
 ```forth db-open
 ":memory:" db-open db? . cr
@@ -6169,14 +6090,7 @@ closed twice
 ```
 
 ```forth db-query
-":memory:" db-open dup "select 1 as n" [ ] db-query :rows @ first :n @ . db-close cr
-```
-```output
-1
-```
-
-```forth db-query>dataset
-":memory:" db-open dup "select 2 as v" [ ] db-query>dataset :v @ matrix>array . db-close cr
+":memory:" db-open dup "select 2 as v" [ ] db-query :v @ matrix>array . db-close cr
 ```
 ```output
 [ 2 ]
