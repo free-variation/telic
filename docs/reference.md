@@ -2671,7 +2671,7 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 | `spread` | `( arr/set/fr -- v… )` | Spread the elements onto the stack; a frame spreads alternating sym/value | 1 + n | none | O(n) |
 | `slice!` | `( src sstart sstep slen arr tstart -- arr )` | Copy `slen` elements `src[sstart], src[sstart+sstep], …` into `arr[tstart…]` in place | 6 + slen | self-overlap may malloc slen | O(slen) |
 | `to-slice!` | `( v₀ … vₙ₋₁ n arr offset -- arr )` | Store the n values under their count into `arr[offset…offset+n)`; leaves arr | 2 + n | none | O(n) |
-| `nlast` | `( arr n -- arr )` | arrays.telic: the last n elements of the array | 3n | 3×`1a(n)` | O(n) |
+| `nlast` | `( arr/matrix n -- arr/vector )` | arrays.telic: the last n elements, n clamped to [0, length]; a matrix answers its last n row-major elements as an n×1 vector | 3n | 3×`1a(n)`; matrix `2m` | O(n) |
 | `first` | `( arr/matrix/pair -- v )` | core.telic: element 0 of an array, the first row-major element of a matrix (as a float), or a cons's head | 9 | none | O(1) |
 | `last` | `( arr/matrix -- v )` | core.telic: the final element of an array, or the last row-major element of a matrix (as a float); empty array errors | 9 | none | O(1) |
 | `second` | `( arr/pair -- v )` | core.telic: element 1 of an array, or a cons's tail (`5 6 cons second` → 6; on a list literal the rest, not the next element) | 9 | none | O(1) |
@@ -2776,10 +2776,10 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 ```
 
 ```forth nlast
-[ 1 2 3 4 ] 2 nlast . cr
+[ 1 2 3 4 ] 2 nlast . [ 1 2 3 4 ] 2 2 matrix 3 nlast transpose matrix>array . cr
 ```
 ```output
-[ 3 4 ]
+[ 3 4 ] [ 2 3 4 ]
 ```
 
 ```forth first
@@ -5289,6 +5289,10 @@ variable b 4 to b variable c 10 to c
 | `gc` | `( -- )` | Force a mark-sweep now | walks stacks + dict + roots, frees unmarked | none | O(objects + dict) |
 | `gauges` | `( -- fr )` | repl.telic: the interpreter's resource readings as a frame of six frames; memory is in MiB (dictionary pools in KiB), processor time in s, counts are floats, and a `[ used capacity ]` pair is an array. `:dictionary`: `:cells`, `:name-pool`, `:source-pool`, `:symbol-pool`, `:quotations`, `:word-locations`, `:cell-lines`, `:loaded-files` as pairs, plus `:words`, `:session-words` (defined since the embedded library), `:symbols`. `:heap`: `:arena` `[ used reserved ]`, `:live`, `:gc-threshold`, `:memory-headroom` (until the next collection), `:objects` `[ live table-size ]` (live is claimed handles minus the free list), `:handles-claimed` `[ claimed table-size ]` (the high-water mark; a collection refills the free list rather than lowering it), `:max-objects`, `:free-handles`, `:handle-headroom` `[ unclaimed trigger ]` (a collection is requested when unclaimed falls under trigger), `:pairs` `[ live table-size ]`, `:collections`. `:stacks`: `:data`, `:return`, `:side`, `:calls`, `:trail`, `:logic-vars`, `:roots`, each `[ depth capacity ]`. `:resources`: `:databases`, `:regex-cache`, `:workers`, each `[ in-use capacity ]`. `:computer`: `:cpu-count`, `:physical-memory`, the load averages `:load-1` `:load-5` `:load-15`, and this process's `:user-time`, `:system-time`, `:max-rss` (peak resident memory), `:minor-faults`, `:major-faults`, `:voluntary-switches`, `:involuntary-switches` — `null` under wasm, which has no such calls. `:session`: `:line`, `:interactive`, `:load-depth`, `:gc-disabled`, `:tracing` | dict walk + symbol scan | `1fr` × 6 + pairs | O(words + symbols) |
 | `print-gauges` | `( -- )` | repl.telic: print the readings of `gauges` that move during a run as a six-row table: live memory, objects, pairs, and arena against their capacities with a percentage; collections with their rate; data, return, and call depth; trail and logic-variable depth; CPU percentage, peak resident memory, major faults per second, load average against the core count, involuntary switches per second; then the interval since the previous call and the clock. Rates are computed against the previous `print-gauges` call, so a first call shows them as 0. On a terminal the labels are dim and a percentage or rate is yellow above 60% of its capacity, red above 85% | gauges + format | strings | O(words + symbols) |
+| `gauges>rows` | `( g -- rows )` | repl.telic: the six row strings `print-gauges` prints, from a `gauges` frame — live or saved: the rates and the interval compare against the frame given on the previous call, the sample clock is the frame's `:sampled-at` (monotonic seconds) when present, else `now`, and the footer's clock its `:published-at` when present, else `wall-now`; ink directives as on a tty | gauges>rows + format | strings | O(words + symbols) |
+| `after-entry` | `( -- )` | repl.telic: the REPL hook — a deferred word the interactive loop runs after every entry's report, with the data stack as the entry left it; the default target does nothing, `' xt embodies after-entry` installs another (lib/gauges-view.telic installs its publisher). An error in the hook prints `after-entry: <message>` and leaves the stack as it was | target | target | target |
+| `tick-every` | `( seconds -- )` | repl.telic: arm a periodic timer (`setitimer`; 0 disarms, a negative interval errors): every `seconds` the running code is interrupted at its next op boundary — or inside a `sleep`, which then resumes for its remaining time — to run `on-tick` once. Nothing ticks until armed; wasm has no timer, so the word does nothing there | 2 | none | O(1) |
+| `on-tick` | `( -- )` | repl.telic: the timer hook — a deferred word run once per `tick-every` tick, with the data stack as the running code left it, so a target must leave the stack as it found it; the default target does nothing, `' xt embodies on-tick` installs another. An error in the hook prints `on-tick: <message>` to stderr and the running code continues | target | target | target |
 | `alloc-stats` | `( -- )` | Print and reset the allocation counters (`lvars=… arrays=…`) since the last call, or since the embedded library finished loading — its own allocations are not counted | 2 | none | O(1) |
 | `bye` | `( -- )` | Exit the process with status 0 | — | — | — |
 | `halt` | `( code -- )` | Exit the process with the given code as its exit status | — | — | — |
@@ -5460,6 +5464,37 @@ gauges dup keys [: "{0}" format :] sort-by . :stacks @ :data @ . cr
 ```
 ```output
 [ :computer :dictionary :heap :resources :session :stacks ] [ 0 65536 ]
+```
+
+```forth gauges>rows
+gauges gauges>rows size . cr
+```
+```output
+6
+```
+
+```forth-noexec after-entry
+: report-depth depth "depth {0}" format . cr ;
+' report-depth embodies after-entry
+```
+```output
+```
+
+```forth-noexec tick-every
+variable ticks 0 to ticks
+: count-tick | ^ticks | ++ ticks ;
+' count-tick embodies on-tick
+1 tick-every 2.5 sleep 0 tick-every
+ticks . cr
+```
+```output
+2
+```
+
+```forth-noexec on-tick
+' publish-gauges-entry embodies on-tick
+```
+```output
 ```
 
 ```forth-noexec print-gauges

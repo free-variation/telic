@@ -39,6 +39,11 @@ int platform_executable_path(char *out, size_t cap) {
 	return 0;
 }
 
+void platform_tick_every(struct Interpreter *interp, double seconds) {
+	(void)interp;
+	(void)seconds;
+}
+
 int platform_repl_begin(struct Interpreter *interp, int want_interactive) {
 	(void)interp;
 	if (want_interactive) {

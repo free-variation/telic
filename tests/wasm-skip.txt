@@ -24,3 +24,6 @@
 088_claude          lib/claude.telic loads lib/http.telic via binary-dir: no executable path on WASI
 104_http            load-library via binary-dir and a curl subprocess: no fork/exec on WASI
 900_docs_http_lib_http_telic  load-library via binary-dir and a curl subprocess: no fork/exec on WASI
+115_tick_every      tick-every: no setitimer/SIGALRM on WASI, the timer is a no-op there
+114_gauges_view     load-library via binary-dir: no executable path on WASI
+900_docs_gauges_view_lib_gauges_view_telic  load-library via binary-dir: no executable path on WASI

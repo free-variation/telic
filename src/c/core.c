@@ -1459,6 +1459,26 @@ static void unwind_locals_scopes(Interpreter *interp) {
 	}
 }
 
+static int tick_hook_cfa;
+static int tick_hook_latest_cfa = -1;
+
+void run_tick_hook(Interpreter *interp) {
+	interp->gc_pending &= ~TICK_PENDING;
+	if (tick_hook_latest_cfa != vocab.latest_cfa) {
+		tick_hook_cfa = find("on-tick");
+		tick_hook_latest_cfa = vocab.latest_cfa;
+	}
+	if (!tick_hook_cfa || interp->error_flag)
+		return;
+
+	execute_cfa(interp, tick_hook_cfa);
+	if (interp->error_flag) {
+		fprintf(stderr, "on-tick: %s\n", interp->error_message);
+		interp->error_flag = 0;
+		interp->unwinding = 0;
+	}
+}
+
 void run_inner(Interpreter *interp, int floor) {
 	if (interp->call_depth >= MAX_CALL_DEPTH) {
 		fail(interp, "call stack too deep (runaway recursion via execute/resume/amb?)");
@@ -1494,6 +1514,8 @@ void run_inner(Interpreter *interp, int floor) {
 				fail(interp, "interrupted");
 				break;
 			}
+			if (interp->gc_pending & TICK_PENDING)
+				run_tick_hook(interp);
 			if (interp->gc_pending & TRACE_PENDING)
 				trace_step(interp);
 			if (interp->gc_pending & GC_PENDING) {
@@ -6192,6 +6214,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "(format-time-local)", p_format_time_local, 4);
 	define_primitive(interp, "(parse-time)", p_parse_time, 4);
 	define_primitive(interp, "sleep", p_sleep, 0);
+	define_primitive(interp, "(tick-every)", p_tick_every, 4);
 	define_primitive(interp, "args", p_args, 0);
 	define_primitive(interp, "env", p_env, 0);
 	define_primitive(interp, "env!", p_env_set, 0);
@@ -6533,6 +6556,16 @@ int main(int argc, char **argv) {
 			}
 			putchar('\n');
 			fflush(stdout);
+
+			int after_entry_cfa = find("after-entry");
+			if (after_entry_cfa) {
+				interp->error_flag = 0;
+				execute_cfa(interp, after_entry_cfa);
+				if (interp->error_flag) {
+					printf("after-entry: %s\n", interp->error_message);
+					fflush(stdout);
+				}
+			}
 		} else if (interp->error_flag) {
 			fprintf(stdout, "error: %s\n", interp->error_message);
 			if (interp->error_trace[0])

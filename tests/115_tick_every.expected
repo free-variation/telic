@@ -1,0 +1,9 @@
+0 
+1 
+2 
+1 
+0 
+on-tick: division by zero
+0 
+error: expected a non-negative interval; got -1
+in (tick-every) ← tick-every

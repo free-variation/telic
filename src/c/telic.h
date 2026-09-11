@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.34.9"
+#define VERSION "0.35.0"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,6 +32,7 @@ typedef int64_t cell;
 #define GC_PENDING 1
 #define TRACE_PENDING 2
 #define INTERRUPT_PENDING 4
+#define TICK_PENDING 8
 #define MAX_LOCATION_FILES (1 << 8)
 #define MAX_HANDLERS (1 << 10)
 #define MAX_LOADED_FILES (1 << 6)
@@ -1046,6 +1047,7 @@ void region_commit(ParallelRegion *region);
 void reset_thread_alloc(void);
 void run_inner(Interpreter *interp, int floor);
 void run_outer(Interpreter *interp);
+void run_tick_hook(Interpreter *interp);
 void skip_whitespace_and_comments(void);
 int stdout_is_tty(void);
 const char *term_bold(void);
@@ -1232,6 +1234,7 @@ void p_trace(DISPATCH_ARGS);
 void p_see_tree_to_string(DISPATCH_ARGS);
 void p_stop(DISPATCH_ARGS);
 void p_tailcall(DISPATCH_ARGS);
+void p_tick_every(DISPATCH_ARGS);
 
 // words.c
 void p_2curry(DISPATCH_ARGS);

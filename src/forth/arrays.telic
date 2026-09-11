@@ -1,7 +1,15 @@
 \ array words
 
-( arr n -- arr' ) \ last n elements (clamped to [0, length])
-: nlast swap reverse swap take reverse ;
+( arr/matrix n -- arr'/vector ) \ the last n elements (n clamped to [0, length]);
+\ a matrix answers its last n row-major elements as an nx1 vector
+: nlast
+	| source n |
+	source matrix? if
+		source dim * to n-elements
+		n 0 n-elements clamp to n
+		source n-elements 1 reshape n-elements n - n-elements 0 1 submatrix exit
+	then
+	source reverse n take reverse ;
 
 ( arr n -- arr' ) \ all but the first n elements (clamped)
 : skip over size swap - swap reverse swap take reverse ;

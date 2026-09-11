@@ -150,10 +150,11 @@
 variable gauges-previous internal
 null to gauges-previous
 
-( g -- fr ) \ the fields a rate compares against
+( g -- fr ) \ the fields a rate compares against; a published frame carries its
+\ own :sampled-at, a live one samples the clock now
 : gauge-sample
 	| g |
-	{ :time now
+	{ :time g :sampled-at now @or
 	  :cpu g /computer/user-time @ gauge-magnitude g /computer/system-time @ gauge-magnitude +
 	  :collections g /heap/collections @
 	  :faults g /computer/major-faults @ gauge-magnitude
@@ -167,10 +168,10 @@ null to gauges-previous
 	seconds 0 <= if 0 exit then
 	sample key @ gauges-previous key @ - seconds / ; internal
 
-( -- rows ) \ the moving readings as six row strings: heap, stacks and process, footer
-: gauges-rows
-	| ^gauges-previous |
-	gauges to g
+( g -- rows ) \ a gauges frame as six row strings: heap, stacks and process, footer;
+\ rates and the interval compare against the frame given on the previous call
+: gauges>rows
+	| g ^gauges-previous |
 	g gauge-sample to sample
 
 	g /heap/live @ gauge-magnitude to live
@@ -218,11 +219,29 @@ null to gauges-previous
 	left-5 right-5 "{1} {dim}│{plain} {0}" format
 
 	sample :time @ gauges-previous null? if sample :time @ else gauges-previous :time @ then -
-	wall-now "%H:%M:%S" format-time
+	g :published-at wall-now @or "%H:%M:%S" format-time
 	"{dim}interval {1:.1f} s at {0}{plain}" format
 	6 array
 
-	sample to gauges-previous ; internal
+	sample to gauges-previous ;
+
+( -- rows ) \ the live readings as six row strings
+: gauges-rows gauges gauges>rows ; internal
 
 ( -- ) \ print the moving readings once as a six-row table
 : print-gauges gauges-rows [: print-raw cr :] each ;
+
+( -- ) \ the REPL hook: runs after every entry's report, with the data stack as
+\ the entry left it; does nothing until ' xt embodies after-entry retargets it
+defer after-entry
+' identity embodies after-entry
+
+( -- ) \ the timer hook: runs at the first op boundary after each tick of
+\ tick-every, with the data stack as the running code left it; does nothing
+\ until ' xt embodies on-tick retargets it
+defer on-tick
+' identity embodies on-tick
+
+( seconds -- ) \ arm a periodic tick every seconds (0 disarms): each tick runs
+\ on-tick once, between two ops or inside a sleep; nothing ticks until armed
+: tick-every (tick-every) ;

@@ -1,6 +1,7 @@
 #include "telic.h"
 #include "isocline.h"
 #include <signal.h>
+#include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
 #include <sys/resource.h>
@@ -284,6 +285,30 @@ static void on_interrupt(int signal_number) {
 	(void)signal_number;
 	if (repl_interp)
 		repl_interp->gc_pending |= INTERRUPT_PENDING;
+}
+
+static Interpreter *tick_interp;
+
+static void on_tick(int signal_number) {
+	(void)signal_number;
+	if (tick_interp)
+		tick_interp->gc_pending |= TICK_PENDING;
+}
+
+void platform_tick_every(Interpreter *interp, double seconds) {
+	struct sigaction action;
+	struct itimerval timer;
+
+	tick_interp = seconds > 0 ? interp : NULL;
+	memset(&action, 0, sizeof action);
+	action.sa_handler = seconds > 0 ? on_tick : SIG_IGN;
+	action.sa_flags = SA_RESTART;
+	sigaction(SIGALRM, &action, NULL);
+
+	timer.it_interval.tv_sec = (time_t)seconds;
+	timer.it_interval.tv_usec = (suseconds_t)((seconds - (double)(time_t)seconds) * 1e6);
+	timer.it_value = timer.it_interval;
+	setitimer(ITIMER_REAL, &timer, NULL);
 }
 
 int platform_temp_file(char *path, int capacity, const char *suffix) {

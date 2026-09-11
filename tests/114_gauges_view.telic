@@ -1,0 +1,42 @@
+\ ==== gauges>rows ( g -- rows ), after-entry, lib/gauges-view.telic ====
+
+\ gauges>rows renders any gauges frame, live or saved; the library's publisher
+\ writes the frame after every REPL entry through the after-entry hook, and
+\ gauges-view-once redraws it. Numbers depend on the machine and the moment, so
+\ the runner's .sed replaces each with N; the golden pins layout and plumbing.
+
+"/tmp/telic-test-gauges.bin" to publication
+[: publication file-exists? if publication delete-file then :] execute
+
+\ -- the hook does nothing until a target is installed
+after-entry depth . cr                               \ 0
+
+"gauges-view" load-library
+
+\ -- publishing off: the hook writes nothing
+after-entry publication file-exists? . cr            \ 0
+
+\ -- publishing on: one hook call writes a frame carrying both clocks
+publication publish-gauges
+after-entry
+publication file-exists? . cr                        \ 1
+publication load-value to published
+published :sampled-at @ float? . cr                  \ 1
+published :published-at @ unit-of . cr               \ 1 s
+published keys size . cr                             \ 8  six gauge groups and the two stamps
+
+\ -- a saved frame renders like the live one
+published gauges>rows size . cr                      \ 6
+published gauges>rows 0 @i "^live" has? . cr         \ 1
+
+\ -- the viewer: a waiting line without the file, the table with it
+publication delete-file
+publication gauges-view-once
+after-entry
+publication gauges-view-once
+
+\ -- off again: the hook leaves the file alone
+unpublish-gauges
+publication delete-file
+after-entry
+publication file-exists? . cr                        \ 0

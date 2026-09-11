@@ -71,6 +71,7 @@ abs
 acos
 add-last!
 aes!
+after-entry
 again
 aggregate
 all?
@@ -338,6 +339,9 @@ ftan
 ftanh
 ftruncate
 gauges
+gauges-view
+gauges-view-once
+gauges>rows
 gc
 gen-each
 gen-take
@@ -462,6 +466,7 @@ num-cores
 num-elements
 numerator
 of
+on-tick
 open-app-window
 open-file
 or
@@ -497,6 +502,7 @@ print-gauges
 print-stack
 product-times
 ptr?
+publish-gauges
 pwd
 qnorm
 quantile
@@ -666,6 +672,7 @@ test-report
 text-anchor
 then
 throw
+tick-every
 time>iso
 timed
 times
@@ -689,6 +696,7 @@ unify?
 union
 unit
 unit-of
+unpublish-gauges
 until
 update-at
 upper-case

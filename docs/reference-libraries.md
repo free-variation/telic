@@ -939,6 +939,56 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 ```
 
 
+## Gauges view (lib/gauges-view.telic)
+
+`"gauges-view" load-library`. A live view of a REPL's `gauges` in another
+terminal. Loading the library installs a publisher as the REPL's `after-entry`
+and `on-tick` targets; `publish-gauges` names the file it writes the `gauges`
+frame to (stamped `:sampled-at now` and `:published-at wall-now`) after every
+entry and, through a one-second `tick-every`, every second while an entry
+runs. A second telic runs `gauges-view` on that path, redrawing
+`print-gauges`'s table from the latest file every half second — each cycle
+erases the screen and redraws from the top, so a resize or Ctrl-L is repaired
+by the next cycle, and Ctrl-C ends it. Rates compare consecutive published
+samples; the footer adds the sample's age.
+
+| Word | Stack effect | Summary |
+| --- | --- | --- |
+| `publish-gauges` | `( path -- )` | Write the `gauges` frame to `path` after every REPL entry and every second during one, from now on (`save-value`; the file is rewritten whole); arms `1 tick-every` |
+| `unpublish-gauges` | `( -- )` | Stop publishing and disarm the tick; the file stays |
+| `gauges-view-once` | `( path -- )` | One redraw: erase the screen, then the six-row table from the frame saved at `path` and a `sampled N s ago` footer; `waiting for <path>` while the file does not exist; nothing when the file still holds the sample drawn last, so rates never see a zero interval |
+| `gauges-view` | `( path -- )` | `gauges-view-once` every half second until interrupted |
+
+```forth publish-gauges
+"gauges-view" load-library
+"/tmp/docs-gauges.bin" publish-gauges after-entry
+"/tmp/docs-gauges.bin" load-value dup :published-at @ unit-of . gauges>rows size . cr
+```
+```output
+1 s 6
+```
+
+```forth unpublish-gauges
+"gauges-view" load-library
+"/tmp/docs-gauges.bin" publish-gauges unpublish-gauges
+"/tmp/docs-gauges.bin" delete-file after-entry "/tmp/docs-gauges.bin" file-exists? . cr
+```
+```output
+0
+```
+
+```forth-noexec gauges-view-once
+"/tmp/repl-gauges.bin" gauges-view-once
+```
+```output
+```
+
+```forth-noexec gauges-view
+"/tmp/repl-gauges.bin" gauges-view
+```
+```output
+```
+
 ## HTTP (lib/http.telic)
 
 `"http" load-library`. HTTP over a `curl` subprocess — the language itself has

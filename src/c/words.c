@@ -3459,11 +3459,33 @@ void p_sleep(DISPATCH_ARGS) {
 
 	double seconds = VAL_NUMBER(seconds_val);
 	if (seconds > 0) {
-		struct timespec request;
-		request.tv_sec = (time_t)seconds;
-		request.tv_nsec = (long)((seconds - (double)(time_t)seconds) * 1e9);
-		nanosleep(&request, NULL);
+		struct timespec remaining;
+		remaining.tv_sec = (time_t)seconds;
+		remaining.tv_nsec = (long)((seconds - (double)(time_t)seconds) * 1e9);
+		SYNC_REGISTERS(interp, chain_ip, chain_sp - 1);
+		while (nanosleep(&remaining, &remaining) != 0) {
+			if (interp->gc_pending & TICK_PENDING)
+				run_tick_hook(interp);
+			if (interp->gc_pending & INTERRUPT_PENDING)
+				break;
+		}
 	}
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+}
+
+void p_tick_every(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val seconds_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(seconds_val, T_FLOAT, "tick-every", "a float");
+
+	double seconds = VAL_NUMBER(seconds_val);
+	if (seconds < 0) {
+		SYNC_REGISTERS(interp, chain_ip, chain_sp);
+		fail(interp, "expected a non-negative interval; got %g", seconds);
+		return;
+	}
+	platform_tick_every(interp, seconds);
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 }

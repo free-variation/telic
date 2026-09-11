@@ -1,0 +1,17 @@
+0 
+0 
+1 
+1 
+1 s 
+8 
+6 
+1 
+[H[2Jwaiting for /tmp/telic-test-gauges.bin
+[H[2Jlive     0.0 / 256 MiB         0% │ data     0        cpu      64%
+objects  1024 / 65.5k          2% │ return   2        rss      9 MiB
+pairs    115 / 1.0M            0% │ calls    1 / 4096 faults   0/s
+gc       0  0.0/s                 │ trail    0        load     3.2 / 16
+arena    0.1 / 16384 MiB       0% │ lvars    0        switches 17430/s
+interval 0.0 s at 20:14:19
+sampled 0 s ago
+0 

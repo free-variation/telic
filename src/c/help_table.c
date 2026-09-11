@@ -49,11 +49,12 @@ const char *const help_section_names[] = {
 	"Design matrices and the regression pipeline (lib/statistics.telic)",
 	"Generalized Pareto tail (lib/statistics.telic)",
 	"Plotting (lib/plot.telic)",
+	"Gauges view (lib/gauges-view.telic)",
 	"HTTP (lib/http.telic)",
 	"MCP server (lib/mcp.telic)",
 };
 
-const int help_section_count = 50;
+const int help_section_count = 51;
 
 const HelpEntry help_entries[] = {
 	{ "!", "( fr val sym/path -- fr )", "Set by key or path, vivifying intermediates; mutates fr; errors on a search path. Writes take the address last, so the value is computed first and the destination named beside the word", "d log n", "realloc on growth; 1o per vivified frame", "O(d log n) amortized", 18 },
@@ -129,6 +130,7 @@ const HelpEntry help_entries[] = {
 	{ "acos", "( a -- acos a )", "inverse cosine", "2", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 3 },
 	{ "add-last!", "( arr v -- arr )", "Append v at the end, doubling the backing buffer when full; leaves arr on the stack", "2", "≤1a on grow", "amortized O(1)", 16 },
 	{ "aes!", "( fr -- )", "Merge a frame of style keys into the global aes defaults, for figures created afterward", NULL, NULL, NULL, 47 },
+	{ "after-entry", "( -- )", "repl.telic: the REPL hook — a deferred word the interactive loop runs after every entry's report, with the data stack as the entry left it; the default target does nothing, ' xt embodies after-entry installs another (lib/gauges-view.telic installs its publisher). An error in the hook prints after-entry: <message> and leaves the stack as it was", "target", "target", "target", 32 },
 	{ "again", "—", "Unconditional branch back to begin", NULL, NULL, NULL, 10 },
 	{ "aggregate", "( dataset by xt -- dataset )", "datasets.telic: split-apply-combine — rows group by the by column's distinct values, or by the value tuple of a by-symbol array (tuples group and order in natural order); for each group xt ( group-dataset -- frame ) answers one row frame, the group's key values are stored into it under their own keys (overwriting any the xt set), and the rows reassemble into a dataset", "n log n + per-group xt", "one sub-dataset and frame per group + result columns; array by adds one tuple array per row", "O(n log n + n·c)", 25 },
 	{ "all?", "( items pred -- bool )", "arrays.telic: true when every element satisfies pred, vacuously true on empty. Runs pred over **every** element, so it does not short-circuit and a side-effecting pred runs n times", "2n·xt", "1a(n)", "O(n·xt)", 26 },
@@ -396,6 +398,9 @@ const HelpEntry help_entries[] = {
 	{ "ftanh", "( a -- tanh a ) ⚠", "hyperbolic tangent, in place", "1", "none", "O(1)", 1 },
 	{ "ftruncate", "( a -- trunc a ) ⚠", "toward zero, in place", "1", "none", "O(1)", 1 },
 	{ "gauges", "( -- fr )", "repl.telic: the interpreter's resource readings as a frame of six frames; memory is in MiB (dictionary pools in KiB), processor time in s, counts are floats, and a [ used capacity ] pair is an array. :dictionary: :cells, :name-pool, :source-pool, :symbol-pool, :quotations, :word-locations, :cell-lines, :loaded-files as pairs, plus :words, :session-words (defined since the embedded library), :symbols. :heap: :arena [ used reserved ], :live, :gc-threshold, :memory-headroom (until the next collection), :objects [ live table-size ] (live is claimed handles minus the free list), :handles-claimed [ claimed table-size ] (the high-water mark; a collection refills the free list rather than lowering it), :max-objects, :free-handles, :handle-headroom [ unclaimed trigger ] (a collection is requested when unclaimed falls under trigger), :pairs [ live table-size ], :collections. :stacks: :data, :return, :side, :calls, :trail, :logic-vars, :roots, each [ depth capacity ]. :resources: :databases, :regex-cache, :workers, each [ in-use capacity ]. :computer: :cpu-count, :physical-memory, the load averages :load-1 :load-5 :load-15, and this process's :user-time, :system-time, :max-rss (peak resident memory), :minor-faults, :major-faults, :voluntary-switches, :involuntary-switches — null under wasm, which has no such calls. :session: :line, :interactive, :load-depth, :gc-disabled, :tracing", "dict walk + symbol scan", "1fr × 6 + pairs", "O(words + symbols)", 32 },
+	{ "gauges-view", "( path -- )", "gauges-view-once every half second until interrupted", NULL, NULL, NULL, 48 },
+	{ "gauges-view-once", "( path -- )", "One redraw: erase the screen, then the six-row table from the frame saved at path and a sampled N s ago footer; waiting for <path> while the file does not exist; nothing when the file still holds the sample drawn last, so rates never see a zero interval", NULL, NULL, NULL, 48 },
+	{ "gauges>rows", "( g -- rows )", "repl.telic: the six row strings print-gauges prints, from a gauges frame — live or saved: the rates and the interval compare against the frame given on the previous call, the sample clock is the frame's :sampled-at (monotonic seconds) when present, else now, and the footer's clock its :published-at when present, else wall-now; ink directives as on a tty", "gauges>rows + format", "strings", "O(words + symbols)", 32 },
 	{ "gc", "( -- )", "Force a mark-sweep now", "walks stacks + dict + roots, frees unmarked", "none", "O(objects + dict)", 32 },
 	{ "gen-each", "( producer consumer -- )", "generators.telic: run consumer on each value the producer yields until the producer finishes (a :gen-end sentinel marks exhaustion)", "—", "cont/step", "O(values · consumer)", 28 },
 	{ "gen-take", "( producer count -- array )", "generators.telic: the first count values the producer yields, collected into an array", "—", "1a(count) + cont/step", "O(count · L)", 28 },
@@ -418,9 +423,9 @@ const HelpEntry help_entries[] = {
 	{ "histogram-plot", "( data n-bins -- svg )", "Complete histogram, rendered", NULL, NULL, NULL, 47 },
 	{ "histogram-table", "( v n-bins -- fr )", "statistics.telic: equal-width bin counts over a vector's value range, as { :counts (n-bins×1) :low :bin-width }. NaNs dropped, the maximum value is counted in the last bin, a constant vector takes the range value ± 1; errors on n-bins < 1 or no finite values", "n + n-bins", "1m(n-bins) + 1fr", "O(n + n-bins)", 21 },
 	{ "hstack", "( a b -- mat/dataset )", "matrix.telic: concatenate two matrices column-wise; errors unless row counts match. datasets.telic extends it to two datasets set side by side: equal row counts and disjoint column names required (both error otherwise), rows aligned by position, the columns of both retained. A null operand answers the other, so columns null ' hstack reduce folds a list of columns", "2 + r·c", "1m(r×c); dataset shares columns", "O(r·c)", 21 },
-	{ "http-get", "( url -- body )", "GET, answering the response body; a non-2xx status throws http status NNN", NULL, NULL, NULL, 48 },
-	{ "http-post", "( url body -- body' )", "POST the body as-is (curl's default content-type), answering the response body; a non-2xx status throws", NULL, NULL, NULL, 48 },
-	{ "http-request", "( method url headers body -- response )", "One request; response is { :status :body } with the HTTP status code and the raw body. headers is an array of \"name: value\" strings, body a string or null (sent as-is, --data-binary). A non-HTTP URL (file://) reports status 0", NULL, NULL, NULL, 48 },
+	{ "http-get", "( url -- body )", "GET, answering the response body; a non-2xx status throws http status NNN", NULL, NULL, NULL, 49 },
+	{ "http-post", "( url body -- body' )", "POST the body as-is (curl's default content-type), answering the response body; a non-2xx status throws", NULL, NULL, NULL, 49 },
+	{ "http-request", "( method url headers body -- response )", "One request; response is { :status :body } with the HTTP status code and the raw body. headers is an array of \"name: value\" strings, body a string or null (sent as-is, --data-binary). A non-HTTP URL (file://) reports status 0", NULL, NULL, NULL, 49 },
 	{ "i-times", "( xt n -- )", "Run xt n times, pushing index 0..n-1 first", "2 + n·(1+xt)", "none", "O(n·xt)", 26 },
 	{ "identity", "( a -- a )", "core.telic: the value unchanged — the no-op xt for higher-order words", "1", "none", "O(1)", 0 },
 	{ "identity-matrix", "( n -- mat )", "matrix.telic: n×n matrix with 1 on the diagonal", "n", "1m(n×n)", "O(n)", 21 },
@@ -483,9 +488,9 @@ const HelpEntry help_entries[] = {
 	{ "matrix?", "( a -- bool )", "core.telic: 1 when the value is a matrix, else 0", "5", "none", "O(1)", 4 },
 	{ "max", "( mat -- f )", "Maximum element", "1 + r×c", "none", "O(r×c)", 21 },
 	{ "max2", "( a b -- larger )", "the greater of two values in natural order — floats, strings, quantities (within one dimension — a plain number or another dimension errors; the right side rescales and a matrix result keeps the left unit); a NaN operand answers the other value. With a matrix operand it is element-wise with scalar broadcast; it orders a pair rather than reducing one collection", "3 (float)", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 1 },
-	{ "mcp-add-tool", "( definition handler -- )", "Register a tool: the definition frame a client sees and the ( id arguments -- ) word that runs it. Call it before mcp-serve. A name already registered is not replaced — two entries with one name would make tools/call answer the first", NULL, NULL, NULL, 49 },
-	{ "mcp-serve", "( -- )", "Serve MCP over stdin and stdout until end of input, then close every session and reap its child. stdout carries protocol messages only, which is why evaluated output is captured rather than printed. Reads requests as whole lines, so a partial line is held until its newline arrives; a malformed line answers JSON-RPC −32700", NULL, NULL, NULL, 49 },
-	{ "mcp-tool-result", "( id text failed -- )", "Answer a tools/call with one text content block, failed setting isError. The only way a handler should answer, since writing to stdout directly would corrupt the protocol stream", NULL, NULL, NULL, 49 },
+	{ "mcp-add-tool", "( definition handler -- )", "Register a tool: the definition frame a client sees and the ( id arguments -- ) word that runs it. Call it before mcp-serve. A name already registered is not replaced — two entries with one name would make tools/call answer the first", NULL, NULL, NULL, 50 },
+	{ "mcp-serve", "( -- )", "Serve MCP over stdin and stdout until end of input, then close every session and reap its child. stdout carries protocol messages only, which is why evaluated output is captured rather than printed. Reads requests as whole lines, so a partial line is held until its newline arrives; a malformed line answers JSON-RPC −32700", NULL, NULL, NULL, 50 },
+	{ "mcp-tool-result", "( id text failed -- )", "Answer a tools/call with one text content block, failed setting isError. The only way a handler should answer, since writing to stdout directly would corrupt the protocol stream", NULL, NULL, NULL, 50 },
 	{ "mean", "( mat -- f )", "matrix.telic: the arithmetic mean of the elements, NaNs skipped", "r×c", "none", "O(r×c)", 21 },
 	{ "median", "( mat -- f )", "statistics.telic: the median (the 0.5 quantile) of all elements", "n log n", "malloc(n)", "O(n log n)", 21 },
 	{ "merge", "( fr₁ fr₂ -- fr )", "New frame with all keys; fr₂ wins collisions", "m+n", "1o", "O(m+n)", 18 },
@@ -508,7 +513,7 @@ const HelpEntry help_entries[] = {
 	{ "neq", "( a b -- bool ) or ( mat/arr x -- mat )", "not-equal: element-wise 1/0 mask on matrix and array operands (scalar broadcast; per array element in natural order), structural inequality on other collections and scalars. A NaN element differs from everything, so it masks 1", "3 (float)", "matrix 1m(r×c)", "float O(1); string O(|s|); array/set O(n); frame O(n); matrix O(r×c)", 4 },
 	{ "new-tests", "( -- )", "test.telic: zero the passed and failed counters test tallies into, so the next test-report covers only the tests run after it — one file's independent groups, or a re-run suite in a session", "—", "none", "O(1)", 27 },
 	{ "nip", "( a b -- b )", "Drop the second item, keeping the top", "1", "none", "O(1)", 0 },
-	{ "nlast", "( arr n -- arr )", "arrays.telic: the last n elements of the array", "3n", "3×1a(n)", "O(n)", 16 },
+	{ "nlast", "( arr/matrix n -- arr/vector )", "arrays.telic: the last n elements, n clamped to [0, length]; a matrix answers its last n row-major elements as an n×1 vector", "3n", "3×1a(n); matrix 2m", "O(n)", 16 },
 	{ "nmap", "( arr₁ … arr_N xt N -- arr )", "N-ary zip-map over equal-length arrays", "rows·(N+xt)", "1a(rows)", "O(rows·xt)", 26 },
 	{ "nonmissing-count", "( mat -- n )", "The number of non-NaN elements", "1 + n", "none", "O(n)", 21 },
 	{ "norm", "( mat -- f )", "matrix.telic: Euclidean (L2) norm, √(Σ elements²) — a vector's length, a matrix's Frobenius norm", "1 + n", "none", "O(n)", 21 },
@@ -520,6 +525,7 @@ const HelpEntry help_entries[] = {
 	{ "num-elements", "( mat -- n )", "matrix.telic: the element count, rows × columns", "5", "none", "O(1)", 21 },
 	{ "numerator", "( x -- x' )", "The reduced numerator as an integer exact, carrying the sign", "limbs", "1o", "O(limbs)", 6 },
 	{ "of", "—", "Unify the clause pattern with the selector: on a match the bindings commit, both are dropped, and the body runs; on a mismatch the bindings roll back, the pattern is dropped, and the selector falls to the next clause", NULL, NULL, NULL, 10 },
+	{ "on-tick", "( -- )", "repl.telic: the timer hook — a deferred word run once per tick-every tick, with the data stack as the running code left it, so a target must leave the stack as it found it; the default target does nothing, ' xt embodies on-tick installs another. An error in the hook prints on-tick: <message> to stderr and the running code continues", "target", "target", "target", 32 },
 	{ "open-app-window", "( path -- )", "browser.telic: open path in a detached browser application window (Chromium --app), falling back to the system open / xdg-open", "fork", "none", "O(1)", 36 },
 	{ "open-file", "( path -- stream )", "The file as a read-only stream, so read-line / read / read-available / wait-readable / close walk a file too large to read whole line by line; errors if it can't be opened", "1", "none", "O(1)", 34 },
 	{ "or", "( a b -- bool )", "logical or of truthiness", "3", "none", "O(1)", 4 },
@@ -555,6 +561,7 @@ const HelpEntry help_entries[] = {
 	{ "print-stack", "( -- )", "core.telic: print every stack value, bottom to top; leaves the stack intact", "print", "none", "O(depth)", 13 },
 	{ "product-times", "( xt n -- product )", "arrays.telic: the product of xt ( i -- term ) over i in 0..n-1", "3 + n·(1+xt)", "none", "O(n·xt)", 26 },
 	{ "ptr?", "( a -- bool )", "core.telic: 1 when the value is a C pointer, else 0", "5", "none", "O(1)", 4 },
+	{ "publish-gauges", "( path -- )", "Write the gauges frame to path after every REPL entry and every second during one, from now on (save-value; the file is rewritten whole); arms 1 tick-every", NULL, NULL, NULL, 48 },
 	{ "pwd", "( -- )", "io.telic: print the working directory and a newline; symlinks are resolved, so the real path is printed", "1", "1o", "O(|path|)", 34 },
 	{ "qnorm", "( p -- z )", "statistics.telic: standard normal quantile (inverse CDF) — relative error below 1.15e-9; errors unless p strictly inside (0, 1)", "30", "none", "O(1)", 21 },
 	{ "quantile", "( mat p -- f )", "Linearly-interpolated quantile at p ∈ [0,1] over all elements (sorts a copy); errors if p out of range or empty", "2 + n log n", "malloc(n)", "O(n log n)", 21 },
@@ -724,6 +731,7 @@ const HelpEntry help_entries[] = {
 	{ "text-anchor", "( anchor -- )", "Set the current text anchor: \"start\", \"middle\", or \"end\"", NULL, NULL, NULL, 47 },
 	{ "then", "—", "Close an if/if…else; patches the forward branch", NULL, NULL, NULL, 10 },
 	{ "throw", "( exc -- )", "Unwind to the nearest exception prompt, leaving exc 1 (what catch consumes); with no enclosing prompt it is an interpreter error, uncaught exception: <value>, the trace captured at the throw site. The prompt search skips locals regions, so local slots are never read as prompts", "L", "none", "O(L)", 27 },
+	{ "tick-every", "( seconds -- )", "repl.telic: arm a periodic timer (setitimer; 0 disarms, a negative interval errors): every seconds the running code is interrupted at its next op boundary — or inside a sleep, which then resumes for its remaining time — to run on-tick once. Nothing ticks until armed; wasm has no timer, so the word does nothing there", "2", "none", "O(1)", 32 },
 	{ "time>iso", "( instant -- string )", "units.telic: render an instant as an ISO 8601 UTC string (YYYY-MM-DDTHH:MM:SSZ)", "len", "1s", "O(1)", 24 },
 	{ "timed", "( xt -- … )", "Run xt, print its elapsed monotonic-clock seconds, then pass through whatever it left on the stack", "2 + xt + print", "none", "O(xt)", 32 },
 	{ "times", "( xt n -- )", "Run xt n times, no index pushed", "2 + n·xt", "none", "O(n·xt)", 26 },
@@ -747,6 +755,7 @@ const HelpEntry help_entries[] = {
 	{ "union", "( set₁ set₂ -- set₃ )", "Union into a new set, merging the two sorted arrays", "m+n", "1o + reallocs", "O(m+n)", 15 },
 	{ "unit", "( q -- )", "Read the following name; pop a quantity whose magnitude is a positive whole number, and define a postfix word attaching that unit. The magnitude is the unit's integer scale relative to its dimension's base (100 cent unit dollar). A single unnamed base dimension gets named after the word", NULL, NULL, NULL, 12 },
 	{ "unit-of", "( v -- q|1 )", "A quantity's unit as the quantity 1 in that unit (10 km → 1 km, a matrix column in m → 1 m, computed units in dimensional form — 1 m.s^-1); a bare value answers 1.0. Composes: x unit-of * attaches x's unit, 1 s = tests for a unit", "2", "1 pair", "O(1)", 5 },
+	{ "unpublish-gauges", "( -- )", "Stop publishing and disarm the tick; the file stays", NULL, NULL, NULL, 48 },
 	{ "until", "( flag -- )", "Branch back to begin if flag is falsy", NULL, NULL, NULL, 10 },
 	{ "update-at", "( fr xt sym/path -- fr )", "Apply xt to the value at the key, store the result back; errors on a search path", "d log n + xt", "none", "O(d log n + xt)", 18 },
 	{ "upper-case", "( str -- str' )", "A copy with the ASCII letters a–z raised to A–Z; every other byte passes through unchanged, UTF-8 sequences included, so non-ASCII letters (é, ω) keep their case — Unicode folding needs tables the runtime does not carry", "n", "1o", "O(n)", 14 },
@@ -812,7 +821,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, pairs head then tail, arrays element-wise, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails. A C primitive, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 29 },
 };
 
-const int help_entry_count = 754;
+const int help_entry_count = 762;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -889,6 +898,7 @@ const HelpExample help_examples[] = {
 	{ "acos", "0 acos . cr", "1.5708" },
 	{ "add-last!", "[ 1 2 ] 3 add-last! . cr", "[ 1 2 3 ]" },
 	{ "aes!", "\"plot\" load-library\n{ :point-radius 9 } aes! 100 100 figure :point-radius figure@ . cr", "9" },
+	{ "after-entry", ": report-depth depth \"depth {0}\" format . cr ;\n' report-depth embodies after-entry", "" },
 	{ "again", ": to-five 1 begin dup . dup 5 = if leave then 1+ again drop cr ; to-five", "1 2 3 4 5" },
 	{ "aggregate", "{ :g [ \"a\" \"b\" \"a\" ] :x [ 1 2 3 ] vector } :g [: group | { :sum group :x @ sum } :] aggregate :sum @ matrix>array . cr\n{ :g [ \"a\" \"b\" \"a\" ] :h [ 1 1 2 ] vector :x [ 1 2 3 ] vector }\n[ :g :h ] [: group | { :sum group :x @ sum } :] aggregate :sum @ matrix>array . cr", "[ 4 2 ]\n[ 1 3 2 ]" },
 	{ "all?", "[ 2 4 ] [: 2 mod 0= :] all? . cr", "1" },
@@ -1156,6 +1166,9 @@ const HelpExample help_examples[] = {
 	{ "ftanh", "0 ftanh . cr", "0" },
 	{ "ftruncate", "2.9 ftruncate . cr", "2" },
 	{ "gauges", "gauges dup keys [: \"{0}\" format :] sort-by . :stacks @ :data @ . cr", "[ :computer :dictionary :heap :resources :session :stacks ] [ 0 65536 ]" },
+	{ "gauges-view", "\"/tmp/repl-gauges.bin\" gauges-view", "" },
+	{ "gauges-view-once", "\"/tmp/repl-gauges.bin\" gauges-view-once", "" },
+	{ "gauges>rows", "gauges gauges>rows size . cr", "6" },
 	{ "gc", "gc \"collected\" . cr", "collected" },
 	{ "gen-each", ": pair-gen 10 yield 20 yield ; ' pair-gen [: . :] gen-each cr", "10 20" },
 	{ "gen-take", ": odds 1 yield 3 yield 5 yield ; ' odds 3 gen-take . cr", "[ 1 3 5 ]" },
@@ -1268,7 +1281,7 @@ const HelpExample help_examples[] = {
 	{ "neq", "\"ab\" \"ac\" neq . cr\n[ 1 2 1 ] vector 1 neq matrix>array . cr", "1\n[ 0 1 0 ]" },
 	{ "new-tests", "new-tests \"adds\" [: 3 4 + 7 expect= :] test test-report", "ok adds\n1 passed, 0 failed" },
 	{ "nip", "1 2 nip . cr", "2" },
-	{ "nlast", "[ 1 2 3 4 ] 2 nlast . cr", "[ 3 4 ]" },
+	{ "nlast", "[ 1 2 3 4 ] 2 nlast . [ 1 2 3 4 ] 2 2 matrix 3 nlast transpose matrix>array . cr", "[ 3 4 ] [ 2 3 4 ]" },
 	{ "nmap", "[ 1 2 ] [ 10 20 ] ' + 2 nmap . cr", "[ 11 22 ]" },
 	{ "nonmissing-count", "[ 1 null 3 ] vector nonmissing-count . cr", "2" },
 	{ "norm", "[ 3 4 ] vector norm . cr", "5" },
@@ -1280,6 +1293,7 @@ const HelpExample help_examples[] = {
 	{ "num-elements", "[ 1 2 3 4 5 6 ] 2 3 matrix num-elements . cr", "6" },
 	{ "numerator", "-6/8 numerator . cr", "-3" },
 	{ "of", ": dispatch | ?x | case { :cmd :add :n x } of x ? 1 + . endof { :cmd :quit } of \"bye\" . endof drop \"?\" . endcase cr ;\n{ :cmd :add :n 4 } dispatch\n{ :cmd :quit :id 7 } dispatch", "5\nbye" },
+	{ "on-tick", "' publish-gauges-entry embodies on-tick", "" },
 	{ "open-app-window", "\"figures/plot.svg\" open-app-window", "" },
 	{ "open-file", "\"one\ntwo\" \"/tmp/docs-file.txt\" write-file\n\"/tmp/docs-file.txt\" open-file dup read-line . dup read-line . close cr", "one two" },
 	{ "or", "0 0 or . 0 3 or . cr", "0 1" },
@@ -1315,6 +1329,7 @@ const HelpExample help_examples[] = {
 	{ "print-stack", "7 8 print-stack cr clear", "7 8" },
 	{ "product-times", "' 1+ 4 product-times . cr", "24" },
 	{ "ptr?", "3 ptr? . cr", "0" },
+	{ "publish-gauges", "\"gauges-view\" load-library\n\"/tmp/docs-gauges.bin\" publish-gauges after-entry\n\"/tmp/docs-gauges.bin\" load-value dup :published-at @ unit-of . gauges>rows size . cr", "1 s 6" },
 	{ "pwd", "pwd", "/Users/you/work/telic" },
 	{ "qnorm", "0.975 qnorm . cr", "1.95996" },
 	{ "quantile", "[ 1 2 3 4 ] vector 0.5 quantile . cr", "2.5" },
@@ -1484,6 +1499,7 @@ const HelpExample help_examples[] = {
 	{ "text-anchor", "\"plot\" load-library\n320 240 figure \"middle\" text-anchor 10 10 \"hi\" svg-text figure>svg \"middle\" has? . cr", "1" },
 	{ "then", ": past-ten 10 > if \"big\" . then \"done\" . cr ; 42 past-ten", "big done" },
 	{ "throw", ": catch-demo [: \"boom\" throw :] catch if \"caught\" . . cr then ; catch-demo", "caught boom" },
+	{ "tick-every", "variable ticks 0 to ticks\n: count-tick | ^ticks | ++ ticks ;\n' count-tick embodies on-tick\n1 tick-every 2.5 sleep 0 tick-every\nticks . cr", "2" },
 	{ "time>iso", "0 s time>iso . cr", "1970-01-01T00:00:00Z" },
 	{ "timed", "[: [ 1 2 3 ] ' 1+ map :] timed . cr", "2.1e-06\n[ 2 3 4 ]" },
 	{ "times", "[: \"ho\" . :] 3 times cr", "ho ho ho" },
@@ -1507,6 +1523,7 @@ const HelpExample help_examples[] = {
 	{ "union", "[< 1 2 >] [< 2 3 >] union . cr", "[< 1 2 3 >]" },
 	{ "unit", "base unit inch 12 inch unit foot 2 foot 6 inch + . cr", "2.5 foot" },
 	{ "unit-of", "10 km unit-of . cr", "1 km" },
+	{ "unpublish-gauges", "\"gauges-view\" load-library\n\"/tmp/docs-gauges.bin\" publish-gauges unpublish-gauges\n\"/tmp/docs-gauges.bin\" delete-file after-entry \"/tmp/docs-gauges.bin\" file-exists? . cr", "0" },
 	{ "until", ": triple-count 1 begin dup . 3 + dup 9 > until drop cr ; triple-count", "1 4 7" },
 	{ "update-at", "{ :n 10 } ' 1+ :n update-at frame>array . cr", "[ :n 11 ]" },
 	{ "upper-case", "\"Hello, World!\" upper-case . cr\n\"héllo\" upper-case . cr", "HELLO, WORLD!\nHéLLO" },
@@ -1572,4 +1589,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 755;
+const int help_example_count = 763;
