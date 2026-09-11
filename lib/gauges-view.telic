@@ -1,34 +1,39 @@
 \ A live view of another telic's gauges. That REPL loads this library and runs
-\ `"path" publish-gauges`; thereafter its after-entry hook writes the gauges
-\ frame to the path after every entry. A second telic in its own terminal runs
-\ `"path" gauges-view`, which redraws the six-row table print-gauges prints
+\ `publish-gauges`; thereafter its hooks write the gauges frame to
+\ gauges-publication-path (TELIC_GAUGES_FILE, else /tmp/telic-gauges.bin) after
+\ every entry and every second during one. A second telic in its own terminal
+\ runs `gauges-view`, which redraws the six-row table print-gauges prints
 \ every half second from the latest file, with the age of the sample in the
 \ footer. Rates compare consecutive published samples, so they describe the
 \ REPL's work between two entries. Each cycle erases the screen and redraws
 \ from the top, which is what a resize or a Ctrl-L needs; Ctrl-C ends the
 \ viewer.
 
-( -- path|null ) \ where entries publish their gauges; null when not publishing
-variable gauges-publication internal
-null to gauges-publication
+( -- path ) \ the file the gauges pass through: TELIC_GAUGES_FILE, else
+\ /tmp/telic-gauges.bin
+: gauges-publication-path "TELIC_GAUGES_FILE" env dup null? if drop "/tmp/telic-gauges.bin" then ;
+
+( -- bool ) \ whether entries and ticks publish
+variable gauges-publishing internal
+0 to gauges-publishing
 
 ( -- ) \ write the gauges, stamped with the monotonic and wall clocks, to the
 \ publication path; nothing when not publishing
 : publish-gauges-entry
-	gauges-publication null? if exit then
+	gauges-publishing not if exit then
 	gauges now :sampled-at ! wall-now :published-at !
-	gauges-publication save-value ; internal
+	gauges-publication-path save-value ; internal
 
 ' publish-gauges-entry embodies after-entry
 ' publish-gauges-entry embodies on-tick
 
-( path -- ) \ publish the gauges to path after every REPL entry and every second
-\ while an entry runs, for a gauges-view in another terminal; unpublish-gauges
-\ stops it
-: publish-gauges | ^gauges-publication | to gauges-publication 1 tick-every ;
+( -- ) \ publish the gauges to gauges-publication-path after every REPL entry and
+\ every second while an entry runs, for a gauges-view in another terminal;
+\ unpublish-gauges stops it
+: publish-gauges | ^gauges-publishing | 1 to gauges-publishing 1 tick-every ;
 
 ( -- ) \ stop publishing the gauges
-: unpublish-gauges | ^gauges-publication | null to gauges-publication 0 tick-every ;
+: unpublish-gauges | ^gauges-publishing | 0 to gauges-publishing 0 tick-every ;
 
 ( str -- ) \ the string's bytes, then a newline
 : gauges-view-line string>codepoints ' emit each cr ; internal
@@ -41,11 +46,13 @@ null to gauges-publication
 variable gauges-view-drawn internal
 null to gauges-view-drawn
 
-( path -- ) \ one redraw of the view: screen erased, then the table from the
-\ published gauges at path and the sample's age, or a waiting line while the
-\ file does not exist yet; a file holding the sample already drawn is skipped
+( -- ) \ one redraw of the view: screen erased, then the table from the gauges
+\ published at gauges-publication-path and the sample's age, or a waiting line
+\ while the file does not exist yet; a file holding the sample already drawn
+\ is skipped
 : gauges-view-once
-	| path ^gauges-view-drawn |
+	| ^gauges-view-drawn |
+	gauges-publication-path to path
 	path file-exists? not if
 		gauges-view-clear path "waiting for {0}" format gauges-view-line exit
 	then
@@ -57,7 +64,5 @@ null to gauges-view-drawn
 	published gauges>rows ' gauges-view-line each
 	wall-now published :published-at @ - 1 s / "{dim}sampled {0:.0f} s ago{plain}" format gauges-view-line ;
 
-( path -- ) \ redraw the published gauges at path every half second until interrupted
-: gauges-view
-	| path |
-	begin path gauges-view-once 0.5 sleep again ;
+( -- ) \ redraw the published gauges every half second until interrupted
+: gauges-view begin gauges-view-once 0.5 sleep again ;

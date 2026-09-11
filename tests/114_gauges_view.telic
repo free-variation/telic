@@ -6,18 +6,20 @@
 \ the runner's .sed replaces each with N; the golden pins layout and plumbing.
 
 "/tmp/telic-test-gauges.bin" to publication
+"/tmp/telic-test-gauges.bin" "TELIC_GAUGES_FILE" env!
 [: publication file-exists? if publication delete-file then :] execute
 
 \ -- the hook does nothing until a target is installed
 after-entry depth . cr                               \ 0
 
 "gauges-view" load-library
+gauges-publication-path publication = . cr           \ 1  the path comes from TELIC_GAUGES_FILE
 
 \ -- publishing off: the hook writes nothing
 after-entry publication file-exists? . cr            \ 0
 
 \ -- publishing on: one hook call writes a frame carrying both clocks
-publication publish-gauges
+publish-gauges
 after-entry
 publication file-exists? . cr                        \ 1
 publication load-value to published
@@ -31,9 +33,9 @@ published gauges>rows 0 @i "^live" has? . cr         \ 1
 
 \ -- the viewer: a waiting line without the file, the table with it
 publication delete-file
-publication gauges-view-once
+gauges-view-once
 after-entry
-publication gauges-view-once
+gauges-view-once
 
 \ -- off again: the hook leaves the file alone
 unpublish-gauges

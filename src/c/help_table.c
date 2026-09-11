@@ -398,8 +398,9 @@ const HelpEntry help_entries[] = {
 	{ "ftanh", "( a -- tanh a ) ⚠", "hyperbolic tangent, in place", "1", "none", "O(1)", 1 },
 	{ "ftruncate", "( a -- trunc a ) ⚠", "toward zero, in place", "1", "none", "O(1)", 1 },
 	{ "gauges", "( -- fr )", "repl.telic: the interpreter's resource readings as a frame of six frames; memory is in MiB (dictionary pools in KiB), processor time in s, counts are floats, and a [ used capacity ] pair is an array. :dictionary: :cells, :name-pool, :source-pool, :symbol-pool, :quotations, :word-locations, :cell-lines, :loaded-files as pairs, plus :words, :session-words (defined since the embedded library), :symbols. :heap: :arena [ used reserved ], :live, :gc-threshold, :memory-headroom (until the next collection), :objects [ live table-size ] (live is claimed handles minus the free list), :handles-claimed [ claimed table-size ] (the high-water mark; a collection refills the free list rather than lowering it), :max-objects, :free-handles, :handle-headroom [ unclaimed trigger ] (a collection is requested when unclaimed falls under trigger), :pairs [ live table-size ], :collections. :stacks: :data, :return, :side, :calls, :trail, :logic-vars, :roots, each [ depth capacity ]. :resources: :databases, :regex-cache, :workers, each [ in-use capacity ]. :computer: :cpu-count, :physical-memory, the load averages :load-1 :load-5 :load-15, and this process's :user-time, :system-time, :max-rss (peak resident memory), :minor-faults, :major-faults, :voluntary-switches, :involuntary-switches — null under wasm, which has no such calls. :session: :line, :interactive, :load-depth, :gc-disabled, :tracing", "dict walk + symbol scan", "1fr × 6 + pairs", "O(words + symbols)", 32 },
-	{ "gauges-view", "( path -- )", "gauges-view-once every half second until interrupted", NULL, NULL, NULL, 48 },
-	{ "gauges-view-once", "( path -- )", "One redraw: erase the screen, then the six-row table from the frame saved at path and a sampled N s ago footer; waiting for <path> while the file does not exist; nothing when the file still holds the sample drawn last, so rates never see a zero interval", NULL, NULL, NULL, 48 },
+	{ "gauges-publication-path", "( -- path )", "TELIC_GAUGES_FILE when set, else /tmp/telic-gauges.bin — the file the publisher writes and the viewer reads", NULL, NULL, NULL, 48 },
+	{ "gauges-view", "( -- )", "gauges-view-once every half second until interrupted", NULL, NULL, NULL, 48 },
+	{ "gauges-view-once", "( -- )", "One redraw: erase the screen, then the six-row table from the frame at gauges-publication-path and a sampled N s ago footer; waiting for <path> while the file does not exist; nothing when the file still holds the sample drawn last, so rates never see a zero interval", NULL, NULL, NULL, 48 },
 	{ "gauges>rows", "( g -- rows )", "repl.telic: the six row strings print-gauges prints, from a gauges frame — live or saved: the rates and the interval compare against the frame given on the previous call, the sample clock is the frame's :sampled-at (monotonic seconds) when present, else now, and the footer's clock its :published-at when present, else wall-now; ink directives as on a tty", "gauges>rows + format", "strings", "O(words + symbols)", 32 },
 	{ "gc", "( -- )", "Force a mark-sweep now", "walks stacks + dict + roots, frees unmarked", "none", "O(objects + dict)", 32 },
 	{ "gen-each", "( producer consumer -- )", "generators.telic: run consumer on each value the producer yields until the producer finishes (a :gen-end sentinel marks exhaustion)", "—", "cont/step", "O(values · consumer)", 28 },
@@ -561,7 +562,7 @@ const HelpEntry help_entries[] = {
 	{ "print-stack", "( -- )", "core.telic: print every stack value, bottom to top; leaves the stack intact", "print", "none", "O(depth)", 13 },
 	{ "product-times", "( xt n -- product )", "arrays.telic: the product of xt ( i -- term ) over i in 0..n-1", "3 + n·(1+xt)", "none", "O(n·xt)", 26 },
 	{ "ptr?", "( a -- bool )", "core.telic: 1 when the value is a C pointer, else 0", "5", "none", "O(1)", 4 },
-	{ "publish-gauges", "( path -- )", "Write the gauges frame to path after every REPL entry and every second during one, from now on (save-value; the file is rewritten whole); arms 1 tick-every", NULL, NULL, NULL, 48 },
+	{ "publish-gauges", "( -- )", "Write the gauges frame to gauges-publication-path after every REPL entry and every second during one, from now on (save-value; the file is rewritten whole); arms 1 tick-every", NULL, NULL, NULL, 48 },
 	{ "pwd", "( -- )", "io.telic: print the working directory and a newline; symlinks are resolved, so the real path is printed", "1", "1o", "O(|path|)", 34 },
 	{ "qnorm", "( p -- z )", "statistics.telic: standard normal quantile (inverse CDF) — relative error below 1.15e-9; errors unless p strictly inside (0, 1)", "30", "none", "O(1)", 21 },
 	{ "quantile", "( mat p -- f )", "Linearly-interpolated quantile at p ∈ [0,1] over all elements (sorts a copy); errors if p out of range or empty", "2 + n log n", "malloc(n)", "O(n log n)", 21 },
@@ -821,7 +822,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, pairs head then tail, arrays element-wise, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails. A C primitive, so cons ~ fuses to (cons~)", "n", "none", "O(n)", 29 },
 };
 
-const int help_entry_count = 762;
+const int help_entry_count = 763;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -1166,8 +1167,9 @@ const HelpExample help_examples[] = {
 	{ "ftanh", "0 ftanh . cr", "0" },
 	{ "ftruncate", "2.9 ftruncate . cr", "2" },
 	{ "gauges", "gauges dup keys [: \"{0}\" format :] sort-by . :stacks @ :data @ . cr", "[ :computer :dictionary :heap :resources :session :stacks ] [ 0 65536 ]" },
-	{ "gauges-view", "\"/tmp/repl-gauges.bin\" gauges-view", "" },
-	{ "gauges-view-once", "\"/tmp/repl-gauges.bin\" gauges-view-once", "" },
+	{ "gauges-publication-path", "\"gauges-view\" load-library\n\"/tmp/docs-gauges.bin\" \"TELIC_GAUGES_FILE\" env! gauges-publication-path . cr", "/tmp/docs-gauges.bin" },
+	{ "gauges-view", "gauges-view", "" },
+	{ "gauges-view-once", "gauges-view-once", "" },
 	{ "gauges>rows", "gauges gauges>rows size . cr", "6" },
 	{ "gc", "gc \"collected\" . cr", "collected" },
 	{ "gen-each", ": pair-gen 10 yield 20 yield ; ' pair-gen [: . :] gen-each cr", "10 20" },
@@ -1329,7 +1331,7 @@ const HelpExample help_examples[] = {
 	{ "print-stack", "7 8 print-stack cr clear", "7 8" },
 	{ "product-times", "' 1+ 4 product-times . cr", "24" },
 	{ "ptr?", "3 ptr? . cr", "0" },
-	{ "publish-gauges", "\"gauges-view\" load-library\n\"/tmp/docs-gauges.bin\" publish-gauges after-entry\n\"/tmp/docs-gauges.bin\" load-value dup :published-at @ unit-of . gauges>rows size . cr", "1 s 6" },
+	{ "publish-gauges", "\"gauges-view\" load-library\n\"/tmp/docs-gauges.bin\" \"TELIC_GAUGES_FILE\" env!\npublish-gauges after-entry\ngauges-publication-path load-value dup :published-at @ unit-of . gauges>rows size . cr", "1 s 6" },
 	{ "pwd", "pwd", "/Users/you/work/telic" },
 	{ "qnorm", "0.975 qnorm . cr", "1.95996" },
 	{ "quantile", "[ 1 2 3 4 ] vector 0.5 quantile . cr", "2.5" },
@@ -1523,7 +1525,7 @@ const HelpExample help_examples[] = {
 	{ "union", "[< 1 2 >] [< 2 3 >] union . cr", "[< 1 2 3 >]" },
 	{ "unit", "base unit inch 12 inch unit foot 2 foot 6 inch + . cr", "2.5 foot" },
 	{ "unit-of", "10 km unit-of . cr", "1 km" },
-	{ "unpublish-gauges", "\"gauges-view\" load-library\n\"/tmp/docs-gauges.bin\" publish-gauges unpublish-gauges\n\"/tmp/docs-gauges.bin\" delete-file after-entry \"/tmp/docs-gauges.bin\" file-exists? . cr", "0" },
+	{ "unpublish-gauges", "\"gauges-view\" load-library\n\"/tmp/docs-gauges.bin\" \"TELIC_GAUGES_FILE\" env!\npublish-gauges unpublish-gauges\ngauges-publication-path delete-file after-entry gauges-publication-path file-exists? . cr", "0" },
 	{ "until", ": triple-count 1 begin dup . 3 + dup 9 > until drop cr ; triple-count", "1 4 7" },
 	{ "update-at", "{ :n 10 } ' 1+ :n update-at frame>array . cr", "[ :n 11 ]" },
 	{ "upper-case", "\"Hello, World!\" upper-case . cr\n\"héllo\" upper-case . cr", "HELLO, WORLD!\nHéLLO" },
@@ -1589,4 +1591,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 763;
+const int help_example_count = 764;

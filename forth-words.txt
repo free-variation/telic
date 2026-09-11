@@ -339,6 +339,7 @@ ftan
 ftanh
 ftruncate
 gauges
+gauges-publication-path
 gauges-view
 gauges-view-once
 gauges>rows
