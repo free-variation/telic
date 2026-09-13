@@ -40,13 +40,6 @@ Acceptance:
 3. The tagged commit's README benchmark table matches a full run on the
    release host.
 
-### Decisions to take before the tag
-
-1. Symbol order is interning order, so a new symbol in the embedded library
-   reshuffles frame key order and every golden that prints one. Either accept
-   it and keep the embedded library free of short generic symbol names, or
-   order symbols by name and pay a `strcmp` on each frame lookup.
-
 ---
 
 ## xgboost — follow-ups
