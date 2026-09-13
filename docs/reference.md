@@ -940,7 +940,7 @@ PI cos . cr
 
 ## Comparison and logic
 
-Result is `1.0` (true) or `0.0` (false), with a float fast path. `=` uses `val_cmp` (structural): matrices compare by shape then row-major contents, so they order for set membership. `<`/`>` are structural too, **except on matrices**, where they compare element-wise and return a 1.0/0.0 matrix (same shape, or a scalar broadcasts over the matrix). A quantity on either side of `<`/`>`/`<=`/`>=`/`eq`/`neq` compares within its dimension: the right operand rescales into the left's unit (`prices 10 $ <` works whether prices are in `$` or `¢`; a dimensioned matrix masks element-wise, the mask coming back bare), and a quantity against a plain number or a different dimension errors — including the fused compare-and-branch form. `=` stays structural: differing dimensions answer 0. An array operand masks element-wise too: each element compares by `val_cmp` against the other operand (or pairwise against an equal-length array — unequal lengths error), yielding an n×1 mask, so `names "ann" eq where` filters a text column and string order is lexicographic. Directly before `if`/`while`/`until` a comparison fuses into a compare-and-branch, which stays structural.
+Result is `1.0` (true) or `0.0` (false), with a float fast path. `=` uses `val_cmp` (structural): matrices compare by shape then row-major contents, so they order for set membership. `<`/`>` are structural too, **except on matrices**, where they compare element-wise and return a 1.0/0.0 matrix (same shape, or a scalar broadcasts over the matrix). A quantity on either side of `<`/`>`/`<=`/`>=`/`eq`/`neq` compares within its dimension: the right operand rescales into the left's unit (`prices 10 $ <` works whether prices are in `$` or `¢`; a dimensioned matrix masks element-wise, the mask coming back bare), and a quantity against a plain number or a different dimension errors — including the fused compare-and-branch form. `=` stays structural: differing dimensions answer 0. An array operand masks element-wise too: each element compares by `val_cmp` against the other operand (or pairwise against an equal-length array — unequal lengths error), yielding an n×1 mask, so `names "ann" eq where` filters a text column and string order is lexicographic. Directly before `if`/`while`/`until` a comparison fuses into a compare-and-branch, which stays structural. Natural order across types, the order `sort`, sets and `<` on non-matrix operands use: symbols, then numbers, then strings, then the collection types; floats, exacts and complexes form the one number class and order by value, and two values of one type order by that type's rule.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
@@ -3087,8 +3087,8 @@ rather than answering a damaged value. Doubles and counts are little-endian.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `value>bytes` | `( v -- str )` | Serialize a value graph to a byte string | n | `1o` + buffer growth | O(n) |
-| `bytes>value` | `( str -- v )` | Rebuild the value a `value>bytes` string holds; errors on damaged or truncated data | n | one object per node | O(n) |
+| `value>bytes` | `( v -- str )` | Serialize a value graph to a byte string; nesting deeper than 32768 levels errors rather than overflowing | n | `1o` + buffer growth | O(n) |
+| `bytes>value` | `( str -- v )` | Rebuild the value a `value>bytes` string holds; errors on damaged or truncated data, or on nesting deeper than 32768 levels | n | one object per node | O(n) |
 | `save-value` | `( v path -- )` | io.telic: serialize a value graph and write it to the file at `path` | n + file write | as `value>bytes` | O(n) |
 | `load-value` | `( path -- v )` | io.telic: read the file at `path` and rebuild the value it holds | file read + n | as `bytes>value` | O(n) |
 

@@ -60,13 +60,39 @@ typedef struct {
 } SeenTable;
 
 typedef struct {
+	Val container;
+	int index;
+} WriteFrame;
+
+typedef struct {
 	unsigned char *bytes;
 	size_t length;
 	size_t capacity;
 	SeenTable seen;
 	int n_written;
 	int failed;
+	WriteFrame *frames;
+	int n_frames;
+	int frames_capacity;
 } Writer;
+
+typedef enum {
+	READ_ARRAY,
+	READ_SET,
+	READ_FRAME,
+	READ_QUANTITY
+} ReadFrameKind;
+
+typedef struct {
+	ReadFrameKind kind;
+	int handle;
+	int n_children;
+	int index;
+	int unit;
+	int values_index;
+	cell key;
+	Val magnitude;
+} ReadFrame;
 
 typedef struct {
 	const unsigned char *bytes;
@@ -75,7 +101,12 @@ typedef struct {
 	Val *values;
 	int n_values;
 	int values_capacity;
+	ReadFrame *frames;
+	int n_frames;
+	int frames_capacity;
 } Reader;
+
+#define SERIAL_MAX_DEPTH (1 << 15)
 
 static int seen_init(Writer *writer) {
 	writer->seen.n_slots = 256;
@@ -213,7 +244,18 @@ static void write_text(Writer *writer, const char *text, int length) {
 	write_bytes(writer, text, (size_t)length);
 }
 
-static void write_value(Interpreter *interp, Writer *writer, Val value);
+static int write_shared_header(Writer *writer, Val value, int tag) {
+	int index;
+	if (seen_lookup(writer, value, &index)) {
+		write_tag(writer, SERIAL_BACKREF);
+		write_u32(writer, index);
+		return 1;
+	}
+
+	seen_record(writer, value, writer->n_written++);
+	write_tag(writer, tag);
+	return 0;
+}
 
 static void write_unit(Interpreter *interp, Writer *writer, int unit) {
 	const char *unit_name;
@@ -244,20 +286,20 @@ static void write_unit(Interpreter *interp, Writer *writer, int unit) {
 	write_i32(writer, scale_denominator);
 }
 
-static int write_shared_header(Writer *writer, Val value, int tag) {
-	int index;
-	if (seen_lookup(writer, value, &index)) {
-		write_tag(writer, SERIAL_BACKREF);
-		write_u32(writer, index);
-		return 1;
+static void write_frame_push(Interpreter *interp, Writer *writer, Val container) {
+	if (writer->n_frames >= SERIAL_MAX_DEPTH) {
+		fail(interp, "structure too deeply nested (max %d)", SERIAL_MAX_DEPTH);
+		writer->failed = 1;
+		return;
 	}
 
-	seen_record(writer, value, writer->n_written++);
-	write_tag(writer, tag);
-	return 0;
+	GROW_IF_FULL_SYS(writer->n_frames, writer->frames_capacity, writer->frames);
+	writer->frames[writer->n_frames].container = container;
+	writer->frames[writer->n_frames].index = 0;
+	writer->n_frames++;
 }
 
-static void write_value(Interpreter *interp, Writer *writer, Val value) {
+static void write_node(Interpreter *interp, Writer *writer, Val value) {
 	if (writer->failed || interp->error_flag)
 		return;
 
@@ -294,8 +336,8 @@ static void write_value(Interpreter *interp, Writer *writer, Val value) {
 				return;
 			Object *collection = OBJECT_AT(VAL_DATA(value));
 			write_u32(writer, collection->len);
-			for (int i = 0; i < collection->len; i++)
-				write_value(interp, writer, collection->items[i]);
+			if (collection->len > 0)
+				write_frame_push(interp, writer, value);
 			return;
 		}
 		case T_FRAME: {
@@ -303,11 +345,8 @@ static void write_value(Interpreter *interp, Writer *writer, Val value) {
 				return;
 			Object *frame = OBJECT_AT(VAL_DATA(value));
 			write_u32(writer, frame->len);
-			for (int i = 0; i < frame->len; i++) {
-				const char *key = &vocab.symbol_pool[frame->frame.keys[i]];
-				write_text(writer, key, (int)strlen(key));
-				write_value(interp, writer, frame->frame.values[i]);
-			}
+			if (frame->len > 0)
+				write_frame_push(interp, writer, value);
 			return;
 		}
 		case T_MATRIX: {
@@ -354,13 +393,60 @@ static void write_value(Interpreter *interp, Writer *writer, Val value) {
 				return;
 			int slot = (int)VAL_DATA(value);
 			write_unit(interp, writer, (int)pairs.table[slot].tail.bits);
-			write_value(interp, writer, pairs.table[slot].head);
+			if (writer->failed)
+				return;
+			write_frame_push(interp, writer, value);
 			return;
 		}
 		default:
 			fail(interp, "cannot serialize %s", tag_name(VAL_TAG(value)));
 			writer->failed = 1;
 			return;
+	}
+}
+
+static int write_next_child(Writer *writer, WriteFrame *frame, Val *child) {
+	Val container = frame->container;
+
+	switch (VAL_TAG(container)) {
+		case T_ARRAY:
+		case T_SET: {
+			Object *collection = OBJECT_AT(VAL_DATA(container));
+			if (frame->index >= collection->len)
+				return 0;
+			*child = collection->items[frame->index++];
+			return 1;
+		}
+		case T_FRAME: {
+			Object *frame_object = OBJECT_AT(VAL_DATA(container));
+			if (frame->index >= frame_object->len)
+				return 0;
+			const char *key = &vocab.symbol_pool[frame_object->frame.keys[frame->index]];
+			write_text(writer, key, (int)strlen(key));
+			*child = frame_object->frame.values[frame->index++];
+			return 1;
+		}
+		default: {
+			if (frame->index > 0)
+				return 0;
+			frame->index = 1;
+			*child = pairs.table[VAL_DATA(container)].head;
+			return 1;
+		}
+	}
+}
+
+static void write_value(Interpreter *interp, Writer *writer, Val value) {
+	write_node(interp, writer, value);
+
+	while (writer->n_frames > 0 && !writer->failed && !interp->error_flag) {
+		WriteFrame *frame = &writer->frames[writer->n_frames - 1];
+		Val child;
+		if (!write_next_child(writer, frame, &child)) {
+			writer->n_frames--;
+			continue;
+		}
+		write_node(interp, writer, child);
 	}
 }
 
@@ -447,7 +533,60 @@ static int reader_remember(Interpreter *interp, Reader *reader, Val value) {
 	return reader->n_values++;
 }
 
-static int read_value(Interpreter *interp, Reader *reader, Val *out);
+static int read_frame_push(Interpreter *interp, Reader *reader, ReadFrameKind kind, int handle, int n_children) {
+	if (reader->n_frames >= SERIAL_MAX_DEPTH) {
+		fail(interp, "structure too deeply nested (max %d)", SERIAL_MAX_DEPTH);
+		return 0;
+	}
+
+	GROW_IF_FULL_SYS(reader->n_frames, reader->frames_capacity, reader->frames);
+	ReadFrame *frame = &reader->frames[reader->n_frames];
+	frame->kind = kind;
+	frame->handle = handle;
+	frame->n_children = n_children;
+	frame->index = 0;
+	frame->unit = -1;
+	frame->values_index = -1;
+	frame->key = 0;
+	frame->magnitude = make_tagged(T_NONE, 0);
+	reader->n_frames++;
+	return 1;
+}
+
+static int read_open_collection(Interpreter *interp, Reader *reader, ReadFrameKind kind) {
+	int n_children;
+	if (!read_u32(interp, reader, &n_children))
+		return 0;
+
+	int handle;
+	Val container;
+	if (kind == READ_ARRAY) {
+		handle = object_new_array(interp, n_children);
+		if (interp->error_flag)
+			return 0;
+		for (int i = 0; i < n_children; i++)
+			OBJECT_AT(handle)->items[i] = make_tagged(T_NONE, 0);
+		container = make_array(handle);
+	} else if (kind == READ_SET) {
+		handle = object_new_set(interp);
+		if (interp->error_flag)
+			return 0;
+		container = make_set(handle);
+	} else {
+		handle = object_new_frame(interp);
+		if (interp->error_flag)
+			return 0;
+		container = make_frame(handle);
+	}
+
+	push(interp, container);
+	if (interp->error_flag)
+		return 0;
+	if (reader_remember(interp, reader, container) < 0)
+		return 0;
+
+	return read_frame_push(interp, reader, kind, handle, n_children);
+}
 
 static int read_unit(Interpreter *interp, Reader *reader, int *unit) {
 	char unit_name[NAME_MAX_LENGTH];
@@ -489,91 +628,75 @@ static int read_unit(Interpreter *interp, Reader *reader, int *unit) {
 	return *unit >= 0 && !interp->error_flag;
 }
 
-static int read_collection(Interpreter *interp, Reader *reader, int is_set, Val *out) {
-	int n_elements;
-	if (!read_u32(interp, reader, &n_elements))
+static int read_open_quantity(Interpreter *interp, Reader *reader) {
+	int unit;
+	if (!read_unit(interp, reader, &unit))
 		return 0;
 
-	int handle = is_set ? object_new_set(interp) : object_new_array(interp, n_elements);
-	if (interp->error_flag)
+	int values_index = reader_remember(interp, reader, make_tagged(T_NONE, 0));
+	if (values_index < 0)
+		return 0;
+	if (!read_frame_push(interp, reader, READ_QUANTITY, -1, 1))
 		return 0;
 
-	Val collection = is_set ? make_set(handle) : make_array(handle);
-	if (!is_set)
-		for (int i = 0; i < n_elements; i++)
-			OBJECT_AT(handle)->items[i] = make_tagged(T_NONE, 0);
-
-	int index = reader_remember(interp, reader, collection);
-	if (index < 0)
-		return 0;
-
-	gc_root_push(interp, collection);
-	for (int i = 0; i < n_elements; i++) {
-		Val element;
-		if (!read_value(interp, reader, &element)) {
-			gc_root_pop(interp);
-			return 0;
-		}
-
-		if (is_set)
-			set_add(interp, handle, element);
-		else
-			OBJECT_AT(handle)->items[i] = element;
-
-		if (interp->error_flag) {
-			gc_root_pop(interp);
-			return 0;
-		}
-	}
-	gc_root_pop(interp);
-
-	reader->values[index] = collection;
-	*out = collection;
+	ReadFrame *frame = &reader->frames[reader->n_frames - 1];
+	frame->unit = unit;
+	frame->values_index = values_index;
 	return 1;
 }
 
-static int read_frame(Interpreter *interp, Reader *reader, Val *out) {
-	int n_pairs;
-	if (!read_u32(interp, reader, &n_pairs))
-		return 0;
-
-	int handle = object_new_frame(interp);
-	if (interp->error_flag)
-		return 0;
-
-	Val frame = make_frame(handle);
-	int index = reader_remember(interp, reader, frame);
-	if (index < 0)
-		return 0;
-
-	gc_root_push(interp, frame);
-	for (int i = 0; i < n_pairs; i++) {
-		char key[NAME_MAX_LENGTH];
-		if (read_text(interp, reader, key, sizeof(key)) < 0) {
+static int read_close(Interpreter *interp, Reader *reader, ReadFrame *frame, Val *completed) {
+	switch (frame->kind) {
+		case READ_ARRAY:
+			*completed = make_array(frame->handle);
+			break;
+		case READ_SET:
+			*completed = make_set(frame->handle);
+			break;
+		case READ_FRAME:
+			*completed = make_frame(frame->handle);
+			break;
+		case READ_QUANTITY: {
+			gc_root_push(interp, frame->magnitude);
+			Val quantity = quantity_of(interp, frame->magnitude, frame->unit);
 			gc_root_pop(interp);
-			return 0;
+			if (interp->error_flag)
+				return 0;
+			reader->values[frame->values_index] = quantity;
+			*completed = quantity;
+			reader->n_frames--;
+			return 1;
 		}
-
-		int symbol = intern_symbol(interp, key);
-		Val value;
-		if (interp->error_flag || !read_value(interp, reader, &value)) {
-			gc_root_pop(interp);
-			return 0;
-		}
-
-		frame_put(OBJECT_AT(handle), (cell)symbol, value);
 	}
-	gc_root_pop(interp);
 
-	*out = frame;
+	interp->dsp--;
+	reader->n_frames--;
 	return 1;
 }
 
-static int read_value(Interpreter *interp, Reader *reader, Val *out) {
-	unsigned char tag;
-	if (!read_bytes(interp, reader, &tag, 1))
-		return 0;
+static int read_deliver(Interpreter *interp, ReadFrame *frame, Val value) {
+	switch (frame->kind) {
+		case READ_ARRAY:
+			OBJECT_AT(frame->handle)->items[frame->index] = value;
+			break;
+		case READ_SET:
+			set_add(interp, frame->handle, value);
+			if (interp->error_flag)
+				return 0;
+			break;
+		case READ_FRAME:
+			frame_put(OBJECT_AT(frame->handle), frame->key, value);
+			break;
+		case READ_QUANTITY:
+			frame->magnitude = value;
+			break;
+	}
 
+	frame->index++;
+	return 1;
+}
+
+static int read_leaf(Interpreter *interp, Reader *reader, unsigned char tag, Val *out) {
 	switch (tag) {
 		case SERIAL_NONE:
 			*out = make_tagged(T_NONE, 0);
@@ -615,12 +738,6 @@ static int read_value(Interpreter *interp, Reader *reader, Val *out) {
 			*out = make_string(handle);
 			return reader_remember(interp, reader, *out) >= 0;
 		}
-		case SERIAL_ARRAY:
-			return read_collection(interp, reader, 0, out);
-		case SERIAL_SET:
-			return read_collection(interp, reader, 1, out);
-		case SERIAL_FRAME:
-			return read_frame(interp, reader, out);
 		case SERIAL_PAIR:
 			fail(interp, "value data holds a cons pair, which this version no longer has");
 			return 0;
@@ -735,22 +852,6 @@ static int read_value(Interpreter *interp, Reader *reader, Val *out) {
 				return 0;
 			return reader_remember(interp, reader, *out) >= 0;
 		}
-		case SERIAL_QUANTITY: {
-			int unit;
-			if (!read_unit(interp, reader, &unit))
-				return 0;
-
-			Val magnitude;
-			if (!read_value(interp, reader, &magnitude))
-				return 0;
-
-			gc_root_push(interp, magnitude);
-			*out = quantity_of(interp, magnitude, unit);
-			gc_root_pop(interp);
-			if (interp->error_flag)
-				return 0;
-			return reader_remember(interp, reader, *out) >= 0;
-		}
 		case SERIAL_BACKREF: {
 			int index;
 			if (!read_u32(interp, reader, &index))
@@ -769,12 +870,72 @@ static int read_value(Interpreter *interp, Reader *reader, Val *out) {
 	}
 }
 
+static int read_value(Interpreter *interp, Reader *reader, Val *out) {
+	int saved_dsp = interp->dsp;
+
+	for (;;) {
+		if (reader->n_frames > 0) {
+			ReadFrame *top = &reader->frames[reader->n_frames - 1];
+			if (top->index == top->n_children) {
+				Val completed;
+				if (!read_close(interp, reader, top, &completed))
+					break;
+				if (reader->n_frames == 0) {
+					*out = completed;
+					return 1;
+				}
+				if (!read_deliver(interp, &reader->frames[reader->n_frames - 1], completed))
+					break;
+				continue;
+			}
+			if (top->kind == READ_FRAME) {
+				char key[NAME_MAX_LENGTH];
+				if (read_text(interp, reader, key, sizeof(key)) < 0)
+					break;
+				top->key = (cell)intern_symbol(interp, key);
+				if (interp->error_flag)
+					break;
+			}
+		}
+
+		unsigned char tag;
+		if (!read_bytes(interp, reader, &tag, 1))
+			break;
+
+		int opened;
+		switch (tag) {
+			case SERIAL_ARRAY: opened = read_open_collection(interp, reader, READ_ARRAY); break;
+			case SERIAL_SET: opened = read_open_collection(interp, reader, READ_SET); break;
+			case SERIAL_FRAME: opened = read_open_collection(interp, reader, READ_FRAME); break;
+			case SERIAL_QUANTITY: opened = read_open_quantity(interp, reader); break;
+			default: opened = -1; break;
+		}
+		if (opened == 0)
+			break;
+		if (opened == 1)
+			continue;
+
+		Val leaf;
+		if (!read_leaf(interp, reader, tag, &leaf))
+			break;
+		if (reader->n_frames == 0) {
+			*out = leaf;
+			return 1;
+		}
+		if (!read_deliver(interp, &reader->frames[reader->n_frames - 1], leaf))
+			break;
+	}
+
+	interp->dsp = saved_dsp;
+	return 0;
+}
+
 void p_value_to_bytes(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	Val value = chain_sp[-1];
 
 	SYNC_REGISTERS(interp, chain_ip, chain_sp);
-	Writer writer = { NULL, 0, 0, { NULL, NULL, 0, 0 }, 0, 0 };
+	Writer writer = { NULL, 0, 0, { NULL, NULL, 0, 0 }, 0, 0, NULL, 0, 0 };
 	if (!seen_init(&writer)) {
 		seen_free(&writer);
 		fail(interp, "out of memory");
@@ -790,12 +951,14 @@ void p_value_to_bytes(DISPATCH_ARGS) {
 
 	if (interp->error_flag) {
 		seen_free(&writer);
+		free(writer.frames);
 		free(writer.bytes);
 		return;
 	}
 
 	int handle = object_new_string(interp, (const char *)writer.bytes, (int)writer.length);
 	seen_free(&writer);
+	free(writer.frames);
 	free(writer.bytes);
 	if (interp->error_flag)
 		return;
@@ -811,7 +974,7 @@ void p_bytes_to_value(DISPATCH_ARGS) {
 
 	SYNC_REGISTERS(interp, chain_ip, chain_sp);
 	Object *source = OBJECT_AT(VAL_DATA(value));
-	Reader reader = { (const unsigned char *)source->bytes, (size_t)source->len, 0, NULL, 0, 0 };
+	Reader reader = { (const unsigned char *)source->bytes, (size_t)source->len, 0, NULL, 0, 0, NULL, 0, 0 };
 
 	unsigned char header[5];
 	if (!read_bytes(interp, &reader, header, sizeof(header)))
@@ -829,6 +992,7 @@ void p_bytes_to_value(DISPATCH_ARGS) {
 	Val restored;
 	int ok = read_value(interp, &reader, &restored);
 	free(reader.values);
+	free(reader.frames);
 	if (!ok)
 		return;
 

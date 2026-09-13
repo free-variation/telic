@@ -9,26 +9,6 @@ A TODO list of pending work, highest priority first.
 The gate for the tag, in priority order; an entry vanishes as its item
 completes.
 
-### Serialization depth
-
-`bytes>value` roots each in-progress container on the GC root stack, so a
-value nested past 62 levels writes but cannot be read, reporting `gc roots
-exhausted`. `value>bytes` recurses per level with no guard and takes SIGSEGV
-above about 50000 levels of array or frame nesting.
-
-Implementation:
-
-1. Park the in-progress container on the data stack, which the collector
-   scans and which holds a million slots, instead of `gc_root_push`.
-2. Guard the writer with the depth cap printing and `val_cmp` already use,
-   erroring `structure too deeply nested` rather than overflowing.
-
-Acceptance:
-
-1. A 10000-level nested frame round-trips through `save-value`/`load-value`.
-2. A synthesized 200000-level file errors from both words rather than
-   crashing; both cases join `tests/102_serialize.telic`.
-
 ### Release mechanics
 
 Implementation:
@@ -489,7 +469,20 @@ live here instead. File and function name each invariant's home.
   -DSERIAL_PRETEND_BIG_ENDIAN to exercise the swap path (serialize.c).
 - Loading a value never redefines a word (dimension.c, `unit_declare`).
 - Sets and frames are rebuilt by insertion on load, never from stored order
-  (serialize.c, `read_collection`).
+  (serialize.c, `read_deliver`).
+- Natural order is total: `val_cmp_depth` ranks floats, exacts and complexes
+  as one numeric class (`order_rank`) and compares any two of them by value
+  (`mixed_numeric_cmp`); every other tag ranks by its enum value. A new
+  numeric tag joins both helpers, or sorting a mixed array depends on input
+  order and a set fails to round-trip (core.c).
+- Neither serializer direction recurses: `write_value` and `read_value` walk
+  an explicit frame stack capped at `SERIAL_MAX_DEPTH`, so nesting depth is
+  bounded by the cap and never by the C stack (a worker thread's is small).
+  Every in-progress array, set or frame on the read side is parked on the
+  data stack until it completes, since the frame stack is invisible to the
+  collector; `read_value` restores `dsp` on every exit. A quantity claims its
+  back-reference slot before its magnitude is read, matching the writer's
+  numbering (serialize.c).
 - Printing never allocates GC objects; an exact magnitude under an unnamed
   scaled unit folds the scale in arena temporaries (core.c,
   `print_exact_magnitude_scaled`).

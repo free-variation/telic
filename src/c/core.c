@@ -598,6 +598,31 @@ static int complex_cmp_against(Val complex_value, double real_part, double imagi
 	return compare_double(VAL_NUMBER(pairs.table[slot].tail), imaginary_part);
 }
 
+static int numeric_tag(Tag tag) {
+	return tag == T_FLOAT || tag == T_EXACT || tag == T_COMPLEX;
+}
+
+static int order_rank(Tag tag) {
+	return numeric_tag(tag) ? (int)T_FLOAT : (int)tag;
+}
+
+static int mixed_numeric_cmp(Val left, Val right) {
+	Tag left_tag = VAL_TAG(left);
+	Tag right_tag = VAL_TAG(right);
+
+	if (left_tag == T_EXACT && right_tag == T_FLOAT)
+		return exact_cmp_double(left, VAL_NUMBER(right));
+	if (left_tag == T_FLOAT && right_tag == T_EXACT)
+		return -exact_cmp_double(right, VAL_NUMBER(left));
+	if (left_tag == T_COMPLEX && right_tag == T_FLOAT)
+		return complex_cmp_against(left, VAL_NUMBER(right), 0.0);
+	if (left_tag == T_FLOAT && right_tag == T_COMPLEX)
+		return -complex_cmp_against(right, VAL_NUMBER(left), 0.0);
+	if (left_tag == T_COMPLEX && right_tag == T_EXACT)
+		return complex_cmp_against(left, exact_to_double(right), 0.0);
+	return -complex_cmp_against(right, exact_to_double(left), 0.0);
+}
+
 int val_cmp_depth(Interpreter *interp, Val left, Val right, int depth) {
 	if (depth > MAX_NESTING_DEPTH) {
 		fail(interp, "structure too deeply nested (cycle?)");
@@ -605,15 +630,9 @@ int val_cmp_depth(Interpreter *interp, Val left, Val right, int depth) {
 	}
 
 	if (VAL_TAG(left) != VAL_TAG(right)) {
-		if (VAL_TAG(left) == T_EXACT && VAL_TAG(right) == T_FLOAT)
-			return exact_cmp_double(left, VAL_NUMBER(right));
-		if (VAL_TAG(left) == T_FLOAT && VAL_TAG(right) == T_EXACT)
-			return -exact_cmp_double(right, VAL_NUMBER(left));
-		if (VAL_TAG(left) == T_COMPLEX && VAL_TAG(right) == T_FLOAT)
-			return complex_cmp_against(left, VAL_NUMBER(right), 0.0);
-		if (VAL_TAG(left) == T_FLOAT && VAL_TAG(right) == T_COMPLEX)
-			return -complex_cmp_against(right, VAL_NUMBER(left), 0.0);
-		return (int)VAL_TAG(left) - (int)VAL_TAG(right);
+		if (numeric_tag(VAL_TAG(left)) && numeric_tag(VAL_TAG(right)))
+			return mixed_numeric_cmp(left, right);
+		return order_rank(VAL_TAG(left)) - order_rank(VAL_TAG(right));
 	}
 
 	switch (VAL_TAG(left)) {

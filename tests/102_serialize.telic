@@ -28,8 +28,20 @@ clear
 [< 3 1 "s" :y 2/4 >] survives . cr            \ 1
 { :a { :b { :c { :d [ 1 2 3 ] } } } } round-trip /a/b/c/d @ . cr     \ [ 1 2 3 ]
 [ [ [ [ [ 42 ] ] ] ] ] round-trip 0 @i 0 @i 0 @i 0 @i 0 @i . cr      \ 42
+\ a quantity's back-reference slot is claimed before its magnitude's, so a
+\ shared dimensioned matrix comes back as the quantity both times
+[ 1 2 3 4 ] 2 2 matrix 3 m * dup 2 array round-trip 1 @i quantity? . cr   \ 1
+\ both directions run on an explicit stack, so depth is bounded only by the
+\ cap: a 10000-level frame round-trips and walks back down to null
+null [: { :k rot } :] 10000 times round-trip [: :k @ :] 10000 times null? . cr   \ 1
 \ value data written when cons pairs existed (tag 9) is refused by name
 [ 84 69 76 67 1  9 1 1 ] codepoints>string bytes>value                 \ (cons pair no longer exists)
+\ past the depth cap both words error instead of exhausting the C stack: a
+\ 200000-level array on the way out, and a synthesized 200000-level file on
+\ the way in (header, then 200000 one-element array openers, then null)
+null [: 1 array :] 200000 times value>bytes                            \ (structure too deeply nested)
+[ 84 69 76 67 1 ] 200000 iota [: drop [ 6 1 0 0 0 ] :] map flatten concat [ 1 ] concat
+codepoints>string bytes>value                                          \ (structure too deeply nested)
 
 clear
 \ === numeric types ===

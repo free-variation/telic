@@ -297,8 +297,13 @@ clear
 \ === strings sort lexicographically and dedup by content ===
 [ "c" "a" "b" "a" ] array>set . cr             \ [< "a" "b" "c" >]
 
-\ === mixed types sort by tag (symbol [< float [< string) ===
+\ === mixed types sort by class (symbol [< number [< string); floats, exacts
+\     and complexes are one class ordered by value, so the order is total and
+\     a sort answers the same for every permutation of its input ===
 [ "x" 5 :a ] array>set . cr                    \ [< :a 5 "x" >]
+[ "s" 1/2 1 ] sort . [ 1/2 1 "s" ] sort . cr   \ [ 1/2 1 "s" ] [ 1/2 1 "s" ]
+[ 1+1i 1/2 :a 2 "b" 0.5 ] sort . cr            \ [ :a 1/2 0.5 1+1i 2 "b" ]
+[< 3 1 "s" :y 2/4 >] [< 2/4 :y "s" 1 3 >] = . cr   \ 1   one order, however the set was built
 
 \ === null (T_NONE) sorts first and dedups ===
 [ null 1 null 2 ] array>set size . cr          \ 3            two nulls collapse to one
