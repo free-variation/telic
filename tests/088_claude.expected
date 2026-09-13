@@ -1,11 +1,11 @@
 {
-  :role user
   :content hello
+  :role user
 }
 
 {
-  :role assistant
   :content sure
+  :role assistant
 }
 
 1 

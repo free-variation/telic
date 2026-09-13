@@ -71,7 +71,7 @@ const HelpEntry help_entries[] = {
 	{ "-!", "( mat a -- mat )", "in-place subtract", "3 + r×c", "none", "O(r×c)", 1 },
 	{ "--", "( -- )", "Decrement the named local or global variable by 1 in place; only inside a colon definition; a global target is declared ^name in the head; errors on an unknown or non-variable name", "1", "none", "O(1)", 12 },
 	{ "-rot", "( a b c -- c a b )", "core.telic: reverse rotate — brings the top down under the other two", "12", "none", "O(1)", 0 },
-	{ ".", "( a -- )", "Print value then a space; matrices print as a grid, frames pretty-print", "1 + print", "none", "O(size printed)", 13 },
+	{ ".", "( a -- )", "Print value then a space; matrices print as a grid, frames pretty-print with keys in name order", "1 + print", "none", "O(size printed)", 13 },
 	{ ".a", "( a -- )", "Print value then a space, showing everything: no element truncation, and floats print at full round-trip precision (%.17g) rather than 6 significant figures. Matrix/vector columns lose their fixed-width alignment when values render at full precision", "1 + print", "none", "O(size printed)", 13 },
 	{ ".s", "( -- )", "Print every stack value, bottom to top; leaves the stack intact", "print", "none", "O(depth)", 13 },
 	{ "/", "( a b -- a/b )", "float: divide (errors on zero divisor). matrix÷matrix: element-wise (errors on any zero element). scalar/matrix broadcast. exact÷exact: exact, closed. complex: complex.", "3 (float)", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 1 },

@@ -65,40 +65,40 @@ in quantile ← percentile
 [ 1.45 9.55 ] 
 [ 1 10 ] 
 {
+  :max 10
+  :mean 5.5
+  :median 5.5
   :min 1
   :q1 3.25
-  :median 5.5
-  :mean 5.5
   :q3 7.75
-  :max 10
 }
 
 {
+  :max 100
+  :mean 22
+  :median 3
   :min 1
   :q1 2
-  :median 3
-  :mean 22
   :q3 4
-  :max 100
 }
 
 {
-  :min 2
-  :q1 3.5
-  :median 5
-  :mean 5
-  :q3 6.5
   :max 8
+  :mean 5
+  :median 5
+  :min 2
   :missing 2
+  :q1 3.5
+  :q3 6.5
 }
 
 {
+  :max 42
+  :mean 42
+  :median 42
   :min 42
   :q1 42
-  :median 42
-  :mean 42
   :q3 42
-  :max 42
 }
 
 1 
@@ -111,25 +111,25 @@ in quantile ← percentile
 
 {
   :name {
-    :missing 1
     :distinct 2
-  }
-  :x {
-    :min 1
-    :q1 1.5
-    :median 2
-    :mean 2.33333
-    :q3 3
-    :max 4
     :missing 1
   }
   :when {
+    :max 2020-01-03T00:00:00Z
+    :mean 2020-01-02T00:00:00Z
+    :median 2020-01-02T00:00:00Z
     :min 2020-01-01T00:00:00Z
     :q1 2020-01-01T12:00:00Z
-    :median 2020-01-02T00:00:00Z
-    :mean 2020-01-02T00:00:00Z
     :q3 2020-01-02T12:00:00Z
-    :max 2020-01-03T00:00:00Z
+  }
+  :x {
+    :max 4
+    :mean 2.33333
+    :median 2
+    :min 1
+    :missing 1
+    :q1 1.5
+    :q3 3
   }
 }
 
@@ -223,27 +223,27 @@ null
 1 
 1 
 {
+  :bias -0.000597597
+  :ci-high 0.9815
+  :ci-low 0.895031
   :estimate 0.951515
   :se 0.0243705
-  :bias -0.000597597
-  :ci-low 0.895031
-  :ci-high 0.9815
 }
 
 {
+  :bias -0.00154884
+  :ci-high 1
+  :ci-low 0.567568
   :estimate 0.822222
   :se 0.104861
-  :bias -0.00154884
-  :ci-low 0.567568
-  :ci-high 1
 }
 
 {
+  :bias -0.00154884
+  :ci-high 1
+  :ci-low 0.567568
   :estimate 0.822222
   :se 0.104861
-  :bias -0.00154884
-  :ci-low 0.567568
-  :ci-high 1
 }
 
 {

@@ -998,6 +998,30 @@ static int print_exact_magnitude_scaled(FILE *out, Val magnitude, int unit) {
 	return 1;
 }
 
+typedef struct {
+	cell key;
+	Val value;
+} PrintedEntry;
+
+static int printed_entry_cmp(const void *left, const void *right) {
+	const PrintedEntry *left_entry = left;
+	const PrintedEntry *right_entry = right;
+	return strcmp(&vocab.symbol_pool[left_entry->key], &vocab.symbol_pool[right_entry->key]);
+}
+
+static PrintedEntry *frame_entries_by_name(Object *frame) {
+	PrintedEntry *entries = malloc(sizeof(PrintedEntry) * (size_t)MAX(frame->len, 1));
+	if (!entries)
+		return NULL;
+
+	for (int i = 0; i < frame->len; i++) {
+		entries[i].key = frame->frame.keys[i];
+		entries[i].value = frame->frame.values[i];
+	}
+	qsort(entries, (size_t)frame->len, sizeof(PrintedEntry), printed_entry_cmp);
+	return entries;
+}
+
 void print_val(FILE *out, Interpreter *interp, Val value) {
 	if (VAL_TAG(value) == T_LOGIC_VAR) { print_logic_var(out, interp, value, print_val); return; }
 	value = deref(interp, value);
@@ -1084,13 +1108,17 @@ void print_val(FILE *out, Interpreter *interp, Val value) {
 						  if (print_depth > MAX_NESTING_DEPTH) {
 							  fputs("{...}", out);
 						  } else {
+							  PrintedEntry *entries = frame_entries_by_name(frame);
 							  fputs("{ ", out);
 							  for (int i = 0; i < frame->len; i++) {
-								  fprintf(out, ":%s ", &vocab.symbol_pool[frame->frame.keys[i]]);
-								  print_val(out, interp, frame->frame.values[i]);
+								  cell key = entries ? entries[i].key : frame->frame.keys[i];
+								  Val entry_value = entries ? entries[i].value : frame->frame.values[i];
+								  fprintf(out, ":%s ", &vocab.symbol_pool[key]);
+								  print_val(out, interp, entry_value);
 								  putc(' ', out);
 							  }
 							  putc('}', out);
+							  free(entries);
 						  }
 						  print_depth_leave();
 						  break;
@@ -1172,15 +1200,26 @@ void print_val_inspect(FILE *out, Interpreter *interp, Val value) {
 
 #define COMPACT_ELEMENTS 3
 
-static void compact_elements(FILE *out, Interpreter *interp, const Val *items, int n_items, const cell *keys) {
+static void compact_elements(FILE *out, Interpreter *interp, const Val *items, int n_items) {
 	for (int i = 0; i < n_items && i < COMPACT_ELEMENTS; i++) {
-		if (keys)
-			fprintf(out, " :%s", &vocab.symbol_pool[keys[i]]);
 		putc(' ', out);
 		print_val_compact(out, interp, items[i]);
 	}
 	if (n_items > COMPACT_ELEMENTS)
 		fputs(" …", out);
+}
+
+static void compact_frame_entries(FILE *out, Interpreter *interp, Object *frame) {
+	PrintedEntry *entries = frame_entries_by_name(frame);
+	for (int i = 0; i < frame->len && i < COMPACT_ELEMENTS; i++) {
+		cell key = entries ? entries[i].key : frame->frame.keys[i];
+		Val entry_value = entries ? entries[i].value : frame->frame.values[i];
+		fprintf(out, " :%s ", &vocab.symbol_pool[key]);
+		print_val_compact(out, interp, entry_value);
+	}
+	if (frame->len > COMPACT_ELEMENTS)
+		fputs(" …", out);
+	free(entries);
 }
 
 void print_val_compact(FILE *out, Interpreter *interp, Val value) {
@@ -1224,7 +1263,7 @@ void print_val_compact(FILE *out, Interpreter *interp, Val value) {
 						  }
 						  print_depth_enter();
 						  fprintf(out, is_set ? "[<%d:" : "[%d:", obj->len);
-						  compact_elements(out, interp, obj->items, obj->len, NULL);
+						  compact_elements(out, interp, obj->items, obj->len);
 						  fputs(is_set ? " >]" : " ]", out);
 						  print_depth_leave();
 						  break;
@@ -1237,7 +1276,7 @@ void print_val_compact(FILE *out, Interpreter *interp, Val value) {
 						  }
 						  print_depth_enter();
 						  fprintf(out, "{%d:", frame->len);
-						  compact_elements(out, interp, frame->frame.values, frame->len, frame->frame.keys);
+						  compact_frame_entries(out, interp, frame);
 						  fputs(" }", out);
 						  print_depth_leave();
 						  break;
@@ -1320,18 +1359,21 @@ void print_frame_pretty(FILE *out, Interpreter *interp, Object *frame, int inden
 		fputs("{...}", out);
 		return;
 	}
+	PrintedEntry *entries = frame_entries_by_name(frame);
 	fputs("{\n", out);
 	for (int i = 0; i < frame->len; i++) {
 		for (int s = 0; s < indent + 2; s++)
 			putc(' ', out);
-		fprintf(out, ":%s ", &vocab.symbol_pool[frame->frame.keys[i]]);
-		Val value = frame->frame.values[i];
+		cell key = entries ? entries[i].key : frame->frame.keys[i];
+		Val value = entries ? entries[i].value : frame->frame.values[i];
+		fprintf(out, ":%s ", &vocab.symbol_pool[key]);
 		if (VAL_TAG(value) == T_FRAME)
 			print_frame_pretty(out, interp, OBJECT_AT(VAL_DATA(value)), indent + 2);
 		else
 			print_val(out, interp, value);
 		putc('\n', out);
 	}
+	free(entries);
 	for (int s = 0; s < indent; s++)
 		putc(' ', out);
 	putc('}', out);

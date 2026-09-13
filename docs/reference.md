@@ -2190,7 +2190,7 @@ These compile-time words read a following local name and emit a single fused dep
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `.` | `( a -- )` | Print value then a space; matrices print as a grid, frames pretty-print | 1 + print | none | O(size printed) |
+| `.` | `( a -- )` | Print value then a space; matrices print as a grid, frames pretty-print with keys in name order | 1 + print | none | O(size printed) |
 | `.a` | `( a -- )` | Print value then a space, showing everything: no element truncation, and floats print at full round-trip precision (`%.17g`) rather than 6 significant figures. Matrix/vector columns lose their fixed-width alignment when values render at full precision | 1 + print | none | O(size printed) |
 | `render` | `( a -- str )` | The text `.` would print, returned as a string instead of printed: no truncation, no trailing separator (a matrix grid's final newline is dropped). Strings render raw, symbols by name, collections/frames/matrices in their laid-out form | 1 + size | `1o` | O(size) |
 | `.s` | `( -- )` | Print every stack value, bottom to top; leaves the stack intact | print | none | O(depth) |
@@ -2845,7 +2845,7 @@ null
 
 ## Frames
 
-Symbol-keyed sorted maps; binary-search lookup. A **path** is an array of steps; a plain *locator* is all symbols, and the literal `/a/b/c` is a compile-time constant array that allocates nothing at run time. A path may instead be a **search path** matching a set of nodes (see Path queries below). The single-target words (`@`, `!`, `delete-at`, `update-at`) require a locator and reject a search path (the error names `select-keys`/`select-values`); `has?` accepts either. `d` = path depth, `n` = frame size.
+Symbol-keyed sorted maps; binary-search lookup. Storage order is symbol id, which `keys`, `values`, `frame>array` and `spread` follow; printing and `render` order keys by name, so printed output does not depend on interning history. A **path** is an array of steps; a plain *locator* is all symbols, and the literal `/a/b/c` is a compile-time constant array that allocates nothing at run time. A path may instead be a **search path** matching a set of nodes (see Path queries below). The single-target words (`@`, `!`, `delete-at`, `update-at`) require a locator and reject a search path (the error names `select-keys`/`select-values`); `has?` accepts either. `d` = path depth, `n` = frame size.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|

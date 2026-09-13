@@ -361,7 +361,7 @@ Symbol-keyed nested maps — the associative type, and the compound term the log
 - **Access** — `@` gets, `!` sets and vivifies intermediates, `has?` tests, `delete-at` removes, `update-at` applies a quotation to a leaf, `merge` combines two frames, and `keys` / `values` / `size` report. All but `has?` take a single key or locator, not a search pattern.
 - **Key tokens** — `row@price` joins a frame reference to a key in one token, the left part being a local or a word that supplies the frame. Gets chain — `row@address@city` — `row!price` sets, and an empty left part takes the frame from the stack, so `@price` is the postfix form. A defined word always wins, so `@i` and `@or` keep their meanings.
 - **Path queries** — `select-values` returns every value a search pattern matches, in document order; `select-keys` returns the path to each match.
-- **Representation** — parallel key/value arrays in **symbol-id order**, which is interning order rather than alphabetical, so `keys`, `values`, `spread` and printing are stable for a program but not name-sorted. Mutable in place, reference semantics, structurally comparable.
+- **Representation** — parallel key/value arrays in **symbol-id order**, which is interning order rather than alphabetical, so `keys`, `values` and `spread` are stable for a program but not name-sorted; printing orders keys by name. Mutable in place, reference semantics, structurally comparable.
 
 ### Segments
 

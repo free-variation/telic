@@ -1,6 +1,6 @@
 [ ] 
 0 42 99 hello [< 1 2 3 >] 
-[ { :name :x :value 99 :type :float } { :name :y :value [< 1 2 3 >] :type :set } ] [ :x :y ] 
+[ { :name :x :type :float :value 99 } { :name :y :type :set :value [< 1 2 3 >] } ] [ :x :y ] 
 2 
 name  type    value       
 :x    :float  99          
@@ -8,23 +8,23 @@ name  type    value
 :z    :array  [ 1 2 3 ]   
 {
   :name :x
-  :value 99
   :type :float
+  :value 99
 }
 {
   :name :y
-  :value [< 1 2 3 >]
   :type :set
+  :value [< 1 2 3 >]
 }
 {
   :name :z
-  :value [ 1 2 3 ]
   :type :array
+  :value [ 1 2 3 ]
 }
 {
   :name :hue
-  :value :blue
   :type :symbol
+  :value :blue
 }
 error: ++: counter is a global; declare it in the locals list as ^counter to assign it here, or rename the local
 in :

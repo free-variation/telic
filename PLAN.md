@@ -46,10 +46,6 @@ Acceptance:
    reshuffles frame key order and every golden that prints one. Either accept
    it and keep the embedded library free of short generic symbol names, or
    order symbols by name and pay a `strcmp` on each frame lookup.
-2. `exact_to_double`'s method, `EXACT_POWER_BIT_CAP`'s value, and citations
-   like Acklam's `qnorm` have no home under the no-comments rule: reference
-   rows carry behavior and PLAN.md carries constraints, neither carries
-   algorithm provenance. Decide where it goes, or decide it goes nowhere.
 
 ---
 
