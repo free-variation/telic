@@ -157,6 +157,8 @@ clear
 "plain" "/tmp/telic-fs-notdir" write-file
 [: "/tmp/telic-fs-notdir" list-directory :] catch drop :message @ . cr
 \ cannot list /tmp/telic-fs-notdir                 (a file, not a directory)
+[: "/tmp/telic-fs-notdir" make-directory :] catch drop :message @ . cr
+\ cannot create /tmp/telic-fs-notdir               (a file where a directory was asked for)
 "/tmp/telic-fs-notdir" delete-file
 [: "/tmp/telic-fs-absent" delete-file :] catch drop :message @ . cr
 \ cannot delete /tmp/telic-fs-absent               (no such file)

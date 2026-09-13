@@ -194,6 +194,7 @@
 : correlation-pearson
 	| xs ys |
 	xs ys complete-cases to ys to xs
+	xs num-elements 2 < if xs num-elements "correlation-pearson: expected at least 2 complete pairs; got {0}" format throw then
 	xs as-column dup mean - to centered-xs
 	ys as-column dup mean - to centered-ys
 

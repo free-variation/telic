@@ -8,6 +8,7 @@ world
 1 
 /tmp/lf_findexec_tool 
 1 
+1 
 /tmp/lf_findexec_tool 
 error: expected a string; got a float
 in env

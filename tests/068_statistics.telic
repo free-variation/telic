@@ -330,6 +330,7 @@ clear
 
 \ === errors (reason parenthesized) ===
 [: [ 1 ] vector [ 2 ] vector covariance :] [: . cr :] try-catch \ (one pair)
+[: [ 1 null ] vector [ 2 3 ] vector correlation-pearson :] [: . cr :] try-catch   \ (one complete pair errors, as covariance does)
 
 clear
 

@@ -4484,6 +4484,15 @@ static void copy_value_inner(Interpreter *interp, VarMap *map, Val source_val, V
 							  copy_value_inner(interp, map, source->frame.values[i], &copy->frame.values[i], depth + 1);
 						  return;
 					  }
+		case T_QUANTITY: {
+						 int slot = (int)VAL_DATA(source_val);
+						 Val magnitude_copy;
+						 copy_value_inner(interp, map, pairs.table[slot].head, &magnitude_copy, depth + 1);
+						 if (interp->error_flag)
+						 	return;
+						 *copy_val = quantity_of(interp, magnitude_copy, (int)pairs.table[slot].tail.bits);
+						 return;
+					 }
 		default:
 					  *copy_val = source_val;
 					  return;
@@ -5392,7 +5401,7 @@ void p_gauges(DISPATCH_ARGS) {
 		gauge_put(interp, heap, "memory-headroom", (double)arena.heap_gc_threshold - (double)arena.heap_bytes_live);
 		gauge_put_pair(interp, heap, "objects", arena.object_space.n - arena.object_space.n_free, arena.object_space.cap);
 		gauge_put_pair(interp, heap, "handles-claimed", arena.object_space.n, arena.object_space.cap);
-		gauge_put(interp, heap, "max-objects", MAX_OBJECTS);
+		gauge_put(interp, heap, "max-objects", arena.object_space.max);
 		gauge_put(interp, heap, "free-handles", arena.object_space.n_free);
 		gauge_put_pair(interp, heap, "handle-headroom", free_handles, HANDLE_PRESSURE_SLOTS);
 		gauge_put_pair(interp, heap, "pairs", pairs.space.n - pairs.space.n_free, pairs.space.cap);
@@ -6618,8 +6627,10 @@ int main(int argc, char **argv) {
 			int after_entry_cfa = find("after-entry");
 			if (after_entry_cfa) {
 				interp->error_flag = 0;
+				int dsp_before_hook = interp->dsp;
 				execute_cfa(interp, after_entry_cfa);
 				if (interp->error_flag) {
+					interp->dsp = dsp_before_hook;
 					printf("after-entry: %s\n", interp->error_message);
 					fflush(stdout);
 				}

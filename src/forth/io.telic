@@ -54,6 +54,7 @@
 ( name -- path|null ) \ absolute path of name on $PATH, or null if not found
 : find-executable
 	| name |
+	name "/" has? if null exit then
 	"PATH" env dup null? if 
 		drop null exit 
 	then

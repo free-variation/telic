@@ -44,6 +44,7 @@ deeply-nested-file-with-a-very-long-name-past-forty-columns
 after the empty listing 
 cannot list /tmp/telic-fs-missing-dir 
 cannot list /tmp/telic-fs-notdir 
+cannot create /tmp/telic-fs-notdir 
 cannot delete /tmp/telic-fs-absent 
 cannot remove /tmp 
 expected a string; got a float 

@@ -11,6 +11,9 @@ lvar to A   lvar to Y   [ 3 4 ] [ A Y ] ~ drop   [ A Y ] copy . cr           \ [
 \ copy preserves variable sharing (reify-of-copy canonicalises to reveal it)
 lvar to X   [ X X null ] copy reify . cr                                     \ [ :_0 :_0 null ]
 
+\ copy of a dimensioned matrix copies the magnitude, so the copy is independent
+[ 1 2 ] vector 3 m * dup copy magnitude 7 0 !e drop magnitude 0 @e . cr         \ 3
+
 \ copy recurses into arrays and derefs
 lvar to M   M 7 ~ drop   [ M ] copy 0 @i . cr                                \ 7
 

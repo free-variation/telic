@@ -454,6 +454,11 @@ range
 
 clear
 
+\ ==== iota: a count at or below zero answers the empty array ====
+0 iota . -1 iota . -3 iota . 3 iota . cr                           \ [ ] [ ] [ ] [ 0 1 2 ]
+
+clear
+
 \ ==== small arrays keep their items inline and move to a block on growth ====
 
 \ arrays of two or fewer elements store their items inside the object; a

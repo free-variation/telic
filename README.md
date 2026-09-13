@@ -212,9 +212,9 @@ departs from its pyperformance original the file's header says so.
 
 ### Core language
 
-- **Tagged Vals** — `null`, floats, strings, symbols, sets, arrays, frames, matrices, quantities, segments, execution tokens, curried tokens, dictionary addresses, continuations, logic variables and the unbound/wildcard sentinel, process streams, database handles, C pointers, internal marks. A single 8-byte NaN-boxed representation; the tag determines interpretation.
+- **Tagged Vals** — `null`, floats, exact rationals, complexes, strings, symbols, sets, arrays, frames, matrices, quantities, segments, execution tokens, curried tokens, dictionary addresses, continuations, logic variables, the unbound/wildcard sentinel and the `rest` pattern marker, process streams, database handles, C pointers, internal marks. A single 8-byte NaN-boxed representation; the tag determines interpretation.
 - **Direct-threaded inner interpreter** — each dictionary cell is a handler function pointer, dispatched by an indirect tail call (`musttail`); a colon call, literal, or branch carries its operand in the cell(s) right after the handler. The dictionary *is* the threaded code.
-- **Compile-time instruction fusion** — a float op collapses with its operands and its store into one instruction, whether they are globals (`vvf+ a b`), locals (`zr zr f* to zr2`), a literal, or a stack slot read by depth (`2 pick f+`), so a quotation reading values parked below a combinator's operands costs the same as one reading locals. Also fused: `f*+` / `f*-` multiply-add, a comparison before a branch (`= if`, `> while`), an array read-modify-write (`arr i arr i @i f1- !i`), and `++ name` / `f++ name`. `see-compiled` shows the fused ops.
+- **Compile-time instruction fusion** — a float op collapses with its operands and its store into one instruction, whether they are globals (`vvf+ a b`), locals (`zr zr f* to zr2`), a literal, or a stack slot read by depth (`2 pick f+`), so a quotation reading values parked below a combinator's operands costs the same as one reading locals. Also fused: `f*+` / `f*-` multiply-add, a comparison before a branch (`= if`, `> while`), an array read-modify-write (`arr i arr i @i f1- !i`), a literal count before `array` (`2 array`), and `++ name` / `f++ name`. `see-compiled` shows the fused ops.
 - **Program image and execution state separated** — the dictionary, symbol pool, and object heap are global (`Vocabulary`, `Compiler`, `Arena`); the three stacks, instruction pointer, locals, and GC roots live in a per-run `Interpreter`. Several execution contexts share one image, which is how the parallel words give each worker its own stacks over the shared heap — and why a worker xt must not mutate shared inputs or print.
 - **Three stacks** — data, return, and a side stack for values that mustn't sit on either: `>side`, `side>`, `side-drop`, `side-peek`, `side-depth`.
 - **Colon definitions** — `: name body ;`. The body is captured as source text for `see` and the text-form `save`.
@@ -353,7 +353,7 @@ A thread-local xoshiro256\*\* stream. Each worker thread derives its own stream 
 
 ### Frames
 
-Symbol-keyed nested maps — the associative type, and the compound term the logic layer builds on. The three bracket families are distinct: `[ ]` arrays, `{ }` frames, `[< >]` sets. `[ ] { }` and `;` are self-delimiting — `[1 2 3]` and `{:a 1}` parse without inner spaces; `[< >]` still need theirs.
+Symbol-keyed nested maps — the associative type, and the compound term the logic layer builds on. The three bracket families are distinct: `[ ]` arrays, `{ }` frames, `[< >]` sets. All three and `;` are self-delimiting — `[1 2 3]`, `{:a 1}` and `[<1 2>]` parse without inner spaces.
 
 - **Literals** — `{ :a 1 :b 2 }`; values may be any Val, including nested frames, arrays, and sets.
 - **Builders** — `frame` from parallel key and value collections, `array>frame` from an alternating key/value array, `frame>array` back again.

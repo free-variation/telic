@@ -304,6 +304,7 @@ in throw ← auc
 4 
 1.5 
 covariance: expected at least 2 complete pairs; got 1 
+correlation-pearson: expected at least 2 complete pairs; got 1 
 0.5 
 0.975 
 1 

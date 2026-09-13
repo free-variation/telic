@@ -363,9 +363,12 @@ static int make_directory_path(Interpreter *interp, char *path) {
 		}
 	}
 
-	if (mkdir(path, 0777) != 0 && errno != EEXIST) {
-		fail(interp, "cannot create %s", path);
-		return 0;
+	if (mkdir(path, 0777) != 0) {
+		struct stat existing;
+		if (errno != EEXIST || stat(path, &existing) != 0 || !S_ISDIR(existing.st_mode)) {
+			fail(interp, "cannot create %s", path);
+			return 0;
+		}
 	}
 
 	return 1;

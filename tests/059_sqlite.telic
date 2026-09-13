@@ -10,6 +10,7 @@ db "INSERT INTO t VALUES (?,?,?,?)" [ 2 "o'brien" 8.0 null ] db-exec . cr
 db "INSERT INTO t VALUES (?,?,?,?)" [ 3 "alice" 7.0 "yo" ] db-exec . cr
 db "UPDATE t SET score = score + 1 WHERE name = ?" [ "alice" ] db-exec . cr
 db "DELETE FROM t WHERE id = ?" [ 3 ] db-exec . cr
+db "CREATE TABLE u (x)" [ ] db-exec . cr                                  \ 0: DDL after a delete counts its own statement, not the connection's last change
 \ table is now: (1,alice,10.5,hi) (2,o'brien,8.0,NULL)
 
 \ === db-query: a dataset with typed columns; a bag, duplicates and NULL kept ===

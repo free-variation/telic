@@ -197,6 +197,7 @@ error: stack underflow
 in range
 error: too many elements (4000000001)
 in range
+[ ] [ ] [ ] [ 0 1 2 ] 
 [ 1 2 ] 
 [ 1 2 3 4 ] 
 [ 7 8 9 ] 

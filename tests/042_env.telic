@@ -32,6 +32,7 @@
 "/tmp" "PATH" env!
 "lf_findexec_tool" find-executable . cr          \ /tmp/lf_findexec_tool
 "lf_no_such_tool_zzz" find-executable null? . cr \ 1
+"bin/sh" find-executable null? . cr              \ 1  (a name with a slash is a path, not a command)
 "/nonexistent_zzz:/tmp" "PATH" env!
 "lf_findexec_tool" find-executable . cr          \ /tmp/lf_findexec_tool (skips missing dirs)
 

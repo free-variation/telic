@@ -163,10 +163,11 @@ void p_db_exec(DISPATCH_ARGS) {
 	if (!prepared)
 		return;
 
+	int changes_before = sqlite3_total_changes(db);
 	if (db_step_rows(interp, db, prepared, NULL, NULL) != 0)
 		return;
 
-	chain_sp[-3] = make_float((double)sqlite3_changes(db));
+	chain_sp[-3] = make_float((double)(sqlite3_total_changes(db) - changes_before));
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 2);
 }
