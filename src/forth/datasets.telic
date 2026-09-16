@@ -98,9 +98,9 @@
 	| members elements |
 	members set? not if members column>set to members then
 	elements dimensioned-matrix? if
-		elements column>array [: members swap (in?) :] map vector elements dim reshape exit
+		elements column>array [: members swap member? :] map vector elements dim reshape exit
 	then
-	members elements (in?) ;
+	members elements member? ;
 
 ( dataset -- rows ) \ the inverse of true rows>dataset: row-arrays led by a header
 \ row of the column names, columns in key order, cells through column>array

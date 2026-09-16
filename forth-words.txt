@@ -419,6 +419,7 @@ mcp-serve
 mcp-tool-result
 mean
 median
+member?
 merge
 merge-by
 mesh

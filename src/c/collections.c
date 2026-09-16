@@ -395,11 +395,11 @@ static int float_set_member(Object *set, double value) {
 	return low < set->len && VAL_NUMBER(set->items[low]) == value;
 }
 
-void p_in(DISPATCH_ARGS) {
+void p_member(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
 	Val set_val = chain_sp[-2];
 	Val elements = chain_sp[-1];
-	REQUIRE_CHAIN_TAG(set_val, T_SET, "(in?)", "a set");
+	REQUIRE_CHAIN_TAG(set_val, T_SET, "member?", "a set");
 	SYNC_REGISTERS(interp, chain_ip, chain_sp);
 	int set_handle = (int)VAL_DATA(set_val);
 

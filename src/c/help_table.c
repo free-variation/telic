@@ -476,6 +476,7 @@ const HelpEntry help_entries[] = {
 	{ "mcp-tool-result", "( id text failed -- )", "Answer a tools/call with one text content block, failed setting isError. The only way a handler should answer, since writing to stdout directly would corrupt the protocol stream", NULL, NULL, NULL, 48 },
 	{ "mean", "( mat -- f )", "matrix.telic: the arithmetic mean of the elements, NaNs skipped", "r×c", "none", "O(r×c)", 20 },
 	{ "median", "( mat -- f )", "statistics.telic: the median (the 0.5 quantile) of all elements", "n log n", "malloc(n)", "O(n log n)", 20 },
+	{ "member?", "( set values -- mask/binary )", "Membership by binary search against a set: a scalar values answers 1 or 0, an array an n×1 mask, a matrix a mask of its shape; a NaN or null element answers 0. The left operand must already be a set — in? accepts an array or vector there and dimensioned values, at the cost of a wrapper per call", "log n per element", "none for a scalar; 1m(n) for an array or matrix", "O(n log m)", 15 },
 	{ "merge", "( fr₁ fr₂ -- fr )", "New frame with all keys; fr₂ wins collisions", "m+n", "1o", "O(m+n)", 17 },
 	{ "merge-by", "( left right key join-type -- dataset )", "datasets.telic: join on key (a symbol or symbol array); join-type is :inner (matched pairs only), :left (every left row, right's columns null on a miss), :right (every right row, left's columns null), or :outer (left rows then unmatched right rows, missing side null). The probed side's key must be **unique** — right for :inner/:left, left for :right, both for :outer — a duplicate on the probed side errors; a non-key column in both datasets errors naming it (no .x/.y suffixing). Columns are the union with key once; a null-filled numeric column re-infers as a vector with NaN", "L·R", "row frames + merged columns", "O(L·R)", 24 },
 	{ "mesh", "( v mask b -- v' )", "Masked substitution: element i of the result is b's where mask[i] is a definite nonzero, v's where it is 0 **or NaN** (an unknown mask cell changes nothing). v is a matrix, dimensioned matrix, or array; the mask a bare matrix of v's shape (element count, for an array). b is shape-matched same-representation, or broadcasts: a float, null (→ NaN), a quantity, or — for an array subject — any single value. Units reconcile as +: b rescales into v's unit, which the result keeps; a quantity against a bare number errors. Conditional-mutate idioms: dup nan? 0 mesh fills NaNs, dup -1 eq null mesh turns a sentinel into NaN, dup 100 > 100 mesh caps at 100", "3 + n", "1m(r×c) / 1a(n)", "O(n)", 20 },
@@ -802,7 +803,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, arrays element-wise with a trailing rest pattern taking the remaining elements, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails", "n", "none", "O(n)", 28 },
 };
 
-const int help_entry_count = 745;
+const int help_entry_count = 746;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -1227,6 +1228,7 @@ const HelpExample help_examples[] = {
 	{ "mcp-tool-result", "id \"hello \" arguments :who @ + false mcp-tool-result", "" },
 	{ "mean", "[ 2 4 6 ] vector mean . cr", "4" },
 	{ "median", "[ 1 2 3 4 ] vector median . cr", "2.5" },
+	{ "member?", "[< 1 2 3 >] 2 member? . [< 1 2 3 >] 9 member? . cr\n[< 1 3 >] [ 1 2 3 ] member? matrix>array . cr", "1 0\n[ 1 0 1 ]" },
 	{ "merge", "{ :a 1 :b 2 } { :b 20 :c 30 } merge frame>array . cr", "[ :a 1 :b 20 :c 30 ]" },
 	{ "merge-by", "{ :id [ 1 2 3 ] :x [ :a :b :c ] } { :id [ 1 3 ] :y [ 10 30 ] } :id :left merge-by dup :x @ . :y @ column>array . cr", "[ :a :b :c ] [ 10 null 30 ]" },
 	{ "mesh", "[ 1 -1 3 ] vector dup -1 eq null mesh matrix>array . cr", "[ 1 null 3 ]" },
@@ -1553,4 +1555,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 746;
+const int help_example_count = 747;

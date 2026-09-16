@@ -435,7 +435,7 @@
 
 ( -- arr ) \ stdin, plus the output of every busy child
 : mcp-watched
-  [ stdin ] mcp-busy-sessions [: @child :out @ :] map + ; internal
+  [ stdin ] mcp-busy-sessions [: @child :out @ :] map concat ; internal
 
 ( -- seconds ) \ how long until the earliest deadline, negative when nothing is running
 : mcp-next-deadline

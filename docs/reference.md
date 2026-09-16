@@ -2531,6 +2531,7 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 | `difference` | `( set₁ set₂ -- set₃ )` | set₁ − set₂ into a new set, merging the two sorted arrays | m+n | `1o` + reallocs | O(m+n) |
 | `set-add!` | `( set v -- set )` | Insert v in sorted position if absent (dedups); leaves set on the stack | log n + n | reallocs | O(n) |
 | `set-remove!` | `( set v -- set )` | Remove v if present (no-op if absent); leaves set on the stack | log n + n | none | O(n) |
+| `member?` | `( set values -- mask/binary )` | Membership by binary search against a set: a scalar `values` answers 1 or 0, an array an n×1 mask, a matrix a mask of its shape; a NaN or `null` element answers 0. The left operand must already be a set — `in?` accepts an array or vector there and dimensioned values, at the cost of a wrapper per call | log n per element | none for a scalar; `1m(n)` for an array or matrix | O(n log m) |
 | `in?` | `( members values -- mask/binary )` | datasets.telic: membership by binary search — a scalar `values` answers 1 when it is a member of `members` (a set, array, or vector; a dimensioned vector contributes quantities, so units reconcile); an array answers an n×1 mask, a vector a mask of its shape, each element 1 when a member; a NaN or `null` answers 0. `[ 10 20 ] vector prices in? where select-rows` keeps the rows at listed prices | log m per element | `1m(n)`; a non-set `members` adds `1a(m)` + `1o`; a dimensioned `values` adds `2a(n)` | O(n log m), plus O(m log m) to build the set |
 | `array>set` | `( array -- set )` | Sort a copy of the array and dedup into a set; the source array is unchanged | n log n | `1o` + realloc | O(n log n) |
 | `set>array` | `( set -- arr )` | arrays.telic: the elements as an array in sorted order | 1 | `1o` | O(n) |
@@ -2578,6 +2579,15 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 ```
 ```output
 [< 1 3 >]
+```
+
+```forth member?
+[< 1 2 3 >] 2 member? . [< 1 2 3 >] 9 member? . cr
+[< 1 3 >] [ 1 2 3 ] member? matrix>array . cr
+```
+```output
+1 0
+[ 1 0 1 ]
 ```
 
 ```forth in?
