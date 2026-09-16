@@ -1382,7 +1382,7 @@ const HelpExample help_examples[] = {
 	{ "segment>pointer", "4 int-segment segment>pointer ptr? . cr", "1" },
 	{ "segment?", "4 int-segment segment? . cr", "1" },
 	{ "select-columns", "[ [ \"a\" \"b\" ] [ 1 2 ] ] true rows>dataset [ :b ] select-columns keys . cr", "[ :b ]" },
-	{ "select-eq", "{ :program [ :a :b :a ] :n [ 1 2 3 ] vector } :program :a select-eq :n @ transpose matrix>array . cr", "[ 1 3 ]" },
+	{ "select-eq", "{ :program [ :a :b :a ] :n [ 1 2 3 ] vector } :program :a select-eq :n @ transpose matrix>array . cr\n[ [ \"name\" \"team\" ] [ \"ann\" \"red\" ] [ \"bo\" \"blue\" ] ] true rows>dataset to teams\nteams :team \"red\" select-eq :name @ . cr\nteams :team :red select-eq n-rows . cr", "[ 1 3 ]\n[ \"ann\" ]\n0" },
 	{ "select-keys", "{ :a { :n 1 } :b { :n 2 } } //n select-keys . cr", "[ [ :a :n ]\n  [ :b :n ] ]" },
 	{ "select-neq", "{ :program [ :a :b :a ] :n [ 1 2 3 ] vector } :program :a select-neq :n @ transpose matrix>array . cr", "[ 2 ]" },
 	{ "select-rows", "[ 10 20 30 40 ] vector [ 2 0 ] select-rows matrix>array . cr", "[ 30 10 ]" },

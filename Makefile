@@ -242,7 +242,26 @@ test-wasm: telic.wasm docs-tests
 bench:
 	@sh bench/run-benchmarks.sh
 
+# Installation. The three binary-dir paths the language computes at run time —
+# "/lib/<name>" (load-library), "/external/lapacke/liblapacke_telic.so"
+# (lib/statistics.telic), and "/telic" (lib/mcp.telic) — fix the layout: the
+# binary, lib/ and the shared object keep their relative positions under
+# TELIC_HOME. $(BINDIR)/telic is a symlink into that directory, which
+# platform_executable_path resolves (realpath on Darwin, /proc/self/exe on
+# Linux), so binary-dir answers TELIC_HOME whichever name the user invokes.
+PREFIX    ?= /usr/local
+BINDIR     = $(PREFIX)/bin
+TELIC_HOME = $(PREFIX)/lib/telic
+
+install: all pack
+	install -d $(DESTDIR)$(TELIC_HOME)/lib $(DESTDIR)$(TELIC_HOME)/external/lapacke $(DESTDIR)$(BINDIR)
+	install -m 755 telic $(DESTDIR)$(TELIC_HOME)/telic
+	install -m 644 lib/*.telic $(DESTDIR)$(TELIC_HOME)/lib
+	install -m 755 $(LAPACKE_SHARED) $(DESTDIR)$(TELIC_HOME)/external/lapacke
+	install -m 644 telic-pack.md llms.txt $(DESTDIR)$(TELIC_HOME)
+	ln -sf $(TELIC_HOME)/telic $(DESTDIR)$(BINDIR)/telic
+
 clean:
 	rm -f telic telic.wasm $(PCRE2_OBJS) $(PCRE2_LIB) $(WASM_PCRE2_OBJS) $(WASM_PCRE2_LIB) $(SQLITE_OBJ) $(WASM_SQLITE_OBJ) $(ISOCLINE_OBJ) $(LAPACKE_OBJS) $(LAPACKE_LIB) $(LAPACKE_SHARED) $(LAPACKE_DIR)/exports.map
 
-.PHONY: all clean test test-libs test-wasm bench wasm vendor-pcre2 vendor-sqlite vendor-isocline vendor-lapacke lapacke editors
+.PHONY: all clean install test test-libs test-wasm bench wasm vendor-pcre2 vendor-sqlite vendor-isocline vendor-lapacke lapacke editors

@@ -136,7 +136,8 @@ dup :age @ mean .                       \ 40  (a numeric column is already a vec
 [ 2 4 4 4 5 5 7 9 ] 8 1 matrix dup mean . 0.5 quantile .  \ 5  4.5
 
 \ A fit over a real table: income on three columns of 32,561 rows. The statistics
-\ library reaches LAPACK through the FFI, so this part is native-only.
+\ library reaches LAPACK through the FFI, so this part is native-only. The table
+\ is data/adult.tsv in the repository, so this example runs from a checkout.
 "statistics" load-library
 "data/adult.tsv" read-tsv to adult
 adult [ :age :education-num :hours-per-week ] dataset>matrix with-intercept

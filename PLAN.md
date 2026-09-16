@@ -13,15 +13,11 @@ completes.
 
 Implementation:
 
-1. Add a `make install` (PREFIX-parameterized) copying the installed
-   set: the `telic` binary, `lib/`, and `liblapacke_telic.so`, with
-   `data/` only for running the README examples verbatim.
-2. Add `make pack` output and `telic-pack.md` to the released set.
-3. Run `make acceptance` and read the failures: fix what is a pack gap,
+1. Run `make acceptance` and read the failures: fix what is a pack gap,
    record what is not.
-4. Set VERSION (src/c/telic.h) to the release version and tag the
+2. Set VERSION (src/c/telic.h) to the release version and tag the
    commit.
-5. Release notes: the benchmark table's provenance line, the platform
+3. Release notes: the benchmark table's provenance line, the platform
    pair (native, wasm) the suites passed on, and the acceptance pass@1
    with its model and date — a description of that run, not a
    threshold, since the tasks and the pack text were developed against

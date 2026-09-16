@@ -2,7 +2,8 @@
 \ documentation fences -- edit the source document, not this file
 
 \ A fit over a real table: income on three columns of 32,561 rows. The statistics
-\ library reaches LAPACK through the FFI, so this part is native-only.
+\ library reaches LAPACK through the FFI, so this part is native-only. The table
+\ is data/adult.tsv in the repository, so this example runs from a checkout.
 "statistics" load-library
 "data/adult.tsv" read-tsv to adult
 adult [ :age :education-num :hours-per-week ] dataset>matrix with-intercept

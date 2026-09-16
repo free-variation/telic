@@ -4215,9 +4215,14 @@ cols [: drop dup :b = swap :d = or :] filter-columns keys . cr
 
 ```forth select-eq
 { :program [ :a :b :a ] :n [ 1 2 3 ] vector } :program :a select-eq :n @ transpose matrix>array . cr
+[ [ "name" "team" ] [ "ann" "red" ] [ "bo" "blue" ] ] true rows>dataset to teams
+teams :team "red" select-eq :name @ . cr
+teams :team :red select-eq n-rows . cr
 ```
 ```output
 [ 1 3 ]
+[ "ann" ]
+0
 ```
 
 ```forth select-neq

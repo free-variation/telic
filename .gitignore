@@ -64,7 +64,7 @@ telic
 bench/.leibniz_ref.py
 bench/big.json
 bench/*.log
-bench/*.md
+bench*.md
 
 .claude
 .telic_history
