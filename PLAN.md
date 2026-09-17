@@ -4,40 +4,6 @@ A TODO list of pending work, highest priority first.
 
 ---
 
-## 1.0-alpha gate
-
-The gate for the tag, in priority order; an entry vanishes as its item
-completes.
-
-### Release mechanics
-
-Implementation:
-
-1. Run `make acceptance` and read the failures: fix what is a pack gap,
-   record what is not.
-2. Set VERSION (src/c/telic.h) to the release version and tag the
-   commit.
-3. Release notes: the benchmark table's provenance line, the platform
-   pair (native, wasm) the suites passed on, and the acceptance pass@1
-   with its model and date — a description of that run, not a
-   threshold, since the tasks and the pack text were developed against
-   each other. Name `lib/mcp.telic` as experimental: it has passed no run
-   against a real MCP client, and no in-process test can stand in for
-   one.
-
-Acceptance:
-
-1. From a clean checkout: `make && make test && make test-wasm &&
-   make bench && make pack` all succeed, and `make test-libs` on a host
-   with LAPACK and libxgboost.
-2. Copy the installed set to a directory outside the repo; `telic`
-   starts from any cwd, `"statistics" load-library` and
-   `"plot" load-library` load, and `help` answers.
-3. The tagged commit's README benchmark table matches a full run on the
-   release host.
-
----
-
 ## xgboost — follow-ups
 
 - **Multiclass / multi-output.** Read `out_dim`/`out_shape` in `xgb-predict`

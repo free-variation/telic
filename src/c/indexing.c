@@ -2,6 +2,10 @@
 #include "telic.h"
 
 static inline __attribute__((always_inline)) Val *array_index_fetch(Interpreter *interp, cell *sync_ip, Val *sp, Val source_val, int index) {
+	int unit = 0;
+	if (VAL_TAG(source_val) == T_QUANTITY)
+		source_val = quantity_unwrap(source_val, &unit);
+
 	if (VAL_TAG(source_val) == T_ARRAY) {
 		Object *array = OBJECT_AT(VAL_DATA(source_val));
 		if (index < 0 || index >= array->len) {
@@ -27,6 +31,15 @@ static inline __attribute__((always_inline)) Val *array_index_fetch(Interpreter 
 		Object *row = OBJECT_AT(row_handle);
 		for (int j = 0; j < num_columns; j++)
 			MAT(row, 0, j) = MAT(source, index, j);
+
+		if (unit) {
+			SYNC_REGISTERS(interp, sync_ip, sp);
+			push_quantity(interp, make_matrix(row_handle), unit);
+			if (interp->error_flag)
+				return NULL;
+
+			return interp->data_stack + interp->dsp;
+		}
 
 		*sp = make_matrix(row_handle);
 		return sp + 1;

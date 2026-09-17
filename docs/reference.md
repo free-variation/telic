@@ -2810,9 +2810,11 @@ null
 
 ```forth sort
 [ 3 1 2 ] sort . cr
+[ 3 1 2 ] vector m sort matrix>array . cr
 ```
 ```output
 [ 1 2 3 ]
+[ 1 m 2 m 3 m ]
 ```
 
 ```forth flatten
@@ -3137,6 +3139,17 @@ rather than answering a damaged value. Doubles and counts are little-endian.
 ## Matrices
 
 Row-major `double` storage. `r` rows, `c` columns.
+
+A matrix carrying a unit is a quantity whose magnitude is the matrix, and the
+words below take one wherever they take a matrix. The unit passes to the result
+where the result is the same kind of measurement (`sort`, `nlast`, `submatrix`,
+`diagonal`, `@e`, `@i`, `@j`, `@i,j`, `successive-differences`, `drop-nans`,
+`quantile`, the reductions); it is absent where the result counts or locates
+rather than measures (`where`, `ranks`, `argmax`, `nan?`, `ecdf`'s fractions);
+and two operands must share a dimension, the second rescaling into the first's
+unit, in `augment`, `vstack`, `hstack`, `+!`, `-!`, `!e` and `!i,j`. `*!` and
+`/!` combine the dimensions as `*` and `/` do. Mixing a quantity and a plain
+number errors rather than assuming one of them.
 
 ### Construction
 
@@ -3529,11 +3542,13 @@ element.
 [ 1 2 ] vector [ 3 4 ] vector vstack matrix>array . cr
 { :a [ 1 2 ] :b [ :x :y ] } { :a [ 3 ] :b [ :z ] } vstack :a @ transpose matrix>array . cr
 null [ 5 ] vector vstack matrix>array . cr
+[ 1 2 ] vector m [ 3 4 ] vector m vstack matrix>array . cr
 ```
 ```output
 [ 1 2 3 4 ]
 [ 1 2 3 ]
 [ 5 ]
+[ 1 m 2 m 3 m 4 m ]
 ```
 
 ```forth hstack
@@ -3584,8 +3599,10 @@ null [ 5 ] vector vstack matrix>array . cr
 
 ```forth where
 [ 5 0 7 ] vector where matrix>array . cr
+[ 5 0 7 ] vector m where matrix>array . cr
 ```
 ```output
+[ 0 2 ]
 [ 0 2 ]
 ```
 
@@ -4078,7 +4095,7 @@ wall-now time>iso . cr
 | `save-tsv` | `( rows path -- )` | Write an array of row-arrays as TSV; `null` → empty, a whole-number float → integer, strings raw; errors on a tab/newline inside a string or a non-array row | 2 + r·c | none (to file) | O(r·c) |
 | `rows>dataset` | `( rows header? -- dataset )` | datasets.telic: column-oriented frame from rows with typed columns — uniformly float-or-`null` cells become an n×1 vector (`null` → NaN), uniform-unit quantity cells a dimensioned vector, anything else stays the cell array; keys come from row 0 when header? is true, else `:col1…` are synthesized | 2·r·c | `k×1a(r)` + `1m` per numeric column + `1fr` | O(r·c) |
 | `dataset>rows` | `( dataset -- rows )` | datasets.telic: an array of row-arrays led by a header row of the column names as strings, columns in key order; each cell is its column's value (NaN → `null`, dimensioned cells as quantities) | r·c | header + one array per row + `1a(r·c)` cells | O(r·c) |
-| `headn` | `( dataset n leading-columns -- )` | datasets.telic: print the first min(n, rows) rows as an aligned table — the `leading-columns` symbols appear first in the given order, the remaining columns alphabetical by name (an empty `leading-columns` orders every column alphabetically); column names as the header line, two-space gutter, numeric/quantity columns right-aligned, text left, `:datetime` columns as ISO time strings, other cells in their default rendering; a dataset with no columns prints nothing, one with columns but no rows prints the header line alone | r·c | rendered cells | O(r·c) |
+| `nhead` | `( dataset n leading-columns -- )` | datasets.telic: print the first min(n, rows) rows as an aligned table — the `leading-columns` symbols appear first in the given order, the remaining columns alphabetical by name (an empty `leading-columns` orders every column alphabetically); column names as the header line, two-space gutter, numeric/quantity columns right-aligned, text left, `:datetime` columns as ISO time strings, other cells in their default rendering; a dataset with no columns prints nothing, one with columns but no rows prints the header line alone | r·c | rendered cells | O(r·c) |
 | `head` | `( dataset -- )` | datasets.telic: print the first 10 rows as an aligned table, columns alphabetical by name | r·c | rendered cells | O(r·c) |
 | `dataset>matrix` | `( dataset cols -- mat )` | datasets.telic: build an n×k matrix from the named numeric columns (rows are observations) | n·k | flat `1a(n·k)` + `2m(n×k)` | O(n·k) |
 | `column-type` | `( dataset sym -- sym )` | datasets.telic: the named column's type from its representation — matrix `:numeric`, quantity in exactly `s` `:datetime`, other quantity `:quantity`, array `:text`; a missing key errors | 8 | 1 pair | O(log c) |
@@ -4163,8 +4180,8 @@ age  name
  25  bo
 ```
 
-```forth headn
-[ [ "name" "age" ] [ "ann" 34 ] [ "bo" 25 ] ] true rows>dataset 1 [ :name ] headn
+```forth nhead
+[ [ "name" "age" ] [ "ann" 34 ] [ "bo" 25 ] ] true rows>dataset 1 [ :name ] nhead
 ```
 ```output
 name  age

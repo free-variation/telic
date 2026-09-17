@@ -109,7 +109,8 @@ MATRIX_COMPARISON_KERNEL(matrix_compare_neq, !=)
 void p_at_j(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
 	Val index_val = chain_sp[-1];
-	Val source_val = chain_sp[-2];
+	int unit;
+	Val source_val = quantity_unwrap(chain_sp[-2], &unit);
 	REQUIRE_CHAIN_TAG(index_val, T_FLOAT, "@j", "a float index");
 	REQUIRE_CHAIN_TAG(source_val, T_MATRIX, "@j", "a matrix");
 	Object *source = OBJECT_AT(VAL_DATA(source_val));
@@ -126,6 +127,12 @@ void p_at_j(DISPATCH_ARGS) {
 	for (int i = 0; i < num_rows; i++)
 		MAT(col, i, 0) = MAT(source, i, index);
 
+	if (unit) {
+		SYNC_REGISTERS(interp, chain_ip, chain_sp - 2);
+		push_quantity(interp, make_matrix(col_handle), unit);
+		DISPATCH(interp);
+	}
+
 	chain_sp[-2] = make_matrix(col_handle);
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
@@ -135,7 +142,8 @@ void p_at_ij(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 3);
 	Val j_val = chain_sp[-1];
 	Val i_val = chain_sp[-2];
-	Val source_val = chain_sp[-3];
+	int unit;
+	Val source_val = quantity_unwrap(chain_sp[-3], &unit);
 	REQUIRE_CHAIN_TAG(j_val, T_FLOAT, "@i,j", "a float column index");
 	REQUIRE_CHAIN_TAG(i_val, T_FLOAT, "@i,j", "a float row index");
 	REQUIRE_CHAIN_TAG(source_val, T_MATRIX, "@i,j", "a matrix");
@@ -146,6 +154,12 @@ void p_at_ij(DISPATCH_ARGS) {
 	REQUIRE_CHAIN_INDEX(i, source->matrix.rows, "@i,j", "row index", "rows");
 	REQUIRE_CHAIN_INDEX(j, source->matrix.columns, "@i,j", "column index", "columns");
 
+	if (unit) {
+		SYNC_REGISTERS(interp, chain_ip, chain_sp - 3);
+		push_quantity(interp, make_float(MAT(source, i, j)), unit);
+		DISPATCH(interp);
+	}
+
 	chain_sp[-3] = make_float(MAT(source, i, j));
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 2);
@@ -154,7 +168,8 @@ void p_at_ij(DISPATCH_ARGS) {
 void p_at_e(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
 	Val index_val = chain_sp[-1];
-	Val source_val = chain_sp[-2];
+	int unit;
+	Val source_val = quantity_unwrap(chain_sp[-2], &unit);
 	REQUIRE_CHAIN_TAG(index_val, T_FLOAT, "@e", "a float index");
 	REQUIRE_CHAIN_TAG(source_val, T_MATRIX, "@e", "a matrix");
 	Object *source = OBJECT_AT(VAL_DATA(source_val));
@@ -163,12 +178,22 @@ void p_at_e(DISPATCH_ARGS) {
 	int n_elements = source->matrix.rows * source->matrix.columns;
 	REQUIRE_CHAIN_INDEX(index, n_elements, "@e", "element index", "elements");
 
+	if (unit) {
+		SYNC_REGISTERS(interp, chain_ip, chain_sp - 2);
+		push_quantity(interp, make_float(source->matrix.elements[index]), unit);
+		DISPATCH(interp);
+	}
+
 	chain_sp[-2] = make_float(source->matrix.elements[index]);
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 }
 
 static inline __attribute__((always_inline)) Val *matrix_element_read(Interpreter *interp, cell *resume_ip, Val *slot_sp, Val source_val, int index) {
+	int unit = 0;
+	if (VAL_TAG(source_val) == T_QUANTITY)
+		source_val = quantity_unwrap(source_val, &unit);
+
 	if (VAL_TAG(source_val) != T_MATRIX) {
 		SYNC_REGISTERS(interp, resume_ip, slot_sp);
 		fail(interp, "expected a matrix; got %s", tag_name(VAL_TAG(source_val)));
@@ -181,6 +206,15 @@ static inline __attribute__((always_inline)) Val *matrix_element_read(Interprete
 		SYNC_REGISTERS(interp, resume_ip, slot_sp);
 		fail(interp, "element index %d out of bounds (%d elements)", index, n_elements);
 		return NULL;
+	}
+
+	if (unit) {
+		SYNC_REGISTERS(interp, resume_ip, slot_sp);
+		push_quantity(interp, make_float(source->matrix.elements[index]), unit);
+		if (interp->error_flag)
+			return NULL;
+
+		return interp->data_stack + interp->dsp;
 	}
 
 	*slot_sp = make_float(source->matrix.elements[index]);
@@ -304,7 +338,31 @@ void p_gather_e_local0(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip + 1, pushed_sp);
 }
 
+static int element_store_conversion(Interpreter *interp, int target_unit, int element_unit,
+		double *conversion) {
+	*conversion = 1.0;
+	if (target_unit == 0 && element_unit != 0) {
+		fail(interp, "cannot store a quantity in a plain matrix");
+		return 0;
+	}
+	if (target_unit != 0 && element_unit == 0) {
+		fail(interp, "cannot store a plain number in a dimensioned matrix");
+		return 0;
+	}
+	if (target_unit != element_unit && !unit_conversion(element_unit, target_unit, conversion)) {
+		fail(interp, "unit mismatch");
+		return 0;
+	}
+
+	return 1;
+}
+
 static inline __attribute__((always_inline)) int matrix_element_write(Interpreter *interp, cell *resume_ip, Val *fail_sp, Val target_val, int index, Val element_val) {
+	int target_unit;
+	target_val = quantity_unwrap(target_val, &target_unit);
+	int element_unit;
+	element_val = quantity_unwrap(element_val, &element_unit);
+
 	if (VAL_TAG(element_val) != T_FLOAT && VAL_TAG(element_val) != T_NONE) {
 		SYNC_REGISTERS(interp, resume_ip, fail_sp);
 		fail(interp, "expected a float or null value; got %s", tag_name(VAL_TAG(element_val)));
@@ -324,7 +382,14 @@ static inline __attribute__((always_inline)) int matrix_element_write(Interprete
 		return 0;
 	}
 
-	target->matrix.elements[index] = VAL_NUMBER(element_val);
+	double conversion = 1.0;
+	if ((target_unit || element_unit) && VAL_TAG(element_val) != T_NONE) {
+		SYNC_REGISTERS(interp, resume_ip, fail_sp);
+		if (!element_store_conversion(interp, target_unit, element_unit, &conversion))
+			return 0;
+	}
+
+	target->matrix.elements[index] = VAL_NUMBER(element_val) * conversion;
 	return 1;
 }
 
@@ -356,10 +421,12 @@ void p_store_e_lll0(DISPATCH_ARGS) {
 #define STORE_IJ_OP(c_name, n_consumed) \
 	void c_name(DISPATCH_ARGS) { \
 		REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 4); \
-		Val element_val = chain_sp[-3]; \
+		int element_unit; \
+		Val element_val = quantity_unwrap(chain_sp[-3], &element_unit); \
 		Val j_val = chain_sp[-1]; \
 		Val i_val = chain_sp[-2]; \
-		Val target_val = chain_sp[-4]; \
+		int target_unit; \
+		Val target_val = quantity_unwrap(chain_sp[-4], &target_unit); \
 		if (VAL_TAG(element_val) != T_FLOAT && VAL_TAG(element_val) != T_NONE) { \
 			SYNC_REGISTERS(interp, chain_ip, chain_sp); \
 			fail(interp, "expected a float or null value; got %s", tag_name(VAL_TAG(element_val))); \
@@ -375,7 +442,14 @@ void p_store_e_lll0(DISPATCH_ARGS) {
 		REQUIRE_CHAIN_INDEX(i, target->matrix.rows, "!i,j", "row index", "rows"); \
 		REQUIRE_CHAIN_INDEX(j, target->matrix.columns, "!i,j", "column index", "columns"); \
 		\
-		MAT(target, i, j) = VAL_NUMBER(element_val); \
+		double conversion = 1.0; \
+		if ((target_unit || element_unit) && VAL_TAG(element_val) != T_NONE) { \
+			SYNC_REGISTERS(interp, chain_ip, chain_sp); \
+			if (!element_store_conversion(interp, target_unit, element_unit, &conversion)) \
+				return; \
+		} \
+		\
+		MAT(target, i, j) = VAL_NUMBER(element_val) * conversion; \
 		\
 		DISPATCH_REGISTERS(interp, chain_ip, chain_sp - (n_consumed)); \
 	}
@@ -645,7 +719,9 @@ int matrix_nonzero_indices(Interpreter *interp, Object *source) {
 
 void p_where(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
-	Val mask = chain_sp[-1];
+	int unit;
+	Val mask = quantity_unwrap(chain_sp[-1], &unit);
+	(void)unit;
 	SYNC_REGISTERS(interp, chain_ip, chain_sp);
 
 	REQUIRE_CHAIN_TAG(mask, T_MATRIX, "where", "a matrix mask");
@@ -894,7 +970,8 @@ void p_diagonal_matrix(DISPATCH_ARGS) {
 
 void p_diagonal(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
-	Val source_val = chain_sp[-1];
+	int unit;
+	Val source_val = quantity_unwrap(chain_sp[-1], &unit);
 	REQUIRE_CHAIN_TAG(source_val, T_MATRIX, "diagonal", "a matrix");
 	Object *source = OBJECT_AT(VAL_DATA(source_val));
 
@@ -903,6 +980,12 @@ void p_diagonal(DISPATCH_ARGS) {
 
 	for (int i = 0; i < diag_len; i++)
 		diagonal->matrix.elements[i] = MAT(source, i, i);
+
+	if (unit) {
+		SYNC_REGISTERS(interp, chain_ip, chain_sp - 1);
+		push_quantity(interp, make_matrix(diag_handle), unit);
+		DISPATCH(interp);
+	}
 
 	chain_sp[-1] = make_matrix(diag_handle);
 
@@ -1279,7 +1362,8 @@ void p_submatrix(DISPATCH_ARGS) {
 	Val row_start_val = chain_sp[-4];
 	REQUIRE_CHAIN_TAG(row_start_val, T_FLOAT, "submatrix", "a float row-start");
 	int row_start = (int)VAL_NUMBER(row_start_val);
-	Val source_val = chain_sp[-5];
+	int unit;
+	Val source_val = quantity_unwrap(chain_sp[-5], &unit);
 	REQUIRE_CHAIN_TAG(source_val, T_MATRIX, "submatrix", "a matrix");
 	Object *source = OBJECT_AT(VAL_DATA(source_val));
 
@@ -1298,6 +1382,12 @@ void p_submatrix(DISPATCH_ARGS) {
 	for (int row = 0; row < slice_rows; row++)
 		for (int col = 0; col < slice_cols; col++)
 			MAT(slice, row, col) = MAT(source, row_start + row, col_start + col);
+
+	if (unit) {
+		SYNC_REGISTERS(interp, chain_ip, chain_sp - 5);
+		push_quantity(interp, make_matrix(slice_handle), unit);
+		DISPATCH(interp);
+	}
 
 	chain_sp[-5] = make_matrix(slice_handle);
 
@@ -1682,11 +1772,28 @@ void p_select_rows(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 }
 
+static int stacking_conversion(Interpreter *interp, int target_unit, int source_unit,
+		const char *word_name, double *conversion) {
+	*conversion = 1.0;
+	if ((target_unit == 0) != (source_unit == 0)) {
+		fail(interp, "cannot %s a quantity and a plain number", word_name);
+		return 0;
+	}
+	if (target_unit != source_unit && !unit_conversion(source_unit, target_unit, conversion)) {
+		fail(interp, "unit mismatch");
+		return 0;
+	}
+
+	return 1;
+}
+
 void p_augment(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
-	Val b_val = chain_sp[-1];
+	int b_unit;
+	Val b_val = quantity_unwrap(chain_sp[-1], &b_unit);
 	REQUIRE_CHAIN_TAG(b_val, T_MATRIX, "augment", "a matrix");
-	Val a_val = chain_sp[-2];
+	int a_unit;
+	Val a_val = quantity_unwrap(chain_sp[-2], &a_unit);
 	REQUIRE_CHAIN_TAG(a_val, T_MATRIX, "augment", "a matrix");
 	Object *a = OBJECT_AT(VAL_DATA(a_val));
 	Object *b = OBJECT_AT(VAL_DATA(b_val));
@@ -1696,6 +1803,10 @@ void p_augment(DISPATCH_ARGS) {
 		return;
 	}
 
+	double conversion = 1.0;
+	if (!stacking_conversion(interp, a_unit, b_unit, "augment", &conversion))
+		return;
+
 	int rows = a->matrix.rows;
 	int a_columns = a->matrix.columns;
 	int b_columns = b->matrix.columns;
@@ -1703,7 +1814,14 @@ void p_augment(DISPATCH_ARGS) {
 
 	for (int i = 0; i < rows; i++) {
 		memcpy(&MAT(augmented, i, 0), &MAT(a, i, 0), sizeof(double) * (size_t)a_columns);
-		memcpy(&MAT(augmented, i, a_columns), &MAT(b, i, 0), sizeof(double) * (size_t)b_columns);
+		for (int j = 0; j < b_columns; j++)
+			MAT(augmented, i, a_columns + j) = MAT(b, i, j) * conversion;
+	}
+
+	if (a_unit) {
+		SYNC_REGISTERS(interp, chain_ip, chain_sp - 2);
+		push_quantity(interp, make_matrix(augmented_handle), a_unit);
+		DISPATCH(interp);
 	}
 
 	chain_sp[-2] = make_matrix(augmented_handle);
@@ -1713,9 +1831,11 @@ void p_augment(DISPATCH_ARGS) {
 
 void p_vstack(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
-	Val b_val = chain_sp[-1];
+	int b_unit;
+	Val b_val = quantity_unwrap(chain_sp[-1], &b_unit);
 	REQUIRE_CHAIN_TAG(b_val, T_MATRIX, "vstack", "a matrix");
-	Val a_val = chain_sp[-2];
+	int a_unit;
+	Val a_val = quantity_unwrap(chain_sp[-2], &a_unit);
 	REQUIRE_CHAIN_TAG(a_val, T_MATRIX, "vstack", "a matrix");
 	Object *a = OBJECT_AT(VAL_DATA(a_val));
 	Object *b = OBJECT_AT(VAL_DATA(b_val));
@@ -1725,15 +1845,26 @@ void p_vstack(DISPATCH_ARGS) {
 		return;
 	}
 
+	double conversion = 1.0;
+	if (!stacking_conversion(interp, a_unit, b_unit, "vstack", &conversion))
+		return;
+
 	int columns = a->matrix.columns;
 	int a_rows = a->matrix.rows;
 	int b_rows = b->matrix.rows;
 	NEW_MATRIX(stacked_handle, stacked, a_rows + b_rows, columns);
 
 	size_t a_cells = (size_t)a_rows * (size_t)columns;
+	size_t b_cells = (size_t)b_rows * (size_t)columns;
 	memcpy(stacked->matrix.elements, a->matrix.elements, sizeof(double) * a_cells);
-	memcpy(stacked->matrix.elements + a_cells, b->matrix.elements,
-			sizeof(double) * (size_t)b_rows * (size_t)columns);
+	for (size_t i = 0; i < b_cells; i++)
+		stacked->matrix.elements[a_cells + i] = b->matrix.elements[i] * conversion;
+
+	if (a_unit) {
+		SYNC_REGISTERS(interp, chain_ip, chain_sp - 2);
+		push_quantity(interp, make_matrix(stacked_handle), a_unit);
+		DISPATCH(interp);
+	}
 
 	chain_sp[-2] = make_matrix(stacked_handle);
 

@@ -30,7 +30,7 @@ variables size . cr                     \ 2 still (PI, E, TAU never appear)
 \ composes with the dataset machinery
 [ 1 2 3 ] to z
 :blue to hue
-variables frames>dataset 3 [ ] headn
+variables frames>dataset 3 [ ] nhead
 
 \ === vars pretty-prints each frame ===
 vars

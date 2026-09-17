@@ -732,10 +732,128 @@ void p_div(DISPATCH_ARGS) {
 	DISPATCH(interp);
 }
 
-#define INPLACE_OP(name, word, op) \
+typedef int (*unit_ratio_operator)(Interpreter *, int, int, long long *, long long *);
+
+static int inplace_unit_plan(Interpreter *interp, unit_ratio_operator unit_ratio_op,
+		int left_unit, int right_unit, const char *word_name,
+		int *result_unit, double *operand_scale, double *result_scale) {
+	*operand_scale = 1.0;
+	*result_scale = 1.0;
+
+	if (!unit_ratio_op) {
+		if ((left_unit == 0) != (right_unit == 0)) {
+			fail(interp, "cannot %s a quantity and a plain number", word_name);
+			return 0;
+		}
+		if (left_unit != right_unit && !unit_conversion(right_unit, left_unit, operand_scale)) {
+			fail(interp, "unit mismatch");
+			return 0;
+		}
+		*result_unit = left_unit;
+		return 1;
+	}
+
+	long long numerator, denominator;
+	*result_unit = unit_ratio_op(interp, left_unit, right_unit, &numerator, &denominator);
+	if (interp->error_flag)
+		return 0;
+	if (numerator != denominator)
+		*result_scale = (double)numerator / (double)denominator;
+
+	return 1;
+}
+
+static double inplace_combine(double accumulated, double operand, char op) {
+	switch (op) {
+		case '+': return accumulated + operand;
+		case '-': return accumulated - operand;
+		case '*': return accumulated * operand;
+		default:  return accumulated / operand;
+	}
+}
+
+static void inplace_quantity_op(Interpreter *interp, Val left, Val right, char op, const char *word_name) {
+	int left_unit;
+	Val left_value = quantity_unwrap(left, &left_unit);
+	int right_unit;
+	Val right_value = quantity_unwrap(right, &right_unit);
+
+	unit_ratio_operator unit_ratio_op = NULL;
+	if (op == '*')
+		unit_ratio_op = unit_multiply_ratio;
+	else if (op == '/')
+		unit_ratio_op = unit_divide_ratio;
+
+	int result_unit;
+	double operand_scale, result_scale;
+	if (!inplace_unit_plan(interp, unit_ratio_op, left_unit, right_unit, word_name,
+			&result_unit, &operand_scale, &result_scale))
+		return;
+
+	Val result_value;
+	Object *target;
+	if (VAL_TAG(left_value) == T_MATRIX) {
+		target = OBJECT_AT(VAL_DATA(left_value));
+		result_value = left_value;
+		size_t n_elements = (size_t)target->matrix.rows * (size_t)target->matrix.columns;
+		double *elements = target->matrix.elements;
+
+		if (VAL_TAG(right_value) == T_MATRIX) {
+			Object *operand_matrix = OBJECT_AT(VAL_DATA(right_value));
+			if (operand_matrix->matrix.rows != target->matrix.rows
+					|| operand_matrix->matrix.columns != target->matrix.columns) {
+				fail(interp, "matrix shapes differ (%dx%d vs %dx%d)",
+						target->matrix.rows, target->matrix.columns,
+						operand_matrix->matrix.rows, operand_matrix->matrix.columns);
+				return;
+			}
+			const double *operand_elements = operand_matrix->matrix.elements;
+			for (size_t i = 0; i < n_elements; i++)
+				elements[i] = inplace_combine(elements[i], operand_elements[i] * operand_scale, op) * result_scale;
+		}
+		else if (VAL_TAG(right_value) == T_FLOAT) {
+			double operand = VAL_NUMBER(right_value) * operand_scale;
+			for (size_t i = 0; i < n_elements; i++)
+				elements[i] = inplace_combine(elements[i], operand, op) * result_scale;
+		}
+		else {
+			fail(interp, "expected a matrix operand; got %s and %s",
+					tag_name(VAL_TAG(left)), tag_name(VAL_TAG(right)));
+			return;
+		}
+	}
+	else if (VAL_TAG(left_value) == T_FLOAT && VAL_TAG(right_value) == T_MATRIX) {
+		target = OBJECT_AT(VAL_DATA(right_value));
+		result_value = right_value;
+		size_t n_elements = (size_t)target->matrix.rows * (size_t)target->matrix.columns;
+		double *elements = target->matrix.elements;
+		double accumulated = VAL_NUMBER(left_value);
+
+		for (size_t i = 0; i < n_elements; i++)
+			elements[i] = inplace_combine(accumulated, elements[i] * operand_scale, op) * result_scale;
+	}
+	else {
+		fail(interp, "expected a matrix operand; got %s and %s",
+				tag_name(VAL_TAG(left)), tag_name(VAL_TAG(right)));
+		return;
+	}
+
+	if (result_unit) {
+		push_quantity(interp, result_value, result_unit);
+		return;
+	}
+
+	push(interp, result_value);
+}
+
+#define INPLACE_OP(name, word, op, op_char) \
 	void name(DISPATCH_ARGS) { \
 		POP(right); \
 		POP(left); \
+		if (VAL_TAG(left) == T_QUANTITY || VAL_TAG(right) == T_QUANTITY) { \
+			inplace_quantity_op(interp, left, right, op_char, word); \
+			DISPATCH(interp); \
+		} \
 		if (VAL_TAG(left) == T_MATRIX && VAL_TAG(right) == T_MATRIX) { \
 			Object *left_matrix = OBJECT_AT(VAL_DATA(left)); \
 			Object *right_matrix = OBJECT_AT(VAL_DATA(right)); \
@@ -771,10 +889,10 @@ void p_div(DISPATCH_ARGS) {
 		DISPATCH(interp); \
 	}
 
-INPLACE_OP(p_add_inplace, "+!", +)
-INPLACE_OP(p_sub_inplace, "-!", -)
-INPLACE_OP(p_mul_inplace, "*!", *)
-INPLACE_OP(p_div_inplace, "/!", /)
+INPLACE_OP(p_add_inplace, "+!", +, '+')
+INPLACE_OP(p_sub_inplace, "-!", -, '-')
+INPLACE_OP(p_mul_inplace, "*!", *, '*')
+INPLACE_OP(p_div_inplace, "/!", /, '/')
 
 #define BINARY_FLOAT_OP(name, opname, expr) \
 	void name(DISPATCH_ARGS) { \
@@ -1048,7 +1166,10 @@ void p_nan(DISPATCH_ARGS) {
 	}
 
 	SYNC_REGISTERS(interp, chain_ip, chain_sp - 1);
-	unary_op(interp, chain_sp[-1], scalar_nan);
+	int unit;
+	Val subject = quantity_unwrap(chain_sp[-1], &unit);
+	(void)unit;
+	unary_op(interp, subject, scalar_nan);
 	if (interp->error_flag) return;
 
 	DISPATCH(interp);
@@ -1925,7 +2046,8 @@ void p_size(DISPATCH_ARGS) {
 
 void p_sort(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
-	Val collection = chain_sp[-1];
+	int unit;
+	Val collection = quantity_unwrap(chain_sp[-1], &unit);
 
 	int sorted_handle;
 	if (VAL_TAG(collection) == T_ARRAY)
@@ -1939,6 +2061,12 @@ void p_sort(DISPATCH_ARGS) {
 		return;
 	}
 	if (interp->error_flag) return;
+
+	if (unit) {
+		SYNC_REGISTERS(interp, chain_ip, chain_sp - 1);
+		push_quantity(interp, make_matrix(sorted_handle), unit);
+		DISPATCH(interp);
+	}
 
 	chain_sp[-1] = VAL_TAG(collection) == T_MATRIX ? make_matrix(sorted_handle) : make_array(sorted_handle);
 

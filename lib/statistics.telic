@@ -1025,7 +1025,7 @@ drop
 	effect null? not if
 		effect effect "{0}-low" format string>symbol effect "{0}-high" format string>symbol 3 array concat
 	then to ordered
-	model regression-coefficients dup n-rows ordered headn ;
+	model regression-coefficients dup n-rows ordered nhead ;
 
 ( model dataset -- mu ) \ the mean response the model predicts for every row of
 \ the dataset, as n×1: the model's predictors gather from the dataset with an

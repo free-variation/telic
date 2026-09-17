@@ -444,7 +444,7 @@ TSV is the one tabular file format (convert other formats to TSV before loading)
 - **Dataset verbs** — `select-rows`, `select-columns`, `sort-rows`, `filter`, `map`, `dim`, `column-type`, and `count` work on a dataset directly, `filter` and `map` seeing each row as a frame keyed by column name and every column keeping its representation. `column>array` reads any column as an array, `column>set` its distinct values, `column-type` its type (`:numeric` `:datetime` `:quantity` `:text`), and `group-indices` maps each distinct value to its row positions in one sort.
 - **`frames>dataset`** — an array of row frames, as `query-rows` answers, into a dataset with inferred column types.
 - **`aggregate`** — split-apply-combine: group rows by a column, reduce each group to a row frame, reassemble as a dataset.
-- **`head`** / **`headn`** — print the first rows as an aligned table, `headn` taking the row count and the columns to lead with.
+- **`head`** / **`nhead`** — print the first rows as an aligned table, `nhead` taking the row count and the columns to lead with.
 - **`replace-where!`** — edit one column in place where a predicate holds.
 - **`resample-indices`** — indices drawn with replacement, for bootstrap resampling.
 

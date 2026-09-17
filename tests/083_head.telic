@@ -1,4 +1,4 @@
-\ headn ( dataset n leading-columns -- ), head ( dataset -- = 10 [ ] headn ):
+\ nhead ( dataset n leading-columns -- ), head ( dataset -- = 10 [ ] nhead ):
 \ print the first min(n, rows) rows as an aligned table. The leading-columns
 \ symbols appear first in the given order; the remaining columns follow
 \ alphabetical by name. An empty leading-columns orders every column
@@ -16,15 +16,15 @@ ivy	3	climbs walls
 "/tmp/lf143.tsv" read-tsv to plants
 
 \ === empty leading-columns: every column alphabetical (name, note, weight) ===
-plants 2 [ ] headn
+plants 2 [ ] nhead
 clear cr
 
 \ === one leading column: weight first, the rest alphabetical (name, note) ===
-plants 2 [ :weight ] headn
+plants 2 [ :weight ] nhead
 clear cr
 
 \ === several leading columns in order: note, weight, then the rest (name) ===
-plants 2 [ :note :weight ] headn
+plants 2 [ :note :weight ] nhead
 clear cr
 
 \ n beyond the row count prints every row; head defaults n to 10, columns alphabetical
@@ -34,9 +34,9 @@ clear cr
 \ === quantity and datetime columns, when pinned first ===
 { :when [ 1752000000 1752086400 ] vector 1 s *
   :dose [ 0.5 12 ] vector 1 kg *
-  :tag [ "first" "second" ] } 5 [ :when ] headn
+  :tag [ "first" "second" ] } 5 [ :when ] nhead
 clear cr
 
 \ === empty dataset: prints nothing, consumes its arguments ===
-{ } 5 [ ] headn
+{ } 5 [ ] nhead
 99 . cr

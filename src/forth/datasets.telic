@@ -362,7 +362,7 @@
 
 ( dataset n leading-columns -- ) \ print the first n rows as an aligned table; leading columns appear first in the given order, the rest alphabetical by name; empty leading-columns orders all columns alphabetically
 \ the dataset is parked below the key array, and the padded columns below the row loop
-: headn
+: nhead
 	| dataset n leading-columns |
 	dataset keys size 0= if exit then
 	dataset n-rows n min2 to n
@@ -377,7 +377,7 @@
 	drop ;
 
 ( dataset -- ) \ print the first 10 rows as an aligned table
-: head 10 [ ] headn ;
+: head 10 [ ] nhead ;
 
 ( dataset sym value -- dataset ) \ rows where the named column equals value
 : select-eq

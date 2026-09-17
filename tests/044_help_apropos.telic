@@ -94,7 +94,7 @@ clear
 \ telic-version ( -- str ): the interpreter version, the string `telic` prints.
 
 telic-version string? . cr                           \ 1
-telic-version "^\d+\.\d+\.\d+$" has? . cr            \ 1
+telic-version "^\d+\.\d+\.\d+(-[\w.]+)?$" has? . cr  \ 1  (a pre-release suffix is allowed)
 telic-version telic-version = . cr                   \ 1
 
 clear

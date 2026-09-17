@@ -419,7 +419,9 @@ int ffi_register_call_cfa(int cfa) {
 
 void p_matrix_to_pointer(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
-	Val matrix_val = chain_sp[-1];
+	int unit;
+	Val matrix_val = quantity_unwrap(chain_sp[-1], &unit);
+	(void)unit;
 	REQUIRE_CHAIN_TAG(matrix_val, T_MATRIX, "matrix>pointer", "a matrix");
 
 	chain_sp[-1] = make_pointer(ffi_pointer_intern_owned(OBJECT_AT(VAL_DATA(matrix_val))->matrix.elements, matrix_val));

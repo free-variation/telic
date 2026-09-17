@@ -29,6 +29,9 @@
 : wildcard? type-of :wildcard = ; inline
 : lvar? type-of :lvar = ; inline
 
+( v -- f ) \ a matrix, or a quantity whose magnitude is a matrix
+: matrix-valued? dup quantity? if magnitude then matrix? ; inline internal
+
 ( a b -- a b a b )
 : 2dup over over ;
 inline
@@ -74,12 +77,12 @@ inline
 ( arr/matrix -- v ) \ element 0: an array's first element, a matrix's
 \ first row-major element
 : first
-	dup matrix? if 0 @e exit then
+	dup matrix-valued? if 0 @e exit then
 	0 @i ;
 
 ( arr/matrix -- v ) \ the final element: an array's, or a matrix's last row-major element
 : last
-	dup matrix? if dup dim * 1- @e exit then
+	dup matrix-valued? if dup dim * 1- @e exit then
 	dup size 1- @i ;
 
 ( fr old new -- fr ) \ move the value at key old to key new in place; old absent

@@ -303,5 +303,7 @@
 
 ( values probs -- quantiles )
 : quantiles
-	[: 2 pick swap quantile :] map nip
-	vector ;
+	| values probs |
+	values magnitude to bare-values
+	probs [: bare-values swap quantile :] map vector
+	values unit-of * ;

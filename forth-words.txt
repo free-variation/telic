@@ -345,7 +345,6 @@ group-indices
 halt
 has?
 head
-headn
 help
 histogram
 histogram-plot
@@ -439,6 +438,7 @@ negative-binomial-log
 negative-binomial-theta
 neq
 new-tests
+nhead
 nip
 nlast
 nmap

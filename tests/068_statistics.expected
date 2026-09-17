@@ -44,7 +44,7 @@ in quantile
 
 0 
 error: probability must be in [0,1]; got 1.5
-in quantile ← [: 2 pick swap quantile :] ← quantiles
+in quantile ← [: bare-values swap quantile :] ← quantiles
 5.5 
 5 
 2.5 

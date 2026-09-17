@@ -4,6 +4,9 @@
 \ a matrix answers its last n row-major elements as an nx1 vector
 : nlast
 	| source n |
+	source quantity? if
+		source magnitude n nlast source unit-of * exit
+	then
 	source matrix? if
 		source dim * to n-elements
 		n 0 n-elements clamp to n
