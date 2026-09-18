@@ -402,6 +402,7 @@ magnitude
 make-directory
 man
 map
+map-frame
 match
 match-all
 matches?
@@ -480,6 +481,7 @@ pointer-deref
 pointer-long
 pointer-string-at
 pointer>address
+position-of
 predict-glm
 predict-multinomial
 print

@@ -16,6 +16,16 @@ static inline __attribute__((always_inline)) Val *array_index_fetch(Interpreter 
 		*sp = array->items[index];
 		return sp + 1;
 	}
+	if (VAL_TAG(source_val) == T_SET) {
+		Object *set = OBJECT_AT(VAL_DATA(source_val));
+		if (index < 0 || index >= set->len) {
+			SYNC_REGISTERS(interp, sync_ip, sp);
+			fail(interp, "set index %d out of bounds (length %d)", index, set->len);
+			return NULL;
+		}
+		*sp = set->items[index];
+		return sp + 1;
+	}
 	if (VAL_TAG(source_val) == T_MATRIX) {
 		Object *source = OBJECT_AT(VAL_DATA(source_val));
 		if (index < 0 || index >= source->matrix.rows) {
@@ -54,7 +64,7 @@ static inline __attribute__((always_inline)) Val *array_index_fetch(Interpreter 
 		*sp = make_float(segment_get(segment, index));
 		return sp + 1;
 	}
-	fail(interp, "expected an array or matrix; got %s", tag_name(VAL_TAG(source_val)));
+	fail(interp, "expected an array, set, or matrix; got %s", tag_name(VAL_TAG(source_val)));
 	return NULL;
 }
 

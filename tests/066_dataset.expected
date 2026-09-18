@@ -204,6 +204,25 @@ in sort ← count
 {
 }
 
+ann bob 
+5 1 
+
+1 2 3 
+1 2 3 
+[ :blue :red ] 
+<matrix 1x2>
+          1          3
+
+<matrix 1x2> m
+        170        190
+
+1 
+[ :2024 :2025 ] 
+<matrix 1x2>
+          7          9
+
+[ :a :b ] 
+[ :x :y ] 
 {
   :a <matrix 2x1:  1 2>
   :b [ "x" "y" ]
@@ -316,7 +335,7 @@ in (@.symbol) ← dataset-group-indices ← split-by
 [ 7 ] 
 [ ] 
 error: uncaught exception: "within-groups: group a has 2 rows but the quotation answered 3 values"
-in throw ← [: pair | pair 1 @i to indices dataset indices s… :]
+in throw ← [: pair | pair 1 @i to indices dataset indices s… :] ← within-groups
 {
   :fy <matrix 3x1:  2022 2022 2023>
   :lea [ "a" "b" "a" ]

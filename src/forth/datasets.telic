@@ -306,6 +306,37 @@
 		(array-map) execute
 	then ;
 
+' each constant (array-each) internal
+
+( array/set/dataset xt -- ) \ run xt over elements, or over each dataset row frame
+: each
+	over frame? if
+		swap dataset-rows swap
+	then
+	(array-each) execute ;
+
+' group-by constant (array-group-by) internal
+
+( v -- sym ) \ a symbol stands for itself; any other value keys by its rendered text
+: group-key
+	dup symbol? not if "{0}" format string>symbol then ; internal
+
+( dataset sym -- frame ) \ each distinct value of the named column to the rows holding it
+: dataset-group-by
+	| dataset column-name |
+	dataset column-name @ group-indices to pairs
+	pairs [: 0 @i group-key :] map
+	pairs [: 1 @i dataset swap select-rows :] map
+	frame ; internal
+
+( array/dataset key -- frame ) \ group elements by key, or dataset rows by a column's values
+: group-by
+	over frame? if
+		dataset-group-by
+	else
+		(array-group-by) execute
+	then ;
+
 ( dataset/matrix -- n ) \ number of rows
 : n-rows dim drop ;
 

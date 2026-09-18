@@ -91,6 +91,30 @@ inline
 	| target-frame old-key new-key |
 	target-frame target-frame old-key @ new-key ! old-key delete-at ;
 
+( fr xt -- fr ) \ xt ( key value -- key' value' ) over each entry in key order,
+\ the answered pairs collected into a new frame; the source frame is unchanged
+: map-frame
+	| source body |
+	source keys to source-keys
+	source values to source-values
+	[ ] to mapped-keys
+	[ ] to mapped-values
+
+	0 source-keys size 1 do i
+		depth to entry-depth
+		source-keys i @i  source-values i @i  body execute
+		depth entry-depth - 2 = not if
+			depth entry-depth - 2 -
+			"map-frame: quotation must leave exactly two values per entry, but changed the stack by {0}"
+			format throw
+		then
+		to mapped-value  to mapped-key
+		mapped-keys mapped-key add-last! drop
+		mapped-values mapped-value add-last! drop
+	loop
+
+	mapped-keys mapped-values frame ;
+
 ( arr -- v ) \ element 1
 : second 1 @i ; inline
 

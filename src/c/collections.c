@@ -453,6 +453,79 @@ void p_member(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 }
 
+static int matrix_element_position(Interpreter *interp, Object *matrix, int matrix_unit, Val target) {
+	int target_unit;
+	Val target_magnitude = quantity_unwrap(target, &target_unit);
+	if (VAL_TAG(target_magnitude) != T_FLOAT) {
+		fail(interp, "expected a float element; got %s", tag_name(VAL_TAG(target_magnitude)));
+		return -2;
+	}
+	if ((matrix_unit == 0) != (target_unit == 0)) {
+		fail(interp, "cannot compare a quantity and a plain number");
+		return -2;
+	}
+
+	double conversion = 1.0;
+	if (matrix_unit != target_unit && !unit_conversion(target_unit, matrix_unit, &conversion)) {
+		fail(interp, "unit mismatch");
+		return -2;
+	}
+
+	double wanted = VAL_NUMBER(target_magnitude) * conversion;
+	int n_elements = matrix->matrix.rows * matrix->matrix.columns;
+	const double *elements = matrix->matrix.elements;
+	for (int i = 0; i < n_elements; i++)
+		if (elements[i] == wanted)
+			return i;
+
+	return -1;
+}
+
+void p_position_of(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
+	Val target = chain_sp[-1];
+	int unit;
+	Val collection = quantity_unwrap(chain_sp[-2], &unit);
+	int position = -1;
+
+	if (VAL_TAG(collection) == T_SET) {
+		Object *set = OBJECT_AT(VAL_DATA(collection));
+		LOWER_BOUND(set->len, mid, val_cmp(interp, set->items[mid], target) < 0, low);
+		if (interp->error_flag)
+			return;
+		if (low < set->len && val_cmp(interp, set->items[low], target) == 0)
+			position = low;
+	}
+	else if (VAL_TAG(collection) == T_ARRAY) {
+		Object *array = OBJECT_AT(VAL_DATA(collection));
+		int n_items = array->len;
+		for (int i = 0; i < n_items; i++) {
+			if (val_cmp(interp, array->items[i], target) == 0) {
+				position = i;
+				break;
+			}
+			if (interp->error_flag)
+				return;
+		}
+	}
+	else if (VAL_TAG(collection) == T_MATRIX) {
+		position = matrix_element_position(interp, OBJECT_AT(VAL_DATA(collection)), unit, target);
+		if (position == -2)
+			return;
+	}
+	else {
+		fail(interp, "expected an array, set, or matrix; got %s", tag_name(VAL_TAG(collection)));
+		return;
+	}
+
+	if (interp->error_flag)
+		return;
+
+	chain_sp[-2] = make_float((double)position);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+}
+
 #define BINARY_SET_OP(c_name, combine) \
 	void c_name(DISPATCH_ARGS) { \
 		REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2); \

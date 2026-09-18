@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.36.3-alpha"
+#define VERSION "0.36.8-alpha"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1523,6 +1523,7 @@ void p_intersect(DISPATCH_ARGS);
 void p_json_to_frame(DISPATCH_ARGS);
 void p_member(DISPATCH_ARGS);
 void p_merge(DISPATCH_ARGS);
+void p_position_of(DISPATCH_ARGS);
 void p_range(DISPATCH_ARGS);
 void p_remove_last(DISPATCH_ARGS);
 void p_reverse(DISPATCH_ARGS);

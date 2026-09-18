@@ -194,6 +194,34 @@ mappable [: row | { :who row :name @ :ratio row :score @ row :height @ magnitude
 mappable [: row | row  row :score @ 2 *  :double ! :] map . cr
 { } [: :] map . cr                             \ { }
 
+clear
+\ each ( dataset xt -- ): xt runs on every row frame for its side effects,
+\ leaving nothing; the array and set paths are unchanged.
+{ :name [ "ann" "bob" ] :score [ 5 1 ] vector } to walkable
+
+walkable [: :name @ . :] each cr               \ ann bob
+walkable [: :score @ . :] each cr              \ 5 1
+{ } [: drop :] each cr                         \ prints nothing
+[ 1 2 3 ] [: . :] each cr                      \ 1 2 3  array path intact
+[< 3 1 2 >] [: . :] each cr                    \ 1 2 3  set path intact
+
+clear
+\ group-by ( dataset sym -- frame ): each distinct value of the named column
+\ keys the sub-dataset of its rows, so grouped@value reads one group back.
+{ :team [ "red" "blue" "red" ] :score [ 1 2 3 ] vector
+  :height [ 170 180 190 ] vector m } to squads
+
+squads :team group-by to by-team
+by-team keys . cr                              \ [ :blue :red ]  strings intern as symbols
+by-team@red :score @ transpose . cr            \ 1 3 as 1x2, the vector representation kept
+by-team@red :height @ transpose . cr           \ 170 190 m, the unit kept
+by-team@blue n-rows . cr                       \ 1
+{ :year [ 2024 2025 2024 ] vector :n [ 7 8 9 ] vector } :year group-by to by-year
+by-year keys . cr                              \ [ :2024 :2025 ]  numbers key by their text
+by-year@2024 :n @ transpose . cr               \ 7 9 as 1x2
+{ :kind [ :a :b ] :n [ 1 2 ] vector } :kind group-by keys . cr  \ [ :a :b ]  symbols stand for themselves
+[ { :t :x :v 1 } { :t :y :v 2 } ] :t group-by keys . cr         \ [ :x :y ]  array path intact
+
 [ { :a 1 :b "x" } { :a 2 :b "y" } ] frames>dataset . cr
 [ { :a 1 } { :a null } ] frames>dataset :a @ transpose . cr    \ 1 nan as 1x2
 [ ] frames>dataset . cr                        \ { }

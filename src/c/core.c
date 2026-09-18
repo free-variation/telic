@@ -5999,6 +5999,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "size", p_size, 0);
 	define_primitive(interp, "byte-size", p_byte_size, 0);
 	define_primitive(interp, "member?", p_member, 0);
+	define_primitive(interp, "position-of", p_position_of, 0);
 	define_primitive(interp, "set", p_set, 0);
 	define_primitive(interp, "union", p_union, 0);
 	define_primitive(interp, "intersection", p_intersect, 0);

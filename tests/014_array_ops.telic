@@ -489,3 +489,34 @@ clear
 5 [ 1 2 ] +
 
 clear
+
+\ ==== position-of ( arr/set/v value -- i ): the first equal element, -1 absent ====
+
+\ arrays scan in storage order, duplicates answer the first
+[ 10 20 30 ] 20 position-of .                \ 1
+[ 10 20 30 ] 10 position-of .                \ 0
+[ 10 20 20 ] 20 position-of .                \ 1
+[ 10 20 30 ] 99 position-of .                \ -1
+[ ] 1 position-of .                          \ -1
+
+\ any element type, by the same structural equality sets use
+[ :a :b :c ] :c position-of .                \ 2
+[ "x" "y" ] "y" position-of .                \ 1
+[ [ 1 2 ] [ 3 ] ] [ 3 ] position-of .        \ 1
+
+\ a matrix scans row-major over its elements
+[ 10 20 30 ] vector 30 position-of .         \ 2
+[ 1 2 3 4 ] 2 2 matrix 4 position-of .       \ 3
+[ 1 2 3 4 ] 2 2 matrix 9 position-of .       \ -1
+
+\ a dimensioned vector converts the sought value into its unit
+[ 10 20 30 ] vector m 30 m position-of .     \ 2
+[ 1000 2000 ] vector m 2 km position-of .    \ 1
+
+clear
+
+\ failures
+[ 10 20 ] vector m 30 position-of            \ (a quantity against a plain number)
+42 3 position-of                             \ (not a collection)
+
+clear

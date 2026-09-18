@@ -274,3 +274,21 @@ fr2 [: fr2 1 :b1 ! drop fr2 2 :b2 ! drop 700 + :] :zz update-at drop fr2 :zz @ .
 
 \ frame>array : double round-trip is stable
 { :a { :b { :c 1 } } :d [ 2 3 ] } frame>array array>frame frame>array array>frame frame>json . cr
+
+clear
+\ === map-frame ( fr xt -- fr ): xt ( key value -- key' value' ) per entry ===
+{ :a 1 :b 2 } [: 10 * :] map-frame frame>array .   \ [ :a 10 :b 20 ]  key left beneath
+{ :a 1 :b 2 } [: key value | key "{0}-total" format string>symbol value 2 * :] map-frame frame>array .
+                                                   \ [ :a-total 2 :b-total 4 ]  keys renamed
+{ :a 1 :b 2 } to untouched
+untouched [: 10 * :] map-frame drop untouched frame>array .   \ [ :a 1 :b 2 ]  source unchanged
+{ } [: 10 * :] map-frame frame>array .             \ [ ]
+{ :price [ 1 2 ] vector } [: key column | key column 2 * :] map-frame :price @ transpose .
+                                                   \ 2 4 as 1x2  a dataset maps its columns
+
+\ errors
+{ :a 1 } [: drop :] map-frame                      \ (the body left one value fewer than two)
+{ :a 1 } [: dup :] map-frame                       \ (the body left one value more than two)
+{ :a 1 } [: swap drop dup :] map-frame             \ (the answered key is not a symbol)
+
+clear

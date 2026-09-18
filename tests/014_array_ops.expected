@@ -185,7 +185,7 @@ error: expected array or set; got null
 in find-first ← assoc
 error: array index 0 out of bounds (length 0)
 in (@i.lit) ← first
-error: expected an array or matrix; got a float
+error: expected an array, set, or matrix; got a float
 in (@i.lit) ← first
 [ 2 3 4 5 ] [ 0 1 2 3 4 5 6 7 8 9 ] [ 5 4 3 2 ] [ 9 8 7 6 5 4 3 2 1 0 ] [ 5 ] [ 0 ] [ -3 ] [ -2 -1 0 1 2 ] [ 2 1 0 -1 -2 ] 1 5 [ 4 3 2 1 0 ] [ 0 1 2 ] [ 3 4 5 6 7 8 9 ] [ 0 1 4 9 16 ] [ 0 1 2 3 ] 99 error: expected a float from; got a string
 in range
@@ -216,3 +216,7 @@ error: expected two floats, exacts, complexes, strings, sets, or matrices, scala
 in +
 error: expected two floats, exacts, complexes, strings, sets, or matrices, scalar/matrix, or two quantities of one dimension; got a float and an array
 in +
+1 0 1 -1 -1 2 1 1 2 3 -1 2 1 error: cannot compare a quantity and a plain number
+in position-of
+error: expected an array, set, or matrix; got a float
+in position-of

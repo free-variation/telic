@@ -2535,7 +2535,7 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 | `in?` | `( members values -- mask/binary )` | datasets.telic: membership by binary search — a scalar `values` answers 1 when it is a member of `members` (a set, array, or vector; a dimensioned vector contributes quantities, so units reconcile); an array answers an n×1 mask, a vector a mask of its shape, each element 1 when a member; a NaN or `null` answers 0. `[ 10 20 ] vector prices in? where select-rows` keeps the rows at listed prices | log m per element | `1m(n)`; a non-set `members` adds `1a(m)` + `1o`; a dimensioned `values` adds `2a(n)` | O(n log m), plus O(m log m) to build the set |
 | `array>set` | `( array -- set )` | Sort a copy of the array and dedup into a set; the source array is unchanged | n log n | `1o` + realloc | O(n log n) |
 | `set>array` | `( set -- arr )` | arrays.telic: the elements as an array in sorted order | 1 | `1o` | O(n) |
-| `group-by` | `( array key -- frame )` | arrays.telic: group elements into a frame from each symbol to the set of elements under it. The key's type chooses the path: a symbol names a field read from each element frame, grouped in one sorted pass in C; an execution token `( element -- sym )` computes each element's group symbol | symbol n log n; xt n·(xt + log n) | frame + sets | symbol O(n log n); xt O(n·xt + n log n) |
+| `group-by` | `( array key -- frame )` or `( dataset sym -- frame )` | arrays.telic: group elements into a frame from each symbol to the set of elements under it. The key's type chooses the path: a symbol names a field read from each element frame, grouped in one sorted pass in C; an execution token `( element -- sym )` computes each element's group symbol. datasets.telic extends it to a dataset: the named column's distinct values each key the sub-dataset of the rows holding that value, gathered by `select-rows` so every column keeps its representation. A symbol value is the key itself, any other value keys by its rendered text interned as a symbol (`"red"` → `:red`, 2024 → `:2024`), so `grouped@red` reads a group; a rendering containing a space is reachable only through `string>symbol` | symbol n log n; xt n·(xt + log n); dataset n log n + n·c | frame + sets; dataset one sub-dataset each | symbol O(n log n); xt O(n·xt + n log n); dataset O(n log n + n·c) |
 | `size` | `( coll -- n )` | Element count: set/array members, **codepoints** of a string, pair count of a frame; a string's codepoint count is computed on first use and memoized on the object | 2 | none | O(1); a string's first `size` is O(n) |
 | `byte-size` | `( str -- n )` | Byte length of a string | 2 | none | O(1) |
 
@@ -2618,10 +2618,15 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 ```forth group-by
 [ { :name "ann" :team :red } { :name "bo" :team :blue } { :name "cy" :team :red } ] :team group-by /red @ size . cr
 [ 1 2 3 4 ] [: 2 mod 0= if :even else :odd then :] group-by frame>array . cr
+{ :team [ "red" "blue" "red" ] :score [ 1 2 3 ] vector } :team group-by to grouped
+grouped size . cr
+grouped@red :score @ transpose matrix>array . cr
 ```
 ```output
 2
 [ :even [< 2 4 >] :odd [< 1 3 >] ]
+2
+[ 1 3 ]
 ```
 
 ```forth size
@@ -2649,7 +2654,7 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 | `[ v… ]` | `( -- arr )` | Array literal; `[` marks, `]` gathers above the mark | n | `1a(n)` | O(n) |
 | `array` | `( v₀ … vₙ₋₁ n -- arr )` | Gather the top n values into an array | 2 + n | `1a(n)` | O(n) |
 | `array-of` | `( val n -- arr )` | New n-element array, every slot = val | 3 + n | `1a(n)` | O(n) |
-| `@i` | `( arr i -- val )` | Array element; on a matrix returns row i as a 1×c matrix | 3 (array) | matrix `1m(1×c)` | O(1) array; O(c) matrix |
+| `@i` | `( arr/set i -- val )` | Array element; on a set the element at position i in sorted order; on a matrix returns row i as a 1×c matrix | 3 (array) | matrix `1m(1×c)` | O(1) array and set; O(c) matrix |
 | `!i` | `( arr val i -- arr )` | Store val at index i in place; leaves arr on the stack | 4 | none | O(1) |
 | `add-last!` | `( arr v -- arr )` | Append v at the end, doubling the backing buffer when full; leaves arr on the stack | 2 | `≤1a` on grow | amortized O(1) |
 | `remove-last!` | `( arr -- v )` | Remove and return the last element; errors on an empty array | 2 | none | O(1) |
@@ -2661,9 +2666,10 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 | `slice!` | `( src sstart sstep slen arr tstart -- arr )` | Copy `slen` elements `src[sstart], src[sstart+sstep], …` into `arr[tstart…]` in place | 6 + slen | self-overlap may malloc slen | O(slen) |
 | `to-slice!` | `( v₀ … vₙ₋₁ n arr offset -- arr )` | Store the n values under their count into `arr[offset…offset+n)`; leaves arr | 2 + n | none | O(n) |
 | `nlast` | `( arr/matrix n -- arr/vector )` | arrays.telic: the last n elements, n clamped to [0, length]; a matrix answers its last n row-major elements as an n×1 vector | 3n | 3×`1a(n)`; matrix `2m` | O(n) |
-| `first` | `( arr/matrix -- v )` | core.telic: element 0 of an array, or the first row-major element of a matrix (as a float) | 9 | none | O(1) |
-| `last` | `( arr/matrix -- v )` | core.telic: the final element of an array, or the last row-major element of a matrix (as a float); empty array errors | 9 | none | O(1) |
+| `first` | `( arr/set/matrix -- v )` | core.telic: element 0 of an array, the smallest element of a set, or the first row-major element of a matrix (as a float) | 9 | none | O(1) |
+| `last` | `( arr/set/matrix -- v )` | core.telic: the final element of an array, the largest element of a set, or the last row-major element of a matrix (as a float); empty array errors | 9 | none | O(1) |
 | `second` | `( arr -- v )` | core.telic: element 1 of an array | 3 | none | O(1) |
+| `position-of` | `( arr/set/v value -- i )` | The 0-based position of the first element equal to `value`, or -1 when absent: an array scans in storage order, a set binary-searches its sorted order, a matrix scans its elements row-major. A dimensioned matrix converts `value` into its unit, and a quantity against a plain number errors | 3 + n array/matrix; 3 + log n set | none | O(n) array and matrix; O(log n) set |
 | `assoc` | `( entries key -- value )` | core.telic: the value paired with `key`, the first match by structural equality (so tuple arrays and frames serve as keys, `1` and `"1"` are distinct, quantities match within a dimension, `null` is a key). The entries are `[ key value ]` arrays, `first` the key and `second` the value, as `count`, `group-indices` and `split-by` answer them. A missing key answers `null`, as a stored `null` value does | 3 + entries scanned | none | O(n) |
 | `skip` | `( arr n -- arr )` | arrays.telic: all but the first n elements | 3n | 3×`1a(n)` | O(n) |
 | `sort` | `( arr/set/v -- arr/v )` | Sorted copy: an array orders ascending in natural order; a set projects its already-ordered elements to an array; an nx1 or 1xn vector sorts ascending with NaNs last (other matrix shapes error) | 1 + n log n | `1a(n)` / `1m(n)` | O(n log n); vectors above 8k elements O(n) radix |
@@ -2689,8 +2695,10 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 
 ```forth @i
 [ 10 20 30 ] 1 @i . cr
+[< 30 10 20 >] 1 @i . cr
 ```
 ```output
+20
 20
 ```
 
@@ -2772,17 +2780,17 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 ```
 
 ```forth first
-[ 7 8 9 ] first . [ 1 2 3 4 ] 2 2 matrix first . cr
+[ 7 8 9 ] first . [ 1 2 3 4 ] 2 2 matrix first . [< 9 7 8 >] first . cr
 ```
 ```output
-7 1
+7 1 7
 ```
 
 ```forth last
-[ 7 8 9 ] last . [ 1 2 3 4 ] 2 2 matrix last . cr
+[ 7 8 9 ] last . [ 1 2 3 4 ] 2 2 matrix last . [< 9 7 8 >] last . cr
 ```
 ```output
-9 4
+9 4 9
 ```
 
 ```forth second
@@ -2790,6 +2798,15 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 ```
 ```output
 8
+```
+
+```forth position-of
+[ 10 20 30 ] 20 position-of . [ 10 20 30 ] 99 position-of . cr
+[< 30 10 20 >] 30 position-of . [ 10 20 30 ] vector 30 position-of . cr
+```
+```output
+1 -1
+2 2
 ```
 
 ```forth assoc
@@ -2878,6 +2895,7 @@ Symbol-keyed sorted maps; binary-search lookup. Storage order is symbol id, whic
 | `keys` | `( fr -- arr )` | The keys as an array of symbols, in the frame's storage order (by symbol id, the order of first interning); parallel to `values`, so `frame` rebuilds the frame from the two | 1 + n | `1a(n)` | O(n) |
 | `key-set` | `( fr -- set )` | The keys as a set of symbols, for membership tests and set algebra against other key sets | 1 + n log n | `1o` | O(n log n) |
 | `values` | `( fr -- arr )` | Values in key order | 1 + n | `1a(n)` | O(n) |
+| `map-frame` | `( fr xt -- fr )` | core.telic: run `xt` `( key value -- key' value' )` over each entry in key order and collect the answered pairs into a new frame, leaving the source unchanged. A body that consumes only the value leaves the key beneath its result, so `[: 10 * :]` scales every value under the same keys; a body answering a fresh symbol renames. A body leaving other than two values errors, and a non-symbol key errors in `frame`. On a dataset the entries are column name and column | n·(2 + xt) | `2a(n)` + `1o` | O(n·xt + n log n) |
 | `merge` | `( fr₁ fr₂ -- fr )` | New frame with all keys; fr₂ wins collisions | m+n | `1o` | O(m+n) |
 | `copy` | `( a -- a' )` | Deep copy of any value: dereferences bound logic vars to their values and gives each unbound var a fresh shared var; recurses into frames, arrays, matrices, strings, sets and a quantity's magnitude; identity for scalars, complexes and continuations. Defined generally, not frame-specific. | tree size | one object per node | O(tree size) |
 | `reify` | `( a -- a' )` | Deep copy of any value, dereferencing bound logic vars and recursing into frames, arrays, matrices, strings, sets and a quantity's magnitude (complexes and continuations pass through), but each unbound var becomes a canonical inert symbol `:_0`, `:_1`, … numbered by first appearance — a ground, storable, comparable snapshot. | tree size | one object per node | O(tree size) |
@@ -2985,6 +3003,15 @@ Symbol-keyed sorted maps; binary-search lookup. Storage order is symbol id, whic
 ```
 ```output
 [ 1 2 ]
+```
+
+```forth map-frame
+{ :a 1 :b 2 } [: 10 * :] map-frame frame>array . cr
+{ :a 1 :b 2 } [: key value | key "{0}-total" format string>symbol value 2 * :] map-frame frame>array . cr
+```
+```output
+[ :a 10 :b 20 ]
+[ :a-total 2 :b-total 4 ]
 ```
 
 ```forth merge
@@ -4431,7 +4458,7 @@ The quotation/predicate cost dominates; `xt` denotes one call.
 | `find-first` | `( items pred -- element )` | The first element for which pred is truthy, or `null`; short-circuits at the first hit (does not run pred over the rest) | n·xt | none | O(n·xt) |
 | `any?` | `( items pred -- bool )` | arrays.telic: true when pred is truthy for some element, false otherwise; short-circuits at the first hit | n·xt | none | O(n·xt) |
 | `all?` | `( items pred -- bool )` | arrays.telic: true when every element satisfies pred, vacuously true on empty. Runs pred over **every** element, so it does not short-circuit and a side-effecting pred runs n times | 2n·xt | `1a(n)` | O(n·xt) |
-| `each` | `( items xt -- )` | Run xt `( element -- )` on every element for its side effects; the element is the only thing the quotation may consume, and it must leave nothing. No result, no allocation | 2 + n·xt | none | O(n·xt) |
+| `each` | `( items xt -- )` or `( dataset xt -- )` | Run xt `( element -- )` on every element for its side effects; the element is the only thing the quotation may consume, and it must leave nothing. No result, no allocation. datasets.telic extends it to a dataset: xt sees each row as a frame keyed by column name, as under `map` and `filter` | 2 + n·xt | none; dataset one row frame each | O(n·xt) |
 | `flat-map` | `( items xt -- arr )` | arrays.telic: `map` then `flatten`, so each element's result array is spliced in, nested arrays inside it included | n·xt + total | `1a(n)` + `1a(total)` | O(n·xt + total) |
 | `sort-by` | `( items xt -- arr )` | arrays.telic: sorted by the key xt `( element -- key )` extracts, one evaluation per element; equal keys keep index order | n·xt + n log n | 3×`1a(n)` + `malloc(4n)` | O(n·xt + n log n) |
 | `partition` | `( items pred -- matches rest )` | arrays.telic: the elements satisfying pred and the others, one pass, input order kept | n·xt | 2 arrays + the curried predicate token | O(n·xt) |
@@ -4522,9 +4549,11 @@ ho ho ho
 
 ```forth each
 [ 1 2 3 ] [: . :] each cr
+[ [ "name" "age" ] [ "ann" 34 ] [ "bo" 25 ] ] true rows>dataset [: :name @ . :] each cr
 ```
 ```output
 1 2 3
+ann bo
 ```
 
 ```forth flat-map

@@ -215,3 +215,11 @@ in update-at
 1 
 {"w": {"x": {"y": {"z": 5}}}} 
 {"a": {"b": {"c": 1}}, "d": [2, 3]} 
+[ :a 10 :b 20 ] [ :a-total 2 :b-total 4 ] [ :a 1 :b 2 ] [ ] <matrix 1x2>
+          2          4
+error: uncaught exception: "map-frame: quotation must leave exactly two values per entry, but changed the stack by -1"
+in throw ← map-frame
+error: uncaught exception: "map-frame: quotation must leave exactly two values per entry, but changed the stack by 1"
+in throw ← map-frame
+error: keys must be symbols; got a float
+in frame ← map-frame
