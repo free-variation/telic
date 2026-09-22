@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.36.8-alpha"
+#define VERSION "0.36.9-alpha"
 
 #include <stdio.h>
 #include <stdlib.h>

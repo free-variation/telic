@@ -138,6 +138,11 @@ inline
 ( val -- val ) \ The identity function
 : identity ; inline
 
+( xt1 xt2 -- xt ) \ a token running xt1 then xt2, each on the stack the other leaves
+: compose
+	| first-step second-step |
+	[: first-step execute second-step execute :] ;
+
 ( -- arr ) \ one { :name :value :type } frame per global, oldest first
 : variables
 	(globals)

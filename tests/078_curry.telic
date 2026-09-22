@@ -127,6 +127,16 @@ clear
 
 clear
 
+\ === compose ( xt1 xt2 -- xt ): run the first, then the second ===
+3 [: 1 + :] [: 2 * :] compose execute . cr         \ 8
+[ 1 2 3 ] [: 1 + :] [: 2 * :] compose map .a cr    \ [ 4 6 8 ]
+5 ' 1+ ' negate compose execute . cr               \ -6  ticked words compose too
+3 [: 1 + :] [: 2 * :] compose [: 10 + :] compose execute . cr   \ 18  the answer composes again
+4 [: dup :] [: + :] compose execute . cr           \ 8  the effects join, not just values
+[ 1 2 ] vector 3 ' * curry ' sum compose execute . cr   \ 9  a curried token composes
+
+clear
+
 \ === errors ===
 [: 1 2 curry :] [: . cr :] try-catch          \ (top is not an xt)
 [: 5 curry :] [: . cr :] try-catch            \ (needs two operands)

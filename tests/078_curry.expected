@@ -35,6 +35,12 @@
 [ 10 20 ] 
 step step [ 5 5 ] 
 [ 10 20 ] 
+8 
+[ 4 6 8 ] 
+-6 
+18 
+8 
+9 
 {
   :message expected an execution token; got a float
   :trace in curry ← [: 1 2 curry :] ← try-catch

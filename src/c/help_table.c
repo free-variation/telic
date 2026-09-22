@@ -205,6 +205,7 @@ const HelpEntry help_entries[] = {
 	{ "complete-rows", "( dataset cols -- dataset )", "datasets.telic: the rows where none of the named columns is missing — NaN in a vector or dimensioned vector, null in a text column; cols is a symbol, a symbol array, or [ ] for every column; a missing name errors. Every column reorders together and keeps its representation", "n·k + n·c", "one array and mask per named column, index vector, one column each", "O(n·(k + c))", 24 },
 	{ "complex", "( re im -- z )", "Build a complex from two floats", "3", "1 pair", "O(1)", 7 },
 	{ "complex?", "( a -- bool )", "core.telic: 1 when the value is a complex, else 0", "5", "none", "O(1)", 7 },
+	{ "compose", "( xt₁ xt₂ -- xt )", "core.telic: a token that runs xt₁ and then xt₂, each seeing the stack the other leaves, so the two stack effects join. Both tokens are captured into the answered token, which is accepted wherever an xt is and composes again", NULL, NULL, NULL, 12 },
 	{ "concat", "( arr/set arr/set -- arr )", "Concatenated copy", "2 + m + n", "1a(m+n)", "O(m+n)", 16 },
 	{ "conjugate", "( z -- z' )", "The complex conjugate — the imaginary part negated, so z conjugate * is |z|² (as a complex); a float answers itself", "2", "1 pair", "O(1)", 7 },
 	{ "constant", "( val -- )", "Pop a value and read the following name; define an inline word that pushes it as a literal, so call sites fold to the literal with no run-time fetch. Fixed at definition — to cannot reassign it", NULL, NULL, NULL, 12 },
@@ -805,7 +806,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, arrays element-wise with a trailing rest pattern taking the remaining elements, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails", "n", "none", "O(n)", 28 },
 };
 
-const int help_entry_count = 748;
+const int help_entry_count = 749;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -959,6 +960,7 @@ const HelpExample help_examples[] = {
 	{ "complete-rows", "{ :x [ 1 null 3 ] vector :y [ \"a\" \"b\" null ] } :x complete-rows :y @ . cr\n{ :x [ 1 null 3 ] vector :y [ \"a\" \"b\" null ] } [ ] complete-rows :y @ . cr", "[ \"a\" null ]\n[ \"a\" ]" },
 	{ "complex", "3 4 complex . cr", "3+4i" },
 	{ "complex?", "3+4i complex? . 5 complex? . cr", "1 0" },
+	{ "compose", "3 [: 1 + :] [: 2 * :] compose execute . cr\n[ 1 2 3 ] [: 1 + :] [: 2 * :] compose map . cr", "8\n[ 4 6 8 ]" },
 	{ "concat", "[ 1 2 ] [ 3 4 ] concat . cr", "[ 1 2 3 4 ]" },
 	{ "conjugate", "3+4i conjugate . 5 conjugate . cr", "3-4i 5" },
 	{ "constant", "42 constant answer answer . cr", "42" },
@@ -1559,4 +1561,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 749;
+const int help_example_count = 750;

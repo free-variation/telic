@@ -148,6 +148,7 @@ complete-cases
 complete-rows
 complex
 complex?
+compose
 concat
 conjugate
 constant

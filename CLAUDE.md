@@ -201,9 +201,13 @@ new inline that calls functions → the tail.
   statistics.telic accelerates one by redefining it in toto (early
   binding makes partial masking useless). The word's golden runs native
   (masked) and wasm (unmasked) and must agree, pinning both copies.
-- Locals: `>name` receives from the stack at entry, bare names are
-  scratch that reads as null until assigned; quotations receive with
-  `|> a b |`.
+- Locals: a head names what the body receives, rightmost from the top,
+  and the opening bar is optional — `: hypotenuse a b | …` and
+  `[: element index | … :]` are the heads `| a b |` and
+  `| element index |`. Everything else is declared by a `to` on an
+  undeclared name and reads as null until assigned. `^name` in the head
+  names an enclosing global the body assigns; `?name` is a fresh logic
+  variable per call.
 - Counted loops inside a definition are `start limit delta do k … loop`:
   the body compiles inline, so it reads and writes the enclosing word's
   locals, and each iteration's loop control is one instruction. `times` /

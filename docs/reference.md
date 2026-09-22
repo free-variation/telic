@@ -1947,6 +1947,7 @@ does a call through a word that is still `defer`red — mutual recursion via
 | `execute` | `( xt -- … )` | Call the word at xt |
 | `curry` | `( value xt -- xt' )` | Bind a value into a curried token: a heap value carrying the target xt and the bound value, accepted wherever an xt is. At invocation the bound value is pushed, then the target runs — so currying binds a word's **trailing** parameters. Collected like any array, so a word may curry on every call; usable inside a parallel region. Applied to a quotation with a head, the bound value fills a trailing head local, so the quotation can declare more locals than the combinator supplies (see Locals). The token is the pair `(bound value, target)`: `curry` packages a witness with a body — existential introduction under Curry–Howard, the witness kept visible (`see` prints it, so it is a transparent dependent pair, not an opaque `∃`) — and invoking the token unpacks the pair, binding the witness in the body | 3 | `1o` | O(n bound) |
 | `2curry` | `( a b xt -- xt' )` | Bind two values into a curried token: at invocation it pushes `a`, then `b`, then calls xt | 4 | `1o` | O(n bound) |
+| `compose` | `( xt₁ xt₂ -- xt )` | core.telic: a token that runs `xt₁` and then `xt₂`, each seeing the stack the other leaves, so the two stack effects join. Both tokens are captured into the answered token, which is accepted wherever an xt is and composes again | 4 + the two bodies | `1o` | O(xt₁ + xt₂) |
 | `ncurry` | `( v₁ … v_N xt N -- xt' )` | Bind N values into a curried token: at invocation it pushes `v₁` … `v_N` in that order, then calls xt. `N` of 0 answers a token with the target's own bindings. The count is a value, so a caller binds as many as it has. Currying a token flattens — the outer values push first | 3 + N | `1o` | O(n bound) |
 | `inline` | — | Mark the most recent definition inline; future calls splice its body. A body containing a quotation is not spliced — such calls compile as plain calls, since a copied quotation header would have no recorded span |
 | `internal` | — | Mark the most recent definition internal: hidden from `words`, `apropos`, and completion, and resolvable — by name or tick — only within its own load unit (the embedded library, one `load`/`load-library` file, or the REPL session); unreachable from another unit |
@@ -2100,6 +2101,15 @@ lookup sqrt 9 swap execute . cr
 ```
 ```output
 1 2
+```
+
+```forth compose
+3 [: 1 + :] [: 2 * :] compose execute . cr
+[ 1 2 3 ] [: 1 + :] [: 2 * :] compose map . cr
+```
+```output
+8
+[ 4 6 8 ]
 ```
 
 ```forth inline
