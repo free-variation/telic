@@ -85,7 +85,7 @@ org //people/*[role=admin][age>45] select-values size . cr
 org //people/*[role=ghost] select-values size . cr
 
 \ --- composition with the functional layer ---
-org //age select-values [: 35 > :] filter . cr
+org //age select-values ( 35 > ) filter . cr
 org //people/*[role=admin] select-values size . cr
 
 \ --- cycle guard ---
@@ -124,7 +124,7 @@ org //city @ . cr
 org /company/depts[head] @ . cr
 org 0 /company/depts/* ! . cr
 org /company/depts/* delete-at . cr
-org [: 1 + :] /company/depts/* update-at . cr
+org ( 1 + ) /company/depts/* update-at . cr
 
 \ --- has? accepts a search path: true when any node matches, else false ---
 org //city has? . cr

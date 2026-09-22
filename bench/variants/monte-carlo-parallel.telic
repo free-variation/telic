@@ -20,16 +20,16 @@ variable t0
 : partial ( j -- hits )
   drop
   0.0
-  [: random random fsq swap fsq f+ 1.0 > 0= if 1.0 f+ then :] chunk times ;
+  ( random random fsq swap fsq f+ 1.0 > 0= if 1.0 f+ then ) chunk times ;
 
-: pmonte ^chunk ^t0 ^est |
+: pmonte ( -- ) ^chunk ^t0 ^est |
   samples workers / to chunk
   12345 seed
   now to t0
   0 mc-loops 1 do rep
      0 workers 1- range
      workers 1 ' partial pmap-ext
-     0.0 [: f+ :] reduce
+     0.0 ( f+ ) reduce
      samples f/ 4.0 f* to est
   loop
   now t0 - "elapsed: {0} s" format . cr

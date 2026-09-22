@@ -15,7 +15,7 @@ variable row  variable col  variable val  variable x  variable y
 50.0 constant nr
 50000.0 constant anz
 
-: build-sparse ^row ^col ^val ^x ^y |
+: build-sparse ( -- ) ^row ^col ^val ^x ^y |
   n 1.0 f+ 1 0-matrix to row
   nz 1 0-matrix to col
   anz 1 0-matrix to val
@@ -32,7 +32,7 @@ variable row  variable col  variable val  variable x  variable y
      loop
   loop ;
 
-: sparse-matmult
+: sparse-matmult ( -- )
   0 cycles 1 do c
      0 n 1 do r
         row r @e to lo
@@ -52,7 +52,7 @@ variable row  variable col  variable val  variable x  variable y
   to total
   total ;
 
-: sparse-bench
+: sparse-bench ( -- )
   build-sparse
   now to t0
   sparse-matmult

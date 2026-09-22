@@ -7,5 +7,5 @@
 print-gauges
 
 \ -- a second call after work: the same layout, with rates against the first sample
-10000 iota [: dup * :] map drop
+10000 iota ( dup * ) map drop
 print-gauges

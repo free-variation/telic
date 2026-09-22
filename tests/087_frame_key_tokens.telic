@@ -34,15 +34,15 @@ row@address@city . cr  \ Cambridge
 clear
 
 \ === locals are the left part inside a definition ===
-: price-of | r | r@price ;
+: price-of ( r -- price ) | r | r@price ;
 row price-of . cr      \ 99
-: bump-price | r | r@price 1 + r!price ;
+: bump-price ( r -- r ) | r | r@price 1 + r!price ;
 row bump-price
 row@price . cr         \ 100
 clear
 
 \ === one frame reference, several keys ===
-: describe | r | r@qty r@price ;
+: describe ( r -- qty price ) | r | r@qty r@price ;
 row describe . . cr    \ 100 7
 clear
 
@@ -51,7 +51,7 @@ clear
 ' price-of see
 
 \ === a defined word wins over the rule ===
-: row@total 77 ;
+: row@total ( -- n ) 77 ;
 row@total . cr         \ 77
 clear
 

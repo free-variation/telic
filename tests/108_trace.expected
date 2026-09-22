@@ -73,13 +73,13 @@ untraced
 
 [ 1 4 9 ] 
 
-> [: a k | a k * sq :]    | [ 1 2 ] 1 10
+> ( a k | a k * sq )      | [ 1 2 ] 1 10
 
 
 > (tailcall) sq           | [ 1 2 ] 10
 
 
-> [: a k | a k * sq :]    | [ 1 2 ] 2 10
+> ( a k | a k * sq )      | [ 1 2 ] 2 10
 
 
 > (tailcall) sq           | [ 1 2 ] 20

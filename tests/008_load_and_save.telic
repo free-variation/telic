@@ -10,8 +10,8 @@ clear
 \ Text save / load round-trip. `save` writes user vocabulary only
 \ (definitions, no values, no stack). `load` re-runs the file as source.
 
-: double 2 * ;
-: square dup * ;
+: double ( n -- n ) 2 * ;
+: square ( n -- n ) dup * ;
 variable counter
 42 to counter
 symbol red
@@ -39,8 +39,8 @@ clear
 \ it defines stay callable afterwards. The file is written here rather than kept
 \ beside the test, so nothing extra sits in the runner's tests/*.telic glob.
 
-": double 2 * ;
-: square dup * ;
+": double ( n -- n ) 2 * ;
+: square ( n -- n ) dup * ;
 [< 1 2 3 >] ' square map .
 " "/tmp/telic_008_loadable.telic" write-file
 
@@ -59,18 +59,18 @@ clear
 5 6 * drop
 bogus drop
 " "/tmp/lf141a.telic" write-file
-[: "/tmp/lf141a.telic" load :] [: :message @ . cr :] try-catch   \ ...lf141a.telic:3: unknown word: bogus
+( "/tmp/lf141a.telic" load ) ( :message @ . cr ) try-catch   \ ...lf141a.telic:3: unknown word: bogus
 
 \ a runtime fault in top-level code is located at the triggering line
 "1 2 + drop
 3 0 /
 " "/tmp/lf141b.telic" write-file
-[: "/tmp/lf141b.telic" load :] [: :message @ . cr :] try-catch   \ ...lf141b.telic:2: division by zero
+( "/tmp/lf141b.telic" load ) ( :message @ . cr ) try-catch   \ ...lf141b.telic:2: division by zero
 
 \ unterminated definition -> located at the end-of-file line
-": f 1 2 +
+": f ( -- n ) 1 2 +
 " "/tmp/lf141c.telic" write-file
-[: "/tmp/lf141c.telic" load :] [: :message @ . cr :] try-catch   \ ...lf141c.telic:2: unterminated definition
+( "/tmp/lf141c.telic" load ) ( :message @ . cr ) try-catch   \ ...lf141c.telic:2: unterminated definition
 
 \ nested load: the error locates to the innermost file, not the outer one
 "oops drop
@@ -78,7 +78,7 @@ bogus drop
 "1 drop
 ""/tmp/lf141inner.telic"" load
 " "/tmp/lf141outer.telic" write-file
-[: "/tmp/lf141outer.telic" load :] [: :message @ . cr :] try-catch   \ ...lf141inner.telic:1: unknown word: oops
+( "/tmp/lf141outer.telic" load ) ( :message @ . cr ) try-catch   \ ...lf141inner.telic:1: unknown word: oops
 
 clear
 
@@ -87,23 +87,23 @@ clear
 \ evaluate ( str -- ): run a string's characters as source, as if typed there.
 
 \ === a definition in the text enters the dictionary ===
-": doubled 2 * ;" evaluate
+": doubled ( n -- n ) 2 * ;" evaluate
 21 doubled . cr                                      \ 42
 
 \ === the text runs against the same stacks ===
 "3 4 +" evaluate . cr                                \ 7
 
 \ === newlines in the text are ordinary source ===
-": tripled 3 * ;{nl}5 tripled . cr" format evaluate  \ 15
+": tripled ( n -- n ) 3 * ;{nl}5 tripled . cr" format evaluate  \ 15
 
 \ === evaluated text may itself evaluate ===
 """9 . cr"" evaluate" evaluate                       \ 9
 
 \ === errors ===
-[: "nosuchword" evaluate :] catch drop :message @ . cr    \ (no file prefix, unlike load)
-[: ": broken 1" evaluate :] catch drop :message @ . cr    \ (unterminated definition)
-[: "1 0 /" evaluate :] catch drop :message @ . cr         \ (the failure inside the text)
-[: 42 evaluate :] catch drop :message @ . cr              \ (not a string)
+( "nosuchword" evaluate ) catch drop :message @ . cr    \ (no file prefix, unlike load)
+( ": broken ( -- n ) 1" evaluate ) catch drop :message @ . cr    \ (unterminated definition)
+( "1 0 /" evaluate ) catch drop :message @ . cr         \ (the failure inside the text)
+( 42 evaluate ) catch drop :message @ . cr              \ (not a string)
 "still here" . cr
 
 clear

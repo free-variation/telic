@@ -109,7 +109,7 @@ clear
 "abc" dup upper-case drop . cr            \ abc
 
 \ case-normalized dedup, the data-cleaning use
-[ "Ann" "ANN" "ann" ] [: lower-case :] map array>set . cr   \ [< "ann" >]
+[ "Ann" "ANN" "ann" ] ( lower-case ) map array>set . cr   \ [< "ann" >]
 
 \ errors
 42 upper-case

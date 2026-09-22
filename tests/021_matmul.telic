@@ -35,11 +35,11 @@ a matrix>array . cr                                                             
 clear
 
 \ === errors (reason parenthesized) ===
-[: [ 1 2 3 4 5 6 ] 2 3 matrix [ 7 8 9 10 ] 2 2 matrix matmul :] catch drop :message @ . cr
+( [ 1 2 3 4 5 6 ] 2 3 matrix [ 7 8 9 10 ] 2 2 matrix matmul ) catch drop :message @ . cr
 \ inner dimensions must match (A is 2x3, B is 2x2)
-[: [ 1 2 ] 1 2 matrix 42 matmul :] catch drop :message @ . cr
+( [ 1 2 ] 1 2 matrix 42 matmul ) catch drop :message @ . cr
 \ expected a matrix; got a float                    (B is not a matrix)
-[: "x" [ 1 2 ] 2 1 matrix matmul :] catch drop :message @ . cr
+( "x" [ 1 2 ] 2 1 matrix matmul ) catch drop :message @ . cr
 \ expected a matrix; got a string                   (A is not a matrix)
 
 clear

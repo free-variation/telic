@@ -11,7 +11,7 @@ producer :in @ close  producer :err @ close  producer :pid @ wait drop
 
 \ this start-process typically receives the same descriptor number back
 [ "printf" "BBB" ] start-process to successor
-[: output read :] catch drop :message @ . cr         \ stream is closed
+( output read ) catch drop :message @ . cr         \ stream is closed
 successor :out @ read . cr                           \ BBB
 
 output close                                         \ idempotent on a stale handle

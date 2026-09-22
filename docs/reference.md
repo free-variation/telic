@@ -34,9 +34,15 @@ insignificant). `make test` extracts and verifies every pair, and
 `help <word>` prints them. A ` ```forth-noexec <word> ` fence is shown by
 `help` but never run.
 
+Every colon definition declares its stack effect in parentheses immediately
+after the name — `: quotient ( a b -- q ) % swap drop ;` — and the compiler
+refuses a definition without one. That slot is the only place a parenthesis
+means a declaration; everywhere else `(` opens a quotation and `)` closes it.
+`\\` runs to the end of the line and is the only comment.
+
 Tokens are whitespace-delimited, with self-delimiting punctuation: `;`, `]`,
 and `}` always end a token and `[` and `{` always start one (the two-char
-openers `[:` `[<` and closers `:]` `>]` stay whole), so
+opener `[<` and closer `>]` stay whole), so
 `[1 2 3]`, `{:a 1}`, and `dup *;` parse without inner spaces. A path literal's
 predicate brackets (`/a[x>3]`) are kept whole by bracket balance. `<` `>` `<=`
 `>=` are ordinary comparison words; `[<` and `>]` are two-character tokens
@@ -1179,7 +1185,7 @@ null nan? . cr
 ```
 
 ```forth continuation?
-[: 5 yield :] start-generator continuation? . drop cr
+( 5 yield ) start-generator continuation? . drop cr
 ```
 ```output
 1
@@ -1643,7 +1649,7 @@ A third stack (depth 1024) for values set aside during a computation; used by `t
 
 ## Control flow (compile-time)
 
-Immediate words that emit branch instructions into the current definition. Outside a definition or quotation there is nothing to emit into, and the openers (`if`, `?if`, `begin`) error: `only valid inside a colon definition or quotation`. A top-level conditional goes in a quotation, run on the spot: `[: … if … then :] execute`.
+Immediate words that emit branch instructions into the current definition. Outside a definition or quotation there is nothing to emit into, and the openers (`if`, `?if`, `begin`) error: `only valid inside a colon definition or quotation`. A top-level conditional goes in a quotation, run on the spot: `( … if … then ) execute`.
 
 | Word | Runtime effect | Behavior |
 |------|---------------|----------|
@@ -1668,9 +1674,9 @@ Immediate words that emit branch instructions into the current definition. Outsi
 
 `leave` and `continue` are plain compiled branches — zero runtime cost. Both
 are compile errors outside a loop, and a quotation opens its own frame, so a
-`[: leave :]` inside a loop body does not see that loop. A `begin` with no
+`( leave )` inside a loop body does not see that loop. A `begin` with no
 `until`/`again`/`repeat`, or a `do` with no `loop`, is a compile error at `;`
-or `:]` (an unpatched `leave` would otherwise be a wild branch); the partial
+or `)` (an unpatched `leave` would otherwise be a wild branch); the partial
 definition rolls back. In `times` / `i-times` quotations, `exit` already ends
 the current iteration.
 
@@ -1695,14 +1701,14 @@ or more iterations errors. Nested `do` loops read each index by its name;
 giving an inner `do` the index name of an enclosing `do` is a compile error.
 
 ```forth if
-: absolute dup 0 < if negate then ; -7 absolute . cr
+: absolute ( n -- n ) dup 0 < if negate then ; -7 absolute . cr
 ```
 ```output
 7
 ```
 
 ```forth ?if
-: keep-if-truthy ?if "kept" . then . cr ; 5 keep-if-truthy 0 keep-if-truthy
+: keep-if-truthy ( flag -- ) ?if "kept" . then . cr ; 5 keep-if-truthy 0 keep-if-truthy
 ```
 ```output
 kept 5
@@ -1710,58 +1716,58 @@ kept 5
 ```
 
 ```forth else
-: parity 2 mod 0= if "even" else "odd" then . cr ; 7 parity
+: parity ( n -- ) 2 mod 0= if "even" else "odd" then . cr ; 7 parity
 ```
 ```output
 odd
 ```
 
 ```forth then
-: past-ten 10 > if "big" . then "done" . cr ; 42 past-ten
+: past-ten ( n -- ) 10 > if "big" . then "done" . cr ; 42 past-ten
 ```
 ```output
 big done
 ```
 
 ```forth begin
-: countdown begin dup . 1- dup 0= until drop cr ; 3 countdown
+: countdown ( n -- ) begin dup . 1- dup 0= until drop cr ; 3 countdown
 ```
 ```output
 3 2 1
 ```
 
 ```forth until
-: triple-count 1 begin dup . 3 + dup 9 > until drop cr ; triple-count
+: triple-count ( -- ) 1 begin dup . 3 + dup 9 > until drop cr ; triple-count
 ```
 ```output
 1 4 7
 ```
 
 ```forth again
-: to-five 1 begin dup . dup 5 = if leave then 1+ again drop cr ; to-five
+: to-five ( -- ) 1 begin dup . dup 5 = if leave then 1+ again drop cr ; to-five
 ```
 ```output
 1 2 3 4 5
 ```
 
 ```forth while
-: halves begin dup 0 > while dup . 2 quotient repeat drop cr ; 20 halves
+: halves ( n -- ) begin dup 0 > while dup . 2 quotient repeat drop cr ; 20 halves
 ```
 ```output
 20 10 5 2 1
 ```
 
 ```forth repeat
-: powers 1 begin dup 100 < while dup . 2 * repeat drop cr ; powers
+: powers ( -- ) 1 begin dup 100 < while dup . 2 * repeat drop cr ; powers
 ```
 ```output
 1 2 4 8 16 32 64
 ```
 
 ```forth do
-: squares 0 5 1 do k k k * . loop cr ; squares
-: countdown 5 0 -1 do k k . loop cr ; countdown
-: count-evens 0 to n_evens 0 10 1 do k k 2 mod 0= if ++ n_evens then loop n_evens . cr ; count-evens
+: squares ( -- ) 0 5 1 do k k k * . loop cr ; squares
+: countdown ( -- ) 5 0 -1 do k k . loop cr ; countdown
+: count-evens ( -- ) 0 to n_evens 0 10 1 do k k 2 mod 0= if ++ n_evens then loop n_evens . cr ; count-evens
 ```
 ```output
 0 1 4 9 16
@@ -1770,9 +1776,9 @@ big done
 ```
 
 ```forth loop
-: tenths 0 0.3 0.1 do k k . loop cr ; tenths
-: skip-one 0 4 1 do k k 1 = if continue then k . loop cr ; skip-one
-: find-cutoff 0 100 1 do k k k * 50 > if leave then loop k . cr ; find-cutoff
+: tenths ( -- ) 0 0.3 0.1 do k k . loop cr ; tenths
+: skip-one ( -- ) 0 4 1 do k k 1 = if continue then k . loop cr ; skip-one
+: find-cutoff ( -- ) 0 100 1 do k k k * 50 > if leave then loop k . cr ; find-cutoff
 ```
 ```output
 0 0.1 0.2
@@ -1781,21 +1787,21 @@ big done
 ```
 
 ```forth leave
-: stop-at-zero begin dup . 1- dup 0 < if leave then again drop cr ; 2 stop-at-zero
+: stop-at-zero ( n -- ) begin dup . 1- dup 0 < if leave then again drop cr ; 2 stop-at-zero
 ```
 ```output
 2 1 0
 ```
 
 ```forth continue
-: odds-to-nine 0 begin 1+ dup 9 > if leave then dup 2 mod 0= if continue then dup . again drop cr ; odds-to-nine
+: odds-to-nine ( -- ) 0 begin 1+ dup 9 > if leave then dup 2 mod 0= if continue then dup . again drop cr ; odds-to-nine
 ```
 ```output
 1 3 5 7 9
 ```
 
 ```forth case
-: kind case 1 of "one" endof 2 of "two" endof drop "many" endcase . cr ;
+: kind ( n -- ) case 1 of "one" endof 2 of "two" endof drop "many" endcase . cr ;
 1 kind 5 kind
 ```
 ```output
@@ -1804,7 +1810,7 @@ many
 ```
 
 ```forth of
-: dispatch | ?x | case { :cmd :add :n x } of x ? 1 + . endof { :cmd :quit } of "bye" . endof drop "?" . endcase cr ;
+: dispatch ( fr -- ) | ?x | case { :cmd :add :n x } of x ? 1 + . endof { :cmd :quit } of "bye" . endof drop "?" . endcase cr ;
 { :cmd :add :n 4 } dispatch
 { :cmd :quit :id 7 } dispatch
 ```
@@ -1814,7 +1820,7 @@ bye
 ```
 
 ```forth endof
-: parity case 0 of "zero" endof 1 of "one" endof drop "big" endcase . cr ;
+: parity ( n -- ) case 0 of "zero" endof 1 of "one" endof drop "big" endcase . cr ;
 1 parity
 ```
 ```output
@@ -1822,7 +1828,7 @@ one
 ```
 
 ```forth endcase
-: describe case :ok of "fine" endof "unmatched: " . dup . drop "seen" endcase . cr ;
+: describe ( v -- ) case :ok of "fine" endof "unmatched: " . dup . drop "seen" endcase . cr ;
 :oops describe
 ```
 ```output
@@ -1830,7 +1836,7 @@ unmatched:  :oops seen
 ```
 
 ```forth exit
-: early dup 0 < if drop "neg" . cr exit then drop "pos" . cr ; -3 early
+: early ( n -- ) dup 0 < if drop "neg" . cr exit then drop "pos" . cr ; -3 early
 ```
 ```output
 neg
@@ -1851,7 +1857,7 @@ closers are self-delimiting tokens (see the note in the introduction).
 | `}` | — | Close a frame literal |
 | `[<` | — | Open a set literal; `>]` closes it (both need surrounding spaces) |
 | `>]` | — | Close a set literal |
-| `:]` | — | Close a quotation (`[:` itself is under Defining) |
+| `)` | — | Close a quotation (`(` itself is under Defining) |
 | `\|` | — | Close a body's locals head, and open it when no name precedes: `\| x y \|` and `x y \|` both receive x and y (see Locals) |
 
 ```forth [
@@ -1896,17 +1902,17 @@ closers are self-delimiting tokens (see the note in the introduction).
 [< 1 2 3 >]
 ```
 
-```forth :]
-5 [: 2 * :] execute . cr
+```forth )
+5 ( 2 * ) execute . cr
 ```
 ```output
 10
 ```
 
 ```forth |
-: hyp | a b | a a * b b * + sqrt ; 3 4 hyp . cr
-: discounted | price | 0.2 to rate price price rate * - ; 100 discounted . cr
-: staged 10 to start-value  start-value 3 * to scaled  start-value scaled + ; staged . cr
+: hyp ( a b -- h ) | a b | a a * b b * + sqrt ; 3 4 hyp . cr
+: discounted ( price -- net ) | price | 0.2 to rate price price rate * - ; 100 discounted . cr
+: staged ( -- n ) 10 to start-value  start-value 3 * to scaled  start-value scaled + ; staged . cr
 ```
 ```output
 5
@@ -1918,7 +1924,7 @@ closers are self-delimiting tokens (see the note in the introduction).
 
 These parse following tokens and/or compile code. Costs are dominated by compilation, not by a stack effect, so no cost columns.
 
-At `;` and `:]` the compiler rewrites tail calls: a colon-word call that
+At `;` and `)` the compiler rewrites tail calls: a colon-word call that
 reaches `exit` becomes a jump, so tail recursion — direct, or through
 `recurse` — runs at constant return-stack depth. A body using `>r`/`r>`/`r@`,
 `reset`/`shift`, `fail`, or locals together with any quotation keeps plain calls, and so
@@ -1941,7 +1947,7 @@ does a call through a word that is still `defer`red — mutual recursion via
 | `unit` | `( q -- )` | Read the following name; pop a quantity whose magnitude is a positive simple rational, and define a postfix word attaching that unit. The magnitude is the unit's scale relative to its dimension's base (`100 cent unit dollar`, `1 $ 100 / unit ¢`). A single unnamed base dimension gets named after the word |
 | `:name` | `( -- sym )` | Symbol literal; interns the name at read time |
 | `string>symbol` | `( str -- sym )` | Intern a computed string as a symbol |
-| `[:` | `( -- xt )` | Open an anonymous quotation (closed by `:]`); compiles its body and pushes its xt. A body that names a local of the enclosing definition or quotation captures it by copy, and the literal then yields a curried token carrying those values (see Locals) |
+| `(` | `( -- xt )` | Open an anonymous quotation (closed by `)`); compiles its body and pushes its xt. A body that names a local of the enclosing definition or quotation captures it by copy, and the literal then yields a curried token carrying those values (see Locals) |
 | `'` | `( "name" -- xt )` | Parse the following word at compile time and push its xt (immediate; folds the xt in as a literal) |
 | `lookup` | `( "name" -- xt )` | Parse the following word at run time and push its xt |
 | `execute` | `( xt -- … )` | Call the word at xt |
@@ -1954,21 +1960,21 @@ does a call through a word that is still `defer`red — mutual recursion via
 | `forget` | — | Read the following name; truncate the dictionary back to before it |
 
 ```forth :
-: twice 2 * ; 21 twice . cr
+: twice ( n -- n ) 2 * ; 21 twice . cr
 ```
 ```output
 42
 ```
 
 ```forth ;
-: greet "hi" . ; greet greet cr
+: greet ( -- ) "hi" . ; greet greet cr
 ```
 ```output
 hi hi
 ```
 
 ```forth recurse
-: fact dup 1 > if dup 1- recurse * then ; 5 fact . cr
+: fact ( n -- n! ) dup 1 > if dup 1- recurse * then ; 5 fact . cr
 ```
 ```output
 120
@@ -2003,21 +2009,21 @@ symbol blue blue . cr
 ```
 
 ```forth defer
-defer greeting : hello-word "hello" . cr ; ' hello-word embodies greeting greeting
+defer greeting : hello-word ( -- ) "hello" . cr ; ' hello-word embodies greeting greeting
 ```
 ```output
 hello
 ```
 
 ```forth embodies
-defer greeting : hello-word "hello" . cr ; ' hello-word embodies greeting greeting
+defer greeting : hello-word ( -- ) "hello" . cr ; ' hello-word embodies greeting greeting
 ```
 ```output
 hello
 ```
 
 ```forth embodies!
-defer farewell : bye-word "bye" . cr ; ' bye-word embodies! farewell farewell
+defer farewell : bye-word ( -- ) "bye" . cr ; ' bye-word embodies! farewell farewell
 ```
 ```output
 bye
@@ -2051,9 +2057,9 @@ base unit inch 12 inch unit foot 2 foot 6 inch + . cr
 :dynamic
 ```
 
-```forth [:
-5 [: 2 * :] execute . cr
-: scale-all | rows factor | rows [: factor * :] map ;
+```forth (
+5 ( 2 * ) execute . cr
+: scale-all ( rows factor -- rows ) | rows factor | rows ( factor * ) map ;
 [ 1 2 3 ] 10 scale-all . cr
 ```
 ```output
@@ -2104,8 +2110,8 @@ lookup sqrt 9 swap execute . cr
 ```
 
 ```forth compose
-3 [: 1 + :] [: 2 * :] compose execute . cr
-[ 1 2 3 ] [: 1 + :] [: 2 * :] compose map . cr
+3 ( 1 + ) ( 2 * ) compose execute . cr
+[ 1 2 3 ] ( 1 + ) ( 2 * ) compose map . cr
 ```
 ```output
 8
@@ -2113,21 +2119,21 @@ lookup sqrt 9 swap execute . cr
 ```
 
 ```forth inline
-: double 2 * ; inline : quadruple double double ; 5 quadruple . cr
+: double ( n -- n ) 2 * ; inline : quadruple ( n -- n ) double double ; 5 quadruple . cr
 ```
 ```output
 20
 ```
 
 ```forth internal
-: helper-word 3 ; internal : public-word helper-word 2 * ; public-word . cr
+: helper-word ( -- n ) 3 ; internal : public-word ( -- n ) helper-word 2 * ; public-word . cr
 ```
 ```output
 6
 ```
 
 ```forth forget
-: era 1 ; era . cr forget era : era 2 ; era . cr
+: era ( -- n ) 1 ; era . cr forget era : era ( -- n ) 2 ; era . cr
 ```
 ```output
 1
@@ -2136,7 +2142,7 @@ lookup sqrt 9 swap execute . cr
 
 ### Locals
 
-The **head** of a definition or quotation body names what that body receives from the stack, rightmost from the top: `| a b c |` takes c from the top, then b, then a. The opening bar is optional, so `: hypotenuse a b | …` and `[: element index | … :]` are the same heads as `| a b |` and `| element index |`. A body has at most one head, and it comes first: a second list, or a list after code, is a compile error, and an empty `| |` is one too — a body that receives nothing omits the head entirely.
+The **head** of a definition or quotation body names what that body receives from the stack, rightmost from the top: `| a b c |` takes c from the top, then b, then a. The opening bar is optional, so `: hypotenuse a b | …` and `( element index | … )` are the same heads as `| a b |` and `| element index |`. A body has at most one head, and it comes first: a second list, or a list after code, is a compile error, and an empty `| |` is one too — a body that receives nothing omits the head entirely.
 
 Everything else the body needs is declared where it is first assigned. A `to` on a name that is neither already a local of this body nor an existing word declares a local and stores into it. The compiler collects those names before compiling the body, so a name declared by a `to` anywhere in the body is a local of the whole body — a name means one thing throughout, whichever branch or loop assigns it, and the head list carries only what arrives on the stack. A *read* of a name nothing declares is still an unknown word. A local the body never reads, received in the head or assigned by `to`, draws a compile warning naming the definition (with its file and line when loaded); a `do` index is exempt, since a loop that only repeats has no other spelling.
 
@@ -2144,7 +2150,7 @@ A name in the head that would otherwise resolve outward carries a marker. `^name
 
 A local may shadow an ordinary word, deliberately and visibly, but never a **compile-time** word: `| source to |`, `| ?case |`, `5 to if`, and a `do` index named `to` are all compile errors — `to is a compile-time word and cannot name a local; rename it` — because the name would shadow the construct that makes the body work, leaving `to` in that body no longer assigning. This holds however the local is declared: in the head, by a `to`, or as a `do` index.
 
-Locals live on the return stack: up to 128 names across up to 64 nested scopes. A slot reads as `null` before its first assignment. A body reads the locals **it declares itself**; a quotation that names a local of the enclosing body **captures** it: the name becomes a trailing head local of the quotation holding a copy of the enclosing slot's value, taken when the `[: … :]` literal is evaluated, and the literal's value is then a curried token rather than a bare xt — exactly what `enclosing-value [: … name | … :] curry` builds by hand. Values reach a quotation four ways: received into its own head, captured from the enclosing body, parked on the stack below the combinator's operands and read by depth with `pick`, or bound into a curried token by `curry`/`2curry`/`ncurry`.
+Locals live on the return stack: up to 128 names across up to 64 nested scopes. A slot reads as `null` before its first assignment. A body reads the locals **it declares itself**; a quotation that names a local of the enclosing body **captures** it: the name becomes a trailing head local of the quotation holding a copy of the enclosing slot's value, taken when the `( … )` literal is evaluated, and the literal's value is then a curried token rather than a bare xt — exactly what `enclosing-value ( … name | … ) curry` builds by hand. Values reach a quotation four ways: received into its own head, captured from the enclosing body, parked on the stack below the combinator's operands and read by depth with `pick`, or bound into a curried token by `curry`/`2curry`/`ncurry`.
 
 A capture is a copy. Reading it costs the same as any local; `to name` inside the quotation declares a fresh local shadowing the enclosing one, as it does for any name, and `++`/`--`/`f++`/`f--` on a captured name is a compile error, since they would change only the copy. A quotation nested inside a capturing quotation captures through it: each level copies from the one above, so every reference stays in the innermost frame. The token is built where the literal is evaluated, so a capturing quotation written inside a `do`/`begin` loop of its definition allocates a token every iteration; the compiler warns (`warning: quotation captures x inside a loop; …`) unless a captured name is assigned in that body, since then per-iteration construction is the only correct behavior. Hoist the literal above the loop with `to` when the captured values are fixed. A non-capturing quotation compiles as before: a constant xt, no allocation.
 
@@ -2156,7 +2162,7 @@ The mechanism: a local reference compiles to the **slot index** in the frame tha
 | `x y z \| … ;` | The opening bar is optional: names before the closing bar, at the head of the body, are the same head |
 | `\| ^g \|` | `g` is the enclosing global, which the body may assign with `to`, `++`, `--`, `f++` or `f--`; without the marker those report that `g` is a global |
 | `\| ?x \|` | A slot holding a fresh logic variable per call, received from nothing; read by bare name |
-| `[: x y \| … :]` | A quotation head, the same in every respect: x and y are received from the stack |
+| `( x y \| … )` | A quotation head, the same in every respect: x and y are received from the stack |
 
 These compile-time words read a following local name and emit a single fused depth-0 instruction:
 
@@ -2168,28 +2174,28 @@ These compile-time words read a following local name and emit a single fused dep
 | `f--` | `( -- )` ⚠ | Unsafe float decrement: raw `.number` mutation, no tag check; a global target is declared `^name` in the head | 1 | none | O(1) |
 
 ```forth ++
-: count-up 0 to tally ++ tally ++ tally tally ; count-up . cr
+: count-up ( -- n ) 0 to tally ++ tally ++ tally tally ; count-up . cr
 ```
 ```output
 2
 ```
 
 ```forth --
-: count-down 5 to tally -- tally tally ; count-down . cr
+: count-down ( -- n ) 5 to tally -- tally tally ; count-down . cr
 ```
 ```output
 4
 ```
 
 ```forth f++
-: fast-up 1.5 to reading f++ reading reading ; fast-up . cr
+: fast-up ( -- f ) 1.5 to reading f++ reading reading ; fast-up . cr
 ```
 ```output
 2.5
 ```
 
 ```forth f--
-: fast-down 1.5 to reading f-- reading reading ; fast-down . cr
+: fast-down ( -- f ) 1.5 to reading f-- reading reading ; fast-down . cr
 ```
 ```output
 0.5
@@ -2457,7 +2463,7 @@ HéLLO
 
 ```forth lower-case
 "Hello, World!" lower-case . cr
-[ "Ann" "ANN" "ann" ] [: lower-case :] map array>set size . cr
+[ "Ann" "ANN" "ann" ] ( lower-case ) map array>set size . cr
 ```
 ```output
 hello, world!
@@ -2627,7 +2633,7 @@ Sorted `Val` arrays with binary-search insertion; equality is structural. `+`/`*
 
 ```forth group-by
 [ { :name "ann" :team :red } { :name "bo" :team :blue } { :name "cy" :team :red } ] :team group-by /red @ size . cr
-[ 1 2 3 4 ] [: 2 mod 0= if :even else :odd then :] group-by frame>array . cr
+[ 1 2 3 4 ] ( 2 mod 0= if :even else :odd then ) group-by frame>array . cr
 { :team [ "red" "blue" "red" ] :score [ 1 2 3 ] vector } :team group-by to grouped
 grouped size . cr
 grouped@red :score @ transpose matrix>array . cr
@@ -2898,14 +2904,14 @@ Symbol-keyed sorted maps; binary-search lookup. Storage order is symbol id, whic
 | `name!key` | `( val -- )` | Set in one token, dropping the frame `!` returns: `99 row!price` stores 99 at `:price` in `row`'s frame and leaves the stack empty. The left part resolves as a local, else a defined word, supplying the frame; an empty left part takes the frame from above the value, `( val fr -- )`. A chain may end in a set — `row@address!city` — but only its last step may, since a set leaves no frame to walk | 2 + log n | none | O(log n) |
 | `@or` | `( fr sym/path fallback -- val )` | Get by key or path, the fallback when absent in one probe, no error on miss; the fallback is already evaluated, so it suits values, not expensive computations | 4 + d log n | none | O(d log n) |
 | `!` | `( fr val sym/path -- fr )` | Set by key or path, vivifying intermediates; mutates fr; errors on a search path. Writes take the address last, so the value is computed first and the destination named beside the word | d log n | realloc on growth; `1o` per vivified frame | O(d log n) amortized |
-| `has?` | `( fr sym/path -- bool )` | Existence test for a frame key or path, no error on miss; a search path is true if any node matches (short-circuits at the first); on a set `( set v -- bool )`, membership by binary search in natural order (`in?` is the mask-producing form); on a string `( str pat -- bool )`, true if regex `pat` matches anywhere | 3 + d log n | none | O(d log n) |
+| `has?` | `( fr/set/str x -- bool )` | Existence test for a frame key or path, no error on miss; a search path is true if any node matches (short-circuits at the first); on a set `( set v -- bool )`, membership by binary search in natural order (`in?` is the mask-producing form); on a string `( str pat -- bool )`, true if regex `pat` matches anywhere | 3 + d log n | none | O(d log n) |
 | `delete-at` | `( fr sym/path -- fr )` | Remove a key (errors if absent or on a search path); mutates fr | n | none | O(n) |
 | `rename-key!` | `( fr old new -- fr )` | core.telic: move the value at key `old` to key `new` in place and leave fr — a dataset column renames the same way (`ds :price :cost rename-key!`); `old` absent errors, an existing `new` is overwritten; keys stay in symbol-id order | 2n | none | O(n) |
 | `update-at` | `( fr xt sym/path -- fr )` | Apply xt to the value at the key, store the result back; errors on a search path | d log n + xt | none | O(d log n + xt) |
 | `keys` | `( fr -- arr )` | The keys as an array of symbols, in the frame's storage order (by symbol id, the order of first interning); parallel to `values`, so `frame` rebuilds the frame from the two | 1 + n | `1a(n)` | O(n) |
 | `key-set` | `( fr -- set )` | The keys as a set of symbols, for membership tests and set algebra against other key sets | 1 + n log n | `1o` | O(n log n) |
 | `values` | `( fr -- arr )` | Values in key order | 1 + n | `1a(n)` | O(n) |
-| `map-frame` | `( fr xt -- fr )` | core.telic: run `xt` `( key value -- key' value' )` over each entry in key order and collect the answered pairs into a new frame, leaving the source unchanged. A body that consumes only the value leaves the key beneath its result, so `[: 10 * :]` scales every value under the same keys; a body answering a fresh symbol renames. A body leaving other than two values errors, and a non-symbol key errors in `frame`. On a dataset the entries are column name and column | n·(2 + xt) | `2a(n)` + `1o` | O(n·xt + n log n) |
+| `map-frame` | `( fr xt -- fr )` | core.telic: run `xt` `( key value -- key' value' )` over each entry in key order and collect the answered pairs into a new frame, leaving the source unchanged. A body that consumes only the value leaves the key beneath its result, so `( 10 * )` scales every value under the same keys; a body answering a fresh symbol renames. A body leaving other than two values errors, and a non-symbol key errors in `frame`. On a dataset the entries are column name and column | n·(2 + xt) | `2a(n)` + `1o` | O(n·xt + n log n) |
 | `merge` | `( fr₁ fr₂ -- fr )` | New frame with all keys; fr₂ wins collisions | m+n | `1o` | O(m+n) |
 | `copy` | `( a -- a' )` | Deep copy of any value: dereferences bound logic vars to their values and gives each unbound var a fresh shared var; recurses into frames, arrays, matrices, strings, sets and a quantity's magnitude; identity for scalars, complexes and continuations. Defined generally, not frame-specific. | tree size | one object per node | O(tree size) |
 | `reify` | `( a -- a' )` | Deep copy of any value, dereferencing bound logic vars and recursing into frames, arrays, matrices, strings, sets and a quantity's magnitude (complexes and continuations pass through), but each unbound var becomes a canonical inert symbol `:_0`, `:_1`, … numbered by first appearance — a ground, storable, comparable snapshot. | tree size | one object per node | O(tree size) |
@@ -2939,14 +2945,14 @@ Symbol-keyed sorted maps; binary-search lookup. Storage order is symbol id, whic
 ```
 
 ```forth name@key
-: price-of row | row@price ; { :price 9 } price-of . cr
+: price-of ( row -- price ) row | row@price ; { :price 9 } price-of . cr
 ```
 ```output
 9
 ```
 
 ```forth name!key
-: mark-sold row | 0 row!price row ; { :price 9 } mark-sold frame>array . cr
+: mark-sold ( row -- row ) row | 0 row!price row ; { :price 9 } mark-sold frame>array . cr
 ```
 ```output
 [ :price 0 ]
@@ -3016,8 +3022,8 @@ Symbol-keyed sorted maps; binary-search lookup. Storage order is symbol id, whic
 ```
 
 ```forth map-frame
-{ :a 1 :b 2 } [: 10 * :] map-frame frame>array . cr
-{ :a 1 :b 2 } [: key value | key "{0}-total" format string>symbol value 2 * :] map-frame frame>array . cr
+{ :a 1 :b 2 } ( 10 * ) map-frame frame>array . cr
+{ :a 1 :b 2 } ( key value | key "{0}-total" format string>symbol value 2 * ) map-frame frame>array . cr
 ```
 ```output
 [ :a 10 :b 20 ]
@@ -3724,7 +3730,7 @@ null [ 5 ] vector vstack matrix>array . cr
 ```
 
 ```forth cross-validate
-[ 1 2 3 4 ] 2 [: vector mean :] [: vector mean swap - abs :] cross-validate matrix>array . cr
+[ 1 2 3 4 ] 2 ( vector mean ) ( vector mean swap - abs ) cross-validate matrix>array . cr
 ```
 ```output
 [ 1 1 ]
@@ -3880,21 +3886,21 @@ null [ 5 ] vector vstack matrix>array . cr
 ```
 
 ```forth bootstrap
-42 seed [ 1 2 3 4 5 ] [: vector mean :] 3 bootstrap . cr
+42 seed [ 1 2 3 4 5 ] ( vector mean ) 3 bootstrap . cr
 ```
 ```output
 [ 2.2 2.4 2.6 ]
 ```
 
 ```forth pbootstrap
-42 seed [ 1 2 3 4 5 ] [: vector mean :] 3 pbootstrap . cr
+42 seed [ 1 2 3 4 5 ] ( vector mean ) 3 pbootstrap . cr
 ```
 ```output
 [ 2.2 2.4 2.6 ]
 ```
 
 ```forth bootstrap-with
-42 seed [ 1 2 3 ] [: vector mean :] 2 ' map bootstrap-with . cr
+42 seed [ 1 2 3 ] ( vector mean ) 2 ' map bootstrap-with . cr
 ```
 ```output
 [ 1.66667 1 ]
@@ -4144,12 +4150,12 @@ wall-now time>iso . cr
 | `select-eq` | `( dataset sym value -- dataset )` | datasets.telic: the rows whose `sym` column equals `value`; other rows drop | n + n·c | mask + index vector + one column each | O(n·c) |
 | `select-neq` | `( dataset sym value -- dataset )` | datasets.telic: the rows whose `sym` column differs from `value`; other rows drop | n + n·c | mask + index vector + one column each | O(n·c) |
 | `query` | `( dataset pattern -- dataset )` | datasets.telic: the rows whose columns equal the pattern frame's ground values — each key names a column (a key that is not a column errors), each value is dereferenced and compared with `eq` (so symbols, strings, floats and quantities within their dimension all serve; `1` and `"1"` differ), and a value that is an unbound logic variable or `_` constrains nothing and takes no binding; the masks multiply, and `{ }` keeps every row. Rows keep their order and every column | n·k + n·c | k masks + index vector + one column each | O(n·(k + c)) |
-| `query-rows` | `( dataset pattern -- rows )` | datasets.telic: `query`'s rows as frames, one per row keyed by column, for binding the pattern's logic variables row by row — `[: row | pattern row ~ drop … :]` under `each`, or `choose` over them | query + n·c | query + `1o` per row | O(n·(k + c)) |
+| `query-rows` | `( dataset pattern -- rows )` | datasets.telic: `query`'s rows as frames, one per row keyed by column, for binding the pattern's logic variables row by row — `( row | pattern row ~ drop … )` under `each`, or `choose` over them | query + n·c | query + `1o` per row | O(n·(k + c)) |
 | `complete-rows` | `( dataset cols -- dataset )` | datasets.telic: the rows where none of the named columns is missing — NaN in a vector or dimensioned vector, `null` in a text column; `cols` is a symbol, a symbol array, or `[ ]` for every column; a missing name errors. Every column reorders together and keeps its representation | n·k + n·c | one array and mask per named column, index vector, one column each | O(n·(k + c)) |
 | `sort-rows` | `( dataset sym -- dataset )` | datasets.telic: rows sorted ascending by the named column, so every column reorders together and keeps its representation; a missing key errors | n log n + n·c | permutation + one column each | O(n log n + n·c) |
 | `sort-rows-descending` | `( dataset sym -- dataset )` | datasets.telic: rows sorted descending by the named column in natural order (so text columns descend too); equal keys keep dataset order, so chained sorts compose — minor key first, major key last — and missing cells sort last; a missing key errors | n log n + n·c | permutation ×3 + one column each | O(n log n + n·c) |
 | `count` | `( arr/v/dataset -- pairs )` | datasets.telic: occurrences of each distinct value as `[ [ value n ] … ]`, most frequent first, ties in value order; a vector counts its elements (a dimensioned one counts quantities), a dataset counts whole rows, each a frame keyed by column name | 2n log n | rows + pairs + 3×`1a` | O(n log n) |
-| `zero-variance?` | `( column -- bool )` | datasets.telic: 1 when the column (array or vector) has fewer than two distinct values — a constant or empty column; `null`/NaN counts as a value, so `[ 1 null ] vector` answers 0. `[: nip zero-variance? not :] filter-columns` drops constant columns from a dataset | 2n log n | `count`'s | O(n log n) |
+| `zero-variance?` | `( column -- bool )` | datasets.telic: 1 when the column (array or vector) has fewer than two distinct values — a constant or empty column; `null`/NaN counts as a value, so `[ 1 null ] vector` answers 0. `( nip zero-variance? not ) filter-columns` drops constant columns from a dataset | 2n log n | `count`'s | O(n log n) |
 | `group-indices` | `( column -- pairs )` | datasets.telic: `[ [ value [indices] ] … ]` per distinct value in natural order — each index array holds the value's row positions, ascending; a numeric column's NaN group orders last, a text column's `null` group first | 2n log n | permutation + one pair and array per value | O(n log n) 
 | `split-by` | `( dataset by -- pairs )` | datasets.telic: `[ [ key sub-dataset ] … ]`, one pair per distinct value of the `by` column, or per value tuple of a `by`-symbol array (the key then an array), in `group-indices` order; each sub-dataset is the group's rows with every column and representation kept | n log n + per-group select | one sub-dataset per group | O(n log n + n·c) |
 | `frames>dataset` | `( rows -- dataset )` | datasets.telic: an array of row frames as a column-oriented dataset, keys from row 0 — differing keys throw. Each column's representation is inferred: all-float cells (`null` → NaN) become an n×1 vector, uniform-unit quantities a dimensioned vector, anything else stays an array | n·k log k | one column per key + `1o` | O(n·k log k) |
@@ -4159,7 +4165,7 @@ wall-now time>iso . cr
 | `merge-by` | `( left right key join-type -- dataset )` | datasets.telic: join on `key` (a symbol or symbol array); `join-type` is `:inner` (matched pairs only), `:left` (every left row, right's columns `null` on a miss), `:right` (every right row, left's columns `null`), or `:outer` (left rows then unmatched right rows, missing side `null`). The probed side's key must be **unique** — right for `:inner`/`:left`, left for `:right`, both for `:outer` — a duplicate on the probed side errors; a non-key column in both datasets errors naming it (no `.x`/`.y` suffixing). Columns are the union with key once; a null-filled numeric column re-infers as a vector with NaN | L·R | row frames + merged columns | O(L·R) |
 | `repeat-column!` | `( dataset value sym -- dataset )` | datasets.telic: store `value` repeated over the rows as the named column, in place, and leave the dataset: a scalar fills every row; an array or vector of length k repeats n-rows/k times, and n-rows not a multiple of k errors. The column takes the representation `column-from-cells` infers — floats and `null` a vector, one-unit quantities a dimensioned vector, else an array; an existing key is overwritten | 4n | `2a(n)` + one column | O(n) |
 | `set-unit!` | `( dataset unit-xt sym -- dataset )` | datasets.telic: set the named column's unit to the one `unit-xt` attaches (`' m`), replacing any existing unit, so the column becomes a dimensioned vector and the stats keep the unit. In place, returns the dataset; a non-numeric (text) column errors naming it | log c + n | one column | O(n) |
-| `replace-where!` | `( dataset pred replacement sym -- )` | datasets.telic: replace the named column's cells passing `pred` `( column -- mask )`, in place, so the replacement broadcasts and units reconcile: `pipeline [: -1 eq :] null :rep_touches replace-where!` nulls a sentinel, `[: nan? :] 0` fills missing, `[: 10 $ < :] 5 $` floors prices | pred + n | mask + one column | O(n) |
+| `replace-where!` | `( dataset pred replacement sym -- )` | datasets.telic: replace the named column's cells passing `pred` `( column -- mask )`, in place, so the replacement broadcasts and units reconcile: `pipeline ( -1 eq ) null :rep_touches replace-where!` nulls a sentinel, `( nan? ) 0` fills missing, `( 10 $ < ) 5 $` floors prices | pred + n | mask + one column | O(n) |
 | `resample-indices` | `( n -- arr )` | datasets.telic: n indices drawn from [0,n) with replacement (bootstrap), from the global stream | 2n | `2×1a(n)` | O(n) |
 | `resample-indices-ext` | `( n seed -- arr )` | n indices drawn from [0,n) with replacement by a private generator seeded from `seed` — same draw for the same seed regardless of thread or stream position | n | `1a(n)` | O(n)† |
 
@@ -4269,8 +4275,8 @@ ann    34
 
 ```forth filter-columns
 { :a [ 1 2 ] vector :b [ 0 0 ] vector :c [ 3 4 ] vector :d [ "p" "q" ] } to cols
-cols [: nip dup matrix? if sum 0 eq not else drop 1 then :] filter-columns keys . cr
-cols [: drop dup :b = swap :d = or :] filter-columns keys . cr
+cols ( nip dup matrix? if sum 0 eq not else drop 1 then ) filter-columns keys . cr
+cols ( drop dup :b = swap :d = or ) filter-columns keys . cr
 ```
 ```output
 [ :a :c :d ]
@@ -4308,7 +4314,7 @@ lvar to Who family { :parent :john :child Who } query n-rows . cr
 
 ```forth query-rows
 { :parent [ :john :john :anne ] :child [ :django :bob :django ] } to family
-family { :parent :john } query-rows [: row | lvar to Kid { :child Kid } row ~ drop Kid ? . :] each cr
+family { :parent :john } query-rows ( row | lvar to Kid { :child Kid } row ~ drop Kid ? . ) each cr
 ```
 ```output
 :django :bob
@@ -4364,7 +4370,7 @@ family { :parent :john } query-rows [: row | lvar to Kid { :child Kid } row ~ dr
 
 ```forth split-by
 { :g [ "b" "a" "b" ] :x [ 1 2 3 ] vector } :g split-by
-[: key-group | key-group 0 @i . key-group 1 @i :x @ transpose matrix>array . cr :] each
+( key-group | key-group 0 @i . key-group 1 @i :x @ transpose matrix>array . cr ) each
 ```
 ```output
 a [ 2 ]
@@ -4379,9 +4385,9 @@ b [ 1 3 ]
 ```
 
 ```forth aggregate
-{ :g [ "a" "b" "a" ] :x [ 1 2 3 ] vector } :g [: group | { :sum group :x @ sum } :] aggregate :sum @ matrix>array . cr
+{ :g [ "a" "b" "a" ] :x [ 1 2 3 ] vector } :g ( group | { :sum group :x @ sum } ) aggregate :sum @ matrix>array . cr
 { :g [ "a" "b" "a" ] :h [ 1 1 2 ] vector :x [ 1 2 3 ] vector }
-[ :g :h ] [: group | { :sum group :x @ sum } :] aggregate :sum @ matrix>array . cr
+[ :g :h ] ( group | { :sum group :x @ sum } ) aggregate :sum @ matrix>array . cr
 ```
 ```output
 [ 4 2 ]
@@ -4390,8 +4396,8 @@ b [ 1 3 ]
 
 ```forth within-groups
 { :g [ "a" "b" "a" ] :x [ 1 2 3 ] vector } to grouped
-grouped :g [: group | group :x @ dup sum / :] within-groups transpose matrix>array . cr
-grouped :g [: group | group :x @ sum :] within-groups transpose matrix>array . cr
+grouped :g ( group | group :x @ dup sum / ) within-groups transpose matrix>array . cr
+grouped :g ( group | group :x @ sum ) within-groups transpose matrix>array . cr
 ```
 ```output
 [ 0.25 1 0.75 ]
@@ -4428,7 +4434,7 @@ dup :seven @ transpose matrix>array . :cycle @ transpose matrix>array . cr
 ```
 
 ```forth replace-where!
-[ [ "v" ] [ -1 ] [ 5 ] ] true rows>dataset dup [: -1 eq :] null :v replace-where! :v @ nonmissing-count . cr
+[ [ "v" ] [ -1 ] [ 5 ] ] true rows>dataset dup ( -1 eq ) null :v replace-where! :v @ nonmissing-count . cr
 ```
 ```output
 1
@@ -4464,7 +4470,7 @@ The quotation/predicate cost dominates; `xt` denotes one call.
 | `sum-times` | `( xt n -- total )` | arrays.telic: the sum of `xt` `( i -- term )` over i in 0..n-1 | 3 + n·(1+xt) | none | O(n·xt) |
 | `product-times` | `( xt n -- product )` | arrays.telic: the product of `xt` `( i -- term )` over i in 0..n-1 | 3 + n·(1+xt) | none | O(n·xt) |
 | `i-times` | `( xt n -- )` | Run xt n times, pushing index 0..n-1 first | 2 + n·(1+xt) | none | O(n·xt) |
-| `fold-times` | `( acc map-xt combine-xt n -- acc' )` | Counted map-fold: for i in 0..n-1 push i, run `map-xt` `( i -- term )`, then combine the accumulator with the term. The accumulator never appears on the data stack — with `' f+`, `' f-`, `' f*`, `' f/` or their polymorphic counterparts the arithmetic runs inside the loop with no dispatch, and any other combiner is invoked as `( acc term -- acc' )`. `0 [: dup f* :] ' f+ 5 fold-times` answers 30; values the body needs beyond the index are parked below and read with `pick` | 4 + n·(1+xt) | none | O(n·xt) |
+| `fold-times` | `( acc map-xt combine-xt n -- acc' )` | Counted map-fold: for i in 0..n-1 push i, run `map-xt` `( i -- term )`, then combine the accumulator with the term. The accumulator never appears on the data stack — with `' f+`, `' f-`, `' f*`, `' f/` or their polymorphic counterparts the arithmetic runs inside the loop with no dispatch, and any other combiner is invoked as `( acc term -- acc' )`. `0 ( dup f* ) ' f+ 5 fold-times` answers 30; values the body needs beyond the index are parked below and read with `pick` | 4 + n·(1+xt) | none | O(n·xt) |
 | `find-first` | `( items pred -- element )` | The first element for which pred is truthy, or `null`; short-circuits at the first hit (does not run pred over the rest) | n·xt | none | O(n·xt) |
 | `any?` | `( items pred -- bool )` | arrays.telic: true when pred is truthy for some element, false otherwise; short-circuits at the first hit | n·xt | none | O(n·xt) |
 | `all?` | `( items pred -- bool )` | arrays.telic: true when every element satisfies pred, vacuously true on empty. Runs pred over **every** element, so it does not short-circuit and a side-effecting pred runs n times | 2n·xt | `1a(n)` | O(n·xt) |
@@ -4474,7 +4480,7 @@ The quotation/predicate cost dominates; `xt` denotes one call.
 | `partition` | `( items pred -- matches rest )` | arrays.telic: the elements satisfying pred and the others, one pass, input order kept | n·xt | 2 arrays + the curried predicate token | O(n·xt) |
 
 ```forth map
-[ 1 2 3 ] [: dup * :] map . cr
+[ 1 2 3 ] ( dup * ) map . cr
 ```
 ```output
 [ 1 4 9 ]
@@ -4488,7 +4494,7 @@ The quotation/predicate cost dominates; `xt` denotes one call.
 ```
 
 ```forth filter
-[ 1 2 3 4 ] [: 2 mod 0= :] filter . cr
+[ 1 2 3 4 ] ( 2 mod 0= ) filter . cr
 ```
 ```output
 [ 2 4 ]
@@ -4502,14 +4508,14 @@ The quotation/predicate cost dominates; `xt` denotes one call.
 ```
 
 ```forth times
-[: "ho" . :] 3 times cr
+( "ho" . ) 3 times cr
 ```
 ```output
 ho ho ho
 ```
 
 ```forth sum-times
-[: dup * :] 4 sum-times . cr
+( dup * ) 4 sum-times . cr
 ```
 ```output
 14
@@ -4523,43 +4529,43 @@ ho ho ho
 ```
 
 ```forth i-times
-[: . :] 3 i-times cr
+( . ) 3 i-times cr
 ```
 ```output
 0 1 2
 ```
 
 ```forth fold-times
-0 [: dup f* :] ' f+ 5 fold-times . cr
+0 ( dup f* ) ' f+ 5 fold-times . cr
 ```
 ```output
 30
 ```
 
 ```forth find-first
-[ 3 8 5 ] [: 4 > :] find-first . cr
+[ 3 8 5 ] ( 4 > ) find-first . cr
 ```
 ```output
 8
 ```
 
 ```forth any?
-[ 1 3 5 ] [: 2 mod 0= :] any? . cr
+[ 1 3 5 ] ( 2 mod 0= ) any? . cr
 ```
 ```output
 0
 ```
 
 ```forth all?
-[ 2 4 ] [: 2 mod 0= :] all? . cr
+[ 2 4 ] ( 2 mod 0= ) all? . cr
 ```
 ```output
 1
 ```
 
 ```forth each
-[ 1 2 3 ] [: . :] each cr
-[ [ "name" "age" ] [ "ann" 34 ] [ "bo" 25 ] ] true rows>dataset [: :name @ . :] each cr
+[ 1 2 3 ] ( . ) each cr
+[ [ "name" "age" ] [ "ann" 34 ] [ "bo" 25 ] ] true rows>dataset ( :name @ . ) each cr
 ```
 ```output
 1 2 3
@@ -4567,7 +4573,7 @@ ann bo
 ```
 
 ```forth flat-map
-[ 1 2 ] [: dup 1 + 2 array :] flat-map . cr
+[ 1 2 ] ( dup 1 + 2 array ) flat-map . cr
 ```
 ```output
 [ 1 2 2 3 ]
@@ -4581,7 +4587,7 @@ ann bo
 ```
 
 ```forth partition
-[ 1 2 3 4 ] [: 2 mod :] partition . . cr
+[ 1 2 3 4 ] ( 2 mod ) partition . . cr
 ```
 ```output
 [ 2 4 ] [ 1 3 ]
@@ -4602,35 +4608,35 @@ Run the xt across worker threads over the shared heap; `w` worker threads, `c` i
 | `num-cores` | `( -- n )` | Online CPU count | 1 | none | O(1) |
 
 ```forth pmap
-[ 1 2 3 4 ] [: dup * :] pmap . cr
+[ 1 2 3 4 ] ( dup * ) pmap . cr
 ```
 ```output
 [ 1 4 9 16 ]
 ```
 
 ```forth pmap-ext
-[ 1 2 3 4 ] 2 1 [: 10 * :] pmap-ext . cr
+[ 1 2 3 4 ] 2 1 ( 10 * ) pmap-ext . cr
 ```
 ```output
 [ 10 20 30 40 ]
 ```
 
 ```forth pfilter
-[ 1 2 3 4 5 ] [: 2 mod 0= :] pfilter . cr
+[ 1 2 3 4 5 ] ( 2 mod 0= ) pfilter . cr
 ```
 ```output
 [ 2 4 ]
 ```
 
 ```forth pfilter-ext
-[ 1 2 3 4 5 ] 2 1 [: 3 > :] pfilter-ext . cr
+[ 1 2 3 4 5 ] 2 1 ( 3 > ) pfilter-ext . cr
 ```
 ```output
 [ 4 5 ]
 ```
 
 ```forth pmap-reduce
-[ 1 2 3 4 ] 0 [: dup * :] ' + pmap-reduce . cr
+[ 1 2 3 4 ] 0 ( dup * ) ' + pmap-reduce . cr
 ```
 ```output
 30
@@ -4677,7 +4683,7 @@ The substrate for exceptions, coroutines, generators. See `docs/continuations.md
 | `with-stream` | `( stream body-xt -- … )` | exceptions.telic: run body-xt `( stream -- … )` over an already-open stream, `close` it on either exit | — | none | O(body-xt) |
 
 ```forth reset
-: two-step reset 1 . shift 2 . cr ;
+: two-step ( -- ) reset 1 . shift 2 . cr ;
 two-step "mid" . cr resume "end" . cr
 ```
 ```output
@@ -4687,7 +4693,7 @@ end
 ```
 
 ```forth shift
-: two-step reset 1 . shift 2 . cr ;
+: two-step ( -- ) reset 1 . shift 2 . cr ;
 two-step "mid" . cr resume "end" . cr
 ```
 ```output
@@ -4697,7 +4703,7 @@ end
 ```
 
 ```forth shift-with
-: risky reset "a" . [: drop "b" . cr :] shift-with "c" . cr ;
+: risky ( -- ) reset "a" . ( drop "b" . cr ) shift-with "c" . cr ;
 risky
 ```
 ```output
@@ -4705,7 +4711,7 @@ a b
 ```
 
 ```forth resume
-: two-step reset 1 . shift 2 . cr ;
+: two-step ( -- ) reset 1 . shift 2 . cr ;
 two-step "mid" . cr resume "end" . cr
 ```
 ```output
@@ -4715,28 +4721,28 @@ end
 ```
 
 ```forth throw
-: catch-demo [: "boom" throw :] catch if "caught" . . cr then ; catch-demo
+: catch-demo ( -- ) ( "boom" throw ) catch if "caught" . . cr then ; catch-demo
 ```
 ```output
 caught boom
 ```
 
 ```forth catch
-[: 42 :] catch . . cr
+( 42 ) catch . . cr
 ```
 ```output
 0 42
 ```
 
 ```forth try-catch
-[: 1 0 / :] [: :message @ . cr :] try-catch
+( 1 0 / ) ( :message @ . cr ) try-catch
 ```
 ```output
 division by zero
 ```
 
 ```forth ensure
-[: "body" . :] [: "cleanup" . :] ensure cr
+( "body" . ) ( "cleanup" . ) ensure cr
 ```
 ```output
 body cleanup
@@ -4764,14 +4770,14 @@ near
 ```
 
 ```forth expect-throws
-[: "x" throw :] expect-throws "threw" . cr
+( "x" throw ) expect-throws "threw" . cr
 ```
 ```output
 threw
 ```
 
 ```forth test
-new-tests "adds" [: 3 4 + 7 expect= :] test test-report
+new-tests "adds" ( 3 4 + 7 expect= ) test test-report
 ```
 ```output
 ok adds
@@ -4779,7 +4785,7 @@ ok adds
 ```
 
 ```forth test-report
-new-tests "adds" [: 3 4 + 7 expect= :] test test-report
+new-tests "adds" ( 3 4 + 7 expect= ) test test-report
 ```
 ```output
 ok adds
@@ -4787,7 +4793,7 @@ ok adds
 ```
 
 ```forth new-tests
-new-tests "adds" [: 3 4 + 7 expect= :] test test-report
+new-tests "adds" ( 3 4 + 7 expect= ) test test-report
 ```
 ```output
 ok adds
@@ -4795,14 +4801,14 @@ ok adds
 ```
 
 ```forth with-db
-":memory:" [: "create table t(x)" [ ] db-exec . :] with-db cr
+":memory:" ( "create table t(x)" [ ] db-exec . ) with-db cr
 ```
 ```output
 0
 ```
 
 ```forth-noexec with-stream
-"echo hi" run :out @ [: read print :] with-stream
+"echo hi" run :out @ ( read print ) with-stream
 ```
 ```output
 hi
@@ -4824,10 +4830,10 @@ A producer drops nothing after `yield`. The word does not consume the value it e
 | `gen-each` | `( producer consumer -- )` | generators.telic: run consumer on each value the producer yields until the producer finishes (a `:gen-end` sentinel marks exhaustion) | — | cont/step | O(values · consumer) |
 
 ```forth yield
-: nums 1 yield 2 yield ; ' nums 2 gen-take . cr
-: countdown-gen 3 to remaining begin remaining 0 > while remaining yield remaining 1- to remaining repeat ;
+: nums ( -- ) 1 yield 2 yield ; ' nums 2 gen-take . cr
+: countdown-gen ( -- ) 3 to remaining begin remaining 0 > while remaining yield remaining 1- to remaining repeat ;
 ' countdown-gen 3 gen-take . cr
-: naturals 0 to natural begin natural yield natural 1+ to natural again ;
+: naturals ( -- ) 0 to natural begin natural yield natural 1+ to natural again ;
 ' naturals 4 gen-take . cr
 ```
 ```output
@@ -4837,21 +4843,21 @@ A producer drops nothing after `yield`. The word does not consume the value it e
 ```
 
 ```forth start-generator
-[: 5 yield drop :] start-generator drop . cr
+( 5 yield drop ) start-generator drop . cr
 ```
 ```output
 5
 ```
 
 ```forth gen-take
-: odds 1 yield 3 yield 5 yield ; ' odds 3 gen-take . cr
+: odds ( -- ) 1 yield 3 yield 5 yield ; ' odds 3 gen-take . cr
 ```
 ```output
 [ 1 3 5 ]
 ```
 
 ```forth gen-each
-: pair-gen 10 yield 20 yield ; ' pair-gen [: . :] gen-each cr
+: pair-gen ( -- ) 10 yield 20 yield ; ' pair-gen ( . ) gen-each cr
 ```
 ```output
 10 20
@@ -4933,30 +4939,30 @@ lvar dup 9 ~ drop ? . cr
 ```
 
 ```forth amb
-[: 1 :] [: 2 :] amb . cr
+( 1 ) ( 2 ) amb . cr
 ```
 ```output
 1
 ```
 
 ```forth fail
-[: fail :] [: "fallback" :] amb . cr
+( fail ) ( "fallback" ) amb . cr
 ```
 ```output
 fallback
 ```
 
 ```forth choose
-[ 1 2 3 ] [: dup 2 < if fail then . cr :] choose
+[ 1 2 3 ] ( dup 2 < if fail then . cr ) choose
 ```
 ```output
 2
 ```
 
 ```forth solutions
-[ 1 2 3 4 ] [: dup 2 mod if fail then dup * :] solutions . cr
+[ 1 2 3 4 ] ( dup 2 mod if fail then dup * ) solutions . cr
 [ { :n 1 :ok :y } { :n 2 :ok :n } { :n 3 :ok :y } ]
-[: { :ok :y } ~ :n @ :] solutions . cr
+( { :ok :y } ~ :n @ ) solutions . cr
 ```
 ```output
 [ 4 16 ]
@@ -4964,7 +4970,7 @@ fallback
 ```
 
 ```forth take-solutions
-[ 1 2 3 4 5 ] [: dup * :] 3 take-solutions . cr
+[ 1 2 3 4 5 ] ( dup * ) 3 take-solutions . cr
 ```
 ```output
 [ 1 4 9 ]
@@ -5024,7 +5030,7 @@ Word-locals fuse the same way. A float op over two locals, or a local and a floa
 
 ```forth vvf+
 variable a 3 to a variable b 4 to b
-: sum-ab vvf+ a b ; sum-ab . cr
+: sum-ab ( -- v ) vvf+ a b ; sum-ab . cr
 ```
 ```output
 7
@@ -5032,7 +5038,7 @@ variable a 3 to a variable b 4 to b
 
 ```forth vvf-
 variable a 3 to a variable b 4 to b
-: diff-ab vvf- a b ; diff-ab . cr
+: diff-ab ( -- v ) vvf- a b ; diff-ab . cr
 ```
 ```output
 -1
@@ -5040,7 +5046,7 @@ variable a 3 to a variable b 4 to b
 
 ```forth vvf*
 variable a 3 to a variable b 4 to b
-: prod-ab vvf* a b ; prod-ab . cr
+: prod-ab ( -- v ) vvf* a b ; prod-ab . cr
 ```
 ```output
 12
@@ -5048,7 +5054,7 @@ variable a 3 to a variable b 4 to b
 
 ```forth vvf/
 variable a 3 to a variable b 4 to b
-: quot-ab vvf/ a b ; quot-ab . cr
+: quot-ab ( -- v ) vvf/ a b ; quot-ab . cr
 ```
 ```output
 0.75
@@ -5056,7 +5062,7 @@ variable a 3 to a variable b 4 to b
 
 ```forth vf+
 variable a 3 to a
-: plus-a vf+ a ; 10 plus-a . cr
+: plus-a ( f -- v ) vf+ a ; 10 plus-a . cr
 ```
 ```output
 13
@@ -5064,7 +5070,7 @@ variable a 3 to a
 
 ```forth vf-
 variable a 3 to a
-: minus-a vf- a ; 10 minus-a . cr
+: minus-a ( f -- v ) vf- a ; 10 minus-a . cr
 ```
 ```output
 7
@@ -5072,7 +5078,7 @@ variable a 3 to a
 
 ```forth vf*
 variable a 3 to a
-: times-a vf* a ; 10 times-a . cr
+: times-a ( f -- v ) vf* a ; 10 times-a . cr
 ```
 ```output
 30
@@ -5080,7 +5086,7 @@ variable a 3 to a
 
 ```forth vf/
 variable a 3 to a
-: over-a vf/ a ; 12 over-a . cr
+: over-a ( f -- v ) vf/ a ; 12 over-a . cr
 ```
 ```output
 4
@@ -5088,7 +5094,7 @@ variable a 3 to a
 
 ```forth vfsq
 variable a 3 to a
-: sq-a vfsq a ; sq-a . cr
+: sq-a ( -- v ) vfsq a ; sq-a . cr
 ```
 ```output
 9
@@ -5096,7 +5102,7 @@ variable a 3 to a
 
 ```forth vfneg
 variable a 3 to a
-: neg-a vfneg a ; neg-a . cr
+: neg-a ( -- v ) vfneg a ; neg-a . cr
 ```
 ```output
 -3
@@ -5104,7 +5110,7 @@ variable a 3 to a
 
 ```forth vfabs
 variable a -5 to a
-: abs-a vfabs a ; abs-a . cr
+: abs-a ( -- v ) vfabs a ; abs-a . cr
 ```
 ```output
 5
@@ -5112,7 +5118,7 @@ variable a -5 to a
 
 ```forth vfsqrt
 variable a 9 to a
-: root-a vfsqrt a ; root-a . cr
+: root-a ( -- v ) vfsqrt a ; root-a . cr
 ```
 ```output
 3
@@ -5120,7 +5126,7 @@ variable a 9 to a
 
 ```forth vfexp
 variable a 0 to a
-: exp-a vfexp a ; exp-a . cr
+: exp-a ( -- v ) vfexp a ; exp-a . cr
 ```
 ```output
 1
@@ -5128,7 +5134,7 @@ variable a 0 to a
 
 ```forth vflog
 variable a 100 to a
-: log-a vflog a ; log-a . cr
+: log-a ( -- v ) vflog a ; log-a . cr
 ```
 ```output
 2
@@ -5136,7 +5142,7 @@ variable a 100 to a
 
 ```forth vfsin
 variable a 0 to a
-: sin-a vfsin a ; sin-a . cr
+: sin-a ( -- v ) vfsin a ; sin-a . cr
 ```
 ```output
 0
@@ -5144,7 +5150,7 @@ variable a 0 to a
 
 ```forth vfcos
 variable a 0 to a
-: cos-a vfcos a ; cos-a . cr
+: cos-a ( -- v ) vfcos a ; cos-a . cr
 ```
 ```output
 1
@@ -5152,7 +5158,7 @@ variable a 0 to a
 
 ```forth vftan
 variable a 0 to a
-: tan-a vftan a ; tan-a . cr
+: tan-a ( -- v ) vftan a ; tan-a . cr
 ```
 ```output
 0
@@ -5160,7 +5166,7 @@ variable a 0 to a
 
 ```forth vftanh
 variable a 0 to a
-: tanh-a vftanh a ; tanh-a . cr
+: tanh-a ( -- v ) vftanh a ; tanh-a . cr
 ```
 ```output
 0
@@ -5168,7 +5174,7 @@ variable a 0 to a
 
 ```forth vvf*+
 variable b 4 to b variable c 10 to c
-: fma-bc vvf*+ b c ; 2 fma-bc . cr
+: fma-bc ( f -- v ) vvf*+ b c ; 2 fma-bc . cr
 ```
 ```output
 18
@@ -5176,7 +5182,7 @@ variable b 4 to b variable c 10 to c
 
 ```forth vvf*-
 variable b 4 to b variable c 10 to c
-: fms-bc vvf*- b c ; 2 fms-bc . cr
+: fms-bc ( f -- v ) vvf*- b c ; 2 fms-bc . cr
 ```
 ```output
 2
@@ -5193,17 +5199,17 @@ variable b 4 to b variable c 10 to c
 | `vars` | `( -- )` | repl.telic: pretty-print every global, one `{ :name :value :type }` frame per block | dict scan + print | `1a` + frames | O(\|dict\|) |
 | `telic` | `( -- )` | Print the telic logo and the interpreter version | print | none | O(1) |
 | `telic-version` | `( -- str )` | The interpreter version as a string — for a program that reports its runtime | 1 | `1s` | O(1) |
-| `apropos` | `( str -- )` | Print every word whose name or reference summary contains s (case-insensitive): name, stack effect, summary per line; a word defined by a `load` matches by name or by the summary of the comment above its definition and prints that effect and summary, and other session words match by name | table scan | none | O(entries) |
-| `see` | `( xt -- )` | Print a word's source (`: name … ;`), a quotation's `[: … :]` text from its recorded span, or `variable`/`symbol`/primitive form; a curried token prints its bound values, then its target | dict scan | none | O(\|dict\|) |
-| `see>string` | `( xt -- str )` | A word's source (`: name … ;`), a quotation's `[: … :]` text, or a `variable`/`symbol`/primitive form (a curried token's bound values then its target), returned as a string (trailing newline stripped) | dict scan | `1o` | O(\|dict\|) |
+| `apropos` | `( str -- )` | Print every word whose name or reference summary contains s (case-insensitive): name, stack effect, summary per line; a word defined by a `load` matches by name or by the summary of the comment above its definition and prints its declared effect and that summary, and other session words match by name | table scan | none | O(entries) |
+| `see` | `( xt -- )` | Print a word's source (`: name … ;`), a quotation's `( … )` text from its recorded span, or `variable`/`symbol`/primitive form; a curried token prints its bound values, then its target | dict scan | none | O(\|dict\|) |
+| `see>string` | `( xt -- str )` | A word's source (`: name … ;`), a quotation's `( … )` text, or a `variable`/`symbol`/primitive form (a curried token's bound values then its target), returned as a string (trailing newline stripped) | dict scan | `1o` | O(\|dict\|) |
 | `callers` | `( xt -- arr )` | The names, as strings in definition order, of the colon definitions whose compiled bodies reference the word: a call or tail call, an `' word` literal, a primitive's op, a variable's read or store, a unit or deferred word's use. A quotation's body counts for the definition enclosing it; a recursive word lists itself. `xt` must name a dictionary word — a quotation or curried token errors | dict scan × body | `1a` + strings | O(\|dict\|²) |
-| `edit` | `( "name" -- )` | Parse the following word and open its source — what `see` prints — in `$EDITOR` (`vi` when unset) on a temporary `.telic` file, waiting until the editor exits; a saved change runs the edited text as a `load`, so the definition is replaced, and an unchanged file leaves the word as it was. A name not yet defined opens as `: name` on one line and `;` on the next. Needs a terminal on stdin and stdout and an editor exiting with status 0; errors otherwise | editor | temp file | — |
+| `edit` | `( "name" -- )` | Parse the following word and open its source — what `see` prints — in `$EDITOR` (`vi` when unset) on a temporary `.telic` file, waiting until the editor exits; a saved change runs the edited text as a `load`, so the definition is replaced, and an unchanged file leaves the word as it was. A name not yet defined opens as `: name ( -- )` on one line and `;` on the next. Needs a terminal on stdin and stdout and an editor exiting with status 0; errors otherwise | editor | temp file | — |
 | `see-compiled` | `( xt -- )` | Disassemble a colon definition's compiled cells; a curried token prints its bound values, then disassembles its target | body scan | none | O(body) |
 | `see-compiled>string` | `( xt -- str )` | The disassembly of a colon definition's compiled cells (a curried token's bound values then its target), returned as a string (trailing newline stripped) | body scan | `1o` | O(body) |
 | `see-tree` | `( xt -- )` | Disassemble a colon definition's compiled cells, but each colon-word call is expanded inline, indented two spaces, recursively down to primitives; recursive calls print as `name ...` | body scan | none | O(expanded body) |
 | `see-tree>string` | `( xt -- str )` | The disassembly with each colon-word call expanded inline, indented two spaces, recursively down to primitives (recursive calls as `name ...`), returned as a string (trailing newline stripped) | body scan | `1o` | O(expanded body) |
-| `man` | `( xt -- fr )` | Frame of a word's reference entry (`:word :effect :summary`, plus `:ops :alloc :order` for runtime words); a unit word synthesizes its entry from the unit's definition (`unit: m × 1000`); a word a `load` defined under a `( a b -- c ) \\ summary` comment answers `{ :word :effect :summary }` from that comment, continuation lines starting with `\\` extending the summary; `null` otherwise | dict scan + log n | `1o` + strings | O(\|dict\|) |
-| `help` | `( "name" -- )` | repl.telic: parse the next word and print its reference entry, or the entry `man` builds from the comment above a loaded definition; bare `help` (no name on the line) prints a starter cheat sheet, and an unknown name prints `unknown word: <name>` without erroring | dict scan + log n | `1o` + strings + print | O(\|dict\|) |
+| `man` | `( xt -- fr )` | Frame of a word's reference entry (`:word :effect :summary`, plus `:ops :alloc :order` for runtime words); a unit word synthesizes its entry from the unit's definition (`unit: m × 1000`); a word a `load` defined answers `{ :word :effect :summary }` built from its declared stack effect and the `\\` comment lines directly above it; `null` otherwise | dict scan + log n | `1o` + strings | O(\|dict\|) |
+| `help` | `( "name" -- )` | repl.telic: parse the next word and print its reference entry, or the entry `man` builds from a loaded definition's declaration and the comment above it; bare `help` (no name on the line) prints a starter cheat sheet, and an unknown name prints `unknown word: <name>` without erroring | dict scan + log n | `1o` + strings + print | O(\|dict\|) |
 | `gc` | `( -- )` | Force a mark-sweep now | walks stacks + dict + roots, frees unmarked | none | O(objects + dict) |
 | `gauges` | `( -- fr )` | repl.telic: the interpreter's resource readings as a frame of six frames; memory is in MiB (dictionary pools in KiB), processor time in s, counts are floats, and a `[ used capacity ]` pair is an array. `:dictionary`: `:cells`, `:name-pool`, `:source-pool`, `:symbol-pool`, `:quotations`, `:word-locations`, `:cell-lines`, `:loaded-files` as pairs, plus `:words`, `:session-words` (defined since the embedded library), `:symbols`. `:heap`: `:arena` `[ used reserved ]`, `:live` (matrix, segment and continuation payload bytes, the ones that drive the collection trigger), `:gc-threshold`, `:memory-headroom` (until the next collection), `:objects` `[ live table-size ]` (live is claimed handles minus the free list), `:handles-claimed` `[ claimed table-size ]` (the high-water mark; a collection refills the free list rather than lowering it), `:max-objects`, `:free-handles`, `:handle-headroom` `[ unclaimed trigger ]` (inside a parallel region a worker requests a collection when unclaimed falls under trigger; the main thread collects at the ceiling), `:pairs` `[ live table-size ]`, `:collections`. `:stacks`: `:data`, `:return`, `:side`, `:calls`, `:trail`, `:logic-vars`, `:roots`, each `[ depth capacity ]`. `:resources`: `:databases`, `:regex-cache`, `:workers`, each `[ in-use capacity ]`. `:computer`: `:cpu-count`, `:physical-memory`, the load averages `:load-1` `:load-5` `:load-15`, and this process's `:user-time`, `:system-time`, `:max-rss` (peak resident memory), `:minor-faults`, `:major-faults`, `:voluntary-switches`, `:involuntary-switches` — `null` under wasm, which has no such calls. `:session`: `:line`, `:interactive`, `:load-depth`, `:gc-disabled`, `:tracing` | dict walk + symbol scan | `1fr` × 6 + pairs | O(words + symbols) |
 | `print-gauges` | `( -- )` | repl.telic: print the readings of `gauges` that move during a run as a six-row table: live memory, objects, pairs, and arena against their capacities with a percentage; collections with their rate; data, return, and call depth; trail and logic-variable depth; CPU percentage, peak resident memory, major faults per second, load average against the core count, involuntary switches per second; then the interval since the previous call and the clock. Rates are computed against the previous `print-gauges` call, so a first call shows them as 0. On a terminal the labels are dim and a percentage or rate is yellow above 60% of its capacity, red above 85% | gauges + format | strings | O(words + symbols) |
@@ -5231,7 +5237,7 @@ Arithmetic:
 ```
 
 ```forth variables
-42 to answer-var variables [: :name @ :] map dup size 1- @i . cr
+42 to answer-var variables ( :name @ ) map dup size 1- @i . cr
 ```
 ```output
 :answer-var
@@ -5272,23 +5278,23 @@ correlation-kendall ( xs ys -- f )           Kendall tau-b: concordant minus dis
 ```
 
 ```forth see
-: sq-see dup * ; ' sq-see see
+: sq-see ( n -- n ) dup * ; ' sq-see see
 ```
 ```output
-: sq-see dup * ;
+: sq-see ( n -- n ) dup * ;
 ```
 
 ```forth see>string
-: sq-see2 dup * ; ' sq-see2 see>string print cr
+: sq-see2 ( n -- n ) dup * ; ' sq-see2 see>string print cr
 ```
 ```output
-: sq-see2 dup * ;
+: sq-see2 ( n -- n ) dup * ;
 ```
 
 ```forth callers
-: sq-called dup * ;
-: uses-sq-called 3 sq-called ;
-: maps-sq-called [ 1 2 ] [: sq-called :] map drop ;
+: sq-called ( n -- n ) dup * ;
+: uses-sq-called ( -- n ) 3 sq-called ;
+: maps-sq-called ( -- ) [ 1 2 ] ( sq-called ) map drop ;
 ' sq-called callers . cr
 ```
 ```output
@@ -5302,7 +5308,7 @@ edit sq
 ```
 
 ```forth see-compiled
-: sc-demo 1.5 2.5 f+ ; ' sc-demo see-compiled
+: sc-demo ( -- f ) 1.5 2.5 f+ ; ' sc-demo see-compiled
 ```
 ```output
 : sc-demo   \ 5 cells
@@ -5313,7 +5319,7 @@ edit sq
 ```
 
 ```forth see-compiled>string
-: sc-demo2 1.5 2.5 f+ ; ' sc-demo2 see-compiled>string print cr
+: sc-demo2 ( -- f ) 1.5 2.5 f+ ; ' sc-demo2 see-compiled>string print cr
 ```
 ```output
 : sc-demo2   \ 5 cells
@@ -5324,7 +5330,7 @@ edit sq
 ```
 
 ```forth see-tree
-: st-inner 1 ; : st-outer st-inner 2 * ; ' st-outer see-tree
+: st-inner ( -- n ) 1 ; : st-outer ( -- n ) st-inner 2 * ; ' st-outer see-tree
 ```
 ```output
 : st-outer
@@ -5338,7 +5344,7 @@ edit sq
 ```
 
 ```forth see-tree>string
-: st-inner 1 ; : st-outer2 st-inner 3 * ; ' st-outer2 see-tree>string print cr
+: st-inner ( -- n ) 1 ; : st-outer2 ( -- n ) st-inner 3 * ; ' st-outer2 see-tree>string print cr
 ```
 ```output
 : st-outer2
@@ -5378,7 +5384,7 @@ collected
 ```
 
 ```forth gauges
-gauges dup keys [: "{0}" format :] sort-by . :stacks @ :data @ . cr
+gauges dup keys ( "{0}" format ) sort-by . :stacks @ :data @ . cr
 ```
 ```output
 [ :computer :dictionary :heap :resources :session :stacks ] [ 0 65536 ]
@@ -5392,7 +5398,7 @@ gauges gauges>rows size . cr
 ```
 
 ```forth-noexec after-entry
-: report-depth depth "depth {0}" format . cr ;
+: report-depth ( -- ) depth "depth {0}" format . cr ;
 ' report-depth embodies after-entry
 ```
 ```output
@@ -5400,7 +5406,7 @@ gauges gauges>rows size . cr
 
 ```forth-noexec tick-every
 variable ticks 0 to ticks
-: count-tick | ^ticks | ++ ticks ;
+: count-tick ( -- ) | ^ticks | ++ ticks ;
 ' count-tick embodies on-tick
 1 tick-every 2.5 sleep 0 tick-every
 ticks . cr
@@ -5461,7 +5467,7 @@ woke
 ```
 
 ```forth-noexec timed
-[: [ 1 2 3 ] ' 1+ map :] timed . cr
+( [ 1 2 3 ] ' 1+ map ) timed . cr
 ```
 ```output
 2.1e-06
@@ -5469,9 +5475,9 @@ woke
 ```
 
 ```forth trace
-[: 3 4 + :] [ ] trace . cr
-: sq-traced | x | x x * ;
-[: 5 sq-traced 2 + :] [ "^sq" ] trace . cr
+( 3 4 + ) [ ] trace . cr
+: sq-traced ( x -- sq ) | x | x x * ;
+( 5 sq-traced 2 + ) [ "^sq" ] trace . cr
 ```
 ```output
 > (lit) 3                 |
@@ -5498,7 +5504,7 @@ woke
 | `save` | `( str -- )` | Write all user words as re-loadable `.telic` source | dict scan + write | file I/O | O(\|user dict\|) |
 
 ```forth evaluate
-": doubled 2 * ;" evaluate
+": doubled ( n -- n ) 2 * ;" evaluate
 21 doubled . cr
 ```
 ```output
@@ -5506,7 +5512,7 @@ woke
 ```
 
 ```forth load
-": loaded-word 11 ;" "/tmp/docs-load.telic" write-file "/tmp/docs-load.telic" load loaded-word . cr
+": loaded-word ( -- n ) 11 ;" "/tmp/docs-load.telic" write-file "/tmp/docs-load.telic" load loaded-word . cr
 ```
 ```output
 11
@@ -5520,7 +5526,7 @@ woke
 ```
 
 ```forth save
-: keep-me 5 ; "/tmp/docs-save.telic" save "/tmp/docs-save.telic" read-file ": keep-me" has? . cr
+: keep-me ( -- n ) 5 ; "/tmp/docs-save.telic" save "/tmp/docs-save.telic" read-file ": keep-me" has? . cr
 ```
 ```output
 1
@@ -5973,7 +5979,7 @@ stderr stream? . cr
 ```
 
 ```forth stdout>string
-[: "quiet" . :] stdout>string "|" + . cr
+( "quiet" . ) stdout>string "|" + . cr
 ```
 ```output
 quiet |
@@ -6042,7 +6048,7 @@ ping
 ```
 
 ```forth parallel-run
-[ [ "echo" "a" ] [ "echo" "b" ] ] 2 parallel-run [: :out @ trim . :] each cr
+[ [ "echo" "a" ] [ "echo" "b" ] ] 2 parallel-run ( :out @ trim . ) each cr
 ```
 ```output
 a b

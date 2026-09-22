@@ -437,7 +437,7 @@ clear
 0 4 range reverse .
 0 9 range 3 take .
 0 9 range 3 skip .
-0 4 range [: dup * :] map .
+0 4 range ( dup * ) map .
 
 \ stack shape: ( from to -- arr )
 99 0 3 range .
@@ -472,7 +472,7 @@ tiny 3 add-last! drop  tiny 4 add-last! drop  tiny . cr            \ [ 1 2 3 4 ]
 [ 1 2 ] copy . cr                                                  \ [ 1 2 ]
 [ [ 1 ] [ 2 3 ] ] copy 1 @i . cr                                   \ [ 2 3 ]
 [ ] 1 array 1 array 0 @i 0 @i . cr                                 \ [ ]
-[: [ ] to grown  [: grown swap add-last! drop :] 100 i-times  grown size . cr :] 3 times   \ 100 100 100
+( [ ] to grown  ( grown swap add-last! drop ) 100 i-times  grown size . cr ) 3 times   \ 100 100 100
 gc [ 1 2 ] 5 add-last! . cr                                         \ [ 1 2 5 ]
 
 clear

@@ -33,5 +33,5 @@ requests read-available null? . cr                   \ 1
 
 \ === errors ===
 requests close
-[: requests read-line :] catch drop :message @ . cr  \ (a closed stream)
-[: 3 read-line :] catch drop :message @ . cr         \ (not a stream)
+( requests read-line ) catch drop :message @ . cr  \ (a closed stream)
+( 3 read-line ) catch drop :message @ . cr         \ (not a stream)

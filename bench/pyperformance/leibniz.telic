@@ -23,17 +23,17 @@ variable pi-est
 variable x
 variable t0
 
-: leibniz ^pi-est ^x ^t0 |
+: leibniz ( -- ) ^pi-est ^x ^t0 |
   1.0 to pi-est
   1.0 to x
   now to t0
-  [: ( idx -- )
+  ( \ idx --
      x fnegate to x
      2.0 3.0 f*+        \ idx*2 + 3 = divisor
      x 1 pick f/        \ X / divisor; `1 pick f/` fuses to one op, where `swap f/`
      pi-est f+ to pi-est  \ costs a swap — a measurable share of this loop
      drop
-  :] rounds f1+ i-times
+  ) rounds f1+ i-times
   pi-est 4.0 f* to pi-est
   now t0 - "elapsed: {0}s" format . cr
   pi-est "pi: {0}" format . cr ;

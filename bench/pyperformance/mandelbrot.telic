@@ -32,7 +32,7 @@
   in-set-count ;
 
 now to t0
-: run-mandelbrot-repeated  0 mandel-loops 1 do rep  run-mandelbrot to total  loop  total ;
+: run-mandelbrot-repeated ( -- f )  0 mandel-loops 1 do rep  run-mandelbrot to total  loop  total ;
 run-mandelbrot-repeated to checksum
 now t0 - to elapsed
 "elapsed: " . elapsed . " s" . cr

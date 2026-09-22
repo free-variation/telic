@@ -1,26 +1,26 @@
 \ subprocess convenience
 
-( string proc -- ) \ write the string to the child's stdin
-: write-in :in @ write ;
+\ write the string to the child's stdin
+: write-in ( string proc -- ) :in @ write ;
 
-( proc -- string ) \ read all of the child's stdout
-: read-out :out @ read ;
+\ read all of the child's stdout
+: read-out ( proc -- string ) :out @ read ;
 
-( proc -- string ) \ read all of the child's stderr
-: read-err :err @ read ;
+\ read all of the child's stderr
+: read-err ( proc -- string ) :err @ read ;
 
-( string -- proc) \ start a process from an argv string
-: run " +" split start-process ;
+\ start a process from an argv string
+: run ( string -- proc ) " +" split start-process ;
 
-( proc -- ) \ close a process's streams and reap it (graceful — waits for exit); the teardown mirror of start-process
-: end-process
+\ close a process's streams and reap it (graceful — waits for exit); the teardown mirror of start-process
+: end-process ( proc -- )
 	dup :in @ close
 	dup :out @ close
 	dup :err @ close
 	:pid @ wait drop ;
 
-( argv -- result ) \ run one argv array to completion; return { :out :err :status }; closes all streams and reaps (the singular of parallel-run)
-: run-result
+\ run one argv array to completion; return { :out :err :status }; closes all streams and reaps (the singular of parallel-run)
+: run-result ( argv -- result )
 	start-process to proc
 	{ :out proc read-out :err proc read-err :status proc :pid @ wait } to result
 	proc :in @ close
@@ -28,10 +28,10 @@
 	proc :err @ close
 	result ;
 
-( commands width -- results ) \ run each argv array in commands as a subprocess,
+\ run each argv array in commands as a subprocess,
 \ at most width at a time; collect { :out :err :status } per command in input
 \ order, refilling a slot as soon as its child finishes (as-completed).
-: parallel-run
+: parallel-run ( commands width -- results )
   | commands width |
   commands size to command-count
   width 1 < if 1 to width then
@@ -69,11 +69,8 @@
   repeat
   results ;
 
-( array xt -- image )
-: pmap >r num-cores 1 r> pmap-ext ;
+: pmap ( array xt -- image ) >r num-cores 1 r> pmap-ext ;
 
-( array predicate -- image )
-: pfilter >r num-cores 1 r> pfilter-ext ;
+: pfilter ( array predicate -- image ) >r num-cores 1 r> pfilter-ext ;
 
-( array identity map-xt combine-xt -- result )
-: pmap-reduce >r >r >r num-cores 1 r> r> r> pmap-reduce-ext ;
+: pmap-reduce ( array identity map-xt combine-xt -- result ) >r >r >r num-cores 1 r> r> r> pmap-reduce-ext ;

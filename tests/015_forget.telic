@@ -1,11 +1,11 @@
 \ ==== forget ====
 
-: foo 1 ;
-: bar 2 ;
+: foo ( -- n ) 1 ;
+: bar ( -- n ) 2 ;
 foo . bar . cr
 forget bar
 foo . cr
-: bar 99 ;
+: bar ( -- n ) 99 ;
 foo . bar . cr
 
 clear
@@ -19,11 +19,11 @@ clear
 \ stamp on the continuation, compared at resume, rejects it cleanly instead
 \ of jumping into overwritten code (which SIGSEGVs without the guard).
 variable k
-: shifter shift ;
-: ex1 reset 99 shifter 2 * ;
+: shifter ( -- ) shift ;
+: ex1 ( -- n ) reset 99 shifter 2 * ;
 ex1 swap drop to k
 forget shifter
-: a 1 + ; : b a a a ; : c b b b ; : d c c c ;
+: a ( n -- n ) 1 + ; : b ( n -- n ) a a a ; : c ( n -- n ) b b b ; : d ( n -- n ) c c c ;
 5 k resume . cr
 
 clear

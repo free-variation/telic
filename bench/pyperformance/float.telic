@@ -17,32 +17,32 @@ variable maxx variable maxy variable maxz
 \ i-times over head-receiving quotations, not do/loop: the do form measured
 \ slower here — the loop-refill path under i-times undercuts the do form's
 \ bookkeeping on these bodies.
-: build-points
-  [: i |
+: build-points ( -- )
+  ( i |
      i fsin to sxi
      xs sxi i !e drop
      ys  i fcos 3.0 f*  i  !e drop
      zs  sxi sxi f* 2.0 f/  i  !e drop
-  :] points i-times ;
+  ) points i-times ;
 
-: normalize-points
-  [: i |
+: normalize-points ( -- )
+  ( i |
      xs i @e to xi  ys i @e to yi  zs i @e to zi
      xi xi f* yi yi f* f+ zi zi f* f+ fsqrt to length
      xs  xi length f/  i  !e drop
      ys  yi length f/  i  !e drop
      zs  zi length f/  i  !e drop
-  :] points i-times ;
+  ) points i-times ;
 
-: maximize-points ^maxx ^maxy ^maxz |
+: maximize-points ( -- ) ^maxx ^maxy ^maxz |
   xs 0 @e to maxx  ys 0 @e to maxy  zs 0 @e to maxz
-  [: i |
+  ( i |
      xs i @e to xi  xi maxx >= if xi to maxx then
      ys i @e to xi  xi maxy >= if xi to maxy then
      zs i @e to xi  xi maxz >= if xi to maxz then
-  :] points i-times ;
+  ) points i-times ;
 
-: float-once ^xs ^ys ^zs |
+: float-once ( -- ) ^xs ^ys ^zs |
   points 1 0-matrix to xs
   points 1 0-matrix to ys
   points 1 0-matrix to zs
@@ -50,7 +50,7 @@ variable maxx variable maxy variable maxz
   normalize-points
   maximize-points ;
 
-: float-run
+: float-run ( -- )
   now to t0
   ' float-once repeats times
   now t0 - to t0

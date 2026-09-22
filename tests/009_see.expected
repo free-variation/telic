@@ -1,11 +1,11 @@
-: double 2 * ;
-: square dup * ;
+: double ( n -- n ) 2 * ;
+: square ( n -- n ) dup * ;
 variable counter  \ current value: 42
 symbol red
 + is a primitive
-[: 99 :]
+( 99 )
 \ curried, binds 5
-[: 99 + :]
+( 99 + )
 : fused   \ 9 cells
  0: (vvf-) a b
  3: (vfsq) a
@@ -74,7 +74,7 @@ a: not a colon definition
  6: (leave-locals) 1
  8: exit
 ;
-[: | a b | a b f* :]   \ 9 cells
+( | a b | a b f* )   \ 9 cells
  0: (enter-locals-to) 2 2
  3: (ll*0) 0 1
  6: (leave-locals) 2
@@ -102,7 +102,7 @@ v: not a colon definition
  5: (lit) 3
  7: ]
  8: (branch) 4
- 10: [:
+ 10: (
  11: 1+
  12: exit
  13: (lit) '?
@@ -116,7 +116,7 @@ v: not a colon definition
   5: (lit) 3
   7: ]
   8: (branch) 4
-  10: [:
+  10: (
   11: 1+
   12: exit
   13: (lit) '?
@@ -160,7 +160,7 @@ v: not a colon definition
  3: (local@0) 0
  5: swap
  6: (branch) 5
- 8: [:
+ 8: (
  9: (@i.d) 2
  11: exit
  12: (lit) '?
@@ -174,7 +174,7 @@ v: not a colon definition
  0: (enter-locals-to) 2 2
  3: (load2) 0 1
  6: (branch) 5
- 8: [:
+ 8: (
  9: (@i.d) 2
  11: exit
  12: (lit) '?
@@ -183,19 +183,19 @@ v: not a colon definition
  17: (leave-locals) 2
  19: exit
 ;
-[: + :]   \ 2 cells
+( + )   \ 2 cells
  0: +
  1: exit
 :]
-[: dup * :]
+( dup * )
   0: dup
   1: *
   2: exit
 :]
 \ curried, binds 5
-[: + :]   \ 2 cells
+( + )   \ 2 cells
  0: +
  1: exit
 :]
-[: 2 * :] 
+( 2 * )   
 1 

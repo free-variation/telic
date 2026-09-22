@@ -9,11 +9,11 @@
 \ Built on catch — `lookup` fails with a distinct message for an empty line
 \ versus an unknown word, and catch hands the message over to tell the two
 \ apart.
-( s -- ) \ print a string's characters exactly, no trailing space
-: print-raw string>codepoints ' emit each ; internal
+\ print a string's characters exactly, no trailing space
+: print-raw ( s -- ) string>codepoints ' emit each ; internal
 
-: help
-	[:
+: help ( "name" -- )
+	(
 		lookup man to entry
 		entry frame? if
 			entry :examples [ ] @or to examples
@@ -22,30 +22,30 @@
 			entry :ops has? if
 				entry :order @ entry :alloc @ entry :ops @ "{dim}  ops {0}, alloc {1}, {2}{plain}" format print-raw cr
 			then
-			examples [: example |
+			examples ( example |
 				cr
-				example @code "\n" split [: "  {cyan}>{plain} {0}" format print-raw cr :] each
-				example @output "\n" split [: "  " swap + print-raw cr :] each
-			:] each
+				example @code "\n" split ( "  {cyan}>{plain} {0}" format print-raw cr ) each
+				example @output "\n" split ( "  " swap + print-raw cr ) each
+			) each
 		else
 			entry .
 		then
-	:] catch if
+	) catch if
 		:message @ dup "expected a word name" has? if
 			drop
 "telic — a quick start:
-  3 4 + .            add two numbers and print the result
-  .s                 show the whole stack (clear empties it)
-  [ 1 2 3 ]          an array
-  { :a 1 }           a frame (symbol-keyed)
-  [< 1 2 3 >]          a set
-  : sq dup * ;       define a word
-  5 sq .             run it (prints 25)
-  words              list every word
-  ""mean"" apropos     find words by name or summary
-  ' 2dup see         print a word's definition
-  help map           print one word's reference entry
-  bye                quit
+  3 4 + .                  add two numbers and print the result
+  .s                       show the whole stack (clear empties it)
+  [ 1 2 3 ]                an array
+  { :a 1 }                 a frame (symbol-keyed)
+  [< 1 2 3 >]              a set
+  : sq ( n -- n ) dup * ;  define a word
+  5 sq .                   run it (prints 25)
+  words                    list every word
+  ""mean"" apropos           find words by name or summary
+  ' 2dup see               print a word's definition
+  help map                 print one word's reference entry
+  bye                      quit
 " .
 		else
 			"^\w+ : " "" replace . cr
@@ -53,20 +53,20 @@
 	then ;
 
 
-( -- ) \ pretty prints all current globals
-: vars variables ' print each ;
+\ pretty prints all current globals
+: vars ( -- ) variables ' print each ;
 
-( name path -- str ) \ the entry name, carrying a trailing / when it is a directory
-: ls-entry
+\ the entry name, carrying a trailing / when it is a directory
+: ls-entry ( name path -- str )
 	| name path |
 	path "/" + name + file-info to info
 	info null? if name exit then
 
 	info@kind :directory = if name "/" + else name then ; internal
 
-( path -- ) \ pretty prints a directory's entries in aligned columns; bare ls on
+\ pretty prints a directory's entries in aligned columns; bare ls on
 \ an empty stack lists the working directory
-: ls
+: ls ( path -- )
 	depth 0= if cwd then
 	to path
 
@@ -86,23 +86,23 @@
 		then
 	loop ;
 
-( bytes -- q ) \ a byte count as a MiB quantity; null passes through (wasm has no reading)
-: bytes>mebibytes dup null? not if 1048576 / MiB then ; internal
+\ a byte count as a MiB quantity; null passes through (wasm has no reading)
+: bytes>mebibytes ( bytes -- q ) dup null? not if 1048576 / MiB then ; internal
 
-( bytes -- q ) \ a byte count as a KiB quantity
-: bytes>kibibytes 1024 / KiB ; internal
+\ a byte count as a KiB quantity
+: bytes>kibibytes ( bytes -- q ) 1024 / KiB ; internal
 
-( f -- q ) \ a second count as an s quantity; null passes through
-: seconds>quantity dup null? not if s then ; internal
+\ a second count as an s quantity; null passes through
+: seconds>quantity ( f -- q ) dup null? not if s then ; internal
 
-( -- fr ) \ the interpreter's resource readings: memory in MiB (dictionary pools
+\ the interpreter's resource readings: memory in MiB (dictionary pools
 \ in KiB), processor time in s
-: gauges
+: gauges ( -- fr )
 	(gauges)
-	[: ' bytes>kibibytes map :] /dictionary/name-pool update-at
-	[: ' bytes>kibibytes map :] /dictionary/source-pool update-at
-	[: ' bytes>kibibytes map :] /dictionary/symbol-pool update-at
-	[: ' bytes>mebibytes map :] /heap/arena update-at
+	( ' bytes>kibibytes map ) /dictionary/name-pool update-at
+	( ' bytes>kibibytes map ) /dictionary/source-pool update-at
+	( ' bytes>kibibytes map ) /dictionary/symbol-pool update-at
+	( ' bytes>mebibytes map ) /heap/arena update-at
 	' bytes>mebibytes /heap/live update-at
 	' bytes>mebibytes /heap/gc-threshold update-at
 	' bytes>mebibytes /heap/memory-headroom update-at
@@ -113,32 +113,32 @@
 
 \ ---- print-gauges: the moving readings as three fixed-width rows ----
 
-( value fraction template -- str ) \ format value with the template, inked by the fraction:
+\ format value with the template, inked by the fraction:
 \ plain under 0.6, yellow to 0.85, red above
-: gauge-inked
+: gauge-inked ( value fraction template -- str )
 	| value fraction template |
 	fraction 0.85 > if "{red}" else fraction 0.6 > if "{yellow}" else "" then then
 	template + "{plain}" + to inked
 	value inked format ; internal
 
-( n -- str ) \ a count with a k or M suffix past four digits
-: gauge-count
+\ a count with a k or M suffix past four digits
+: gauge-count ( n -- str )
 	dup 1e6 >= if 1e6 / "{0:.1f}M" format exit then
 	dup 1e4 >= if 1e3 / "{0:.1f}k" format exit then
 	"{0:d}" format ; internal
 
-( q -- f ) \ the magnitude of a quantity, the float itself, or 0 for null (a
+\ the magnitude of a quantity, the float itself, or 0 for null (a
 \ platform without the reading)
-: gauge-magnitude
+: gauge-magnitude ( q -- f )
 	dup null? if drop 0 exit then
 	dup quantity? if magnitude then ; internal
 
-( label -- str ) \ a row label padded to the label column
-: gauge-label 9 pad-right ; internal
+\ a row label padded to the label column
+: gauge-label ( label -- str ) 9 pad-right ; internal
 
-( used capacity unit label -- str ) \ a capped reading as "label used / capacity unit  NN%",
+\ a capped reading as "label used / capacity unit  NN%",
 \ the percentage inked by its fraction; counts take k/M suffixes, quantities one decimal
-: gauge-capped
+: gauge-capped ( used capacity unit label -- str )
 	| used capacity unit label |
 	used capacity / to fraction
 	unit "" = if used gauge-count capacity gauge-count "{1} / {0}" format
@@ -146,13 +146,13 @@
 	label gauge-label swap + 29 pad-right
 	fraction 100 * fraction "{0:3.0f}%" gauge-inked + ; internal
 
-( -- fr ) \ the previous sample's clock, cpu seconds and counters, for the rates
+\ -- fr the previous sample's clock, cpu seconds and counters, for the rates
 variable gauges-previous internal
 null to gauges-previous
 
-( g -- fr ) \ the fields a rate compares against; a published frame carries its
+\ the fields a rate compares against; a published frame carries its
 \ own :sampled-at, a live one samples the clock now
-: gauge-sample
+: gauge-sample ( g -- fr )
 	| g |
 	{ :time g :sampled-at now @or
 	  :cpu g /computer/user-time @ gauge-magnitude g /computer/system-time @ gauge-magnitude +
@@ -160,17 +160,17 @@ null to gauges-previous
 	  :faults g /computer/major-faults @ gauge-magnitude
 	  :switches g /computer/involuntary-switches @ gauge-magnitude } ; internal
 
-( sample key -- rate ) \ per-second change of the key since the previous sample; 0 on the first
-: gauge-rate
+\ per-second change of the key since the previous sample; 0 on the first
+: gauge-rate ( sample key -- rate )
 	| sample key |
 	gauges-previous null? if 0 exit then
 	sample :time @ gauges-previous :time @ - to seconds
 	seconds 0 <= if 0 exit then
 	sample key @ gauges-previous key @ - seconds / ; internal
 
-( g -- rows ) \ a gauges frame as six row strings: heap, stacks and process, footer;
+\ a gauges frame as six row strings: heap, stacks and process, footer;
 \ rates and the interval compare against the frame given on the previous call
-: gauges>rows
+: gauges>rows ( g -- rows )
 	| g ^gauges-previous |
 	g gauge-sample to sample
 
@@ -225,23 +225,23 @@ null to gauges-previous
 
 	sample to gauges-previous ;
 
-( -- rows ) \ the live readings as six row strings
-: gauges-rows gauges gauges>rows ; internal
+\ the live readings as six row strings
+: gauges-rows ( -- rows ) gauges gauges>rows ; internal
 
-( -- ) \ print the moving readings once as a six-row table
-: print-gauges gauges-rows [: print-raw cr :] each ;
+\ print the moving readings once as a six-row table
+: print-gauges ( -- ) gauges-rows ( print-raw cr ) each ;
 
-( -- ) \ the REPL hook: runs after every entry's report, with the data stack as
+\ -- the REPL hook: runs after every entry's report, with the data stack as
 \ the entry left it; does nothing until ' xt embodies after-entry retargets it
 defer after-entry
 ' identity embodies after-entry
 
-( -- ) \ the timer hook: runs at the first op boundary after each tick of
+\ -- the timer hook: runs at the first op boundary after each tick of
 \ tick-every, with the data stack as the running code left it; does nothing
 \ until ' xt embodies on-tick retargets it
 defer on-tick
 ' identity embodies on-tick
 
-( seconds -- ) \ arm a periodic tick every seconds (0 disarms): each tick runs
+\ arm a periodic tick every seconds (0 disarms): each tick runs
 \ on-tick once, between two ops or inside a sleep; nothing ticks until armed
-: tick-every (tick-every) ;
+: tick-every ( seconds -- ) (tick-every) ;

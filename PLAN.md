@@ -244,7 +244,7 @@ dropped handle holds its slot and its OS resource until the process exits.
 
 - **Wildcard mutation** — `*` / `//` in `!` / `delete-at` / `update-at` for
   broadcast writes.
-- **Quotation predicates** — an arbitrary `[: … :]` evaluated per node, built as an
+- **Quotation predicates** — an arbitrary `( … )` evaluated per node, built as an
   explicit element array.
 - **Axes beyond child and descendant.**
 
@@ -501,7 +501,7 @@ live here instead. File and function name each invariant's home.
   `call_open_callable`).
 - No op receives a frame depth above 0. A quotation reaches an enclosing
   local only as a capture: a trailing received slot of its own frame, copied
-  from the immediately enclosing scope at `:]`. The capture pre-scan must
+  from the immediately enclosing scope at `)`. The capture pre-scan must
   declare every outside name the body reads, nested quotations included, and
   must treat `to`/`do` targets and nested heads as shadowing, exactly as
   token resolution does (compiler.c, `scan_body_captures`,
@@ -589,7 +589,7 @@ live here instead. File and function name each invariant's home.
   and `defer` reserves four cells with zeroed pads so `embodies!` overwrites the
   word in place as a `docol` forwarder (core.c, compiler.c).
 - `(tailcall)` is a two-cell op (target cfa operand, `op_cell_count` returns 2);
-  `rewrite_tail_calls` at `;`/`:]` converts only `docol` tail calls, never when
+  `rewrite_tail_calls` at `;`/`)` converts only `docol` tail calls, never when
   `body_has_tail_hazard` holds (`>r`/`r>`/`r@`/`reset`/`shift`/`shift-with`/`fail`,
   or locals plus a quotation), and `inline_word_body` demotes a copied
   `(tailcall)` back to a call (compiler.c, core.c `p_tailcall`/`inline_word_body`).

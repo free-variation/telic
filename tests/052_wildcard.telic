@@ -6,10 +6,10 @@ _ . cr                                            \ _
 lvar to Tl  [ 1 2 3 ] [ _ Tl rest ] ~ drop  Tl ? . cr   \ [ 2 3 ]   _ discards the head, Tl takes the rest
 _ 5 ~ . cr                                         \ _
 \ a mismatch away from the wildcard still fails -> branch 2
-[: [ 1 2 ] [ _ 9 ] ~ "y" :] [: "n" :] amb . cr      \ n
+( [ 1 2 ] [ _ 9 ] ~ "y" ) ( "n" ) amb . cr      \ n
 \ 100k wildcards allocate no logic vars (no lvar-stack buildup): reset the
 \ counters, run the loop, confirm the loop added nothing.
 alloc-stats                                        \ resets (prints prior tally)
-[: _ drop :] 100000 times
+( _ drop ) 100000 times
 alloc-stats                                        \ lvars=0 arrays=0
 bye

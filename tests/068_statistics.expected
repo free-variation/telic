@@ -44,7 +44,7 @@ in quantile
 
 0 
 error: probability must be in [0,1]; got 1.5
-in quantile ← [: bare-values swap quantile :] ← quantiles
+in quantile ← ( bare-values swap quantile ) ← quantiles
 5.5 
 5 
 2.5 
@@ -248,17 +248,17 @@ null
 
 {
   :message expected equal-length vectors; got 3 and 2 elements
-  :trace in correlation-kendall ← [: [ 1 2 3 ] vector [ 1 2 ] vector correlation-… :] ← try-catch
+  :trace in correlation-kendall ← ( [ 1 2 3 ] vector [ 1 2 ] vector correlation-k… ) ← try-catch
 }
 
 {
   :message needs at least 2 elements; got 1
-  :trace in correlation-kendall ← [: [ 1 ] vector [ 2 ] vector correlation-kendal… :] ← try-catch
+  :trace in correlation-kendall ← ( [ 1 ] vector [ 2 ] vector correlation-kendall… ) ← try-catch
 }
 
 {
   :message expected a matrix; got a float
-  :trace in correlation-kendall ← [: 5 [ 1 2 ] vector correlation-kendall :] ← try-catch
+  :trace in correlation-kendall ← ( 5 [ 1 2 ] vector correlation-kendall ) ← try-catch
 }
 
 0 

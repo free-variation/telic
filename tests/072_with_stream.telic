@@ -6,5 +6,5 @@
 [ "printf" "hello" ] start-process :out @ ' read with-stream . cr           \ hello
 
 \ ---- throw mid-body still closes the stream; the exception propagates ----
-[: [ "printf" "x" ] start-process :out @ [: drop "streamboom" throw :] with-stream :]
-  [: "stream-caught " . . :] try-catch cr
+( [ "printf" "x" ] start-process :out @ ( drop "streamboom" throw ) with-stream )
+  ( "stream-caught " . . ) try-catch cr

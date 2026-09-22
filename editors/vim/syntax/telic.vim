@@ -13,7 +13,6 @@ syn iskeyword @,48-57,_,192-255,33,35-39,42-47,58,60-64,94,126
 syn sync fromstart
 
 syn match   telicComment "\%(^\|\s\)\zs\\\%(\s.*\)\=$" contains=@Spell
-syn region  telicComment start="\[\@<!(\s" end=")" contains=@Spell
 syn region  telicString start=+"+ skip=+""+ end=+"+ contains=@Spell,telicFormat
 syn match   telicFormat "{\d\+\%(:[^}]*\)\=}" contained
 syn match   telicNumber "\<-\=\d\+\%(\.\d\+\)\=\%([eE][-+]\=\d\+\)\=\>"
@@ -24,9 +23,10 @@ syn match   telicFrameKey "[@!]\@<=\k\+"
 
 syn keyword telicDefine : variable constant symbol to forget inline internal ' lookup
 syn match   telicDefine ";"
-syn match   telicDefine "\[:"
-syn match   telicDefine ":\]"
+syn match   telicDefine "("
+syn match   telicDefine ")"
 syn match   telicDefName "\%(^\|\s\):\s\+\zs\k\+"
+syn match   telicEffect  "\%(\%(^\|\s\):\s\+\k\+\s\+\)\@<=(\s[^)]*)\="
 
 syn keyword telicConditional if ?if else then
 syn keyword telicRepeat begin until again while repeat leave continue times i-times
@@ -101,6 +101,7 @@ hi def link telicFrameOp      Operator
 hi def link telicFrameKey     Type
 hi def link telicDefine       Define
 hi def link telicDefName      Function
+hi def link telicEffect       Identifier
 hi def link telicConditional  Conditional
 hi def link telicRepeat       Repeat
 hi def link telicKeyword      Keyword

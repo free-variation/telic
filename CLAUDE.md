@@ -187,7 +187,8 @@ new inline that calls functions → the tail.
   than every use; changing the order changes what compiles. A new
   embedded word goes in the file owning its domain, and its reference
   row's prefix names that file. lib/ holds the loadable libraries.
-- Stack-effect comment line above each definition: ( a b -- c ) \ summary.
+- Every definition declares its stack effect after the name: `: word ( a b -- c ) …`;
+  a `\` comment line above it is the summary help shows.
 - Markers postfix after ; — inline, internal.
 - Plumbing words are marked internal.
 - C escape hatches are parenthesized primitives wrapped by the public
@@ -203,7 +204,7 @@ new inline that calls functions → the tail.
   (masked) and wasm (unmasked) and must agree, pinning both copies.
 - Locals: a head names what the body receives, rightmost from the top,
   and the opening bar is optional — `: hypotenuse a b | …` and
-  `[: element index | … :]` are the heads `| a b |` and
+  `( element index | … )` are the heads `| a b |` and
   `| element index |`. Everything else is declared by a `to` on an
   undeclared name and reads as null until assigned. `^name` in the head
   names an enclosing global the body assigns; `?name` is a fresh logic
@@ -214,8 +215,8 @@ new inline that calls functions → the tail.
   `i-times` over a quotation serve the top level and callers holding an
   xt. `begin`/`while` remains for loops whose iteration count is not
   fixed at entry (a fixpoint pass, a bit scan).
-- Quotations: write them bare (`[: ... :]`); receive into locals
-  (`[>`/`[: |`) when a value is reused past a `dup` or the quotation
+- Quotations: write them bare (`( ... )`); receive into locals
+  (`( name | ...`) when a value is reused past a `dup` or the quotation
   crosses `curry`. Measured: bare is the fastest form — under
   map/times/i-times it dispatches straight into the body, and
   `local swap @i` fuses to one op ((@i.swap.l0)/(@i.swap.l1)) —

@@ -80,52 +80,78 @@ static void append_trimmed(char *summary, int *summary_len, const char *text, co
 	*summary_len += length;
 }
 
-static void definition_comment(int colon_end, int *effect_offset, int *summary_offset) {
+static int parse_stack_effect(Interpreter *interp) {
+	skip_whitespace_and_comments();
+
+	int open_pos = compiler.input_buffer_pos;
+	if (open_pos + 1 >= compiler.input_buffer_len
+			|| compiler.input_buffer[open_pos] != '('
+			|| !isspace((unsigned char)compiler.input_buffer[open_pos + 1])) {
+		fail(interp, ": expected a stack effect after the name, as in : name ( a b -- c )");
+		return 0;
+	}
+
+	int text_start = open_pos + 2;
+	int scan = text_start;
+	while (scan < compiler.input_buffer_len && compiler.input_buffer[scan] != '\n') {
+		if (compiler.input_buffer[scan] == ')'
+				&& isspace((unsigned char)compiler.input_buffer[scan - 1])
+				&& (scan + 1 >= compiler.input_buffer_len
+					|| isspace((unsigned char)compiler.input_buffer[scan + 1])))
+			break;
+		scan++;
+	}
+	if (scan >= compiler.input_buffer_len || compiler.input_buffer[scan] != ')') {
+		fail(interp, ": stack effect has no closing parenthesis");
+		return 0;
+	}
+
+	int text_end = scan - 1;
+	while (text_end > text_start && isspace((unsigned char)compiler.input_buffer[text_end - 1]))
+		text_end--;
+
+	char effect[SUMMARY_MAX];
+	int length = text_end - text_start;
+	if (length > SUMMARY_MAX - 5)
+		length = SUMMARY_MAX - 5;
+	effect[0] = '(';
+	effect[1] = ' ';
+	memcpy(effect + 2, &compiler.input_buffer[text_start], (size_t)length);
+	effect[2 + length] = ' ';
+	effect[3 + length] = ')';
+
+	compiler.input_buffer_pos = scan + 1;
+
+	return store_source_text(effect, length + 4);
+}
+
+static void definition_comment(int colon_end, int *summary_offset) {
 	int colon_line = line_start_before(colon_end - 1);
 	if (first_nonblank(colon_line, colon_end - 1) != &compiler.input_buffer[colon_end - 1])
 		return;
 
-	int continuation_starts[SUMMARY_LINES_MAX];
-	int continuation_ends[SUMMARY_LINES_MAX];
-	int n_continuations = 0;
+	int comment_starts[SUMMARY_LINES_MAX];
+	int comment_ends[SUMMARY_LINES_MAX];
+	int n_comments = 0;
 	int line_end = colon_line - 1;
-	int effect_line = -1;
-	while (line_end > 0) {
+	while (line_end > 0 && n_comments < SUMMARY_LINES_MAX) {
 		int line_start = line_start_before(line_end);
 		const char *lead = first_nonblank(line_start, line_end);
-		if (lead < &compiler.input_buffer[line_end] && *lead == '(') {
-			effect_line = line_start;
+		if (lead >= &compiler.input_buffer[line_end] || *lead != '\\')
 			break;
-		}
-		if (lead < &compiler.input_buffer[line_end] && *lead == '\\' && n_continuations < SUMMARY_LINES_MAX) {
-			continuation_starts[n_continuations] = (int)(lead + 1 - compiler.input_buffer);
-			continuation_ends[n_continuations++] = line_end;
-			line_end = line_start - 1;
-			continue;
-		}
-		return;
-	}
-	if (effect_line < 0)
-		return;
 
-	const char *effect_start = first_nonblank(effect_line, line_end);
-	const char *effect_end = memchr(effect_start, ')', (size_t)(&compiler.input_buffer[line_end] - effect_start));
-	if (!effect_end)
+		comment_starts[n_comments] = (int)(lead + 1 - compiler.input_buffer);
+		comment_ends[n_comments++] = line_end;
+		line_end = line_start - 1;
+	}
+	if (n_comments == 0)
 		return;
-	effect_end++;
-	*effect_offset = store_source_text(effect_start, (int)(effect_end - effect_start));
 
 	char summary[SUMMARY_MAX];
 	int summary_len = 0;
-	const char *after_effect = effect_end;
-	const char *line_limit = &compiler.input_buffer[line_end];
-	while (after_effect < line_limit && (*after_effect == ' ' || *after_effect == '\t'))
-		after_effect++;
-	if (after_effect < line_limit && *after_effect == '\\')
-		append_trimmed(summary, &summary_len, after_effect + 1, line_limit);
-	for (int i = n_continuations - 1; i >= 0; i--)
-		append_trimmed(summary, &summary_len, &compiler.input_buffer[continuation_starts[i]],
-				&compiler.input_buffer[continuation_ends[i]]);
+	for (int i = n_comments - 1; i >= 0; i--)
+		append_trimmed(summary, &summary_len, &compiler.input_buffer[comment_starts[i]],
+				&compiler.input_buffer[comment_ends[i]]);
 	*summary_offset = store_source_text(summary, summary_len);
 }
 
@@ -184,7 +210,7 @@ static int check_locals_assigned(Interpreter *interp) {
 void p_semicolon(DISPATCH_ARGS) {
 	if (compiler.compiling_src_start > 0 && compiler.n_local_scopes > 1) {
 		rollback_partial_definition();
-		fail(interp, "; : unterminated quotation (a [: has no matching :])");
+		fail(interp, "; : unterminated quotation (a ( has no matching ))");
 		return;
 	}
 	if (compiler.loop_begin != 0) {
@@ -224,10 +250,10 @@ void p_semicolon(DISPATCH_ARGS) {
 		}
 		if (compiler.current_load_file) {
 			int line = definition_line();
-			int effect_offset = 0;
 			int summary_offset = 0;
-			definition_comment(compiler.compiling_colon_pos, &effect_offset, &summary_offset);
-			record_word_location(vocab.latest_cfa, compiler.current_load_file, line, effect_offset, summary_offset);
+			definition_comment(compiler.compiling_colon_pos, &summary_offset);
+			record_word_location(vocab.latest_cfa, compiler.current_load_file, line,
+					compiler.compiling_effect_offset, summary_offset);
 		}
 	}
 	compiler.compiling = 0;
@@ -577,7 +603,7 @@ void p_loop(DISPATCH_ARGS) {
 }
 
 static void open_quotation(Interpreter *interp) {
-	int opener_start = compiler.input_buffer_pos - 2;
+	int opener_start = compiler.input_buffer_pos - 1;
 	int branch_slot = -1;
 	if (compiler.compiling) {
 		emit_call(interp, vocab.branch_cfa);
@@ -736,7 +762,7 @@ static char *scan_next_token(void) {
 }
 
 static int region_closer(const char *token) {
-	return strcmp(token, ":]") == 0 || strcmp(token, ";") == 0;
+	return strcmp(token, ")") == 0 || strcmp(token, ";") == 0;
 }
 
 static void collect_region_declarations(void) {
@@ -748,11 +774,11 @@ static void collect_region_declarations(void) {
 		char *token = scan_next_token();
 		if (!token)
 			break;
-		if (strcmp(token, "[:") == 0) {
+		if (strcmp(token, "(") == 0) {
 			depth++;
 			continue;
 		}
-		if (strcmp(token, ":]") == 0) {
+		if (strcmp(token, ")") == 0) {
 			if (depth == 0)
 				break;
 			depth--;
@@ -859,7 +885,7 @@ static int scan_region_captures(Interpreter *interp, int quotation_scope) {
 		if (!token || region_closer(token))
 			break;
 
-		if (strcmp(token, "[:") == 0) {
+		if (strcmp(token, "(") == 0) {
 			int nested_mark = capture_shadow.n_names;
 			consume_nested_head();
 			if (scan_region_captures(interp, quotation_scope) < 0)
@@ -1179,8 +1205,8 @@ static int barless_locals_follow(void) {
 			found = names > 0;
 			break;
 		}
-		if (strcmp(token, ";") == 0 || strcmp(token, ":]") == 0
-				|| strcmp(token, "[:") == 0)
+		if (strcmp(token, ";") == 0 || strcmp(token, ")") == 0
+				|| strcmp(token, "(") == 0)
 			break;
 
 		double ignored;
@@ -1262,11 +1288,11 @@ static void hoist_assigned_locals(Interpreter *interp) {
 			break;
 		}
 
-		if (strcmp(token, "[:") == 0) {
+		if (strcmp(token, "(") == 0) {
 			depth++;
 			continue;
 		}
-		if (strcmp(token, ":]") == 0) {
+		if (strcmp(token, ")") == 0) {
 			if (depth == 0)
 				break;
 			depth--;
@@ -1345,6 +1371,11 @@ void p_colon(DISPATCH_ARGS) {
 		return;
 	}
 
+	int effect_start = compiler.input_buffer_pos;
+	compiler.compiling_effect_offset = parse_stack_effect(interp);
+	if (interp->error_flag)
+		return;
+
 	compiler.definition_redefined = find(token) != 0;
 
 	create_header(interp, token, 0);
@@ -1356,7 +1387,7 @@ void p_colon(DISPATCH_ARGS) {
 	compiler.loop_begin = 0;
 	compiler.leave_chain = 0;
 
-	compiler.compiling_src_start = compiler.input_buffer_pos;
+	compiler.compiling_src_start = effect_start;
 
 	if (barless_locals_follow()) {
 		compile_locals_decl(interp);

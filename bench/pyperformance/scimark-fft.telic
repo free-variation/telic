@@ -129,7 +129,7 @@ variable init  variable data
     data  data k @e scale f*  k  !e drop
   loop ;
 
-: fft-bench ^init ^data |
+: fft-bench ( -- ) ^init ^data |
   nlen 1 0-matrix to init
   nlen 1 0-matrix to data
   7.0 rng-init

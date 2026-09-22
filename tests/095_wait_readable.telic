@@ -32,12 +32,12 @@ talker end-process
 clear
 
 \ === errors ===
-[: [ 3 ] 1 wait-readable :] catch drop :message @ . cr        \ (not a stream)
-[: stdin 1 wait-readable :] catch drop :message @ . cr        \ (not an array)
-[: [ ] "x" wait-readable :] catch drop :message @ . cr        \ (seconds is not a float)
+( [ 3 ] 1 wait-readable ) catch drop :message @ . cr        \ (not a stream)
+( stdin 1 wait-readable ) catch drop :message @ . cr        \ (not an array)
+( [ ] "x" wait-readable ) catch drop :message @ . cr        \ (seconds is not a float)
 [ "printf" "x" ] start-process to spent
 spent :out @ close
-[: [ spent :out @ ] 1 wait-readable :] catch drop :message @ . cr   \ (a closed stream)
+( [ spent :out @ ] 1 wait-readable ) catch drop :message @ . cr   \ (a closed stream)
 spent :in @ close  spent :err @ close  spent :pid @ wait drop
 
 clear
@@ -56,4 +56,4 @@ quiet :pid @ stop drop
 quiet :in @ close  quiet :out @ close  quiet :err @ close
 talker end-process
 
-[: 3 read-available :] catch drop :message @ . cr        \ (not a stream)
+( 3 read-available ) catch drop :message @ . cr        \ (not a stream)

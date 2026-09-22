@@ -27,8 +27,8 @@
   | fill word n |
   fill n rep  word +  fill n rep + ;
 
-( kk arr -- ) \ build string kk in place
-: build-string-at
+\ build string kk in place
+: build-string-at ( kk arr -- )
   | kk arr |
   arr
     fills kk 21 mod @i
@@ -46,14 +46,14 @@
 build-strings constant strs
 
 \ search the kk-th (pattern, string) pair 10 times
-: search10 ( string pattern -- )  [: 2dup has? drop :] 10 times  drop drop ;
+: search10 ( string pattern -- )  ( 2dup has? drop ) 10 times  drop drop ;
 
 : search-all ( -- )
-  [: kk |  strs kk @i  patterns kk 21 mod @i  search10 :] 147 i-times ;
+  ( kk |  strs kk @i  patterns kk 21 mod @i  search10 ) 147 i-times ;
 
 \ verification: how many of the 147 pairs match (each counted once)
-( total kk -- total' ) \ count pair kk if it matches
-: add-match
+\ count pair kk if it matches
+: add-match ( total kk -- total' )
   | total kk |
   strs kk @i  patterns kk 21 mod @i  has?  total + ; internal
 

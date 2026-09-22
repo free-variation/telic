@@ -71,14 +71,14 @@ _ render "_" = . cr
 ' dup render "^<xt \d+>$" has? . cr
 
 \ --- the see family still renders correctly after the stream refactor ---
-: dub dup + ;
+: dub ( n -- n ) dup + ;
 ' dub see
 ' dub see-compiled
 ' dub see-tree
 
 \ --- see-family capture (see>string etc.): same text as the printing words,
 \ returned as a string with the trailing newline stripped ---
-' dub see>string ": dub dup + ;" = . cr
+' dub see>string ": dub ( n -- n ) dup + ;" = . cr
 ' dub see-tree>string ": dub
   0: dup
   1: +
@@ -91,13 +91,13 @@ _ render "_" = . cr
 ' + see-compiled>string "not a colon definition" has? . cr
 
 \ --- the captured text composes with render and format ---
-' dub see>string render ": dub dup + ;" = . cr
-' dub see>string "src: {0}" format "src: : dub dup + ;" = . cr
+' dub see>string render ": dub ( n -- n ) dup + ;" = . cr
+' dub see>string "src: {0}" format "src: : dub ( n -- n ) dup + ;" = . cr
 
 clear
 \ --- pretty-printing a deeply nested array truncates at the nesting cap
 \ instead of recursing off the C stack (render shares . 's pp_value path) ---
-0 [: 1 array :] 400 times render "\.\.\." has? . cr    \ 1  (marker present)
+0 ( 1 array ) 400 times render "\.\.\." has? . cr    \ 1  (marker present)
 [ [ [ 1 ] ] ] render "\.\.\." has? . cr                \ 0  (shallow: printed in full)
 
 clear

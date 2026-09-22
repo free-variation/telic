@@ -21,8 +21,8 @@ clear
 
 \ === claude-headers: the key comes from the environment ===
 claude-headers
-dup [: "x-api-key: test-key" = :] any? . cr          \ 1
-dup [: "anthropic-version: 2023-06-01" = :] any? . cr \ 1
+dup ( "x-api-key: test-key" = ) any? . cr          \ 1
+dup ( "anthropic-version: 2023-06-01" = ) any? . cr \ 1
 size . cr                                            \ 3
 
 clear

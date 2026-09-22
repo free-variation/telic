@@ -25,7 +25,7 @@
 1 
 1 
 1 
-: dub dup + ;
+: dub ( n -- n ) dup + ;
 : dub   \ 3 cells
  0: dup
  1: +

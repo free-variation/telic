@@ -4,8 +4,8 @@
 \ Exercises the mark-on-rstack design across several patterns.
 
 \ -- 1: basic resume of "2 *" with arg 5 -> 10
-: shifter shift ;
-: ex1 reset 99 shifter 2 * ;
+: shifter ( -- ) shift ;
+: ex1 ( -- n ) reset 99 shifter 2 * ;
 ex1 swap drop 5 swap resume . cr
 
 \ -- 2: drop k, no resume -> 99 (the pre-shift value, since shift unwinds
@@ -18,39 +18,39 @@ dup 3 swap resume . cr
     4 swap resume . cr
 
 \ -- 4: pre-shift value preserved on stack after unwind
-: ex2 reset 100 shifter ;
+: ex2 ( -- n ) reset 100 shifter ;
 ex2 drop . cr
 
 \ -- 5: multi-step captured slice "1 + 2 *", arg 3 -> (3+1)*2 = 8
-: ex3 reset 0 shifter 1 + 2 * ;
+: ex3 ( -- n ) reset 0 shifter 1 + 2 * ;
 ex3 swap drop 3 swap resume . cr
 
 \ -- 6: nested resets, inner shift only escapes inner: k lands in ex4, which drops it
-: inner-body reset 1 shifter 2 + ;
-: ex4 reset 100 inner-body drop 1000 + ;
+: inner-body ( -- n ) reset 1 shifter 2 + ;
+: ex4 ( -- n ) reset 100 inner-body drop 1000 + ;
 ex4 .s cr
 
 \ -- 7: reset in a word with its own locals; shift unwinds past the locals scope
-: locals-reset | seed | reset seed 7 + shifter ;
+: locals-reset ( seed -- n ) | seed | reset seed 7 + shifter ;
 5 locals-reset drop . cr
 
 \ -- 8: resume after unwinding past a locals scope
-: locals-resume | seed | reset seed shifter 100 + ;
+: locals-resume ( seed -- n ) | seed | reset seed shifter 100 + ;
 5 locals-resume swap drop 3 swap resume . cr
 
 \ -- 9: shift inside a nested execute whose reset-owner has locals
-: locals-exec | producer | reset producer execute ;
-[: 9 shift :] locals-exec drop . cr
+: locals-exec ( producer -- n ) | producer | reset producer execute ;
+( 9 shift ) locals-exec drop . cr
 
 \ -- 10: shift across an execute between the reset and the shift: the word that
 \ called execute is inside the captured slice, so its remaining body runs on resume
-: through-execute | x | [: shifter :] execute x 2 * ;
-: ex5 reset 7 through-execute ;
+: through-execute ( x -- n ) | x | ( shifter ) execute x 2 * ;
+: ex5 ( -- n ) reset 7 through-execute ;
 ex5 resume . cr
 
 \ -- 11: the shifting word's own tail belongs to the continuation
-: shift-then-print shift "after" . ;
-: ex6 reset shift-then-print "outer" . ;
+: shift-then-print ( -- ) shift "after" . ;
+: ex6 ( -- ) reset shift-then-print "outer" . ;
 ex6 "between" . resume cr
 
 \ -- 12: shift outside reset is a clean error
@@ -66,7 +66,7 @@ clear
 \ line silently no-ops (DISPATCH / run_inner bail while unwinding). Clearing
 \ unwinding unconditionally per line breaks the wedge: the line after the
 \ trigger must still execute. Without the fix the 42 below never prints.
-reset [: 99 . cr :] shift-with
+reset ( 99 . cr ) shift-with
 42 . cr
 
 clear

@@ -6,27 +6,27 @@
 \ the definition.
 
 \ -- assigned by to, never read
-: leftover 3 to scratch 4 ;
+: leftover ( -- n ) 3 to scratch 4 ;
 leftover . cr
 
 \ -- received in the head, never read
-: ignores | a b | b ;
+: ignores ( a b -- b ) | a b | b ;
 1 2 ignores . cr
 
 \ -- a read anywhere counts, including inside a branch or a nested quotation
-: read-in-branch 0 to seen 1 if seen then ;
-: read-in-quotation 5 to base [: base :] execute ;
+: read-in-branch ( -- n ) 0 to seen 1 if seen then ;
+: read-in-quotation ( -- n ) 5 to base ( base ) execute ;
 read-in-branch . read-in-quotation . cr
 
 \ -- a do index that only counts repetitions is not reported
-: repeat-three 0 3 1 do k "x" . loop cr ;
+: repeat-three ( -- ) 0 3 1 do k "x" . loop cr ;
 repeat-three
 
 \ -- a loaded definition reports its file and line
-": loaded-leftover | n | 10 to unused n ;" "/tmp/docs-unread.telic" write-file
+": loaded-leftover ( n -- n ) | n | 10 to unused n ;" "/tmp/docs-unread.telic" write-file
 "/tmp/docs-unread.telic" load
 7 loaded-leftover . cr
 
 \ -- a quotation's own unread local names the enclosing definition
-: outer [: 1 to inner-scratch 2 :] execute ;
+: outer ( -- n ) ( 1 to inner-scratch 2 ) execute ;
 outer . cr

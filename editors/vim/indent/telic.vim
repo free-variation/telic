@@ -6,7 +6,7 @@ endif
 let b:did_indent = 1
 
 setlocal indentexpr=GetTelicIndent()
-setlocal indentkeys=!^F,o,O,0=then,0=else,0=until,0=again,0=repeat,0=endof,0=endcase,0=;,0=:],0=},0=],0=>],0=)]
+setlocal indentkeys=!^F,o,O,0=then,0=else,0=until,0=again,0=repeat,0=endof,0=endcase,0=;,0=),0=},0=],0=>]
 setlocal nolisp nosmartindent
 setlocal autoindent
 
@@ -20,7 +20,6 @@ function! s:Blank(line) abort
   let l = a:line
   let l = substitute(l, '"\%([^"]\|""\)*"', '\=repeat(" ", len(submatch(0)))', 'g')
   let l = substitute(l, '\%(^\|\s\)\zs\\\%(\s.*\)\=$', '\=repeat(" ", len(submatch(0)))', '')
-  let l = substitute(l, '\%(\[\)\@<!(\s.\{-})', '\=repeat(" ", len(submatch(0)))', 'g')
   return l
 endfunction
 
@@ -58,8 +57,8 @@ endfunction
 
 " Structure literals align continuation lines to the column of the first token
 " after the opener; control-flow and definitions indent their body one level.
-let s:bopen  = {'{': 1, '[': 1, '[<': 1, '[:': 1, '[(': 1}
-let s:bclose = {'}': 1, ']': 1, '>]': 1, ':]': 1, ')]': 1}
+let s:bopen  = {'{': 1, '[': 1, '[<': 1, '(': 1}
+let s:bclose = {'}': 1, ']': 1, '>]': 1, ')': 1}
 let s:cfopen = {'if': 1, '?if': 1, 'begin': 1, 'case': 1, 'of': 1}
 let s:cfclose = {'then': 1, 'until': 1, 'again': 1, 'repeat': 1, 'endof': 1, 'endcase': 1, ';': 1}
 

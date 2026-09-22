@@ -22,46 +22,46 @@ variable zero-col
   | i j |
   i j +  dup f1+ *  2 /  i +  1 +  1.0 swap / ;
 
-( j i flat -- ) \ flat[i*n + j] = A_ij
-: set-a
+\ flat[i*n + j] = A_ij
+: set-a ( j i flat -- )
   | j i flat |
   flat  i j eval-a  i n * j +  !i drop ; internal
 
-( i flat -- ) \ fill row i
-: set-a-row
+\ fill row i
+: set-a-row ( i flat -- )
   ' set-a 2 ncurry  n i-times ; internal
 
-: build-a ^a-mat |
+: build-a ( -- ) ^a-mat |
   0 n n * array-of to flat
   flat ' set-a-row curry  n i-times
   flat n n matrix to a-mat ;
 
-: build-u ^u-mat |
+: build-u ( -- ) ^u-mat |
   1 n array-of  n 1 matrix to u-mat ;
 
-: prep ^zero-col |
+: prep ( -- ) ^zero-col |
   n 1 0-matrix to zero-col
   build-a ;
 
 \ ata-times ( x -- AtA*x ): compute A*x with dgemv-n, then At*(...) with dgemv-t.
 \ These reach cblas_dgemv, which has less per-call setup than entering dgemm with
 \ an n x 1 column.
-: ata-times
+: ata-times ( x -- AtAx )
   | x |
   1 a-mat x  0 zero-col  dgemv-n
   1 a-mat rot 0 zero-col dgemv-t ;
 
-: one-loop
+: one-loop ( -- )
   build-u
-  [: ^u-mat ^v-mat |
+  ( ^u-mat ^v-mat |
      u-mat ata-times to v-mat
-     v-mat ata-times to u-mat :] 10 times ;
+     v-mat ata-times to u-mat ) 10 times ;
 
-( sum i -- sum' ) \ add u_i * v_i
-: add-uv  | sum i |  u-mat i 0 @i,j  v-mat i 0 @i,j  *  sum + ; internal
+\ add u_i * v_i
+: add-uv ( sum i -- sum' )  | sum i |  u-mat i 0 @i,j  v-mat i 0 @i,j  *  sum + ; internal
 
-( sum i -- sum' ) \ add v_i squared
-: add-vv  | sum i |  v-mat i 0 @i,j  dup *  sum + ; internal
+\ add v_i squared
+: add-vv ( sum i -- sum' )  | sum i |  v-mat i 0 @i,j  dup *  sum + ; internal
 
 : spectral-norm-run ( loops -- )
   to n_loops

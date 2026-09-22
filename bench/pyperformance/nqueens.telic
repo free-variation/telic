@@ -28,7 +28,7 @@ inline
   loop
   ok ;
 
-: permute
+: permute ( start -- )
   | start ^solutions |
   start queens 1 - = if
     valid? if  f++ solutions  then
@@ -40,7 +40,7 @@ inline
     loop
   then ;
 
-: nqueens-run ^board ^solutions |
+: nqueens-run ( -- ) ^board ^solutions |
   now to t0
   0 loops 1 do rep
      0 queens array-of to board

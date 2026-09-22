@@ -4,8 +4,8 @@
 \ Unserializable values (compiled code, handles, unbound logic vars) are
 \ refused by type. Quantities carry their unit and base dimensions by name.
 
-: round-trip value>bytes bytes>value ;                  \ ( v -- v' )
-: survives dup round-trip = ;                           \ ( v -- bool )
+: round-trip ( v -- v ) value>bytes bytes>value ;                  \ ( v -- v' )
+: survives ( v -- bool ) dup round-trip = ;                           \ ( v -- bool )
 
 \ === scalars and empties ===
 
@@ -33,14 +33,14 @@ clear
 [ 1 2 3 4 ] 2 2 matrix 3 m * dup 2 array round-trip 1 @i quantity? . cr   \ 1
 \ both directions run on an explicit stack, so depth is bounded only by the
 \ cap: a 10000-level frame round-trips and walks back down to null
-null [: { :k rot } :] 10000 times round-trip [: :k @ :] 10000 times null? . cr   \ 1
+null ( { :k rot } ) 10000 times round-trip ( :k @ ) 10000 times null? . cr   \ 1
 \ value data written when cons pairs existed (tag 9) is refused by name
 [ 84 69 76 67 1  9 1 1 ] codepoints>string bytes>value                 \ (cons pair no longer exists)
 \ past the depth cap both words error instead of exhausting the C stack: a
 \ 200000-level array on the way out, and a synthesized 200000-level file on
 \ the way in (header, then 200000 one-element array openers, then null)
-null [: 1 array :] 200000 times value>bytes                            \ (structure too deeply nested)
-[ 84 69 76 67 1 ] 200000 iota [: drop [ 6 1 0 0 0 ] :] map flatten concat [ 1 ] concat
+null ( 1 array ) 200000 times value>bytes                            \ (structure too deeply nested)
+[ 84 69 76 67 1 ] 200000 iota ( drop [ 6 1 0 0 0 ] ) map flatten concat [ 1 ] concat
 codepoints>string bytes>value                                          \ (structure too deeply nested)
 
 clear
@@ -112,8 +112,8 @@ clear
 big-matrix round-trip dup 0 0 @i,j . dim swap . . cr    \ 7 200 200
 big-matrix value>bytes byte-size . cr                   \ 320014 (8 bytes an element plus the header)
 20000 iota round-trip dup size . 19999 @i . cr          \ 20000 19999
-2000 iota [: dup 2 * 2 array :] map round-trip 1999 @i . cr   \ [ 1999 3998 ]
-20000 iota [: "row{0}" format :] map round-trip 19999 @i . cr   \ row19999 (20000 strings)
+2000 iota ( dup 2 * 2 array ) map round-trip 1999 @i . cr   \ [ 1999 3998 ]
+20000 iota ( "row{0}" format ) map round-trip 19999 @i . cr   \ row19999 (20000 strings)
 [ [ "id" "score" ] [ 1 0.5 ] [ 2 0.25 ] ] true rows>dataset round-trip :score @ mean . cr  \ 0.375
 
 clear
@@ -137,7 +137,7 @@ clear
 \ === errors (each reason parenthesized) ===
 
 ' dup value>bytes                             \ (compiled code has no data form)
-[: 1 2 + :] value>bytes                       \ (a quotation is compiled code too)
+( 1 2 + ) value>bytes                       \ (a quotation is compiled code too)
 1 ' + curry value>bytes                       \ (a curried token carries an xt)
 lvar value>bytes                              \ (an unbound logic variable has no value)
 stdout value>bytes                            \ (a stream is an OS handle)

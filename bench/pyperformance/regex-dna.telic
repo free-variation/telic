@@ -32,8 +32,8 @@ variable iub-cum
 variable homo-cum
 variable rng-seed
 
-( running i probs out -- running' ) \ out[i] = running + probs[i]
-: accumulate-into
+\ out[i] = running + probs[i]
+: accumulate-into ( running i probs out -- running' )
   | running i probs out |
   running  probs i @i  +
   dup  out swap i  !i drop ; internal
@@ -68,8 +68,8 @@ variable rng-seed
   next-u cum bisect
   chars swap @i ;
 
-( i out cum chars -- ) \ out[i] = one random character
-: draw-into
+\ out[i] = one random character
+: draw-into ( i out cum chars -- )
   | i out cum chars |
   out  cum chars draw  i  !i drop ; internal
 
@@ -87,8 +87,8 @@ variable rng-seed
   begin dup size len < while dup + repeat
   0 len substring ;
 
-( i out s width slen -- ) \ out[i] = the i-th width-wide line of s, newline-terminated
-: wrap-line
+\ out[i] = the i-th width-wide line of s, newline-terminated
+: wrap-line ( i out s width slen -- )
   | i out s width slen |
   out
     s  i width *  dup width +  dup slen > if drop slen then  substring  nl +

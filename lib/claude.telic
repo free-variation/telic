@@ -15,14 +15,14 @@
   }
   frame>json ;
 
-( -- headers ) \ the API headers; the key comes from the environment
-: claude-headers
+\ the API headers; the key comes from the environment
+: claude-headers ( -- headers )
 	[ "x-api-key: " "ANTHROPIC_API_KEY" env +
 	  "anthropic-version: 2023-06-01"
 	  "content-type: application/json" ] ;
 
-( messages -- response ) \ POST one request to the API; http-request's { :status :body }
-: call-once
+\ POST one request to the API; http-request's { :status :body }
+: call-once ( messages -- response )
 	| messages |
 	"POST"
 	"https://api.anthropic.com/v1/messages"
@@ -30,16 +30,16 @@
 	messages request-body
 	http-request ;
 
-( response -- bool ) \ a 200 whose body carries :content
-: response-ok?
+\ a 200 whose body carries :content
+: response-ok? ( response -- bool )
 	dup :status @ 200 = if
 		:body @ json>frame :content has?
 	else
 		drop 0
 	then ;
 
-( response -- answer ) \ the response text; a failed call answers its error body
-: extract-response
+\ the response text; a failed call answers its error body
+: extract-response ( response -- answer )
 	dup :status @ 200 = not if
 		:body @
 	else
@@ -69,8 +69,8 @@
 		drop
 	again ;
 
-( prompts -- answer ) \ prompts: array of user-message strings
-: run-cot 
+\ prompts: array of user-message strings
+: run-cot ( prompts -- answer ) 
 	| prompts |
 	[ ] to history
 	prompts size to n-prompts
@@ -85,13 +85,13 @@
 	repeat
 	answer ;
 
-( conversations -- answers ) \ conversations: array of prompt-arrays; run in parallel, failed ones yield null 
-: run-cots
-	[:
+\ conversations: array of prompt-arrays; run in parallel, failed ones yield null
+: run-cots ( conversations -- answers )
+	(
 		' run-cot
-		[: drop null :]
+		( drop null )
 		try-catch
-	:]
+	)
 	pmap ;
 
 \ ---- the cost of a cot, as a currency quantity ----
@@ -103,15 +103,15 @@
   :claude-haiku-4-5-20251001 { :input 0.00008 :output 0.0004 }
 } to claude-prices
 
-( model -- price ) \ the { :input :output } rate frame for a model string
-: model-price
+\ the { :input :output } rate frame for a model string
+: model-price ( model -- price )
   | model |
   model string>symbol to sym
   claude-prices sym has? not if "no price for model: " model + throw then
   claude-prices sym @ ;
 
-( response -- $ ) \ actual cost of one call, from its usage and model
-: response-cost
+\ actual cost of one call, from its usage and model
+: response-cost ( response -- $ )
   :body @ json>frame to body
   body :usage has? not if 0 $ exit then
   body :usage @ to usage
@@ -119,7 +119,7 @@
   usage :input_tokens @ price :input @ *
   usage :output_tokens @ price :output @ * + ¢ ;
 
-( -- $ ) \ worst-case output cost of one call at the current model
-: cot-cost-ceiling
+\ worst-case output cost of one call at the current model
+: cot-cost-ceiling ( -- $ )
   claude-max-tokens claude-model model-price :output @ * ¢ ;
 

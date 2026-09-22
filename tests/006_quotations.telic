@@ -1,18 +1,18 @@
 \ ==== quotations ====
 
-[: 5 :] execute .
-: f [: 6 :] execute ;
+( 5 ) execute .
+: f ( -- n ) ( 6 ) execute ;
 f .
-: g [< 1 2 3 >] [: 2 * :] map ;
+: g ( -- set ) [< 1 2 3 >] ( 2 * ) map ;
 g .
-: h [: [: 7 :] execute :] execute ;
+: h ( -- n ) ( ( 7 ) execute ) execute ;
 h .
 
 clear
 
 \ ==== tick execute ====
 
-: square dup * ;
+: square ( n -- n ) dup * ;
 6 ' square execute .
 3 4 ' + execute .
 ' dup 7 swap execute . .

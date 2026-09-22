@@ -6,8 +6,8 @@
 \ threshold.
 "lib/statistics.telic" load
 
-( coef estimate tol -- ) \ the coefficient frame's estimate is near estimate and its CI brackets it
-: expect-coef
+\ the coefficient frame's estimate is near estimate and its CI brackets it
+: expect-coef ( coef estimate tol -- )
 	| coef estimate tol |
 	coef :estimate @ estimate tol expect-near
 	coef :ci-low @ coef :estimate @ < expect
@@ -15,12 +15,12 @@
 
 \ ===== linear regression (LAPACKE dgelsd) + non-parametric bootstrap inference =====
 
-"fit-linear recovers y = 2x + 1 exactly" [:
+"fit-linear recovers y = 2x + 1 exactly" (
 	[ 1 1  1 2  1 3 ] 3 2 matrix  [ 3 5 7 ] 3 1 matrix  fit-linear
 	[ 1 2 ] 2 1 matrix 1e-6 expect-near
-:] test
+) test
 
-"linear-regression on synthetic 2x+1: estimates near, CIs bracket" [:
+"linear-regression on synthetic 2x+1: estimates near, CIs bracket" (
 
 	7 seed
 	[ [ "x" "y" ]
@@ -28,9 +28,9 @@
 	[ :x ] :y 300 linear-regression to fit
 	fit :coefficients @ 0 @i 1.08 0.05 expect-coef
 	fit :coefficients @ 1 @i 1.97714 0.02 expect-coef
-:] test
+) test
 
-"linear-regression's model frame carries the design it fitted" [:
+"linear-regression's model frame carries the design it fitted" (
 
 	7 seed
 	[ [ "x" "y" ]
@@ -44,9 +44,9 @@
 	fit :responses @ dim drop 5 expect=
 	1 fit :design @ fit :estimates @ 0 5 1 0-matrix dgemm-nn
 	fit :responses @ - fabs max 0.4 < expect         \ the estimates apply to their own design
-:] test
+) test
 
-"predict-glm on a linear model is the design times the estimates" [:
+"predict-glm on a linear model is the design times the estimates" (
 
 	[ [ "x" "y" ]
 	  [ 1 3.1 ] [ 2 4.9 ] [ 3 7.2 ] [ 4 8.8 ] [ 5 11.1 ] [ 6 12.9 ] ] 1 rows>dataset to points
@@ -55,9 +55,9 @@
 	1 line :design @ line :estimates @ 0 6 1 0-matrix dgemm-nn 1e-12 expect-near
 	line { :x [ 0 10 ] vector } predict-glm dim drop 2 expect=          \ new data, any row count
 	line { :x [ 1 null ] vector } predict-glm nan? transpose matrix>array [ 0 1 ] expect=   \ NaN predictor, NaN prediction
-:] test
+) test
 
-"predict-glm on a logistic model agrees with predict-logistic" [:
+"predict-glm on a logistic model agrees with predict-logistic" (
 
 	[ [ "x" "hit" ] [ 1 0 ] [ 2 0 ] [ 3 1 ] [ 4 0 ] [ 5 1 ] [ 6 1 ] [ 7 1 ] ] 1 rows>dataset to trials
 	trials [ :x ] :hit 0 logistic-regression to logit
@@ -66,50 +66,50 @@
 	logit { :x [ 10 -10 ] vector } predict-glm to probabilities
 	probabilities 0 @e 0.9 > expect
 	probabilities 1 @e 0.01 < expect
-:] test
+) test
 
-"linear-regression on iris reproduces textbook OLS" [:
+"linear-regression on iris reproduces textbook OLS" (
 
 	7 seed
 	"data/iris.tsv" load-tsv 1 rows>dataset
 	[ :petal_length ] :petal_width 500 linear-regression to fit
 	fit :coefficients @ 0 @i -0.364017 0.02 expect-coef
 	fit :coefficients @ 1 @i 0.415932 0.02 expect-coef
-:] test
+) test
 
 \ ===== logistic regression (IRLS over dgelsd) =====
 
-"fit-logistic gives positive slope on non-separable data" [:
+"fit-logistic gives positive slope on non-separable data" (
 	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept
 	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix  25 1e-8 fit-logistic
 	[ -1.833 0.4074 ] 2 1 matrix 1e-3 expect-near
-:] test
+) test
 
-"fit-logistic reaches the same fit under a tighter budget" [:
+"fit-logistic reaches the same fit under a tighter budget" (
 	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept
 	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix  100 1e-10 fit-logistic
 	[ -1.833 0.4074 ] 2 1 matrix 1e-3 expect-near
-:] test
+) test
 
-"Firth penalty stays finite under perfect separation" [:
+"Firth penalty stays finite under perfect separation" (
 	[ 1 2 3 4 ] 4 1 matrix with-intercept
 	[ 0 0 1 1 ] 4 1 matrix  25 1e-8 fit-logistic
 	[ -3.275 1.31 ] 2 1 matrix 1e-3 expect-near
-:] test
+) test
 
-"ridge lambda 0 is the plain MLE" [:
+"ridge lambda 0 is the plain MLE" (
 	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept
 	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix  50 1e-8 0 fit-logistic-ridge
 	[ -2.673 0.5941 ] 2 1 matrix 1e-3 expect-near
-:] test
+) test
 
-"ridge with a huge lambda crushes the slope toward 0" [:
+"ridge with a huge lambda crushes the slope toward 0" (
 	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept
 	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix  50 1e-8 1000 fit-logistic-ridge
 	[ -0.02227 0.004948 ] 2 1 matrix 1e-4 expect-near
-:] test
+) test
 
-"ridge CV picks the best lambda; serial and parallel agree" [:
+"ridge CV picks the best lambda; serial and parallel agree" (
 
 	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix to cv-X
 	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix to cv-y
@@ -119,9 +119,9 @@
 	cv-serial :lambdas @ [ 1 100 ] expect=
 	cv-serial :deviances @ [ 3.19978 2.21081 ] 2 1 matrix 1e-4 expect-near
 	cv-serial  cv-X cv-y cv-units [ 1 100 ] 2 pcv-logistic-ridge  = expect
-:] test
+) test
 
-"logistic-regression on iris: positive slope, CIs bracket" [:
+"logistic-regression on iris: positive slope, CIs bracket" (
 
 	"data/iris.tsv" load-tsv 1 rows>dataset :sepal_length @ matrix>array 50 skip to sepal-lengths
 	0 50 array-of  1 50 array-of  concat to species-y
@@ -130,54 +130,54 @@
 	iris-two [ :sepal_length ] :y 300 logistic-regression to fit
 	fit :coefficients @ 0 @i -12.0436 0.5 expect-coef
 	fit :coefficients @ 1 @i 1.92813 0.1 expect-coef
-:] test
+) test
 
 \ ===== generalized linear models (fit-glm and the family objects) =====
 
-"gamma log-link intercept-only recovers ln(ybar)" [:
+"gamma log-link intercept-only recovers ln(ybar)" (
 	[ 1 1 1 1 ] 4 1 matrix  [ 2 4 6 8 ] 4 1 matrix  100 1e-10 fit-gamma
 	[ 1.60944 ] 1 1 matrix 1e-4 expect-near
-:] test
+) test
 
-"gamma recovers coefficients at eta = 1 + 0.6x" [:
+"gamma recovers coefficients at eta = 1 + 0.6x" (
 	[ 1 0.5  1 1.0  1 1.5  1 2.0  1 2.5  1 3.0 ] 6 2 matrix
 	[ 1 0.6 0.5 * + exp  1 0.6 1.0 * + exp  1 0.6 1.5 * + exp
 	  1 0.6 2.0 * + exp  1 0.6 2.5 * + exp  1 0.6 3.0 * + exp ] 6 1 matrix
 	100 1e-12 fit-gamma
 	[ 1 0.6 ] 2 1 matrix 1e-4 expect-near
-:] test
+) test
 
-"poisson recovers coefficients at eta = 0.5 + 0.4x" [:
+"poisson recovers coefficients at eta = 0.5 + 0.4x" (
 	[ 1 0.0  1 0.5  1 1.0  1 1.5  1 2.0  1 2.5 ] 6 2 matrix
 	[ 0.5 0.4 0.0 * + exp  0.5 0.4 0.5 * + exp  0.5 0.4 1.0 * + exp
 	  0.5 0.4 1.5 * + exp  0.5 0.4 2.0 * + exp  0.5 0.4 2.5 * + exp ] 6 1 matrix
 	100 1e-12 fit-poisson
 	[ 0.5 0.4 ] 2 1 matrix 1e-4 expect-near
-:] test
+) test
 
-"gaussian-identity GLM equals fit-linear (one-step OLS)" [:
+"gaussian-identity GLM equals fit-linear (one-step OLS)" (
 
 	[ 1 1  1 2  1 3  1 4 ] 4 2 matrix  [ 2.1 3.9 6.2 7.8 ] 4 1 matrix to gauss-y to gauss-X
 	gauss-X gauss-y gaussian-identity 50 1e-10 fit-glm
 	gauss-X gauss-y fit-linear 1e-9 expect-near
-:] test
+) test
 
-"binomial-logit GLM equals fit-logistic-ridge at lambda 0" [:
+"binomial-logit GLM equals fit-logistic-ridge at lambda 0" (
 
 	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept to bin-X
 	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix to bin-y
 	bin-X bin-y binomial-logit 100 1e-10 fit-glm
 	bin-X bin-y 100 1e-10 0 fit-logistic-ridge 1e-9 expect-near
-:] test
+) test
 
-"fit-glm-weighted: weight 2 on a row equals stacking the row twice" [:
+"fit-glm-weighted: weight 2 on a row equals stacking the row twice" (
 	[ 1 0 1 0.5 1 1 1 1.5 1 2 1 2.5 ] 6 2 matrix to pois-X
 	[ 1 2 3 4 6 9 ] 6 1 matrix to pois-y
 	pois-X pois-y [ 2 1 1 1 1 1 ] 6 1 matrix poisson-log 100 1e-12 fit-glm-weighted
 	pois-X 0 @i pois-X vstack pois-y 0 @i pois-y vstack poisson-log 100 1e-12 fit-glm 1e-8 expect-near
-:] test
+) test
 
-"quasibinomial-logit: binomial coefficients, estimated dispersion" [:
+"quasibinomial-logit: binomial coefficients, estimated dispersion" (
 	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept to bin-X
 	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix to bin-y
 	8 1 0-matrix 1 + to unit-w
@@ -185,24 +185,24 @@
 	quasi-beta bin-X bin-y binomial-logit 100 1e-10 fit-glm 1e-12 expect-near
 	bin-X bin-y unit-w quasi-beta binomial-logit glm-dispersion 1 1e-12 expect-near
 	bin-X bin-y unit-w quasi-beta quasibinomial-logit glm-dispersion 1.17745 1e-5 expect-near
-:] test
+) test
 
 \ quasi-separation data: intercept, x, and a dummy whose rows are all y = 1; and
 \ binomial-logit as it was before the clamp — unclamped sigmoid, no :deviance,
 \ so fit-glm stops on |beta - beta'|, which never falls under tolerance here
 [ 1 0 0 1 1 0 1 2 0 1 3 0 1 4 0 1 5 0 1 6 1 1 7 1 1 8 1 1 9 1 ] 10 3 matrix to quasi-X
 [ 0 1 0 1 0 1 1 1 1 1 ] 10 1 matrix to quasi-y
-{ :inverse-link ' sigmoid :mean-derivative [: sigmoid dup 1 swap - * :] :variance [: dup 1 swap - * :] } to unclamped-logit
+{ :inverse-link ' sigmoid :mean-derivative ( sigmoid dup 1 swap - * ) :variance ( dup 1 swap - * ) } to unclamped-logit
 
-"quasi-separation: the pre-clamp beta-norm family throws, binomial-logit fits finite" [:
-	[: quasi-X quasi-y unclamped-logit 25 1e-8 fit-glm :] expect-throws
+"quasi-separation: the pre-clamp beta-norm family throws, binomial-logit fits finite" (
+	( quasi-X quasi-y unclamped-logit 25 1e-8 fit-glm ) expect-throws
 	quasi-X quasi-y binomial-logit 25 1e-8 fit-glm to quasi-beta
 	quasi-beta 2 0 @i,j 30 < 1 1e-12 expect-near
 	1 quasi-X quasi-beta matmul sigmoid max - 0 > 1 1e-12 expect-near
 	quasi-X quasi-y 10 1 0-matrix 1 + quasi-beta quasibinomial-logit glm-covariance 2 2 @i,j 1e6 > 1 1e-12 expect-near
-:] test
+) test
 
-"linear-regression at 0 replications: Wald se is sqrt of the hand covariance diagonal" [:
+"linear-regression at 0 replications: Wald se is sqrt of the hand covariance diagonal" (
 	[ [ "x" "y" ] [ 1 1 ] [ 2 2 ] [ 3 4 ] ] true rows>dataset [ :x ] :y 0 linear-regression to wald-model
 	wald-model :inference @ :wald = 1 1e-12 expect-near
 	wald-model :coefficients @ 0 @i :se @ 0.388889 sqrt 1e-5 expect-near
@@ -210,22 +210,22 @@
 	wald-model :coefficients @ 1 @i dup :estimate @ swap :ci-low @ - 0.975 qnorm 0.0833333 sqrt * 1e-5 expect-near
 	wald-model regression-statistics :pseudo-r2 @ 0.964286 1e-5 expect-near
 	wald-model :covariance @ [ 0.388889 -0.166667 -0.166667 0.0833333 ] 2 2 matrix 1e-5 expect-near
-:] test
+) test
 
-"bootstrap :covariance diagonal reproduces the :se column" [:
+"bootstrap :covariance diagonal reproduces the :se column" (
 	7 seed [ [ "x" "y" ] [ 1 3.1 ] [ 2 4.9 ] [ 3 7.2 ] [ 4 8.8 ] [ 5 11.1 ] [ 6 12.9 ] ] true rows>dataset [ :x ] :y 200 linear-regression to boot-model
 	boot-model :covariance @ diagonal sqrt transpose
-	boot-model :coefficients @ [: :se @ :] map vector 1e-9 expect-near
-:] test
+	boot-model :coefficients @ ( :se @ ) map vector 1e-9 expect-near
+) test
 
-"fit-weighted-linear: unit weights give fit-linear, weight 2 gives the stacked row" [:
+"fit-weighted-linear: unit weights give fit-linear, weight 2 gives the stacked row" (
 	[ 1 1 1 2 1 3 ] 3 2 matrix to wls-X
 	[ 1 2 4 ] 3 1 matrix to wls-y
 	wls-X wls-y [ 1 1 1 ] 3 1 matrix fit-weighted-linear wls-X wls-y fit-linear 1e-12 expect-near
 	wls-X wls-y [ 2 1 1 ] 3 1 matrix fit-weighted-linear wls-X 0 @i wls-X vstack wls-y 0 @i wls-y vstack fit-linear 1e-12 expect-near
-:] test
+) test
 
-"glm-regression: quasibinomial repeats binomial's estimates with se scaled by sqrt(phi)" [:
+"glm-regression: quasibinomial repeats binomial's estimates with se scaled by sqrt(phi)" (
 	[ [ "x" "y" ] [ 1 0 ] [ 2 0 ] [ 3 1 ] [ 4 0 ] [ 5 1 ] [ 6 0 ] [ 7 1 ] [ 8 1 ] ] true rows>dataset to eight-rows
 	eight-rows [ :x ] :y null binomial-logit 0 glm-regression to binomial-model
 	eight-rows [ :x ] :y null quasibinomial-logit 0 glm-regression to quasi-model
@@ -233,42 +233,42 @@
 	quasi-model :coefficients @ 1 @i :se @ binomial-model :coefficients @ 1 @i :se @ / dup *
 	quasi-model regression-statistics :dispersion @ 1e-9 expect-near
 	quasi-model regression-coefficients :odds-ratio @ 1 @e quasi-model :estimates @ 1 0 @i,j exp 1e-12 expect-near
-:] test
+) test
 
-"glm-regression takes the response and weights as symbols or as matrices" [:
+"glm-regression takes the response and weights as symbols or as matrices" (
 	[ [ "x" "y" ] [ 1 0 ] [ 2 0 ] [ 3 1 ] [ 4 0 ] [ 5 1 ] [ 6 0 ] [ 7 1 ] [ 8 1 ] ] true rows>dataset to spec-rows
 	spec-rows [ :x ] :y null binomial-logit 0 glm-regression to by-symbol
 	spec-rows [ :x ] spec-rows :y @ 8 1 0-matrix 1 + binomial-logit 0 glm-regression to by-matrix
 	by-symbol :estimates @ by-matrix :estimates @ 1e-12 expect-near
 	by-symbol :response @ :y expect=
 	by-matrix :response @ null expect=
-:] test
+) test
 
-"glm-regression weights column: weight 2 on a row equals the row stacked twice" [:
+"glm-regression weights column: weight 2 on a row equals the row stacked twice" (
 	[ [ "x" "y" "w" ] [ 0 1 2 ] [ 0.5 2 1 ] [ 1 3 1 ] [ 1.5 4 1 ] [ 2 6 1 ] [ 2.5 9 1 ] ] true rows>dataset
 	[ :x ] :y :w poisson-log 0 glm-regression :estimates @
 	[ [ "x" "y" ] [ 0 1 ] [ 0 1 ] [ 0.5 2 ] [ 1 3 ] [ 1.5 4 ] [ 2 6 ] [ 2.5 9 ] ] true rows>dataset
 	[ :x ] :y null poisson-log 0 glm-regression :estimates @ 1e-8 expect-near
-:] test
+) test
 
-"glm-dispersion for gaussian is RSS over n - p" [:
+"glm-dispersion for gaussian is RSS over n - p" (
 	[ 1 1 1 2 1 3 1 4 ] 4 2 matrix to gauss-X
 	[ 2.1 3.9 6.2 7.8 ] 4 1 matrix to gauss-y
 	gauss-X gauss-y fit-linear to ols
 	gauss-X gauss-y 4 1 0-matrix 1 + ols gaussian-identity glm-dispersion
 	gauss-y gauss-X ols matmul - dup * sum 2 / 1e-12 expect-near
-:] test
+) test
 
-"glm-covariance for gaussian is sigma^2 (X'X)^-1, (X'X)^-1 by hand" [:
+"glm-covariance for gaussian is sigma^2 (X'X)^-1, (X'X)^-1 by hand" (
 	[ 1 1 1 2 1 3 ] 3 2 matrix to hand-X
 	[ 1 2 4 ] 3 1 matrix to hand-y
 	hand-X hand-y fit-linear to hand-beta
 	hand-y hand-X hand-beta matmul - dup * sum to sigma2
 	hand-X hand-y 3 1 0-matrix 1 + hand-beta gaussian-identity glm-covariance
 	[ 14 -6 -6 3 ] 2 2 matrix 6 / sigma2 * 1e-9 expect-near
-:] test
+) test
 
-"glm-covariance weights: poisson weight 2 equals the stacked row; gaussian differs in n - p" [:
+"glm-covariance weights: poisson weight 2 equals the stacked row; gaussian differs in n - p" (
 	[ 1 0 1 0.5 1 1 1 1.5 1 2 1 2.5 ] 6 2 matrix to pois-X
 	[ 1 2 3 4 6 9 ] 6 1 matrix to pois-y
 	[ 2 1 1 1 1 1 ] 6 1 matrix to two-w
@@ -281,7 +281,7 @@
 	pois-X pois-y two-w gaussian-identity 100 1e-12 fit-glm-weighted to gauss-beta
 	pois-X pois-y two-w gauss-beta gaussian-identity glm-covariance
 	stacked-X stacked-y unit-w7 gauss-beta gaussian-identity glm-covariance - abs max 1e-6 > 1 1e-12 expect-near
-:] test
+) test
 
 \ ===== negative binomial (NB2: variance mu + mu^2/theta, log link) =====
 \ Shared fixtures: one design, and two count vectors over it — mild is close to
@@ -294,39 +294,39 @@
 [ 7 9 9 11 12 14 15 17 19 21 24 28 ] 12 1 matrix to nb-mild
 [ 2 15 4 20 6 25 8 30 9 35 11 40 ] 12 1 matrix to nb-heavy
 
-"negative-binomial-log carries the NB2 variance and the log link" [:
+"negative-binomial-log carries the NB2 variance and the log link" (
 	4 5 negative-binomial-log :variance @ execute 7.2 1e-12 expect-near
 	0 5 negative-binomial-log :inverse-link @ execute 1 1e-12 expect-near
-:] test
+) test
 
-"at a known theta, y = mu recovers the coefficients" [:
+"at a known theta, y = mu recovers the coefficients" (
 	[ 1 0.0  1 0.5  1 1.0  1 1.5  1 2.0  1 2.5 ] 6 2 matrix
 	[ 0.5 0.4 0.0 * + exp  0.5 0.4 0.5 * + exp  0.5 0.4 1.0 * + exp
 	  0.5 0.4 1.5 * + exp  0.5 0.4 2.0 * + exp  0.5 0.4 2.5 * + exp ] 6 1 matrix
 	5 negative-binomial-log 100 1e-12 fit-glm
 	[ 0.5 0.4 ] 2 1 matrix 1e-4 expect-near
-:] test
+) test
 
-"a huge theta reproduces the Poisson fit" [:
+"a huge theta reproduces the Poisson fit" (
 	nb-design nb-mild 1e6 negative-binomial-log 100 1e-12 fit-glm
 	nb-design nb-mild 100 1e-12 fit-poisson 1e-6 expect-near
-:] test
+) test
 
-"theta changes the fit: the variance function is in play" [:
+"theta changes the fit: the variance function is in play" (
 
 	nb-design nb-heavy 0.5 negative-binomial-log 100 1e-12 fit-glm to at-half
 	nb-design nb-heavy 1e6 negative-binomial-log 100 1e-12 fit-glm to at-huge
 	at-half at-huge - dup * sum 1e-4 > expect
-:] test
+) test
 
-"fit-negative-binomial on overdispersed counts" [:
+"fit-negative-binomial on overdispersed counts" (
 
 	nb-design nb-heavy 100 1e-8 fit-negative-binomial to theta to beta
 	beta [ 2.009 0.5313 ] 2 1 matrix 1e-3 expect-near
 	theta 2.99094 1e-4 expect-near
-:] test
+) test
 
-"y = mu exactly reports no overdispersion: theta runs to the bracket top" [:
+"y = mu exactly reports no overdispersion: theta runs to the bracket top" (
 
 	[ 1 0.0  1 0.5  1 1.0  1 1.5  1 2.0  1 2.5 ] 6 2 matrix
 	[ 0.5 0.4 0.0 * + exp  0.5 0.4 0.5 * + exp  0.5 0.4 1.0 * + exp
@@ -334,85 +334,85 @@
 	100 1e-8 fit-negative-binomial to theta to beta
 	beta [ 0.5 0.4 ] 2 1 matrix 1e-4 expect-near
 	theta 1e5 > expect
-:] test
+) test
 
-"overdispersion lowers theta" [:
+"overdispersion lowers theta" (
 
 	nb-design nb-mild 100 1e-8 fit-negative-binomial to mild-theta drop
 	nb-design nb-heavy 100 1e-8 fit-negative-binomial to heavy-theta drop
 	heavy-theta mild-theta < expect
 	mild-theta 1e5 > expect
 	heavy-theta 100 < expect
-:] test
+) test
 
-"negative-binomial-theta reads dispersion at fixed means" [:
+"negative-binomial-theta reads dispersion at fixed means" (
 	[ 3 4 5 5 6 7 ] 6 1 matrix  [ 5 5 5 5 5 5 ] 6 1 matrix negative-binomial-theta
 	1e5 > expect
 	[ 1 2 5 8 12 2 ] 6 1 matrix  [ 5 5 5 5 5 5 ] 6 1 matrix negative-binomial-theta
 	2.32265 1e-4 expect-near
-:] test
+) test
 
-"the same data gives the same dispersion" [:
+"the same data gives the same dispersion" (
 
 	nb-design nb-heavy 100 1e-8 fit-negative-binomial to first-theta drop
 	nb-design nb-heavy 100 1e-8 fit-negative-binomial to second-theta drop
 	first-theta second-theta expect=
-:] test
+) test
 
-"a budget too small to converge throws from the inner IRLS" [:
-	[: nb-design nb-heavy 1 1e-8 fit-negative-binomial :] expect-throws
-:] test
+"a budget too small to converge throws from the inner IRLS" (
+	( nb-design nb-heavy 1 1e-8 fit-negative-binomial ) expect-throws
+) test
 
 \ ===== multinomial logistic (fit-multinomial + predict-multinomial) =====
 
-"K=2 multinomial equals binary logistic" [:
+"K=2 multinomial equals binary logistic" (
 
 	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept to bin-X
 	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix to bin-y
 	bin-X bin-y 0 100 1e-10 fit-multinomial
 	[ -2.673 0.5941 ] 2 1 matrix 1e-3 expect-near
-:] test
+) test
 
-"predict-multinomial class-1 column equals sigmoid(Xβ)" [:
+"predict-multinomial class-1 column equals sigmoid(Xβ)" (
 
 	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept to bin-X
 	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix to bin-y
 	bin-X bin-y 0 100 1e-10 fit-multinomial bin-X 0 predict-multinomial 1 @j
 	[ 0.1111 0.1846 0.2909 0.4263 0.5737 0.7091 0.8154 0.8889 ] 8 1 matrix 1e-3 expect-near
-:] test
+) test
 
-"intercept-only predict-multinomial relabels columns by reference class" [:
+"intercept-only predict-multinomial relabels columns by reference class" (
 
 	[ 0.6931471805599453 1.0986122886681098 ] 1 2 matrix to mn-beta
 	mn-beta [ 1 ] 1 1 matrix 0 predict-multinomial [ 0.1667 0.3333 0.5 ] 1 3 matrix 1e-3 expect-near
 	mn-beta [ 1 ] 1 1 matrix 1 predict-multinomial [ 0.3333 0.1667 0.5 ] 1 3 matrix 1e-3 expect-near
 	mn-beta [ 1 ] 1 1 matrix 2 predict-multinomial [ 0.3333 0.5 0.1667 ] 1 3 matrix 1e-3 expect-near
-:] test
+) test
 
-"K=3 non-separable: predicted probabilities sum to 1" [:
+"K=3 non-separable: predicted probabilities sum to 1" (
 
 	[ 1 2 3 4 5 6 7 8 9 10 11 12 ] 12 1 matrix with-intercept to mn-X
 	[ 0 1 2 0 1 2 0 1 2 0 1 2 ] 12 1 matrix to mn-y
 	mn-X mn-y 0 100 1e-8 fit-multinomial mn-X 0 predict-multinomial row-sums 1 - dup * sum 1e-8 < expect
-:] test
+) test
 
-"ridge lambda 0 reproduces the plain multinomial MLE" [:
+"ridge lambda 0 reproduces the plain multinomial MLE" (
 
 	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept to bin-X
 	[ 0 0 1 0 1 0 1 1 ] 8 1 matrix to bin-y
 	bin-X bin-y 0 100 1e-10 0 fit-multinomial-ridge
 	[ -2.673 0.5941 ] 2 1 matrix 1e-3 expect-near
-:] test
+) test
 
-"separable 3-class: ridge stays finite, probabilities sum to 1" [:
+"separable 3-class: ridge stays finite, probabilities sum to 1" (
 
 	[ 1 2 3  4 5 6  7 8 9 ] 9 1 matrix with-intercept to sep-X
 	[ 0 0 0  1 1 1  2 2 2 ] 9 1 matrix to sep-y
 	sep-X sep-y 0 100 1e-8 1 fit-multinomial-ridge sep-X 0 predict-multinomial row-sums 1 - dup * sum 1e-8 < expect
-:] test
+) test
 
-"a reference class absent from y is rejected" [:
-	[: [ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept
-	   [ 0 0 1 0 1 0 1 1 ] 8 1 matrix  5 100 1e-10 fit-multinomial :] expect-throws
-:] test
+"a reference class absent from y is rejected" (
+	( [ 1 2 3 4 5 6 7 8 ] 8 1 matrix with-intercept
+	   [ 0 0 1 0 1 0 1 1 ] 8 1 matrix  5 100 1e-10 fit-multinomial ) expect-throws
+) test
 test-report

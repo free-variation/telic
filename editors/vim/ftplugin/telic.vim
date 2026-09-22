@@ -10,11 +10,11 @@ let b:did_ftplugin = 1
 " The structural delimiters ( ) [ ] { } | " \ are deliberately left out.
 setlocal iskeyword=@,48-57,_,192-255,33,35-39,42-47,58-64,94,126
 
-" Comments: \ to end of line, and ( … ) stack comments.
+" Comments: \ to end of line.
 setlocal comments=:\\
 setlocal commentstring=\\\ %s
 
-" Paren matching for arrays [ ], frames { }, and ( ) stack comments.
+" Paren matching for arrays [ ], frames { }, and ( ) quotations.
 setlocal matchpairs=(:),[:],{:}
 
 " matchit: jump across the multi-word control structures with %.
@@ -22,14 +22,12 @@ if exists("loaded_matchit") || exists("g:loaded_matchit")
   let b:match_words =
         \ '\<if\>:\<else\>:\<then\>,' .
         \ '\<begin\>:\<while\>:\<until\>:\<again\>:\<repeat\>,' .
-        \ '\%(\[:\):\:\],' .
-        \ '\[<:>\],' .
-        \ '\[(:)\]'
+        \ '\[<:>\]'
   let b:match_ignorecase = 0
 endif
 
 " Self-delimiting punctuation, mirroring the tokenizer: ; ] } end a token,
-" [ { start one, and the two-char forms ([: [( [< and :] )] >]) stay whole.
+" [ { start one, and the two-char forms [< and >] stay whole.
 " These insert-mode helpers add the canonical spaces as you type, and stay
 " quiet inside strings and comments.
 function! s:InStringOrComment() abort
@@ -52,9 +50,9 @@ function! s:SpaceBeforeSemicolon() abort
   return ' ;'
 endfunction
 
-" ] and }: insert a leading space unless the closer completes a two-char
-" form (:] or )], where the space is rewritten to sit before the pair) or
-" closes a bracket opened inside the same token (a path predicate).
+" ] and }: insert a leading space unless the closer completes the two-char
+" form >], where the space is rewritten to sit before the pair, or closes a
+" bracket opened inside the same token (a path predicate).
 function! s:SpaceBeforeCloser(closer) abort
   if col('.') <= 1 || s:InStringOrComment()
     return a:closer
@@ -68,7 +66,7 @@ function! s:SpaceBeforeCloser(closer) abort
     return a:closer
   endif
   let previous = token[-1:]
-  if a:closer ==# ']' && (previous ==# ':' || previous ==# ')' || previous ==# '>')
+  if a:closer ==# ']' && previous ==# '>'
     if strlen(token) == 1
       return a:closer
     endif
@@ -89,11 +87,10 @@ function! s:SpaceAfterOpener() abort
   endif
   let token = s:TokenBeforeCursor()
   if token ==# '['
-    if v:char !~# '[:(<]'
+    if v:char !=# '<'
       let v:char = ' ' . v:char
     endif
-  elseif token ==# '{' || token ==# '[:' || token ==# '[(' ||
-        \ token ==# '[<'
+  elseif token ==# '{' || token ==# '(' || token ==# '[<'
     let v:char = ' ' . v:char
   endif
 endfunction

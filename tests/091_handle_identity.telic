@@ -9,13 +9,13 @@ original "INSERT INTO t VALUES ('from-first')" [ ] db-exec drop
 original "SELECT x FROM t" [ ] db-query :x @ 0 @i . cr   \ from-first
 
 original db-close
-[: original "SELECT x FROM t" [ ] db-query :] catch drop :message @ . cr   \ database is closed
+( original "SELECT x FROM t" [ ] db-query ) catch drop :message @ . cr   \ database is closed
 
 \ the next open takes the freed slot; the old handle must not reach it
 ":memory:" db-open to replacement
 replacement "CREATE TABLE t (x)" [ ] db-exec drop
 replacement "INSERT INTO t VALUES ('from-second')" [ ] db-exec drop
-[: original "SELECT x FROM t" [ ] db-query :] catch drop :message @ . cr   \ database is closed
+( original "SELECT x FROM t" [ ] db-query ) catch drop :message @ . cr   \ database is closed
 replacement "SELECT x FROM t" [ ] db-query :x @ 0 @i . cr          \ from-second
 
 original db-close                                                          \ idempotent on a stale handle

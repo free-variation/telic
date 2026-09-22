@@ -8,7 +8,7 @@ transposr            \ (did you mean transpose?)
 swpa                 \ (did you mean swap?)
 qzqzqz               \ (no word within distance 2 -> plain error)
 q                    \ (1-character token -> plain error)
-: f | total | 0 to total totl ;   \ (a local is suggested too)
+: f ( -- ) | total | 0 to total totl ;   \ (a local is suggested too)
 
 \ distance ties break by use frequency (counted over the embedded library's
 \ own compilation), then by longest common prefix; transposition costs 1

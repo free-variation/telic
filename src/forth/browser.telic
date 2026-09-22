@@ -1,7 +1,7 @@
 \ open a file or URL in a browser (a frameless app window when one is available)
 
-( -- path|null ) \ TELIC_BROWSER if it resolves to a runnable browser, else null
-: env-browser
+\ TELIC_BROWSER if it resolves to a runnable browser, else null
+: env-browser ( -- path|null )
 	"TELIC_BROWSER" env to browser
 	browser null? if
 		null exit
@@ -27,20 +27,20 @@
 		null
 	then ; internal
 
-( -- [paths] ) \ Chromium-family app binaries on macOS, preference order
-: mac-browsers
+\ Chromium-family app binaries on macOS, preference order
+: mac-browsers ( -- [paths] )
 	[ "Vivaldi" "Opera" "Brave Browser" "Google Chrome" "Chromium" "Microsoft Edge" ]
-	[: n | "/Applications/" n + ".app/Contents/MacOS/" + n + :] map ; internal
+	( n | "/Applications/" n + ".app/Contents/MacOS/" + n + ) map ; internal
 
-( -- [names] ) \ Chromium-family executables on Linux, preference order
-: linux-browsers
+\ Chromium-family executables on Linux, preference order
+: linux-browsers ( -- [names] )
 	[ "vivaldi-stable" "vivaldi" "opera" "brave-browser" "brave"
 	  "google-chrome-stable" "google-chrome" "chromium" "chromium-browser"
 	  "microsoft-edge-stable" "microsoft-edge" 
 	] ; internal
 
-( -- path|null ) \ TELIC_BROWSER, else the first installed Chromium-family browser, else null
-: find-browser
+\ TELIC_BROWSER, else the first installed Chromium-family browser, else null
+: find-browser ( -- path|null )
 	env-browser dup null? not if 
 		exit 
 	then drop
@@ -50,11 +50,11 @@
 		exit 
 	then drop
 	
-	linux-browsers ' find-executable map [: null? not :] find-first ; internal
+	linux-browsers ' find-executable map ( null? not ) find-first ; internal
 
-( path -- ) \ open path in a frameless --app window when a browser is found, else the
+\ open path in a frameless --app window when a browser is found, else the
 \ platform default handler (a normal tab); a relative path resolves against cwd
-: open-app-window
+: open-app-window ( path -- )
 	| path |
 	find-browser to browser
 	browser null? if

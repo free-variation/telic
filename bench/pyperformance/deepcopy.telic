@@ -13,15 +13,15 @@ variable dc
 [ "red" "blue" "green" ] constant colors
 
 : run-deepcopy ( -- )
-  [: a copy drop :] 30 times
-  [: ci |
+  ( a copy drop ) 30 times
+  ( ci |
      dc  colors ci @i  :string ! drop
-     [: kk |
+     ( kk |
         dc :lst @ kk 0 !i drop
         dc :1 :boolean ! drop  dc copy drop
         dc :0 :boolean ! drop  dc copy drop
-     :] 5 i-times
-  :] 3 i-times ;
+     ) 5 i-times
+  ) 3 i-times ;
 
 \ verification: a deep copy equals its original, expect 1
 a copy a = "equal: {0}" format . cr

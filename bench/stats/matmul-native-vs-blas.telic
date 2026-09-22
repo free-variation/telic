@@ -14,17 +14,17 @@
 
 "statistics" load-library
 
-( n -- m ) \ n x n ramp, deterministic
-: ramp | n | 0 n n * 1- 1 matrix-range n n reshape ; internal
+\ n x n ramp, deterministic
+: ramp ( n -- m ) | n | 0 n n * 1- 1 matrix-range n n reshape ; internal
 
-( n -- reps ) \ hold the work per size roughly constant, capped so the batches stay short
-: reps-for | n | 20000000 n n * n * / round-down 20 max2 100000 min2 ; internal
+\ hold the work per size roughly constant, capped so the batches stay short
+: reps-for ( n -- reps ) | n | 20000000 n n * n * / round-down 20 max2 100000 min2 ; internal
 
-( n -- flag ) \ do the two spellings answer the same matrix?
-: agree? | n | n ramp to a  n ramp to b  a b native-matmul execute  a b matmul  = ; internal
+\ do the two spellings answer the same matrix?
+: agree? ( n -- flag ) | n | n ramp to a  n ramp to b  a b native-matmul execute  a b matmul  = ; internal
 
-( n reps -- ) \ time both spellings of the same product
-: bench-size
+\ time both spellings of the same product
+: bench-size ( n reps -- )
 	| n reps |
 	n ramp to a
 	n ramp to b
@@ -57,8 +57,8 @@
 
 \ agreement first: a speed comparison of two different answers is worthless
 [ 2 3 4 8 16 32 64 ] ' agree? map
-[: 1 = :] all? "identical results at every checked size: {0}" format . cr
+( 1 = ) all? "identical results at every checked size: {0}" format . cr
 cr
 
 [ 2 3 4 6 8 12 16 24 32 48 64 96 128 192 256 ]
-[: dup reps-for bench-size :] each
+( dup reps-for bench-size ) each

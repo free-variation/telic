@@ -24,6 +24,6 @@ clear
 "again" . cr                                 \ again
 
 \ === a missing library errors (message elided: it carries a machine path) ===
-[: "no-such-library" load-library :] catch nip . cr   \ 1
+( "no-such-library" load-library ) catch nip . cr   \ 1
 
 clear

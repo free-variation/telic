@@ -6,53 +6,53 @@
 variable tests-passed internal
 variable tests-failed internal
 
-( -- ) \ clears the test counters
-: new-tests ^tests-passed ^tests-failed |
+\ clears the test counters
+: new-tests ( -- ) ^tests-passed ^tests-failed |
 	0 to tests-passed
 	0 to tests-failed ;
 
-( flag -- ) \ pass silently when flag is truthy, else throw
-: expect 
+\ pass silently when flag is truthy, else throw
+: expect ( flag -- ) 
 	not if "expectation was false" throw then ;
 
-( actual expected -- ) \ deep equality via =; on mismatch throw "expected X, got Y"
-: expect=
+\ deep equality via =; on mismatch throw "expected X, got Y"
+: expect= ( actual expected -- )
 	2dup = not if
 		render swap render
 		"expected {1}, got {0}" format throw
 	then 2drop ;
 
-( actual expected tolerance -- ) \ pass when |actual - expected| <= tolerance; for matrix or
+\ pass when |actual - expected| <= tolerance; for matrix or
 \ vector operands, when the largest element-wise absolute difference is within tolerance
-: expect-near
+: expect-near ( actual expected tolerance -- )
 	| actual expected tolerance |
 	actual expected - abs dup matrix? if max then tolerance <= not if
 		actual render expected render tolerance render
 		"expected {1} +/- {0}, got {2}" format throw
 	then ;
 
-( xt -- ) \ pass iff the quotation throws
-: expect-throws
+\ pass iff the quotation throws
+: expect-throws ( xt -- )
 	catch if drop
 	else
 		"expected a throw" throw 
 	then ;
 
-( exception -- s ) \ a thrown value as a one-line reason: a runtime's error's :message else its render
-: expect-reason
+\ a thrown value as a one-line reason: a runtime's error's :message else its render
+: expect-reason ( exception -- s )
 	dup frame? if
 		dup :message has? if :message @ else render then
 	else
 		render 
 	then ; internal
 
-( baseline -- ) \ drop data-stack entries above baseline
-: reset-depth
+\ drop data-stack entries above baseline
+: reset-depth ( baseline -- )
 	| baseline |
 	begin depth baseline > while drop repeat ; internal
 
-( name xt -- ) \ run xt under catch; print ok/FAIL, count it, restore the stack, continue past a failure
-: test
+\ run xt under catch; print ok/FAIL, count it, restore the stack, continue past a failure
+: test ( name xt -- )
 	| name xt ^tests-passed ^tests-failed |
 	depth to baseline
 
@@ -67,8 +67,8 @@ variable tests-failed internal
 		++ tests-passed
 	then ;
 
-( -- ) \ print the tally ; throw when any failed so a program-file run exits non-zero
-: test-report
+\ print the tally ; throw when any failed so a program-file run exits non-zero
+: test-report ( -- )
 	tests-passed tests-failed "{1} passed, {0} failed" format print cr
 	tests-failed 0 > if "test failures" throw then ;
 

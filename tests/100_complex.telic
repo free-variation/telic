@@ -55,10 +55,10 @@ clear
 [< 1+2i 1+2i 2+3i >] . cr                     \ [< 1+2i 2+3i >]
 { :z 1+2i } :z @ . cr                         \ 1+2i
 1+2i "{0} volts" format . cr                  \ 1+2i volts
-[ 1+2i 3+4i ] [: 1i * :] map . cr             \ [ -2+1i -4+3i ]
+[ 1+2i 3+4i ] ( 1i * ) map . cr             \ [ -2+1i -4+3i ]
 [ 1+1i 2+2i ] 0+0i ' + reduce . cr            \ 3+3i
-[ 1+2i 3+4i 5+6i 7+8i ] [: 2 * :] pmap . cr   \ [ 2+4i 6+8i 10+12i 14+16i ]
-: twiddle 1+2i ; gc twiddle . cr              \ 1+2i (a compiled literal survives collection)
+[ 1+2i 3+4i 5+6i 7+8i ] ( 2 * ) pmap . cr   \ [ 2+4i 6+8i 10+12i 14+16i ]
+: twiddle ( -- z ) 1+2i ; gc twiddle . cr              \ 1+2i (a compiled literal survives collection)
 
 clear
 \ === complex magnitudes take units (impedance) ===

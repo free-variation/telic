@@ -2,9 +2,9 @@
 
 \ -- 1: bare shift used as yield in a coroutine pattern.
 \        Each yield returns a value and a continuation; driver collects all.
-: yield shift ;
-: producer 1 yield 2 yield 3 ;
-: drive reset producer ;
+: yield ( -- ) shift ;
+: producer ( -- n ) 1 yield 2 yield 3 ;
+: drive ( -- n ) reset producer ;
 
 drive          \ stack: 1 k1
 swap . cr      \ prints 1, stack: k1
@@ -17,9 +17,9 @@ clear
 \ -- 2: catch inside a captured continuation. The continuation's slice
 \        contains a try-catch; resuming the continuation runs the try-catch
 \        normally.
-: shifter shift ;
-: inner-try [: 99 throw :] [: 1 + :] try-catch ;
-: capture reset 10 shifter inner-try * ;
+: shifter ( -- ) shift ;
+: inner-try ( -- n ) ( 99 throw ) ( 1 + ) try-catch ;
+: capture ( -- n ) reset 10 shifter inner-try * ;
 
 capture        \ stack: 10 k  (the "inner-try *" got captured)
 swap drop      \ leave k
@@ -28,8 +28,8 @@ swap drop      \ leave k
 
 \ -- 3: shift-with inside a try-catch's error-xt. Throw inside the handler
 \        gets caught by an outer try-catch.
-[: [: 5 throw :] [: 10 + throw :] try-catch :]
-[: "outer-caught " . . cr :] try-catch         \ outer-caught 15
+( ( 5 throw ) ( 10 + throw ) try-catch )
+( "outer-caught " . . cr ) try-catch         \ outer-caught 15
 
 \ -- 4: side-stack underflow surfaces cleanly.
 side>
@@ -50,13 +50,13 @@ side> .  cr                 \ [ 1 2 3 4 5 ]
 \        condition by providing a substitute value and resuming. The
 \        slice runs and shift-with's call appears to have returned that
 \        value.
-: ouch ( -- v ) [: 42 swap resume :] shift-with ;
-: recoverable reset 5 ouch + ;
+: ouch ( -- v ) ( 42 swap resume ) shift-with ;
+: recoverable ( -- n ) reset 5 ouch + ;
 recoverable . cr            \ 47   (5 + 42, with ouch "returning" 42 via resume)
 
 \ -- 8: a captured continuation is multi-shot — resumable repeatedly.
-: shifter shift ;
-: ex2 reset 99 shifter 2 * ;
+: shifter ( -- ) shift ;
+: ex2 ( -- n ) reset 99 shifter 2 * ;
 ex2 swap drop                                       \ leaves k on stack
 dup 3 swap resume . cr                              \ 6
 dup 5 swap resume . cr                              \ 10
@@ -64,7 +64,7 @@ dup 5 swap resume . cr                              \ 10
 
 \ -- 9: GC during a captured continuation's lifetime. After capture,
 \        force gc, then resume — the continuation must survive.
-: ex3 reset 99 shifter 2 * ;
+: ex3 ( -- n ) reset 99 shifter 2 * ;
 ex3 swap drop                                       \ leaves k on stack
 gc                                                  \ force collection
 3 swap resume . cr                                  \ 6 — still resumable

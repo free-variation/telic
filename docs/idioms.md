@@ -43,7 +43,7 @@ through consumption to its destination — a `to name`, a store, a print, an
 
   ```forth
   2019 2024 range
-      [: panel@adds_program panel@fy rot addition-rate :]
+      ( panel@adds_program panel@fy rot addition-rate )
       map vector to addition-rate-by-year
   ```
 
@@ -71,7 +71,7 @@ through consumption to its destination — a `to name`, a store, a print, an
   line with a stack comment:
 
   ```forth
-  : histogram-table | data n-bins |
+  : histogram-table ( v n-bins -- table ) | data n-bins |
       data as-column drop-nans to data
       data num-elements to n-values
       data min to low
@@ -95,13 +95,13 @@ through consumption to its destination — a `to name`, a store, a print, an
 
   ```forth
   variable tests-failed
-  : record-failure | reason ^tests-failed |
+  : record-failure ( reason -- ) | reason ^tests-failed |
       reason . cr
       ++ tests-failed ;
   ```
 
 - A combinator argument that is one existing word is that word's xt, not a
-  quotation around it: `' size sort-by`, not `[: size :] sort-by`. Write a
+  quotation around it: `' size sort-by`, not `( size ) sort-by`. Write a
   quotation when the body is a literal, several words, or needs a head. The two
   are not only styled differently — a quotation is a compiled body the
   combinator dispatches into, an xt is called directly — and `fold-times`
@@ -112,7 +112,7 @@ through consumption to its destination — a `to name`, a store, a print, an
 
 `if`/`else`/`then`, `begin`/`while`/`repeat`/`until`/`again`, and
 `leave`/`continue` are compile-time words: they emit branch instructions into
-the definition being compiled. They belong inside a `: … ;` or a `[: … :]`
+the definition being compiled. They belong inside a `: … ;` or a `( … )`
 body — at the top level of a file or the REPL there is no definition to emit
 into, and the opener errors (`if: only valid inside a colon definition or
 quotation`).
@@ -121,7 +121,7 @@ quotation`).
 
   ```forth top-level-conditional
   variable checksum 7 to checksum
-  [: checksum 7 = 0= if "checksum mismatch" throw then :] execute
+  ( checksum 7 = 0= if "checksum mismatch" throw then ) execute
   "checked" . cr
   ```
   ```output
@@ -167,9 +167,9 @@ result must compose with `map`/`filter`/`unify`. The two interoperate — a
   Prolog's member, clause for clause:
 
   ```forth
-  : lmember | X L |
-    X L [: x l | l [ x _ rest ] ~ drop :] 2 ncurry
-    X L [: x l ?T | l [ _ T rest ] ~ drop x T lmember :] 2 ncurry
+  : lmember ( X L -- ) | X L |
+    X L ( x l | l [ x _ rest ] ~ drop ) 2 ncurry
+    X L ( x l ?T | l [ _ T rest ] ~ drop x T lmember ) 2 ncurry
     amb ;
   ```
 
@@ -177,7 +177,7 @@ result must compose with `map`/`filter`/`unify`. The two interoperate — a
   commits to the first element the goal accepts:
 
   ```forth choose-commit
-  [ 1 2 3 ] [: dup 2 < if fail then . cr :] choose
+  [ 1 2 3 ] ( dup 2 < if fail then . cr ) choose
   ```
   ```output
   2
@@ -188,7 +188,7 @@ result must compose with `map`/`filter`/`unify`. The two interoperate — a
   row frames it is a filter:
 
   ```forth
-  [: row | pattern row matches? :] filter
+  ( row | pattern row matches? ) filter
   ```
 
 - Keep a result past backtracking by snapshotting: `copy` (fresh variables)
@@ -204,7 +204,7 @@ result must compose with `map`/`filter`/`unify`. The two interoperate — a
   { :name [ :ann :bo ] :age [ 34 25 ] vector } to people
   people { :name :ann } query :age @ 0 @e . cr
   lvar to Age
-  people { :name :bo } query-rows [: row | { :age Age } row ~ drop :] each Age ? . cr
+  people { :name :bo } query-rows ( row | { :age Age } row ~ drop ) each Age ? . cr
   ```
   ```output
   34
@@ -227,7 +227,7 @@ quotation forms — for the top level, for an xt in hand, and for map-folds.
   ```forth indexed-fill
   variable xs
   4 1 0-matrix to xs
-  : fill-xs
+  : fill-xs ( -- )
     0 4 1 do i
        i fsin to sxi
        xs sxi i !e drop
@@ -243,7 +243,7 @@ quotation forms — for the top level, for an xt in hand, and for map-folds.
   accumulation writes the word's locals directly (bench/nbody.telic, `energy`):
 
   ```forth nested-do
-  : upper-pairs
+  : upper-pairs ( -- n )
     0 to n_pairs
     0 4 1 do i
        i 1+ 4 1 do j  ++ n_pairs  loop
@@ -260,13 +260,13 @@ quotation forms — for the top level, for an xt in hand, and for map-folds.
   with no dispatch:
 
   ```forth fold-times-sum
-  0 [: dup f* :] ' f+ 5 fold-times . cr \ sum of squares 0..4
+  0 ( dup f* ) ' f+ 5 fold-times . cr \ sum of squares 0..4
   ```
   ```output
   30
   ```
 
-  The stack-accumulator form `0 swap [: + :] swap i-times` is the fallback
+  The stack-accumulator form `0 swap ( + ) swap i-times` is the fallback
   when the body already leaves values.
 
 - Fold a pairwise word whose identity is `null`: `hstack` and `vstack` answer
@@ -289,7 +289,7 @@ quotation forms — for the top level, for an xt in hand, and for map-folds.
   ```forth
   0 chunks 1- range
   chunks 1 ' partial pmap-ext
-  0.0 [: f+ :] reduce
+  0.0 ( f+ ) reduce
   ```
 
 ## Higher-order traversal
@@ -303,7 +303,7 @@ traversals to one word each (`find-first` and `any?` short-circuit).
 - A named word passes by tick where a quotation would only wrap it:
 
   ```forth
-  : print-raw string>codepoints ' emit each ;   \ repl.telic
+  : print-raw ( s -- ) string>codepoints ' emit each ;   \ repl.telic
   ' file-exists? find-first                     \ find-executable (io.telic)
   cells ' quantity? all?                        \ column-from-cells (datasets.telic)
   dataset values ' column>array map transpose   \ dataset-rows (datasets.telic)
@@ -329,7 +329,7 @@ traversals to one word each (`find-first` and `any?` short-circuit).
   left:
 
   ```forth
-  [ [ "echo" "a" ] [ "echo" "b" ] ] 2 parallel-run [: :out @ trim . :] each
+  [ [ "echo" "a" ] [ "echo" "b" ] ] 2 parallel-run ( :out @ trim . ) each
   ```
 
 ## Mask algebra
@@ -340,7 +340,7 @@ masks, `where`, and `select-rows` replaces row loops.
 - Filter rows by value — mask, where, gather (`addition-rate`):
 
   ```forth
-  : addition-rate eq where select-rows mean ;
+  : addition-rate ( dataset column value -- mean ) eq where select-rows mean ;
   ```
 
 - Conjunction is `*`, negation is `0 eq`:
@@ -396,10 +396,10 @@ is the argument, and one short regex usually does it:
 ```forth
 browser "^/" has?                  \ absolute path? (env-browser)
 dup "\.telic$" has? not if ".telic" + then \ ensure a suffix (load-library)
-: basename "^.*/" "" replace ;     \ last path component (strings.telic)
-: run " +" split start-process ;   \ tokenize on space runs (subprocess.telic)
+: basename ( path -- name ) "^.*/" "" replace ;     \ last path component (strings.telic)
+: run ( str -- proc ) " +" split start-process ;   \ tokenize on space runs (subprocess.telic)
 "x=42" "(\w+)=(\d+)" match         \ parse by capture → [ "x=42" "x" "42" ]
-model@predictors [: render "^:year=" has? :] filter
+model@predictors ( render "^:year=" has? ) filter
                                    \ keys by name pattern: render the symbol, then match
 ```
 
@@ -445,7 +445,7 @@ stack from the top, dropping the referenced positions when it runs.
   synthesizes keys (`tsv-keys`):
 
   ```forth
-  rows 0 @i size 1 swap range [: "col{0}" format string>symbol :] map
+  rows 0 @i size 1 swap range ( "col{0}" format string>symbol ) map
   ```
 
 - Compose an error message, then throw it (`svd`):
@@ -466,8 +466,8 @@ a quantity in `s`, so the units machinery is the date arithmetic.
   (units.telic):
 
   ```forth
-  : wall-now (wall-now) s ;
-  : epoch>date 1 s / (epoch>date) ;
+  : wall-now ( -- t ) (wall-now) s ;
+  : epoch>date ( instant -- date ) 1 s / (epoch>date) ;
   ```
 
   `magnitude` is the polymorphic strip when the unit may vary
@@ -524,12 +524,12 @@ a quantity in `s`, so the units machinery is the date arithmetic.
 
   ```forth
   orders
-  [: order |
+  ( order |
      order@year first-year >=
      regions order@region in?
      order@channel "direct" neq
      and and
-  :] filter to training-orders
+  ) filter to training-orders
   ```
 
 - Split-apply-combine is `aggregate`: the group keys (a symbol or symbol
@@ -539,18 +539,18 @@ a quantity in `s`, so the units machinery is the date arithmetic.
 
   ```forth
   [ :product :year ]
-  [: group |
+  ( group |
      { :due group@amount group@weight * sum
        :renewed group@renewed-amount group@weight * sum }
-  :] aggregate
-  [: :due @ 0 $ > :] filter
+  ) aggregate
+  ( :due @ 0 $ > ) filter
   dup :renewed @ over :due @ / :ratio !
   [ :product ]
-  [: group |
+  ( group |
      { :last-ratio group@ratio last
        :log-change-sd group@ratio 0.05 max2 ln successive-differences
                       dup size 2 < if drop 0.20 else std then 0.1 0.35 clamp }
-  :] aggregate
+  ) aggregate
   ```
 
 - A join aligns its key by renaming, joins, then drops the unmatched rows:
@@ -568,9 +568,9 @@ a quantity in `s`, so the units machinery is the date arithmetic.
   dataset against the model frame:
 
   ```forth
-  [: column-name column |
+  ( column-name column |
      predictors column-name in? if column zero-variance? not else false then
-  :] filter-columns
+  ) filter-columns
   dup key-set :year in? if :year expand-indicators! then
   dup key-set :channel in? if :channel expand-indicators! then
   dup keys outcome weights quasibinomial-logit 0 glm-regression
@@ -583,12 +583,12 @@ a quantity in `s`, so the units machinery is the date arithmetic.
   ```forth
   year-columns 2 nlast
   null
-  [: probabilities year-column |
+  ( probabilities year-column |
      scoring-design 1 year-column repeat-column! drop
      model scoring-design predict-glm
      scoring-design 0 year-column repeat-column! drop
      probabilities hstack
-  :] reduce
+  ) reduce
   row-means
   ```
 
@@ -610,7 +610,7 @@ How values reach a quotation body, beyond its own locals.
 
   ```forth
   \ the dataset arrives below cols, so the quotation reaches it at depth 2 under map
-  [: 2 pick swap @ magnitude dup matrix? if as-column else vector then :] map nip
+  ( 2 pick swap @ magnitude dup matrix? if as-column else vector then ) map nip
   ```
 
 - Name the enclosing local and the quotation captures it — a copy, taken
@@ -618,14 +618,14 @@ How values reach a quotation body, beyond its own locals.
   builds for you (`scale-all`):
 
   ```forth capture-enclosing-local
-  : scale-all | rows factor | rows [: factor * :] map ;
+  : scale-all ( rows factor -- rows ) | rows factor | rows ( factor * ) map ;
   [ 1 2 3 ] 10 scale-all . cr
   ```
   ```output
   [ 10 20 30 ]
   ```
 
-  This is `factor [: factor | factor * :] curry map` with the plumbing
+  This is `factor ( factor | factor * ) curry map` with the plumbing
   removed; the per-element cost is the same. The copy is the point: `to`
   on the name inside the quotation makes a fresh local, and `++` on it is a
   compile error, since neither would reach the enclosing slot.
@@ -653,8 +653,8 @@ How values reach a quotation body, beyond its own locals.
   cell is pre-curried and pre-seeded, so the mapper cannot change the result:
 
   ```forth
-  : bootstrap ' map bootstrap-with ;
-  : pbootstrap ' pmap bootstrap-with ;
+  : bootstrap ( data fit-xt B -- arr ) ' map bootstrap-with ;
+  : pbootstrap ( data fit-xt B -- arr ) ' pmap bootstrap-with ;
   ```
 
 - `>side … side>` carries a value across code that owns the stack: a handler
@@ -669,7 +669,7 @@ How values reach a quotation body, beyond its own locals.
   ```forth
   ' select-rows constant (matrix-select-rows) internal
 
-  : select-rows
+  : select-rows ( mat/dataset/arr idx -- same )
       over frame? if dataset-select-rows exit then
       (matrix-select-rows) execute ;
   ```
@@ -684,9 +684,9 @@ coroutines are short compositions over them (exceptions.telic, generators.telic)
   survive:
 
   ```forth resource-brackets
-  : ensure >side catch side> execute if throw then ;
-  ":memory:" [: "create table t(x)" [ ] db-exec . :] with-db cr
-  "echo hi" run :out @ [: read trim print :] with-stream cr
+  : ensure ( body-xt cleanup-xt -- ... ) >side catch side> execute if throw then ;
+  ":memory:" ( "create table t(x)" [ ] db-exec . ) with-db cr
+  "echo hi" run :out @ ( read trim print ) with-stream cr
   ```
   ```output
   0
@@ -697,9 +697,9 @@ coroutines are short compositions over them (exceptions.telic, generators.telic)
   values) or `gen-each` (consume until it falls off):
 
   ```forth generator-drive
-  : odds 1 yield 3 yield 5 yield ;
+  : odds ( -- ) 1 yield 3 yield 5 yield ;
   ' odds 3 gen-take . cr
-  ' odds [: . :] gen-each cr
+  ' odds ( . ) gen-each cr
   ```
   ```output
   [ 1 3 5 ]
@@ -818,7 +818,7 @@ compiler's fusion targets.
   open:
 
   ```forth fusion-check
-  : sc-demo 1.5 2.5 f+ ; ' sc-demo see-compiled
+  : sc-demo ( -- f ) 1.5 2.5 f+ ; ' sc-demo see-compiled
   ```
   ```output
   : sc-demo   \ 5 cells
@@ -850,8 +850,8 @@ anything failed — so a test file run as a program exits non-zero.
 
   ```forth test-group
   new-tests
-  "adds" [: 3 4 + 7 expect= :] test
-  "rejects a string count" [: [: [ 1 ] "x" ' + reduce :] expect-throws :] test
+  "adds" ( 3 4 + 7 expect= ) test
+  "rejects a string count" ( ( [ 1 ] "x" ' + reduce ) expect-throws ) test
   test-report
   ```
   ```output
@@ -894,7 +894,7 @@ anything failed — so a test file run as a program exits non-zero.
   connection closes on either exit:
 
   ```forth
-  : query-db-bound | sql params |
+  : query-db-bound ( sql params -- dataset ) | sql params |
       db-path sql params ' db-query 2curry with-db ;
   ```
 
@@ -935,7 +935,7 @@ anything failed — so a test file run as a program exits non-zero.
 
   ```forth
   "XGBOOST_LIB" env dup null? not if exit then drop
-  install-paths [: file-exists? :] find-first
+  install-paths ( file-exists? ) find-first
   dup null? if drop "libxgboost.so" then
   ```
 

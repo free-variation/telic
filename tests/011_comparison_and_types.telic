@@ -48,9 +48,9 @@
 [ 1 2 3 ] 2 >= . cr                            \ 0 1 1
 
 \ <=/>= fuse with a following branch into (<=0branch)/(>=0branch)
-: le-branch 5 <= if 1 else 0 then ;
+: le-branch ( n -- flag ) 5 <= if 1 else 0 then ;
 ' le-branch see-compiled>string "(<=0branch)" has? . cr    \ 1
-: ge-branch 5 >= if 1 else 0 then ;
+: ge-branch ( n -- flag ) 5 >= if 1 else 0 then ;
 ' ge-branch see-compiled>string "(>=0branch)" has? . cr    \ 1
 
 \ errors
@@ -132,7 +132,7 @@ clear
 [ 1 2 3 4 ] 2 2 matrix type-of . cr    \ :matrix
 10 m type-of . cr                      \ :quantity
 ' dup type-of . cr                     \ :xt
-[: 1 :] type-of . cr                   \ :xt (a quotation is an xt)
+( 1 ) type-of . cr                   \ :xt (a quotation is an xt)
 3 int-segment type-of . cr          \ :segment
 ":memory:" db-open dup type-of . cr db-close   \ :db
 null type-of . cr                      \ :null
@@ -144,8 +144,8 @@ lvar to x   x 5 ~ drop   x type-of . cr        \ :float
 lvar to y   y "hi" ~ drop  y type-of . cr      \ :string
 
 \ a continuation
-: sh shift ;
-: ex reset 9 sh ;
+: sh ( -- ) shift ;
+: ex ( -- n ) reset 9 sh ;
 ex nip type-of . cr                    \ :continuation
 
 \ the result is an ordinary symbol
@@ -178,7 +178,7 @@ clear
 \ === ordering across dimensions: within a dimension the right side rescales ===
 10 $ 300 ¢ > . 300 ¢ 10 $ < . cr                   \ 1 1
 [ 100 900 ] vector ¢ 3 $ max2 . cr                 \ [ 300 900 ] ¢  left unit kept
-: gt-fused 10 $ 300 ¢ > if 1 else 0 then ;
+: gt-fused ( -- flag ) 10 $ 300 ¢ > if 1 else 0 then ;
 gt-fused . cr                                      \ 1
 
 \ errors
@@ -187,7 +187,7 @@ gt-fused . cr                                      \ 1
 10 $ 3 max2                                        \ (a quantity and a plain number)
 [ 1 9 ] vector m 3 s max2                          \ (unit mismatch: length vs time)
 10 $ 0 5 clamp                                     \ (a quantity and plain bounds)
-: gt-fused-mixed 10 $ 3 > if 1 else 0 then ;
+: gt-fused-mixed ( -- flag ) 10 $ 3 > if 1 else 0 then ;
 gt-fused-mixed                                     \ (a quantity and a plain number, fused form)
 
 bye

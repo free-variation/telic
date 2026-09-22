@@ -65,9 +65,9 @@ has   "interactive (-i) shows the hint" '2 3 + . cr'  "words lists every word; h
 has   "interactive (-i) shows prompt"   '1 2 . cr'    "ok 1|1"        0 -i
 # definition echo: interactive-only (silent under -b), new vs redefined, and the
 # immediate-echo path (variable). Anonymous words (a curried xt) never echo.
-exact "definition echo silent (-b)"     ': zzz-echo dup * ;'  ""  0 -b
-has   "definition echo new (-i)"         ': zzz-echo dup * ;'  "new word: zzz-echo"        0 -i
-has   "definition echo redefined (-i)"   ': zzz-echo 1 ; : zzz-echo 2 ;'  "redefined word: zzz-echo"  0 -i
+exact "definition echo silent (-b)"     ': zzz-echo ( n -- n ) dup * ;'  ""  0 -b
+has   "definition echo new (-i)"         ': zzz-echo ( n -- n ) dup * ;'  "new word: zzz-echo"        0 -i
+has   "definition echo redefined (-i)"   ': zzz-echo ( -- n ) 1 ; : zzz-echo ( -- n ) 2 ;'  "redefined word: zzz-echo"  0 -i
 has   "definition echo variable (-i)"    'variable zzz-var'    "new word: zzz-var"         0 -i
 # a loaded library's internal word is private to its load unit: unreachable from
 # the session (public words of the same lib still resolve — covered by 131_plot)
@@ -76,18 +76,18 @@ has   "lib internal is unit-private"     '"lib/plot.telic" load  "/tmp" next-svg
 has   "words groups loaded-library words" '"lib/plot.telic" load  words'  "library:"  0 -b
 # a loaded file echoes only its own definitions, not those of files/libraries it loads
 lf=$(mktemp "${TMPDIR:-/tmp}/lf_nest.XXXXXX")
-printf '%s\n' '"plot" load-library' ': zzz-mine 1 ;' > "$lf"
+printf '%s\n' '"plot" load-library' ': zzz-mine ( -- n ) 1 ;' > "$lf"
 has   "load echoes the file's own defs"  ''  "new word: zzz-mine"  0 -i "$lf"
 hasnt "load hides nested-load defs"      ''  "new word: figure"    0 -i "$lf"
 rm -f "$lf"
 # ++ / -- increment a local or global variable in place; unknown/non-variable/top-level errors
-has   "++ increments a global"          'variable c 5 to c : b ^c | ++ c ; b b c . cr'  "7"  0 -b
-has   "++ needs ^ for a global"         'variable c : b ++ c ;'  "c is a global; declare it in the locals list as ^c"  0 -b
-has   "++ rejects an unknown name"      ': u ++ nope ;'  "unknown variable: nope"  0 -b
-has   "++ rejects a non-variable"       ': v ++ dup ;'   "dup is not a variable"   0 -b
+has   "++ increments a global"          'variable c 5 to c : b ( -- ) ^c | ++ c ; b b c . cr'  "7"  0 -b
+has   "++ needs ^ for a global"         'variable c : b ( -- ) ++ c ;'  "c is a global; declare it in the locals list as ^c"  0 -b
+has   "++ rejects an unknown name"      ': u ( -- ) ++ nope ;'  "unknown variable: nope"  0 -b
+has   "++ rejects a non-variable"       ': v ( -- ) ++ dup ;'   "dup is not a variable"   0 -b
 has   "++ needs a colon definition"     '++ c'           "only valid inside a colon definition"  0 -b
 # --max-objects lowers the object ceiling so the limit is reachable cheaply
-has   "--max-objects hits ceiling"      '1 200000 range [: drop [< 0 >] :] map drop'  "object registry full" 0 -b --max-objects 100000
+has   "--max-objects hits ceiling"      '1 200000 range ( drop [< 0 >] ) map drop'  "object registry full" 0 -b --max-objects 100000
 # --max-objects argument validation
 has   "--max-objects needs a value"     ''  "needs a value"      2 --max-objects
 has   "--max-objects rejects 0"         ''  "positive integer"   2 --max-objects 0
@@ -97,7 +97,7 @@ has   "unknown flag rejected"           ''  "unknown option"     2 --bogus
 has   "unknown flag suggests help"      ''  "telic --help"       2 --bogus
 # timed prints an elapsed line then passes xt's results through (the elapsed
 # value is wall-clock-dependent, so only the pass-through result is pinned)
-has   "timed passes results through"    '[: 40 2 + :] timed 100 + . cr'  "142" 0 -b
+has   "timed passes results through"    '( 40 2 + ) timed 100 + . cr'  "142" 0 -b
 
 # halt exits with the given code; output already printed is flushed
 exact "halt exits with the given code"  ''  "1 "  3  -e '1 . 3 halt'
@@ -157,7 +157,7 @@ rm -f "$cont"
 # `load` resolves the path as given, then falls back to the loading file's own
 # directory; an unresolved path still reports the original name.
 lfdir=$(mktemp -d "${TMPDIR:-/tmp}/lf_dir.XXXXXX")
-printf ': from-sibling 42 ;\n' > "$lfdir/sib.telic"
+printf ': from-sibling ( -- n ) 42 ;\n' > "$lfdir/sib.telic"
 printf '"sib.telic" load  from-sibling . cr\n' > "$lfdir/main.telic"
 exact "load falls back to the loading file's directory"  ''  "42 "  0  "$lfdir/main.telic"
 printf '"nope.telic" load\n' > "$lfdir/bad.telic"

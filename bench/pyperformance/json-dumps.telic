@@ -13,9 +13,9 @@
 nested 1000 array-of constant huge
 
 : run-dumps ( -- )
-  [: empty frame>json drop :] 2000 times
-  [: simple frame>json drop :] 1000 times
-  [: nested frame>json drop :] 1000 times
+  ( empty frame>json drop ) 2000 times
+  ( simple frame>json drop ) 1000 times
+  ( nested frame>json drop ) 1000 times
   huge frame>json drop ;
 
 \ verification: total canonical length, expect 314389 (2 + 75 + 312 + 314000)

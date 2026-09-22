@@ -34,9 +34,9 @@ col2 . cr                                   \ 2x1: 1 2
 clear
 
 \ === errors (wrong operand length for the chosen orientation) ===
-[: 1 a-mat col2 0 2 1 0-matrix dgemv-n :] catch drop . cr   \ x too short for A's columns
-[: 1 a-mat col3 0 3 1 0-matrix dgemv-n :] catch drop . cr   \ y too long for A's rows
-[: 1 a-mat col3 0 3 1 0-matrix dgemv-t :] catch drop . cr   \ transposed wants x of A's rows
-[: 1 a-mat [ 1.0 2.0 ] 1 2 matrix 0 2 1 0-matrix dgemv-n :] catch drop . cr   \ x a row, not a column
+( 1 a-mat col2 0 2 1 0-matrix dgemv-n ) catch drop . cr   \ x too short for A's columns
+( 1 a-mat col3 0 3 1 0-matrix dgemv-n ) catch drop . cr   \ y too long for A's rows
+( 1 a-mat col3 0 3 1 0-matrix dgemv-t ) catch drop . cr   \ transposed wants x of A's rows
+( 1 a-mat [ 1.0 2.0 ] 1 2 matrix 0 2 1 0-matrix dgemv-n ) catch drop . cr   \ x a row, not a column
 
 bye

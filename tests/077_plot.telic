@@ -43,8 +43,8 @@ clear
 \ === barchart: heights drawn in input order (not sorted), baseline y=0, one label per bar ===
 640 480 figure
 [ 3 1 2 ] vector [ "a" "b" "c" ] barchart
-:parts figure@ [: :kind @ :rect = :] filter [: :ys @ 1 @e :] map .a cr    \ [ 3 1 2 ]
-:parts figure@ [: :kind @ :text = :] filter [: :label @ :] map .a cr      \ [ "a" "b" "c" ]
+:parts figure@ ( :kind @ :rect = ) filter ( :ys @ 1 @e ) map .a cr    \ [ 3 1 2 ]
+:parts figure@ ( :kind @ :text = ) filter ( :label @ ) map .a cr      \ [ "a" "b" "c" ]
 :xmin figure@ . :xmax figure@ . :ymin figure@ . cr                        \ 0.5 3.5 0
 :x-categorical figure@ . cr                                               \ 1 (barchart marks x categorical, so axes/panel drop the numeric x-ticks)
 figure>svg "<rect" split size 1 - . cr                                    \ 4 (3 bars + canvas)
@@ -53,8 +53,8 @@ clear
 \ === count-barchart: frequencies from raw values, most frequent first ===
 640 480 figure
 [ "north" "south" "north" "north" "west" ] count-barchart
-:parts figure@ [: :kind @ :rect = :] filter [: :ys @ 1 @e :] map .a cr    \ [ 3 1 1 ]
-:parts figure@ [: :kind @ :text = :] filter [: :label @ :] map .a cr      \ [ "north" "south" "west" ]
+:parts figure@ ( :kind @ :rect = ) filter ( :ys @ 1 @e ) map .a cr    \ [ 3 1 1 ]
+:parts figure@ ( :kind @ :text = ) filter ( :label @ ) map .a cr      \ [ "north" "south" "west" ]
 clear
 
 \ === complete bar charts render bars, a border, and the canvas ===
@@ -67,8 +67,8 @@ clear
 640 480 figure
 [ 3 1 2 4 ] vector 2 2 reshape [ "A" "B" ] [ "steelblue" "orange" ] stacked-barchart
 \ [bottom top] per segment, row-major (A:s0, A:s1, B:s0, B:s1) — cumulative within each bar
-:parts figure@ [: :kind @ :rect = :] filter [: :ys @ matrix>array :] map .a cr   \ [ [ 0 3 ] [ 3 4 ] [ 0 2 ] [ 2 6 ] ]
-:parts figure@ [: :kind @ :rect = :] filter [: :fill @ :] map .a cr              \ [ "steelblue" "orange" "steelblue" "orange" ]
+:parts figure@ ( :kind @ :rect = ) filter ( :ys @ matrix>array ) map .a cr   \ [ [ 0 3 ] [ 3 4 ] [ 0 2 ] [ 2 6 ] ]
+:parts figure@ ( :kind @ :rect = ) filter ( :fill @ ) map .a cr              \ [ "steelblue" "orange" "steelblue" "orange" ]
 :xmin figure@ . :xmax figure@ . :ymin figure@ . cr                               \ 0.5 2.5 0
 figure>svg
 dup ">A</text>" has? . cr                                                        \ 1
@@ -253,16 +253,16 @@ clear
 clear
 
 \ === errors (thrown; caught here to show the message) ===
-[: [ 1 2 ] vector [ 1 2 3 ] vector scatter :] [: . cr :] try-catch   \ (length mismatch)
-[: [ 1 2 ] vector [ 1 ] vector series :] [: . cr :] try-catch        \ (length mismatch)
-[: [ 1 2 ] vector 0 histogram :] [: . cr :] try-catch                \ (no bins)
-[: [ -1 ] vector ln boxplot :] [: . cr :] try-catch                  \ (no finite values)
-[: [ -1 ] vector ln [ 1 ] vector data-domain :] [: . cr :] try-catch \ (no finite x)
-[: [ [ 1 ] vector ] [ ] boxplots :] [: . cr :] try-catch             \ (label mismatch)
-[: [ 1 2 ] vector [ "a" ] barchart :] [: . cr :] try-catch           \ (barchart label mismatch)
-[: [ ] vector [ ] barchart :] [: . cr :] try-catch                   \ (barchart no heights)
-[: [ "a" "b" ] [ "red" ] legend :] [: . cr :] try-catch              \ (legend color mismatch)
-[: [ ] [ ] legend :] [: . cr :] try-catch                           \ (legend no labels)
-[: [ 1 2 ] vector [ 5 ] vector [ 1 2 ] vector intervals :] [: . cr :] try-catch  \ (intervals length mismatch)
-[: [ 1 2 3 4 ] vector 2 2 reshape [ "A" ] [ "x" "y" ] stacked-barchart :] [: . cr :] try-catch      \ (row/label mismatch)
-[: [ 1 2 3 4 ] vector 2 2 reshape [ "A" "B" ] [ "x" ] stacked-barchart :] [: . cr :] try-catch      \ (column/color mismatch)
+( [ 1 2 ] vector [ 1 2 3 ] vector scatter ) ( . cr ) try-catch   \ (length mismatch)
+( [ 1 2 ] vector [ 1 ] vector series ) ( . cr ) try-catch        \ (length mismatch)
+( [ 1 2 ] vector 0 histogram ) ( . cr ) try-catch                \ (no bins)
+( [ -1 ] vector ln boxplot ) ( . cr ) try-catch                  \ (no finite values)
+( [ -1 ] vector ln [ 1 ] vector data-domain ) ( . cr ) try-catch \ (no finite x)
+( [ [ 1 ] vector ] [ ] boxplots ) ( . cr ) try-catch             \ (label mismatch)
+( [ 1 2 ] vector [ "a" ] barchart ) ( . cr ) try-catch           \ (barchart label mismatch)
+( [ ] vector [ ] barchart ) ( . cr ) try-catch                   \ (barchart no heights)
+( [ "a" "b" ] [ "red" ] legend ) ( . cr ) try-catch              \ (legend color mismatch)
+( [ ] [ ] legend ) ( . cr ) try-catch                           \ (legend no labels)
+( [ 1 2 ] vector [ 5 ] vector [ 1 2 ] vector intervals ) ( . cr ) try-catch  \ (intervals length mismatch)
+( [ 1 2 3 4 ] vector 2 2 reshape [ "A" ] [ "x" "y" ] stacked-barchart ) ( . cr ) try-catch      \ (row/label mismatch)
+( [ 1 2 3 4 ] vector 2 2 reshape [ "A" "B" ] [ "x" ] stacked-barchart ) ( . cr ) try-catch      \ (column/color mismatch)

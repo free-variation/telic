@@ -1,59 +1,59 @@
 \ chain of named calls, innermost first
-: inner 1 0 % ;
-: mid inner ;
-: outer mid ;
+: inner ( -- n ) 1 0 % ;
+: mid ( -- n ) inner ;
+: outer ( -- n ) mid ;
 outer
 
 \ single-site recursion collapses to one frame (non-tail so it still overflows;
 \ a bare `: spin spin ;` is now a constant-space tail loop)
-: spin spin 0 drop ;
+: spin ( -- ) spin 0 drop ;
 spin
 
 \ top-level quotation names its snippet
-[: 1 0 % :] execute
+( 1 0 % ) execute
 
 \ long snippet truncates with a guard
-[: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 0 % :] execute
+( 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 0 % ) execute
 
 \ locals regions are skipped, not misread as frames
-: haslocals 3 to a 4 to b a b + 0 % ;
-: top haslocals ;
+: haslocals ( -- n ) 3 to a 4 to b a b + 0 % ;
+: top ( -- n ) haslocals ;
 top
 
 \ deep tail-call chain collapses to the innermost frame (each call is a tail
 \ call, so TCE leaves only w1 on the return stack at the fault)
-: w1 1 0 % ;
-: w2 w1 ;
-: w3 w2 ;
-: w4 w3 ;
-: w5 w4 ;
-: w6 w5 ;
-: w7 w6 ;
-: w8 w7 ;
-: w9 w8 ;
-: w10 w9 ;
-: w11 w10 ;
-: w12 w11 ;
-: w13 w12 ;
-: w14 w13 ;
-: w15 w14 ;
-: w16 w15 ;
+: w1 ( -- n ) 1 0 % ;
+: w2 ( -- n ) w1 ;
+: w3 ( -- n ) w2 ;
+: w4 ( -- n ) w3 ;
+: w5 ( -- n ) w4 ;
+: w6 ( -- n ) w5 ;
+: w7 ( -- n ) w6 ;
+: w8 ( -- n ) w7 ;
+: w9 ( -- n ) w8 ;
+: w10 ( -- n ) w9 ;
+: w11 ( -- n ) w10 ;
+: w12 ( -- n ) w11 ;
+: w13 ( -- n ) w12 ;
+: w14 ( -- n ) w13 ;
+: w15 ( -- n ) w14 ;
+: w16 ( -- n ) w15 ;
 w16
 
 \ quotation inside a definition names its own snippet
-: usemap [ 1 2 3 ] [: 0 % :] map ;
+: usemap ( -- arr ) [ 1 2 3 ] ( 0 % ) map ;
 usemap
 
 \ spans survive forget; a fresh quotation resolves correctly
-: f1 [: 1 0 % :] execute ;
+: f1 ( -- n ) ( 1 0 % ) execute ;
 f1
 forget f1
-[: 2 0 % :] execute
+( 2 0 % ) execute
 
 \ a caught error prints no trace
-[: 1 0 % :] catch . drop cr
+( 1 0 % ) catch . drop cr
 
 \ a fault inside a quotation names the fused op as its innermost frame,
 \ identically on native and wasm (span-classified body walk)
-: gather-one | column indices | column indices [: 2 pick swap @i :] map nip ;
+: gather-one ( column indices -- arr ) | column indices | column indices ( 2 pick swap @i ) map nip ;
 [ 1 2 ] [ 5 ] gather-one

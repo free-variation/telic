@@ -26,7 +26,7 @@ error: ; : unterminated conditional (an if has no matching then)
 in ;
 error: unknown word: bad-else
 error: :] : unterminated conditional (an if has no matching then)
-in :]
+in )
 error: unknown word: bad-qif
 13 
 yes 

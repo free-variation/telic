@@ -26,11 +26,11 @@ dup "cblas_dgemv" [
 				   ] :void ffi-function (cblas-dgemv)
 >side
 
-( m -- columns ) \ the row-major leading dimension
-: leading-dim dim swap drop ; internal
+\ the row-major leading dimension
+: leading-dim ( m -- columns ) dim swap drop ; internal
 
-( alpha A B beta C ta tb -- R ) \ R = alpha op(A) op(B) + beta C via cblas
-: accel-dgemm
+\ R = alpha op(A) op(B) + beta C via cblas
+: accel-dgemm ( alpha A B beta C ta tb -- R )
 	| alpha a b beta c ta tb |
 	alpha float? beta float? and not if
 		alpha type-of beta type-of
@@ -63,16 +63,16 @@ dup "cblas_dgemv" [
 	(cblas-dgemm)
 	r ; internal
 
-: dgemm-nn 0 0 accel-dgemm ;
-: dgemm-tn 1 0 accel-dgemm ;
-: dgemm-nt 0 1 accel-dgemm ;
-: dgemm-tt 1 1 accel-dgemm ;
+: dgemm-nn ( alpha A B beta C -- R ) 0 0 accel-dgemm ;
+: dgemm-tn ( alpha A B beta C -- R ) 1 0 accel-dgemm ;
+: dgemm-nt ( alpha A B beta C -- R ) 0 1 accel-dgemm ;
+: dgemm-tt ( alpha A B beta C -- R ) 1 1 accel-dgemm ;
 
 ' matmul constant (native-matmul) internal
 
-( A B -- A·B ) \ the plain matrix product: the matrix.c loop under 24x24 of
+\ the plain matrix product: the matrix.c loop under 24x24 of
 \ work, cblas dgemm above it (bench/stats/matmul-native-vs-blas.telic)
-: matmul
+: matmul ( A B -- A·B )
 	| a b |
 	a dim to inner to rows
 	b dim to columns to b-rows
@@ -87,8 +87,8 @@ dup "cblas_dgemv" [
 		a b (native-matmul) execute
 	then ;
 
-( alpha A x beta y ta -- r ) \ r = alpha op(A) x + beta y via cblas, x and y columns
-: accel-dgemv
+\ r = alpha op(A) x + beta y via cblas, x and y columns
+: accel-dgemv ( alpha A x beta y ta -- r )
 	| alpha a x beta y ta |
 	a dim to cols to rows
 	x dim to x-cols to x-rows
@@ -113,8 +113,8 @@ dup "cblas_dgemv" [
 	(cblas-dgemv)
 	r ; internal
 
-: dgemv-n 0 accel-dgemv ;
-: dgemv-t 1 accel-dgemv ;
+: dgemv-n ( alpha A x beta y -- r ) 0 accel-dgemv ;
+: dgemv-t ( alpha A x beta y -- r ) 1 accel-dgemv ;
 
 side>
 
@@ -174,8 +174,8 @@ drop
 
 	u singular-values vt ;
 
-( mat y -- beta ) \ ordinary least squares via LAPACKE dgelsd ; mat is m x n (m >= n)
-: fit-linear 
+\ ordinary least squares via LAPACKE dgelsd ; mat is m x n (m >= n)
+: fit-linear ( mat y -- beta ) 
 	| mat y |
 	mat dim to cols to rows
 	rows cols < if 
@@ -203,8 +203,8 @@ drop
 
 	b 0 cols 0 1 submatrix ;
 
-( augmented-matrix -- betas ) \ augmented is observations x (predictors + 1) ; last column is y
-: fit-augmented
+\ augmented is observations x (predictors + 1) ; last column is y
+: fit-augmented ( augmented-matrix -- betas )
 	| aug-mat |
 
 	aug-mat dim to cols to rows
@@ -214,15 +214,15 @@ drop
 
 \ ---- constrained least squares ----
 
-( X passive -- mat ) \ the passive columns of X, side by side in passive order
-: passive-columns
-	[: 2 pick swap @j :] map nip
+\ the passive columns of X, side by side in passive order
+: passive-columns ( X passive -- mat )
+	( 2 pick swap @j ) map nip
 	null ' hstack reduce ; internal
 
-( X y -- beta ) \ nonnegative least squares (beta >= 0) by the Lawson-Hanson
+\ nonnegative least squares (beta >= 0) by the Lawson-Hanson
 \ active set over fit-linear subset solves: finite, exact zeros on the active
 \ set; at the answer the passive gradient is ~0 and the active gradient <= 0
-: fit-nonnegative
+: fit-nonnegative ( X y -- beta )
 	| X y |
 	X dim to n-predictors drop
 	X transpose to Xt
@@ -307,10 +307,10 @@ drop
 	again
 	beta ;
 
-( X y -- weights ) \ least squares on the probability simplex: weights >= 0,
+\ least squares on the probability simplex: weights >= 0,
 \ summing to exactly 1. The sum constraint enters as a mu-weighted ones row,
 \ whose O(1/mu^2) error the final renormalization removes
-: fit-simplex
+: fit-simplex ( X y -- weights )
 	| X y |
 	X abs max 1 max2 1e3 * to mu
 	X dim nip to n-predictors
@@ -327,40 +327,40 @@ drop
 \ Moved out of the embedded library: every one of these serves a fit, and the
 \ fits are here.
 
-( column -- m ) \ one 0/1 indicator column per distinct value above the first
+\ one 0/1 indicator column per distinct value above the first
 \ (the reference); levels in val_cmp order, as column>set lists them; a
 \ missing cell lands in no column
-: column>indicators
+: column>indicators ( column -- m )
 	| column |
-	column column>array [: null? not :] filter array>set sort to levels
+	column column>array ( null? not ) filter array>set sort to levels
 	levels size 2 < if "column>indicators: needs at least 2 distinct values" throw then
 	column levels 1 skip
-	[: 2 pick swap eq :] map nip
+	( 2 pick swap eq ) map nip
 	null ' hstack reduce ;
 
-( design column sym -- design ) \ add one 0/1 column per non-reference level to a
+\ add one 0/1 column per non-reference level to a
 \ design dataset, keyed sym=level; levels and keys derive from the same data
-: indicators!
+: indicators! ( design column sym -- design )
 	| design column prefix |
-	column column>array [: null? not :] filter array>set sort to levels
+	column column>array ( null? not ) filter array>set sort to levels
 	levels size 2 < if "indicators!: needs at least 2 distinct values" throw then
 	levels 1 skip
-	[: level |
+	( level |
 		design column level eq prefix level "{1}={0}" format string>symbol !
-	:] map drop
+	) map drop
 	design ;
 
-( design sym -- design ) \ replace a categorical column with its sym=level indicators
-: expand-indicators!
+\ replace a categorical column with its sym=level indicators
+: expand-indicators! ( design sym -- design )
 	| design column |
 	design column @ to values
 	design values column indicators!
 	column delete-at ;
 
-( X/design -- X'/design ) \ matrix: prepend a column of 1s so beta[0] is the
+\ matrix: prepend a column of 1s so beta[0] is the
 \ intercept; design dataset: add an :intercept ones column (after at least one
 \ column exists — the rows are read from the design)
-: with-intercept
+: with-intercept ( X/design -- X'/design )
 	dup frame? if
 		dup keys size 0= if "with-intercept: empty design (add a column first)" throw then
 		dup n-rows 1 0-matrix 1 + :intercept !
@@ -371,8 +371,8 @@ drop
 	then ;
 
 
-( X y max-iterations tolerance -- beta ) \ logistic regression by IRLS; X is n×k (incl. intercept), y in {0,1}
-: fit-logistic
+\ logistic regression by IRLS; X is n×k (incl. intercept), y in {0,1}
+: fit-logistic ( X y max-iterations tolerance -- beta )
 	| x y max-iterations tolerance |
 	x dim to cols to rows
 	cols 1 0-matrix to beta
@@ -403,11 +403,11 @@ drop
 	then
 	beta ;
 
-( design target -- beta|null ) \ least squares by Householder QR (dgels), the same
+\ least squares by Householder QR (dgels), the same
 \ system fit-linear solves and the same conditioning, for several times fewer flops
 \ than dgelsd's divide-and-conquer SVD; null when dgels reports the design
 \ rank-deficient, leaving the caller the dgelsd path and its minimum-norm answer
-: solve-qr
+: solve-qr ( design target -- beta|null )
 	| design target |
 	design dim to cols to rows
 	design copy to a
@@ -421,14 +421,14 @@ drop
 
 	b 0 cols 0 1 submatrix ; internal
 
-( X y max-iterations tolerance lambda -- beta ) \ L2-regularized logistic by IRLS:
+\ L2-regularized logistic by IRLS:
 \ lambda multiplies ||beta||^2/2 in the objective, column 0 (the intercept) is
 \ unpenalized, no Firth term; lambda 0 is the plain MLE. The penalty enters each
 \ weighted least-squares step as sqrt(lambda)*I rows appended to the design, which
 \ solve-qr solves; the normal equations are deliberately not used here, since
 \ squaring the design costs about half the digits and floors the beta step near
 \ 1e-6 at small lambda, above the 1e-8 tolerance callers ask for.
-: fit-logistic-ridge
+: fit-logistic-ridge ( X y max-iterations tolerance lambda -- beta )
 	| x y max-iterations tolerance lambda |
 	x dim to cols to rows
 	lambda sqrt cols diagonal-matrix 0 0 0 !i,j to penalty
@@ -464,23 +464,23 @@ drop
 	then
 	beta ;
 
-( augmented -- beta ) \ logistic fit of an [X | y] block, standard convergence
-: fit-augmented-logistic
+\ logistic fit of an [X | y] block, standard convergence
+: fit-augmented-logistic ( augmented -- beta )
 	| aug |
 	aug dim to cols to rows
 	aug 0 rows 0 cols 1- submatrix
 	aug 0 rows cols 1- cols submatrix
 	100 1e-8 fit-logistic ;
 
-( X beta -- probabilities ) \ sigmoid of the linear predictor
-: predict-logistic
+\ sigmoid of the linear predictor
+: predict-logistic ( X beta -- probabilities )
 	1 -rot over dim drop 1 0-matrix 
 	0 swap dgemm-nn 
 	sigmoid ;
 
 
-( train-units xy lambda -- beta ) \ ridge fit on the drawn units' rows of [1|X|y]
-: cv-ridge-fit
+\ ridge fit on the drawn units' rows of [1|X|y]
+: cv-ridge-fit ( train-units xy lambda -- beta )
 	| xy lambda |
 	flatten xy swap select-rows to rows
 	rows n-columns 1 - to n-predictors
@@ -488,8 +488,8 @@ drop
 	rows n-predictors @j
 	50 1e-8 lambda fit-logistic-ridge ; internal
 
-( beta test-units xy -- dev ) \ mean held-out deviance of beta
-: cv-ridge-score
+\ mean held-out deviance of beta
+: cv-ridge-score ( beta test-units xy -- dev )
 	| beta test xy |
 	test flatten xy swap select-rows to rows
 	rows n-columns 1 - to n-predictors
@@ -497,26 +497,26 @@ drop
 	0 rows n-rows 1 0-matrix dgemm-nn sigmoid to p
 	rows n-predictors @j p binomial-deviance rows n-rows / ; internal
 
-( train test xy lambda -- loss ) \ one (lambda, fold) cell: fit, then score held-out
-: cv-ridge-cell
+\ one (lambda, fold) cell: fit, then score held-out
+: cv-ridge-cell ( train test xy lambda -- loss )
 	| train test xy lambda |
 	train xy lambda cv-ridge-fit
 	test xy cv-ridge-score ; internal
 
-( X y units lambdas n-folds mapper -- fr ) \ the CV skeleton cv-logistic-ridge and
+\ the CV skeleton cv-logistic-ridge and
 \ pcv-logistic-ridge instantiate: every (lambda, fold) cell is a pre-curried thunk,
 \ deterministic, so the mapper choice cannot change the result
-: cv-logistic-ridge-with
+: cv-logistic-ridge-with ( X y units lambdas n-folds mapper -- fr )
 	| X y units lambdas n-folds mapper |
 	X with-intercept y augment to xy
 	units n-folds cv-folds to folds
 	lambdas
-	[: lambda |
+	( lambda |
 		folds
-		[: fold |
+		( fold |
 			fold 0 @i fold 1 @i xy lambda
-			' cv-ridge-cell curry curry curry curry :]
-		map :]
+			' cv-ridge-cell curry curry curry curry )
+		map )
 	map flatten
 	' execute mapper execute
 	vector lambdas size n-folds reshape row-means to losses
@@ -524,33 +524,33 @@ drop
 	  :deviances losses
 	  :best lambdas losses argmin @i } ; internal
 
-( X y units lambdas n-folds -- fr ) \ ridge-logistic CV over a lambda grid:
+\ ridge-logistic CV over a lambda grid:
 \ { :lambdas :deviances :best }; X excludes the intercept (added internally,
 \ unpenalized); units index rows — per-cluster index arrays give cluster CV
-: cv-logistic-ridge ' map cv-logistic-ridge-with ;
+: cv-logistic-ridge ( X y units lambdas n-folds -- fr ) ' map cv-logistic-ridge-with ;
 
-( X y units lambdas n-folds -- fr ) \ cv-logistic-ridge with the cells run under
+\ cv-logistic-ridge with the cells run under
 \ pmap; identical results, the cells being deterministic
-: pcv-logistic-ridge ' pmap cv-logistic-ridge-with ;
+: pcv-logistic-ridge ( X y units lambdas n-folds -- fr ) ' pmap cv-logistic-ridge-with ;
 
 
-( -- [paths] ) \ libxgboost install locations on macOS, preference order
-: mac-xgboost-libs
+\ libxgboost install locations on macOS, preference order
+: mac-xgboost-libs ( -- [paths] )
 	[ "/opt/homebrew/lib/libxgboost.dylib" "/usr/local/lib/libxgboost.dylib" ] ; internal
 
-( -- [paths] ) \ libxgboost install locations on Linux, preference order; the
+\ libxgboost install locations on Linux, preference order; the
 \ distro runtime package ships only the versioned soname (the unversioned
 \ symlink belongs to its -dev package), so both names appear
-: linux-xgboost-libs
+: linux-xgboost-libs ( -- [paths] )
 	[ "/usr/local/lib/libxgboost.so" "/usr/lib/libxgboost.so"
 	  "/usr/lib/x86_64-linux-gnu/libxgboost.so"
 	  "/usr/lib/x86_64-linux-gnu/libxgboost.so.0"
 	  "/usr/lib/aarch64-linux-gnu/libxgboost.so"
 	  "/usr/lib/aarch64-linux-gnu/libxgboost.so.0" ] ; internal
 
-( -- path ) \ XGBOOST_LIB if set, else the first install location present, else
+\ XGBOOST_LIB if set, else the first install location present, else
 \ the bare soname, leaving the search to the loader's own path
-: xgb-lib-path
+: xgb-lib-path ( -- path )
 	"XGBOOST_LIB" env dup null? not if
 		exit
 	then drop
@@ -576,11 +576,11 @@ dup "XGBoosterLoadModel" [ :ptr :string ] :int ffi-function (xgb-load-model)
 dup "XGBGetLastError" [ ] :string ffi-function (xgb-last-error)
 drop
 
-( status -- ) \ nonzero xgboost statut throws the library's last message
-: xgb-check if (xgb-last-error) throw then ; internal
+\ nonzero xgboost statut throws the library's last message
+: xgb-check ( status -- ) if (xgb-last-error) throw then ; internal
 
-( matrix -- json ) \ NumPy __array_interface__ (float64) over a matrix's row-major buffer
-: array-interface
+\ NumPy __array_interface__ (float64) over a matrix's row-major buffer
+: array-interface ( matrix -- json )
 	| described-matrix |
 	{ :data [ described-matrix matrix>pointer pointer>address :0 ]
 	  :shape [ described-matrix dim ]
@@ -588,9 +588,9 @@ drop
 	  :version 3 }
 	frame>json ; internal
 
-( X y fit-params -- booster ) \ train a booster on features X (nxk) and response y (nx1)
+\ train a booster on features X (nxk) and response y (nx1)
 \ params are keyed by xgboost parameter name; :rounds drives the boosting loop (default 100)
-: fit-xgb
+: fit-xgb ( X y fit-params -- booster )
 	| X y params |
 	params :rounds 100 @or to rounds
 
@@ -603,23 +603,23 @@ drop
 	dmatrix-cell 1 booster-cell (xgb-create) xgb-check
 	booster-cell pointer-deref to booster
 
-	params keys [: :rounds = not :] filter
-	[: key |
+	params keys ( :rounds = not ) filter
+	( key |
 	   booster key "{0}" format
 	   params key @ "{0}" format
 	   (xgb-set-param) xgb-check
-	:] each
+	) each
 
-	[: i |
+	( i |
 	   booster i dmatrix (xgb-update) xgb-check
-	:] rounds i-times
+	) rounds i-times
 
 	dmatrix (xgd-free) xgb-check
 	dmatrix-cell ffi-free booster-cell ffi-free
 	booster ;
 
-( booster X -- predictions ) \ n×1 scores for an n×k feature matrix; booster is not freed
-: xgb-predict
+\ n×1 scores for an n×k feature matrix; booster is not freed
+: xgb-predict ( booster X -- predictions )
 	| booster X |
 	pointer-cell to dmatrix-cell
 	X array-interface "{""missing"": NaN}" dmatrix-cell (xgd-from-dense) xgb-check
@@ -637,14 +637,14 @@ drop
 	dmatrix (xgd-free) xgb-check
 	dmatrix-cell ffi-free shape-cell ffi-free dim-cell ffi-free result-cell ffi-free ;
 
-( booster -- ) \ free a booster handle
-: xgb-free (xgb-booster-free) xgb-check ;
+\ free a booster handle
+: xgb-free ( booster -- ) (xgb-booster-free) xgb-check ;
 
-( booster path -- ) \ write the booster; the path extension picks the format, ".json" or ".ubj"
-: xgb-save (xgb-save-model) xgb-check ;
+\ write the booster; the path extension picks the format, ".json" or ".ubj"
+: xgb-save ( booster path -- ) (xgb-save-model) xgb-check ;
 
-( path -- booster ) \ read a booster written by xgb-save or by xgboost elsewhere
-: xgb-load
+\ read a booster written by xgb-save or by xgboost elsewhere
+: xgb-load ( path -- booster )
 	| path |
 	pointer-cell to no-matrices
 	pointer-cell to booster-cell
@@ -654,15 +654,15 @@ drop
 	no-matrices ffi-free booster-cell ffi-free
 	booster ;
 
-( booster importance-type -- scores ) \ k×1 per-feature importance, row i is feature i
+\ k×1 per-feature importance, row i is feature i
 \ importance-type is "gain" "weight" "cover" "total_gain" or "total_cover"; a feature
 \ never split on scores 0. Rank with: matrix>array argsort reverse (indices best-first)
-: xgb-importance
+: xgb-importance ( booster importance-type -- scores )
 	| booster type |
 	pointer-cell to k-cell
 	booster k-cell (xgb-num-feature) xgb-check
 	k-cell pointer-long to k
-	k iota [: "{0}" format :] map to feature-names
+	k iota ( "{0}" format ) map to feature-names
 
 	pointer-cell to n-cell
 	pointer-cell to features-cell
@@ -677,9 +677,9 @@ drop
 	n 0 > if
 		scores-cell pointer-deref n floats>matrix matrix>array to scores
 		features-cell pointer-deref to names
-		[: i |
+		( i |
 		   dense scores i @i names i pointer-string-at string>number 0 !i,j drop
-		:] n i-times
+		) n i-times
 	then
 
 	k-cell ffi-free n-cell ffi-free features-cell ffi-free
@@ -694,8 +694,8 @@ drop
 \ Logs of y or 1 - y sit on 1e-300 max2 so a zero contributes 0, not NaN.
 { :inverse-link ' exp
   :mean-derivative ' exp
-  :variance [: dup * :]
-  :deviance [: y mu | y mu - mu / y mu / ln - 2 * :]
+  :variance ( dup * )
+  :deviance ( y mu | y mu - mu / y mu / ln - 2 * )
   :dispersion :pearson
   :effect :rate-ratio
 } to gamma-log
@@ -703,34 +703,34 @@ drop
 { :inverse-link ' exp
   :mean-derivative ' exp
   :variance ' identity
-  :deviance [: y mu | y 1e-300 max2 mu / ln y * y mu - - 2 * :]
+  :deviance ( y mu | y 1e-300 max2 mu / ln y * y mu - - 2 * )
   :dispersion :fixed
   :effect :rate-ratio
 } to poisson-log
 
 { :inverse-link ' identity
-  :mean-derivative [: drop 1 :]
-  :variance [: drop 1 :]
-  :deviance [: - dup * :]
+  :mean-derivative ( drop 1 )
+  :variance ( drop 1 )
+  :deviance ( - dup * )
   :dispersion :pearson
 } to gaussian-identity
 
-( eta -- mu ) \ the logistic mean with eta clamped to [-30, 30], so mu stays
+\ the logistic mean with eta clamped to [-30, 30], so mu stays
 \ inside (0, 1) under separation — R's binomial() threshold
-: clamped-logit-mean -30 max2 30 min2 sigmoid ; internal
+: clamped-logit-mean ( eta -- mu ) -30 max2 30 min2 sigmoid ; internal
 
-( eta -- dmu/deta ) \ mu (1 - mu) at the clamped eta, floored at machine epsilon
-: clamped-logit-slope clamped-logit-mean dup 1 swap - * 2.220446e-16 max2 ; internal
+\ mu (1 - mu) at the clamped eta, floored at machine epsilon
+: clamped-logit-slope ( eta -- dmu/deta ) clamped-logit-mean dup 1 swap - * 2.220446e-16 max2 ; internal
 
-( y mu -- d ) \ binomial unit deviance 2 [ y ln(y/mu) + (1-y) ln((1-y)/(1-mu)) ]
-: binomial-deviance-unit
+\ binomial unit deviance 2 [ y ln(y/mu) + (1-y) ln((1-y)/(1-mu)) ]
+: binomial-deviance-unit ( y mu -- d )
 	| y mu |
 	y 1e-300 max2 mu / ln y *
 	1 y - 1e-300 max2 1 mu - / ln 1 y - * + 2 * ; internal
 
 { :inverse-link ' clamped-logit-mean
   :mean-derivative ' clamped-logit-slope
-  :variance [: dup 1 swap - * :]
+  :variance ( dup 1 swap - * )
   :deviance ' binomial-deviance-unit
   :dispersion :fixed
   :effect :odds-ratio
@@ -738,22 +738,22 @@ drop
 
 { :inverse-link ' clamped-logit-mean
   :mean-derivative ' clamped-logit-slope
-  :variance [: dup 1 swap - * :]
+  :variance ( dup 1 swap - * )
   :deviance ' binomial-deviance-unit
   :dispersion :pearson
   :effect :odds-ratio
 } to quasibinomial-logit
 
-( X beta -- eta ) \ the linear predictor
-: glm-eta
+\ the linear predictor
+: glm-eta ( X beta -- eta )
 	| x beta |
 	1 x beta 0 x dim drop 1 0-matrix dgemm-nn ; internal
 
-( X y weights family max-iterations tolerance -- beta ) \ IRLS with prior
+\ IRLS with prior
 \ weights: the working weight is weights times (dmu/deta)^2 / V(mu). Stops when
 \ the relative change in weighted deviance |d - d'| / (|d| + 0.1) falls below
 \ tolerance (R's criterion); a family without :deviance stops on |beta - beta'|
-: fit-glm-weighted
+: fit-glm-weighted ( X y weights family max-iterations tolerance -- beta )
 	| x y prior-weights family max-iterations tolerance |
 
 	x dim to cols to rows
@@ -796,23 +796,23 @@ drop
 
 	beta ;
 
-( X y family max-iterations tolerance -- beta ) \ IRLS with unit weights
-: fit-glm
+\ IRLS with unit weights
+: fit-glm ( X y family max-iterations tolerance -- beta )
 	| x y family max-iterations tolerance |
 	x y x dim drop 1 0-matrix 1 + family max-iterations tolerance fit-glm-weighted ;
 
-( X y weights beta family -- phi ) \ the dispersion at beta: 1 for a :fixed
+\ the dispersion at beta: 1 for a :fixed
 \ family, else Pearson chi-square sum w (y - mu)^2 / V(mu) over n - p
-: glm-dispersion
+: glm-dispersion ( X y weights beta family -- phi )
 	| x y prior-weights beta family |
 	family :dispersion :pearson @or :fixed = if 1 exit then
 	x beta glm-eta family :inverse-link @ execute to mu
 	y mu - dup * mu family :variance @ execute / prior-weights * sum
 	x dim - / ;
 
-( X y weights beta family -- cov ) \ phi times (X'WX)^-1 at beta, W the IRLS
+\ phi times (X'WX)^-1 at beta, W the IRLS
 \ working weight times the prior weights, via the SVD of sqrt(W) X
-: glm-covariance
+: glm-covariance ( X y weights beta family -- cov )
 	| x y prior-weights beta family |
 	x beta glm-eta to eta
 	eta family :inverse-link @ execute to mu
@@ -823,39 +823,37 @@ drop
 	x y prior-weights beta family glm-dispersion
 	scaled-vt transpose scaled-vt matmul * ;
 
-( X y max-iterations tolerance -- beta ) \ gamma regression, log link, by IRLS
-: fit-gamma
+\ gamma regression, log link, by IRLS
+: fit-gamma ( X y max-iterations tolerance -- beta )
 	gamma-log -rot fit-glm ;
 
 
-( X y max-iterations tolerance -- beta ) \ poisson regression, log link, by IRLS
-: fit-poisson
+\ poisson regression, log link, by IRLS
+: fit-poisson ( X y max-iterations tolerance -- beta )
 	poisson-log -rot fit-glm ;
 
 
 \ The regression pipeline: a dataset in, a model frame out. The fit receives
 \ ( X y w -- beta ); inside the pipeline the three travel as one augmented
 \ matrix [X | y | w] so that bootstrap resampling carries each row's weight.
-( augmented -- X y w ) \ the three parts of an [X | y | w] matrix
-: split-augmented
+\ the three parts of an [X | y | w] matrix
+: split-augmented ( augmented -- X y w )
 	| augmented |
 	augmented dim to cols to rows
 	augmented 0 rows 0 cols 2 - submatrix
 	augmented 0 rows cols 2 - cols 1- submatrix
 	augmented 0 rows cols 1- cols submatrix ; internal
 
-( X y w -- beta ) \ weighted least squares: rows scaled by sqrt w into fit-linear
-: fit-weighted-linear
+\ weighted least squares: rows scaled by sqrt w into fit-linear
+: fit-weighted-linear ( X y w -- beta )
 	sqrt to root-w to y to x
 	root-w x * root-w y * fit-linear ;
 
-( betas replications j -- column )
-: coefficient-column
+: coefficient-column ( betas replications j -- column )
 	| betas replications j |
-	betas [: b | b j 0 @i,j :] map replications 1 matrix ; internal
+	betas ( b | b j 0 @i,j ) map replications 1 matrix ; internal
 
-( beta betas replications j -- frame )
-: coefficient-summary
+: coefficient-summary ( beta betas replications j -- frame )
 	| beta betas replications j |
 	betas replications j coefficient-column to column
 	column 0.95 ci to high to low
@@ -866,28 +864,28 @@ drop
 	  :ci-high high
 	} ; internal
 
-( augmented fit beta replications -- frames covariance ) \ one bootstrap summary
+\ one bootstrap summary
 \ per coefficient, and the sample covariance of the replicate coefficient vectors
-: bootstrap-summaries
+: bootstrap-summaries ( augmented fit beta replications -- frames covariance )
 	| augmented fit beta replications |
-	augmented [: split-augmented fit execute :] replications bootstrap to betas
+	augmented ( split-augmented fit execute ) replications bootstrap to betas
 	0 beta size 1- range
-	[: j | beta betas replications j coefficient-summary :]
+	( j | beta betas replications j coefficient-summary )
 	map
 
 	betas ' transpose map dup 1 skip swap 0 @i ' vstack reduce to stacked
 	stacked stacked column-means - to centered
 	centered transpose centered matmul replications 1- / ; internal
 
-( X y w beta family -- frames covariance ) \ one Wald summary per coefficient
+\ one Wald summary per coefficient
 \ from the GLM covariance, and that covariance
-: wald-summaries
+: wald-summaries ( X y w beta family -- frames covariance )
 	| x y w beta family |
 	x y w beta family glm-covariance to covariance
 	covariance diagonal sqrt matrix>array to standard-errors
 	0.975 qnorm to z-crit
 	0 beta size 1- range
-	[: j |
+	( j |
 		beta j 0 @i,j to estimate
 		standard-errors j @i to se
 		estimate se / to z
@@ -897,20 +895,19 @@ drop
 		  :p z abs negate pnorm 2 *
 		  :ci-low estimate z-crit se * -
 		  :ci-high estimate z-crit se * +
-		} :]
+		} )
 	map covariance ; internal
 
-( dataset spec -- mat ) \ a column named by a symbol, or the n x 1 matrix given
-: column-or-matrix
+\ a column named by a symbol, or the n x 1 matrix given
+: column-or-matrix ( dataset spec -- mat )
 	| dataset spec |
 	spec symbol? if dataset spec 1 array dataset>matrix else spec then ; internal
 
-( dataset predictors response weights replications fit family -- model )
 \ response: a column symbol or an n x 1 matrix; weights: a column symbol, an
 \ n x 1 matrix, or null for unit weights. fit is ( X y w -- beta ).
 \ replications 0: Wald inference from the GLM covariance under family; B > 0:
 \ B bootstrap refits. Rows with a missing cell in any used column drop first.
-: regress-with
+: regress-with ( dataset predictors response weights replications fit family -- model )
 	| dataset predictors response weights replications fit family |
 	dataset predictors dataset>matrix with-intercept to x
 	dataset response column-or-matrix to y
@@ -943,25 +940,25 @@ drop
 	  :inference inference
 	} ;
 
-( dataset predictors response replications -- model ) \ OLS; Wald at 0 replications
-: linear-regression
+\ OLS; Wald at 0 replications
+: linear-regression ( dataset predictors response replications -- model )
 	null swap ' fit-weighted-linear gaussian-identity regress-with ;
 
-( dataset predictors response replications -- model ) \ Firth logistic; at 0
+\ Firth logistic; at 0
 \ replications the Wald covariance is binomial-logit's at the Firth estimate
-: logistic-regression
-	null swap [: drop 100 1e-8 fit-logistic :] binomial-logit regress-with ;
+: logistic-regression ( dataset predictors response replications -- model )
+	null swap ( drop 100 1e-8 fit-logistic ) binomial-logit regress-with ;
 
-( dataset predictors response weights family replications -- model ) \ a GLM
+\ a GLM
 \ under family; response a column symbol or n x 1 matrix, weights a column
 \ symbol, an n x 1 matrix, or null for unit weights; 0 replications for Wald
-: glm-regression
+: glm-regression ( dataset predictors response weights family replications -- model )
 	| family replications |
 	replications family 100 1e-8 ' fit-glm-weighted 3 ncurry family regress-with ;
 
-( model -- fr ) \ { :n :n-terms :dispersion :deviance :null-deviance :pseudo-r2 }:
+\ { :n :n-terms :dispersion :deviance :null-deviance :pseudo-r2 }:
 \ weighted deviance at the estimate, the intercept-only deviance, McFadden's 1 - d/d0
-: regression-statistics
+: regression-statistics ( model -- fr )
 	| model |
 	model :design @ to x
 	model :responses @ to y
@@ -983,15 +980,15 @@ drop
 	  :pseudo-r2 1 residual-deviance null-deviance / -
 	} ;
 
-( model -- dataset ) \ one row per term: :term and the coefficient summary's keys,
+\ one row per term: :term and the coefficient summary's keys,
 \ plus the family's :effect (exp of the estimate and bounds) when it has one
-: regression-coefficients
+: regression-coefficients ( model -- dataset )
 	| model |
 	model :predictors @ to terms
 	model :coefficients @ to summaries
 	model :family @ :effect null @or to effect
 	0 terms size 1- range
-	[: j |
+	( j |
 		summaries j @i { :term terms j @i } merge to row
 		effect null? not if
 			row
@@ -1000,11 +997,11 @@ drop
 			row :ci-high @ exp effect "{0}-high" format string>symbol !
 			merge to row
 		then
-		row :]
+		row )
 	map frames>dataset ;
 
-( model -- ) \ print the fit statistics, then the coefficient table
-: regression-report
+\ print the fit statistics, then the coefficient table
+: regression-report ( model -- )
 	| model |
 	model regression-statistics to statistics
 	model :inference @ to inference
@@ -1027,26 +1024,23 @@ drop
 	then to ordered
 	model regression-coefficients dup n-rows ordered nhead ;
 
-( model dataset -- mu ) \ the mean response the model predicts for every row of
+\ the mean response the model predicts for every row of
 \ the dataset, as n×1: the model's predictors gather from the dataset with an
 \ intercept column, dgemm applies the estimates, the family's inverse link maps
 \ the linear predictor; a row with a NaN predictor answers NaN
-: predict-glm
+: predict-glm ( model dataset -- mu )
 	| model dataset |
 	dataset model :predictors @ 1 skip dataset>matrix with-intercept
 	model :estimates @ glm-eta
 	model :family @ :inverse-link @ execute ;
 
-( mats -- m)
-: hstack-all 
+: hstack-all ( mats -- m ) 
 	dup 1 skip swap 0 @i ' hstack reduce ;
 
-( mats -- m )
-: vstack-all 
+: vstack-all ( mats -- m ) 
 	dup 1 skip swap 0 @i ' vstack reduce ;
 
-( column-class X probs row-class-probs row-class -- block )
-: information-block 
+: information-block ( column-class X probs row-class-probs row-class -- block ) 
 	| column-class X probs row-class-probs row-class |
 	probs column-class @j
 	row-class column-class = if 1 else 0 then swap -
@@ -1054,8 +1048,7 @@ drop
 	X * to weighted-design
 	1 X weighted-design 0 X n-columns dup 0-matrix dgemm-tn ;
 
-( X y reference-class max-iterations tolerance -- beta )
-: fit-multinomial-ridge
+: fit-multinomial-ridge ( X y reference-class max-iterations tolerance -- beta )
 	| X y reference-class max-iterations tolerance lambda |
 	
 	y reference-class eq sum 0= if
@@ -1063,9 +1056,9 @@ drop
 	then
 
 	X n-columns to n-predictors
-	reference-class y max 1+ iota [: 2 pick = not :] filter nip to classes
+	reference-class y max 1+ iota ( 2 pick = not ) filter nip to classes
 	classes size to n-nonreference-classes
-	y classes [: 2 pick swap eq :] map nip hstack-all to response
+	y classes ( 2 pick swap eq ) map nip hstack-all to response
 	n-predictors n-nonreference-classes 0-matrix to beta
 
 	n-predictors 1 0-matrix 1 + 0 0 0 !i,j to intercept-mask
@@ -1083,12 +1076,12 @@ drop
 		lambda beta penalty-mask * * - to gradient
 
 		n-nonreference-classes iota
-		[: row-class |
+		( row-class |
 		   n-nonreference-classes iota
-		   [: column-class |
-			  column-class X probs probs row-class @j row-class information-block :]
+		   ( column-class |
+			  column-class X probs probs row-class @j row-class information-block )
 		   map hstack-all
-		:] map vstack-all penalty-diagonal + to information
+		) map vstack-all penalty-diagonal + to information
 
 		information gradient transpose n-predictors n-nonreference-classes * 1 reshape
 		fit-linear to delta
@@ -1105,12 +1098,12 @@ drop
 	then
 	beta ;
 
-( X y reference-class max-iterations tolerance -- beta ) \ plain multinomial MLE — fit-multinomial-ridge at lambda 0
-: fit-multinomial
+\ plain multinomial MLE — fit-multinomial-ridge at lambda 0
+: fit-multinomial ( X y reference-class max-iterations tolerance -- beta )
 	0 fit-multinomial-ridge ;
 
-( beta X reference-class -- probabilities ) \ n×K softmax probabilities in label order 0..K-1
-: predict-multinomial
+\ n×K softmax probabilities in label order 0..K-1
+: predict-multinomial ( beta X reference-class -- probabilities )
 	| beta X reference-class |
 	beta n-columns to n-nonreference-classes
 	n-nonreference-classes 1 + to n-classes
@@ -1118,44 +1111,44 @@ drop
 	1 X beta 0 n-observations n-nonreference-classes 0-matrix dgemm-nn exp to class-weights
 	class-weights row-sums 1 + to weight-total
 	n-classes iota
-	[: label |
+	( label |
 		label reference-class = if
 			1 weight-total /
 		else
 			class-weights label reference-class > if label 1 - else label then @j weight-total /
 		then
-	:] map hstack-all ;
+	) map hstack-all ;
 
 \ ---- Negative binomial (NB2): variance mu + mu^2/theta, log link ----
 \ theta is the dispersion; as theta grows the variance approaches the mean and
 \ the model approaches Poisson. fit-glm handles beta at a fixed theta, so the
 \ fit alternates that with a maximum-likelihood step for theta.
 
-( mu theta -- variance ) \ NB2 variance function
-: negative-binomial-variance
+\ NB2 variance function
+: negative-binomial-variance ( mu theta -- variance )
 	| mu theta |
 	mu mu sq theta / + ; internal
 
-( theta -- family ) \ the GLM family at a known dispersion; theta is curried in.
-: negative-binomial-log
+\ the GLM family at a known dispersion; theta is curried in.
+: negative-binomial-log ( theta -- family )
 	| theta |
 	{ :inverse-link ' exp
 	  :mean-derivative ' exp
 	  :variance theta ' negative-binomial-variance curry
-	  :deviance [: y mu |
-		y 1e-300 max2 mu / ln y * y theta + mu theta + / ln y theta + * - 2 * :]
+	  :deviance ( y mu |
+		y 1e-300 max2 mu / ln y * y theta + mu theta + / ln y theta + * - 2 * )
 	  :dispersion :fixed
 	  :effect :rate-ratio } ;
 
-( X beta -- mu ) \ fitted means under the log link
-: negative-binomial-mean
+\ fitted means under the log link
+: negative-binomial-mean ( X beta -- mu )
 	| x beta |
 	1 x beta 0 
 	x dim drop 1 0-matrix
 	dgemm-nn exp ; internal
 
-( y mu -- theta ) \ moment estimate
-: negative-binomial-theta-moment
+\ moment estimate
+: negative-binomial-theta-moment ( y mu -- theta )
 	| y mu |
 	y mu - dup * sum mu sum - to excess-variance
 	excess-variance 0 > if
@@ -1163,8 +1156,8 @@ drop
 	else 0
 	then ; internal
 
-( y mu theta -- loglik ) \ NB2 log-likelihood less the constant sum of lgamma(y+1)
-: negative-binomial-loglik
+\ NB2 log-likelihood less the constant sum of lgamma(y+1)
+: negative-binomial-loglik ( y mu theta -- loglik )
 	| y mu theta |
 	y theta + lgamma
 	theta lgamma -
@@ -1173,11 +1166,11 @@ drop
 	theta y + mu theta + ln * -
 	sum ; internal
 
-( y mu -- theta ) \ maximum-likelihood dispersion at fixed means. Golden-section on
+\ maximum-likelihood dispersion at fixed means. Golden-section on
 \ ln theta, bracketing the moment estimate a factor of bracket-factor each way; when
 \ the sample shows no overdispersion the moment estimate is unusable and the bracket
 \ centres on that factor instead, so an answer near the top means Poisson fits
-: negative-binomial-theta
+: negative-binomial-theta ( y mu -- theta )
 	| y mu |
 
 	PHI 1- to section-fraction
@@ -1205,13 +1198,13 @@ drop
 	log-low log-high + 2 / exp ;
 
 
-( X y max-iterations tolerance -- beta theta ) \ NB2 regression, log link: start from
+\ NB2 regression, log link: start from
 \ the Poisson fit, then alternate a maximum-likelihood theta at the current means
 \ with an IRLS beta at that theta until theta settles. max-iterations bounds both the
 \ inner IRLS and the outer alternation, and tolerance serves both: since theta is a
 \ function of the fitted means, it cannot be pinned tighter than beta is, so the
 \ alternation also stops once a round no longer shrinks the change in theta
-: fit-negative-binomial
+: fit-negative-binomial ( X y max-iterations tolerance -- beta theta )
 	| x y max-iterations tolerance |
 
 	x y max-iterations tolerance fit-poisson to beta
@@ -1247,8 +1240,8 @@ drop
 \ Exceedances are the amounts by which observations pass a threshold, so they
 \ are positive and measured from zero.
 
-( shape scale exceedances -- nll ) \ negative log-likelihood; 1e10 where the parameters put an exceedance outside the support
-: gpd-nll
+\ negative log-likelihood; 1e10 where the parameters put an exceedance outside the support
+: gpd-nll ( shape scale exceedances -- nll )
 	| shape scale exceedances |
 	shape abs 1e-9 < if 1e10 exit then
 	exceedances shape * scale / 1 + to scaled
@@ -1256,8 +1249,8 @@ drop
 	scaled ln sum 1 1 shape / + *
 	exceedances num-elements scale ln * + ; internal
 
-( exceedances -- shape scale ) \ maximum likelihood over a refining (shape, ln scale) grid
-: gpd-fit
+\ maximum likelihood over a refining (shape, ln scale) grid
+: gpd-fit ( exceedances -- shape scale )
 	| exceedances |
 	0.3 to center-shape
 	exceedances mean ln to center-lnscale
@@ -1284,8 +1277,8 @@ drop
 	loop
 	best-shape best-lnscale exp ;
 
-( shape scale p -- q ) \ the exceedance at probability p; shape 0 gives the exponential tail
-: gpd-quantile
+\ the exceedance at probability p; shape 0 gives the exponential tail
+: gpd-quantile ( shape scale p -- q )
 	| shape scale p |
 	p 0 < p 1 >= or if
 		p "gpd-quantile: expected a probability in [0, 1); got {0}" format throw
@@ -1295,5 +1288,5 @@ drop
 	then
 	1 p - shape negate ^ 1 - scale * shape / ;
 
-( shape scale -- draw ) \ one exceedance drawn from the tail, by inverse transform
-: gpd-draw random gpd-quantile ; inline
+\ one exceedance drawn from the tail, by inverse transform
+: gpd-draw ( shape scale -- draw ) random gpd-quantile ; inline

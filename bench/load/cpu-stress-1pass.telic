@@ -10,11 +10,11 @@ num-cores to workers
 num-cores 128 * to domain
 1 domain range to seeds
 
-( seed -- result )  \ a long, allocation-free float mill (2 FLOPs/iter)
-: crunch
+\ a long, allocation-free float mill (2 FLOPs/iter)
+: crunch ( seed -- result )
 	| seed |
 	seed  seed 1.0 +
-	[: over + 0.5 * :] iters times
+	( over + 0.5 * ) iters times
 	nip ;
 
 workers "cpu-stress-1pass: one pmap over all cores ({0} workers)" format . cr
@@ -22,7 +22,7 @@ domain iters "  {1} items x {0} float-iters in a single region" format . cr
 cr
 
 now to t0
-seeds workers 1 ' crunch pmap-ext 0.0 [: + :] reduce to check
+seeds workers 1 ' crunch pmap-ext 0.0 ( + ) reduce to check
 now t0 - to elapsed
 
 elapsed "elapsed   : {0} s" format . cr

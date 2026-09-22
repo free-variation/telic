@@ -1,99 +1,95 @@
 \ aliases
-: true 1 ; inline
-: false 0 ; inline
-: print . ; inline
-: print-stack .s ; inline
+: true ( -- bool ) 1 ; inline
+: false ( -- bool ) 0 ; inline
+: print ( x -- ) . ; inline
+: print-stack ( -- ) .s ; inline
 
-( name -- ) \ load lib/<name> from beside the telic binary; ".telic" added if absent
-: load-library
+\ load lib/<name> from beside the telic binary; ".telic" added if absent
+: load-library ( name -- )
 	dup "\.telic$" has? not if ".telic" + then
 	binary-dir "/lib/" + swap + load ;
 
 \ type predicates, one per type-of symbol; a bound logic var reports as its value
-: float? type-of :float = ; inline
-: string? type-of :string = ; inline
-: symbol? type-of :symbol = ; inline
-: array? type-of :array = ; inline
-: set? type-of :set = ; inline
-: frame? type-of :frame = ; inline
-: matrix? type-of :matrix = ; inline
-: quantity? type-of :quantity = ; inline
-: exact? type-of :exact = ; inline
-: complex? type-of :complex = ; inline
-: xt? type-of :xt = ; inline
-: continuation? type-of :continuation = ; inline
-: stream? type-of :stream = ; inline
-: db? type-of :db = ; inline
-: ptr? type-of :ptr = ; inline
-: segment? type-of :segment = ; inline
-: wildcard? type-of :wildcard = ; inline
-: lvar? type-of :lvar = ; inline
+: float? ( a -- bool ) type-of :float = ; inline
+: string? ( a -- bool ) type-of :string = ; inline
+: symbol? ( a -- bool ) type-of :symbol = ; inline
+: array? ( a -- bool ) type-of :array = ; inline
+: set? ( a -- bool ) type-of :set = ; inline
+: frame? ( a -- bool ) type-of :frame = ; inline
+: matrix? ( a -- bool ) type-of :matrix = ; inline
+: quantity? ( a -- bool ) type-of :quantity = ; inline
+: exact? ( a -- bool ) type-of :exact = ; inline
+: complex? ( a -- bool ) type-of :complex = ; inline
+: xt? ( a -- bool ) type-of :xt = ; inline
+: continuation? ( a -- bool ) type-of :continuation = ; inline
+: stream? ( a -- bool ) type-of :stream = ; inline
+: db? ( a -- bool ) type-of :db = ; inline
+: ptr? ( a -- bool ) type-of :ptr = ; inline
+: segment? ( a -- bool ) type-of :segment = ; inline
+: wildcard? ( a -- bool ) type-of :wildcard = ; inline
+: lvar? ( a -- bool ) type-of :lvar = ; inline
 
-( v -- f ) \ a matrix, or a quantity whose magnitude is a matrix
-: matrix-valued? dup quantity? if magnitude then matrix? ; inline internal
+\ a matrix, or a quantity whose magnitude is a matrix
+: matrix-valued? ( v -- f ) dup quantity? if magnitude then matrix? ; inline internal
 
-( a b -- a b a b )
-: 2dup over over ;
+: 2dup ( a b -- a b a b ) over over ;
 inline
 
-( a b c -- c a b )
-: -rot rot rot ;
+: -rot ( a b c -- c a b ) rot rot ;
 inline
 
-( a b -- b a b )
-: tuck swap over ;
+: tuck ( a b -- b a b ) swap over ;
 inline
 
-( a b -- )
-: 2drop drop drop ;
+: 2drop ( a b -- ) drop drop ;
 inline
 
-( val -- val ) \ prints the top without consuming it
-: peek dup . ;
+\ prints the top without consuming it
+: peek ( val -- val ) dup . ;
 inline
 
-( val -- bool ) \ is tos 1?
-: 1= 1 = ; inline
+\ is tos 1?
+: 1= ( val -- bool ) 1 = ; inline
 
-( a -- bool ) \ truthy: 1 when the value is truthy, the positive twin of 0=
-: true? 0= 0= ; inline
+\ truthy: 1 when the value is truthy, the positive twin of 0=
+: true? ( a -- bool ) 0= 0= ; inline
 
-( a -- bool ) \ falsy: 1 when the value is falsy — 0= under a predicate name
-: false? 0= ; inline
+\ falsy: 1 when the value is falsy — 0= under a predicate name
+: false? ( a -- bool ) 0= ; inline
 
-( v low high -- bool ) \ low <= v <= high; element-wise mask on a matrix or
+\ low <= v <= high; element-wise mask on a matrix or
 \ array operand, so * is the conjunction, not and (which tests whole values)
-: between? 2 pick >= -rot >= * ; inline
+: between? ( v low high -- bool ) 2 pick >= -rot >= * ; inline
 
-( x low high -- x' ) \ x limited to [low, high]: a float, quantity, or matrix
+\ x limited to [low, high]: a float, quantity, or matrix
 \ (element-wise, scalar bounds broadcast); an array clamps each element
-: clamp
+: clamp ( x low high -- x' )
 	| operand lower-bound upper-bound |
-	operand array? if operand [: lower-bound upper-bound clamp :] map exit then
+	operand array? if operand ( lower-bound upper-bound clamp ) map exit then
 	operand lower-bound max2 upper-bound min2 ;
 
-: , peek ; inline
+: , ( a -- a ) peek ; inline
 
-( arr/matrix -- v ) \ element 0: an array's first element, a matrix's
+\ element 0: an array's first element, a matrix's
 \ first row-major element
-: first
+: first ( arr/matrix -- v )
 	dup matrix-valued? if 0 @e exit then
 	0 @i ;
 
-( arr/matrix -- v ) \ the final element: an array's, or a matrix's last row-major element
-: last
+\ the final element: an array's, or a matrix's last row-major element
+: last ( arr/matrix -- v )
 	dup matrix-valued? if dup dim * 1- @e exit then
 	dup size 1- @i ;
 
-( fr old new -- fr ) \ move the value at key old to key new in place; old absent
+\ move the value at key old to key new in place; old absent
 \ errors, an existing new is overwritten
-: rename-key!
+: rename-key! ( fr old new -- fr )
 	| target-frame old-key new-key |
 	target-frame target-frame old-key @ new-key ! old-key delete-at ;
 
-( fr xt -- fr ) \ xt ( key value -- key' value' ) over each entry in key order,
+\ xt ( key value -- key' value' ) over each entry in key order,
 \ the answered pairs collected into a new frame; the source frame is unchanged
-: map-frame
+: map-frame ( fr xt -- fr )
 	| source body |
 	source keys to source-keys
 	source values to source-values
@@ -115,38 +111,38 @@ inline
 
 	mapped-keys mapped-values frame ;
 
-( arr -- v ) \ element 1
-: second 1 @i ; inline
+\ element 1
+: second ( arr -- v ) 1 @i ; inline
 
-( entries key -- value ) \ the value paired with key, the first match by
+\ the value paired with key, the first match by
 \ structural equality: entries are [ key value ] arrays (first is the key,
 \ second the value); null when the key is absent
-: assoc
+: assoc ( entries key -- value )
 	| entries key |
-	entries [: first key = :] find-first
+	entries ( first key = ) find-first
 	dup null? not if second then ;
 
 \ arithmetic words
 
-( a b -- quotient ) \ integer quotient toward zero ( = % swap drop )
-: quotient % swap drop ;
+\ integer quotient toward zero ( = % swap drop )
+: quotient ( a b -- quotient ) % swap drop ;
 inline
 
-( xt -- ... ) \ run xt, print elapsed CLOCK_MONOTONIC seconds, pass its results through
-: timed now >r execute now r> - . cr ;
+\ run xt, print elapsed CLOCK_MONOTONIC seconds, pass its results through
+: timed ( xt -- ... ) now >r execute now r> - . cr ;
 
-( val -- val ) \ The identity function
-: identity ; inline
+\ The identity function
+: identity ( val -- val ) ; inline
 
-( xt1 xt2 -- xt ) \ a token running xt1 then xt2, each on the stack the other leaves
-: compose
+\ a token running xt1 then xt2, each on the stack the other leaves
+: compose ( xt1 xt2 -- xt )
 	| first-step second-step |
-	[: first-step execute second-step execute :] ;
+	( first-step execute second-step execute ) ;
 
-( -- arr ) \ one { :name :value :type } frame per global, oldest first
-: variables
+\ one { :name :value :type } frame per global, oldest first
+: variables ( -- arr )
 	(globals)
-	[: binding |
+	( binding |
 	   binding 1 @i to value
 	   { :name binding 0 @i :value value :type value type-of } 
-	:] map ;
+	) map ;

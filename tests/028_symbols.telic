@@ -14,7 +14,7 @@ baz :baz = .                       \ -1
 "hello" string>symbol :hello = .   \ -1
 
 \ a colon-prefixed token that names a defined word still resolves as the word
-\ (here :foo is only ever a symbol; words like :] are unaffected)
+\ (here :foo is only ever a symbol; words like ) are unaffected)
 
 \ symbols print as their name
 :cat .                             \ cat

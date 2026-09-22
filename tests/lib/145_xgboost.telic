@@ -9,7 +9,7 @@
 "lib/statistics.telic" load
 
 \ === regression: recover y = 2*x1 - 1 on a tiny exact-fit dataset ===
-"xgb regression recovers the exact-fit predictions" [:
+"xgb regression recovers the exact-fit predictions" (
 
 	[ 1 2  2 3  3 4  4 5 ] 4 2 matrix to features
 	features  [ 3 5 7 9 ] 4 1 matrix
@@ -18,12 +18,12 @@
 	booster features xgb-predict  1000 * round 1000 /  to preds
 	booster xgb-free
 	preds  [ 3.005 5.001 6.999 8.995 ] 4 1 matrix  1e-6 expect-near
-:] test
+) test
 
 \ === feature ranking: xgb-importance orders features; an unused feature scores 0 ===
 \ y = 2*x0 + x1, x2 constant. The integer ranking and the exactly-0 unused feature
 \ are version-stable; the gain magnitudes are not, so they are not asserted.
-"xgb importance ranks features; the unused feature scores 0" [:
+"xgb importance ranks features; the unused feature scores 0" (
 
 	[ 0 0 0  0 1 0  1 0 0  1 1 0  2 0 0  2 1 0 ] 6 3 matrix to features
 	features  [ 0 1 2 3 4 5 ] 6 1 matrix
@@ -33,10 +33,10 @@
 	booster xgb-free
 	gain matrix>array argsort reverse  [ 0 1 2 ] expect=
 	gain 2 0 @i,j  0 expect=
-:] test
+) test
 
 \ === save/load: a reloaded booster predicts identically ===
-"xgb-save then xgb-load reproduces the model's predictions" [:
+"xgb-save then xgb-load reproduces the model's predictions" (
 
 	[ 0 1 2 3 4 5 6 7 ] 8 1 matrix to features
 	features  [ 0 1 2 3 4 5 6 7 ] 8 1 matrix
@@ -52,10 +52,10 @@
 	reloaded "gain" xgb-importance dim drop 1 expect=   \ a loaded booster is fully usable
 	reloaded xgb-free
 	after before - fabs max 0 expect=
-:] test
+) test
 
 \ === the .ubj format round-trips the same way ===
-"xgb-save writes .ubj as well as .json" [:
+"xgb-save writes .ubj as well as .json" (
 
 	[ 0 1 2 3 ] 4 1 matrix  [ 0 1 2 3 ] 4 1 matrix
 	{ :objective "reg:squarederror" :rounds 5 :seed 1 :nthread 1 } fit-xgb to booster
@@ -67,10 +67,10 @@
 	reloaded [ 2 ] 1 1 matrix xgb-predict to after
 	reloaded xgb-free
 	after before - fabs max 0 expect=
-:] test
+) test
 
 \ === a missing model file throws rather than answering a dead handle ===
-"xgb-load throws on a missing file" [:
-	[: "/tmp/telic-test-xgb-absent.json" xgb-load :] expect-throws
-:] test
+"xgb-load throws on a missing file" (
+	( "/tmp/telic-test-xgb-absent.json" xgb-load ) expect-throws
+) test
 test-report

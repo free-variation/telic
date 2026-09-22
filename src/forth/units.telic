@@ -24,58 +24,57 @@ base unit mol
 86400 s unit day
 7 day unit week
 
-( -- instant ) \ wall-clock time: epoch seconds as a quantity in s
-: wall-now (wall-now) s ;
+\ wall-clock time: epoch seconds as a quantity in s
+: wall-now ( -- instant ) (wall-now) s ;
 inline
 
-( instant -- date ) \ { :year :month :day :hour :minute :second :weekday :yearday }, UTC
-: epoch>date 1 s / (epoch>date) ;
+\ { :year :month :day :hour :minute :second :weekday :yearday }, UTC
+: epoch>date ( instant -- date ) 1 s / (epoch>date) ;
 inline
 
-( date -- instant ) \ :year required; :month :day default 1, clock fields 0; UTC
-: date>epoch (date>epoch) s ;
+\ :year required; :month :day default 1, clock fields 0; UTC
+: date>epoch ( date -- instant ) (date>epoch) s ;
 inline
 
-( instant -- date ) \ epoch>date in the process's local timezone
-: epoch>date-local 1 s / (epoch>date-local) ;
+\ epoch>date in the process's local timezone
+: epoch>date-local ( instant -- date ) 1 s / (epoch>date-local) ;
 inline
 
-( date -- instant ) \ date>epoch in the process's local timezone; mktime resolves DST
-: date>epoch-local (date>epoch-local) s ;
+\ date>epoch in the process's local timezone; mktime resolves DST
+: date>epoch-local ( date -- instant ) (date>epoch-local) s ;
 inline
 
-( instant format -- string ) \ render an instant with strftime, UTC
-: format-time swap 1 s / swap (format-time) ;
+\ render an instant with strftime, UTC
+: format-time ( instant format -- string ) swap 1 s / swap (format-time) ;
 inline
 
-( instant format -- string ) \ render an instant with strftime in the local timezone
-: format-time-local swap 1 s / swap (format-time-local) ;
+\ render an instant with strftime in the local timezone
+: format-time-local ( instant format -- string ) swap 1 s / swap (format-time-local) ;
 inline
 
-( string format -- instant ) \ parse with strptime; unmatched fields default to 1970-01-01
+\ parse with strptime; unmatched fields default to 1970-01-01
 \ 00:00:00, read as UTC unless the format captures an offset with %z
-: parse-time (parse-time) s ;
+: parse-time ( string format -- instant ) (parse-time) s ;
 inline
 
-( instant -- string ) \ ISO 8601 in UTC: 2026-07-09T12:34:56Z
-: time>iso "%Y-%m-%dT%H:%M:%SZ" format-time ;
+\ ISO 8601 in UTC: 2026-07-09T12:34:56Z
+: time>iso ( instant -- string ) "%Y-%m-%dT%H:%M:%SZ" format-time ;
 inline
 
-( string -- instant ) \ parse the ISO 8601 Z form time>iso emits
-: iso>time "%Y-%m-%dT%H:%M:%SZ" parse-time ;
+\ parse the ISO 8601 Z form time>iso emits
+: iso>time ( string -- instant ) "%Y-%m-%dT%H:%M:%SZ" parse-time ;
 inline
 
-( year month -- days )
-: days-in-month
+: days-in-month ( year month -- days )
 	| y m |
 	{ :year y :month m 1 + } date>epoch
 	{ :year y :month m } date>epoch
 	- 1 day / ;
 
-( instant delta -- instant ) \ calendar shift, UTC: :years :months step the
+\ calendar shift, UTC: :years :months step the
 \ calendar with the day clamped to the target month; :weeks :days :hours
 \ :minutes :seconds add exactly
-: date-shift
+: date-shift ( instant delta -- instant )
 	| instant delta |
 
 	delta :years 0 @or 12 *
@@ -121,5 +120,5 @@ base unit MiB
 1024 GiB unit TiB
 1024 TiB unit PiB
 
-( q unit-xt -- q' ) \ re-express q in the unit that unit-xt attaches (' MiB)
-: as | q unit-xt | 1 unit-xt execute 0 * q + ;
+\ re-express q in the unit that unit-xt attaches (' MiB)
+: as ( q unit-xt -- q' ) | q unit-xt | 1 unit-xt execute 0 * q + ;

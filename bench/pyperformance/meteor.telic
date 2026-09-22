@@ -93,7 +93,7 @@ variable sols   variable done
   cells ;
 
 \ --- board + code->index table -------------------------------------------
-: init-board ^cti ^board |
+: init-board ( -- ) ^cti ^board |
   -1.0 460.0 array-of to cti
   0.0 50.0 array-of to board
   0 10 1 do y
@@ -106,13 +106,13 @@ variable sols   variable done
   loop ;
 
 \ --- pieces: convert each permutation of each incremental-direction list ---
-( pi -- ) \ store piece pi's converted permutations
-: convert-piece
+\ store piece pi's converted permutations
+: convert-piece ( pi -- )
   | pi |
   pieces pi @i  pi 3.0 =  permute  ' convert map
   pieces swap pi !i drop ; internal
 
-: init-pieces ^pieces |
+: init-pieces ( -- ) ^pieces |
   [ [ 2.0 2.0 2.0 51.0 ]
     [ 51.0 49.0 -2.0 49.0 ]
     [ -2.0 -2.0 49.0 51.0 ]
@@ -131,12 +131,12 @@ variable sols   variable done
   0 10 1 do i  row [ ] i !i drop  loop
   row ;
 
-: init-fps ^fps |
+: init-fps ( -- ) ^fps |
   0.0 50.0 array-of to fps
   0 50 1 do ci  fps empty-row ci !i drop  loop ;
 
-( ppi c pps pi -- ) \ record piece pi's ppi-th placement at code c
-: record-footprint
+\ record piece pi's ppi-th placement at code c
+: record-footprint ( ppi c pps pi -- )
   | ppi c pps pi |
   c pps ppi @i foot to fp
   fp size 5.0 = 0= if exit then
@@ -145,29 +145,29 @@ variable sols   variable done
   row pi @i [ [ fp set>mask  fp dup size take ] ] concat to nb
   row nb pi !i drop ; internal
 
-( pi c -- ) \ every placement of piece pi at code c
-: record-piece
+\ every placement of piece pi at code c
+: record-piece ( pi c -- )
   | pi c |
   pieces pi @i to pps
   0 pps size 1 do ppi  ppi c pps pi record-footprint  loop ; internal
 
-( ci -- ) \ every piece's placements at board cell ci
-: record-cell
+\ every piece's placements at board cell ci
+: record-cell ( ci -- )
   | ci |
   0 10 1 do pi  pi board ci @i record-piece  loop ; internal
 
-: get-footprints
+: get-footprints ( -- )
   0 50 1 do ci  ci record-cell  loop ;
 
-: get-senh ^se-nh |
+: get-senh ( -- ) ^se-nh |
   0.0 50.0 array-of to se-nh
   0 50 1 do ci
      se-nh  board ci @i  [ 2.0 49.0 51.0 ] foot set>mask  ci  !i drop
   loop ;
 
 \ --- solution string from a finished board (and its reverse) --------------
-: cb>string  ( cb -- s )  [: 48.0 f+ :] map codepoints>string ;
-: cb>rstring ( cb -- s )  [: 48.0 f+ :] map reverse codepoints>string ;
+: cb>string  ( cb -- s )  ( 48.0 f+ ) map codepoints>string ;
+: cb>rstring ( cb -- s )  ( 48.0 f+ ) map reverse codepoints>string ;
 
 \ --- backtracking solver (the timed kernel) ------------------------------
 : solve ( i_min free cb pl -- )
@@ -210,7 +210,7 @@ variable sols   variable done
      done if exit then
   repeat ;
 
-: solve-once ^done ^sols |
+: solve-once ( -- ) ^done ^sols |
   0.0 to done
   [< >] to sols
   0.0
@@ -219,7 +219,7 @@ variable sols   variable done
   1.0 10.0 lshift 1.0 f-
   solve ;
 
-: meteor-bench
+: meteor-bench ( -- )
   init-board init-pieces init-fps get-footprints get-senh
   now to t0
   ' solve-once loops times

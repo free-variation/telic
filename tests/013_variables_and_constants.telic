@@ -21,7 +21,7 @@ cr
 
 \ === variables: one frame per global, oldest first, live values ===
 variables .
-variables [: :name @ :] map . cr        \ [ :x :y ]
+variables ( :name @ ) map . cr        \ [ :x :y ]
 
 \ constants, symbols, and colon words are not globals
 symbol marker
@@ -38,9 +38,9 @@ vars
 \ === ++ / -- increment a global variable in place; ^ declares it, as `to` needs ===
 variable counter
 5 to counter
-: bump  ^counter | ++ counter ;
-: unbump  ^counter | -- counter ;
-: undeclared-bump ++ counter ;          \ (error: no ^counter in the head)
+: bump ( -- )  ^counter | ++ counter ;
+: unbump ( -- )  ^counter | -- counter ;
+: undeclared-bump ( -- ) ++ counter ;          \ (error: no ^counter in the head)
 bump counter . bump counter . unbump counter . cr    \ 6 7 6
 
 clear
@@ -70,24 +70,24 @@ v . cr                                  \ 5
 \ === inside a definition the name becomes a local ===
 
 \ no locals list at all: the first `to` opens the frame where it stands
-: implicit 1 to fresh  fresh 41 + ;
+: implicit ( -- n ) 1 to fresh  fresh 41 + ;
 implicit . cr                           \ 42
 
 \ captures are just `to` on the incoming values, topmost first
-: hypotenuse to b to a  a a * b b * + sqrt ;
+: hypotenuse ( a b -- h ) to b to a  a a * b b * + sqrt ;
 3 4 hypotenuse . cr                     \ 5
 
 \ the slot is per call, not shared like a global would be
-: counted 0 to tally  tally 1 + to tally  tally ;
+: counted ( -- n ) 0 to tally  tally 1 + to tally  tally ;
 counted . cr                            \ 1
 counted . cr                            \ 1
 
 \ intermediates chain, and a head list that receives grows to hold them
-: chained | n | n 2 * to doubled  doubled 1 + to bumped  doubled bumped + ;
+: chained ( n -- n ) | n | n 2 * to doubled  doubled 1 + to bumped  doubled bumped + ;
 5 chained . cr                          \ 21
 
 \ a loop body assigns the same slot each turn
-: summed | n | 0 to total  0 to i
+: summed ( n -- n ) | n | 0 to total  0 to i
 	begin i n < while  total i + to total  i 1+ to i  repeat
 	total ;
 5 summed . cr                           \ 10
@@ -98,17 +98,17 @@ counted . cr                            \ 1
 tally . cr                              \ 7
 
 \ code may precede the frame: the literal is emitted, then the frame, then the store
-: after-code [: 3 :] execute to sprout  sprout 1 + ;
+: after-code ( -- n ) ( 3 ) execute to sprout  sprout 1 + ;
 after-code . cr                         \ 4
 
 \ a quotation declares into its own frame, not the enclosing word's
-: quotation-frame [: 5 to inner  inner inner + :] execute ;
+: quotation-frame ( -- n ) ( 5 to inner  inner inner + ) execute ;
 quotation-frame . cr                    \ 10
 
 clear
 \ === errors ===
 \ a read of an undeclared name is still unknown — only `to` declares
-: reads-unknown never-set 1 + ;
+: reads-unknown ( -- n ) never-set 1 + ;
 
 clear
 
@@ -126,7 +126,7 @@ softening 3.0 f* .  cr
 tag .  cr
 
 \ inside a compiled word the constant folds to a literal — no call, no fetch
-: scale  softening 3.0 f* ;
+: scale ( -- f )  softening 3.0 f* ;
 ' scale see-compiled
 
 clear

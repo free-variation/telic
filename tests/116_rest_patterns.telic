@@ -21,11 +21,11 @@ lvar to Args
 { :cmd :run :args [ :x 1 2 ] } { :args [ _ Args rest ] } ~ drop  Args ? . cr   \ [ 1 2 ]
 
 \ === case/of dispatches by shape ===
-: shape case [ ] of "empty" endof [ _ ] of "one" endof [ _ _ rest ] of "two or more" endof drop "not an array" endcase . cr ;
+: shape ( arr -- str ) case [ ] of "empty" endof [ _ ] of "one" endof [ _ _ rest ] of "two or more" endof drop "not an array" endcase . cr ;
 [ ] shape [ 5 ] shape [ 5 6 7 ] shape 42 shape           \ empty / one / two or more / not an array
 
 \ === a fresh rest variable per call via a ?-local ===
-: tail-of | ?tail-var | [ _ tail-var rest ] ~ drop tail-var ? ;
+: tail-of ( arr -- v ) | ?tail-var | [ _ tail-var rest ] ~ drop tail-var ? ;
 [ 1 2 3 ] tail-of . [ 1 ] tail-of . cr                  \ [ 2 3 ] [ ]
 
 \ === a bound rest variable compares structurally on the next use ===

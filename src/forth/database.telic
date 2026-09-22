@@ -1,37 +1,37 @@
-( column -- sym) \ :real for a vector column or all-float cells, else :text
-: column-sql-type
+\ :real for a vector column or all-float cells, else :text
+: column-sql-type ( column -- sym )
 	dup matrix? if drop :real exit then
-	[: null? not :] filter
+	( null? not ) filter
 	dup size 0= if drop :text exit then
 	' float? all? if :real else :text then ; internal
 
-( name -- quoted ) \ sql identifier: embedded quotes doubled, wrapped in quotes
-: sql-identifier
+\ sql identifier: embedded quotes doubled, wrapped in quotes
+: sql-identifier ( name -- quoted )
 	"""" """""" replace
 	"""{0}""" format ; internal
 
-( declaration -- flag ) \ is a declared sql type date-like?
-: declared-instant?
+\ is a declared sql type date-like?
+: declared-instant? ( declaration -- flag )
 	dup null? if drop false else "(?i)date|time" has? then ; internal
 
-( declaration -- flag ) \ is a declared sql type numeric?
-: declared-numeric?
+\ is a declared sql type numeric?
+: declared-numeric? ( declaration -- flag )
 	dup null? if drop false else "(?i)int|real|floa|doub|num" has? then ; internal
 
-( column -- instants ) \ an epoch vector takes s directly; ISO text parses per cell
-: column>instants
+\ an epoch vector takes s directly; ISO text parses per cell
+: column>instants ( column -- instants )
 	dup matrix? if s exit then
-	[: dup null? if else iso>time 1 s / then :] map vector s ; internal
+	( dup null? if else iso>time 1 s / then ) map vector s ; internal
 
-( db query params -- dataset ) \ typed columns: numeric -> n x 1 vector (NaN for
+\ typed columns: numeric -> n x 1 vector (NaN for
 \ NULL), declared date/time -> instant vector in s, text -> array; an empty
 \ column declared numeric stays typed as an empty vector
-: db-query
+: db-query ( db query params -- dataset )
 	(db-query) to types to dataset
 
 	dataset keys
 	dataset values types values
-	[: column declaration |
+	( column declaration |
 		declaration declared-instant? if column column>instants exit then
 
 		column array? column size 0= and declaration declared-numeric? and if
@@ -39,36 +39,34 @@
 		else
 			column
 		then 
-	:] 2 nmap
+	) 2 nmap
 	frame ;
 
-( names types table -- statement ) 
-: create-table-statement
+: create-table-statement ( names types table -- statement )
 	>r
-	[: name type | name sql-identifier type :real = if " REAL" else " TEXT" then + :] 2 nmap
+	( name type | name sql-identifier type :real = if " REAL" else " TEXT" then + ) 2 nmap
 	", " join
 
 	r> sql-identifier "CREATE TABLE {0} ({1})" format ; internal
 
-( n-columns table -- statement )
-: insert-statement
+: insert-statement ( n-columns table -- statement )
 	sql-identifier swap
 	"?" swap array-of ", " join
 	"INSERT INTO {1} VALUES ({0})" format ; internal
 
-( db table col-name -- num-distinct ) \ COUNT(DISTINCT) over the loaded column; empty cells don't count.
-: column-distinct-count
+\ COUNT(DISTINCT) over the loaded column; empty cells don't count.
+: column-distinct-count ( db table col-name -- num-distinct )
 	sql-identifier swap sql-identifier
 
 	"SELECT COUNT(DISTINCT {1}) AS ""distinct-count"" FROM {0}" format
 	[ ] db-query :distinct-count @ 0 @e ; internal
 
-( row db statement -- n ) \ the row's cells as the statement's parameters
-: insert-row rot db-exec ; internal
+\ the row's cells as the statement's parameters
+: insert-row ( row db statement -- n ) rot db-exec ; internal
 
-( name type dataset db table -- info ) \ one column's entry in the import report
+\ one column's entry in the import report
 \ the context trails the mapped values, so ncurry can bind it
-: column-info
+: column-info ( name type dataset db table -- info )
 	| name type dataset db table |
 	type :real = if
 		{ :name name string>symbol
@@ -82,9 +80,9 @@
 	  :distinct db table name column-distinct-count 
 	} ; internal
 
-( tsv-path db table -- info ) \ imports a tsv. header row names the columns, types inferred by column
+\ imports a tsv. header row names the columns, types inferred by column
 \ the dataset, connection and table name are parked below the combinators' sources
-: tsv>db
+: tsv>db ( tsv-path db table -- info )
 	| tsv-path db table |
 	tsv-path load-tsv to rows
 	rows size 0= if tsv-path "tsv>db: {0} has no header row" format throw then
@@ -95,7 +93,7 @@
 	then
 
 	rows true rows>dataset to dataset
-	dataset names [: string>symbol 2 pick swap @ column-sql-type :] map nip to types
+	dataset names ( string>symbol 2 pick swap @ column-sql-type ) map nip to types
 	db names types table create-table-statement [ ] db-exec drop
 
 	names size table insert-statement to statement

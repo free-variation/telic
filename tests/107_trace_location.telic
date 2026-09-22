@@ -4,32 +4,32 @@
 \ trace prints them after the word's name. REPL definitions carry none, and
 \ forget drops the record with the word.
 
-": faulty | x | x 0 / ;
-: caller faulty 1 + ;
-: chain caller ;" "/tmp/docs-trace.telic" write-file
+": faulty ( x -- n ) | x | x 0 / ;
+: caller ( -- n ) faulty 1 + ;
+: chain ( -- n ) caller ;" "/tmp/docs-trace.telic" write-file
 "/tmp/docs-trace.telic" load
 
 \ -- the trace names each loaded word with its file and line (chain tail-calls
 \ caller, so its frame is gone by the time the error fires)
-[: 5 chain :] [: :trace @ . cr :] try-catch
+( 5 chain ) ( :trace @ . cr ) try-catch
 \ in / ← faulty (/tmp/docs-trace.telic:1) ← caller (/tmp/docs-trace.telic:2) ← try-catch
 
 \ -- a REPL definition calling a loaded word: only the loaded frame is located
 \ (top-level tail-calls faulty, so its own frame is already gone)
-: top-level 7 faulty ;
-[: top-level :] [: :trace @ . cr :] try-catch
+: top-level ( -- n ) 7 faulty ;
+( top-level ) ( :trace @ . cr ) try-catch
 \ in / ← faulty (/tmp/docs-trace.telic:1) ← top-level ← try-catch
 
 \ -- forget drops the location with the word; a redefinition at the REPL has none
 forget faulty
-: faulty | x | x 0 / ;
-[: 3 faulty :] [: :trace @ . cr :] try-catch
+: faulty ( x -- n ) | x | x 0 / ;
+( 3 faulty ) ( :trace @ . cr ) try-catch
 \ in / ← faulty ← try-catch
 
 \ -- a definition through evaluate inside a loaded file has no location either
-""": via-evaluate 1 0 / ;"" evaluate" "/tmp/docs-trace2.telic" write-file
+""": via-evaluate ( -- n ) 1 0 / ;"" evaluate" "/tmp/docs-trace2.telic" write-file
 "/tmp/docs-trace2.telic" load
-[: via-evaluate :] [: :trace @ . cr :] try-catch
+( via-evaluate ) ( :trace @ . cr ) try-catch
 \ in / ← via-evaluate ← try-catch
 
 clear
@@ -40,14 +40,14 @@ clear
 clear
 \ === the line is the call executing in the frame, not the definition's line ===
 \ (call-multi does not end in the call: as a tail call its frame would be gone)
-": multi | x |
+": multi ( x -- ) | x |
   x 1 +
   x 0 /
   drop ;
-: call-multi
+: call-multi ( -- )
   1 2 +
   multi
   drop ;" "/tmp/docs-trace3.telic" write-file
 "/tmp/docs-trace3.telic" load
-[: 4 call-multi :] [: :trace @ . cr :] try-catch
+( 4 call-multi ) ( :trace @ . cr ) try-catch
 \ in / ← multi (/tmp/docs-trace3.telic:3) ← call-multi (/tmp/docs-trace3.telic:7) ← try-catch

@@ -84,16 +84,16 @@ variable pixw variable pixh
   1.0 0.2 f- 0.6 f- to ambient
   [ 1.0 0.0 0.0 0.0  0.0 1.0 0.0  0.2 0.6 ambient  1.0 1.0 1.0  1.0  0.0 0.0 0.0  1.0 ] ;
 
-: init-objects ^objects |
+: init-objects ( -- ) ^objects |
   1.0 3.0 -10.0 2.0  0.2 0.6  1.0 1.0 0.0 sphere-obj
-  [: y |
+  ( y |
      -3.0 y 0.4 f* f-  2.3  -5.0  0.4  0.2 0.6
      y 6.0 f/  1.0 y 6.0 f/ f-  0.5  sphere-obj
-  :] 6 i-times
+  ) 6 i-times
   checker-plane
   8 array to objects ;
 
-: init-lights ^lights |
+: init-lights ( -- ) ^lights |
   [ 30.0 30.0 10.0 ]  [ -10.0 100.0 30.0 ]  2 array to lights ;
 
 \ --- is a light visible from a surface point along a unit shadow ray? -----
@@ -211,7 +211,7 @@ variable pixw variable pixh
   red green blue ;
 
 \ --- camera setup (matches Scene.render's eye/viewport math) --------------
-: setup-eye
+: setup-eye ( -- )
   | ^epx ^epy ^epz  ^evx ^evy ^evz  ^rx ^ry ^rz  ^ux ^uy ^uz
     ^fovr ^halfw ^halfh  ^pixw ^pixh |
   0.0 to epx 1.8 to epy 10.0 to epz
@@ -241,8 +241,8 @@ variable pixw variable pixh
   repeat
   rowbytes ;
 
-: render-frame ^checksum |
-  height iota  0.0  ' render-row  [: f+ :]  pmap-reduce to checksum ;
+: render-frame ( -- ) ^checksum |
+  height iota  0.0  ' render-row  ( f+ )  pmap-reduce to checksum ;
 
 : raytrace-run ( frames -- )
   | frames |

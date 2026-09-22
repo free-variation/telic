@@ -41,7 +41,7 @@
 :sym spread
 
 \ spread into a locals head names the pieces
-: three-fields | a b c | c . b . a . cr ;
+: three-fields ( a b c -- ) | a b c | c . b . a . cr ;
 [ 1 2 3 ] spread three-fields                   \ 3 2 1
 
 \ empty stack — underflow

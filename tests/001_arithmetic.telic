@@ -49,6 +49,6 @@ clear
 0.25 sq . cr          \ 0.0625
 
 \ inside a quotation, with times: the running value is on the stack
-[: 0  [: 1+ :] 7 times  . cr :] execute
+( 0  ( 1+ ) 7 times  . cr ) execute
 
 clear

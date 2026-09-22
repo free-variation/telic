@@ -27,26 +27,26 @@ org /deep//tag select-values size . cr
 
 \ hot: single-key lookup, short plain path, small wildcard — profiles walk/dispatch
 now
-[:
+(
   org /wide_object/key_06000 select-values drop
   org /meta/generator        select-values drop
   org /meta/*                select-values drop
   org /wide_object/key_11999 select-values drop
-:] hot times
+) hot times
 now swap -  hot 4 *  "{0} hot queries in {1} s" format . cr
 
 \ wide: 12k-child wildcard and a self-predicate over it — set build + predicate
 now
-[:
+(
   org /wide_object/*          select-values drop
   org /wide_object/*[.>6000]  select-values drop
-:] wide times
+) wide times
 now swap -  wide 2 *  "{0} wide queries in {1} s" format . cr
 
 \ deep: descendant-or-self over the 800-level chain — deep recursion
 now
-[:
+(
   org /deep//tag   select-values drop
   org /deep//depth select-values drop
-:] deep times
+) deep times
 now swap -  deep 2 *  "{0} deep queries in {1} s" format . cr

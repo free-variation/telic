@@ -1,10 +1,10 @@
 \ ==== brackets in colon ====
 
-: nums [< 1 2 3 >] ;
+: nums ( -- set ) [< 1 2 3 >] ;
 nums .
-: pair [ 10 20 ] ;
+: pair ( -- arr ) [ 10 20 ] ;
 pair .
-: combine [< 1 2 >] [< 2 3 >] union ;
+: combine ( -- set ) [< 1 2 >] [< 2 3 >] union ;
 combine .
 
 clear
@@ -12,11 +12,11 @@ clear
 \ ==== semicolon delimits ====
 
 \ ; is self-delimiting: no space needed before it
-: sq dup *;
+: sq ( n -- n ) dup *;
 3 sq . cr
 
 \ glued after a word call
-: nine 3 sq;
+: nine ( -- n ) 3 sq;
 nine . cr
 
 \ ; inside a string literal stays literal
@@ -40,8 +40,11 @@ clear
 \ fully glued on both sides
 [1 2 3] . cr
 
-\ two-char closers survive gluing: :] and >]
-[:dup *:] 3 swap execute . cr
+\ a symbol glued to the opener: [ is one character, :a and :b their own tokens
+[:a :b] . cr
+
+\ a quotation's parentheses take their spaces; the set closer still glues
+( dup * ) 3 swap execute . cr
 [< 1 2>] size . cr
 
 \ the matrix typo from the field

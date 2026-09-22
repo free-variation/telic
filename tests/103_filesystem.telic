@@ -72,7 +72,7 @@ clear
 "aa" "/tmp/telic-fs-sizes/x" write-file
 "bbbb" "/tmp/telic-fs-sizes/y" write-file
 "/tmp/telic-fs-sizes" list-directory
-[: "/tmp/telic-fs-sizes/" swap + file-info :size @ :] map . cr   \ [ 2 4 ]
+( "/tmp/telic-fs-sizes/" swap + file-info :size @ ) map . cr   \ [ 2 4 ]
 "/tmp/telic-fs-sizes/x" delete-file
 "/tmp/telic-fs-sizes/y" delete-file
 "/tmp/telic-fs-sizes" delete-directory
@@ -119,7 +119,7 @@ clear
 "/tmp/telic-fs-copy" file-info :kind @ . cr           \ :directory
 "/tmp/telic-fs-copy" list-directory . cr             \ [ "fresh" "raw" "raw-copy" "source" "target" ]
 
-"/tmp/telic-fs-copy" list-directory [: "/tmp/telic-fs-copy/" swap + rm :] each
+"/tmp/telic-fs-copy" list-directory ( "/tmp/telic-fs-copy/" swap + rm ) each
 "/tmp/telic-fs-copy" rmdir
 "/tmp/telic-fs-copy" file-exists? . cr                \ 0
 
@@ -128,7 +128,7 @@ clear
 \ === ls prints what list-directory answers ===
 "/tmp/telic-fs-ls/inner" mkdir
 [ "one.txt" "two.tsv" "a-longer-name.txt" ]
-[: "/tmp/telic-fs-ls/" swap + touch :] each
+( "/tmp/telic-fs-ls/" swap + touch ) each
 
 \ aligned columns, sorted, a trailing / on directories
 "/tmp/telic-fs-ls" ls
@@ -145,34 +145,34 @@ clear
 "/tmp/telic-fs-ls/inner" ls
 "after the empty listing" . cr
 
-"/tmp/telic-fs-ls" list-directory [: "/tmp/telic-fs-ls/" swap + :] map
-[: dup file-info@kind :directory = if rmdir else rm then :] each
+"/tmp/telic-fs-ls" list-directory ( "/tmp/telic-fs-ls/" swap + ) map
+( dup file-info@kind :directory = if rmdir else rm then ) each
 "/tmp/telic-fs-ls" rmdir
 
 clear
 
 \ === errors (reason parenthesized) ===
-[: "/tmp/telic-fs-missing-dir" list-directory :] catch drop :message @ . cr
+( "/tmp/telic-fs-missing-dir" list-directory ) catch drop :message @ . cr
 \ cannot list /tmp/telic-fs-missing-dir            (no such directory)
 "plain" "/tmp/telic-fs-notdir" write-file
-[: "/tmp/telic-fs-notdir" list-directory :] catch drop :message @ . cr
+( "/tmp/telic-fs-notdir" list-directory ) catch drop :message @ . cr
 \ cannot list /tmp/telic-fs-notdir                 (a file, not a directory)
-[: "/tmp/telic-fs-notdir" make-directory :] catch drop :message @ . cr
+( "/tmp/telic-fs-notdir" make-directory ) catch drop :message @ . cr
 \ cannot create /tmp/telic-fs-notdir               (a file where a directory was asked for)
 "/tmp/telic-fs-notdir" delete-file
-[: "/tmp/telic-fs-absent" delete-file :] catch drop :message @ . cr
+( "/tmp/telic-fs-absent" delete-file ) catch drop :message @ . cr
 \ cannot delete /tmp/telic-fs-absent               (no such file)
-[: "/tmp" delete-directory :] catch drop :message @ . cr
+( "/tmp" delete-directory ) catch drop :message @ . cr
 \ cannot remove /tmp                               (not empty)
-[: 42 list-directory :] catch drop :message @ . cr
+( 42 list-directory ) catch drop :message @ . cr
 \ expected a string; got a float                   (not a string)
-[: "/tmp/telic-fs-absent" "/tmp/no/such/dir/b" rename-file :] catch drop :message @ . cr
+( "/tmp/telic-fs-absent" "/tmp/no/such/dir/b" rename-file ) catch drop :message @ . cr
 \ cannot rename ... to ...                         (target directory missing)
 
 \ copy-file throws a string of its own rather than a runtime error frame
-[: "/tmp" "/tmp/telic-fs-dir-copy" cp :] catch drop . cr
+( "/tmp" "/tmp/telic-fs-dir-copy" cp ) catch drop . cr
 \ cannot copy /tmp: not a file                     (a directory, which read-file reads as "")
-[: "/tmp/telic-fs-absent" "/tmp/telic-fs-x" cp :] catch drop . cr
+( "/tmp/telic-fs-absent" "/tmp/telic-fs-x" cp ) catch drop . cr
 \ cannot copy /tmp/telic-fs-absent: no such file   (nothing to copy)
 "/tmp/telic-fs-dir-copy" file-exists? . cr
 \ 0                                                (the guard wrote no empty file)
@@ -197,14 +197,14 @@ ls
 "nothing above this line" . cr
 
 \ === with something on the stack, ls takes it as the path, it is not ignored ===
-[: 42 ls :] catch drop :message @ . cr           \ expected a string; got a float
+( 42 ls ) catch drop :message @ . cr           \ expected a string; got a float
 "/tmp/telic-ls-cwd/one" ls                       \ (a file, not a directory)
 
 \ === teardown, back to where we started ===
 entry-cwd cd
 cwd entry-cwd = . cr                             \ 1
-"/tmp/telic-ls-cwd" list-directory [: "/tmp/telic-ls-cwd/" swap + :] map
-[: dup file-info@kind :directory = if rmdir else rm then :] each
+"/tmp/telic-ls-cwd" list-directory ( "/tmp/telic-ls-cwd/" swap + ) map
+( dup file-info@kind :directory = if rmdir else rm then ) each
 "/tmp/telic-ls-cwd" rmdir
 "/tmp/telic-ls-cwd" file-exists? . cr            \ 0
 

@@ -130,8 +130,9 @@ static int lf_is_number(const char *s, long len) {
 static const char *lf_token_style(const char *s, long len) {
 	if (lf_is_number(s, len))
 		return "ansi-teal";
-	if (len == 2 && (memcmp(s, "[:", 2) == 0 || memcmp(s, ":]", 2) == 0
-			|| memcmp(s, "[<", 2) == 0 || memcmp(s, ">]", 2) == 0))
+	if (len == 1 && (s[0] == '(' || s[0] == ')'))
+		return "ansi-blue";
+	if (len == 2 && (memcmp(s, "[<", 2) == 0 || memcmp(s, ">]", 2) == 0))
 		return "ansi-blue";
 	if (s[0] == ':' && len > 1)
 		return "ansi-olive";
@@ -169,12 +170,10 @@ static long lf_token_end(const char *input, long n, long start) {
 	char after_lead = start + 1 < n ? input[start + 1] : 0;
 	if (lead == ';' || lead == ']' || lead == '}')
 		return start + 1;
-	if ((lead == ':' || lead == '>') && after_lead == ']')
+	if (lead == '>' && after_lead == ']')
 		return start + 2;
-	if (lead == '[') {
-		int two_char_opener = after_lead == ':' || after_lead == '<';
-		return start + (two_char_opener ? 2 : 1);
-	}
+	if (lead == '[')
+		return start + (after_lead == '<' ? 2 : 1);
 	if (lead == '{')
 		return start + 1;
 
@@ -187,7 +186,7 @@ static long lf_token_end(const char *input, long n, long start) {
 			break;
 		if (c == ']' && bracket_depth == 0) {
 			char preceding = input[i - 1];
-			if ((preceding == ':' || preceding == '>') && i - 1 > start)
+			if (preceding == '>' && i - 1 > start)
 				i--;
 			break;
 		}
@@ -215,12 +214,6 @@ static void repl_highlighter(ic_highlight_env_t *henv, const char *input, void *
 		long start = i;
 		if (input[i] == '\\' && (i + 1 >= n || lf_is_ws(input[i + 1]))) {
 			while (i < n && input[i] != '\n') i++;
-			ic_highlight(henv, start, i - start, "ansi-silver");
-			continue;
-		}
-		if (input[i] == '(' && i + 1 < n && lf_is_ws(input[i + 1])) {
-			while (i < n && input[i] != ')') i++;
-			if (i < n) i++;
 			ic_highlight(henv, start, i - start, "ansi-silver");
 			continue;
 		}

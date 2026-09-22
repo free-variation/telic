@@ -16,13 +16,13 @@ response :body @ byte-size . cr                     \ 16
 "POST" "file:///tmp/lf_http.txt" [ "x-a: 1" "x-b: 2" ] "ignored" http-request :status @ . cr   \ 0
 
 \ === http-get / http-post throw on a non-2xx status (file:// reports 0) ===
-[: "file:///tmp/lf_http.txt" http-get :] catch . cr \ 1
+( "file:///tmp/lf_http.txt" http-get ) catch . cr \ 1
 . cr                                                \ http status 0
-[: "file:///tmp/lf_http.txt" "body" http-post :] catch . cr   \ 1
+( "file:///tmp/lf_http.txt" "body" http-post ) catch . cr   \ 1
 . cr                                                \ http status 0
 
 \ === a transport failure throws curl's message ===
-[: "notascheme://x" http-get :] catch . cr          \ 1
+( "notascheme://x" http-get ) catch . cr          \ 1
 "curl" has? . cr                                    \ 1
 
 \ === both stacks left empty ===

@@ -79,16 +79,16 @@ variable pixw variable pixh
   1.0 0.2 f- 0.6 f- to ambient
   [ 1.0 0.0 0.0 0.0  0.0 1.0 0.0  0.2 0.6 ambient  1.0 1.0 1.0  1.0  0.0 0.0 0.0  1.0 ] ;
 
-: init-objects ^objects |
+: init-objects ( -- ) ^objects |
   1.0 3.0 -10.0 2.0  0.2 0.6  1.0 1.0 0.0 sphere-obj
-  [: y |
+  ( y |
      -3.0 y 0.4 f* f-  2.3  -5.0  0.4  0.2 0.6
      y 6.0 f/  1.0 y 6.0 f/ f-  0.5  sphere-obj
-  :] 6 i-times
+  ) 6 i-times
   checker-plane
   8 array to objects ;
 
-: init-lights ^lights |
+: init-lights ( -- ) ^lights |
   [ 30.0 30.0 10.0 ]  [ -10.0 100.0 30.0 ]  2 array to lights ;
 
 \ --- is a light visible from a surface point along a unit shadow ray? -----
@@ -208,7 +208,7 @@ variable pixw variable pixh
   red green blue ;
 
 \ --- camera setup (matches Scene.render's eye/viewport math) --------------
-: setup-eye
+: setup-eye ( -- )
   | ^epx ^epy ^epz  ^evx ^evy ^evz  ^rx ^ry ^rz  ^ux ^uy ^uz
     ^fovr ^halfw ^halfh  ^pixw ^pixh |
   0.0 to epx 1.8 to epy 10.0 to epz
@@ -222,8 +222,8 @@ variable pixw variable pixh
   halfh 2.0 f* height 1.0 f- f/ to pixh ;
 
 \ --- render one frame, summing pixel bytes into CHECKSUM ------------------
-( x y -- ) \ trace one pixel, adding its bytes to checksum
-: render-pixel
+\ trace one pixel, adding its bytes to checksum
+: render-pixel ( x y -- )
   | x y ^checksum |
   x pixw f* halfw f- to sx
   y pixh f* halfh f- to sy
@@ -234,11 +234,11 @@ variable pixw variable pixh
   epx epy epz rdx rdy rdz ray-colour to pb to pg to pr
   pr clamp-byte  pg clamp-byte f+  pb clamp-byte f+  checksum f+ to checksum ; internal
 
-( y -- ) \ trace one scanline
-: render-row
+\ trace one scanline
+: render-row ( y -- )
   ' render-pixel curry  width i-times ; internal
 
-: render-frame ^checksum |
+: render-frame ( -- ) ^checksum |
   0.0 to checksum
   ' render-row  height i-times ;
 

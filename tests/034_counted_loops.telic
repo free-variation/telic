@@ -1,54 +1,54 @@
 \ times ( xt n -- ) — run xt n times. No arity contract on the xt.
 
 \ basic: print '*' five times
-[: 42 emit :] 5 times cr
+( 42 emit ) 5 times cr
 
 \ zero count: quotation never runs
-[: "boom" . :] 0 times
+( "boom" . ) 0 times
 
 \ quotation that leaves values: data stack grows each iter
-[: 7 :] 3 times .s clear cr
+( 7 ) 3 times .s clear cr
 
 \ each-side-effect ordering: 0 1 2 3 4 printed in order. The running value lives
 \ on the stack, not in a local — a quotation cannot write the word's frame
-: count-up  0  [: dup . 1 + :] 5 times  drop ;
+: count-up ( -- )  0  ( dup . 1 + ) 5 times  drop ;
 count-up cr
 
 \ wrong types
-[: :] -1 times
-"x" [: :] times
+( ) -1 times
+"x" ( ) times
 5 5 times
 
 clear
 \ i-times ( xt n -- ) — run xt n times, pushing the index 0..n-1 before each call.
 
 \ basic: print 0 1 2 3 4
-[: . :] 5 i-times cr
+( . ) 5 i-times cr
 
 \ zero count: never runs
-[: "boom" . :] 0 i-times
+( "boom" . ) 0 i-times
 
 \ index is the only thing pushed; quotation that ignores it leaves it
-[: drop :] 3 i-times .s clear cr
+( drop ) 3 i-times .s clear cr
 
 \ sum of 0..9 via a stack accumulator under i-times: 45
-: sum-up-to  0 swap  [: + :] swap i-times ;
+: sum-up-to ( n -- n )  0 swap  ( + ) swap i-times ;
 10 sum-up-to . cr
 
 \ sum of squares 0..4: 0+1+4+9+16 = 30
-: sum-sq  0 swap  [: dup * + :] swap i-times ;
+: sum-sq ( n -- n )  0 swap  ( dup * + ) swap i-times ;
 5 sum-sq . cr
 
 \ a receiving quotation whose body under-produces drives the data stack empty:
 \ the loop-refill underflow is caught, not a buffer overflow (ASan-verified)
 clear
-1 [: a | :] 3 times
+1 ( a | ) 3 times
 clear
-1 [: | a b | :] 3 times
+1 ( | a b | ) 3 times
 
 \ wrong types
-[: drop :] -1 i-times
-"x" [: drop :] i-times
+( drop ) -1 i-times
+"x" ( drop ) i-times
 5 5 i-times
 
 clear
@@ -57,30 +57,30 @@ clear
 \ is a primitive arithmetic word, so the accumulator stays in the combinator
 
 \ sum of 0..4 with the identity map, and sum of squares 0..4
-0 [: :] ' f+ 5 fold-times . cr            \ 10
-0 [: dup f* :] ' f+ 5 fold-times . cr     \ 30
+0 ( ) ' f+ 5 fold-times . cr            \ 10
+0 ( dup f* ) ' f+ 5 fold-times . cr     \ 30
 
 \ product of 1..5, and subtraction to show the combiner's operand order
-1 [: f1+ :] ' f* 5 fold-times . cr        \ 120
-100 [: :] ' f- 5 fold-times . cr          \ 90 — acc combines on the left
+1 ( f1+ ) ' f* 5 fold-times . cr        \ 120
+100 ( ) ' f- 5 fold-times . cr          \ 90 — acc combines on the left
 
 \ zero count answers the initial accumulator untouched
-:untouched [: :] ' f+ 0 fold-times . cr   \ :untouched
+:untouched ( ) ' f+ 0 fold-times . cr   \ :untouched
 
 \ a quotation combiner takes the dispatched path and sees ( acc term -- acc' )
-0 [: :] [: f+ :] 5 fold-times . cr        \ 10
-[ ] [: :] [: add-last! :] 3 fold-times . cr   \ [ 0 1 2 ] — combiner sees ( acc term )
+0 ( ) ( f+ ) 5 fold-times . cr        \ 10
+[ ] ( ) ( add-last! ) 3 fold-times . cr   \ [ 0 1 2 ] — combiner sees ( acc term )
 
 \ a parked value is read by depth; here f* consumes the index, so the body needs
 \ no cleanup
-7 0 [: 1 pick f* :] ' f+ 4 fold-times nip . cr   \ 42 — 7·(0+1+2+3)
+7 0 ( 1 pick f* ) ' f+ 4 fold-times nip . cr   \ 42 — 7·(0+1+2+3)
 
 \ the wrappers: sum-times and product-times supply the defaults
-[: :] 5 sum-times . cr                    \ 10
-[: dup f* :] 4 sum-times . cr             \ 14
-[: f1+ :] 5 product-times . cr            \ 120
+( ) 5 sum-times . cr                    \ 10
+( dup f* ) 4 sum-times . cr             \ 14
+( f1+ ) 5 product-times . cr            \ 120
 
 \ wrong types
-0 [: :] ' f+ -1 fold-times
-0 [: :] 5 fold-times
+0 ( ) ' f+ -1 fold-times
+0 ( ) 5 fold-times
 0 5 ' f+ 5 fold-times

@@ -9,17 +9,17 @@
 \ from the top, which is what a resize or a Ctrl-L needs; Ctrl-C ends the
 \ viewer.
 
-( -- path ) \ the file the gauges pass through: TELIC_GAUGES_FILE, else
+\ the file the gauges pass through: TELIC_GAUGES_FILE, else
 \ /tmp/telic-gauges.bin
-: gauges-publication-path "TELIC_GAUGES_FILE" env dup null? if drop "/tmp/telic-gauges.bin" then ;
+: gauges-publication-path ( -- path ) "TELIC_GAUGES_FILE" env dup null? if drop "/tmp/telic-gauges.bin" then ;
 
-( -- bool ) \ whether entries and ticks publish
+\ -- bool whether entries and ticks publish
 variable gauges-publishing internal
 0 to gauges-publishing
 
-( -- ) \ write the gauges, stamped with the monotonic and wall clocks, to the
+\ write the gauges, stamped with the monotonic and wall clocks, to the
 \ publication path; nothing when not publishing
-: publish-gauges-entry
+: publish-gauges-entry ( -- )
 	gauges-publishing not if exit then
 	gauges now :sampled-at ! wall-now :published-at !
 	gauges-publication-path save-value ; internal
@@ -27,30 +27,30 @@ variable gauges-publishing internal
 ' publish-gauges-entry embodies after-entry
 ' publish-gauges-entry embodies on-tick
 
-( -- ) \ publish the gauges to gauges-publication-path after every REPL entry and
+\ publish the gauges to gauges-publication-path after every REPL entry and
 \ every second while an entry runs, for a gauges-view in another terminal;
 \ unpublish-gauges stops it
-: publish-gauges | ^gauges-publishing | 1 to gauges-publishing 1 tick-every ;
+: publish-gauges ( -- ) | ^gauges-publishing | 1 to gauges-publishing 1 tick-every ;
 
-( -- ) \ stop publishing the gauges
-: unpublish-gauges | ^gauges-publishing | 0 to gauges-publishing 0 tick-every ;
+\ stop publishing the gauges
+: unpublish-gauges ( -- ) | ^gauges-publishing | 0 to gauges-publishing 0 tick-every ;
 
-( str -- ) \ the string's bytes, then a newline
-: gauges-view-line string>codepoints ' emit each cr ; internal
+\ the string's bytes, then a newline
+: gauges-view-line ( str -- ) string>codepoints ' emit each cr ; internal
 
-( -- ) \ cursor home, screen erased
-: gauges-view-clear 27 emit "[H" string>codepoints ' emit each 27 emit "[2J" string>codepoints ' emit each ; internal
+\ cursor home, screen erased
+: gauges-view-clear ( -- ) 27 emit "[H" string>codepoints ' emit each 27 emit "[2J" string>codepoints ' emit each ; internal
 
-( -- f|null ) \ the :sampled-at of the frame last drawn, so an unchanged file is
+\ -- f|null the :sampled-at of the frame last drawn, so an unchanged file is
 \ not drawn again (a repeated sample would read as a zero interval)
 variable gauges-view-drawn internal
 null to gauges-view-drawn
 
-( -- ) \ one redraw of the view: screen erased, then the table from the gauges
+\ one redraw of the view: screen erased, then the table from the gauges
 \ published at gauges-publication-path and the sample's age, or a waiting line
 \ while the file does not exist yet; a file holding the sample already drawn
 \ is skipped
-: gauges-view-once
+: gauges-view-once ( -- )
 	| ^gauges-view-drawn |
 	gauges-publication-path to path
 	path file-exists? not if
@@ -64,5 +64,5 @@ null to gauges-view-drawn
 	published gauges>rows ' gauges-view-line each
 	wall-now published :published-at @ - 1 s / "{dim}sampled {0:.0f} s ago{plain}" format gauges-view-line ;
 
-( -- ) \ redraw the published gauges every half second until interrupted
-: gauges-view begin gauges-view-once 0.5 sleep again ;
+\ redraw the published gauges every half second until interrupted
+: gauges-view ( -- ) begin gauges-view-once 0.5 sleep again ;

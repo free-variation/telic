@@ -5,7 +5,17 @@ larger ( a b -- c )
 total ( xs -- total )
   the sum of an array of floats, folded left with +
 total            ( xs -- total )          the sum of an array of floats, folded left with +
-null 
-null 
+{
+  :effect ( -- n )
+  :summary 
+  :word undocumented
+}
+
+{
+  :effect ( -- n )
+  :summary 
+  :word separated
+}
+
 null 
 7 6 6 

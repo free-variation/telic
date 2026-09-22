@@ -15,7 +15,7 @@
 variable cell-links  variable tiles
 variable solution-sig
 
-: init-data ^cell-links ^tiles |
+: init-data ( -- ) ^cell-links ^tiles |
   [ [ 1.0 3.0 4.0 ]
     [ 2.0 0.0 4.0 5.0 ]
     [ 1.0 5.0 6.0 ]
@@ -185,7 +185,7 @@ variable solution-sig
   cid 0.0 < if cid [ ] exit then
   cells cid @i to c
   c dup size take to arr
-  arr [: empty = 0= :] filter reverse to moves
+  arr ( empty = 0= ) filter reverse to moves
   c empty member? if moves [ empty ] concat to moves then
   cid moves ;
 
@@ -208,12 +208,12 @@ variable solution-sig
   loop
   -1.0 ;
 
-: solve-once
+: solve-once ( -- )
   0.0 count array-of to cells
   0 count 1 do i  cells [< 2.0 3.0 4.0 7.0 >] i !i drop  loop
   cells 1.0 solve-step drop ;
 
-: hexiom-bench
+: hexiom-bench ( -- )
   init-data
   now to t0
   ' solve-once loops times

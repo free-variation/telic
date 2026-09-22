@@ -79,7 +79,7 @@ wall-now 2 week + time>iso .            \ the ISO timestamp two weeks from now
 [< 1 2 3 >] [< 2 3 4 >] + .                 \ [< 1 2 3 4 >]  (union via polymorphic +)
 
 \ Set-builder { x² | x ∈ 1..10, even x } — literal + filter/map + spread
-[< 1 10 range [: 2 mod 0= :] filter ' fsq map spread >] .   \ [< 4 16 36 64 100 >]
+[< 1 10 range ( 2 mod 0= ) filter ' fsq map spread >] .   \ [< 4 16 36 64 100 >]
 
 \ Frames — symbol-keyed nested maps
 { :a 1 :b { :c 2 } } /b/c @ .           \ 2
@@ -92,8 +92,8 @@ wall-now 2 week + time>iso .            \ the ISO timestamp two weeks from now
 "[1, 2, 3]" json>frame frame>json .     \ [1, 2, 3]
 
 \ Higher-order operations
-[ 1 2 3 4 5 ] [: dup * :] map .         \ [ 1 4 9 16 25 ]
-[ "bb" "a" "ccc" ] [: size :] sort-by . \ [ "a" "bb" "ccc" ]
+[ 1 2 3 4 5 ] ( dup * ) map .         \ [ 1 4 9 16 25 ]
+[ "bb" "a" "ccc" ] ( size ) sort-by . \ [ "a" "bb" "ccc" ]
 
 \ Strings and regex (PCRE2)
 "x=42" "(\w+)=(\d+)" match .            \ [ "x=42" "x" "42" ]
@@ -105,11 +105,11 @@ wall-now 2 week + time>iso .            \ the ISO timestamp two weeks from now
 "{bold}{red}alert{plain} ok" format .         \ colored on a tty; the ink escapes vanish when piped
 
 \ Exceptions
-[: "missing" throw :]
-[: "got " . . cr :] try-catch           \ prints "got missing"
+( "missing" throw )
+( "got " . . cr ) try-catch           \ prints "got missing"
 
 \ Generators — coroutines on the delimited-continuation primitives
-: primes 2 yield 3 yield 5 yield 7 yield ;
+: primes ( -- ) 2 yield 3 yield 5 yield 7 yield ;
 ' primes 4 gen-take .                   \ [ 2 3 5 7 ]
 
 \ Subprocesses over pipes
@@ -118,15 +118,15 @@ wall-now 2 week + time>iso .            \ the ISO timestamp two weeks from now
 \ Logic: unify binds variables; amb keeps the first branch that succeeds
 lvar to X  lvar to Y  lvar to Z
 [ 1 2 3 ] [ X Y Z ] ~ drop  X ? . Y ? . Z ? . cr   \ 1 2 3
-[: fail :] [: "fallback" :] amb .                  \ fallback
+( fail ) ( "fallback" ) amb .                  \ fallback
 
 \ Multi-core: run a quotation across the array on every core
-[ 1 2 3 4 5 6 7 8 ] [: dup * :] pmap .  \ [ 1 4 9 16 25 36 49 64 ]
+[ 1 2 3 4 5 6 7 8 ] ( dup * ) pmap .  \ [ 1 4 9 16 25 36 49 64 ]
 
 \ Datasets: column-oriented tables with verbs
 [ [ "name" "age" ] [ "ann" 34 ] [ "bo" 25 ] [ "cy" 61 ] ] true rows>dataset
 dup :age @ mean .                       \ 40  (a numeric column is already a vector)
-[: :age @ 30 > :] filter :name @ .     \ [ "ann" "cy" ]
+( :age @ 30 > ) filter :name @ .     \ [ "ann" "cy" ]
 
 \ Count distinct values, most frequent first; masks alter as well as select
 [ :b :a :b :c :b ] count first .        \ [ :b 3 ]
@@ -219,7 +219,7 @@ departs from its pyperformance original the file's header says so.
 - **Program image and execution state separated** — the dictionary, symbol pool, and object heap are global (`Vocabulary`, `Compiler`, `Arena`); the three stacks, instruction pointer, locals, and GC roots live in a per-run `Interpreter`. Several execution contexts share one image, which is how the parallel words give each worker its own stacks over the shared heap — and why a worker xt must not mutate shared inputs or print.
 - **Three stacks** — data, return, and a side stack for values that mustn't sit on either: `>side`, `side>`, `side-drop`, `side-peek`, `side-depth`.
 - **Colon definitions** — `: name body ;`. The body is captured as source text for `see` and the text-form `save`.
-- **Anonymous quotations** — `[: ... :]` pushes a fresh xt. Works at top level and inside colon defs.
+- **Anonymous quotations** — `( ... )` pushes a fresh xt. Works at top level and inside colon defs.
 - **`recurse`** — compiles a call to the innermost definition being compiled (the enclosing quotation, else the colon word), so an anonymous quotation can self-call.
 - **Tail-call elimination** — a call in tail position compiles to a frame-reusing jump, so a self-recursive or `recurse` loop runs in constant return-stack space. Disabled where it would be unsafe (a body using `>r`/`reset`/`shift`/`fail`, or locals plus a quotation).
 - **Partial application** — `curry` ( value xt -- xt' ) binds a value into a curried token, a heap value accepted wherever an xt is; the token travels through other words' frames intact, works inside parallel regions, and is garbage-collected.
@@ -231,7 +231,7 @@ departs from its pyperformance original the file's header says so.
 - **`forget`** — truncate the dictionary back to a named word; symbol identities survive.
 - **Variables and symbols** — `variable foo` declares a global, read by bare name and assigned with `42 to foo`; at top level `to` creates the global on first assignment. `symbol bar` defines a symbol, `:foo` is a symbol literal, `string>symbol` interns a computed string.
 - **Word-local variables** — a head at the start of a colon definition or quotation names what the body receives from the stack, rightmost from the top: `| x y |`, or `x y |` with the opening bar left off. Everything else is declared where `to` first assigns it, and the compiler collects those names to the head, so a name means one thing throughout the body. In the head, `^name` is an enclosing global the body assigns and `?name` a fresh logic variable per call. `++ name` / `-- name` increment/decrement in place (`f++` / `f--` the unsafe float-only forms).
-- **A quotation captures enclosing locals by copy** — naming a local of the enclosing body inside `[: … :]` binds a copy of it into the quotation, which then evaluates to a curried token; a quotation naming none stays a constant xt. Values also reach it through its own head, `pick` from the stack below the combinator's operands, or `curry`.
+- **A quotation captures enclosing locals by copy** — naming a local of the enclosing body inside `( … )` binds a copy of it into the quotation, which then evaluates to a curried token; a quotation naming none stays a constant xt. Values also reach it through its own head, `pick` from the stack below the combinator's operands, or `curry`.
 - **Mark-and-sweep GC** — walks the three stacks, the C-level roots, and the dictionary (each global's value cell and every compiled literal). Triggers on object-table and live-byte pressure, at a safepoint between words.
 
 ### Generators

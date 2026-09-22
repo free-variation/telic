@@ -2272,7 +2272,7 @@ static void see_source_render(FILE *out, Interpreter *interp, Val target) {
 			if (quotation_text)
 				fprintf(out, "%s\n", quotation_text);
 			else
-				fprintf(out, "[: ... :]  \\ anonymous, no source\n");
+				fprintf(out, "( ... )  \\ anonymous, no source\n");
 		} else {
 			int src_idx = (int)WORD_SOURCE(target_cfa);
 			if (src_idx > 0)
@@ -2359,7 +2359,7 @@ void p_edit(DISPATCH_ARGS) {
 		source_handle = capture_render(interp, see_source_render, make_xt(target_cfa));
 	} else {
 		char skeleton[NAME_MAX_LENGTH + 16];
-		int skeleton_length = snprintf(skeleton, sizeof(skeleton), ": %s\n\t;\n", name);
+		int skeleton_length = snprintf(skeleton, sizeof(skeleton), ": %s ( -- )\n\t;\n", name);
 		source_handle = object_new_string(interp, skeleton, skeleton_length);
 	}
 	if (interp->error_flag)

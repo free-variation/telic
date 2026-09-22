@@ -10,7 +10,7 @@ all. The quotation's own output goes to stdout as usual, so the two streams can
 be kept apart or read together.
 
 ```forth trace-basic
-[: 3 4 + :] [ ] trace . cr
+( 3 4 + ) [ ] trace . cr
 ```
 ```output
 > (lit) 3                 |
@@ -41,8 +41,8 @@ before its body, so `[ "^fit-program" ]` finds a word called only through
 `map`.
 
 ```forth trace-filtered
-: sq-traced | x | x x * ;
-[: 5 sq-traced 2 + :] [ "^exit" "\| 27" ] trace . cr
+: sq-traced ( x -- sq ) | x | x x * ;
+( 5 sq-traced 2 + ) [ "^exit" "\| 27" ] trace . cr
 ```
 ```output
 

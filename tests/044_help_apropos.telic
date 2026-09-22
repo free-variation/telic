@@ -30,7 +30,7 @@
 ' man man :word @ "man" = . cr                    \ 1
 
 \ a word with no reference entry returns null
-: fresh-this-session 1 ;
+: fresh-this-session ( -- n ) 1 ;
 ' fresh-this-session man null = . cr              \ 1
 
 \ a unit word synthesizes its entry from the unit's definition
@@ -65,7 +65,7 @@ help no-such-word
 3 4 + . cr                                        \ 7
 1 2 .s cr                                         \ 1 2
 clear
-: sq dup * ; 5 sq . cr                            \ 25
+: sq ( n -- n ) dup * ; 5 sq . cr                            \ 25
 "mean" apropos                                    \ the mean-family words
 ' 2dup see                                        \ : 2dup over over ;
 help map                                          \ map's reference frame
@@ -81,7 +81,7 @@ clear
 "frobenius" apropos
 
 \ session-defined words match by name
-: zork-test 1 ;
+: zork-test ( -- n ) 1 ;
 "ZORK" apropos
 
 \ no match prints nothing

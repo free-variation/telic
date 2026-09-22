@@ -15,19 +15,19 @@ num-cores 16 * to domain
 1000000 constant rounds
 1 domain range to seeds
 
-( seed -- result )  \ a long, allocation-free float mill
-: crunch
+\ a long, allocation-free float mill
+: crunch ( seed -- result )
 	| seed |
 	seed  seed 1.0 +
-	[: over + 0.5 * :] iters times
+	( over + 0.5 * ) iters times
 	nip ;
 
-( -- )  \ loop rounds times; each round is a full-core pmap over every work item
-: stress ^t0 |
+\ loop rounds times; each round is a full-core pmap over every work item
+: stress ( -- ) ^t0 |
 	0 to i
 	begin i rounds < while
 		now to t0
-		seeds workers 1 ' crunch pmap-ext 0.0 [: + :] reduce
+		seeds workers 1 ' crunch pmap-ext 0.0 ( + ) reduce
 		i 1 + now t0 - "  round {1}: {0} s   cksum {2}" format . cr
 		++ i
 	repeat ;

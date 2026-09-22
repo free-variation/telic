@@ -2,11 +2,12 @@
 
 Syntax highlighting, indentation, and bracket matching for telic (`.telic`).
 
-- **Highlighting** — comments (`\ …`, `( … )`), strings (`""` escape), numbers,
+- **Highlighting** — comments (`\ …`), the declared stack effect after a
+  definition name (`( a -- b )`), strings (`""` escape), numbers,
   `:symbol` / `/path` literals, capitalized logic variables, control flow,
   defining words, the logic words, and the built-in vocabulary.
-- **Indentation** — increases inside `:` … `;`, `[:` … `:]`, and
-  `if`/`begin`/`else`; dedents lines that start with `;`/`:]`/`then`/`else`/
+- **Indentation** — increases inside `:` … `;`, `(` … `)`, and
+  `if`/`begin`/`else`; dedents lines that start with `;`/`)`/`then`/`else`/
   `until`/`again`/`repeat`. One-line definitions and quotations don't indent.
 - **Bracket matching / auto-close** — `[ ]`, `{ }`, `( )`, and `"`.
 

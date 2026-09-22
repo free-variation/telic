@@ -31,11 +31,11 @@ variable t0
   repeat
   acc ;
 
-: pleibniz ^t0 ^pi-est |
+: pleibniz ( -- ) ^t0 ^pi-est |
   now to t0
   0 chunks 1- range
   chunks 1 ' partial pmap-ext
-  0.0 [: f+ :] reduce
+  0.0 ( f+ ) reduce
   4.0 f* to pi-est
   now t0 - "elapsed: {0}s" format . cr
   pi-est "pi: {0}" format . cr ;

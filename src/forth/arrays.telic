@@ -1,8 +1,8 @@
 \ array words
 
-( arr/matrix n -- arr'/vector ) \ the last n elements (n clamped to [0, length]);
+\ the last n elements (n clamped to [0, length]);
 \ a matrix answers its last n row-major elements as an nx1 vector
-: nlast
+: nlast ( arr/matrix n -- arr'/vector )
 	| source n |
 	source quantity? if
 		source magnitude n nlast source unit-of * exit
@@ -14,69 +14,69 @@
 	then
 	source reverse n take reverse ;
 
-( arr n -- arr' ) \ all but the first n elements (clamped)
-: skip over size swap - swap reverse swap take reverse ;
+\ all but the first n elements (clamped)
+: skip ( arr n -- arr' ) over size swap - swap reverse swap take reverse ;
 
-( n -- [0..n-1] ) \ empty when n <= 0
-: iota dup 0 <= if drop [ ] else 1- 0 swap range then ;
+\ empty when n <= 0
+: iota ( n -- [0..n-1] ) dup 0 <= if drop [ ] else 1- 0 swap range then ;
 
-( xt n -- total ) \ sum of xt ( i -- term ) over i in 0..n-1
-: sum-times
+\ sum of xt ( i -- term ) over i in 0..n-1
+: sum-times ( xt n -- total )
   | xt n |
   0 xt ' f+ n fold-times ;
 
-( xt n -- product ) \ product of xt ( i -- term ) over i in 0..n-1
-: product-times
+\ product of xt ( i -- term ) over i in 0..n-1
+: product-times ( xt n -- product )
   | xt n |
   1 xt ' f* n fold-times ;
 
-( items pred -- flag ) \ does any element satisfy pred?
-: any? find-first null? not ;
+\ does any element satisfy pred?
+: any? ( items pred -- flag ) find-first null? not ;
 inline
 
-( items pred -- flag ) \ do all elements satisfy pred?
-: all? map 1 ' * reduce ;
+\ do all elements satisfy pred?
+: all? ( items pred -- flag ) map 1 ' * reduce ;
 
-( arr/mat -- arr/mat ) \ one dimension: an array with every nested array spliced
+\ one dimension: an array with every nested array spliced
 \ in, recursively (a flat array answers itself); a matrix as a 1x(r*c) row
-: flatten
+: flatten ( arr/mat -- arr/mat )
 	dup array? if (flatten-array) exit then
 	dup matrix? over quantity? or not if
 		type-of "expected an array or matrix; got {0}" format throw
 	then
 	dup dim * 1 swap reshape ;
 
-( items xt -- items' ) \ xt maps an element to an array; results concatenated
-: flat-map map flatten ;
+\ xt maps an element to an array; results concatenated
+: flat-map ( items xt -- items' ) map flatten ;
 inline
 
 
-( set -- arr ) \ the set's elements as an array, already in val_cmp order
-: set>array sort ;
+\ the set's elements as an array, already in val_cmp order
+: set>array ( set -- arr ) sort ;
 inline
 
-( items xt -- items' ) \ sorted by the key xt ( element -- key ) extracts
-: sort-by over swap map argsort select-rows ;
+\ sorted by the key xt ( element -- key ) extracts
+: sort-by ( items xt -- items' ) over swap map argsort select-rows ;
 
-( items pred -- matches rest ) \ elements satisfying pred, and the others
-: partition 
+\ elements satisfying pred, and the others
+: partition ( items pred -- matches rest ) 
 	2dup filter 
-	-rot [: execute not :] curry 
+	-rot ( execute not ) curry 
 	filter ;
 
-( items key -- frame ) \ group elements into { sym -> set }: a symbol key names the
+\ group elements into { sym -> set }: a symbol key names the
 \ field read from each element frame (one sorted pass in C); an xt key
 \ ( element -- sym ) computes each element's group symbol
-: group-by
+: group-by ( items key -- frame )
 	dup symbol? if (group-by) exit then
 	dup xt? not if
 		type-of "expected a symbol or execution token key; got {0}" format throw
 	then
 	>side
 	{ }
-	[:
+	(
 		over over side-peek execute
 		2dup has? not if 2dup [< >] swap ! drop then
 		@ swap set-add! drop
-	:] reduce
+	) reduce
 	side-drop ;

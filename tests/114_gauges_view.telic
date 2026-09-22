@@ -7,7 +7,7 @@
 
 "/tmp/telic-test-gauges.bin" to publication
 "/tmp/telic-test-gauges.bin" "TELIC_GAUGES_FILE" env!
-[: publication file-exists? if publication delete-file then :] execute
+( publication file-exists? if publication delete-file then ) execute
 
 \ -- the hook does nothing until a target is installed
 after-entry depth . cr                               \ 0

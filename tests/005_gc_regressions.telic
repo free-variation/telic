@@ -2,7 +2,7 @@
 
 variable s
 "" to s
-: g ^s | 1500 begin s "x" + to s 1 - dup 0 = until drop ;
+: g ( -- ) ^s | 1500 begin s "x" + to s 1 - dup 0 = until drop ;
 g
 s size .
 
@@ -21,7 +21,7 @@ clear
 \ (dostr) op, the template went unmarked, got swept, and the next invocation
 \ of the quotation dereferenced a NULL Object and segfaulted.
 
-: msg-xt  [: "msg" :] ;
+: msg-xt ( -- xt )  ( "msg" ) ;
 
 msg-xt execute drop
 gc
@@ -37,13 +37,13 @@ clear
 \ mark_value recurses only to a fixed depth and then queues children on a
 \ worklist, so an array nested 1M levels deep survives a collection instead
 \ of crashing. Reverting to unbounded recursion turns this into a SIGSEGV.
-[ ] [: 1 array :] 1000000 times gc drop 42 . cr
+[ ] ( 1 array ) 1000000 times gc drop 42 . cr
 
 \ Non-tail nesting: each array holds the deeper one in element 0, not the
 \ tail, so the tail loop cannot absorb it. Recursive marking on non-tail
 \ children overflowed the C stack. mark descends a bounded number of C
 \ frames, then defers deeper children to an explicit worklist, so arbitrary
 \ nesting survives a collection instead of crashing.
-[ 0 ] [: 0 2 array :] 200000 times gc 43 . cr
+[ 0 ] ( 0 2 array ) 200000 times gc 43 . cr
 
 clear

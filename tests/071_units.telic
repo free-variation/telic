@@ -55,7 +55,7 @@ base unit kg
 \ ---- application (dounit), top-level and compiled ----
 10 m . cr
 3 kg . cr
-: dist 10 m ;
+: dist ( -- q ) 10 m ;
 dist . cr
 
 \ ---- multiplication: compound and scalar ----

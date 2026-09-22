@@ -1,12 +1,12 @@
 \ logic words
 
-( v -- val ) \ resolve a logic var to its current binding
-: ? deref ;
+\ resolve a logic var to its current binding
+: ? ( v -- val ) deref ;
 inline
 
-( items goal i -- ) \ choose from element i on: the goal on element i, else
+\ choose from element i on: the goal on element i, else
 \ the same from i+1; the last element runs without a choice point
-: choose-from
+: choose-from ( items goal i -- )
 	| items goal i |
 	i items size >= if fail exit then
 	i items size 1- = if
@@ -17,38 +17,38 @@ inline
 		amb
 	then ; internal
 
-( items goal -- ) \ run goal with each element of the array in turn; commit to the first element for which goal succeeds, fail if none do
-: choose 0 choose-from ;
+\ run goal with each element of the array in turn; commit to the first element for which goal succeeds, fail if none do
+: choose ( items goal -- ) 0 choose-from ;
 
-( items goal -- arr ) \ goal's value for every element of the array it
+\ goal's value for every element of the array it
 \ succeeds on, in order; answers snapshot through copy, and every
 \ binding rolls back — choose collects all instead of committing to one
-: solutions
+: solutions ( items goal -- arr )
 	| items goal |
 	[ ] to answers
 	items
-	[: element |
+	( element |
 		element goal execute
 		answers swap copy add-last! drop
 		fail
-	:]
+	)
 	' choose 2curry
 	
 	' identity amb
 	answers ;
 
-( items goal n -- arr ) \ the first n solutions; the goal stops running once
+\ the first n solutions; the goal stops running once
 \ n are collected, and bindings roll back as in solutions
-: take-solutions
+: take-solutions ( items goal n -- arr )
 	| items goal n |
 	[ ] to answers
 	items
-	[: element |
+	( element |
 		answers size n >= if fail then
 		element goal execute
 		answers swap copy add-last! drop
 		fail
-	:]
+	)
 	' choose 2curry
 	
 	' identity amb

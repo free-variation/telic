@@ -411,7 +411,7 @@ glm-x glm-y [ 1 1 1 ] vector glm-beta gaussian-identity glm-covariance matrix>ar
 
 ```forth xgb-predict
 "statistics" load-library
-[ 0 1 2 3 4 5 6 7 ] 8 1 matrix [ 0 1 2 3 4 5 6 7 ] vector { :rounds 5 :nthread 1 } fit-xgb dup [ 0 7 ] 2 1 matrix xgb-predict matrix>array [: 100 * round :] map . xgb-free cr
+[ 0 1 2 3 4 5 6 7 ] 8 1 matrix [ 0 1 2 3 4 5 6 7 ] vector { :rounds 5 :nthread 1 } fit-xgb dup [ 0 7 ] 2 1 matrix xgb-predict matrix>array ( 100 * round ) map . xgb-free cr
 ```
 ```output
 [ 152 548 ]
@@ -447,7 +447,7 @@ dup "/tmp/docs-xgb.json" xgb-save xgb-free
 "statistics" load-library
 [ 0 1 2 3 4 5 6 7 ] 8 1 matrix [ 0 1 2 3 4 5 6 7 ] vector { :rounds 5 :nthread 1 } fit-xgb
 dup "/tmp/docs-xgb.json" xgb-save xgb-free
-"/tmp/docs-xgb.json" xgb-load dup [ 7 ] 1 1 matrix xgb-predict matrix>array [: 100 * round :] map . xgb-free cr
+"/tmp/docs-xgb.json" xgb-load dup [ 7 ] 1 1 matrix xgb-predict matrix>array ( 100 * round ) map . xgb-free cr
 ```
 ```output
 [ 548 ]
@@ -502,7 +502,7 @@ regressions answer. `linear-regression` and `logistic-regression` are
 ```forth regress-with
 "statistics" load-library
 [ [ "x" "y" ] [ 1 3 ] [ 2 5 ] [ 3 7 ] [ 4 9.1 ] ] true rows>dataset
-[ :x ] :y null 0 [: drop fit-linear :] gaussian-identity regress-with dup :predictors @ . :inference @ . cr
+[ :x ] :y null 0 ( drop fit-linear ) gaussian-identity regress-with dup :predictors @ . :inference @ . cr
 ```
 ```output
 [ :intercept :x ] :wald
@@ -1091,7 +1091,7 @@ telic -e '"mcp" load-library mcp-serve'
 
 ```forth-noexec mcp-add-tool
 \ a host program's own tool, registered before serving
-: greet-tool | id arguments |
+: greet-tool ( id arguments -- ) | id arguments |
   id "hello " arguments :who @ + false mcp-tool-result ;
 
 { :name "greet"

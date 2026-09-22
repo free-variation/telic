@@ -132,7 +132,7 @@ This is where computation happens. `1 2 +` pushes 1, then pushes 2, then `+` pop
 This is where the call mechanism remembers where to come back to. When a colon-defined word like
 
 ```forth
-: square dup * ;
+: square ( n -- n ) dup * ;
 ```
 
 is called from somewhere else, the inner interpreter records the *current* instruction pointer on the return stack, then sets the instruction pointer to `square`'s body. When `square`'s body reaches its EXIT, the saved instruction pointer is popped and execution continues where it left off.
@@ -305,8 +305,8 @@ This is the basic coroutine pattern. `shift` is `yield`. The driver (the code th
 Here's a concrete trace.
 
 ```forth
-: producer  1 yield 2 yield 3 ;
-: drive   reset producer ;
+: producer ( -- n )  1 yield 2 yield 3 ;
+: drive ( -- n )   reset producer ;
 ```
 
 (`yield` is the library word — generators.telic's `: yield shift ;`.) Call `drive`. The execution unfolds like this:
@@ -434,8 +434,8 @@ The captured `OBJECT_CONTINUATION` is never modified by resume. The `return_slic
 This means you can call `resume` on the same `k` many times, and each time the slice runs fresh, producing the same effects (modulo any global state changes the slice might make). This is "multi-shot" resumption, and it's what enables backtracking-style code.
 
 ```forth multi-shot
-: shifter shift ;
-: ex reset 99 shifter 2 * ;
+: shifter ( -- ) shift ;
+: ex ( -- n ) reset 99 shifter 2 * ;
 ex swap drop
 dup 3 swap resume . cr
 4 swap resume . cr
@@ -536,9 +536,9 @@ This is the whole reason the unwinding works correctly: the docol frame just bel
 Suppose we have:
 
 ```forth
-: deep   1 throw ;
-: middle deep ;
-: top    [: middle :] catch ;
+: deep ( -- )   1 throw ;
+: middle ( -- ) deep ;
+: top ( -- )    ( middle ) catch ;
 ```
 
 When `throw` fires inside `deep`, the C stack looks like:
@@ -551,7 +551,7 @@ C stack (most recent on top):
   execute_cfa(deep)
   run_inner          <-- running middle's body
   execute_cfa(middle)
-  run_inner          <-- running the [: middle :] quotation's body
+  run_inner          <-- running the ( middle ) quotation's body
   execute_cfa(quotation)
   p_execute          <-- the `execute` word inside catch's body
   run_inner          <-- running catch's body (this is the one with reset!)
@@ -602,11 +602,11 @@ With all that machinery, exceptions are two one-liners and a primitive:
     then ;
 ```
 
-`throw` behaves like `[: drop 1 :] shift-with` on the caught path, except that it pushes the `1` directly instead of capturing a continuation only for the handler to drop it. `(execute-catching)` is `execute` plus a check covered in *Catching interpreter errors* below. On the `throw` and success paths it behaves exactly like `execute`, so the two traces that follow read the same with either.
+`throw` behaves like `( drop 1 ) shift-with` on the caught path, except that it pushes the `1` directly instead of capturing a continuation only for the handler to drop it. `(execute-catching)` is `execute` plus a check covered in *Catching interpreter errors* below. On the `throw` and success paths it behaves exactly like `execute`, so the two traces that follow read the same with either.
 
-Let's trace `[: 42 throw :] catch`:
+Let's trace `( 42 throw ) catch`:
 
-1. The quotation `[: 42 throw :]` is pushed onto the data stack as an xt.
+1. The quotation `( 42 throw )` is pushed onto the data stack as an xt.
 2. `catch` is called. Its body is `reset (execute-catching) 0`.
 3. `reset` pushes a MARK (id=N) onto the return stack.
 4. `(execute-catching)` pops the xt and invokes it.
@@ -619,7 +619,7 @@ Let's trace `[: 42 throw :] catch`:
 11. The `0` after `(execute-catching)` in catch's body is bypassed (catch's body never runs again).
 12. Execution continues past catch in the calling word, with `[42, 1]` on the data stack.
 
-Now trace `[: 42 :] catch` (success path):
+Now trace `( 42 ) catch` (success path):
 
 1. The xt is pushed.
 2. catch body: `reset (execute-catching) 0`.
@@ -672,8 +672,8 @@ Nesting works because each `reset` allocates a fresh mark id and the unwind targ
 ```forth nested-try-catch
 : outer-h ( exc -- ) "outer handler: {0}" format print cr ;
 : inner-h ( exc -- ) "inner handler: {0}" format print cr ;
-: demo
-    [: [: 1 throw :] ' inner-h try-catch 2 throw :]
+: demo ( -- )
+    ( ( 1 throw ) ' inner-h try-catch 2 throw )
     ' outer-h try-catch ;
 demo
 ```
@@ -733,8 +733,8 @@ This is why continuations and coroutines are the same idea seen from two angles.
 ### A simple coroutine
 
 ```forth
-: producer  1 yield 2 yield 3 yield ;
-: drive   reset producer ;
+: producer ( -- )  1 yield 2 yield 3 yield ;
+: drive ( -- )   reset producer ;
 ```
 
 `yield` is just `shift` — generators.telic defines it as exactly `: yield shift ;` — capture the rest of the producer's work as a continuation `k`, leave it on the data stack, unwind to the reset's caller. `drive` returns to its caller with `(value, k)`.
@@ -768,7 +768,7 @@ The driver needs to know when to stop. Three approaches, in increasing sophistic
 **Sentinel value.** The producer yields a special "I'm done" value before truly exiting:
 
 ```forth
-: producer  1 yield 2 yield 3 yield :done yield ;
+: producer ( -- )  1 yield 2 yield 3 yield :done yield ;
 ```
 
 The driver checks each yielded value against `:done` and stops the loop when it sees it. Simple but ugly: the protocol leaks into both producer and consumer, and `:done` can't be a legitimate value. (This is the protocol generators.telic's `gen-each` uses, with a `:gen-end` sentinel the driver supplies itself.)
@@ -779,7 +779,7 @@ The driver checks each yielded value against `:done` and stops the loop when it 
 : yield-value ( v -- )  :value swap 2 array yield drop ;
 : yield-end   ( -- )    [ :end ] yield drop ;
 
-: producer  1 yield-value 2 yield-value 3 yield-value yield-end ;
+: producer ( -- )  1 yield-value 2 yield-value 3 yield-value yield-end ;
 ```
 
 The driver dispatches on `0 @i` (the tag). Cleaner: any value can be yielded, and the protocol is explicit. Verbose, but explicit beats clever.
@@ -791,8 +791,8 @@ mark is the nearest exception prompt — so the throw surfaces *at the resume
 site*, as the same `(exc, 1)` shape `catch` delivers, with no `catch` written:
 
 ```forth exception-termination
-: producer  1 yield :done throw ;
-: drive  reset producer ;
+: producer ( -- )  1 yield :done throw ;
+: drive ( -- )  reset producer ;
 drive swap . cr
 0 swap resume
 . . . cr
@@ -889,7 +889,7 @@ Once you have coroutines, you can pipe them. A producer yields values; a filter 
 : range-gen ( n -- ) 1 begin 2dup < if 2drop exit then dup yield 1+ again ;
 
 \ Filter receives values, yields x*x for each
-: square-filter
+: square-filter ( -- )
     begin
         yield   \ get next input
         dup *   \ square it
@@ -914,7 +914,7 @@ Multi-producer scheduling — running many coroutines, interleaving their progre
 
 ```forth
 \ Pseudo-code (Telic doesn't ship a queue type)
-: scheduler
+: scheduler ( -- )
     begin
         queue-empty? if exit then
         queue-pop          \ get next k
@@ -969,7 +969,7 @@ The packaged drivers ship in generators.telic: `start-generator` runs a producer
       f++ i
     repeat ;
 4 ' squares-producer curry 4 gen-take . cr
-4 ' squares-producer curry [: . :] gen-each cr
+4 ' squares-producer curry ( . ) gen-each cr
 ```
 ```output
 [ 1 4 9 16 ]
@@ -1003,8 +1003,8 @@ The implementation of each combinator allocates a fresh continuation chain that 
 `shift-with`'s handler receives `k`. Most of our exception examples drop `k`, but the handler is free to *resume* it instead. When it does, the slice runs as if shift-with had returned whatever the handler pushed before calling resume.
 
 ```forth restart
-: ouch ( -- v ) [: 42 swap resume :] shift-with ;
-: caller reset 5 ouch + ;
+: ouch ( -- v ) ( 42 swap resume ) shift-with ;
+: caller ( -- n ) reset 5 ouch + ;
 caller . cr
 ```
 ```output
@@ -1015,7 +1015,7 @@ Trace:
 
 1. `caller` runs `reset`, pushing a MARK.
 2. `5` is pushed: `[5]`.
-3. `ouch` is called. Its body is `[: 42 swap resume :] shift-with`.
+3. `ouch` is called. Its body is `( 42 swap resume ) shift-with`.
 4. The handler quotation is pushed: `[5, handler]`.
 5. `shift-with` captures the frames above the MARK (just `R_ouch` — ouch's own docol frame), keeps the MARK, pushes `k`, runs the handler.
 6. The handler runs: `42` is pushed (`[5, k, 42]`); `swap` (`[5, 42, k]`); `resume` pops k.
@@ -1051,7 +1051,7 @@ In Telic: the signaling word builds a handler quotation that wraps the resume ca
 
 : safe-div ( a b -- result )
     dup 0= if
-        [: ( restart-info k -- )
+        ( ( restart-info k -- )
             \ restart-info is on the stack: a tag and possibly a value
             \ k is the continuation back into safe-div
             \ Decide what to do based on the tag.
@@ -1062,7 +1062,7 @@ In Telic: the signaling word builds a handler quotation that wraps the resume ca
                 swap resume         \ resume safe-div with that value as its result
             then
             ...
-        :] shift-with
+        ) shift-with
     then
     /                                \ normal path
 ;
@@ -1142,7 +1142,7 @@ A search reads as a description of the constraints. The lib word `choose` (built
 
 ```forth choose
 \ commit to the first x in 1..5 that is greater than 3
-[ 1 2 3 4 5 ] [: x | x 3 > if x else fail then :] choose . cr
+[ 1 2 3 4 5 ] ( x | x 3 > if x else fail then ) choose . cr
 ```
 ```output
 4
@@ -1185,10 +1185,10 @@ variable thread-queue
 
 : gyield   ( -- )
     \ Cooperative yield: capture k, append to the queue, switch to next thread.
-    [: ( k -- )
+    ( ( k -- )
         thread-queue swap add-last! drop
         scheduler-pick
-    :] shift-with ;
+    ) shift-with ;
 
 : spawn   ( xt -- )
     \ Wrap xt in a fresh reset, capture it as a starting continuation,
@@ -1224,14 +1224,14 @@ Green threads typically communicate via channels — blocking message queues. A 
 : channel-send  ( v ch -- )
     dup channel-full? if
         \ Suspend until someone receives: park k on the channel's sender list.
-        [: ( k -- ) ... :] shift-with
+        ( ( k -- ) ... ) shift-with
     then
     channel-push ;
 
 : channel-receive ( ch -- v )
     dup channel-empty? if
         \ Suspend until someone sends: park k on the channel's receiver list.
-        [: ( k -- ) ... :] shift-with
+        ( ( k -- ) ... ) shift-with
     then
     channel-pop ;
 ```
@@ -1250,10 +1250,10 @@ Async I/O is the same pattern as green threads, with one twist: instead of a sch
 : await   ( pending-io -- result )
     \ Suspend; when the I/O completes, the event loop will resume us
     \ with the result on the data stack.
-    [: ( k -- )
+    ( ( k -- )
         \ register k with the event loop, tagged with the pending I/O
         2 array event-loop-register
-    :] shift-with ;
+    ) shift-with ;
 
 \ User code looks linear:
 : fetch-and-process ( url -- result )
@@ -1288,9 +1288,9 @@ What if a coroutine throws? With our implementation, throw unwinds to the neares
 If the coroutine should handle its own exceptions internally, wrap parts of it in `try-catch`:
 
 ```forth
-: robust-producer
-    [: 1 yield 2 yield (might-throw) yield :]
-    [: drop -1 yield :]
+: robust-producer ( -- )
+    ( 1 yield 2 yield (might-throw) yield )
+    ( drop -1 yield )
     try-catch ;
 ```
 

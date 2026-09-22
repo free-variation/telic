@@ -49,26 +49,26 @@ ranks            ( v -- v' )              statistics.telic: 0-based midranks as 
 row-means        ( mat -- mat' )          matrix.telic: r×1 of per-row means
 se               ( mat -- f )             statistics.telic: standard error of the mean (standard deviation ÷ √n)
 summary          ( v/dataset -- fr )      statistics.telic: a vector answers { :min :q1 :median :mean :q3 :max } over its finite elements — a dimensioned vector in its unit, an instant vector (unit exactly s) with each statistic rendered as an ISO time string — plus :missing with the NaN count when any; an all-missing vector answers { :missing n }, an empty one { }. A dataset answers that frame per numeric column and { :distinct } (distinct non-missing cells, plus :missing) per text column, keyed by column name; any other column value errors naming the column
-: 2dup over over ;
+: 2dup ( a b -- a b a b ) over over ;
 map ( arr/set xt -- arr ) or ( dataset xt -- dataset )
   Apply xt to each element; xt must leave exactly one value. datasets.telic extends it to a dataset: xt maps each row frame to a new row frame — derive, rename, or drop fields — and the returned frames rebuild into a dataset, so all rows must share keys and columns re-infer their representation
   ops 2 + n·xt, alloc 1a(n); dataset rows + new columns, O(n·xt); dataset O(n·(xt + k log k))
 
-  > [ 1 2 3 ] [: dup * :] map . cr
+  > [ 1 2 3 ] ( dup * ) map . cr
   [ 1 4 9 ]
 telic — a quick start:
-  3 4 + .            add two numbers and print the result
-  .s                 show the whole stack (clear empties it)
-  [ 1 2 3 ]          an array
-  { :a 1 }           a frame (symbol-keyed)
-  [< 1 2 3 >]          a set
-  : sq dup * ;       define a word
-  5 sq .             run it (prints 25)
-  words              list every word
-  "mean" apropos     find words by name or summary
-  ' 2dup see         print a word's definition
-  help map           print one word's reference entry
-  bye                quit
+  3 4 + .                  add two numbers and print the result
+  .s                       show the whole stack (clear empties it)
+  [ 1 2 3 ]                an array
+  { :a 1 }                 a frame (symbol-keyed)
+  [< 1 2 3 >]              a set
+  : sq ( n -- n ) dup * ;  define a word
+  5 sq .                   run it (prints 25)
+  words                    list every word
+  "mean" apropos           find words by name or summary
+  ' 2dup see               print a word's definition
+  help map                 print one word's reference entry
+  bye                      quit
  frobenius-norm   ( mat -- f )             Euclidean (L2) norm: √(Σ aᵢⱼ²) over all elements — a vector's length; for a matrix the Frobenius (entrywise 2-)norm, not the spectral norm
 norm             ( mat -- f )             matrix.telic: Euclidean (L2) norm, √(Σ elements²) — a vector's length, a matrix's Frobenius norm
 zork-test                                 defined this session

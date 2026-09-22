@@ -2265,15 +2265,15 @@ static void clean_snippet(char *cleaned, int cap, int source_offset) {
 			n--;
 		if (n > 0 && (unsigned char)cleaned[n - 1] >= 0xC0)
 			n--;
-		memcpy(&cleaned[n], "… :]", 6);
-		n += 6;
+		memcpy(&cleaned[n], "… )", 5);
+		n += 5;
 	}
 	cleaned[n] = 0;
 }
 
 static void trace_write_snippet(Interpreter *interp, int *len, int source_offset) {
 	if (source_offset == 0) {
-		trace_write(interp, len, "[:?]");
+		trace_write(interp, len, "(?)");
 		return;
 	}
 	char cleaned[TRACE_SNIPPET_MAX + 8];
@@ -3475,11 +3475,10 @@ char *next_token(void) {
 
 	if (lead == ';' || lead == ']' || lead == '}') {
 		compiler.input_buffer_pos++;
-	} else if ((lead == ':' || lead == '>') && after_lead == ']') {
+	} else if (lead == '>' && after_lead == ']') {
 		compiler.input_buffer_pos += 2;
 	} else if (lead == '[') {
-		int two_char_opener = after_lead == ':' || after_lead == '<';
-		compiler.input_buffer_pos += two_char_opener ? 2 : 1;
+		compiler.input_buffer_pos += after_lead == '<' ? 2 : 1;
 	} else if (lead == '{') {
 		compiler.input_buffer_pos++;
 	} else {
@@ -3491,8 +3490,7 @@ char *next_token(void) {
 				break;
 			if (c == ']' && bracket_depth == 0) {
 				char preceding = buffer[compiler.input_buffer_pos - 1];
-				if ((preceding == ':' || preceding == '>')
-						&& compiler.input_buffer_pos - 1 > start)
+				if (preceding == '>' && compiler.input_buffer_pos - 1 > start)
 					compiler.input_buffer_pos--;
 				break;
 			}
@@ -3573,12 +3571,6 @@ void skip_whitespace_and_comments(void) {
 		if (compiler.input_buffer_pos >= compiler.input_buffer_len)
 			return;
 		char lead_char = compiler.input_buffer[compiler.input_buffer_pos];
-		if (lead_char == '(' && comment_starts_here()) {
-			skip_to_char(')');
-			if (compiler.input_buffer_pos < compiler.input_buffer_len)
-				compiler.input_buffer_pos++;
-			continue;
-		}
 		if (lead_char == '\\' && comment_starts_here()) {
 			skip_to_char('\n');
 			continue;
@@ -3937,12 +3929,6 @@ void run_outer(Interpreter *interp) {
 			}
 			compiler.fuse_prev_var = 0;
 			compiler.fuse_prev2_var = 0;
-			continue;
-		}
-		if (lead_char == '(' && comment_starts_here()) {
-			skip_to_char(')');
-			if (compiler.input_buffer_pos < compiler.input_buffer_len)
-				compiler.input_buffer_pos++;
 			continue;
 		}
 		if (lead_char == '\\' && comment_starts_here()) {
@@ -4885,7 +4871,7 @@ static int see_print_cell(FILE *out, Interpreter *interp, int cursor) {
 			? quotation_span_containing(target) : NULL;
 		if (quotation && quotation->start_cfa == target) {
 			if (quotation->source_offset == 0) {
-				fputs("[:?]", out);
+				fputs("(?)", out);
 			} else {
 				char cleaned[TRACE_SNIPPET_MAX + 8];
 				clean_snippet(cleaned, TRACE_SNIPPET_MAX, quotation->source_offset);
@@ -5150,7 +5136,7 @@ static void see_compiled_body(FILE *out, Interpreter *interp, int body_start, in
 		}
 
 		if (handler == docol_handler && quotation_starts_at(cursor)) {
-			fputs("[:\n", out);
+			fputs("(\n", out);
 			cursor++;
 			depth++;
 			continue;
@@ -5187,7 +5173,7 @@ static void see_tree_body(FILE *out, Interpreter *interp, int body_start, int in
 		if (handler_fn == docol) {
 			int target = (int)vocab.dict[cursor + 1];
 			if (quotation_starts_at(cursor) || target < 4 || target >= vocab.here) {
-				fputs("[:\n", out);
+				fputs("(\n", out);
 				cursor++;
 				depth++;
 				continue;
@@ -5221,7 +5207,7 @@ static void see_tree_body(FILE *out, Interpreter *interp, int body_start, int in
 		if (handler == vocab.dict[vocab.tailcall_cfa]) {
 			int target = (int)vocab.dict[cursor + 1];
 			if (quotation_starts_at(target))
-				fputs("(tailcall) [:]\n", out);
+				fputs("(tailcall) ()\n", out);
 			else if (target >= 4 && target < vocab.here)
 				fprintf(out, "(tailcall) %s\n", &vocab.name_pool[WORD_NAME(target)]);
 			else
@@ -5279,7 +5265,7 @@ int capture_render(Interpreter *interp, void (*render)(FILE *, Interpreter *, Va
 static const char *quotation_header(int cfa) {
 	const char *source = quotation_source(cfa);
 
-	return source ? source : "[: ... :]";
+	return source ? source : "( ... )";
 }
 
 static void see_compiled_render(FILE *out, Interpreter *interp, Val target) {
@@ -6191,8 +6177,8 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "of", p_of, 1);
 	define_primitive(interp, "endof", p_endof, 1);
 	define_primitive(interp, "endcase", p_endcase, 1);
-	define_primitive(interp, "[:", p_qcolon, 1);
-	define_primitive(interp, ":]", p_qsemi, 1);
+	define_primitive(interp, "(", p_qcolon, 1);
+	define_primitive(interp, ")", p_qsemi, 1);
 	define_primitive(interp, "|", p_bar, 1);
 
 	define_primitive(interp, "0-matrix", p_0_matrix, 0);

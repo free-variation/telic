@@ -24,21 +24,21 @@ variable server
 { } to expected
 0 to answered
 
-( cap -- proc ) \ a server child holding at most cap live sessions
+\ a server child holding at most cap live sessions
 \ the cap is set after the library loads, since the library assigns its own
-: start-server
+: start-server ( cap -- proc )
   | cap |
   [ binary-dir "/telic" + "-e"
 	cap """mcp"" load-library {0:d} to mcp-max-sessions mcp-serve" format ] start-process ;
 
-( -- fr ) \ the _meta every request carries
-: request-meta
+\ the _meta every request carries
+: request-meta ( -- fr )
   { :io.modelcontextprotocol/protocolVersion "2026-07-28"
 	:io.modelcontextprotocol/clientCapabilities { }
   } ;
 
-( id session code -- ) \ send one telic-eval call and remember what it should answer
-: send-eval
+\ send one telic-eval call and remember what it should answer
+: send-eval ( id session code -- )
   | id session code |
   { :jsonrpc "2.0"
 	:id id
@@ -48,13 +48,13 @@ variable server
 			  :_meta request-meta }
   } frame>json "{0}{nl}" format server :in @ write ;
 
-( id text -- ) \ what a call's answer must be
-: expect-answer
+\ what a call's answer must be
+: expect-answer ( id text -- )
   | id text |
   expected text id string>symbol ! drop ;
 
-( -- ) \ read one answer, check it against what was expected, and count it
-: take-answer
+\ read one answer, check it against what was expected, and count it
+: take-answer ( -- )
   | ^answered |
   [ server :out @ ] 30 wait-readable size 0 = if
 	"the server stopped answering" throw
@@ -68,8 +68,8 @@ variable server
   expected key delete-at drop
   ++ answered ;
 
-( session round -- ) \ one arithmetic call, its answer known from its operands
-: send-round-call
+\ one arithmetic call, its answer known from its operands
+: send-round-call ( session round -- )
   | session round |
   round session "s{0:d}-r{1:d}" format to id
   id round session + "{0:d} " format expect-answer
@@ -82,7 +82,7 @@ variable server
 core-count session-count max2 4 + start-server to server
 
 now to started
-[: i | i 0 send-round-call :] session-count i-times
+( i | i 0 send-round-call ) session-count i-times
 ' take-answer session-count times
 now started - to spawn-seconds
 
@@ -95,10 +95,10 @@ spawn-seconds session-count / "  {0:.4f} s per session" format print cr
 now to started
 \ the round number reaches the inner body through curry: a quotation reads the
 \ locals it declares itself, never the enclosing quotation's
-[: round |
+( round |
    round 1+ ' send-round-call curry session-count i-times
    ' take-answer session-count times
-:] rounds i-times
+) rounds i-times
 now started - to round-seconds
 
 rounds session-count * to round-calls
@@ -109,9 +109,9 @@ round-calls round-seconds / "  {0:.0f} calls per second" format print cr
 \ ---- queue depth: one session, many calls outstanding, answered in order ----
 
 now to started
-[: i | i "q-c{0:d}" format to id
+( i | i "q-c{0:d}" format to id
        id i "{0:d} " format expect-answer
-       id "queue" i "{0:d} 0 + . cr" format send-eval :] queue-depth i-times
+       id "queue" i "{0:d} 0 + . cr" format send-eval ) queue-depth i-times
 ' take-answer queue-depth times
 now started - to queue-seconds
 
@@ -122,9 +122,9 @@ queue-depth queue-seconds / "  {0:.0f} calls per second" format print cr
 \ ---- overlap: one slow call per session at once ----
 
 now to started
-[: i | i "slow-{0:d}" format to id
+( i | i "slow-{0:d}" format to id
        id "999 " expect-answer
-       id i "s{0:d}" format overlap-seconds "{0:g} sleep 999 . cr" format send-eval :] session-count i-times
+       id i "s{0:d}" format overlap-seconds "{0:g} sleep 999 . cr" format send-eval ) session-count i-times
 ' take-answer session-count times
 now started - to overlap-elapsed
 
@@ -139,10 +139,10 @@ overlap-elapsed serial-seconds 2 / < expect
 
 \ ---- every core busy: one compute-bound call per core, all at once ----
 
-( id session -- ) \ a call that spends its time computing rather than sleeping
-: send-work
+\ a call that spends its time computing rather than sleeping
+: send-work ( id session -- )
   | id session |
-  id session work-iterations "0 [: dup f* :] ' f+ {0:d} fold-times drop 42 . cr" format send-eval ;
+  id session work-iterations "0 ( dup f* ) ' f+ {0:d} fold-times drop 42 . cr" format send-eval ;
 
 now to started
 "work-solo" "42 " expect-answer
@@ -151,9 +151,9 @@ now to started
 now started - to solo-seconds
 
 now to started
-[: i | i "work-{0:d}" format to id
+( i | i "work-{0:d}" format to id
        id "42 " expect-answer
-       id i "core{0:d}" format send-work :] core-count i-times
+       id i "core{0:d}" format send-work ) core-count i-times
 ' take-answer core-count times
 now started - to pegged-seconds
 
@@ -171,10 +171,10 @@ server end-process
 churn-cap start-server to server
 
 now to started
-[: i | i "churn-c{0:d}" format to id
+( i | i "churn-c{0:d}" format to id
        id i 2 * "{0:d} " format expect-answer
        id i "churn{0:d}" format i "{0:d} dup + . cr" format send-eval
-       take-answer :] churn-sessions i-times
+       take-answer ) churn-sessions i-times
 now started - to churn-seconds
 
 churn-sessions churn-cap "{1:d} sessions through a cap of {0:d}" format print cr

@@ -5,45 +5,45 @@
 \ choice is committed -- a later failure does NOT reopen it.  ~ is unify, ? deref.
 
 \ === first branch succeeds: commits, branch 2 never runs ===
-[: 1 :] [: 2 :] amb . cr                          \ 1
-[: 11 . :] [: 99 . :] amb cr                      \ 11   (branch 2 never prints)
+( 1 ) ( 2 ) amb . cr                          \ 1
+( 11 . ) ( 99 . ) amb cr                      \ 11   (branch 2 never prints)
 
 \ === a branch may leave a value ===
-[: 3 4 + :] [: 0 :] amb . cr                      \ 7
+( 3 4 + ) ( 0 ) amb . cr                      \ 7
 
 \ === branch 1 fails via explicit fail -> branch 2 runs ===
-[: fail :] [: 7 :] amb . cr                       \ 7
+( fail ) ( 7 ) amb . cr                       \ 7
 
 \ === branch 1 fails via unify mismatch -> branch 2 runs ===
-[: 1 2 ~ :] [: 8 :] amb . cr                      \ 8
+( 1 2 ~ ) ( 8 ) amb . cr                      \ 8
 
 \ === trail rollback: branch 1 binds then fails, undone, branch 2 binds ===
-: t  | ?X |  X [: v | v 1 ~ drop fail :] curry  X [: v | v 2 ~ drop :] curry  amb  X ? . ;
+: t ( -- )  | ?X |  X ( v | v 1 ~ drop fail ) curry  X ( v | v 2 ~ drop ) curry  amb  X ? . ;
 t cr                                              \ 2
 
 \ === branch 1 succeeds with a binding: it persists ===
-: u  | ?X |  X [: v | v 5 ~ drop :] curry  X [: v | v 9 ~ drop :] curry  amb  X ? . ;
+: u ( -- )  | ?X |  X ( v | v 5 ~ drop ) curry  X ( v | v 9 ~ drop ) curry  amb  X ? . ;
 u cr                                              \ 5
 
 \ === nested amb in branch 2 (after branch 1 fails) ===
-[: fail :] [: [: fail :] [: 3 :] amb :] amb . cr  \ 3
+( fail ) ( ( fail ) ( 3 ) amb ) amb . cr  \ 3
 
 \ === nested amb in branch 1 (inner first branch wins) ===
-[: [: 5 :] [: 6 :] amb :] [: 9 :] amb . cr        \ 5
+( ( 5 ) ( 6 ) amb ) ( 9 ) amb . cr        \ 5
 
 \ === a def's local amb is fresh per call ===
-: pick  | ?X n |  X n [: v value | v value ~ drop :] 2curry  X [: v | v 0 ~ drop :] curry  amb  X ? ;
+: pick ( n -- )  | ?X n |  X n ( v value | v value ~ drop ) 2curry  X ( v | v 0 ~ drop ) curry  amb  X ? ;
 3 pick . cr                                       \ 3
 7 pick . cr                                       \ 7
 
 \ === sequential ambs each commit independently ===
-[: 1 :] [: 2 :] amb  [: 3 :] [: 4 :] amb  + . cr  \ 4
+( 1 ) ( 2 ) amb  ( 3 ) ( 4 ) amb  + . cr  \ 4
 
 \ === both branches fail -> top-level error ===
-[: fail :] [: fail :] amb                         \ error
+( fail ) ( fail ) amb                         \ error
 
 \ === commitment boundary: a downstream mismatch does NOT reopen a committed amb ===
-: c  | ?X |  X [: v | v 1 ~ drop :] curry  X [: v | v 2 ~ drop :] curry  amb  X 5 ~ ;
+: c ( -- flag )  | ?X |  X ( v | v 1 ~ drop ) curry  X ( v | v 2 ~ drop ) curry  amb  X 5 ~ ;
 c                                                 \ error: X committed to 1, no live amb
 
 clear
@@ -54,19 +54,19 @@ clear
 \ first element for which it succeeds, fail if none do.
 
 \ commits to the first element greater than 3
-[ 1 2 3 4 5 ] [: | x | x 3 > if x . else fail then :] choose cr
+[ 1 2 3 4 5 ] ( | x | x 3 > if x . else fail then ) choose cr
 
 \ a single-element array
-[ 9 ] [: | x | x . :] choose cr
+[ 9 ] ( | x | x . ) choose cr
 
 \ enumerate every element by printing and failing; an outer amb catches the final fail
-[: [ 1 2 3 ] [: | x | x . fail :] choose :] [: 0 . :] amb cr
+( [ 1 2 3 ] ( | x | x . fail ) choose ) ( 0 . ) amb cr
 
 \ no element succeeds: the whole choose fails into the outer branch
-[: [ 1 2 ] [: drop fail :] choose :] [: 42 . :] amb cr
+( [ 1 2 ] ( drop fail ) choose ) ( 42 . ) amb cr
 
 \ an empty array fails
-[: [ ] [: . :] choose :] [: "empty" . :] amb cr
+( [ ] ( . ) choose ) ( "empty" . ) amb cr
 
 clear
 
@@ -77,29 +77,29 @@ clear
 \ binding back and leave the stack as they found it.
 
 \ collect where the goal succeeds; a fail skips the element
-[ 1 2 3 4 ] [: dup 2 mod if fail then dup * :] solutions . cr          \ [ 4 16 ]
+[ 1 2 3 4 ] ( dup 2 mod if fail then dup * ) solutions . cr          \ [ 4 16 ]
 
 \ unification as the filter: open-record match, project a field
 [ { :n 1 :ok :y } { :n 2 :ok :n } { :n 3 :ok :y } ]
-[: { :ok :y } ~ :n @ :] solutions . cr                                 \ [ 1 3 ]
+( { :ok :y } ~ :n @ ) solutions . cr                                 \ [ 1 3 ]
 
 \ bindings made while collecting roll back afterward (findall semantics)
 lvar to SQ
-[ [ 1 :a ] [ 2 :b ] [ 3 :a ] ] [: [ SQ :a ] ~ drop SQ ? :] solutions . cr   \ [ 1 3 ]
+[ [ 1 :a ] [ 2 :b ] [ 3 :a ] ] ( [ SQ :a ] ~ drop SQ ? ) solutions . cr   \ [ 1 3 ]
 SQ ? . cr                                                              \ ?SQ (unbound again)
 
 \ edges: all fail, empty array
-[ 1 2 3 ] [: fail :] solutions . cr                                    \ [ ]
-[ ] [: dup :] solutions . cr                                           \ [ ]
+[ 1 2 3 ] ( fail ) solutions . cr                                    \ [ ]
+[ ] ( dup ) solutions . cr                                           \ [ ]
 
 \ take-solutions: first n, goal not run past n; n of 0, n past the length
-[ 1 2 3 4 5 ] [: dup * :] 3 take-solutions . cr                        \ [ 1 4 9 ]
-[ 1 2 3 ] [: dup * :] 0 take-solutions . cr                            \ [ ]
-[ 1 2 3 ] [: dup * :] 99 take-solutions . cr                           \ [ 1 4 9 ]
+[ 1 2 3 4 5 ] ( dup * ) 3 take-solutions . cr                        \ [ 1 4 9 ]
+[ 1 2 3 ] ( dup * ) 0 take-solutions . cr                            \ [ ]
+[ 1 2 3 ] ( dup * ) 99 take-solutions . cr                           \ [ 1 4 9 ]
 
 \ the goal stops running once n are collected
 0 to goal-runs
-[ 1 2 3 4 5 ] [: | x ^goal-runs | ++ goal-runs x :] 2 take-solutions . cr   \ [ 1 2 ]
+[ 1 2 3 4 5 ] ( | x ^goal-runs | ++ goal-runs x ) 2 take-solutions . cr   \ [ 1 2 ]
 goal-runs . cr                                                         \ 2
 
 \ the stack is left as found

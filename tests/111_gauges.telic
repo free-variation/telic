@@ -7,7 +7,7 @@
 gauges to g
 
 \ -- the groups and their keys, sorted by name (frame order is symbol-id order)
-: sorted-keys keys [: "{0}" format :] sort-by ;
+: sorted-keys ( fr -- arr ) keys ( "{0}" format ) sort-by ;
 g sorted-keys . cr                                \ [ :computer :dictionary :heap :resources :session :stacks ]
 g :dictionary @ sorted-keys . cr
 g :heap @ sorted-keys . cr
@@ -17,7 +17,7 @@ g :computer @ sorted-keys . cr
 g :session @ sorted-keys . cr
 
 \ -- the computer readings are floats or quantities where the platform supplies them, null otherwise
-g :computer @ values [: dup null? over float? or swap quantity? or :] map . cr
+g :computer @ values ( dup null? over float? or swap quantity? or ) map . cr
 
 \ -- stacks read at the call: data depth was 0, one call frame, no roots
 g :stacks @ :data @ . cr                          \ [ 0 65536 ]
@@ -26,14 +26,14 @@ g :stacks @ :roots @ 0 @i . cr                    \ 0
 clear
 
 \ -- pairs are [ used capacity ] with used <= capacity
-g :dictionary @ values [: dup array? if dup 0 @i swap 1 @i <= else drop 1 then :] map . cr
+g :dictionary @ values ( dup array? if dup 0 @i swap 1 @i <= else drop 1 then ) map . cr
 g :heap @ :objects @ dup 0 @i swap 1 @i <= . cr   \ 1
 
 \ -- readings that move: the globals g and words-before and the words sorted-keys
 \ and gauge-probe are four dictionary entries since the first reading
 g :dictionary @ :words @ to words-before
 g :dictionary @ :session-words @ . cr             \ 0
-: gauge-probe 1 ;
+: gauge-probe ( -- n ) 1 ;
 gauges :dictionary @ :words @ words-before - . cr \ 4
 gauges :dictionary @ :session-words @ . cr        \ 4
 

@@ -1,7 +1,7 @@
-error: ; : unterminated quotation (a [: has no matching :])
+error: ; : unterminated quotation (a ( has no matching ))
 in ;
 error: unknown word: bad (did you mean map?)
-error: ; : unterminated quotation (a [: has no matching :])
+error: ; : unterminated quotation (a ( has no matching ))
 in ;
 error: unknown word: bad2 (did you mean base?)
 3 13 [ 1 4 9 ] 
@@ -10,8 +10,8 @@ error: unknown word: loopy (did you mean loop?)
 3 
 1 
 {
-  :message /tmp/w124_bad.telic:1: unknown word: no-such-word
-  :trace in load ← [: "/tmp/w124_bad.telic" load :]
+  :message /tmp/w124_bad.telic:1: : expected a stack effect after the name, as in : name ( a b -- c )
+  :trace in :
 }
 
 error: unknown word: broken

@@ -31,7 +31,7 @@ now to t
 result :cat @ group-indices to groups
 "group-indices:" . now t - . "s" . cr
 groups size                                          "  distinct cats    = {0}  (want 50)" format . cr
-groups 0 [: 1 @i size + :] reduce                    "  total indexed    = {0}  (want 1000000)" format . cr
+groups 0 ( 1 @i size + ) reduce                    "  total indexed    = {0}  (want 1000000)" format . cr
 
 db db-close
 bye

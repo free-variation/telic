@@ -17,8 +17,8 @@
 
 \ a mismatch is caught by matmul's own guard, before the size dispatch, so the
 \ message reads the same whichever path the operands would have taken
-[: [ 1 2 3 4 5 6 ] 2 3 matrix [ 7 8 9 10 ] 2 2 matrix matmul :] catch drop . cr
-[: 64 64 0-matrix 32 32 0-matrix matmul :] catch drop . cr
+( [ 1 2 3 4 5 6 ] 2 3 matrix [ 7 8 9 10 ] 2 2 matrix matmul ) catch drop . cr
+( 64 64 0-matrix 32 32 0-matrix matmul ) catch drop . cr
 
 \ ---- dgemm-nn: A * B, no transposes -------------------------
 
@@ -75,19 +75,19 @@
 \ ---- failures: caught, since a program file stops at an uncaught error ------
 
 \ A 2x3 * B 2x2: A's cols (3) != B's rows (2)
-[: 1 [ 1 2 3 4 5 6 ] 2 3 matrix [ 7 8 9 10 ] 2 2 matrix 0 2 2 0-matrix dgemm-nn :] catch drop . cr
+( 1 [ 1 2 3 4 5 6 ] 2 3 matrix [ 7 8 9 10 ] 2 2 matrix 0 2 2 0-matrix dgemm-nn ) catch drop . cr
 
 \ -tn on A 2x3, B 3x3: A^T is 3x2, cols 2 vs B's rows 3 -- mismatch
-[: 1 [ 1 2 3 4 5 6 ] 2 3 matrix [ 1 2 3 4 5 6 7 8 9 ] 3 3 matrix 0 2 3 0-matrix dgemm-tn :] catch drop . cr
+( 1 [ 1 2 3 4 5 6 ] 2 3 matrix [ 1 2 3 4 5 6 7 8 9 ] 3 3 matrix 0 2 3 0-matrix dgemm-tn ) catch drop . cr
 
 \ A*B should be 1x1 but C is 3x3
-[: 1 [ 1 2 ] 1 2 matrix [ 3 4 ] 2 1 matrix 0 3 3 0-matrix dgemm-nn :] catch drop . cr
+( 1 [ 1 2 ] 1 2 matrix [ 3 4 ] 2 1 matrix 0 3 3 0-matrix dgemm-nn ) catch drop . cr
 
 \ alpha is a string
-[: "hi" [ 1 2 3 4 ] 2 2 matrix [ 1 2 3 4 ] 2 2 matrix 0 2 2 0-matrix dgemm-nn :] catch drop . cr
+( "hi" [ 1 2 3 4 ] 2 2 matrix [ 1 2 3 4 ] 2 2 matrix 0 2 2 0-matrix dgemm-nn ) catch drop . cr
 
 \ A is a number
-[: 1 99 [ 1 2 3 4 ] 2 2 matrix 0 2 2 0-matrix dgemm-nn :] catch drop . cr
+( 1 99 [ 1 2 3 4 ] 2 2 matrix 0 2 2 0-matrix dgemm-nn ) catch drop . cr
 
 \ C is a string
-[: 1 [ 1 2 3 4 ] 2 2 matrix [ 1 2 3 4 ] 2 2 matrix 0 "C" dgemm-nn :] catch drop . cr
+( 1 [ 1 2 3 4 ] 2 2 matrix [ 1 2 3 4 ] 2 2 matrix 0 "C" dgemm-nn ) catch drop . cr

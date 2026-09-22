@@ -30,10 +30,10 @@
   repeat
   in-set-count ;
 
-: mandel-par-repeat
+: mandel-par-repeat ( -- )
   now to t0
   0 par-loops 1 do rep
-     n iota 0.0 ' render-row [: f+ :] pmap-reduce to result
+     n iota 0.0 ' render-row ( f+ ) pmap-reduce to result
   loop
   result now t0 - ;
 mandel-par-repeat to elapsed to checksum

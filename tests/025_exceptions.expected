@@ -16,7 +16,7 @@ L2
 L1 inner-xt threw 
 1 {
   :message division by zero
-  :trace in / ← [: 1 0 / :]
+  :trace in / ← ( 1 0 / )
 }
 
 caught: division by zero 

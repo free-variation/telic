@@ -120,7 +120,7 @@ in array>set ← column>set ← in?
 
 1 3 
 error: no key :nope
-in (@.symbol) ← [: 3 pick swap @ :]
+in (@.symbol) ← ( 3 pick swap @ )
 [ [ "b" 3 ]
   [ "a" 2 ]
   [ "c" 1 ] ] 
@@ -335,7 +335,7 @@ in (@.symbol) ← dataset-group-indices ← split-by
 [ 7 ] 
 [ ] 
 error: uncaught exception: "within-groups: group a has 2 rows but the quotation answered 3 values"
-in throw ← [: pair | pair 1 @i to indices dataset indices s… :] ← within-groups
+in throw ← ( pair | pair 1 @i to indices dataset indices s… ) ← within-groups
 {
   :fy <matrix 3x1:  2022 2022 2023>
   :lea [ "a" "b" "a" ]
@@ -351,7 +351,7 @@ in throw ← [: pair | pair 1 @i to indices dataset indices s… :] ← within-g
 }
 
 error: no key :missing
-in (@.symbol) ← [: 2 pick swap @ column>array :] ← dataset-group-indices ← split-by ← aggregate
+in (@.symbol) ← ( 2 pick swap @ column>array ) ← dataset-group-indices ← split-by ← aggregate
 error: uncaught exception: "rows have differing keys"
 in throw ← frames>dataset ← aggregate
 [ :name "a" :height 180 m :score 2 ] 
@@ -472,7 +472,7 @@ in throw ← repeat-column!
 0 [ :x :y ] 
 [ 1 ] 
 error: no key :z
-in (@.symbol) ← [: dataset swap @ column>array nan? 0 eq :] ← complete-rows
+in (@.symbol) ← ( dataset swap @ column>array nan? 0 eq ) ← complete-rows
 [ :a :c :d ] 
 [ :a :b :c :d ] 
 [ :b :d ] 

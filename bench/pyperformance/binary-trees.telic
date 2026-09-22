@@ -36,7 +36,7 @@
   total ;
 
 now to t0
-: run-trees-repeated  0 trees-loops 1 do rep  run-trees to total  loop  total ;
+: run-trees-repeated ( -- f )  0 trees-loops 1 do rep  run-trees to total  loop  total ;
 run-trees-repeated to checksum
 now t0 - to elapsed
 "elapsed: " . elapsed . " s" . cr

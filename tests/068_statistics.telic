@@ -20,7 +20,7 @@
 1 seed [ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix ' sum 5 bootstrap . cr
 
 \ a wider matrix: fit reads one column (sepal-like). resample keeps rows intact.
-1 seed [ 1 10  2 20  3 30  4 40 ] 4 2 matrix [: 0 @j mean :] 6 bootstrap . cr
+1 seed [ 1 10  2 20  3 30  4 40 ] 4 2 matrix ( 0 @j mean ) 6 bootstrap . cr
 
 \ convergence: mean of 5000 bootstrapped means approaches the true mean 5.5
 1 seed [ 1 2 3 4 5 6 7 8 9 10 ] 10 1 matrix ' mean 5000 bootstrap dup size 1 matrix mean . cr
@@ -139,8 +139,8 @@ clear
 \ instant columns (unit exactly s) render as ISO; :missing per column when any
 { :x [ 1 2 null 4 ] vector
   :name [ "a" "b" "a" null ]
-  :when [ "2020-01-03T00:00:00Z" "2020-01-01T00:00:00Z" ] [: iso>time 1 s / :] map vector s } summary . cr
-[: { :bad 42 } summary :] catch . . cr                         \ 1 then the guard message
+  :when [ "2020-01-03T00:00:00Z" "2020-01-01T00:00:00Z" ] ( iso>time 1 s / ) map vector s } summary . cr
+( { :bad 42 } summary ) catch . . cr                         \ 1 then the guard message
 
 \ ecdf ( v -- xs ys ): sorted finite values, cumulative fractions (i+1)/n
 [ 3 1 2 ] vector ecdf . . cr                     \ ys [0.333 0.667 1], xs [1 2 3]
@@ -158,8 +158,8 @@ clear
 [ 1 2 3 4 5 6 ] 3 cv-folds . cr       \ every third unit tests in its own fold
 
 \ cross-validate ( units n-folds fit score -- fold-losses ): round-robin folds in order
-[ 1 2 3 4 5 6 ] 3 [: vector mean :] [: vector mean - abs :] cross-validate mean . cr   \ 1
-[: [ 1 2 3 ] 5 [: vector mean :] [: vector mean - abs :] cross-validate :] catch . . cr   \ 1 then the folds-exceed-units message
+[ 1 2 3 4 5 6 ] 3 ( vector mean ) ( vector mean - abs ) cross-validate mean . cr   \ 1
+( [ 1 2 3 ] 5 ( vector mean ) ( vector mean - abs ) cross-validate ) catch . . cr   \ 1 then the folds-exceed-units message
 
 \ ks-distance ( a b -- d ): two-sample Kolmogorov-Smirnov statistic
 [ 1 2 3 ] vector [ 1 2 3 ] vector ks-distance . cr             \ 0  identical samples
@@ -172,7 +172,7 @@ clear
 
 \ bootstrap on array data: the elements resample with replacement, seeded
 7 seed
-[ 10 20 30 40 ] [: vector sum :] 4 bootstrap . cr
+[ 10 20 30 40 ] ( vector sum ) 4 bootstrap . cr
 
 \ sigmoid ( m -- m' ): elementwise logistic; 0 -> 0.5, symmetric
 [ 0 ] 1 1 matrix sigmoid . cr                    \ 0.5
@@ -239,9 +239,9 @@ cor . cr                                         \ same frame: cor is kendall + 
 clear
 
 \ === errors (thrown; caught here to show the message) ===
-[: [ 1 2 3 ] vector [ 1 2 ] vector correlation-kendall :] [: . cr :] try-catch   \ (length mismatch)
-[: [ 1 ] vector [ 2 ] vector correlation-kendall :] [: . cr :] try-catch         \ (fewer than 2 elements)
-[: 5 [ 1 2 ] vector correlation-kendall :] [: . cr :] try-catch                  \ (not a matrix)
+( [ 1 2 3 ] vector [ 1 2 ] vector correlation-kendall ) ( . cr ) try-catch   \ (length mismatch)
+( [ 1 ] vector [ 2 ] vector correlation-kendall ) ( . cr ) try-catch         \ (fewer than 2 elements)
+( 5 [ 1 2 ] vector correlation-kendall ) ( . cr ) try-catch                  \ (not a matrix)
 
 clear
 
@@ -276,10 +276,10 @@ clear
 clear
 
 \ === errors (thrown; caught here to show the message) ===
-[: 0 qnorm :] [: . cr :] try-catch           \ (p = 0)
-[: 1 qnorm :] [: . cr :] try-catch           \ (p = 1)
-[: -0.5 qnorm :] [: . cr :] try-catch        \ (negative)
-[: 2 qnorm :] [: . cr :] try-catch           \ (above 1)
+( 0 qnorm ) ( . cr ) try-catch           \ (p = 0)
+( 1 qnorm ) ( . cr ) try-catch           \ (p = 1)
+( -0.5 qnorm ) ( . cr ) try-catch        \ (negative)
+( 2 qnorm ) ( . cr ) try-catch           \ (above 1)
 
 clear
 
@@ -329,8 +329,8 @@ clear
 [ 1 2 3 ] vector transpose [ 4 5 7 ] vector covariance . cr     \ 1.5 (1xn accepted)
 
 \ === errors (reason parenthesized) ===
-[: [ 1 ] vector [ 2 ] vector covariance :] [: . cr :] try-catch \ (one pair)
-[: [ 1 null ] vector [ 2 3 ] vector correlation-pearson :] [: . cr :] try-catch   \ (one complete pair errors, as covariance does)
+( [ 1 ] vector [ 2 ] vector covariance ) ( . cr ) try-catch \ (one pair)
+( [ 1 null ] vector [ 2 3 ] vector correlation-pearson ) ( . cr ) try-catch   \ (one complete pair errors, as covariance does)
 
 clear
 
@@ -348,7 +348,7 @@ clear
 -40 pnorm . cr                                  \ 0 (tail underflows)
 
 42 seed random-normal . cr                      \ -1.37955
-42 seed 10000 iota [: drop random-normal :] map vector to draws
+42 seed 10000 iota ( drop random-normal ) map vector to draws
 draws mean abs 0.05 < . cr                      \ 1
 draws std 1 - abs 0.05 < . cr                   \ 1
 

@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.36.9-alpha"
+#define VERSION "0.37.0-alpha"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -615,6 +615,7 @@ typedef struct {
 	int compiling_src_start;
 	int compiling_src_line;
 	int compiling_colon_pos;
+	int compiling_effect_offset;
 
 	int fuse_prev_var, fuse_prev2_var;
 	int fuse_prev_cmp;

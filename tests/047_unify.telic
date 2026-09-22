@@ -73,7 +73,7 @@ Kid 5 ~ drop   Kid ? 5 = . cr                                          \ 1  Kid 
 \         guards depth, not width, so the limit that bounds nested structures
 \         never caps an array ===
 50000 iota  dup copy  ~  size . cr                          \ 50000
-50000 iota [: drop lvar :] map  dup
+50000 iota ( drop lvar ) map  dup
 50000 iota  ~ drop
 700 @i ? . cr                                                \ 700  every element bound
 

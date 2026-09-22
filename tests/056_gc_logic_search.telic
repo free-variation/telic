@@ -1,8 +1,8 @@
 \ The logic x GC x continuations seam, one process, no image: force collections
 \ while a logic-var binding and a captured continuation are live.
 
-: shifter shift ;
-: ex  reset 100 shifter 1 + ;        \ k adds 1 to its input
+: shifter ( -- ) shift ;
+: ex ( -- n )  reset 100 shifter 1 + ;        \ k adds 1 to its input
 variable k   ex to k drop
 
 \ a logic var bound to a heap structure survives an explicit collection
@@ -13,6 +13,6 @@ Y ? . cr                             \ [ 1 2 3 ]  binding + array survived GC
 
 \ a backtracking search that forces a GC at every step, with the captured
 \ continuation held live throughout; commit to the first option over 4
-[ 1 2 3 4 5 ] [: | opt | gc opt 4 > if opt else fail then :] choose . cr   \ 5
+[ 1 2 3 4 5 ] ( | opt | gc opt 4 > if opt else fail then ) choose . cr   \ 5
 50 k resume . cr                     \ 51  held continuation survived the search
 bye

@@ -11,7 +11,7 @@ single bare-backtick token is a word). That set is exactly the public surface
 Categorization: a small curated map fixes the stable structural groups
 (defining / control / logic / boolean / operators); every other public word is
 auto-routed to "builtins". New words therefore highlight automatically. The
-bracket/quotation delimiters ([ ] { } < > | [: :] [< >]) are matched by regex
+bracket/quotation delimiters ([ ] { } < > | ( ) [< >]) are matched by regex
 rules in the templates, not keyword lists, so they are excluded here.
 
 Emits:
@@ -47,7 +47,7 @@ OPERATORS = [
     "2dup", ".s", ".a", ".",
 ]
 # Handled by regex match rules in the templates, never a keyword.
-DELIMITERS = {"[", "]", "{", "}", "<", ">", "|", "[:", ":]", "[<", ">]"}
+DELIMITERS = {"[", "]", "{", "}", "<", ">", "|", "(", ")", "[<", ">]"}
 # Documentation pseudo-words (symbol-literal examples), matched by the symbol scope.
 EXCLUDE = {":name"}
 
@@ -119,7 +119,6 @@ def emit_vim(auto):
     L.append("syn sync fromstart")
     L.append("")
     L.append("syn match   telicComment \"\\%(^\\|\\s\\)\\zs\\\\\\%(\\s.*\\)\\=$\" contains=@Spell")
-    L.append('syn region  telicComment start="\\[\\@<!(\\s" end=")" contains=@Spell')
     L.append('syn region  telicString start=+"+ skip=+""+ end=+"+ contains=@Spell,telicFormat')
     L.append('syn match   telicFormat "{\\d\\+\\%(:[^}]*\\)\\=}" contained')
     L.append('syn match   telicNumber "\\<-\\=\\d\\+\\%(\\.\\d\\+\\)\\=\\%([eE][-+]\\=\\d\\+\\)\\=\\>"')
@@ -140,9 +139,15 @@ def emit_vim(auto):
 
     L.append(kw("telicDefine", [w for w in DEFINING if w != ";"]))
     L.append('syn match   telicDefine ";"')
-    L.append('syn match   telicDefine "\\[:"')
-    L.append('syn match   telicDefine ":\\]"')
+    L.append('syn match   telicDefine "("')
+    L.append('syn match   telicDefine ")"')
     L.append('syn match   telicDefName "\\%(^\\|\\s\\):\\s\\+\\zs\\k\\+"')
+    # The declared stack effect after a definition name, parentheses included.
+    # It must be defined after the telicDefine "(" rule: two match items starting
+    # at the same character compete and the later definition wins. The item takes
+    # no contains=, so the tokens inside it keep the effect's colour. The closing
+    # parenthesis is optional so that a half-typed effect colours as it is entered.
+    L.append('syn match   telicEffect  "\\%(\\%(^\\|\\s\\):\\s\\+\\k\\+\\s\\+\\)\\@<=(\\s[^)]*)\\="')
     L.append("")
     L.append(kw("telicConditional", CONDITIONAL))
     L.append(kw("telicRepeat", REPEAT))
@@ -174,7 +179,8 @@ def emit_vim(auto):
         ("Comment", "Comment"), ("String", "String"), ("Number", "Number"),
         ("Symbol", "Constant"), ("Path", "Constant"),
         ("FrameOp", "Operator"), ("FrameKey", "Type"),
-        ("Define", "Define"), ("DefName", "Function"), ("Conditional", "Conditional"),
+        ("Define", "Define"), ("DefName", "Function"), ("Effect", "Identifier"),
+        ("Conditional", "Conditional"),
         ("Repeat", "Repeat"), ("Keyword", "Keyword"), ("Logic", "Special"),
         ("Boolean", "Boolean"), ("Delimiter", "Delimiter"), ("Builtin", "Statement"),
         ("Format", "SpecialChar"),
@@ -194,10 +200,10 @@ def esc(word):
 
 
 # Self-delimiting punctuation: ; ] } always end a token, [ { always start one,
-# and :] / )] are two-char closers — so token boundaries are whitespace OR
-# these characters, mirroring next_token in core.c.
+# and >] is a two-char closer — so token boundaries are whitespace OR these
+# characters, mirroring next_token in core.c.
 BOUNDARY_BEHIND = r"(?<=^|\s|[\[\]{};])"
-BOUNDARY_AHEAD = r"(?=$|\s|[\[\]{};]|:\]|\)\])"
+BOUNDARY_AHEAD = r"(?=$|\s|[\[\]{};]|>\])"
 
 
 def alt(words):
@@ -213,14 +219,22 @@ def emit_vscode(auto):
         "scopeName": "source.telic",
         "_generated": "by tools/gen-editors.py from docs/reference.md — do not edit by hand",
         "patterns": [{"include": "#" + n} for n in [
-            "comments", "strings", "numbers", "quotation", "control", "defining",
+            "effect", "comments", "strings", "numbers", "quotation", "control", "defining",
             "logic", "constants", "operators", "builtins", "frameop", "framekey",
             "symbol", "path", "delimiters",
         ]],
         "repository": {
+            # Listed first so it wins the colon against #defining, which would
+            # otherwise match at the same offset and leave the effect to be
+            # scanned as ordinary tokens.
+            "effect": {"match": r"(?<=^|\s)(:)\s+(\S+)\s+(\(\s[^)]*\)?)",
+                       "captures": {
+                           "1": {"name": "keyword.declaration.telic"},
+                           "2": {"name": "entity.name.function.telic"},
+                           "3": {"name": "entity.name.type.stack-effect.telic"},
+                       }},
             "comments": {"patterns": [
                 {"name": "comment.line.backslash.telic", "match": r"(?<=^|\s)\\(?:\s.*)?$"},
-                {"name": "comment.block.telic", "begin": r"(?<=^|\s)\(\s", "end": r"\)"},
             ]},
             "strings": {
                 "name": "string.quoted.double.telic", "begin": "\"", "end": "\"(?!\")",
@@ -232,7 +246,7 @@ def emit_vscode(auto):
             "numbers": {"name": "constant.numeric.telic",
                         "match": BOUNDARY_BEHIND + r"-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?" + BOUNDARY_AHEAD},
             "quotation": {"name": "keyword.declaration.telic",
-                          "match": r"\[:|\[\||:\]"},
+                          "match": r"(?<=^|\s)[()](?=$|\s)"},
             "control": {"name": "keyword.control.telic", "match": alt(CONDITIONAL + REPEAT + KEYWORD)},
             "defining": {"name": "keyword.declaration.telic", "match": alt(DEFINING)},
             "logic": {"name": "keyword.other.logic.telic", "match": alt(LOGIC)},
@@ -248,7 +262,7 @@ def emit_vscode(auto):
             "framekey": {"name": "support.type.property-name.telic",
                          "match": r"(?<=[@!])[A-Za-z][^\s\[\]{};@!]*"},
             "delimiters": {"name": "punctuation.section.telic",
-                           "match": r"\[<|>\]|\[\(|\)\]|[\[\]{}]|" + BOUNDARY_BEHIND + r"(?:[<>]|\|)" + BOUNDARY_AHEAD},
+                           "match": r"\[<|>\]|[\[\]{}]|" + BOUNDARY_BEHIND + r"(?:[<>]|\|)" + BOUNDARY_AHEAD},
         },
     }
     return json.dumps(grammar, indent=2) + "\n"

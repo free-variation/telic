@@ -27,7 +27,7 @@
 \ --- independence via the other mutators ---
 { :a 1 } dup copy 2 /b ! drop size . cr                  \ 1   (copy gained :b, not the original)
 { :a 1 :b 2 } dup copy /a delete-at drop /a @ . cr       \ 1   (delete on copy left original's :a)
-{ :n 5 } dup copy [: 100 + :] /n update-at drop /n @ . cr   \ 5
+{ :n 5 } dup copy ( 100 + ) /n update-at drop /n @ . cr   \ 5
 
 \ --- a nested non-frame value: overwriting it in the copy leaves the original's intact ---
 { :a [ 1 2 3 ] } dup copy 99 /a ! drop /a @ . cr         \ [ 1 2 3 ]

@@ -6,37 +6,37 @@
 \ slots, and interaction with delimited continuations (shift/resume).
 
 \ -- 1: one capture
-: sq | x | x x * ;
+: sq ( x -- n ) | x | x x * ;
 5 sq . cr
 
 \ -- 2: two captures, leftmost deepest
-: hyp | a b | a a * b b * + ;
+: hyp ( a b -- h ) | a b | a a * b b * + ;
 3 4 hyp . cr
 
 \ -- 3: no head at all — the first `to` opens the frame
-: staged 10 to origin  origin 3 * ;
+: staged ( -- n ) 10 to origin  origin 3 * ;
 staged . cr
 
 \ -- 4: captures in the head, working values declared in the body
-: scaled | factor | 10 to amount  amount factor * ;
+: scaled ( factor -- n ) | factor | 10 to amount  amount factor * ;
 3 scaled . cr
 
 \ -- 5: a quotation cannot name an outer local; park the value and pick it up
-: nest | x | x [ 10 20 30 ] [: 2 pick + :] map nip ;
+: nest ( x -- arr ) | x | x [ 10 20 30 ] ( 2 pick + ) map nip ;
 100 nest . cr
 
 \ -- 6: an inner quotation's own capture shadows the outer one
-: shadow | x | [: | x | x x * :] 9 swap execute  x + ;
+: shadow ( x -- n ) | x | ( | x | x x * ) 9 swap execute  x + ;
 4 shadow . cr
 
 \ -- 7: recursion — each call gets its own frame
-: fact | n | n 1 < if 1 else n  n 1 - fact * then ;
+: fact ( n -- n ) | n | n 1 < if 1 else n  n 1 - fact * then ;
 5 fact . cr
 
 \ -- 8: a local set before shift is read after resume (frame relocation)
-: shifter shift ;
-: worker | x | shifter  x * ;
-: ex reset 7 worker ;
+: shifter ( -- ) shift ;
+: worker ( x -- n ) | x | shifter  x * ;
+: ex ( -- n ) reset 7 worker ;
 ex 3 swap resume . cr
 
 \ -- 9: multi-shot — the same continuation resumed twice, local intact each time
@@ -44,81 +44,81 @@ ex dup  5 swap resume . cr
         6 swap resume . cr
 
 \ -- 10: three captures — verifies (a b c -- ...) order
-: combo | a b c | a 100 *  b 10 *  c  + + ;
+: combo ( a b c -- n ) | a b c | a 100 *  b 10 *  c  + + ;
 1 2 3 combo . cr
 
-\ -- 11: [: receives into a quotation's own slots
-: nest2 | x | [ 10 20 30 ] x [: element outer | element outer + :] curry map ;
+\ -- 11: ( receives into a quotation's own slots
+: nest2 ( x -- arr ) | x | [ 10 20 30 ] x ( element outer | element outer + ) curry map ;
 100 nest2 . cr
 
 \ -- 12: the opening bar is optional when names precede the closing one
-: sq2 x | x x * ;
+: sq2 ( x -- n ) x | x x * ;
 5 sq2 . cr
 
 \ -- 13: ^ names a global the body assigns; without it the name would be a local
 variable tally
-: bump | amount ^tally | tally amount + to tally ;
+: bump ( amount -- ) | amount ^tally | tally amount + to tally ;
 0 to tally  4 bump  5 bump  tally . cr
 
 \ -- 14: a ? slot is not received — it holds a fresh logic variable per call
-: unify-fresh | ?q n | q n ~ drop  q ? ;
+: unify-fresh ( n -- v ) | ?q n | q n ~ drop  q ? ;
 7 unify-fresh . cr
 
 \ -- 15: inlined into the caller's body
-: inlinee | a b | a 100 *  b 10 * + ;
+: inlinee ( a b -- n ) | a b | a 100 *  b 10 * + ;
 inline
-: outer-inline  7 7 inlinee ;
+: outer-inline ( -- n )  7 7 inlinee ;
 outer-inline . cr
 
 clear
 \ === a quotation captures an enclosing local by copy ===
-: read-outer | x | [: x + :] map ;               \ x is copied into the token when [: … :] is evaluated
+: read-outer ( arr x -- arr ) | x | ( x + ) map ;               \ x is copied into the token when ( … ) is evaluated
 [ 10 20 ] 5 read-outer . cr                      \ [ 15 25 ]
-: read-outer-quotation | n | [: row | row [: row size * n + :] map :] map ;  \ the enclosing quotation's local and, through it, the word's
+: read-outer-quotation ( rows n -- rows ) | n | ( row | row ( row size * n + ) map ) map ;  \ the enclosing quotation's local and, through it, the word's
 [ [ 1 2 ] ] 100 read-outer-quotation . cr        \ [ [ 102 104 ] ]
 
 clear
 \ === errors: the head is one list, at the head, and never empty ===
-: two-lists | items | | total | 0 to total ;     \ (a second list)
-: mid-body 1 . | x | x ;                         \ (a list, but after code)
-: empty-head | | 1 ;                             \ (nothing to declare)
+: two-lists ( items -- ) | items | | total | 0 to total ;     \ (a second list)
+: mid-body ( -- n ) 1 . | x | x ;                         \ (a list, but after code)
+: empty-head ( -- n ) | | 1 ;                             \ (nothing to declare)
 
 clear
 \ === errors: a name must be declared before it is read ===
-: reads-unknown never-stored . ;                 \ (only `to` declares)
+: reads-unknown ( -- ) never-stored . ;                 \ (only `to` declares)
 
 clear
 \ === errors: assigning a global needs ^, in either head spelling ===
-: writes-global 1 to tally ;                     \ (no head at all)
-: writes-global-barless n | n to tally ;         \ (barless head)
-: writes-global-barred | n | n to tally ;        \ (leading-bar head)
+: writes-global ( -- ) 1 to tally ;                     \ (no head at all)
+: writes-global-barless ( n -- ) n | n to tally ;         \ (barless head)
+: writes-global-barred ( n -- ) | n | n to tally ;        \ (leading-bar head)
 
 clear
 \ === errors: a compile-time word cannot name a local ===
 \ the name would shadow the construct itself: a local named `to` silently
 \ disables assignment for the rest of the body
-: head-to | source to | source ;                 \ (in the head)
-: head-lvar-case | ?case | 1 ;                   \ (a ?-marked head name)
-: hoisted-if 5 to if ;                           \ (declared by `to`)
-: index-to 0 3 1 do to loop ;                    \ (a do index name)
+: head-to ( source -- source ) | source to | source ;                 \ (in the head)
+: head-lvar-case ( -- n ) | ?case | 1 ;                   \ (a ?-marked head name)
+: hoisted-if ( -- ) 5 to if ;                           \ (declared by `to`)
+: index-to ( -- ) 0 3 1 do to loop ;                    \ (a do index name)
 
 clear
 
 \ ==== lambda sugar ====
 
 \ A quotation head names what the body receives from the stack. The opening bar
-\ is optional, so [: x | … :] and [: | x | … :] are the same head. A ^ name is
+\ is optional, so ( x | … ) and ( | x | … ) are the same head. A ^ name is
 \ the enclosing global rather than a capture; a ? name is a fresh logic variable.
-[ 2 3 4 ] [: x | x x f* :] map . cr
-[ 2 3 4 ] [: | x | x x f* :] map . cr
-3.0 [: a | a a f* :] execute . cr
+[ 2 3 4 ] ( x | x x f* ) map . cr
+[ 2 3 4 ] ( | x | x x f* ) map . cr
+3.0 ( a | a a f* ) execute . cr
 
 variable scale
 2.0 to scale
-[ 2 3 4 ] [: x | x scale f* :] map . cr
-5.0 [: n ^scale | n to scale :] execute  scale . cr
+[ 2 3 4 ] ( x | x scale f* ) map . cr
+5.0 ( n ^scale | n to scale ) execute  scale . cr
 
-[: ?q n | q n ~ drop  q ? :] 7 swap execute . cr
+( ?q n | q n ~ drop  q ? ) 7 swap execute . cr
 
 clear
 
@@ -129,23 +129,23 @@ clear
 \ and comment-skipping inside the locals scan.
 
 \ (1) word locals split across lines, with \ and ( ) comments mixed in
-: add3
+: add3 ( a b c -- n )
   | a b        \ first two operands
-    c |        ( and the third )
+    c |        \ and the third
   a b + c + ;
 1 2 3 add3 . cr
 
 \ (2) quotation locals split across lines
-: hyp2
-  [: | p
+: hyp2 ( -- xt )
+  ( | p
      q |
      p p *  q q *  +
-  :] ;
+  ) ;
 3 4 hyp2 execute . cr
 
 \ (3) a comment containing a word identical to a local name must not
 \ be read as a second declaration of that local
-: sq
+: sq ( x -- n )
   | n         \ n is the value to square
   |
   n n * ;

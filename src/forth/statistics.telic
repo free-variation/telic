@@ -1,7 +1,7 @@
-( data n-bins -- table ) \ equal-width bin counts over a vector's value range,
+\ equal-width bin counts over a vector's value range,
 \ as { :counts (n-bins x 1) :low :bin-width }. NaNs are dropped; the top value
 \ lands in the last bin; a constant vector takes the range value +/- 1.
-: histogram-table
+: histogram-table ( data n-bins -- table )
 	| data n-bins |
 	n-bins 1 < if n-bins "histogram-table: expected at least 1 bin; got {0}" format throw then
 	data as-column drop-nans to data
@@ -20,8 +20,8 @@
 	loop
 	{ :counts counts :low low :bin-width bin-width } ;
 
-( v -- xs ys ) \ empirical CDF: finite elements sorted ascending, cumulative fractions (i+1)/n
-: ecdf
+\ empirical CDF: finite elements sorted ascending, cumulative fractions (i+1)/n
+: ecdf ( v -- xs ys )
 	| v |
 	v as-column drop-nans to v
 	v num-elements to n
@@ -29,56 +29,56 @@
 	v sort
 	n iota vector 1+ n / ;
 
-( y p -- dev ) \ binomial deviance -2 sum[y ln p + (1-y) ln(1-p)]; p clamped to
+\ binomial deviance -2 sum[y ln p + (1-y) ln(1-p)]; p clamped to
 \ [1e-12, 1-1e-12] so overconfidence scores badly instead of dropping ln 0 terms
-: binomial-deviance
+: binomial-deviance ( y p -- dev )
 	| y p |
 	p dup 1e-12 < 1e-12 mesh dup 1 1e-12 - > 1 1e-12 - mesh to p
 	y p ln * 1 y - 1 p - ln * + sum -2 * ;
 
-( units n-folds -- folds ) \ round-robin deal in the given order: [ [train test] .. ]
-: cv-folds
+\ round-robin deal in the given order: [ [train test] .. ]
+: cv-folds ( units n-folds -- folds )
 	| units n-folds |
 	n-folds 2 < if n-folds "cross-validate: expected at least 2 folds; got {0}" format throw then
 	units size n-folds < if units size n-folds "cross-validate: {0} folds exceed {1} units" format throw then
 	units size iota vector n-folds mod to fold-ids
 	n-folds iota
-	[: f |
+	( f |
 		fold-ids f eq 1 swap - where units swap select-rows
 		fold-ids f eq where units swap select-rows
 		2 array
-	:] map ;
+	) map ;
 
-( units n-folds fit-xt score-xt -- fold-losses ) \ k-fold CV: units deal round-robin
+\ k-fold CV: units deal round-robin
 \ into folds in the given order (shuffle first; one shuffle compares configurations on
 \ the same folds); fit ( train-units -- model ), score ( model test-units -- loss ),
 \ both stack-complete; answers the per-fold losses as an n-folds vector (mean it for
 \ the CV estimate, std for the standard error the 1-SE rule needs)
-: cross-validate
+: cross-validate ( units n-folds fit-xt score-xt -- fold-losses )
 	| units n-folds fit score |
 	units n-folds cv-folds
-	[: fold |
+	( fold |
 		fold 0 @i fit execute
 		fold 1 @i score execute
-	:] map vector ;
+	) map vector ;
 
-( matrix -- float ) \ standard deviation
-: std var sqrt ; inline
+\ standard deviation
+: std ( matrix -- float ) var sqrt ; inline
 
-( matrix -- float ) \ standard error of the mean: s / sqrt(n), n the non-NaN count
-: se | mat | mat var mat nonmissing-count / sqrt ;
+\ standard error of the mean: s / sqrt(n), n the non-NaN count
+: se ( matrix -- float ) | mat | mat var mat nonmissing-count / sqrt ;
 
-( matrix -- float) \ median
-: median 0.5 quantile ; inline
+\ median
+: median ( matrix -- float ) 0.5 quantile ; inline
 
-( matrix percent -- float ) \ percent, pct in [0,100]
-: percentile 100 / quantile ; inline
+\ percent, pct in [0,100]
+: percentile ( matrix percent -- float ) 100 / quantile ; inline
 
-( matrix -- float ) \ interquartile range, Q3 - Q1
-: iqr dup 0.75 quantile swap 0.25 quantile - ;
+\ interquartile range, Q3 - Q1
+: iqr ( matrix -- float ) dup 0.75 quantile swap 0.25 quantile - ;
 
-( v -- fr ) \ { :min :q1 :median :mean :q3 :max } of the finite elements; :missing when any
-: vector-summary
+\ { :min :q1 :median :mean :q3 :max } of the finite elements; :missing when any
+: vector-summary ( v -- fr )
 	| v |
 	v nonmissing-count to n-finite
 	v num-elements n-finite - to n-missing
@@ -95,86 +95,85 @@
 	then
 	n-missing 0 > if n-missing :missing ! then ; internal
 
-( v -- fr ) \ the vector summary with each instant statistic rendered through time>iso
-: datetime-summary
+\ the vector summary with each instant statistic rendered through time>iso
+: datetime-summary ( v -- fr )
 	vector-summary
 	dup keys swap
-	[: [: dup quantity? if time>iso then :] swap update-at :] reduce ; internal
+	( ( dup quantity? if time>iso then ) swap update-at ) reduce ; internal
 
-( v -- fr ) \ numeric summary; an instant vector (unit exactly s) renders as ISO
-: numeric-summary
+\ numeric summary; an instant vector (unit exactly s) renders as ISO
+: numeric-summary ( v -- fr )
 	dup unit-of 1 s = if datetime-summary else vector-summary then ; internal
 
-( cells -- fr ) \ distinct non-missing values of a text column; :missing when any
-: text-summary
+\ distinct non-missing values of a text column; :missing when any
+: text-summary ( cells -- fr )
 	| cells |
 	cells size 0= if { } exit then
 	cells nan? sum to n-missing
-	{ :distinct cells [: null? not :] filter array>set size }
+	{ :distinct cells ( null? not ) filter array>set size }
 	n-missing 0 > if n-missing :missing ! then ; internal
 
-( column -- fr ) \ summary by column representation
-: column-summary
+\ summary by column representation
+: column-summary ( column -- fr )
 	dup numeric-column? if numeric-summary else text-summary then ; internal
 
-( dataset -- fr ) \ per-column summaries keyed by column name
-: dataset-summary
+\ per-column summaries keyed by column name
+: dataset-summary ( dataset -- fr )
 	| dataset |
 	dataset dataset keys
-	[: 2 pick swap @ dup numeric-column? swap array? or not :] filter nip to unfit-columns
+	( 2 pick swap @ dup numeric-column? swap array? or not ) filter nip to unfit-columns
 	unfit-columns size 0 > if
 		dataset unfit-columns 0 @i @ type-of
 		unfit-columns 0 @i
 		"summary: column :{0} holds {1}; expected a matrix, quantity, or array" format throw
 	then
 	dataset dataset keys dup
-	[: 3 pick swap @ column-summary :] map
+	( 3 pick swap @ column-summary ) map
 	rot drop frame ; internal
 
-( v/dataset -- fr ) \ a vector answers { :min :q1 :median :mean :q3 :max } over its
+\ a vector answers { :min :q1 :median :mean :q3 :max } over its
 \ finite elements (dimensioned in its unit, instants as ISO strings), :missing added
 \ when any are NaN; a dataset answers that per numeric column and { :distinct } per
 \ text column, keyed by column name
-: summary
+: summary ( v/dataset -- fr )
 	dup frame? if dataset-summary else numeric-summary then ;
 
-( matrix level -- low high ) \ percentile CI: level e.g. 0.95 -> [q(0.025), q(0.975)]
-: ci
+\ percentile CI: level e.g. 0.95 -> [q(0.025), q(0.975)]
+: ci ( matrix level -- low high )
 	| mat level |
 	1 level - 2 / to tail
 
 	mat tail quantile
 	mat 1 tail - quantile ;
 
-: sample-without-replacement false sample ; inline
-: sample-with-replacement true sample ; inline
+: sample-without-replacement ( arr n -- arr ) false sample ; inline
+: sample-with-replacement ( arr n -- arr ) true sample ; inline
 
-( data -- n ) \ resampling domain size: an array's elements, else rows
-: n-observations dup array? if size else n-rows then ; internal
+\ resampling domain size: an array's elements, else rows
+: n-observations ( data -- n ) dup array? if size else n-rows then ; internal
 
-( data fit-xt replications fit-mapper -- [estimates] )
 \ One serial draw sets the run seed; replicate i then draws its indices from
 \ a generator seeded by run-seed + i, so resampling parallelizes and results
 \ are identical regardless of worker scheduling. No resample outlives its fit.
-: bootstrap-with
+: bootstrap-with ( data fit-xt replications fit-mapper -- [estimates] )
 	| data fit-xt replications fit-mapper |
 	2147483647 random-int to run-seed
 
 	replications iota
-	[: i |
+	( i |
 		data dup n-observations run-seed i + resample-indices-ext select-rows
 		fit-xt execute
-	:]
+	)
 	fit-mapper execute ;
 
-: bootstrap ' map bootstrap-with ;
-: pbootstrap ' pmap bootstrap-with ;
+: bootstrap ( data fit-xt B -- arr ) ' map bootstrap-with ;
+: pbootstrap ( data fit-xt B -- arr ) ' pmap bootstrap-with ;
 
-( values -- probabilities ) \ logistic elementwise: maps reals to (0,1)
-: sigmoid negate exp 1+ 1 swap / ;
+\ logistic elementwise: maps reals to (0,1)
+: sigmoid ( values -- probabilities ) negate exp 1+ 1 swap / ;
 
-( xs ys -- xs' ys' ) \ drop pairs where either element is NaN; magnitudes taken
-: complete-cases
+\ drop pairs where either element is NaN; magnitudes taken
+: complete-cases ( xs ys -- xs' ys' )
 	| xs ys |
 	xs magnitude as-column to xs
 	ys magnitude as-column to ys
@@ -182,16 +181,16 @@
 	xs keep select-rows
 	ys keep select-rows ;
 
-( xs ys -- f ) \ sample covariance over the complete pairs (n-1 denominator, matching var)
-: covariance
+\ sample covariance over the complete pairs (n-1 denominator, matching var)
+: covariance ( xs ys -- f )
 	| xs ys |
 	xs ys complete-cases to ys to xs
 	xs num-elements to n
 	n 2 < if n "covariance: expected at least 2 complete pairs; got {0}" format throw then
 	xs dup mean - ys dup mean - dot n 1 - / ;
 
-( xs ys -- r ) \ Pearson correlation coefficient over the complete pairs
-: correlation-pearson
+\ Pearson correlation coefficient over the complete pairs
+: correlation-pearson ( xs ys -- r )
 	| xs ys |
 	xs ys complete-cases to ys to xs
 	xs num-elements 2 < if xs num-elements "correlation-pearson: expected at least 2 complete pairs; got {0}" format throw then
@@ -205,8 +204,8 @@
 		centered-xs centered-ys dot swap sqrt / 
 	then ;
 
-( vector -- ranks ) \ 0-based midranks as nx1: tied values share the mean of their positions; NaNs rank last in index order
-: ranks
+\ 0-based midranks as nx1: tied values share the mean of their positions; NaNs rank last in index order
+: ranks ( vector -- ranks )
 	| values |
 	values magnitude as-column to values
 	values argsort to order
@@ -228,13 +227,13 @@
 	repeat
 	midranks ;
 
-( xs ys -- rho ) \ Spearman rank correlation: pearson on the ranks of the complete pairs
-: correlation-spearman complete-cases ranks swap ranks correlation-pearson ; inline
+\ Spearman rank correlation: pearson on the ranks of the complete pairs
+: correlation-spearman ( xs ys -- rho ) complete-cases ranks swap ranks correlation-pearson ; inline
 
-( outcomes scores -- f ) \ area under the ROC curve: P(a random positive scores above a random
+\ area under the ROC curve: P(a random positive scores above a random
 \ negative), ties counted half. outcomes n×1 in {0,1}, scores n×1 real; a NaN score drops its
 \ row (outcomes stay aligned); both classes must be present
-: auc
+: auc ( outcomes scores -- f )
 	| outcomes scores |
 	outcomes scores complete-cases to scores to outcomes
 	outcomes 0.5 > where scores swap select-rows to positives
@@ -243,24 +242,24 @@
 		"auc: both a positive and a negative outcome required" throw then
 	
 	positives matrix>array
-	[: positive-score |
+	( positive-score |
 		negatives positive-score < sum negatives positive-score <= sum +
-	:] map vector sum
+	) map vector sum
 	0.5 * positives num-elements negatives num-elements * / ;
 
-( outcomes probabilities -- f ) \ Brier score: mean squared error of probabilities against 0/1
+\ Brier score: mean squared error of probabilities against 0/1
 \ outcomes; NaN elements are skipped by mean
-: brier | outcomes probabilities | probabilities outcomes - dup * mean ;
+: brier ( outcomes probabilities -- f ) | outcomes probabilities | probabilities outcomes - dup * mean ;
 
-( tail-deviate -- z ) \ qnorm tail expansion at sqrt(-2 ln p); signed for the lower tail
-: qnorm-tail
+\ qnorm tail expansion at sqrt(-2 ln p); signed for the lower tail
+: qnorm-tail ( tail-deviate -- z )
 	| tail-deviate |
 	-7.784894002430293e-3 tail-deviate * -0.3223964580411365 + tail-deviate * -2.400758277161838 + tail-deviate * -2.549732539343734 + tail-deviate * 4.374664141464968 + tail-deviate * 2.938163982698783 +
 	7.784695709041462e-3 tail-deviate * 0.3224671290700398 + tail-deviate * 2.445134137142996 + tail-deviate * 3.754408661907416 + tail-deviate * 1 +
 	/ ; internal
 
-( probability -- z ) \ standard normal quantile (inverse CDF); Acklam's rational approximation
-: qnorm
+\ standard normal quantile (inverse CDF); Acklam's rational approximation
+: qnorm ( probability -- z )
 	| probability |
 	probability 0 > probability 1 < and not if probability "qnorm: expected a probability in (0, 1); got {0}" format throw then
 	probability 0.02425 < if probability ln -2 * sqrt qnorm-tail exit then
@@ -272,20 +271,20 @@
 	-54.47609879822406 squared-deviation * 161.5858368580409 + squared-deviation * -155.6989798598866 + squared-deviation * 66.80131188771972 + squared-deviation * -13.28068155288572 + squared-deviation * 1 +
 	/ ;
 
-( z -- p ) \ standard normal CDF: 0.5 erfc(-z / sqrt 2); float or matrix element-wise
-: pnorm negate 2 sqrt / erfc 0.5 * ;
+\ standard normal CDF: 0.5 erfc(-z / sqrt 2); float or matrix element-wise
+: pnorm ( z -- p ) negate 2 sqrt / erfc 0.5 * ;
 
-( -- z ) \ one standard normal deviate: qnorm of a uniform draw, redrawn on 0
-: random-normal
+\ one standard normal deviate: qnorm of a uniform draw, redrawn on 0
+: random-normal ( -- z )
 	begin random dup 0 = while drop repeat qnorm ;
 
-( xs ys correlation-xt replications -- corr-summary ) \ bootstrap CI for a correlation
-: correlate-with
+\ bootstrap CI for a correlation
+: correlate-with ( xs ys correlation-xt replications -- corr-summary )
 	| xs ys correlation-xt replications |
 	xs ys correlation-xt execute to estimate
 	
 	xs ys complete-cases augment
-	[: resample | resample 0 @j resample 1 @j correlation-xt execute :]
+	( resample | resample 0 @j resample 1 @j correlation-xt execute )
 	replications pbootstrap vector to replicate-estimates
 
 
@@ -298,12 +297,11 @@
 		:ci-high high 
 	} ;
 
-( xs ys -- corr-summary ) \ kendall correlation with 500 bootstraps
-: cor ' correlation-kendall 500 correlate-with ; inline
+\ kendall correlation with 500 bootstraps
+: cor ( xs ys -- corr-summary ) ' correlation-kendall 500 correlate-with ; inline
 
-( values probs -- quantiles )
-: quantiles
+: quantiles ( values probs -- quantiles )
 	| values probs |
 	values magnitude to bare-values
-	probs [: bare-values swap quantile :] map vector
+	probs ( bare-values swap quantile ) map vector
 	values unit-of * ;

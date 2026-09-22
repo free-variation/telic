@@ -30,19 +30,19 @@ lvar to Fk
 { :k Fk } { :k "v" :x 9 } ~ drop   Fk ? "v" = . cr     \ 1
 
 \ === | ?x | is a fresh local logic var, bound per call ===
-: bindit  | ?X n |  X n ~ drop  X ? ;
+: bindit ( n -- v )  | ?X n |  X n ~ drop  X ? ;
 3 bindit . cr                              \ 3
 7 bindit . cr                              \ 7   fresh X each call; no clash with 3
 
-: twovars  | ?A ?B |  [ A B ] [ 8 9 ] ~ drop  A ? . B ? . cr ;
+: twovars ( -- )  | ?A ?B |  [ A B ] [ 8 9 ] ~ drop  A ? . B ? . cr ;
 twovars                                    \ 8 9
 
 \ === a receive local keeps its received value (not a fresh lvar) ===
-: idr  | R |  R ;
+: idr ( R -- R )  | R |  R ;
 42 idr . cr                                \ 42
 
 \ === ? locals work inside a quotation ===
-[: | ?Q |  Q 5 ~ drop  Q ? :] execute . cr  \ 5
+( | ?Q |  Q 5 ~ drop  Q ? ) execute . cr  \ 5
 
 \ === an undeclared capitalized token is just an unknown word ===
 Stray

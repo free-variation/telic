@@ -13,7 +13,7 @@ variable rm  variable ri  variable rj
 2147483647.0 constant m1
 4.656612875245797e-10 constant dm1
 
-: rng-init ^rm ^ri ^rj |
+: rng-init ( -- ) ^rm ^ri ^rj |
   [ 253932.0 731212090.0 468995992.0 1775900326.0 1784309764.0 636090706.0
     606937648.0 841957950.0 1453856540.0 1744446058.0 305151944.0 1494977238.0
     896709940.0 1989340290.0 810774624.0 217839726.0 200215116.0 ] to rm
@@ -29,10 +29,10 @@ variable rm  variable ri  variable rj
 
 : build-empty ( n -- a )
    to n
-  n  n iota  [: drop 0 2 pick array-of :] map  nip ;
+  n  n iota  ( drop 0 2 pick array-of ) map  nip ;
 
-( i a n -- ) \ fill row i of a with n random doubles
-: fill-row
+\ fill row i of a with n random doubles
+: fill-row ( i a n -- )
   | i a n |
   a i @i to arow
   0 n 1 do k
@@ -44,8 +44,8 @@ variable rm  variable ri  variable rj
   0 n 1 do r  r a n fill-row  loop
   a ;
 
-( i src dst n -- ) \ copy n elements of row i, element by element
-: copy-row
+\ copy n elements of row i, element by element
+: copy-row ( i src dst n -- )
   | i src dst n |
   src i @i to srow
   dst i @i to drow
@@ -80,8 +80,8 @@ variable rm  variable ri  variable rj
     loop
   loop ;
 
-( sum i a n -- sum' ) \ add row i's n elements to the running sum
-: add-row
+\ add row i's n elements to the running sum
+: add-row ( sum i a n -- sum' )
   | sum i a n |
   a i @i to arow
   sum
@@ -94,8 +94,8 @@ variable rm  variable ri  variable rj
   0
   0 n 1 do r  r a n add-row  loop ;
 
-( a lu n -- ) \ one measured round: refresh lu from a, then factor it
-: lu-round
+\ one measured round: refresh lu from a, then factor it
+: lu-round ( a lu n -- )
   | a lu n | a lu n copy-into  lu n lu-factor ;
 
 : lu-bench ( n cycles -- )

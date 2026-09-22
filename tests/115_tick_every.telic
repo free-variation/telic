@@ -5,7 +5,7 @@
 \ remaining time. Nothing ticks until armed; 0 disarms.
 
 variable ticks 0 to ticks
-: count-tick | ^ticks | ++ ticks ;
+: count-tick ( -- ) | ^ticks | ++ ticks ;
 ' count-tick embodies on-tick
 
 \ -- unarmed: a sleep sees no tick
@@ -17,7 +17,7 @@ now 2.5 sleep now swap - 2.4 > . cr                  \ 1
 ticks . cr                                           \ 2
 
 \ -- ticks land between ops of running code too
-: spin 0 to total 0 300000000 1 do i i total + to total loop total ;
+: spin ( -- n ) 0 to total 0 300000000 1 do i i total + to total loop total ;
 0 to ticks
 0.25 tick-every
 spin drop
@@ -29,7 +29,7 @@ ticks 3 >= . cr                                      \ 1   a loop of about 1.5 s
 1.2 sleep ticks . cr                                 \ 0
 
 \ -- a hook that leaves the stack alone; one that errors reports and continues
-: noisy-tick 1 0 / drop ;
+: noisy-tick ( -- ) 1 0 / drop ;
 ' noisy-tick embodies on-tick
 1 tick-every 1.2 sleep 0 tick-every
 depth . cr                                           \ 0   (stderr carried "on-tick: division by zero")

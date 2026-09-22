@@ -203,7 +203,7 @@ which `amb`/`fail` walk depth-first, binding on the way down and unbinding on th
 way back up.
 
 ```forth amb-fail
-[: fail :] [: "second branch" :] amb . cr
+( fail ) ( "second branch" ) amb . cr
 ```
 ```output
 second branch

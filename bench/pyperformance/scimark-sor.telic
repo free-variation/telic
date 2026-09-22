@@ -18,10 +18,10 @@ variable g
 1.25 0.25 f* constant omega-over-four
 1.0 1.25 f- constant one-minus-omega
 
-: build-g ^g |
+: build-g ( -- ) ^g |
   nn 1 0-matrix to g ;
 
-: sor-execute
+: sor-execute ( -- )
   0 cycles 1 do cycle
      1 nm1 1 do y
         y n f* to rowbase
@@ -45,7 +45,7 @@ variable g
   to total
   total ;
 
-: sor-bench
+: sor-bench ( -- )
   now to t0
   0 iterations 1 do r  build-g sor-execute  loop
   now t0 - to t0
