@@ -1,0 +1,45 @@
+\ sqlite-vec: vector search on a vec0 virtual table. Every connection db-open
+\ returns carries the extension, so no loading step appears here. A telic
+\ vector (nx1 or 1xn) binds as the float32 blob vec0 expects. In-memory
+\ database, so the test leaves no files.
+
+variable db
+":memory:" db-open to db
+
+\ === the extension is registered on every connection ===
+db "select vec_version() as v" [ ] db-query :v @ 0 @i . cr        \ v0.1.9
+
+\ === a vec0 table takes vectors bound as parameters ===
+\ db-exec answers sqlite3_changes, and a vec0 table is backed by shadow tables,
+\ so both the creation and each insert report the shadow rows written rather
+\ than the 0 a plain CREATE and the 1 a plain INSERT would report. The counts
+\ belong to the pinned sqlite-vec version and move when it is bumped.
+db "create virtual table docs using vec0(embedding float[4] distance_metric=cosine)" [ ] db-exec . cr  \ 4
+\ a vec0 rowid must be an integer, and a telic float binds as REAL, so the
+\ key goes in as an exact
+db "insert into docs(rowid, embedding) values (?, ?)" [ 1 float>exact [ 1 0 0 0 ] 4 1 matrix ] db-exec . cr    \ 5
+db "insert into docs(rowid, embedding) values (?, ?)" [ 2 float>exact [ 0 1 0 0 ] 4 1 matrix ] db-exec . cr    \ 3
+db "insert into docs(rowid, embedding) values (?, ?)" [ 3 float>exact [ 0.9 0.1 0 0 ] 4 1 matrix ] db-exec . cr \ 3
+
+\ === k-nearest-neighbour ===
+variable hits
+db "select rowid, distance from docs where embedding match ? order by distance limit 2" [ [ 1 0 0 0 ] 4 1 matrix ] db-query to hits
+hits :rowid @ transpose . cr                                     \ 1 3 as 1x2: the exact match, then the near one
+hits :distance @ 0 @e . cr                                       \ 0
+
+\ a vector parameter ranks exactly as the JSON text form of the same vector
+db "select rowid from docs where embedding match ? order by distance limit 3" [ [ 1 0 0 0 ] 4 1 matrix ] db-query :rowid @ transpose . cr  \ 1 3 2
+db "select rowid from docs where embedding match ? order by distance limit 3" [ "[1,0,0,0]" ] db-query :rowid @ transpose . cr             \ 1 3 2
+
+\ orientation does not matter: a 1xn vector binds like an nx1
+db "select rowid from docs where embedding match ? order by distance limit 1" [ [ 1 0 0 0 ] 1 4 matrix ] db-query :rowid @ transpose . cr  \ 1
+
+\ === reading an embedding back ===
+\ the stored column is a blob; vec_to_json renders it as text
+db "select vec_to_json(embedding) as e from docs where rowid = 3" [ ] db-query :e @ 0 @i . cr  \ [0.900000,0.100000,0.000000,0.000000]
+
+\ === errors ===
+db "select rowid from docs where embedding match ? order by distance limit 1" [ [ 1 2 3 4 ] 2 2 matrix ] db-query  \ (a matrix that is not a vector)
+db "select rowid from docs where embedding match ? order by distance limit 1" [ [ 1 2 ] 2 1 matrix ] db-query      \ (wrong number of dimensions)
+
+db db-close

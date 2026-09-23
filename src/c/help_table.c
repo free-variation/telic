@@ -241,7 +241,7 @@ const HelpEntry help_entries[] = {
 	{ "days-in-month", "( year month -- days )", "units.telic: length of the month, leap-aware", "60", "frames", "O(1)", 23 },
 	{ "db-close", "( db -- )", "Close the connection and free its registry slot. Idempotent — closing an already-closed handle is a no-op. A closed handle stays stale: using it reports database is closed even after the slot is reissued to another database. A handle that is dropped without closing holds the connection until process exit; with-db scopes one", "1 syscall", "none", "O(1)", 35 },
 	{ "db-exec", "( db statement params -- n )", "Bind params to the statement's ? placeholders and run it with no result set (INSERT / UPDATE / DELETE / CREATE / …); return the rows this statement inserted, updated or deleted, as a float (0 for DDL). One statement per call. On a bad statement, errors with SQLite's message", "per statement", "none", "O(statement)", 35 },
-	{ "db-open", "( path -- db )", "Open (creating if absent) the database file at path and push a handle; \":memory:\" is a private in-memory database. Errors if it can't be opened", "open", "1 connection (not GC'd)", "O(1)+", 35 },
+	{ "db-open", "( path -- db )", "Open (creating if absent) the database file at path and push a handle; \":memory:\" is a private in-memory database. The connection carries the vendored sqlite-vec extension — the vec0 virtual table and the vec_* functions (see Vector search below) — registered as a built-in, so no extension is loaded at runtime. Errors if it can't be opened", "open", "1 connection (not GC'd)", "O(1)+", 35 },
 	{ "db-query", "( db query params -- dataset )", "database.telic: bind params to the query's ? placeholders and run it, answering the result as a column-oriented dataset with **typed columns**: a column whose every cell is INTEGER, REAL or NULL, with at least one number, becomes an n×1 vector (NULL → NaN; an all-NULL column stays an array of null; an integer beyond 2⁵³ stays an exact in an array column), a column declared DATE/DATETIME/TIMESTAMP becomes a vector of instants in s (numeric cells read as epoch seconds, text cells parsed as ISO Z), and anything else stays an array with TEXT → string, BLOB → string of raw bytes, NULL → null. Rows keep result order, duplicates included. An empty column declared numeric stays an empty vector, so the type survives an empty result; a repeated column name keeps its last occurrence. On a bad query, errors with SQLite's message", "n·c", "1o frame + 1a/column + 1m per numeric column + a string per text cell", "O(n·c)", 35 },
 	{ "db?", "( a -- bool )", "core.telic: 1 when the value is a database, else 0", "5", "none", "O(1)", 4 },
 	{ "defer", "( \"name\" -- )", "Read the following name; declare a forward-referenced word with no target. Calling it before a target is installed throws unresolved deferred word. Enables mutual recursion and late binding; set the target with embodies or embodies!", NULL, NULL, NULL, 12 },
@@ -998,6 +998,7 @@ const HelpExample help_examples[] = {
 	{ "db-exec", "\":memory:\" db-open dup \"create table t(x)\" [ ] db-exec . dup \"insert into t values (?)\" [ 5 ] db-exec . db-close cr", "0 1" },
 	{ "db-open", "\":memory:\" db-open db? . cr", "1" },
 	{ "db-query", "\":memory:\" db-open dup \"select 2 as v\" [ ] db-query :v @ matrix>array . db-close cr", "[ 2 ]" },
+	{ "db-query", "\":memory:\" db-open\ndup \"create virtual table docs using vec0(embedding float[4] distance_metric=cosine)\" [ ] db-exec drop\ndup \"insert into docs(rowid, embedding) values (?, ?)\" [ 1 float>exact [ 1 0 0 0 ] 4 1 matrix ] db-exec drop\ndup \"insert into docs(rowid, embedding) values (?, ?)\" [ 2 float>exact [ 0 1 0 0 ] 4 1 matrix ] db-exec drop\ndup \"insert into docs(rowid, embedding) values (?, ?)\" [ 3 float>exact [ 0.9 0.1 0 0 ] 4 1 matrix ] db-exec drop\ndup \"select rowid from docs where embedding match ? order by distance limit 2\" [ [ 1 0 0 0 ] 4 1 matrix ] db-query :rowid @ matrix>array .\ndb-close cr", "[ 1 3 ]" },
 	{ "db?", "\":memory:\" db-open dup db? . db-close cr", "1" },
 	{ "defer", "defer greeting : hello-word ( -- ) \"hello\" . cr ; ' hello-word embodies greeting greeting", "hello" },
 	{ "delete-at", "{ :a 1 :b 2 } :a delete-at frame>array . cr", "[ :b 2 ]" },
@@ -1561,4 +1562,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 750;
+const int help_example_count = 751;

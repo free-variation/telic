@@ -368,6 +368,13 @@ semantics of record.
 The C sources carry no comments; constraints a future change must honor
 live here instead. File and function name each invariant's home.
 
+- `database.c` defines `SQLITE_CORE` before including `sqlite-vec.h`. Without
+  it the header pulls in `sqlite3ext.h`, whose `SQLITE_EXTENSION_INIT` macros
+  rewrite every `sqlite3_*` call in the file into `sqlite3_api->…` — the
+  loadable-extension ABI the vendored SQLite does not provide, since it is
+  built with `SQLITE_OMIT_LOAD_EXTENSION`. The same switch is in the
+  Makefile's `SQLITE_VEC_CFLAGS` for the extension's own translation unit
+  (database.c, `p_db_open`).
 - The reader has one input buffer, so every nested run of source text goes
   through `run_input_text`: it saves the buffer, its length, its position and
   `need_more`, runs, and restores them. `load_file` and `p_evaluate` both call

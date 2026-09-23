@@ -1,0 +1,23 @@
+v0.1.9 
+4 
+5 
+3 
+3 
+<matrix 1x2>
+          1          3
+
+0 
+<matrix 1x3>
+          1          3          2
+
+<matrix 1x3>
+          1          3          2
+
+<matrix 1x1>
+          1
+
+[0.900000,0.100000,0.000000,0.000000] 
+error: expected a vector parameter (nx1 or 1xn); got 2x2
+in (db-query) ← db-query
+error: Dimension mismatch for query vector for the "embedding" column. Expected 4 dimensions but received 2.
+in (db-query) ← db-query

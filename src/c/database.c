@@ -1,5 +1,7 @@
 #include "telic.h"
 #include "sqlite3.h"
+#define SQLITE_CORE
+#include "sqlite-vec.h"
 
 #define DB_SLOT_BITS 8
 #define DB_SLOT_MASK ((1 << DB_SLOT_BITS) - 1)
@@ -40,6 +42,12 @@ void p_db_open(DISPATCH_ARGS) {
 
 	sqlite3 *db;
 	if (sqlite3_open(path->bytes, &db) != SQLITE_OK) {
+		fail(interp, "%s", sqlite3_errmsg(db));
+		sqlite3_close(db);
+		return;
+	}
+
+	if (sqlite3_vec_init(db, NULL, NULL) != SQLITE_OK) {
 		fail(interp, "%s", sqlite3_errmsg(db));
 		sqlite3_close(db);
 		return;
@@ -103,6 +111,21 @@ static int db_bind(Interpreter *interp, sqlite3_stmt *statement, Object *params)
 							  sqlite3_bind_int64(statement, i + 1, integer);
 							  break;
 						  }
+			case T_MATRIX: {
+							   Object *vector = OBJECT_AT(VAL_DATA(value));
+							   int length = vector_length(interp, vector, "a vector parameter");
+							   if (length < 0)
+								   return -1;
+
+							   float *floats;
+							   MALLOC_OR_FAIL_RETURNING(interp, floats, sizeof(float) * (size_t)length, -1);
+							   for (int element = 0; element < length; element++)
+								   floats[element] = (float)vector->matrix.elements[element];
+
+							   sqlite3_bind_blob(statement, i + 1, floats, length * (int)sizeof(float), SQLITE_TRANSIENT);
+							   free(floats);
+							   break;
+						   }
 			default:
 						   fail(interp, "cannot bind %s as a parameter", tag_name(VAL_TAG(value)));
 						   return -1;

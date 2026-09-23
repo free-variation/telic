@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.37.1-alpha"
+#define VERSION "0.38.0-alpha"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1136,6 +1136,7 @@ double matrix_variance_overall(Object *source, size_t *n_nonmissing_out);
 void sort_doubles(double *elements, size_t n_elements);
 void sort_pairs(ArgsortPair *elements, size_t n_elements);
 int vector_argsort_copy(Interpreter *interp, Object *source);
+int vector_length(Interpreter *interp, Object *vector, const char *noun_phrase);
 int vector_sorted_copy(Interpreter *interp, Object *source);
 
 // superwords.c
@@ -1147,6 +1148,7 @@ int superword_try_fuse_store(Interpreter *interp, int dst_cfa);
 
 // strings.c
 int *decoded_codepoints(Interpreter *interp, const char *bytes, int byte_len, int *count_out);
+void string_buffer_append(Interpreter *interp, char **buffer, int *length, int *capacity, const char *src, int n);
 int string_codepoint_count(Object *string);
 int string_edit_distance(Interpreter *interp, const char *first_bytes, int first_len, const char *second_bytes, int second_len);
 int bytes_match(Interpreter *interp, const char *bytes, int length, Object *pattern);

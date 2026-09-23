@@ -2021,21 +2021,7 @@ static int json_decode_string(Interpreter *interp, const char *content, const ch
 					codepoint = 0x10000 + ((codepoint - 0xD800) << 10) + (low - 0xDC00);
 					raw += 6;
 				}
-				if (codepoint <= 0x7F) {
-					out[length++] = (char)codepoint;
-				} else if (codepoint <= 0x7FF) {
-					out[length++] = (char)(0xC0 | (codepoint >> 6));
-					out[length++] = (char)(0x80 | (codepoint & 0x3F));
-				} else if (codepoint <= 0xFFFF) {
-					out[length++] = (char)(0xE0 | (codepoint >> 12));
-					out[length++] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
-					out[length++] = (char)(0x80 | (codepoint & 0x3F));
-				} else {
-					out[length++] = (char)(0xF0 | (codepoint >> 18));
-					out[length++] = (char)(0x80 | ((codepoint >> 12) & 0x3F));
-					out[length++] = (char)(0x80 | ((codepoint >> 6) & 0x3F));
-					out[length++] = (char)(0x80 | (codepoint & 0x3F));
-				}
+				length += utf8_encode(codepoint, &out[length]);
 				break;
 			}
 			default:

@@ -26,6 +26,6 @@
 250 
 1 
 error: no key :zip
-in (@.symbol) ← ( mask column-name | pattern column-name @ ? to… )
+in (@.symbol) ← ( mask column-name | pattern column-name @ ? to… ) ← query
 error: expected a matrix; got a float
 in dim ← n-rows ← query

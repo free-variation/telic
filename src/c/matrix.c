@@ -620,7 +620,7 @@ RADIX_SORT(pairs, ArgsortPair, PAIR_KEY)
 SORT_DISPATCH(, doubles, double)
 SORT_DISPATCH(, pairs, ArgsortPair)
 
-static int vector_length(Interpreter *interp, Object *vector, const char *noun_phrase) {
+int vector_length(Interpreter *interp, Object *vector, const char *noun_phrase) {
 	int n_rows = vector->matrix.rows;
 	int n_columns = vector->matrix.columns;
 	if (n_rows != 1 && n_columns != 1) {

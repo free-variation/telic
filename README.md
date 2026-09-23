@@ -437,6 +437,7 @@ Embedded relational storage via the vendored SQLite amalgamation — built into 
 - **`db-query`** — run a query, answering the result as a dataset with typed columns.
 - **`tsv>db`** — import a TSV into a new table, inferring each column's type.
 - **Bound parameters** — every query and statement takes an array bound to its `?` placeholders, so values need no hand-escaping.
+- **Vector search** — the vendored sqlite-vec extension is built in and registered on every connection: `vec0` tables hold float, int8 or binary vectors under an L2, L1 or cosine metric, and a vector binds as a parameter, so a k-nearest-neighbour query takes an embedding straight from the language.
 
 ### Data: TSV, datasets, and statistics
 

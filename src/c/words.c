@@ -2549,32 +2549,6 @@ int read_string_literal(void) {
 	return -1;
 }
 
-static void interp_append(Interpreter *interp, char **buffer, int *capacity, int *length, const char *src, int n) {
-	if (interp->error_flag)
-		return;
-	if (*length + n > *capacity) {
-		while (*length + n > *capacity) {
-			if (*capacity > INT_MAX / 2) {
-				free(*buffer);
-				*buffer = NULL;
-				fail(interp, "result too large");
-				return;
-			}
-			*capacity *= 2;
-		}
-		char *grown = realloc(*buffer, (size_t)*capacity);
-		if (!grown) {
-			free(*buffer);
-			*buffer = NULL;
-			fail(interp, "out of memory");
-			return;
-		}
-		*buffer = grown;
-	}
-	memcpy(*buffer + *length, src, (size_t)n);
-	*length += n;
-}
-
 static void interp_render_val(Interpreter *interp, Val value, char **out_buffer, int *capacity, int *out_length) {
 	switch (VAL_TAG(value)) {
 		case T_FLOAT: {
@@ -2585,23 +2559,23 @@ static void interp_render_val(Interpreter *interp, Val value, char **out_buffer,
 				n = snprintf(rendered, sizeof(rendered), "%lld", (long long)number);
 			else
 				n = snprintf(rendered, sizeof(rendered), "%g", number);
-			interp_append(interp, out_buffer, capacity, out_length, rendered, n);
+			string_buffer_append(interp, out_buffer, out_length, capacity, rendered, n);
 			break;
 		}
 		case T_SYMBOL: {
 			const char *name = &vocab.symbol_pool[VAL_DATA(value)];
-			interp_append(interp, out_buffer, capacity, out_length, name, (int)strlen(name));
+			string_buffer_append(interp, out_buffer, out_length, capacity, name, (int)strlen(name));
 			break;
 		}
 		case T_STRING: {
 			Object *string_obj = OBJECT_AT(VAL_DATA(value));
-			interp_append(interp, out_buffer, capacity, out_length, string_obj->bytes, string_obj->len);
+			string_buffer_append(interp, out_buffer, out_length, capacity, string_obj->bytes, string_obj->len);
 			break;
 		}
 		case T_PTR: {
 			char rendered[32];
 			int n = snprintf(rendered, sizeof(rendered), "<ptr %lld>", (long long)VAL_DATA(value));
-			interp_append(interp, out_buffer, capacity, out_length, rendered, n);
+			string_buffer_append(interp, out_buffer, out_length, capacity, rendered, n);
 			break;
 		}
 		case T_EXACT:
@@ -2616,12 +2590,12 @@ static void interp_render_val(Interpreter *interp, Val value, char **out_buffer,
 			}
 			print_val(stream, interp, value);
 			fclose(stream);
-			interp_append(interp, out_buffer, capacity, out_length, rendered, (int)rendered_size);
+			string_buffer_append(interp, out_buffer, out_length, capacity, rendered, (int)rendered_size);
 			free(rendered);
 			break;
 		}
 		default:
-			interp_append(interp, out_buffer, capacity, out_length, "<?>", 3);
+			string_buffer_append(interp, out_buffer, out_length, capacity, "<?>", 3);
 			break;
 	}
 }
@@ -2725,7 +2699,7 @@ static void interp_render_with_spec(Interpreter *interp, Val value,
 		MALLOC_OR_FAIL(interp, text, text_cap);
 		int text_len = 0;
 		interp_render_val(interp, value, &text, &text_cap, &text_len);
-		interp_append(interp, &text, &text_cap, &text_len, "", 1);
+		string_buffer_append(interp, &text, &text_len, &text_cap, "", 1);
 		if (interp->error_flag) {
 			free(text);
 			return;
@@ -2744,7 +2718,7 @@ static void interp_render_with_spec(Interpreter *interp, Val value,
 
 	if (n < 0)
 		n = 0;
-	interp_append(interp, out_buffer, capacity, out_length, rendered, n);
+	string_buffer_append(interp, out_buffer, out_length, capacity, rendered, n);
 	if (rendered != stackbuf)
 		free(rendered);
 }
@@ -2779,12 +2753,12 @@ int interpolate(Interpreter *interp, int template_handle) {
 	for (int cursor = 0; cursor < template->len; ) {
 		if (template->bytes[cursor] == '{') {
 			if (template->len - cursor >= 4 && memcmp(&template->bytes[cursor], "{nl}", 4) == 0) {
-				interp_append(interp, &out_buffer, &capacity, &out_length, "\n", 1);
+				string_buffer_append(interp, &out_buffer, &out_length, &capacity, "\n", 1);
 				cursor += 4;
 				continue;
 			}
 			if (template->len - cursor >= 5 && memcmp(&template->bytes[cursor], "{tab}", 5) == 0) {
-				interp_append(interp, &out_buffer, &capacity, &out_length, "\t", 1);
+				string_buffer_append(interp, &out_buffer, &out_length, &capacity, "\t", 1);
 				cursor += 5;
 				continue;
 			}
@@ -2797,7 +2771,7 @@ int interpolate(Interpreter *interp, int template_handle) {
 					if (ink_tty < 0)
 						ink_tty = isatty(1);
 					if (ink_tty)
-						interp_append(interp, &out_buffer, &capacity, &out_length,
+						string_buffer_append(interp, &out_buffer, &out_length, &capacity,
 								format_inks[i].escape, (int)strlen(format_inks[i].escape));
 					cursor += directive_len;
 					matched_ink = 1;
@@ -2854,7 +2828,7 @@ int interpolate(Interpreter *interp, int template_handle) {
 				}
 			}
 		}
-		interp_append(interp, &out_buffer, &capacity, &out_length, &template->bytes[cursor], 1);
+		string_buffer_append(interp, &out_buffer, &out_length, &capacity, &template->bytes[cursor], 1);
 		cursor++;
 	}
 

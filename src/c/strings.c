@@ -350,12 +350,19 @@ void p_split(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 }
 
-static void append_bytes(Interpreter *interp, char **buffer, int *length, int *capacity, const char *src, int n) {
+void string_buffer_append(Interpreter *interp, char **buffer, int *length, int *capacity, const char *src, int n) {
 	if (interp->error_flag)
 		return;
 	if (*length + n > *capacity) {
-		while (*length + n > *capacity)
+		while (*length + n > *capacity) {
+			if (*capacity > INT_MAX / 2) {
+				free(*buffer);
+				*buffer = NULL;
+				fail(interp, "result too large");
+				return;
+			}
 			*capacity = *capacity ? *capacity * 2 : 64;
+		}
 		char *grown = realloc(*buffer, (size_t)*capacity);
 		if (!grown) {
 			free(*buffer);
@@ -393,14 +400,14 @@ void p_replace(DISPATCH_ARGS) {
 		int start = match_offsets[0];
 		int end = match_offsets[1];
 
-		append_bytes(interp, &out, &length, &capacity, subject->bytes + pos, start - pos);
+		string_buffer_append(interp, &out, &length, &capacity, subject->bytes + pos, start - pos);
 
 		for (int i = 0; i < replacement->len; ) {
 			char c = replacement->bytes[i];
 			if (c == '\\' && i + 1 < replacement->len) {
 				char escaped = replacement->bytes[i + 1];
 				if (escaped == '\\' || escaped == '&') {
-					append_bytes(interp, &out, &length, &capacity, &escaped, 1);
+					string_buffer_append(interp, &out, &length, &capacity, &escaped, 1);
 					i += 2;
 				} else if (escaped >= '0' && escaped <= '9') {
 					int group = escaped - '0';
@@ -412,19 +419,19 @@ void p_replace(DISPATCH_ARGS) {
 						return;
 					}
 					if (match_offsets[2 * group] >= 0)
-						append_bytes(interp, &out, &length, &capacity, subject->bytes + match_offsets[2 * group],
+						string_buffer_append(interp, &out, &length, &capacity, subject->bytes + match_offsets[2 * group],
 								match_offsets[2 * group + 1] - match_offsets[2 * group]);
 					i += 2;
 				} else {
-					append_bytes(interp, &out, &length, &capacity, &c, 1);
+					string_buffer_append(interp, &out, &length, &capacity, &c, 1);
 					i += 1;
 				}
 			} else if (c == '&') {
-				append_bytes(interp, &out, &length, &capacity, subject->bytes + match_offsets[0],
+				string_buffer_append(interp, &out, &length, &capacity, subject->bytes + match_offsets[0],
 						match_offsets[1] - match_offsets[0]);
 				i += 1;
 			} else {
-				append_bytes(interp, &out, &length, &capacity, &c, 1);
+				string_buffer_append(interp, &out, &length, &capacity, &c, 1);
 				i += 1;
 			}
 		}
@@ -434,7 +441,7 @@ void p_replace(DISPATCH_ARGS) {
 	}
 	pcre2_match_data_free(md);
 	free(match_offsets);
-	append_bytes(interp, &out, &length, &capacity, subject->bytes + pos, subject->len - pos);
+	string_buffer_append(interp, &out, &length, &capacity, subject->bytes + pos, subject->len - pos);
 
 	if (interp->error_flag) {
 		free(out);

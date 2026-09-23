@@ -6060,11 +6060,11 @@ a b
 
 ## SQLite
 
-Embedded relational storage via the vendored SQLite amalgamation, built into the binary. A database is a `T_DB` value — an inline handle into a per-interpreter registry of open connections, like a stream. `db-exec` and `db-query` take a `params` array bound positionally to the statement's `?` placeholders (`[ ]` for none): a float binds as a double, an integer-valued exact as INTEGER, a string or symbol as text, `null` as NULL, anything else errors — so string parameters need no hand-escaping. A `db-query` result is a dataset, so every dataset word — `query`, `merge-by`, `aggregate`, `select-rows` — applies to it unchanged. `n` = rows returned, `c` = columns.
+Embedded relational storage via the vendored SQLite amalgamation, built into the binary. A database is a `T_DB` value — an inline handle into a per-interpreter registry of open connections, like a stream. `db-exec` and `db-query` take a `params` array bound positionally to the statement's `?` placeholders (`[ ]` for none): a float binds as a double, an integer-valued exact as INTEGER, a string or symbol as text, a vector (n×1 or 1×n) as a float32 blob, `null` as NULL, anything else errors — so string parameters need no hand-escaping. A matrix that is not a vector errors with its shape. A `db-query` result is a dataset, so every dataset word — `query`, `merge-by`, `aggregate`, `select-rows` — applies to it unchanged. `n` = rows returned, `c` = columns.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `db-open` | `( path -- db )` | Open (creating if absent) the database file at `path` and push a handle; `":memory:"` is a private in-memory database. Errors if it can't be opened | open | 1 connection (not GC'd) | O(1)+ |
+| `db-open` | `( path -- db )` | Open (creating if absent) the database file at `path` and push a handle; `":memory:"` is a private in-memory database. The connection carries the vendored sqlite-vec extension — the `vec0` virtual table and the `vec_*` functions (see Vector search below) — registered as a built-in, so no extension is loaded at runtime. Errors if it can't be opened | open | 1 connection (not GC'd) | O(1)+ |
 | `db-close` | `( db -- )` | Close the connection and free its registry slot. Idempotent — closing an already-closed handle is a no-op. A closed handle stays stale: using it reports `database is closed` even after the slot is reissued to another database. A handle that is dropped without closing holds the connection until process exit; `with-db` scopes one | 1 syscall | none | O(1) |
 | `db-exec` | `( db statement params -- n )` | Bind `params` to the statement's `?` placeholders and run it with no result set (INSERT / UPDATE / DELETE / CREATE / …); return the rows this statement inserted, updated or deleted, as a float (0 for DDL). One statement per call. On a bad statement, errors with SQLite's message | per statement | none | O(statement) |
 | `db-query` | `( db query params -- dataset )` | database.telic: bind `params` to the query's `?` placeholders and run it, answering the result as a column-oriented dataset with **typed columns**: a column whose every cell is INTEGER, REAL or NULL, with at least one number, becomes an n×1 vector (NULL → NaN; an all-NULL column stays an array of `null`; an integer beyond 2⁵³ stays an exact in an array column), a column declared DATE/DATETIME/TIMESTAMP becomes a vector of instants in `s` (numeric cells read as epoch seconds, text cells parsed as ISO Z), and anything else stays an array with TEXT → string, BLOB → string of raw bytes, NULL → `null`. Rows keep result order, duplicates included. An empty column declared numeric stays an empty vector, so the type survives an empty result; a repeated column name keeps its last occurrence. On a bad query, errors with SQLite's message | n·c | `1o` frame + `1a`/column + `1m` per numeric column + a string per text cell | O(n·c) |
@@ -6100,12 +6100,37 @@ closed twice
 [ 2 ]
 ```
 
+```forth db-query
+":memory:" db-open
+dup "create virtual table docs using vec0(embedding float[4] distance_metric=cosine)" [ ] db-exec drop
+dup "insert into docs(rowid, embedding) values (?, ?)" [ 1 float>exact [ 1 0 0 0 ] 4 1 matrix ] db-exec drop
+dup "insert into docs(rowid, embedding) values (?, ?)" [ 2 float>exact [ 0 1 0 0 ] 4 1 matrix ] db-exec drop
+dup "insert into docs(rowid, embedding) values (?, ?)" [ 3 float>exact [ 0.9 0.1 0 0 ] 4 1 matrix ] db-exec drop
+dup "select rowid from docs where embedding match ? order by distance limit 2" [ [ 1 0 0 0 ] 4 1 matrix ] db-query :rowid @ matrix>array .
+db-close cr
+```
+```output
+[ 1 3 ]
+```
+
 ```forth tsv>db
 [ [ "x" ] [ 1 ] [ 2 ] ] "/tmp/docs-db.tsv" save-tsv ":memory:" db-open dup "/tmp/docs-db.tsv" swap "t" tsv>db :n-rows @ . db-close cr
 ```
 ```output
 2
 ```
+
+### Vector search
+
+The vendored sqlite-vec extension is built into the binary and registered on every connection, so `vec0` tables and the `vec_*` functions are available without a load step. A `vec0` table declares each vector column's element type and dimension — `embedding float[768]` — and optionally its metric, `distance_metric=L2` (the default), `L1` or `cosine`. A k-nearest-neighbour query is a `match` against a query vector with a `limit`, which sqlite-vec requires:
+
+```sql
+select rowid, distance from docs where embedding match ? order by distance limit 10
+```
+
+Telic supplies the query vector as an ordinary parameter: a vector binds as the float32 blob the extension expects, so an embedding produced anywhere in the language goes straight into the query. Two details follow from SQLite rather than from Telic. A `vec0` rowid must be an INTEGER, and a Telic float binds as REAL, so an explicit key goes in as an exact (`1 float>exact`). A stored vector column reads back as a blob, which `db-query` answers as a string of raw bytes; `vec_to_json(embedding)` renders it as text instead. `db-exec` on a `vec0` table reports the rows written to its shadow tables, not the one row inserted.
+
+The extension computes no embeddings. You supply them.
 
 ---
 

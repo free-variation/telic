@@ -1,0 +1,13 @@
+sqlite-vec vendored source (amalgamation).
+
+upstream:  https://github.com/asg017/sqlite-vec
+version:   0.1.9
+tarball:   https://github.com/asg017/sqlite-vec/releases/download/v0.1.9/sqlite-vec-0.1.9-amalgamation.tar.gz
+sha256:    3acd67cb4aff080c7050926fd3cf8227905fe5b7ee3829d8ee5024ab1283cf61
+
+Built as one translation unit with -DSQLITE_CORE; compile flags live in the
+Makefile (SQLITE_VEC_CFLAGS). Registered per connection by p_db_open in
+src/c/database.c, so no runtime extension loading is involved. Dual-licensed
+MIT or Apache-2.0 at your option (see LICENSE-MIT, LICENSE-APACHE). Produced
+by tools/vendor-sqlite-vec.sh; do not edit these files by hand, re-run the
+script to update.
