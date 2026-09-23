@@ -314,6 +314,15 @@
 	then
 	(array-each) execute ;
 
+' reduce constant (array-reduce) internal
+
+\ fold xt over elements, or over each dataset row frame
+: reduce ( array/set/dataset init xt -- val )
+	2 pick frame? if
+		rot dataset-rows -rot
+	then
+	(array-reduce) execute ;
+
 ' group-by constant (array-group-by) internal
 
 \ a symbol stands for itself; any other value keys by its rendered text

@@ -209,6 +209,12 @@ ann bob
 
 1 2 3 
 1 2 3 
+6 
+5 
+[ "ann" "bob" ] 
+7 
+10 
+6 
 [ :blue :red ] 
 <matrix 1x2>
           1          3

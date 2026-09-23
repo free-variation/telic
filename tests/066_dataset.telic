@@ -206,6 +206,18 @@ walkable ( :score @ . ) each cr              \ 5 1
 [< 3 1 2 >] ( . ) each cr                    \ 1 2 3  set path intact
 
 clear
+\ reduce ( dataset init xt -- val ): xt folds ( acc row -- acc ) over every
+\ row frame; the array and set paths are unchanged.
+{ :name [ "ann" "bob" ] :score [ 5 1 ] vector } to foldable
+
+foldable 0 ( :score @ + ) reduce . cr        \ 6   rows, not columns or pairs
+foldable 0 ( :score @ max2 ) reduce . cr     \ 5
+foldable [ ] ( :name @ add-last! ) reduce . cr \ [ "ann" "bob" ]
+{ } 7 ( drop ) reduce . cr                   \ 7   no rows, init survives
+[ 1 2 3 4 ] 0 ' + reduce . cr                \ 10  array path intact
+[< 3 1 2 >] 0 ' + reduce . cr                \ 6   set path intact
+
+clear
 \ group-by ( dataset sym -- frame ): each distinct value of the named column
 \ keys the sub-dataset of its rows, so grouped@value reads one group back.
 { :team [ "red" "blue" "red" ] :score [ 1 2 3 ] vector

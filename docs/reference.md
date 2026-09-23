@@ -4465,7 +4465,7 @@ The quotation/predicate cost dominates; `xt` denotes one call.
 | `map` | `( arr/set xt -- arr )` or `( dataset xt -- dataset )` | Apply xt to each element; xt must leave exactly one value. datasets.telic extends it to a dataset: xt maps each row frame to a new row frame — derive, rename, or drop fields — and the returned frames rebuild into a dataset, so all rows must share keys and columns re-infer their representation | 2 + n·xt | `1a(n)`; dataset rows + new columns | O(n·xt); dataset O(n·(xt + k log k)) |
 | `nmap` | `( arr₁ … arr_N xt N -- arr )` | N-ary zip-map over equal-length arrays | rows·(N+xt) | `1a(rows)` | O(rows·xt) |
 | `filter` | `( arr/set xt -- arr )` or `( dataset xt -- dataset )` | Keep elements where xt is truthy. datasets.telic extends it to a dataset: xt sees each row as a frame keyed by column name and answers a bool (1.0/0.0); the kept rows come back as a dataset, so every column keeps its representation | 2 + n·xt | malloc(n) flags + `1a(k)`; dataset rows + mask + one column each | O(n·xt) |
-| `reduce` | `( arr/set init xt -- val )` | Left fold; xt is `( acc elem -- acc )` | 3 + n·xt | none | O(n·xt) |
+| `reduce` | `( arr/set init xt -- val )` or `( dataset init xt -- val )` | Left fold; xt is `( acc elem -- acc )`. datasets.telic extends it to a dataset: xt sees each row as a frame keyed by column name, as under `map`, `filter` and `each`, so the fold is `( acc row -- acc )` | 3 + n·xt | none; dataset one row frame each | O(n·xt) |
 | `times` | `( xt n -- )` | Run xt n times, no index pushed | 2 + n·xt | none | O(n·xt) |
 | `sum-times` | `( xt n -- total )` | arrays.telic: the sum of `xt` `( i -- term )` over i in 0..n-1 | 3 + n·(1+xt) | none | O(n·xt) |
 | `product-times` | `( xt n -- product )` | arrays.telic: the product of `xt` `( i -- term )` over i in 0..n-1 | 3 + n·(1+xt) | none | O(n·xt) |
@@ -4502,9 +4502,11 @@ The quotation/predicate cost dominates; `xt` denotes one call.
 
 ```forth reduce
 [ 1 2 3 4 ] 0 ' + reduce . cr
+[ [ "name" "score" ] [ "ann" 5 ] [ "bo" 1 ] ] true rows>dataset 0 ( :score @ + ) reduce . cr
 ```
 ```output
 10
+6
 ```
 
 ```forth times
