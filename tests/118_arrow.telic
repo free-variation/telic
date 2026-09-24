@@ -57,9 +57,36 @@ clear
 "/tmp/telic-arrow-sym.arrow" read-arrow :k @ . cr             \ [ "a" "b" ]
 
 clear
+\ === a file another tool wrote =============================================
+\ data/foreign.arrow comes from pyarrow (tools/gen-arrow-fixture.py): two
+\ record batches, and Arrow types write-arrow never emits, so this is the only
+\ input that exercises the widening and the batch loop
+"data/foreign.arrow" read-arrow to foreign
+
+foreign n-rows . cr                              \ 3  both batches concatenated
+foreign keys ' render sort-by . cr               \ [ :b :f :i :q :s :t ]
+
+\ int64, bool and float32 all widen to a numeric column
+foreign :i @ transpose . cr                      \ 1 2 3
+foreign :b @ transpose . cr                      \ 1 0 1
+foreign :f @ transpose . cr                      \ 1.5 2.5 3.5
+
+\ large_string reads like utf8
+foreign :s @ . cr                                \ [ "x" null "z" ]
+
+\ the timestamp is in milliseconds, so the reader scales by the field's own
+\ time unit rather than assuming microseconds
+foreign :t @ unit-of . cr                        \ 1 s
+foreign :t @ magnitude transpose . cr            \ 1 2.5 3.75
+
+\ a unit another writer set in the metadata is honoured
+foreign :q @ unit-of . cr                        \ 1 kg
+
+clear
 \ === errors ================================================================
 { :a [ 1 2 ] vector :b [ 1 2 3 ] vector } "/tmp/telic-arrow-bad.arrow" write-arrow  \ (columns of differing length)
 { :a [ 1 2 ] } "/tmp/telic-arrow-bad.arrow" write-arrow          \ (a float in a text column)
 { :a [ 1 2 3 4 ] 2 2 matrix } "/tmp/telic-arrow-bad.arrow" write-arrow  \ (a matrix that is not a vector)
-"/etc/hosts" read-arrow                                          \ (not an arrow file)
+"nothing like an arrow file" "/tmp/telic-arrow-plain.bin" write-file
+"/tmp/telic-arrow-plain.bin" read-arrow                          \ (not an arrow file)
 "/no/such/file.arrow" read-arrow                                 \ (no such file)

@@ -24,6 +24,23 @@ ARROW1
 
 0 
 [ "a" "b" ] 
+3 
+[ :b :f :i :q :s :t ] 
+<matrix 1x3>
+          1          2          3
+
+<matrix 1x3>
+          1          0          1
+
+<matrix 1x3>
+        1.5        2.5        3.5
+
+[ "x" null "z" ] 
+1 s 
+<matrix 1x3>
+          1        2.5       3.75
+
+1 kg 
 error: column b has 3 rows; the first column has 2
 in write-arrow
 error: column a holds a float, which has no arrow type

@@ -298,10 +298,24 @@ typedef struct {
 	int has_view;
 } BatchView;
 
-static ColumnKind read_kind(Interpreter *interp, struct ArrowSchema *field, int *unit) {
+static double seconds_per_tick(enum ArrowTimeUnit time_unit) {
+	switch (time_unit) {
+		case NANOARROW_TIME_UNIT_SECOND:
+			return 1.0;
+		case NANOARROW_TIME_UNIT_MILLI:
+			return 1e-3;
+		case NANOARROW_TIME_UNIT_NANO:
+			return 1e-9;
+		default:
+			return 1.0 / ARROW_MICROSECONDS;
+	}
+}
+
+static ColumnKind read_kind(Interpreter *interp, struct ArrowSchema *field, int *unit, double *scale) {
 	struct ArrowError error;
 	struct ArrowSchemaView schema_view;
 	*unit = 0;
+	*scale = 1.0;
 
 	if (arrow_failed(interp, ArrowSchemaViewInit(&schema_view, field, &error), &error, "arrow schema"))
 		return COLUMN_TEXT;
@@ -312,6 +326,7 @@ static ColumnKind read_kind(Interpreter *interp, struct ArrowSchema *field, int 
 			return COLUMN_TEXT;
 		case NANOARROW_TYPE_TIMESTAMP:
 			*unit = unit_named(interp, "s");
+			*scale = seconds_per_tick(schema_view.time_unit);
 			return COLUMN_DATETIME;
 		case NANOARROW_TYPE_BOOL:
 		case NANOARROW_TYPE_INT8:
@@ -375,7 +390,7 @@ static int fill_text_column(Interpreter *interp, int column_handle, BatchView *b
 }
 
 static void fill_numeric_column(Object *column, BatchView *batches, int n_batches, int child,
-		ColumnKind kind) {
+		ColumnKind kind, double scale) {
 	int at = 0;
 	for (int b = 0; b < n_batches; b++) {
 		struct ArrowArrayView *field = batches[b].view.children[child];
@@ -384,7 +399,7 @@ static void fill_numeric_column(Object *column, BatchView *batches, int n_batche
 			if (ArrowArrayViewIsNull(field, row))
 				element = NAN;
 			else if (kind == COLUMN_DATETIME)
-				element = (double)ArrowArrayViewGetIntUnsafe(field, row) / ARROW_MICROSECONDS;
+				element = (double)ArrowArrayViewGetIntUnsafe(field, row) * scale;
 			else
 				element = ArrowArrayViewGetDoubleUnsafe(field, row);
 			column->matrix.elements[at++] = element;
@@ -469,7 +484,8 @@ static int read_dataset(Interpreter *interp, FILE *in, int *dataset_handle_out) 
 	for (int j = 0; j < n_columns && !interp->error_flag; j++) {
 		struct ArrowSchema *field = schema.children[j];
 		int unit;
-		ColumnKind kind = read_kind(interp, field, &unit);
+		double scale;
+		ColumnKind kind = read_kind(interp, field, &unit, &scale);
 		if (interp->error_flag)
 			break;
 
@@ -489,7 +505,7 @@ static int read_dataset(Interpreter *interp, FILE *in, int *dataset_handle_out) 
 		int column_handle = object_new_matrix(interp, n_rows, 1);
 		if (interp->error_flag)
 			break;
-		fill_numeric_column(OBJECT_AT(column_handle), batches, n_batches, j, kind);
+		fill_numeric_column(OBJECT_AT(column_handle), batches, n_batches, j, kind, scale);
 
 		Val column = make_matrix(column_handle);
 		if (kind != COLUMN_NUMERIC) {

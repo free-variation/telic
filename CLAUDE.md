@@ -294,6 +294,10 @@ new inline that calls functions → the tail.
   native-only and excluded from `make test` so the core suite builds without
   those deps. A new such test goes in tests/lib/, not the wasm-skip list.
   Pure-forth lib tests (e.g. lib/plot.telic) stay in the core suite.
+- A test needing an input file it cannot write itself reads a fixture from
+  data/ by relative path, as 079_tsv_to_db reads data/iris.tsv. A fixture no
+  other tool can produce carries a tools/gen-*.py that regenerates it, run by
+  hand (data/foreign.arrow, tools/gen-arrow-fixture.py).
 - Seeded RNG for anything random; both native and wasm suites must pass.
 - Header comment names the word, stack effect, semantics. Sections split
   with `\ === title ===`. Every output line carries an aligned trailing
