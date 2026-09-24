@@ -368,6 +368,18 @@ semantics of record.
 The C sources carry no comments; constraints a future change must honor
 live here instead. File and function name each invariant's home.
 
+- `arrow.c` reads an Arrow file by consuming the 8-byte `ARROW1` magic itself
+  and handing the rest to `ArrowIpcArrayStreamReaderInit`, which reads the
+  stream format only — nanoarrow has no high-level file reader. The writer's
+  closing `ArrowIpcWriterWriteArrayView(writer, NULL, ...)` emits the
+  end-of-stream marker that stops that reader before it reaches the footer;
+  dropping it would leave the reader parsing footer bytes as a message
+  (arrow.c, `read_dataset`).
+- `arrow.c` keeps each record batch's `ArrowArray` alive in its `BatchView`
+  until every column is built. `ArrowArrayViewSetArray` stores pointers into
+  the array's buffers, so releasing the array first leaves the view reading
+  freed memory — which shows up as plausible denormal doubles and empty
+  strings, not a crash (arrow.c, `read_dataset`).
 - `database.c` defines `SQLITE_CORE` before including `sqlite-vec.h`. Without
   it the header pulls in `sqlite3ext.h`, whose `SQLITE_EXTENSION_INIT` macros
   rewrite every `sqlite3_*` call in the file into `sqlite3_api->…` — the

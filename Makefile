@@ -34,11 +34,11 @@ CFLAGS += -flto
 endif
 LDLIBS = -lm -lffi
 
-SRCS = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/foreign.c src/c/platform_posix.c src/c/dimension.c src/c/time.c src/c/exact.c src/c/serialize.c
+SRCS = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/foreign.c src/c/platform_posix.c src/c/dimension.c src/c/time.c src/c/exact.c src/c/serialize.c src/c/arrow.c
 HDRS = src/c/telic.h src/c/platform.h src/c/lib_embed.h src/c/logo_embed.h src/c/repl_highlight_groups.h
 
-TELIC_INCS = -I$(PCRE2_SRC) -I$(SQLITE_DIR) -I$(SQLITE_VEC_DIR) -I$(ISOCLINE_DIR)/include
-TELIC_DEPS = $(PCRE2_LIB) $(SQLITE_OBJ) $(SQLITE_VEC_OBJ) $(ISOCLINE_OBJ)
+TELIC_INCS = -I$(PCRE2_SRC) -I$(SQLITE_DIR) -I$(SQLITE_VEC_DIR) -I$(NANOARROW_DIR)/include -I$(ISOCLINE_DIR)/include
+TELIC_DEPS = $(PCRE2_LIB) $(SQLITE_OBJ) $(SQLITE_VEC_OBJ) $(NANOARROW_OBJS) $(ISOCLINE_OBJ)
 
 # Embedded library, concatenated in this order. Binding is early: a word must
 # be defined in an earlier file than every file that uses it (units before the
@@ -71,6 +71,14 @@ SQLITE_OBJ    = $(SQLITE_DIR)/sqlite3.o
 SQLITE_VEC_DIR    = external/sqlite-vec
 SQLITE_VEC_CFLAGS = -O2 -DSQLITE_CORE -I$(SQLITE_DIR)
 SQLITE_VEC_OBJ    = $(SQLITE_VEC_DIR)/sqlite-vec.o
+
+# Vendored nanoarrow (see external/nanoarrow/PROVENANCE; refresh with
+# tools/vendor-nanoarrow.sh). Three translation units: the Arrow C Data/Stream
+# implementation, the IPC reader/writer, and flatcc, the FlatBuffers runtime
+# the IPC message format needs. src/c/arrow.c is the only caller.
+NANOARROW_DIR    = external/nanoarrow
+NANOARROW_CFLAGS = -O2 -I$(NANOARROW_DIR)/include
+NANOARROW_OBJS   = $(NANOARROW_DIR)/src/nanoarrow.o $(NANOARROW_DIR)/src/nanoarrow_ipc.o $(NANOARROW_DIR)/src/flatcc.o
 
 # Vendored isocline (see external/isocline/PROVENANCE; refresh with tools/vendor-isocline.sh).
 # Compiles as a single source unit (src/isocline.c) per its readme.md.
@@ -112,6 +120,11 @@ $(SQLITE_OBJ): $(SQLITE_DIR)/sqlite3.c $(SQLITE_DIR)/sqlite3.h
 $(SQLITE_VEC_OBJ): $(SQLITE_VEC_DIR)/sqlite-vec.c $(SQLITE_VEC_DIR)/sqlite-vec.h $(SQLITE_DIR)/sqlite3.h
 	$(CC) $(SQLITE_VEC_CFLAGS) -c $< -o $@
 
+NANOARROW_HDRS = $(wildcard $(NANOARROW_DIR)/include/nanoarrow/*.h $(NANOARROW_DIR)/include/flatcc/*.h $(NANOARROW_DIR)/include/flatcc/portable/*.h)
+
+$(NANOARROW_DIR)/src/%.o: $(NANOARROW_DIR)/src/%.c $(NANOARROW_HDRS)
+	$(CC) $(NANOARROW_CFLAGS) -c $< -o $@
+
 # src/isocline.c #includes the rest of src/, so the object must depend on all of
 # them: listing only isocline.c leaves edits to tty.c and friends unbuilt.
 ISOCLINE_SRCS = $(wildcard $(ISOCLINE_DIR)/src/*.c $(ISOCLINE_DIR)/src/*.h $(ISOCLINE_DIR)/include/*.h)
@@ -128,17 +141,18 @@ WASI_SDK        = $(HOME)/wasi-sdk
 WASI_CC         = $(WASI_SDK)/bin/clang
 WASI_AR         = $(WASI_SDK)/bin/llvm-ar
 WASI_SYSROOT    = $(WASI_SDK)/share/wasi-sysroot
-WASM_SRCS       = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/dimension.c src/c/platform_wasi.c src/c/time.c src/c/exact.c src/c/serialize.c
-WASM_CFLAGS     = --sysroot $(WASI_SYSROOT) -O2 -I$(PCRE2_SRC) -I$(SQLITE_DIR) -I$(SQLITE_VEC_DIR) -Wno-ignored-pragmas -Wl,-z,stack-size=8388608
+WASM_SRCS       = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/dimension.c src/c/platform_wasi.c src/c/time.c src/c/exact.c src/c/serialize.c src/c/arrow.c
+WASM_CFLAGS     = --sysroot $(WASI_SYSROOT) -O2 -I$(PCRE2_SRC) -I$(SQLITE_DIR) -I$(SQLITE_VEC_DIR) -I$(NANOARROW_DIR)/include -Wno-ignored-pragmas -Wl,-z,stack-size=8388608
 WASM_PCRE2_OBJS = $(patsubst %.c,%.wasm.o,$(wildcard $(PCRE2_SRC)/pcre2_*.c))
 WASM_PCRE2_LIB  = $(PCRE2_DIR)/libpcre2-8-wasm.a
 WASM_SQLITE_OBJ = $(SQLITE_DIR)/sqlite3.wasm.o
 WASM_SQLITE_VEC_OBJ = $(SQLITE_VEC_DIR)/sqlite-vec.wasm.o
+WASM_NANOARROW_OBJS = $(patsubst %.c,%.wasm.o,$(wildcard $(NANOARROW_DIR)/src/*.c))
 
 wasm: telic.wasm
 
-telic.wasm: $(WASM_SRCS) $(HDRS) $(WASM_PCRE2_LIB) $(WASM_SQLITE_OBJ) $(WASM_SQLITE_VEC_OBJ)
-	$(WASI_CC) $(WASM_CFLAGS) -o telic.wasm $(WASM_SRCS) $(WASM_PCRE2_LIB) $(WASM_SQLITE_OBJ) $(WASM_SQLITE_VEC_OBJ)
+telic.wasm: $(WASM_SRCS) $(HDRS) $(WASM_PCRE2_LIB) $(WASM_SQLITE_OBJ) $(WASM_SQLITE_VEC_OBJ) $(WASM_NANOARROW_OBJS)
+	$(WASI_CC) $(WASM_CFLAGS) -o telic.wasm $(WASM_SRCS) $(WASM_PCRE2_LIB) $(WASM_SQLITE_OBJ) $(WASM_SQLITE_VEC_OBJ) $(WASM_NANOARROW_OBJS)
 
 $(WASM_PCRE2_LIB): $(WASM_PCRE2_OBJS)
 	$(WASI_AR) rcs $@ $(WASM_PCRE2_OBJS)
@@ -151,6 +165,9 @@ $(WASM_SQLITE_OBJ): $(SQLITE_DIR)/sqlite3.c $(SQLITE_DIR)/sqlite3.h
 
 $(WASM_SQLITE_VEC_OBJ): $(SQLITE_VEC_DIR)/sqlite-vec.c $(SQLITE_VEC_DIR)/sqlite-vec.h $(SQLITE_DIR)/sqlite3.h
 	$(WASI_CC) --sysroot $(WASI_SYSROOT) $(SQLITE_VEC_CFLAGS) -c $< -o $@
+
+$(NANOARROW_DIR)/src/%.wasm.o: $(NANOARROW_DIR)/src/%.c $(NANOARROW_HDRS)
+	$(WASI_CC) --sysroot $(WASI_SYSROOT) $(NANOARROW_CFLAGS) -c $< -o $@
 
 # Build the LAPACKE shared library that FFI dlopens.
 lapacke: $(LAPACKE_SHARED)
@@ -277,6 +294,6 @@ install: all pack
 	ln -sf $(TELIC_HOME)/telic $(DESTDIR)$(BINDIR)/telic
 
 clean:
-	rm -f telic telic.wasm $(PCRE2_OBJS) $(PCRE2_LIB) $(WASM_PCRE2_OBJS) $(WASM_PCRE2_LIB) $(SQLITE_OBJ) $(WASM_SQLITE_OBJ) $(SQLITE_VEC_OBJ) $(WASM_SQLITE_VEC_OBJ) $(ISOCLINE_OBJ) $(LAPACKE_OBJS) $(LAPACKE_LIB) $(LAPACKE_SHARED) $(LAPACKE_DIR)/exports.map
+	rm -f telic telic.wasm $(PCRE2_OBJS) $(PCRE2_LIB) $(WASM_PCRE2_OBJS) $(WASM_PCRE2_LIB) $(SQLITE_OBJ) $(WASM_SQLITE_OBJ) $(SQLITE_VEC_OBJ) $(WASM_SQLITE_VEC_OBJ) $(NANOARROW_OBJS) $(WASM_NANOARROW_OBJS) $(ISOCLINE_OBJ) $(LAPACKE_OBJS) $(LAPACKE_LIB) $(LAPACKE_SHARED) $(LAPACKE_DIR)/exports.map
 
 .PHONY: all clean install test test-libs test-wasm bench wasm vendor-pcre2 vendor-sqlite vendor-isocline vendor-lapacke lapacke editors

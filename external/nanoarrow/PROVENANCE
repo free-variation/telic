@@ -1,0 +1,15 @@
+nanoarrow vendored source (bundled distribution).
+
+upstream:  https://github.com/apache/arrow-nanoarrow
+version:   0.9.0
+tarball:   https://github.com/apache/arrow-nanoarrow/releases/download/apache-arrow-nanoarrow-0.9.0/apache-arrow-nanoarrow-0.9.0.tar.gz
+sha256:    801200a0e95e869d5c4bdeb5b535dba58551482bb782b7dc8bd599c8b6e8cacf
+
+Produced by running the release's own ci/scripts/bundle.py with --with-ipc
+--with-flatcc, which flattens the source tree into src/nanoarrow.c,
+src/nanoarrow_ipc.c and src/flatcc.c plus the include/ trees. The C++ wrappers
+the bundler also emits are deleted; telic builds C only. Compile flags live in
+the Makefile (NANOARROW_CFLAGS); src/c/arrow.c is the only caller.
+Apache-2.0 (see LICENSE.txt, NOTICE.txt). Produced by
+tools/vendor-nanoarrow.sh; do not edit these files by hand, re-run the script
+to update.

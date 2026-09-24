@@ -508,6 +508,7 @@ range
 ranks
 rationalize
 read
+read-arrow
 read-available
 read-err
 read-file
@@ -728,6 +729,7 @@ with-stream
 within-groups
 words
 write
+write-arrow
 write-file
 write-in
 write-tsv

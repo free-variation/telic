@@ -444,6 +444,7 @@ Embedded relational storage via the vendored SQLite amalgamation — built into 
 TSV is the one tabular file format (convert other formats to TSV before loading).
 
 - **`read-tsv`** / **`write-tsv`** — a header TSV to a column-oriented dataset with typed columns, and back.
+- **`read-arrow`** / **`write-arrow`** — a dataset to and from an Arrow IPC file, so pandas, polars, R and DuckDB read telic's columns with their types intact, and telic reads theirs.
 - **`load-tsv`** / **`save-tsv`** — the same file as an array of row-arrays, untyped and in file column order.
 - **Conversions** — **`rows>dataset`** types the columns of an array of row-arrays, **`dataset>rows`** inverts it, and **`dataset>matrix`** builds an observations×columns matrix from named columns.
 - **Dataset verbs** — `select-rows`, `select-columns`, `sort-rows`, `filter`, `map`, `each`, `reduce`, `dim`, `column-type`, and `count` work on a dataset directly, `filter`, `map`, `each` and `reduce` seeing each row as a frame keyed by column name and every column keeping its representation. `column>array` reads any column as an array, `column>set` its distinct values, `column-type` its type (`:numeric` `:datetime` `:quantity` `:text`), and `group-indices` maps each distinct value to its row positions in one sort.

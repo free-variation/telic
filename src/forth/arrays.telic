@@ -56,7 +56,28 @@ inline
 inline
 
 \ sorted by the key xt ( element -- key ) extracts
-: sort-by ( items xt -- items' ) over swap map argsort select-rows ;
+\ the token a sort key stands for: a symbol reads that field from each
+\ element, an xt already computes one
+: key-xt ( key -- xt )
+	dup symbol? if ' @ curry exit then
+	dup xt? not if
+		type-of "expected a symbol or execution token key; got {0}" format throw
+	then ; internal
+
+: (sort-by-key) ( items xt -- items' ) over swap map argsort select-rows ; internal
+
+\ sorted by a key: a symbol names a field of each element frame, an xt
+\ ( element -- key ) computes one, and an array of either sorts by each in
+\ turn with the first key primary — argsort keeps the order of equal keys, so
+\ the passes run from the last key backwards
+: sort-by ( items key -- items' )
+	| items key |
+	key array? not if items key key-xt (sort-by-key) exit then
+
+	key size 1- -1 -1 do k
+		items key k @i key-xt (sort-by-key) to items
+	loop
+	items ;
 
 \ elements satisfying pred, and the others
 : partition ( items pred -- matches rest ) 

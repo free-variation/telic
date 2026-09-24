@@ -1,0 +1,65 @@
+\ read-arrow / write-arrow: a dataset to and from an Arrow IPC file. The four
+\ column representations column-type reports each map to an Arrow type and
+\ come back as they went in. Files go under /tmp.
+
+\ === round-trip: one column of each type ===================================
+{ :score [ 1.5 2.5 3.5 ] vector
+  :name [ "ann" null "cy" ]
+  :when [ 100.5 200.25 300 ] vector s
+  :height [ 170 180 190 ] vector m } to original
+
+original "/tmp/telic-arrow-rt.arrow" write-arrow
+"/tmp/telic-arrow-rt.arrow" read-arrow to restored
+
+restored n-rows . cr                             \ 3
+restored keys ' render sort-by . cr              \ [ :height :name :score :when ]
+
+\ numeric stays a vector
+restored :score column-type . cr                 \ :numeric
+restored :score @ transpose . cr                 \ 1.5 2.5 3.5
+
+\ text stays an array, null and the empty string distinct from each other
+restored :name column-type . cr                  \ :text
+restored :name @ . cr                            \ [ "ann" null "cy" ]
+
+\ an instant column is an arrow timestamp in microseconds, so the fraction
+\ survives and the unit comes back as s
+restored :when column-type . cr                  \ :datetime
+restored :when @ unit-of . cr                    \ 1 s
+restored :when @ magnitude 1 @e . cr             \ 200.25
+
+\ any other unit rides in the field's telic.unit metadata
+restored :height column-type . cr                \ :quantity
+restored :height @ unit-of . cr                  \ 1 m
+restored :height @ magnitude transpose . cr      \ 170 180 190
+
+clear
+\ === the file is the Arrow IPC file format =================================
+\ ARROW1 and two padding bytes open it; the footer length and ARROW1 close it
+"/tmp/telic-arrow-rt.arrow" read-file dup 0 6 byte-substring . cr   \ ARROW1
+dup byte-size 6 - over byte-size byte-substring . cr                \ ARROW1
+
+clear
+\ === edges =================================================================
+\ NaN is a value in a numeric column, not a null
+{ :x [ 1 nan 3 ] vector } "/tmp/telic-arrow-nan.arrow" write-arrow
+"/tmp/telic-arrow-nan.arrow" read-arrow :x @ transpose . cr   \ 1 nan 3
+
+\ an empty dataset, and a column with no rows, keep their shape
+{ } "/tmp/telic-arrow-e0.arrow" write-arrow
+"/tmp/telic-arrow-e0.arrow" read-arrow . cr                   \ { }
+{ :x [ ] vector } "/tmp/telic-arrow-e1.arrow" write-arrow
+"/tmp/telic-arrow-e1.arrow" read-arrow n-rows . cr            \ 0
+
+\ Arrow has one string type, so a symbol cell is written as its name and
+\ read back as a string
+{ :k [ :a :b ] } "/tmp/telic-arrow-sym.arrow" write-arrow
+"/tmp/telic-arrow-sym.arrow" read-arrow :k @ . cr             \ [ "a" "b" ]
+
+clear
+\ === errors ================================================================
+{ :a [ 1 2 ] vector :b [ 1 2 3 ] vector } "/tmp/telic-arrow-bad.arrow" write-arrow  \ (columns of differing length)
+{ :a [ 1 2 ] } "/tmp/telic-arrow-bad.arrow" write-arrow          \ (a float in a text column)
+{ :a [ 1 2 3 4 ] 2 2 matrix } "/tmp/telic-arrow-bad.arrow" write-arrow  \ (a matrix that is not a vector)
+"/etc/hosts" read-arrow                                          \ (not an arrow file)
+"/no/such/file.arrow" read-arrow                                 \ (no such file)

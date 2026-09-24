@@ -4135,6 +4135,8 @@ wall-now time>iso . cr
 | `load-tsv` | `( path -- rows )` | Read a TSV file into an array of row-arrays; an empty cell → `null`, a numeric cell → float, else a string. No header handling | 1 + bytes | `1a(r)` + one array per row + a string per text cell | O(bytes) |
 | `read-tsv` | `( path -- dataset )` | datasets.telic: read a TSV file with a header row into a column-oriented dataset; columns are typed — uniformly float-or-`null` cells become an n×1 vector (`null` → NaN), anything else a cell array | bytes + 2·r·c | rows + one array per column + `1m` per numeric column + `1fr` | O(bytes + r·c) |
 | `write-tsv` | `( dataset path -- )` | datasets.telic: write a dataset as a TSV with a header row of the column names; a dimensioned column errors (strip its unit with `magnitude` first) | 2·r·c | transient rows | O(r·c) |
+| `read-arrow` | `( path -- dataset )` | Read an Arrow IPC file into a column-oriented dataset, concatenating its record batches. `float64` and every integer, float and `bool` width become an n×1 vector (a null cell → NaN); `utf8` becomes an array (null → `null`); a `timestamp` of any resolution becomes a vector of instants in `s`; a numeric field carrying a `telic.unit` metadata key becomes a vector in that unit. Any other Arrow type errors, naming the column and the type. Errors if the file has no `ARROW1` magic | r·c | `1o` frame + one column each | O(r·c) |
+| `write-arrow` | `( dataset path -- )` | Write a dataset as one record batch in an Arrow IPC file, each column by the type `column-type` reports: `:numeric` → `float64`, `:text` → `utf8` with `null` as a null and a symbol cell as its name, `:datetime` → `timestamp[us]`, `:quantity` → `float64` with the unit's name under the field's `telic.unit` metadata key. NaN stays NaN rather than becoming null. Columns of differing length, a matrix that is not a vector, and a text cell that is neither a string, a symbol nor `null` all error naming the column | r·c | one arrow buffer set | O(r·c) |
 | `save-tsv` | `( rows path -- )` | Write an array of row-arrays as TSV; `null` → empty, a whole-number float → integer, strings raw; errors on a tab/newline inside a string or a non-array row | 2 + r·c | none (to file) | O(r·c) |
 | `rows>dataset` | `( rows header? -- dataset )` | datasets.telic: column-oriented frame from rows with typed columns — uniformly float-or-`null` cells become an n×1 vector (`null` → NaN), uniform-unit quantity cells a dimensioned vector, anything else stays the cell array; keys come from row 0 when header? is true, else `:col1…` are synthesized | 2·r·c | `k×1a(r)` + `1m` per numeric column + `1fr` | O(r·c) |
 | `dataset>rows` | `( dataset -- rows )` | datasets.telic: an array of row-arrays led by a header row of the column names as strings, columns in key order; each cell is its column's value (NaN → `null`, dimensioned cells as quantities) | r·c | header + one array per row + `1a(r·c)` cells | O(r·c) |
@@ -4189,6 +4191,20 @@ wall-now time>iso . cr
 ```
 ```output
 1.5
+```
+
+```forth write-arrow
+{ :x [ 1 2 ] vector :name [ "a" null ] :height [ 170 180 ] vector m } "/tmp/docs-example.arrow" write-arrow "/tmp/docs-example.arrow" read-arrow dup :name @ . :height @ unit-of . cr
+```
+```output
+[ "a" null ] 1 m
+```
+
+```forth read-arrow
+{ :when [ 100.25 200 ] vector s } "/tmp/docs-example2.arrow" write-arrow "/tmp/docs-example2.arrow" read-arrow :when @ magnitude 0 @e . cr
+```
+```output
+100.25
 ```
 
 ```forth save-tsv
@@ -4476,7 +4492,7 @@ The quotation/predicate cost dominates; `xt` denotes one call.
 | `all?` | `( items pred -- bool )` | arrays.telic: true when every element satisfies pred, vacuously true on empty. Runs pred over **every** element, so it does not short-circuit and a side-effecting pred runs n times | 2n·xt | `1a(n)` | O(n·xt) |
 | `each` | `( items xt -- )` or `( dataset xt -- )` | Run xt `( element -- )` on every element for its side effects; the element is the only thing the quotation may consume, and it must leave nothing. No result, no allocation. datasets.telic extends it to a dataset: xt sees each row as a frame keyed by column name, as under `map` and `filter` | 2 + n·xt | none; dataset one row frame each | O(n·xt) |
 | `flat-map` | `( items xt -- arr )` | arrays.telic: `map` then `flatten`, so each element's result array is spliced in, nested arrays inside it included | n·xt + total | `1a(n)` + `1a(total)` | O(n·xt + total) |
-| `sort-by` | `( items xt -- arr )` | arrays.telic: sorted by the key xt `( element -- key )` extracts, one evaluation per element; equal keys keep index order | n·xt + n log n | 3×`1a(n)` + `malloc(4n)` | O(n·xt + n log n) |
+| `sort-by` | `( items key -- arr )` | arrays.telic: sorted by a key, which is a symbol naming a field of each element frame, an xt `( element -- key )` evaluated once per element, or an array of either — then the sort runs one pass per key from the last backwards, so the first key is primary. Equal keys keep index order, so an empty key array leaves the order untouched. A key of any other type errors | k·(n·xt + n log n) | 3×`1a(n)` + `malloc(4n)` per pass | O(k·(n·xt + n log n)) |
 | `partition` | `( items pred -- matches rest )` | arrays.telic: the elements satisfying pred and the others, one pass, input order kept | n·xt | 2 arrays + the curried predicate token | O(n·xt) |
 
 ```forth map
@@ -4586,6 +4602,13 @@ ann bo
 ```
 ```output
 [ "a" "bb" "ccc" ]
+```
+
+```forth sort-by
+[ { :a 1 :b 2 } { :a 1 :b 1 } { :a 0 :b 9 } ] [ :a :b ] sort-by . cr
+```
+```output
+[ { :a 0 :b 9 } { :a 1 :b 1 } { :a 1 :b 2 } ]
 ```
 
 ```forth partition

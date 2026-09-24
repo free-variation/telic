@@ -565,6 +565,7 @@ const HelpEntry help_entries[] = {
 	{ "ranks", "( v -- v' )", "statistics.telic: 0-based midranks as nx1 — tied values share the mean of their sorted positions, NaNs rank last in index order", "n log n + 2n", "3m(n) + malloc(16n)", "O(n log n)", 20 },
 	{ "rationalize", "( f -- x )", "The simplest rational that reads back as the same float — the smallest-denominator fraction in the float's rounding interval (0.111 rationalize is 111/1000); an exact passes through unchanged", "cf steps", "exacts per step", "O(steps · limbs)", 6 },
 	{ "read", "( stream -- str )", "Read the stream to EOF into one string", "read syscalls", "1o + buffer growth", "O(bytes)", 34 },
+	{ "read-arrow", "( path -- dataset )", "Read an Arrow IPC file into a column-oriented dataset, concatenating its record batches. float64 and every integer, float and bool width become an n×1 vector (a null cell → NaN); utf8 becomes an array (null → null); a timestamp of any resolution becomes a vector of instants in s; a numeric field carrying a telic.unit metadata key becomes a vector in that unit. Any other Arrow type errors, naming the column and the type. Errors if the file has no ARROW1 magic", "r·c", "1o frame + one column each", "O(r·c)", 24 },
 	{ "read-available", "( stream -- str )", "The bytes already waiting on the stream, without blocking: up to 65536 of them as a string, \"\" when none are waiting, null at end of input. A zero-timeout poll decides, then one read. Used with wait-readable when one thread serves several streams: read-line blocks until its newline arrives, so a writer that flushes a partial line and then computes would stall every other stream, while this word takes what is there and leaves the caller to assemble lines", "1 + bytes", "1o", "O(bytes)", 34 },
 	{ "read-err", "( proc -- str )", "subprocess.telic: read the child's :err stream to EOF", "read syscalls", "1o + buffer growth", "O(bytes)", 34 },
 	{ "read-file", "( path -- str )", "Read a whole file as one string (byte-safe); errors if it can't be opened", "file read", "1o + buffer", "O(file)", 32 },
@@ -665,7 +666,7 @@ const HelpEntry help_entries[] = {
 	{ "slice!", "( src sstart sstep slen arr tstart -- arr )", "Copy slen elements src[sstart], src[sstart+sstep], … into arr[tstart…] in place", "6 + slen", "self-overlap may malloc slen", "O(slen)", 16 },
 	{ "solutions", "( items goal -- arr )", "logic.telic: the goal's value for every element of the array it succeeds on, in order. Each answer is snapshotted (fresh vars) before the search moves on, and every binding rolls back, so nothing stays bound afterward", "n·goal", "1a + a copy per answer", "O(n·goal)", 28 },
 	{ "sort", "( arr/set/v -- arr/v )", "Sorted copy: an array orders ascending in natural order; a set projects its already-ordered elements to an array; an nx1 or 1xn vector sorts ascending with NaNs last (other matrix shapes error)", "1 + n log n", "1a(n) / 1m(n)", "O(n log n); vectors above 8k elements O(n) radix", 16 },
-	{ "sort-by", "( items xt -- arr )", "arrays.telic: sorted by the key xt ( element -- key ) extracts, one evaluation per element; equal keys keep index order", "n·xt + n log n", "3×1a(n) + malloc(4n)", "O(n·xt + n log n)", 25 },
+	{ "sort-by", "( items key -- arr )", "arrays.telic: sorted by a key, which is a symbol naming a field of each element frame, an xt ( element -- key ) evaluated once per element, or an array of either — then the sort runs one pass per key from the last backwards, so the first key is primary. Equal keys keep index order, so an empty key array leaves the order untouched. A key of any other type errors", "k·(n·xt + n log n)", "3×1a(n) + malloc(4n) per pass", "O(k·(n·xt + n log n))", 25 },
 	{ "sort-rows", "( dataset sym -- dataset )", "datasets.telic: rows sorted ascending by the named column, so every column reorders together and keeps its representation; a missing key errors", "n log n + n·c", "permutation + one column each", "O(n log n + n·c)", 24 },
 	{ "sort-rows-descending", "( dataset sym -- dataset )", "datasets.telic: rows sorted descending by the named column in natural order (so text columns descend too); equal keys keep dataset order, so chained sorts compose — minor key first, major key last — and missing cells sort last; a missing key errors", "n log n + n·c", "permutation ×3 + one column each", "O(n log n + n·c)", 24 },
 	{ "spaces", "( k -- str )", "strings.telic: a string of k spaces", "k", "1a + 1o", "O(k)", 14 },
@@ -785,6 +786,7 @@ const HelpEntry help_entries[] = {
 	{ "within-groups", "( dataset by xt -- column )", "datasets.telic: the grouped transform, aggregate's non-collapsing twin — rows group as aggregate groups them; for each group xt ( group-dataset -- column/scalar ) answers one value per group row (a column or array of the group's length) or one scalar that fills the group; the values return to their original row positions and the assembled n-row column is answered, in the representation column-from-cells infers, for the caller to store (… within-groups :share !) or use as a mask. A quotation answering the wrong count errors naming the group", "n log n + per-group xt", "one sub-dataset per group + 2a(n) + one column", "O(n log n + n·c)", 24 },
 	{ "words", "( -- )", "List all non-internal words in aligned columns, grouped by section, alphabetical within a group: words loaded from a library file first, then the reference sections in alphabetical order by section name, then units, undocumented, and last the words defined this session", "dict scan", "none", "O(|dict| log |dict|)", 30 },
 	{ "write", "( str stream -- )", "Write the string's bytes to the stream; loops over partial writes, retries EINTR", "write syscalls", "none", "O(|s|)", 34 },
+	{ "write-arrow", "( dataset path -- )", "Write a dataset as one record batch in an Arrow IPC file, each column by the type column-type reports: :numeric → float64, :text → utf8 with null as a null and a symbol cell as its name, :datetime → timestamp[us], :quantity → float64 with the unit's name under the field's telic.unit metadata key. NaN stays NaN rather than becoming null. Columns of differing length, a matrix that is not a vector, and a text cell that is neither a string, a symbol nor null all error naming the column", "r·c", "one arrow buffer set", "O(r·c)", 24 },
 	{ "write-file", "( str path -- )", "Create or truncate the file, then write the string's bytes", "file write", "none", "O(|s|)", 32 },
 	{ "write-in", "( str proc -- )", "subprocess.telic: write the string to the child's :in stream", "write syscalls", "none", "O(|s|)", 34 },
 	{ "write-tsv", "( dataset path -- )", "datasets.telic: write a dataset as a TSV with a header row of the column names; a dimensioned column errors (strip its unit with magnitude first)", "2·r·c", "transient rows", "O(r·c)", 24 },
@@ -806,7 +808,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, arrays element-wise with a trailing rest pattern taking the remaining elements, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails", "n", "none", "O(n)", 28 },
 };
 
-const int help_entry_count = 749;
+const int help_entry_count = 751;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -1321,6 +1323,7 @@ const HelpExample help_examples[] = {
 	{ "ranks", "[ 10 20 20 30 ] vector ranks matrix>array . cr", "[ 0 1.5 1.5 3 ]" },
 	{ "rationalize", "0.111 rationalize . cr\n1/3 exact>float rationalize . cr", "111/1000\n1/3" },
 	{ "read", "[ \"echo\" \"data\" ] start-process :out @ read trim . cr", "data" },
+	{ "read-arrow", "{ :when [ 100.25 200 ] vector s } \"/tmp/docs-example2.arrow\" write-arrow \"/tmp/docs-example2.arrow\" read-arrow :when @ magnitude 0 @e . cr", "100.25" },
 	{ "read-available", "[ \"printf\" \"chunk\" ] start-process to talker\n[ talker :out @ ] 5 wait-readable drop\ntalker :out @ read-available . cr\ntalker end-process\n[ \"sleep\" \"5\" ] start-process to quiet\nquiet :out @ read-available byte-size . cr\nquiet :pid @ stop drop\nquiet :in @ close  quiet :out @ close  quiet :err @ close", "chunk\n0" },
 	{ "read-err", "[ \"sh\" \"-c\" \"echo oops >&2\" ] start-process read-err trim . cr", "oops" },
 	{ "read-file", "\"hello\" \"/tmp/docs-file.txt\" write-file \"/tmp/docs-file.txt\" read-file . cr", "hello" },
@@ -1422,6 +1425,7 @@ const HelpExample help_examples[] = {
 	{ "solutions", "[ 1 2 3 4 ] ( dup 2 mod if fail then dup * ) solutions . cr\n[ { :n 1 :ok :y } { :n 2 :ok :n } { :n 3 :ok :y } ]\n( { :ok :y } ~ :n @ ) solutions . cr", "[ 4 16 ]\n[ 1 3 ]" },
 	{ "sort", "[ 3 1 2 ] sort . cr\n[ 3 1 2 ] vector m sort matrix>array . cr", "[ 1 2 3 ]\n[ 1 m 2 m 3 m ]" },
 	{ "sort-by", "[ \"bb\" \"a\" \"ccc\" ] ' size sort-by . cr", "[ \"a\" \"bb\" \"ccc\" ]" },
+	{ "sort-by", "[ { :a 1 :b 2 } { :a 1 :b 1 } { :a 0 :b 9 } ] [ :a :b ] sort-by . cr", "[ { :a 0 :b 9 } { :a 1 :b 1 } { :a 1 :b 2 } ]" },
 	{ "sort-rows", "{ :name [ \"b\" \"a\" \"c\" ] :score [ 2 3 1 ] vector } :score sort-rows :name @ . cr", "[ \"c\" \"b\" \"a\" ]" },
 	{ "sort-rows-descending", "{ :name [ \"b\" \"a\" \"c\" ] :score [ 2 3 1 ] vector } :score sort-rows-descending :name @ . cr", "[ \"a\" \"b\" \"c\" ]" },
 	{ "spaces", "3 spaces byte-size . cr", "3" },
@@ -1541,6 +1545,7 @@ const HelpExample help_examples[] = {
 	{ "within-groups", "{ :g [ \"a\" \"b\" \"a\" ] :x [ 1 2 3 ] vector } to grouped\ngrouped :g ( group | group :x @ dup sum / ) within-groups transpose matrix>array . cr\ngrouped :g ( group | group :x @ sum ) within-groups transpose matrix>array . cr", "[ 0.25 1 0.75 ]\n[ 4 2 4 ]" },
 	{ "words", "words", "Stack manipulation:\n  -rot      2drop     2dup      clear     depth     drop      dup\n  identity  nip       over      pick      roll      rot       swap\nArithmetic:\n..." },
 	{ "write", "[ \"cat\" ] start-process dup :in @ \"ping\" swap write dup :in @ close dup read-out trim . :pid @ wait drop cr", "ping" },
+	{ "write-arrow", "{ :x [ 1 2 ] vector :name [ \"a\" null ] :height [ 170 180 ] vector m } \"/tmp/docs-example.arrow\" write-arrow \"/tmp/docs-example.arrow\" read-arrow dup :name @ . :height @ unit-of . cr", "[ \"a\" null ] 1 m" },
 	{ "write-file", "\"hello\" \"/tmp/docs-file.txt\" write-file \"/tmp/docs-file.txt\" read-file . cr", "hello" },
 	{ "write-in", "\"cat\" run dup \"ping\" swap write-in dup :in @ close dup read-out trim . end-process cr", "ping" },
 	{ "write-tsv", "[ [ \"x\" ] [ 1 ] [ 2 ] ] true rows>dataset \"/tmp/docs-example2.tsv\" write-tsv \"/tmp/docs-example2.tsv\" read-tsv :x @ mean . cr", "1.5" },
@@ -1562,4 +1567,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 751;
+const int help_example_count = 754;

@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.38.0-alpha"
+#define VERSION "0.39.0-alpha"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1762,6 +1762,10 @@ void p_rationalize(DISPATCH_ARGS);
 // serialize.c
 void p_bytes_to_value(DISPATCH_ARGS);
 void p_value_to_bytes(DISPATCH_ARGS);
+
+// arrow.c
+void p_read_arrow(DISPATCH_ARGS);
+void p_write_arrow(DISPATCH_ARGS);
 
 // inline functions whose bodies call the declarations above
 static inline int truthy(Val value) {

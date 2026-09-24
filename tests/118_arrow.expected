@@ -1,0 +1,36 @@
+3 
+[ :height :name :score :when ] 
+:numeric 
+<matrix 1x3>
+        1.5        2.5        3.5
+
+:text 
+[ "ann" null "cy" ] 
+:datetime 
+1 s 
+200.25 
+:quantity 
+1 m 
+<matrix 1x3>
+        170        180        190
+
+ARROW1 
+ARROW1 
+<matrix 1x3>
+          1        nan          3
+
+{
+}
+
+0 
+[ "a" "b" ] 
+error: column b has 3 rows; the first column has 2
+in write-arrow
+error: column a holds a float, which has no arrow type
+in write-arrow
+error: expected a column vector (nx1 or 1xn); got 2x2
+in write-arrow
+error: not an arrow file (no ARROW1 magic)
+in read-arrow
+error: cannot open /no/such/file.arrow
+in read-arrow
