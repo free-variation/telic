@@ -68,9 +68,6 @@ static int mag_mul(const uint32_t *a, int na, const uint32_t *b, int nb, uint32_
 	return mag_length(out, na + nb);
 }
 
-static int mag_bit(const uint32_t *a, int i) {
-	return (a[i >> 5] >> (i & 31)) & 1;
-}
 
 static int mag_bit_length(const uint32_t *a, int n) {
 	n = mag_length(a, n);
@@ -97,26 +94,96 @@ static void mag_divmod(const uint32_t *a, int na, const uint32_t *b, int nb,
 		uint32_t *quotient, int *n_quotient, uint32_t *remainder, int *n_remainder) {
 	memset(quotient, 0, (size_t)na * 4);
 	memset(remainder, 0, ((size_t)nb + 1) * 4);
-	int nr = 1;
 
-	for (int i = mag_bit_length(a, na) - 1; i >= 0; i--) {
-		uint32_t carry = (uint32_t)mag_bit(a, i);
-		for (int j = 0; j < nr; j++) {
-			uint32_t next = remainder[j] >> 31;
-			remainder[j] = (remainder[j] << 1) | carry;
-			carry = next;
-		}
-		if (carry)
-			remainder[nr++] = carry;
-
-		if (mag_cmp(remainder, nr, b, nb) >= 0) {
-			nr = mag_sub(remainder, nr, b, nb, remainder);
-			quotient[i >> 5] |= 1u << (i & 31);
-		}
+	if (mag_cmp(a, na, b, nb) < 0) {
+		memcpy(remainder, a, (size_t)na * 4);
+		*n_quotient = mag_length(quotient, na);
+		*n_remainder = mag_length(remainder, na);
+		return;
 	}
 
+	if (nb == 1) {
+		uint64_t carry = 0;
+		for (int i = na - 1; i >= 0; i--) {
+			uint64_t value = (carry << 32) | a[i];
+			quotient[i] = (uint32_t)(value / b[0]);
+			carry = value % b[0];
+		}
+		remainder[0] = (uint32_t)carry;
+		*n_quotient = mag_length(quotient, na);
+		*n_remainder = mag_length(remainder, 1);
+		return;
+	}
+
+	int shift = 0;
+	for (uint32_t top = b[nb - 1]; !(top & 0x80000000u); top <<= 1)
+		shift++;
+
+	uint32_t *dividend = arena_malloc(((size_t)na + 1) * 4);
+	uint32_t *divisor = arena_malloc((size_t)nb * 4);
+
+	uint32_t spill = 0;
+	for (int i = 0; i < na; i++) {
+		dividend[i] = shift ? (a[i] << shift) | spill : a[i];
+		spill = shift ? (uint32_t)((uint64_t)a[i] >> (32 - shift)) : 0;
+	}
+	dividend[na] = spill;
+
+	spill = 0;
+	for (int i = 0; i < nb; i++) {
+		divisor[i] = shift ? (b[i] << shift) | spill : b[i];
+		spill = shift ? (uint32_t)((uint64_t)b[i] >> (32 - shift)) : 0;
+	}
+
+	for (int j = na - nb; j >= 0; j--) {
+		uint64_t leading = ((uint64_t)dividend[j + nb] << 32) | dividend[j + nb - 1];
+		uint64_t estimate = leading / divisor[nb - 1];
+		uint64_t rest = leading % divisor[nb - 1];
+
+		while (estimate > 0xFFFFFFFFu
+				|| estimate * divisor[nb - 2] > ((rest << 32) | dividend[j + nb - 2])) {
+			estimate--;
+			rest += divisor[nb - 1];
+			if (rest > 0xFFFFFFFFu)
+				break;
+		}
+
+		int64_t borrow = 0;
+		uint64_t product_carry = 0;
+		for (int i = 0; i < nb; i++) {
+			uint64_t product = estimate * divisor[i] + product_carry;
+			product_carry = product >> 32;
+			int64_t difference = (int64_t)dividend[i + j] - (int64_t)(uint32_t)product + borrow;
+			dividend[i + j] = (uint32_t)difference;
+			borrow = difference >> 32;
+		}
+		int64_t top_difference = (int64_t)dividend[j + nb] - (int64_t)product_carry + borrow;
+		dividend[j + nb] = (uint32_t)top_difference;
+
+		if (top_difference >> 32) {
+			estimate--;
+			uint64_t add_carry = 0;
+			for (int i = 0; i < nb; i++) {
+				uint64_t sum = (uint64_t)dividend[i + j] + divisor[i] + add_carry;
+				dividend[i + j] = (uint32_t)sum;
+				add_carry = sum >> 32;
+			}
+			dividend[j + nb] += (uint32_t)add_carry;
+		}
+
+		quotient[j] = (uint32_t)estimate;
+	}
+
+	for (int i = 0; i < nb; i++)
+		remainder[i] = shift
+			? (dividend[i] >> shift) | (uint32_t)((uint64_t)dividend[i + 1] << (32 - shift))
+			: dividend[i];
+
+	arena_free(dividend);
+	arena_free(divisor);
+
 	*n_quotient = mag_length(quotient, na);
-	*n_remainder = mag_length(remainder, nr);
+	*n_remainder = mag_length(remainder, nb);
 }
 
 static int mag_gcd(const uint32_t *a, int na, const uint32_t *b, int nb, uint32_t *out) {

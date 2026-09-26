@@ -393,6 +393,11 @@ semantics of record.
 The C sources carry no comments; constraints a future change must honor
 live here instead. File and function name each invariant's home.
 
+- `mag_divmod` is Knuth algorithm D, so the divisor's top limb must have its
+  high bit set: it normalizes both operands by that shift into scratch buffers
+  and shifts the remainder back. The single-limb divisor needs its own branch,
+  because the quotient-estimate step reads `divisor[nb - 2]` (exact.c,
+  `mag_divmod`).
 - `arrow.c` reads an Arrow file by consuming the 8-byte `ARROW1` magic itself
   and handing the rest to `ArrowIpcArrayStreamReaderInit`, which reads the
   stream format only — nanoarrow has no high-level file reader. The writer's
