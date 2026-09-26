@@ -291,19 +291,14 @@
 
 ' map constant (array-map) internal
 
-\ xt maps each row frame to a new row frame
-: dataset-map ( dataset xt -- dataset )
-	swap dataset-rows
-	swap (array-map) execute
-	frames>dataset ; internal
-
-\ map xt over elements, or over each dataset row frame
-: map ( array/set/dataset xt -- same )
+\ apply xt to each element, or to each dataset row as a frame; the
+\ results are an array either way, so a dataset mapped to row frames
+\ becomes a dataset again through frames>dataset
+: map ( array/set/dataset xt -- arr )
 	over frame? if
-		dataset-map
-	else
-		(array-map) execute
-	then ;
+		swap dataset-rows swap
+	then
+	(array-map) execute ;
 
 ' each constant (array-each) internal
 

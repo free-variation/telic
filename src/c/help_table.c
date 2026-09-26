@@ -178,6 +178,7 @@ const HelpEntry help_entries[] = {
 	{ "bye", "( -- )", "Exit the process with status 0", "—", "—", "—", 30 },
 	{ "byte-size", "( str -- n )", "Byte length of a string", "2", "none", "O(1)", 15 },
 	{ "byte-substring", "( str start end -- sub )", "Half-open **byte** range [start, end); bounds-checked; the raw-byte twin of substring", "2 + k", "1o", "O(k), k = end − start", 14 },
+	{ "byte-vector>string", "( v -- str )", "The inverse: each element truncated to an integer and written as one byte; an element outside 0–255 errors naming its index. An n×1 or 1×n vector; any other shape errors", "n", "1o", "O(n)", 14 },
 	{ "bytes>value", "( str -- v )", "Rebuild the value a value>bytes string holds; errors on damaged or truncated data, or on nesting deeper than 32768 levels", "n", "one object per node", "O(n)", 19 },
 	{ "callers", "( xt -- arr )", "The names, as strings in definition order, of the colon definitions whose compiled bodies reference the word: a call or tail call, an ' word literal, a primitive's op, a variable's read or store, a unit or deferred word's use. A quotation's body counts for the definition enclosing it; a recursive word lists itself. xt must name a dictionary word — a quotation or curried token errors", "dict scan × body", "1a + strings", "O(|dict|²)", 30 },
 	{ "case", "( sel -- )", "Open pattern dispatch on the selector; clauses follow, each pattern of … endof, then an optional default region, then endcase", NULL, NULL, NULL, 10 },
@@ -459,7 +460,7 @@ const HelpEntry help_entries[] = {
 	{ "magnitude", "( v -- v' )", "A quantity's bare magnitude (float or matrix, the unit dropped); any other value passes through unchanged", "2", "none", "O(1)", 5 },
 	{ "make-directory", "( path -- )", "Create the directory, intermediate components included; silent when it already exists, so it is idempotent. Errors when a component exists as a non-directory or the path is unwritable", "d", "none", "O(d), d = path components", 32 },
 	{ "man", "( xt -- fr )", "Frame of a word's reference entry (:word :effect :summary, plus :ops :alloc :order for runtime words); a unit word synthesizes its entry from the unit's definition (unit: m × 1000); a word a load defined answers { :word :effect :summary } built from its declared stack effect and the \\\\ comment lines directly above it; null otherwise", "dict scan + log n", "1o + strings", "O(|dict|)", 30 },
-	{ "map", "( arr/set xt -- arr ) or ( dataset xt -- dataset )", "Apply xt to each element; xt must leave exactly one value. datasets.telic extends it to a dataset: xt maps each row frame to a new row frame — derive, rename, or drop fields — and the returned frames rebuild into a dataset, so all rows must share keys and columns re-infer their representation", "2 + n·xt", "1a(n); dataset rows + new columns", "O(n·xt); dataset O(n·(xt + k log k))", 25 },
+	{ "map", "( arr/set/dataset xt -- arr )", "Apply xt to each element; xt must leave exactly one value. The answer is an array whatever the input was — a set maps to an array, and datasets.telic extends it to a dataset the same way: xt sees each row as a frame keyed by column name and the results come back as an array. To make a dataset again, have xt answer a row frame and pass the array to frames>dataset, which rebuilds the columns", "2 + n·xt", "1a(n); dataset one row frame each", "O(n·xt)", 25 },
 	{ "map-frame", "( fr xt -- fr )", "core.telic: run xt ( key value -- key' value' ) over each entry in key order and collect the answered pairs into a new frame, leaving the source unchanged. A body that consumes only the value leaves the key beneath its result, so ( 10 * ) scales every value under the same keys; a body answering a fresh symbol renames. A body leaving other than two values errors, and a non-symbol key errors in frame. On a dataset the entries are column name and column", "n·(2 + xt)", "2a(n) + 1o", "O(n·xt + n log n)", 17 },
 	{ "match", "( str pat -- [ whole cap… ] | 0 )", "First (leftmost) match as a flat array: whole match then each capture; no match returns 0", "n", "1a + captures", "O(n)", 14 },
 	{ "match-all", "( str pat -- [ [whole cap…] … ] | 0 )", "Every non-overlapping leftmost match, each a flat sub-array; a zero-width match advances one byte; no match returns 0", "n", "1a per match + captures", "O(n + m·g)", 14 },
@@ -685,6 +686,7 @@ const HelpEntry help_entries[] = {
 	{ "stdout>string", "( xt -- str )", "Run xt with descriptor 1 redirected to an unlinked temporary file, restore the descriptor, and answer everything xt wrote — a raw stdout write included, the redirect being at the descriptor rather than in the printing words. Whatever xt leaves on the stack stays, the string on top; stderr is untouched, and a child from start-process writes to its own pipe, not this capture. Captures nest, each call saving its own descriptor. An error or throw out of xt restores the descriptor, discards the captured text, and propagates. Native-only: the wasm build errors, WASI having no temporary files", "2 + xt + bytes", "1o + the temporary file", "O(xt + bytes)", 34 },
 	{ "stop", "( pid -- status )", "SIGKILL the child then reap it (137 = 128+9, or its code if it had already exited)", "2 syscalls", "none", "O(1)", 34 },
 	{ "stream?", "( a -- bool )", "core.telic: 1 when the value is a stream, else 0", "5", "none", "O(1)", 4 },
+	{ "string>byte-vector", "( str -- v )", "The string's **bytes** as an n×1 vector of 0–255, one element per byte — the raw-byte twin of string>codepoints, for binary a subprocess produces (pixels from ffmpeg, samples from a decoder)", "n", "1m(n)", "O(n)", 14 },
 	{ "string>chars", "( str -- [ char… ] )", "Array of one-character strings, one per codepoint", "n", "1a + 1o/char", "O(n)", 14 },
 	{ "string>codepoints", "( str -- [ code… ] )", "Array of integer codepoints, one per codepoint", "n", "1a", "O(n)", 14 },
 	{ "string>number", "( str -- n | null )", "Parse a decimal/float string to a float, ignoring surrounding whitespace; null if str is not entirely a number", "n", "none", "O(n)", 14 },
@@ -808,7 +810,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, arrays element-wise with a trailing rest pattern taking the remaining elements, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails", "n", "none", "O(n)", 28 },
 };
 
-const int help_entry_count = 751;
+const int help_entry_count = 753;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -935,6 +937,7 @@ const HelpExample help_examples[] = {
 	{ "bye", "bye", "" },
 	{ "byte-size", "\"héllo\" byte-size . cr", "6" },
 	{ "byte-substring", "\"héllo\" 0 3 byte-substring . cr", "hé" },
+	{ "byte-vector>string", "[ 72 105 ] 2 1 matrix byte-vector>string . cr", "Hi" },
 	{ "bytes>value", "{ :name \"ann\" :scores [ 1 2 3 ] vector } value>bytes bytes>value :scores @ mean . cr", "2" },
 	{ "callers", ": sq-called ( n -- n ) dup * ;\n: uses-sq-called ( -- n ) 3 sq-called ;\n: maps-sq-called ( -- ) [ 1 2 ] ( sq-called ) map drop ;\n' sq-called callers . cr", "[ \"uses-sq-called\" \"maps-sq-called\" ]" },
 	{ "case", ": kind ( n -- ) case 1 of \"one\" endof 2 of \"two\" endof drop \"many\" endcase . cr ;\n1 kind 5 kind", "one\nmany" },
@@ -1217,7 +1220,7 @@ const HelpExample help_examples[] = {
 	{ "magnitude", "10 km magnitude . cr", "10" },
 	{ "make-directory", "\"/tmp/docs-mk/inner\" make-directory\n\"/tmp/docs-mk/inner\" make-directory\n\"/tmp/docs-mk\" list-directory . cr", "[ \"inner\" ]" },
 	{ "man", "' dup man :effect @ . cr", "( a -- a a )" },
-	{ "map", "[ 1 2 3 ] ( dup * ) map . cr", "[ 1 4 9 ]" },
+	{ "map", "[ 1 2 3 ] ( dup * ) map . cr\n[ [ \"name\" \"score\" ] [ \"ann\" 5 ] [ \"bo\" 1 ] ] true rows>dataset ( :score @ ) map . cr", "[ 1 4 9 ]\n[ 5 1 ]" },
 	{ "map-frame", "{ :a 1 :b 2 } ( 10 * ) map-frame frame>array . cr\n{ :a 1 :b 2 } ( key value | key \"{0}-total\" format string>symbol value 2 * ) map-frame frame>array . cr", "[ :a 10 :b 20 ]\n[ :a-total 2 :b-total 4 ]" },
 	{ "match", "\"x=42\" \"(\\w+)=(\\d+)\" match . cr", "[ \"x=42\" \"x\" \"42\" ]" },
 	{ "match-all", "\"a1 b2\" \"\\w(\\d)\" match-all . cr", "[ [ \"a1\" \"1\" ]\n  [ \"b2\" \"2\" ] ]" },
@@ -1444,6 +1447,7 @@ const HelpExample help_examples[] = {
 	{ "stdout>string", "( \"quiet\" . ) stdout>string \"|\" + . cr", "quiet |" },
 	{ "stop", "[ \"sleep\" \"5\" ] start-process :pid @ stop . cr", "137" },
 	{ "stream?", "stdout stream? . cr", "1" },
+	{ "string>byte-vector", "\"AB\" string>byte-vector transpose . cr", "<matrix 1x2>\n         65         66\n" },
 	{ "string>chars", "\"abc\" string>chars . cr", "[ \"a\" \"b\" \"c\" ]" },
 	{ "string>codepoints", "\"AB\" string>codepoints . cr", "[ 65 66 ]" },
 	{ "string>number", "\"3.5\" string>number . \"x\" string>number null? . cr", "3.5 1" },
@@ -1567,4 +1571,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 754;
+const int help_example_count = 756;

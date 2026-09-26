@@ -189,6 +189,7 @@ in sort ← count
 }
 
 [ 1 3 5 ] 
+[ 5 1 ] 
 {
   :ratio <matrix 2x1:  0.0294118 0.00555556>
   :who [ "ann" "bob" ]
@@ -201,9 +202,7 @@ in sort ← count
   :score <matrix 2x1:  5 1>
 }
 
-{
-}
-
+[ ] 
 ann bob 
 5 1 
 

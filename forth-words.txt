@@ -121,6 +121,7 @@ brier
 bye
 byte-size
 byte-substring
+byte-vector>string
 bytes>value
 callers
 case
@@ -628,6 +629,7 @@ stdout
 stdout>string
 stop
 stream?
+string>byte-vector
 string>chars
 string>codepoints
 string>number

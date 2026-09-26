@@ -5931,6 +5931,8 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "codepoint-at", p_codepoint_at, 0);
 	define_primitive(interp, "string>chars", p_string_to_chars, 0);
 	define_primitive(interp, "string>codepoints", p_string_to_codepoints, 0);
+	define_primitive(interp, "string>byte-vector", p_string_to_byte_vector, 0);
+	define_primitive(interp, "byte-vector>string", p_byte_vector_to_string, 0);
 	define_primitive(interp, "codepoint>char", p_codepoint_to_char, 0);
 	define_primitive(interp, "codepoints>string", p_codepoints_to_string, 0);
 	define_primitive(interp, "trim", p_trim, 0);

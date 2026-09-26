@@ -194,6 +194,9 @@ new inline that calls functions → the tail.
   a `\` comment line above it is the summary help shows.
 - Markers postfix after ; — inline, internal.
 - Plumbing words are marked internal.
+- Image and audio formats go through an `ffmpeg` subprocess, not a vendored
+  codec: `run-result` captures raw bytes intact, and `string>byte-vector`
+  turns them into a matrix. Do not propose stb, miniaudio or a codec library.
 - C escape hatches are parenthesized primitives wrapped by the public
   word: `: wall-now (wall-now) s ;`. Fully-parameterized primitives carry
   -ext, wrapped by a defaulting word.

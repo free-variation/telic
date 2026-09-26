@@ -50,12 +50,14 @@ row-means        ( mat -- mat' )          matrix.telic: r×1 of per-row means
 se               ( mat -- f )             statistics.telic: standard error of the mean (standard deviation ÷ √n)
 summary          ( v/dataset -- fr )      statistics.telic: a vector answers { :min :q1 :median :mean :q3 :max } over its finite elements — a dimensioned vector in its unit, an instant vector (unit exactly s) with each statistic rendered as an ISO time string — plus :missing with the NaN count when any; an all-missing vector answers { :missing n }, an empty one { }. A dataset answers that frame per numeric column and { :distinct } (distinct non-missing cells, plus :missing) per text column, keyed by column name; any other column value errors naming the column
 : 2dup ( a b -- a b a b ) over over ;
-map ( arr/set xt -- arr ) or ( dataset xt -- dataset )
-  Apply xt to each element; xt must leave exactly one value. datasets.telic extends it to a dataset: xt maps each row frame to a new row frame — derive, rename, or drop fields — and the returned frames rebuild into a dataset, so all rows must share keys and columns re-infer their representation
-  ops 2 + n·xt, alloc 1a(n); dataset rows + new columns, O(n·xt); dataset O(n·(xt + k log k))
+map ( arr/set/dataset xt -- arr )
+  Apply xt to each element; xt must leave exactly one value. The answer is an array whatever the input was — a set maps to an array, and datasets.telic extends it to a dataset the same way: xt sees each row as a frame keyed by column name and the results come back as an array. To make a dataset again, have xt answer a row frame and pass the array to frames>dataset, which rebuilds the columns
+  ops 2 + n·xt, alloc 1a(n); dataset one row frame each, O(n·xt)
 
   > [ 1 2 3 ] ( dup * ) map . cr
+  > [ [ "name" "score" ] [ "ann" 5 ] [ "bo" 1 ] ] true rows>dataset ( :score @ ) map . cr
   [ 1 4 9 ]
+  [ 5 1 ]
 telic — a quick start:
   3 4 + .                  add two numbers and print the result
   .s                       show the whole stack (clear empties it)

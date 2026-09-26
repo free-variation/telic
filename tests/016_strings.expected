@@ -102,6 +102,19 @@ error: codepoint 1114112 out of range
 in codepoint>char
 error: codepoint -1 out of range at element 1
 in codepoints>string
+<matrix 1x3>
+         65         66         67
+
+6 
+5 
+0 
+Hi 
+2 
+héllo 😀 
+error: byte 300 out of range at element 0
+in byte-vector>string
+error: expected a byte vector (nx1 or 1xn); got 2x2
+in byte-vector>string
 hi 
 2 
 mid word 

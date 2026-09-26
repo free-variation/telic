@@ -166,6 +166,17 @@ clear
 1114112 codepoint>char                \ codepoint out of range
 [ 65 -1 ] codepoints>string           \ element out of range
 
+\ --- string>byte-vector / byte-vector>string: bytes, not codepoints
+"ABC" string>byte-vector transpose . cr          \ 65 66 67 as 1x3
+"héllo" string>byte-vector dim drop . cr         \ 6  bytes, where size counts 5 codepoints
+"héllo" size . cr                                \ 5
+"" string>byte-vector dim drop . cr              \ 0
+[ 72 105 ] 2 1 matrix byte-vector>string . cr    \ Hi
+[ 0 255 ] 1 2 matrix byte-vector>string byte-size . cr  \ 2  a 1xn vector, and byte 0 is a value
+"héllo 😀" string>byte-vector byte-vector>string . cr   \ héllo 😀  round-trip
+[ 300 ] 1 1 matrix byte-vector>string            \ element out of range
+[ 1 2 3 4 ] 2 2 matrix byte-vector>string        \ not a vector
+
 \ --- trim ( s -- s' ): strip leading/trailing ASCII whitespace; interior preserved.
 "  hi  " trim . cr
 "  hi  " trim size . cr

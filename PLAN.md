@@ -250,14 +250,39 @@ dropped handle holds its slot and its OS resource until the process exits.
 
 ---
 
+## Columnar interchange
+
+- **Batch the arrow writer.** `write-arrow` emits one record batch whatever the
+  row count, so a large dataset is a single message a reader must hold whole.
+  Split at a row or byte threshold; `read-arrow` already concatenates batches.
+- **Write integer columns as integers.** `write-arrow` emits `float64`, `utf8`
+  and `timestamp[us]` only, so an integer column leaves as a double and returns
+  numeric. Needs a dataset integer column representation, or a per-column type
+  override.
+- **Parquet.** Read and write the format a data lake stores. The one pure-C
+  implementation, carquet (MIT), pulls in zstd, zlib and lz4 — three more
+  vendored trees. Gate on its maturity as a format parser.
+
+---
+
 ## String operations
 
 ### Unicode
 
 - **ASCII fast path**: a per-string all-ASCII flag to collapse the byte-offset
   walk in `substring`/`char-at`/`codepoint-at` to direct byte indexing.
-- **Unicode case folding** — `upper-case`/`lower-case` fold ASCII only;
-  folding the rest needs tables (ICU or a generated table).
+- **Unicode case folding** — `upper-case`/`lower-case` fold ASCII only. Either
+  generate a case-only table from `UnicodeData.txt` and `CaseFolding.txt` with
+  a `tools/gen-*.py` (Unicode 18: 1,525 simple uppercase mappings, 1,508
+  lowercase, 1,533 simple foldings, 105 multi-codepoint foldings; about 36 KB
+  as sorted `(from, to)` pairs searched by bisection), which buys case alone,
+  or vendor utf8proc (MIT): 350 KB of indivisible tables — the case mappings
+  are fields in a `utf8proc_properties` entry that also carries category,
+  combining class, bidi class, decomposition and width — which buys NFC/NFD/
+  NFKC/NFKD normalization, `NFKC_Casefold`, display width and grapheme
+  clusters. Prefer the larger for normalization: a TSV or a database can hold
+  the same name as composed `é` and as `e` + U+0301, which compare unequal
+  under `=`, so a join or a `group-by` splits one person into two.
 
 ---
 

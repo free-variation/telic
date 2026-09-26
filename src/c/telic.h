@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.39.0-alpha"
+#define VERSION "0.39.1-alpha"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1640,6 +1640,7 @@ void p_times(DISPATCH_ARGS);
 
 // strings.c
 void p_byte_substring(DISPATCH_ARGS);
+void p_byte_vector_to_string(DISPATCH_ARGS);
 void p_char_at(DISPATCH_ARGS);
 void p_codepoint_at(DISPATCH_ARGS);
 void p_codepoint_to_char(DISPATCH_ARGS);
@@ -1651,6 +1652,7 @@ void p_match_all(DISPATCH_ARGS);
 void p_replace(DISPATCH_ARGS);
 void p_split(DISPATCH_ARGS);
 void p_string_to_chars(DISPATCH_ARGS);
+void p_string_to_byte_vector(DISPATCH_ARGS);
 void p_string_to_codepoints(DISPATCH_ARGS);
 void p_lower_case(DISPATCH_ARGS);
 void p_string_to_number(DISPATCH_ARGS);

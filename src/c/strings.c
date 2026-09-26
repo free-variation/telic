@@ -689,6 +689,55 @@ void p_codepoints_to_string(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
 
+void p_string_to_byte_vector(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val source_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(source_val, T_STRING, "string>byte-vector", "a string");
+
+	int n_bytes = OBJECT_AT(VAL_DATA(source_val))->len;
+	int handle = object_new_matrix_raw(interp, n_bytes, 1);
+	if (interp->error_flag)
+		return;
+
+	const unsigned char *raw = (const unsigned char *)OBJECT_AT(VAL_DATA(source_val))->bytes;
+	double *elements = OBJECT_AT(handle)->matrix.elements;
+	for (int i = 0; i < n_bytes; i++)
+		elements[i] = (double)raw[i];
+	chain_sp[-1] = make_matrix(handle);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
+
+void p_byte_vector_to_string(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val source_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(source_val, T_MATRIX, "byte-vector>string", "a vector");
+
+	int n_bytes = vector_length(interp, OBJECT_AT(VAL_DATA(source_val)), "a byte vector");
+	if (n_bytes < 0)
+		return;
+
+	int handle = object_new_string_uninit(interp, n_bytes);
+	if (interp->error_flag)
+		return;
+
+	const double *elements = OBJECT_AT(VAL_DATA(source_val))->matrix.elements;
+	Object *text = OBJECT_AT(handle);
+	for (int i = 0; i < n_bytes; i++) {
+		int byte = (int)elements[i];
+		if (byte < 0 || byte > 255) {
+			fail(interp, "byte %d out of range at element %d", byte, i);
+			return;
+		}
+		text->bytes[i] = (char)byte;
+	}
+	text->len = n_bytes;
+	text->bytes[n_bytes] = 0;
+	chain_sp[-1] = make_string(handle);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
+
 static inline int trim_is_ws(unsigned char c) {
 	return c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f' || c == '\r';
 }

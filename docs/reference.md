@@ -2323,6 +2323,8 @@ Regex words run on PCRE2 with JIT-compiled patterns. Each distinct pattern is co
 | `string>codepoints` | `( str -- [ code… ] )` | Array of integer codepoints, one per codepoint | n | `1a` | O(n) |
 | `codepoint>char` | `( code -- char )` | One-character string for codepoint `code`; range-checked `[0, 0x10FFFF]` | 1 | `1o` | O(1) |
 | `codepoints>string` | `( [ code… ] -- str )` | Encode each codepoint to UTF-8 and concatenate; per-element type- and range-checked | n | `1o` | O(n) |
+| `string>byte-vector` | `( str -- v )` | The string's **bytes** as an n×1 vector of 0–255, one element per byte — the raw-byte twin of `string>codepoints`, for binary a subprocess produces (pixels from `ffmpeg`, samples from a decoder) | n | `1m(n)` | O(n) |
+| `byte-vector>string` | `( v -- str )` | The inverse: each element truncated to an integer and written as one byte; an element outside 0–255 errors naming its index. An n×1 or 1×n vector; any other shape errors | n | `1o` | O(n) |
 | `trim` | `( str -- str' )` | Strip leading and trailing ASCII whitespace (`' ' \t \n \v \f \r`) | n | `1o` | O(n) |
 | `upper-case` | `( str -- str' )` | A copy with the ASCII letters a–z raised to A–Z; every other byte passes through unchanged, UTF-8 sequences included, so non-ASCII letters (`é`, `ω`) keep their case — Unicode folding needs tables the runtime does not carry | n | `1o` | O(n) |
 | `lower-case` | `( str -- str' )` | A copy with the ASCII letters A–Z lowered to a–z; every other byte passes through unchanged, UTF-8 sequences included, so non-ASCII letters keep their case | n | `1o` | O(n) |
@@ -2436,6 +2438,22 @@ hé
 ```
 ```output
 ☃
+```
+
+```forth string>byte-vector
+"AB" string>byte-vector transpose . cr
+```
+```output
+<matrix 1x2>
+         65         66
+
+```
+
+```forth byte-vector>string
+[ 72 105 ] 2 1 matrix byte-vector>string . cr
+```
+```output
+Hi
 ```
 
 ```forth codepoints>string
@@ -4478,7 +4496,7 @@ The quotation/predicate cost dominates; `xt` denotes one call.
 
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
-| `map` | `( arr/set xt -- arr )` or `( dataset xt -- dataset )` | Apply xt to each element; xt must leave exactly one value. datasets.telic extends it to a dataset: xt maps each row frame to a new row frame — derive, rename, or drop fields — and the returned frames rebuild into a dataset, so all rows must share keys and columns re-infer their representation | 2 + n·xt | `1a(n)`; dataset rows + new columns | O(n·xt); dataset O(n·(xt + k log k)) |
+| `map` | `( arr/set/dataset xt -- arr )` | Apply xt to each element; xt must leave exactly one value. The answer is an array whatever the input was — a set maps to an array, and datasets.telic extends it to a dataset the same way: xt sees each row as a frame keyed by column name and the results come back as an array. To make a dataset again, have xt answer a row frame and pass the array to `frames>dataset`, which rebuilds the columns | 2 + n·xt | `1a(n)`; dataset one row frame each | O(n·xt) |
 | `nmap` | `( arr₁ … arr_N xt N -- arr )` | N-ary zip-map over equal-length arrays | rows·(N+xt) | `1a(rows)` | O(rows·xt) |
 | `filter` | `( arr/set xt -- arr )` or `( dataset xt -- dataset )` | Keep elements where xt is truthy. datasets.telic extends it to a dataset: xt sees each row as a frame keyed by column name and answers a bool (1.0/0.0); the kept rows come back as a dataset, so every column keeps its representation | 2 + n·xt | malloc(n) flags + `1a(k)`; dataset rows + mask + one column each | O(n·xt) |
 | `reduce` | `( arr/set init xt -- val )` or `( dataset init xt -- val )` | Left fold; xt is `( acc elem -- acc )`. datasets.telic extends it to a dataset: xt sees each row as a frame keyed by column name, as under `map`, `filter` and `each`, so the fold is `( acc row -- acc )` | 3 + n·xt | none; dataset one row frame each | O(n·xt) |
@@ -4497,9 +4515,11 @@ The quotation/predicate cost dominates; `xt` denotes one call.
 
 ```forth map
 [ 1 2 3 ] ( dup * ) map . cr
+[ [ "name" "score" ] [ "ann" 5 ] [ "bo" 1 ] ] true rows>dataset ( :score @ ) map . cr
 ```
 ```output
 [ 1 4 9 ]
+[ 5 1 ]
 ```
 
 ```forth nmap
