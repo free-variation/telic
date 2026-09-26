@@ -393,6 +393,56 @@ semantics of record.
 The C sources carry no comments; constraints a future change must honor
 live here instead. File and function name each invariant's home.
 
+- `main` runs the interpreter on a thread it spawns and keeps thread 0 pumping
+  window events, because Cocoa requires the process's first thread and telic's
+  REPL would otherwise block it inside isocline. Every Tigr call — window
+  creation included — therefore happens in `screen_step` on thread 0, never in
+  a word; `plot` writes into telic's own buffer and the pump blits it. The
+  spawned thread takes `RLIMIT_STACK` rather than a pthread's 512 KB default,
+  which is too small for the interpreter and shows up as SIGBUS on the first
+  word. `SIGALRM`, `SIGINT`, `SIGWINCH` and `SIGUSR1` are blocked on thread 0
+  so they are delivered to the interpreter, where the handlers' flags are
+  read; leaving them unblocked lets the pump's `usleep` absorb ticks meant for
+  `tick-every` (graphics.c, `platform_run_main`).
+- A window close interrupts the interpreter with `SIGUSR1` sent to its thread
+  whenever `on_interrupt` is installed, and with `SIGINT` to the process only
+  when it is not. isocline's `SIGINT` handler takes the terminal out of raw
+  mode when it fires during line editing, so a close at an idle prompt must
+  not raise `SIGINT`; isocline installs no `SIGUSR1` handler (graphics.c,
+  `screen_step`; platform_posix.c, `platform_interrupt_begin`).
+- `platform_interrupt_begin` runs before the program files under `-i`, so an
+  interrupt there reaches `on_interrupt`; `telic_main` then resets through
+  `recover_from_error` and enters the REPL instead of exiting (core.c,
+  `telic_main`).
+- A finished `screen-frame` is copied into `screen.presented` and the pump
+  blits only from that copy, so the interpreter can start the next frame
+  without the window ever reading a half-drawn canvas. The waiter wakes when
+  the pump has blitted its frame, not after `tigrUpdate`: `tigrUpdate` waits
+  for the swap and then for one more display callback, and waking after it
+  cost every frame an extra refresh. The pump blits at most one frame per
+  `tigrUpdate`, which is what paces a `screen-frame` loop to the display
+  (graphics.c, `p_screen_frame`, `screen_step`).
+- With a window open and nothing changed, the pump drains Cocoa events itself
+  and calls `tigrUpdate` only when one arrived: each `tigrUpdate` presents a
+  frame and waits on the display, and calling it on every step held an idle
+  window at about 40 frames a second. The drain runs inside its own
+  autorelease pool, since Tigr's pool is replaced only in `tigrUpdate`
+  (graphics.c, `screen_step`, `application_drain_events`).
+- The window is created in `TIGR_AUTO` mode at `w·zoom`×`h·zoom` points, and
+  `blit_zoomed` scales by the window bitmap's actual size rather than by
+  `zoom`: Tigr first allocates that bitmap at backing-pixel resolution, 2× on
+  a Retina display, then shrinks it to point resolution on the first update,
+  and a user can resize it. So the pump re-blits whenever the window bitmap's
+  size differs from the last blit, not only when a word marks the canvas
+  dirty. `TIGR_FIXED` would instead pick the largest integer scale that fits
+  the screen, ignoring `screen-zoom` (graphics.c, `screen_step`).
+- A reopened window is brought forward with `orderFrontRegardless`, one pump
+  tick after creation, not by activating the app. macOS 14 onward uses
+  cooperative activation: an app the user has not activated cannot activate
+  itself, so the `activateIgnoringOtherApps:` inside `tigrWindow` is ignored
+  whenever the terminal is active, and the window opens behind it. Only the
+  first window escapes this, because a newly launched process is granted
+  activation (graphics.c, `screen_step`).
 - `mag_divmod` is Knuth algorithm D, so the divisor's top limb must have its
   high bit set: it normalizes both operands by that shift into scratch buffers
   and shifts the remainder back. The single-limb divisor needs its own branch,

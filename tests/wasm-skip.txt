@@ -27,3 +27,4 @@
 115_tick_every      tick-every: no setitimer/SIGALRM on WASI, the timer is a no-op there
 114_gauges_view     load-library via binary-dir: no executable path on WASI
 900_docs_gauges_view_lib_gauges_view_telic  load-library via binary-dir: no executable path on WASI
+119_screen_frames  screen-frames/screen-size: no window system in the wasm build

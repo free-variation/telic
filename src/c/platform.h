@@ -5,6 +5,10 @@
 
 struct Interpreter;
 
+typedef int (*MainBody)(int argc, char **argv);
+
+int platform_run_main(int argc, char **argv, MainBody body);
+
 #define unlikely(condition) __builtin_expect(!!(condition), 0)
 
 #define SYNC_REGISTERS(interp, reg_ip, reg_sp) do { \
@@ -116,6 +120,8 @@ void platform_tick_every(struct Interpreter *interp, double seconds);
 void *platform_reserve(size_t requested, size_t *reserved_out);
 void platform_init(void);
 int platform_executable_path(char *out, size_t cap);
+void platform_interrupt_begin(struct Interpreter *interp);
+int platform_interrupt_handled(void);
 int platform_repl_begin(struct Interpreter *interp, int want_interactive);
 int platform_read_chunk(char *dst, int dst_avail, int interactive);
 void platform_qsort_r(void *base, size_t n, size_t size, void *thunk,

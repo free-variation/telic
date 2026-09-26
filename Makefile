@@ -32,18 +32,18 @@ CFLAGS = -O3 -march=native -Wall -Wextra -pthread -D_GNU_SOURCE -fno-common
 ifneq ($(UNAME),Darwin)
 CFLAGS += -flto
 endif
-LDLIBS = -lm -lffi
+LDLIBS = -lm -lffi $(TIGR_LIBS)
 
-SRCS = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/foreign.c src/c/platform_posix.c src/c/dimension.c src/c/time.c src/c/exact.c src/c/serialize.c src/c/arrow.c
+SRCS = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/foreign.c src/c/platform_posix.c src/c/dimension.c src/c/time.c src/c/exact.c src/c/serialize.c src/c/arrow.c src/c/graphics.c
 HDRS = src/c/telic.h src/c/platform.h src/c/lib_embed.h src/c/logo_embed.h src/c/repl_highlight_groups.h
 
-TELIC_INCS = -I$(PCRE2_SRC) -I$(SQLITE_DIR) -I$(SQLITE_VEC_DIR) -I$(NANOARROW_DIR)/include -I$(ISOCLINE_DIR)/include
-TELIC_DEPS = $(PCRE2_LIB) $(SQLITE_OBJ) $(SQLITE_VEC_OBJ) $(NANOARROW_OBJS) $(ISOCLINE_OBJ)
+TELIC_INCS = -I$(PCRE2_SRC) -I$(SQLITE_DIR) -I$(SQLITE_VEC_DIR) -I$(NANOARROW_DIR)/include -I$(TIGR_DIR) -I$(ISOCLINE_DIR)/include
+TELIC_DEPS = $(PCRE2_LIB) $(SQLITE_OBJ) $(SQLITE_VEC_OBJ) $(NANOARROW_OBJS) $(TIGR_OBJ) $(ISOCLINE_OBJ)
 
 # Embedded library, concatenated in this order. Binding is early: a word must
 # be defined in an earlier file than every file that uses it (units before the
 # constants that use joule, predicates before the words that call them).
-FORTH_SRCS = src/forth/core.telic src/forth/arrays.telic src/forth/strings.telic src/forth/exceptions.telic src/forth/test.telic src/forth/matrix.telic src/forth/subprocess.telic src/forth/logic.telic src/forth/generators.telic src/forth/units.telic src/forth/io.telic src/forth/browser.telic src/forth/datasets.telic src/forth/statistics.telic src/forth/constants.telic src/forth/database.telic src/forth/repl.telic
+FORTH_SRCS = src/forth/core.telic src/forth/arrays.telic src/forth/strings.telic src/forth/exceptions.telic src/forth/test.telic src/forth/matrix.telic src/forth/subprocess.telic src/forth/logic.telic src/forth/generators.telic src/forth/units.telic src/forth/io.telic src/forth/browser.telic src/forth/graphics.telic src/forth/datasets.telic src/forth/statistics.telic src/forth/constants.telic src/forth/database.telic src/forth/repl.telic
 
 # Vendored PCRE2 (see external/pcre2/PROVENANCE; refresh with tools/vendor-pcre2.sh).
 PCRE2_DIR    = external/pcre2
@@ -79,6 +79,19 @@ SQLITE_VEC_OBJ    = $(SQLITE_VEC_DIR)/sqlite-vec.o
 NANOARROW_DIR    = external/nanoarrow
 NANOARROW_CFLAGS = -O2 -I$(NANOARROW_DIR)/include
 NANOARROW_OBJS   = $(NANOARROW_DIR)/src/nanoarrow.o $(NANOARROW_DIR)/src/nanoarrow_ipc.o $(NANOARROW_DIR)/src/flatcc.o
+
+# Vendored Tigr (see external/tigr/PROVENANCE; refresh with tools/vendor-tigr.sh).
+# A window holding a pixel buffer; graphics.c is the only caller and drives it
+# from thread 0. Plain C on every platform — on macOS it reaches Cocoa through
+# the Objective-C runtime — but the window system libraries differ.
+TIGR_DIR    = external/tigr
+TIGR_CFLAGS = -O2
+TIGR_OBJ    = $(TIGR_DIR)/tigr.o
+ifeq ($(UNAME),Darwin)
+TIGR_LIBS   = -framework Cocoa -framework OpenGL -lobjc
+else
+TIGR_LIBS   = -lGLU -lGL -lX11
+endif
 
 # Vendored isocline (see external/isocline/PROVENANCE; refresh with tools/vendor-isocline.sh).
 # Compiles as a single source unit (src/isocline.c) per its readme.md.
@@ -124,6 +137,9 @@ NANOARROW_HDRS = $(wildcard $(NANOARROW_DIR)/include/nanoarrow/*.h $(NANOARROW_D
 
 $(NANOARROW_DIR)/src/%.o: $(NANOARROW_DIR)/src/%.c $(NANOARROW_HDRS)
 	$(CC) $(NANOARROW_CFLAGS) -c $< -o $@
+
+$(TIGR_OBJ): $(TIGR_DIR)/tigr.c $(TIGR_DIR)/tigr.h
+	$(CC) $(TIGR_CFLAGS) -c $< -o $@
 
 # src/isocline.c #includes the rest of src/, so the object must depend on all of
 # them: listing only isocline.c leaves edits to tty.c and friends unbuilt.
@@ -294,6 +310,6 @@ install: all pack
 	ln -sf $(TELIC_HOME)/telic $(DESTDIR)$(BINDIR)/telic
 
 clean:
-	rm -f telic telic.wasm $(PCRE2_OBJS) $(PCRE2_LIB) $(WASM_PCRE2_OBJS) $(WASM_PCRE2_LIB) $(SQLITE_OBJ) $(WASM_SQLITE_OBJ) $(SQLITE_VEC_OBJ) $(WASM_SQLITE_VEC_OBJ) $(NANOARROW_OBJS) $(WASM_NANOARROW_OBJS) $(ISOCLINE_OBJ) $(LAPACKE_OBJS) $(LAPACKE_LIB) $(LAPACKE_SHARED) $(LAPACKE_DIR)/exports.map
+	rm -f telic telic.wasm $(PCRE2_OBJS) $(PCRE2_LIB) $(WASM_PCRE2_OBJS) $(WASM_PCRE2_LIB) $(SQLITE_OBJ) $(WASM_SQLITE_OBJ) $(SQLITE_VEC_OBJ) $(WASM_SQLITE_VEC_OBJ) $(NANOARROW_OBJS) $(WASM_NANOARROW_OBJS) $(TIGR_OBJ) $(ISOCLINE_OBJ) $(LAPACKE_OBJS) $(LAPACKE_LIB) $(LAPACKE_SHARED) $(LAPACKE_DIR)/exports.map
 
 .PHONY: all clean install test test-libs test-wasm bench wasm vendor-pcre2 vendor-sqlite vendor-isocline vendor-lapacke lapacke editors

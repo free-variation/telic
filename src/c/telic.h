@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.39.2-alpha"
+#define VERSION "0.40.0-alpha"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -556,6 +556,7 @@ typedef struct Interpreter {
 	int trampoline_base;
 	int running;
 	int error_flag;
+	int interrupted;
 	int gc_disabled;
 	int gc_pending;
 	Val trace_patterns;
@@ -1073,6 +1074,7 @@ Val complex_from_parts(Interpreter *interp, double real_part, double imaginary_p
 int complex_truthy(Val value);
 int parse_complex_literal(Interpreter *interp, const char *token, Val *out);
 int capture_continuation(Interpreter *interp, int what_kind, int *out_mark_index);
+int color_named(const char *name, int length, unsigned int *rgb);
 int interpolate(Interpreter *interp, int template_handle);
 int prompt_index(Interpreter *interp, int kind);
 int push_prompt(Interpreter *interp, int kind);
@@ -1256,6 +1258,7 @@ void p_bit_or(DISPATCH_ARGS);
 void p_bit_xor(DISPATCH_ARGS);
 void p_bye(DISPATCH_ARGS);
 void p_clear(DISPATCH_ARGS);
+void p_colors(DISPATCH_ARGS);
 void p_complex(DISPATCH_ARGS);
 void p_conjugate(DISPATCH_ARGS);
 void p_cos(DISPATCH_ARGS);
@@ -1768,6 +1771,24 @@ void p_value_to_bytes(DISPATCH_ARGS);
 // arrow.c
 void p_read_arrow(DISPATCH_ARGS);
 void p_write_arrow(DISPATCH_ARGS);
+
+// graphics.c
+void p_circle(DISPATCH_ARGS);
+void p_cls(DISPATCH_ARGS);
+void p_fill_circle(DISPATCH_ARGS);
+void p_fill_rect(DISPATCH_ARGS);
+void p_ink(DISPATCH_ARGS);
+void p_line(DISPATCH_ARGS);
+void p_paper(DISPATCH_ARGS);
+void p_plot(DISPATCH_ARGS);
+void p_print_at(DISPATCH_ARGS);
+void p_rect(DISPATCH_ARGS);
+void p_screen_effect(DISPATCH_ARGS);
+void p_screen_frame(DISPATCH_ARGS);
+void p_screen_frames(DISPATCH_ARGS);
+void p_screen_shader(DISPATCH_ARGS);
+void p_screen_size(DISPATCH_ARGS);
+void p_screen_zoom(DISPATCH_ARGS);
 
 // inline functions whose bodies call the declarations above
 static inline int truthy(Val value) {

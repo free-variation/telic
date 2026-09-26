@@ -131,12 +131,15 @@ cd
 char-at
 choose
 ci
+circle
 clamp
 clear
 close
+cls
 codepoint-at
 codepoint>char
 codepoints>string
+colors
 column-maxes
 column-means
 column-mins
@@ -277,6 +280,8 @@ figure@
 file-exists?
 file-info
 fill
+fill-circle
+fill-rect
 filter
 filter-columns
 find-executable
@@ -363,6 +368,7 @@ imaginary-part
 in?
 index-of
 indicators!
+ink
 inline
 int-segment
 internal
@@ -380,6 +386,7 @@ last
 leave
 legend
 lgamma
+line
 linear-regression
 list-directory
 ln
@@ -463,6 +470,7 @@ over
 pad-left
 pad-right
 panel
+paper
 parallel-run
 parse-time
 partition
@@ -473,6 +481,7 @@ percentile
 pfilter
 pfilter-ext
 pick
+plot
 pmap
 pmap-ext
 pmap-reduce
@@ -487,6 +496,7 @@ position-of
 predict-glm
 predict-multinomial
 print
+print-at
 print-gauges
 print-stack
 product-times
@@ -517,6 +527,7 @@ read-line
 read-out
 read-tsv
 real-part
+rect
 rect-at
 recurse
 reduce
@@ -568,6 +579,12 @@ save-tsv
 save-value
 scatter
 scatter-plot
+screen-effect
+screen-frame
+screen-frames
+screen-shader
+screen-size
+screen-zoom
 se
 second
 see

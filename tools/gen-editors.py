@@ -125,7 +125,7 @@ def emit_vim(auto):
     L.append('syn match   telicSymbol  ":\\k\\+"')
     L.append('syn match   telicPath    "/\\a\\k*"')
     # A key fused into a token (row@price, row!price): the operator and the key get
-    # separate groups, and the frame reference keeps its own colour. syn keyword
+    # separate groups, and the frame reference keeps its own color. syn keyword
     # outranks syn match in vim, so standalone @i, @j, @or and !i are unaffected.
     # The key rule matches behind the operator rather than through it: two match
     # items starting at the same character compete, and whichever wins consumes it,
@@ -145,8 +145,8 @@ def emit_vim(auto):
     # The declared stack effect after a definition name, parentheses included.
     # It must be defined after the telicDefine "(" rule: two match items starting
     # at the same character compete and the later definition wins. The item takes
-    # no contains=, so the tokens inside it keep the effect's colour. The closing
-    # parenthesis is optional so that a half-typed effect colours as it is entered.
+    # no contains=, so the tokens inside it keep the effect's color. The closing
+    # parenthesis is optional so that a half-typed effect colors as it is entered.
     L.append('syn match   telicEffect  "\\%(\\%(^\\|\\s\\):\\s\\+\\k\\+\\s\\+\\)\\@<=(\\s[^)]*)\\="')
     L.append("")
     L.append(kw("telicConditional", CONDITIONAL))

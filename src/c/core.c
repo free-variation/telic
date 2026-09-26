@@ -1540,6 +1540,7 @@ void run_inner(Interpreter *interp, int floor) {
 		if (interp->gc_pending) {
 			if (interp->gc_pending & INTERRUPT_PENDING) {
 				interp->gc_pending &= ~INTERRUPT_PENDING;
+				interp->interrupted = 1;
 				fail(interp, "interrupted");
 				break;
 			}
@@ -6147,6 +6148,24 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "value>bytes", p_value_to_bytes, 0);
 	define_primitive(interp, "bytes>value", p_bytes_to_value, 0);
 
+	define_primitive(interp, "plot", p_plot, 0);
+	define_primitive(interp, "line", p_line, 0);
+	define_primitive(interp, "rect", p_rect, 0);
+	define_primitive(interp, "fill-rect", p_fill_rect, 0);
+	define_primitive(interp, "circle", p_circle, 0);
+	define_primitive(interp, "fill-circle", p_fill_circle, 0);
+	define_primitive(interp, "cls", p_cls, 0);
+	define_primitive(interp, "print-at", p_print_at, 0);
+	define_primitive(interp, "screen-size", p_screen_size, 0);
+	define_primitive(interp, "screen-zoom", p_screen_zoom, 0);
+	define_primitive(interp, "screen-shader", p_screen_shader, 0);
+	define_primitive(interp, "screen-effect", p_screen_effect, 0);
+	define_primitive(interp, "screen-frame", p_screen_frame, 0);
+	define_primitive(interp, "screen-frames", p_screen_frames, 0);
+	define_primitive(interp, "(colors)", p_colors, 4);
+	define_primitive(interp, "(ink)", p_ink, 4);
+	define_primitive(interp, "(paper)", p_paper, 4);
+
 	define_primitive(interp, "read-arrow", p_read_arrow, 0);
 	define_primitive(interp, "write-arrow", p_write_arrow, 0);
 	define_primitive(interp, "complex", p_complex, 0);
@@ -6410,7 +6429,31 @@ static void print_usage(void) {
 		"  -h, --help          print this help, then exit\n");
 }
 
-int main(int argc, char **argv) {
+static void recover_from_error(Interpreter *interp, int lvar_top, int bind_trail_top) {
+	rollback_partial_definition();
+	compiler.loop_begin = 0;
+	compiler.leave_chain = 0;
+	compiler.do_continue_chain = 0;
+	compiler.case_chain = 0;
+	compiler.n_active_do_loops = 0;
+	compiler.compiling = 0;
+	if (interp->entry_snapshot_depth > 0)
+		memcpy(interp->data_stack, interp->entry_snapshot,
+				sizeof(Val) * (size_t)interp->entry_snapshot_depth);
+	interp->dsp = interp->entry_snapshot_depth;
+	interp->rsp = 0;
+	interp->side_dsp = 0;
+	interp->local_base = 0;
+	interp->n_gc_roots = 0;
+	trail_undo_to(interp, bind_trail_top);
+	interp->lvar_top = lvar_top;
+	compiler.compiling_src_start = 0;
+	compiler.n_local_scopes = 0;
+	compiler.n_local_names = 0;
+	compiler.local_names_pool_here = 0;
+}
+
+static int telic_main(int argc, char **argv) {
 	int interactive = isatty(fileno(stdin));
 	int interactive_set = 0;
 	int load_lib = 1;
@@ -6514,6 +6557,11 @@ int main(int argc, char **argv) {
 
 	compiler.interactive = interactive;
 
+	if (interactive)
+		platform_interrupt_begin(interp);
+	int program_lvar_top = interp->lvar_top;
+	int program_bind_trail_top = interp->bind_trail_top;
+
 	for (int i = 0; i < n_program_items; i++) {
 		if (program_item_is_code[i])
 			run_program_text(interp, program_items[i]);
@@ -6523,7 +6571,13 @@ int main(int argc, char **argv) {
 			fprintf(stderr, "error: %s\n", interp->error_message);
 			if (interp->error_trace[0])
 				fprintf(stderr, "%s\n", interp->error_trace);
-			return 1;
+			if (!(interactive && interp->interrupted))
+				return 1;
+			recover_from_error(interp, program_lvar_top, program_bind_trail_top);
+			interp->error_flag = 0;
+			interp->unwinding = 0;
+			interp->interrupted = 0;
+			break;
 		}
 		if (!program_item_is_code[i])
 			record_loaded_file(interp, program_items[i]);
@@ -6567,29 +6621,8 @@ int main(int argc, char **argv) {
 		if (compiler.need_more)
 			continue;
 
-		if (interp->error_flag) {
-			rollback_partial_definition();
-			compiler.loop_begin = 0;
-			compiler.leave_chain = 0;
-			compiler.do_continue_chain = 0;
-			compiler.case_chain = 0;
-			compiler.n_active_do_loops = 0;
-			compiler.compiling = 0;
-			if (interp->entry_snapshot_depth > 0)
-				memcpy(interp->data_stack, interp->entry_snapshot,
-						sizeof(Val) * (size_t)interp->entry_snapshot_depth);
-			interp->dsp = interp->entry_snapshot_depth;
-			interp->rsp = 0;
-			interp->side_dsp = 0;
-			interp->local_base = 0;
-			interp->n_gc_roots = 0;
-			trail_undo_to(interp, line_bind_trail_top);
-			interp->lvar_top = line_lvar_top;
-			compiler.compiling_src_start = 0;
-			compiler.n_local_scopes = 0;
-			compiler.n_local_names = 0;
-			compiler.local_names_pool_here = 0;
-		}
+		if (interp->error_flag)
+			recover_from_error(interp, line_lvar_top, line_bind_trail_top);
 
 		if (compiler.compiling)
 			continue;
@@ -6640,3 +6673,7 @@ int main(int argc, char **argv) {
 	return 0;
 }
 
+
+int main(int argc, char **argv) {
+	return platform_run_main(argc, argv, telic_main);
+}

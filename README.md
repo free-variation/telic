@@ -439,6 +439,10 @@ Embedded relational storage via the vendored SQLite amalgamation — built into 
 - **Bound parameters** — every query and statement takes an array bound to its `?` placeholders, so values need no hand-escaping.
 - **Vector search** — the vendored sqlite-vec extension is built in and registered on every connection: `vec0` tables hold float, int8 or binary vectors under an L2, L1 or cosine metric, and a vector binds as a parameter, so a k-nearest-neighbour query takes an embedding straight from the language.
 
+### Graphics
+
+- **A screen that is simply there** — `plot`, `line`, `rect`, `fill-rect`, `circle`, `fill-circle`, `print-at` and `cls` draw into a window the first of them opens, with no setup and no event loop; `ink` and `paper` take a hex color or one of 157 X11 color names, the same names `format` and `print-at` accept as `{name}` color tags, `screen-size` sets the dimensions in virtual pixels and `screen-zoom` how large each one is displayed, `screen-shader` and `screen-effect` present the window through a GLSL shader, `screen-frame` presents what a quotation draws as one frame, and `screen-frames` counts the frames presented.
+
 ### Data: TSV, datasets, and statistics
 
 TSV is the one tabular file format (convert other formats to TSV before loading).

@@ -44,6 +44,10 @@ void platform_tick_every(struct Interpreter *interp, double seconds) {
 	(void)seconds;
 }
 
+void platform_interrupt_begin(struct Interpreter *interp) {
+	(void)interp;
+}
+
 int platform_repl_begin(struct Interpreter *interp, int want_interactive) {
 	(void)interp;
 	if (want_interactive) {
@@ -108,3 +112,31 @@ Val ffi_pointer_owner_of(int index) {
 	(void)index;
 	return make_tagged(T_NONE, 0);
 }
+
+int platform_run_main(int argc, char **argv, MainBody body) {
+	return body(argc, argv);
+}
+
+#define NO_WINDOW_SYSTEM(c_name, word_name) \
+	void c_name(DISPATCH_ARGS) { \
+		(void)chain_ip; \
+		(void)chain_sp; \
+		fail(interp, "%s needs a window system; the wasm build has none", word_name); \
+	}
+
+NO_WINDOW_SYSTEM(p_circle, "circle")
+NO_WINDOW_SYSTEM(p_cls, "cls")
+NO_WINDOW_SYSTEM(p_fill_circle, "fill-circle")
+NO_WINDOW_SYSTEM(p_fill_rect, "fill-rect")
+NO_WINDOW_SYSTEM(p_ink, "ink")
+NO_WINDOW_SYSTEM(p_line, "line")
+NO_WINDOW_SYSTEM(p_paper, "paper")
+NO_WINDOW_SYSTEM(p_plot, "plot")
+NO_WINDOW_SYSTEM(p_print_at, "print-at")
+NO_WINDOW_SYSTEM(p_rect, "rect")
+NO_WINDOW_SYSTEM(p_screen_size, "screen-size")
+NO_WINDOW_SYSTEM(p_screen_zoom, "screen-zoom")
+NO_WINDOW_SYSTEM(p_screen_shader, "screen-shader")
+NO_WINDOW_SYSTEM(p_screen_effect, "screen-effect")
+NO_WINDOW_SYSTEM(p_screen_frame, "screen-frame")
+NO_WINDOW_SYSTEM(p_screen_frames, "screen-frames")

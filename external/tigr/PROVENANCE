@@ -1,0 +1,13 @@
+Tigr vendored source.
+
+upstream:  https://github.com/erkkah/tigr
+commit:    f7bf2abbf6b26e649ced5691003e87b61c03762e
+tarball:   https://codeload.github.com/erkkah/tigr/tar.gz/f7bf2abbf6b26e649ced5691003e87b61c03762e
+sha256:    da89cdd16d4234c31b9a2d1e40b32489892ef1bfe1c6eecae219216e95c9696b
+
+Two files compiled as one plain-C translation unit; compile flags live in the
+Makefile (TIGR_CFLAGS) and the per-platform link flags in TIGR_LIBS. Public
+domain (see UNLICENSE). src/c/graphics.c is the only caller, and every Tigr call
+happens on thread 0 — see PLAN.md's source invariants. Produced by
+tools/vendor-tigr.sh; do not edit these files by hand, re-run the script to
+update.

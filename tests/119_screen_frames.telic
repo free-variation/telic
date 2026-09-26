@@ -1,0 +1,26 @@
+\ ==== screen-frames ( -- n ), screen-frame ( xt -- ) ====
+
+\ screen-frames is the number of frames the window has presented since
+\ startup. With no window opened nothing is presented, and screen-size alone
+\ opens no window. screen-frame runs xt and presents what it drew as one frame.
+
+\ === no window ===
+screen-frames . cr                                   \ 0
+
+\ === screen-size opens no window ===
+320 240 screen-size
+screen-frames . cr                                   \ 0
+clear
+
+\ === screen-frame ( xt -- ) runs xt; a body that draws nothing opens no window ===
+( 1 2 + . ) screen-frame cr                          \ 3
+: captured ( n -- ) | n | ( n 10 * . ) screen-frame cr ;
+4 captured                                           \ 40
+( ( 5 . ) screen-frame 6 . ) screen-frame cr         \ 5 6
+screen-frames . cr                                   \ 0
+clear
+
+\ errors
+( 1 0 / ) screen-frame                               \ (the body's error passes through)
+7 screen-frame                                       \ (not an execution token)
+0 240 screen-size                                    \ (an edge outside [1, 8192])

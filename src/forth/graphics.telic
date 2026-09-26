@@ -1,0 +1,35 @@
+\ Named colors and the color argument ink and paper accept. The table is
+\ src/c/x11_colors.h, the digit-free single-word names of X11's rgb.txt —
+\ the set CSS adopted — which format and print-at read as {name} directives.
+
+\ X11 color names to their packed 0xRRGGBB value, built once from the C table
+(colors) constant colors
+
+\ the packed 0xRRGGBB a color argument stands for: a number is already
+\ one, a symbol names an X11 color, a string is #rrggbb or 0xrrggbb
+: color>number ( color -- n )
+	dup float? if exit then
+
+	dup symbol? if
+		dup colors swap has? not if
+			"no such color: {0}" format throw
+		then
+		colors swap @ exit
+	then
+
+	dup string? not if
+		type-of "expected a color number, symbol or string; got {0}" format throw
+	then
+
+	dup 0 1 byte-substring "#" = if 1 over byte-size byte-substring "0x" swap + then
+	string>number
+	dup null? if
+		drop "expected a #rrggbb or 0xrrggbb color string" throw
+	then ; internal
+
+\ the color later drawing uses
+: ink ( color -- ) color>number (ink) ;
+
+\ the color cls fills with, and the background a new screen starts at
+: paper ( color -- ) color>number (paper) ;
+

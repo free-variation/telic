@@ -1,0 +1,382 @@
+\ A tour of every graphics word, one scene each.
+\
+\   ./telic examples/primitives-demo.telic
+\
+\ Scenes, about seven seconds apiece:
+\   1  colors, ink, fill-rect, rect   the 157 X11 colors as a swatch grid
+\   2  line                           a multiplication table drawn on a circle
+\   3  fill-rect, rect                a tunnel of nested squares
+\   4  fill-circle, circle            bouncing balls with ripples
+\   5  plot, screen-size, screen-zoom a Mandelbrot set at 160x120, zoom 8
+\   6  print-at, paper                wave text and color tags
+\   7  screen-effect                  the built-in shader's blur and scanlines
+\   8  screen-shader                  a GLSL shader warping the canvas
+\ Every frame is drawn inside screen-frame, so the window never shows a
+\ canvas that is cleared but not yet redrawn, and every scene shows the frame
+\ rate from screen-frames. The last scene
+\ replaces the window's shader, which lasts until the process ends, so it
+\ comes last. Closing the window stops the tour.
+
+11 seed
+
+variable screen-w
+variable screen-h
+variable last-presented
+variable last-seconds
+variable rate
+variable clock-start
+
+\ the size of the bitmap and of its pixels, remembered for the captions
+: screen ( w h zoom -- )
+	| w h zoom ^screen-w ^screen-h |
+	w h screen-size
+	zoom screen-zoom
+	w to screen-w
+	h to screen-h ;
+
+\ seconds since the tour began
+: seconds ( -- s ) now magnitude clock-start - ;
+
+\ a hue from 0 to 1 around the color wheel, as a 0xRRGGBB number
+: hue ( h -- color )
+	| h |
+	h 1 mod 6 * to s
+	s 3 - abs 1 - 0 1 clamp 255 * truncate to r
+	2 s 2 - abs - 0 1 clamp 255 * truncate to g
+	2 s 4 - abs - 0 1 clamp 255 * truncate to b
+	r 65536 * g 256 * + b + ;
+
+\ the presentation rate, refreshed every half second
+: measure ( -- )
+	| ^last-presented ^last-seconds ^rate |
+	seconds to t
+	t last-seconds - to elapsed
+	elapsed 0.5 > if
+		screen-frames to presented
+		presented last-presented - elapsed / to rate
+		presented to last-presented
+		t to last-seconds
+	then ;
+
+\ a title bar and a frame-rate bar; ink takes a hex string here
+: caption ( title -- )
+	| title |
+	"#101820" ink
+	0 0 screen-w 16 fill-rect
+	0 screen-h 16 - screen-w 16 fill-rect
+	"#ffd700" ink
+	4 2 title print-at
+	measure
+	4 screen-h 14 - rate "{silver}{0:5.1f} fps" format print-at ;
+
+\ run a scene: xt draws one frame from the scene's own clock
+: play ( xt duration title -- )
+	| xt duration title |
+	seconds to begun
+	begin
+		seconds begun - to t
+		t duration <
+	while
+		( t xt execute title caption ) screen-frame
+	repeat ;
+
+\ === 1  colors, ink, fill-rect, rect ===
+
+\ a color name as a print-at string that draws the name in its own color
+: tagged ( name -- str )
+	| name |
+	name "{0}" format to word
+	"{" word + "}" + word + ;
+
+: swatches ( t -- )
+	| t |
+	cls
+	colors keys to names
+	names size to n
+	t 5 * truncate n mod to lit
+	0 n 1 do k
+		k 12 mod 52 * 8 + to x
+		k 12 / truncate 29 * 22 + to y
+		colors names k @i @ ink
+		x y 48 25 fill-rect
+		k lit = if
+			:white ink
+			x 2 - y 2 - 52 29 rect
+		then
+	loop
+	names lit @i to name
+	200 436 name tagged print-at ;
+
+\ === 2  line ===
+
+: times-table ( t -- )
+	| t |
+	cls
+	2 t 0.3 * + to multiplier
+	0 200 1 do k
+		k 200 / TAU * to a
+		k multiplier * 200 / TAU * to b
+		k 200 / t 0.05 * + hue ink
+		a cos 200 * 320 +  a sin 200 * 245 +  b cos 200 * 320 +  b sin 200 * 245 +  line
+	loop
+	:white ink
+	460 440 multiplier "multiplier {0:5.2f}" format print-at ;
+
+\ === 3  fill-rect, rect ===
+
+: tunnel ( t -- )
+	| t |
+	cls
+	t 2.5 * to phase
+	phase 1 mod to fraction
+	phase truncate to base
+	0 26 1 do k
+		26 k - fraction - 26 / to depth
+		depth depth * 760 * to side
+		t 1.3 * depth 4 * + sin 90 * 1 depth - * 320 + to cx
+		t 0.9 * depth 4 * + cos 60 * 1 depth - * 240 + to cy
+		cx side 2 / - to left
+		cy side 2 / - to top
+		1000 k + base - 0.045 * hue ink
+		left top side side fill-rect
+		:black ink
+		left top side side rect
+	loop ;
+
+\ === 4  fill-circle, circle ===
+
+variable ball-x
+variable ball-y
+variable ball-dx
+variable ball-dy
+variable ball-r
+variable ball-color
+
+: balls-reset ( -- )
+	| ^ball-x ^ball-y ^ball-dx ^ball-dy ^ball-r ^ball-color |
+	16 iota to ball-x
+	16 iota to ball-y
+	16 iota to ball-dx
+	16 iota to ball-dy
+	16 iota to ball-r
+	16 iota to ball-color
+	0 16 1 do k
+		random 18 * 14 + to r
+		ball-r r k !i drop
+		ball-x random 600 r 2 * - * r + 20 + k !i drop
+		ball-y random 200 * 40 + k !i drop
+		ball-dx random 8 * 4 - k !i drop
+		ball-dy random 4 * negate k !i drop
+		ball-color k 16 / hue k !i drop
+	loop ;
+
+: bouncing ( t -- )
+	| t |
+	cls
+	0 6 1 do j
+		t 90 * j 70 * + 420 mod to ripple
+		1 ripple 420 / - 0.6 * 0.62 + hue ink
+		320 470 ripple circle
+	loop
+	"#404040" ink
+	0 470 640 470 line
+	0 16 1 do k
+		ball-r k @i to r
+		ball-dy k @i 0.4 + to dy
+		ball-dx k @i to dx
+		ball-x k @i dx + to x
+		ball-y k @i dy + to y
+		y r + 470 > if
+			470 r - to y
+			dy -0.92 * to dy
+		then
+		x r 4 + < if
+			r 4 + to x
+			dx abs to dx
+		then
+		x r + 636 > if
+			636 r - to x
+			dx abs negate to dx
+		then
+		ball-x x k !i drop
+		ball-y y k !i drop
+		ball-dx dx k !i drop
+		ball-dy dy k !i drop
+		"#202020" ink
+		x 474 r 0.5 * fill-circle
+		ball-color k @i ink
+		x y r fill-circle
+		:white ink
+		x y r circle
+		x r 0.35 * - y r 0.35 * - r 0.22 * fill-circle
+	loop ;
+
+\ === 5  plot, screen-size, screen-zoom ===
+
+variable mandel-row
+variable mandel-scale
+variable mandel-pass
+
+: mandel-reset ( -- )
+	| ^mandel-row ^mandel-scale ^mandel-pass |
+	0 to mandel-row
+	3 to mandel-scale
+	0 to mandel-pass ;
+
+\ two new rows per frame; each finished pass zooms in 3x on seahorse valley
+: mandelbrot ( t -- )
+	| ^mandel-row ^mandel-scale ^mandel-pass |
+	drop
+	0 2 1 do j
+		mandel-row 120 >= if
+			0 to mandel-row
+			mandel-scale 3 / to mandel-scale
+			mandel-pass 1 + to mandel-pass
+		then
+		mandel-scale 160 / to step
+		-0.743643887 mandel-scale 2 / - to left
+		0.131825904 mandel-scale 0.375 * - mandel-row step * + to ci
+		0 160 1 do k
+			left k step * + to cr
+			0 to zr
+			0 to zi
+			0 to n
+			begin
+				zr zr * zi zi * + 4 <  n 60 <  and
+			while
+				zr zr * zi zi * - cr + to next-zr
+				2 zr * zi * ci + to zi
+				next-zr to zr
+				n 1 + to n
+			repeat
+			n 60 = if
+				:black ink
+			else
+				n 0.03 * mandel-pass 0.17 * + hue ink
+			then
+			k mandel-row plot
+		loop
+		mandel-row 1 + to mandel-row
+	loop ;
+
+\ === 6  print-at, paper ===
+
+: lettering ( t -- )
+	| t |
+	cls
+	"every character is its own print-at" string>chars to glyphs
+	glyphs size to n
+	0 n 1 do k
+		k 0.03 * t 0.4 * + hue ink
+		k 15 * 58 +  t 3 * k 0.35 * + sin 28 * 170 +  glyphs k @i  print-at
+	loop
+	:white ink
+	40 260 "color tags: {tomato}tomato {gold}gold {springgreen}springgreen {deepskyblue}deepskyblue {orchid}orchid" print-at
+	40 290 "{plain}and {hotpink}back{plain} to the starting ink" print-at
+	"a newline returns to the left edge
+and starts the next line,
+so one string can hold a verse" to verse
+	verse size t 12 * truncate min2 to shown
+	:lightgray ink
+	40 340 verse 0 shown substring print-at ;
+
+\ === 7  screen-effect ===
+
+: synthwave ( t -- )
+	| t |
+	cls
+	23 seed
+	0 90 1 do k
+		random 640 * random 200 * 20 + to y  to x
+		random 0.5 * 0.5 + 255 * truncate to level
+		level 65536 * level 256 * + level + ink
+		x y plot
+	loop
+	:darkorange ink
+	320 220 110 fill-circle
+	:gold ink
+	320 200 90 fill-circle
+	:black ink
+	0 7 1 do k
+		k 11 * 170 + to stripe
+		0 stripe 640 k 1 + fill-rect
+	loop
+	:black ink
+	0 260 640 220 fill-rect
+	:deeppink ink
+	-12 13 1 do k
+		320 260 k 90 * 320 + 480 line
+	loop
+	t 0.6 * 1 mod to scroll
+	0 10 1 do k
+		k scroll + 10 / to depth
+		depth depth * 220 * 260 + to y
+		0 y 640 y line
+	loop
+	t 0.8 * sin 0.5 * 0.5 + to blur
+	t 1.1 * cos 0.5 * 0.5 + to scanline
+	t 0.5 * sin 0.2 * 1.1 + to contrast
+	blur blur 0.6 * scanline contrast screen-effect
+	:cyan ink
+	360 440 blur scanline contrast "blur {2:4.2f}  scanline {1:4.2f}  contrast {0:4.2f}" format print-at ;
+
+\ === 8  screen-shader ===
+
+"
+void fxShader(out vec4 color, in vec2 uv) {
+	float t = parameters.x;
+	vec2 p = uv;
+	p.x += 0.010 * sin(uv.y * 28.0 + t * 3.0);
+	p.y += 0.010 * cos(uv.x * 22.0 + t * 2.1);
+	float shift = 0.003 * (1.5 + sin(t * 1.7));
+	vec3 c = vec3(texture(image, p + vec2(shift, 0.0)).r,
+		texture(image, p).g,
+		texture(image, p - vec2(shift, 0.0)).b);
+	float vignette = smoothstep(1.15, 0.35, length(uv - 0.5) * 1.5);
+	vec3 glow = vec3(0.10, 0.04, 0.16) * (0.5 + 0.5 * sin(t + uv.y * 6.0));
+	color = vec4(c * vignette + glow * (1.0 - vignette), 1.0);
+}
+" constant warp
+
+: finale ( t -- )
+	| t |
+	cls
+	t 0 0 0 screen-effect
+	0 12 1 do k
+		k 12 / TAU * t 0.7 * + to a
+		a cos 150 * 320 + to x
+		a sin 150 * 230 + to y
+		k 12 / t 0.1 * + hue ink
+		x y 42 fill-circle
+		:white ink
+		x y 42 circle
+	loop
+	:white ink
+	320 230 60 fill-circle
+	:black ink
+	303 224 "telic" print-at
+	:silver ink
+	40 410 "plot line rect fill-rect circle fill-circle cls print-at ink paper" print-at
+	40 428 "screen-size screen-zoom screen-effect screen-shader screen-frames colors" print-at ;
+
+\ === the tour ===
+
+now magnitude to clock-start
+640 480 2 screen
+:black paper
+' swatches 7 "colors, ink, fill-rect, rect" play
+' times-table 8 "line: a multiplication table on a circle" play
+' tunnel 7 "fill-rect and rect" play
+balls-reset
+' bouncing 8 "fill-circle and circle" play
+160 120 8 screen
+mandel-reset
+' mandelbrot 9 "plot at 160x120, zoom 8" play
+640 480 2 screen
+:midnightblue paper
+' lettering 8 "print-at on a midnightblue paper" play
+:black paper
+' synthwave 9 "screen-effect: the built-in shader" play
+0 0 0 1 screen-effect
+warp screen-shader
+' finale 10 "screen-shader: a GLSL warp" play

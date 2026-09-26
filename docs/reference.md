@@ -2335,7 +2335,7 @@ Regex words run on PCRE2 with JIT-compiled patterns. Each distinct pattern is co
 | `pad-right` | `( str width -- str' )` | strings.telic: s right-padded with spaces to width (unchanged when already that wide; codepoint widths) | n | `1a` + `1o` | O(n) |
 | `string>number` | `( str -- n \| null )` | Parse a decimal/float string to a float, ignoring surrounding whitespace; `null` if `str` is not entirely a number | n | none | O(n) |
 | `edit-distance` | `( a b -- n )` | Edit distance between two strings over codepoints: insertions, deletions, substitutions, and adjacent transpositions each cost 1 (Levenshtein with transpositions — optimal string alignment); symmetric | n·m | none | O(n·m) |
-| `format` | `( … template -- str )` | Fill `template`'s `{n}` (or `{n:spec}`) placeholders with the nth-from-top stack value, then drop exactly the referenced positions (unreferenced values stay); renders floats/strings/symbols/exacts/quantities. `{nl}` and `{tab}` emit a newline and a tab — string literals have no escapes, so format is where control characters come from. When stdout is a terminal, the ink directives `{black}` `{red}` `{green}` `{yellow}` `{blue}` `{magenta}` `{cyan}` `{white}` and `{bold}` `{dim}` emit the SGR escape styling the following text until `{plain}` reverts to plain ink; when it is not (piped, batch), they vanish, so redirected output carries no escape bytes. Only these directives substitute; other brace content is left literal | len + refs | `1o` | O(len) |
+| `format` | `( … template -- str )` | Fill `template`'s `{n}` (or `{n:spec}`) placeholders with the nth-from-top stack value, then drop exactly the referenced positions (unreferenced values stay); renders floats/strings/symbols/exacts/quantities. `{nl}` and `{tab}` emit a newline and a tab — string literals have no escapes, so format is where control characters come from. When stdout is a terminal, every name in `colors` is an ink directive — `{red}`, `{dodgerblue}`, `{midnightblue}` — emitting the escape that sets the following text to that X11 color, as 24-bit color when `COLORTERM` is `truecolor` or `24bit`, as the nearest of the 256-color palette when `TERM` contains `256color`, and otherwise as the nearest of the eight basic colors; `{bold}` and `{dim}` style it, and `{plain}` reverts to plain ink. When stdout is not a terminal (piped, batch) they vanish, so redirected output carries no escape bytes. `print-at` reads the same directives. Only these substitute; other brace content is left literal | len + refs | `1o` | O(len) |
 
 A placeholder may carry a format spec after a colon — `{n:spec}` — a printf-style mini-language controlling how the value renders. `spec` is optional flags (`-`, `+`, space, `#`, `0`), an optional field width, an optional `.precision`, and an optional conversion letter:
 
@@ -5896,6 +5896,160 @@ write names the file directly. The library holds no state of its own.
 ```
 ```output
 1
+```
+
+---
+
+## Graphics
+
+A window holding a pixel buffer, on the vendored Tigr. There is no window to
+create and no event loop to write: the first drawing word opens a 640×480
+window and the interpreter goes on running, so `20 30 plot` at the prompt is
+the whole program. Drawing goes to an off-screen bitmap on the calling thread;
+Cocoa requires the process's first thread, so telic runs its interpreter on a
+thread it spawns and keeps thread 0 pumping window events. While words keep
+changing the bitmap or the `screen-effect` numbers, the window presents once
+per display refresh; otherwise the pump presents only when the window receives
+an event, such as a resize. Closing the window stops what is running: at the
+REPL, and in a program started with `-i`, the running word stops with
+`interrupted` and the session continues; a program run without `-i` exits.
+The drawing is kept, and the next drawing word opens a new window showing it.
+Under `-i`, ctrl-C during the program likewise stops it with `interrupted` and
+the REPL starts. The wasm build has no window system and these words error
+there.
+
+The origin is the top left, y increasing downward. Coordinates are truncated
+to integers and those outside the bitmap are clipped rather than erroring.
+Every shape draws in the current `ink`; `cls` fills with the current `paper`.
+`n` = pixels touched.
+
+| Word | Stack effect | Behavior | Ops | Alloc | O |
+|------|-------------|----------|-----|-------|---|
+| `plot` | `( x y -- )` | Set one pixel | 1 | the bitmap, once | O(1) |
+| `line` | `( x0 y0 x1 y1 -- )` | A one-pixel line between the endpoints, both included | n | none | O(n) |
+| `rect` | `( x y w h -- )` | The outline of the `w`×`h` rectangle with its top-left corner at `x y` | n | none | O(n) |
+| `fill-rect` | `( x y w h -- )` | The filled `w`×`h` rectangle with its top-left corner at `x y` | w·h | none | O(w·h) |
+| `circle` | `( x y r -- )` | The outline of the circle of radius `r` centred on `x y` | n | none | O(r) |
+| `fill-circle` | `( x y r -- )` | The filled circle of radius `r` centred on `x y` | r² | none | O(r²) |
+| `print-at` | `( x y str -- )` | Draw `str` with its top-left corner at `x y`, starting in the current `ink`, in Tigr's built-in font: a proportional bitmap font 12 pixels tall covering Windows-1252. A `{name}` directive for any color in `colors` switches the pen for the text after it and `{plain}` returns to the starting ink, so `8 8 "{red}warm {dodgerblue}cool" print-at` draws in two colors; the terminal escapes `format` emits for those directives are read the same way, while `{bold}` and `{dim}` are skipped and an unknown `{…}` draws literally. A newline byte returns to `x` one line down; a code point the font lacks draws as its placeholder glyph. `screen-zoom` enlarges it with everything else | n | none | O(n) |
+| `cls` | `( -- )` | Fill the whole bitmap with the current `paper` | w·h | the bitmap, once | O(w·h) |
+| `ink` | `( color -- )` | graphics.telic: the color every later shape draws in. Default white | 3 | none | O(1) |
+| `paper` | `( color -- )` | graphics.telic: the color `cls` fills with, and the color a new bitmap starts at. Default black | 3 | none | O(1) |
+| `screen-size` | `( w h -- )` | The bitmap's size in virtual pixels, in place of the 640×480 default. Once anything has been drawn this discards the drawing: the bitmap is reallocated at the new size and cleared to the current `paper`, and an open window reopens at the new size. Edges outside [1, 8192] error | 2 | the new bitmap, if one existed | O(w·h) |
+| `screen-zoom` | `( n -- )` | Display each virtual pixel as an `n`×`n` block, so the window opens at `w·n`×`h·n` points; default 1. The drawing is kept, and an open window reopens at the new zoom. An integer in [1, 16]; anything else errors | 2 | none | O(1) |
+| `screen-shader` | `( str -- )` | Replace the shader that presents the window with `str`, GLSL source defining `void fxShader(out vec4 color, in vec2 uv)`. It runs once per window pixel on the GPU every frame and can read `image`, the canvas as a texture, `uv`, the pixel's position from 0 to 1, and `parameters`, the four numbers `screen-effect` sets. Opens the window if none is open, and is reapplied when one reopens. The string is not validated: a GLSL error makes Tigr print the compiler's message and exit the process. `examples/shader-demo.telic` draws a raymarched 3D scene this way | n | a copy of `str` | O(n) |
+| `screen-effect` | `( a b c d -- )` | The four numbers the window's shader reads as `parameters`, applied every frame. The built-in shader reads them as horizontal blur, vertical blur, scanline strength from 0 to 1, and contrast, where the default 0 0 0 1 leaves the picture unchanged; a shader from `screen-shader` reads them however it likes | 4 | none | O(1) |
+| `screen-frame` | `( xt -- )` | Run `xt` and present everything it draws as one frame: the window keeps showing the previous picture until `xt` returns, so an animation that clears and redraws never shows a half-drawn canvas. It then waits until the window has taken the frame for its next display refresh, so a loop of `screen-frame` calls runs at the display rate with no `sleep`, each frame staying on screen for a whole number of refreshes; the wait ends on an interrupt and gives up after 100 ms when no window takes the frame. Drawing outside `screen-frame` appears as soon as the window next presents. Nested calls present once, when the outermost returns, and an error in `xt` still ends the hold | 1 + xt | the frame copy, once | O(xt + w·h) |
+| `screen-frames` | `( -- n )` | The number of frames the window has presented since startup, summed over every window opened. While the drawing or the `screen-effect` numbers keep changing, the window presents once per display refresh; otherwise it presents only when it receives an event. The difference between two readings divided by the seconds between them is the frame rate | 0 | none | O(1) |
+| `colors` | `( -- frame )` | graphics.telic: the named-color table, symbol to packed `0xRRGGBB`, built once from `src/c/x11_colors.h` — the same table `format` and `print-at` read their `{name}` directives from | 1 | none | O(1) |
+
+A **color** is a packed `0xRRGGBB` number, a symbol naming one of the 157
+colors in `colors`, or a string in `#rrggbb` or `0xrrggbb` form. The names
+are the digit-free single-word entries of X11's `rgb.txt`, which is the set
+CSS adopted — `:red`, `:dodgerblue`, `:midnightblue`, `:springgreen`. A symbol
+that is not a color name errors.
+
+```forth-noexec plot
+20 30 plot
+```
+```output
+```
+
+```forth-noexec line
+0 0 100 80 line
+```
+```output
+```
+
+```forth-noexec rect
+10 10 200 120 rect
+```
+```output
+```
+
+```forth-noexec fill-rect
+:gold ink  50 50 250 150 fill-rect
+```
+```output
+```
+
+```forth-noexec circle
+300 60 80 circle
+```
+```output
+```
+
+```forth-noexec fill-circle
+:springgreen ink  400 200 60 fill-circle
+```
+```output
+```
+
+```forth-noexec print-at
+8 8 "{red}warm {dodgerblue}cool {plain}plain" print-at
+```
+```output
+```
+
+```forth-noexec cls
+:midnightblue paper  cls
+```
+```output
+```
+
+```forth-noexec ink
+:dodgerblue ink  0 0 639 479 line
+```
+```output
+```
+
+```forth-noexec paper
+"#102040" paper  cls
+```
+```output
+```
+
+```forth-noexec screen-size
+320 240 screen-size  10 10 plot
+```
+```output
+```
+
+```forth-noexec screen-zoom
+256 192 screen-size  3 screen-zoom  40 30 plot
+```
+```output
+```
+
+```forth-noexec screen-shader
+"void fxShader(out vec4 color, in vec2 uv) { color = vec4(uv, 0.5, 1.0); }" screen-shader
+```
+```output
+```
+
+```forth-noexec screen-effect
+0 0 0.6 1 screen-effect
+```
+```output
+```
+
+```forth-noexec screen-frame
+: slide ( -- ) 0 60 1 do k  ( cls k 10 * 100 20 fill-circle ) screen-frame  0.016 sleep  loop ; slide
+```
+```output
+```
+
+```forth-noexec screen-frames
+screen-frames  1 sleep  screen-frames swap - . cr
+```
+```output
+```
+
+```forth colors
+colors :dodgerblue @ . colors size . cr
+```
+```output
+2003199 157
 ```
 
 ---

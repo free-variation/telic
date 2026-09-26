@@ -338,10 +338,19 @@ int platform_edit_file(const char *path) {
 	return WIFEXITED(status) && WEXITSTATUS(status) == 0;
 }
 
+void platform_interrupt_begin(struct Interpreter *interp) {
+	repl_interp = interp;
+	signal(SIGINT, on_interrupt);
+	signal(SIGUSR1, on_interrupt);
+}
+
+int platform_interrupt_handled(void) {
+	return repl_interp != NULL;
+}
+
 int platform_repl_begin(struct Interpreter *interp, int want_interactive) {
 	if (want_interactive) {
-		repl_interp = interp;
-		signal(SIGINT, on_interrupt);
+		platform_interrupt_begin(interp);
 		printf("telic %s\n", VERSION);
 		printf("%swords%s lists every word; %shelp%s shows a quick start; %sbye%s quits\n",
 				term_bold(), term_plain(), term_bold(), term_plain(), term_bold(), term_plain());

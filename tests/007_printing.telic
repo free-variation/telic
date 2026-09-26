@@ -138,3 +138,17 @@ stderr . cr               \ <stream 2>
 "piped" stdout write cr   \ write to fd 1 (appears in stdout)
 
 clear
+
+\ === format color directives ===============================================
+\ Every name in colors is a {name} directive. The golden runs with stdout
+\ piped, where directives vanish; at a terminal they become escapes whose
+\ depth follows COLORTERM and TERM, which a piped test cannot observe.
+"{red}hot{plain} and {dodgerblue}cool" format . cr          \ hot and cool
+"{midnightblue}{gold}{springgreen}x" format byte-size . cr  \ 1  three directives, no bytes
+"{nosuch} is not a color" format . cr                       \ {nosuch} is not a color
+"{Red} is not lowercase" format . cr                        \ {Red} is not lowercase
+"a" "b" "{1} {red}{0}" format . cr                           \ a b  substitution beside a directive
+colors size . cr                                            \ 157
+colors :dodgerblue @ . cr                                   \ 2003199  0x1e90ff
+
+clear

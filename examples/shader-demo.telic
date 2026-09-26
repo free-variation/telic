@@ -1,0 +1,164 @@
+\ A GPU-rendered 3D scene from a telic string.
+\
+\ screen-shader hands Tigr a GLSL fragment shader, which runs once per window
+\ pixel on the GPU every frame. This one draws its scene entirely by
+\ raymarching — each pixel casts a ray and steps it against distance
+\ functions for a torus, three spheres and a floor — so there is no geometry
+\ and no mesh: the picture is computed. screen-effect passes four numbers to
+\ the shader each frame; here the first is the time, which animates
+\ everything, and the fourth is how opaquely the telic canvas shows on top.
+\
+\ The canvas still works as usual: whatever telic draws with print-at, plot
+\ or the shape words is sampled by the shader as `image` and laid over the
+\ scene wherever it is not black, so the text below is live 2D over live 3D.
+\
+\   ./telic examples/shader-demo.telic
+\
+\ Runs for about twenty seconds. A GLSL error here makes Tigr exit the
+\ process, since this demonstration does not validate the shader first.
+
+640 480 screen-size
+:black paper
+cls
+
+"
+float sphere_distance(vec3 p, float r) { return length(p) - r; }
+
+float torus_distance(vec3 p, vec2 radii) {
+	vec2 q = vec2(length(p.xz) - radii.x, p.y);
+	return length(q) - radii.y;
+}
+
+mat2 rotation(float a) {
+	float c = cos(a);
+	float s = sin(a);
+	return mat2(c, -s, s, c);
+}
+
+vec2 scene(vec3 p) {
+	float t = parameters.x;
+	vec2 hit = vec2(p.y + 1.0, 1.0);
+
+	vec3 q = p - vec3(0.0, 0.4 + 0.2 * sin(t * 1.3), 0.0);
+	q.xz *= rotation(t * 0.7);
+	q.xy *= rotation(t * 0.5);
+	float torus = torus_distance(q, vec2(0.9, 0.25));
+	if (torus < hit.x) hit = vec2(torus, 2.0);
+
+	for (int i = 0; i < 3; i++) {
+		float angle = t * 0.6 + float(i) * 2.094;
+		vec3 centre = vec3(2.2 * cos(angle), -0.4 + 0.5 * abs(sin(t * 2.0 + float(i))), 2.2 * sin(angle));
+		float ball = sphere_distance(p - centre, 0.6);
+		if (ball < hit.x) hit = vec2(ball, 3.0 + float(i));
+	}
+	return hit;
+}
+
+vec3 normal_at(vec3 p) {
+	vec2 e = vec2(0.001, 0.0);
+	return normalize(vec3(
+		scene(p + e.xyy).x - scene(p - e.xyy).x,
+		scene(p + e.yxy).x - scene(p - e.yxy).x,
+		scene(p + e.yyx).x - scene(p - e.yyx).x));
+}
+
+float soft_shadow(vec3 origin, vec3 direction) {
+	float light = 1.0;
+	float travelled = 0.02;
+	for (int i = 0; i < 48; i++) {
+		float h = scene(origin + direction * travelled).x;
+		light = min(light, 8.0 * h / travelled);
+		travelled += clamp(h, 0.02, 0.3);
+		if (light < 0.001 || travelled > 12.0) break;
+	}
+	return clamp(light, 0.0, 1.0);
+}
+
+float occlusion(vec3 p, vec3 n) {
+	float occluded = 0.0;
+	float weight = 1.0;
+	for (int i = 1; i <= 5; i++) {
+		float step_length = 0.08 * float(i);
+		occluded += weight * (step_length - scene(p + n * step_length).x);
+		weight *= 0.6;
+	}
+	return clamp(1.0 - 2.5 * occluded, 0.0, 1.0);
+}
+
+vec3 material(float id, vec3 p) {
+	if (id < 1.5) return mix(vec3(0.15), vec3(0.85), mod(floor(p.x) + floor(p.z), 2.0));
+	if (id < 2.5) return vec3(1.0, 0.75, 0.2);
+	if (id < 3.5) return vec3(0.9, 0.2, 0.25);
+	if (id < 4.5) return vec3(0.2, 0.55, 1.0);
+	return vec3(0.3, 0.9, 0.45);
+}
+
+void fxShader(out vec4 color, in vec2 uv) {
+	vec2 size = vec2(textureSize(image, 0));
+	vec2 screen = (uv - 0.5) * vec2(size.x / size.y, -1.0) * 2.0;
+	float t = parameters.x;
+
+	vec3 eye = vec3(9.6 * cos(t * 0.25), 2.8, 9.6 * sin(t * 0.25));
+	vec3 forward = normalize(-eye);
+	vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
+	vec3 up = cross(right, forward);
+	vec3 ray = normalize(forward * 2.8 + right * screen.x + up * screen.y);
+
+	vec3 sky = mix(vec3(0.55, 0.7, 0.95), vec3(0.08, 0.1, 0.25), clamp(ray.y * 1.5 + 0.3, 0.0, 1.0));
+	vec3 shade = sky;
+
+	float travelled = 0.0;
+	vec2 hit = vec2(0.0);
+	for (int i = 0; i < 120; i++) {
+		hit = scene(eye + ray * travelled);
+		if (hit.x < 0.001 || travelled > 30.0) break;
+		travelled += hit.x;
+	}
+
+	if (travelled < 30.0) {
+		vec3 point = eye + ray * travelled;
+		vec3 n = normal_at(point);
+		vec3 sun = normalize(vec3(0.6, 0.8, 0.4));
+		float diffuse = max(dot(n, sun), 0.0) * soft_shadow(point + n * 0.01, sun);
+		float specular = pow(max(dot(reflect(-sun, n), -ray), 0.0), 32.0);
+		float ambient = 0.25 * occlusion(point, n);
+		shade = material(hit.y, point) * (ambient + diffuse) + vec3(specular) * 0.6;
+		shade = mix(shade, sky, 1.0 - exp(-0.0013 * travelled * travelled));
+	}
+	shade = pow(shade, vec3(0.4545));
+
+	vec4 overlay = texture(image, uv);
+	float coverage = max(overlay.r, max(overlay.g, overlay.b)) > 0.02 ? parameters.w : 0.0;
+	color = vec4(mix(shade, overlay.rgb, coverage), 1.0);
+}
+" screen-shader
+
+\ the presentation count and time at the previous overlay, for the frame rate
+variable last-presented
+variable last-seconds
+
+\ the 2D overlay: telic draws it into the canvas like any other picture. The
+\ frame rate counts the frames the window actually presented, which the GPU
+\ and the display refresh decide, not how often this loop runs.
+: overlay ( seconds frames -- )
+	| seconds frames ^last-presented ^last-seconds |
+	screen-frames to presented
+	seconds last-seconds - to elapsed
+	elapsed 0 > if presented last-presented - elapsed / else 0 then to rate
+	presented to last-presented
+	seconds to last-seconds
+	cls
+	12 12 "{gold}telic{plain} - a scene raymarched on the GPU from a string" print-at
+	12 28 "{silver}torus, three spheres, soft shadows, occlusion, fog{plain}" print-at
+	12 452 seconds frames rate "{springgreen}t = {2:5.1f} s   frame {1}   {0:5.1f} fps{plain}" format print-at ;
+
+: demo ( -- )
+	now magnitude to start
+	0 1200 1 do k
+		now magnitude start - to seconds
+		seconds 0 0 0.9 screen-effect
+		k 15 mod 0= if seconds k overlay then
+		0.016 sleep
+	loop ;
+
+demo

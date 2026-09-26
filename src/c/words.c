@@ -1,4 +1,5 @@
 #include "telic.h"
+#include "x11_colors.h"
 #include <complex.h>
 
 
@@ -2727,18 +2728,117 @@ static const struct {
 	const char *directive;
 	const char *escape;
 } format_inks[] = {
-	{ "{black}", "\x1b[30m" },
-	{ "{red}", "\x1b[31m" },
-	{ "{green}", "\x1b[32m" },
-	{ "{yellow}", "\x1b[33m" },
-	{ "{blue}", "\x1b[34m" },
-	{ "{magenta}", "\x1b[35m" },
-	{ "{cyan}", "\x1b[36m" },
-	{ "{white}", "\x1b[37m" },
 	{ "{bold}", "\x1b[1m" },
 	{ "{dim}", "\x1b[2m" },
 	{ "{plain}", "\x1b[0m" },
 };
+
+#define COLOR_NAME_MAX 32
+
+int color_named(const char *name, int length, unsigned int *rgb) {
+	int low = 0;
+	int high = N_X11_COLORS;
+	while (low < high) {
+		int middle = (low + high) / 2;
+		const char *candidate = x11_colors[middle].name;
+		int order = strncmp(candidate, name, (size_t)length);
+		if (order == 0 && candidate[length] != '\0')
+			order = 1;
+		if (order == 0) {
+			*rgb = x11_colors[middle].rgb;
+			return 1;
+		}
+		if (order < 0)
+			low = middle + 1;
+		else
+			high = middle;
+	}
+	return 0;
+}
+
+void p_colors(DISPATCH_ARGS) {
+	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);
+	int frame_handle = object_new_frame(interp);
+	if (interp->error_flag)
+		return;
+	gc_root_push(interp, make_frame(frame_handle));
+
+	for (int i = 0; i < N_X11_COLORS && !interp->error_flag; i++) {
+		cell key = intern_symbol(interp, x11_colors[i].name);
+		if (interp->error_flag)
+			break;
+		frame_put(OBJECT_AT(frame_handle), key, make_float((double)x11_colors[i].rgb));
+	}
+	gc_root_pop(interp);
+	if (interp->error_flag)
+		return;
+
+	chain_sp[0] = make_frame(frame_handle);
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
+}
+
+static int format_color_depth = 0;
+
+static int terminal_color_depth(void) {
+	if (format_color_depth)
+		return format_color_depth;
+
+	const char *colorterm = getenv("COLORTERM");
+	const char *term = getenv("TERM");
+	if (colorterm && (strcmp(colorterm, "truecolor") == 0 || strcmp(colorterm, "24bit") == 0))
+		format_color_depth = 24;
+	else if (term && strstr(term, "256color"))
+		format_color_depth = 8;
+	else
+		format_color_depth = 4;
+	return format_color_depth;
+}
+
+static long color_distance(int r0, int g0, int b0, int r1, int g1, int b1) {
+	long dr = r0 - r1;
+	long dg = g0 - g1;
+	long db = b0 - b1;
+	return dr * dr + dg * dg + db * db;
+}
+
+static int nearest_xterm256(int red, int green, int blue) {
+	static const int levels[6] = { 0, 95, 135, 175, 215, 255 };
+	int best_index = 16;
+	long best_distance = LONG_MAX;
+
+	for (int i = 0; i < 216; i++) {
+		long distance = color_distance(red, green, blue, levels[i / 36], levels[(i / 6) % 6], levels[i % 6]);
+		if (distance < best_distance) {
+			best_distance = distance;
+			best_index = 16 + i;
+		}
+	}
+	for (int i = 0; i < 24; i++) {
+		int grey = 8 + 10 * i;
+		long distance = color_distance(red, green, blue, grey, grey, grey);
+		if (distance < best_distance) {
+			best_distance = distance;
+			best_index = 232 + i;
+		}
+	}
+	return best_index;
+}
+
+static int color_escape(unsigned int rgb, char *escape, int capacity) {
+	int red = (int)((rgb >> 16) & 0xFF);
+	int green = (int)((rgb >> 8) & 0xFF);
+	int blue = (int)(rgb & 0xFF);
+
+	switch (terminal_color_depth()) {
+		case 24:
+			return snprintf(escape, (size_t)capacity, "\x1b[38;2;%d;%d;%dm", red, green, blue);
+		case 8:
+			return snprintf(escape, (size_t)capacity, "\x1b[38;5;%dm", nearest_xterm256(red, green, blue));
+		default:
+			return snprintf(escape, (size_t)capacity, "\x1b[3%dm",
+					(red >= 128) | ((green >= 128) << 1) | ((blue >= 128) << 2));
+	}
+}
 
 int interpolate(Interpreter *interp, int template_handle) {
 	Object *template = OBJECT_AT(template_handle);
@@ -2780,6 +2880,25 @@ int interpolate(Interpreter *interp, int template_handle) {
 			}
 			if (matched_ink)
 				continue;
+
+			int name_end = cursor + 1;
+			while (name_end < template->len && name_end - cursor <= COLOR_NAME_MAX
+					&& islower((unsigned char)template->bytes[name_end]))
+				name_end++;
+			unsigned int named_rgb;
+			if (name_end > cursor + 1 && name_end < template->len && template->bytes[name_end] == '}'
+					&& color_named(&template->bytes[cursor + 1], name_end - cursor - 1, &named_rgb)) {
+				if (ink_tty < 0)
+					ink_tty = isatty(1);
+				if (ink_tty) {
+					char escape[32];
+					int escape_length = color_escape(named_rgb, escape, (int)sizeof(escape));
+					string_buffer_append(interp, &out_buffer, &out_length, &capacity, escape, escape_length);
+				}
+				cursor = name_end + 1;
+				continue;
+			}
+
 			int scan = cursor + 1, saw_digit = 0;
 			long long digit_value = 0;
 			while (scan < template->len && isdigit((unsigned char)template->bytes[scan])) {
