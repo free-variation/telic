@@ -1,0 +1,12 @@
+miniaudio vendored source.
+
+upstream:  https://github.com/mackron/miniaudio
+release:   0.11.25
+commit:    9634bedb5b5a2ca38c1ee7108a9358a4e233f14d
+tarball:   https://codeload.github.com/mackron/miniaudio/tar.gz/9634bedb5b5a2ca38c1ee7108a9358a4e233f14d
+sha256:    1a3a79b80fc6f0b0cc155e28b954a598e0ddfa2db64e2afa8466be88c476fa55
+
+A single header, miniaudio.h; miniaudio.c defines MINIAUDIO_IMPLEMENTATION and
+includes it. Public domain or MIT No Attribution, at the user's choice (see
+LICENSE). Produced by tools/vendor-miniaudio.sh; do not edit these files by
+hand, re-run the script to update.

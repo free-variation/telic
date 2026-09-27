@@ -60,6 +60,9 @@ by file in SRCS order. What each file is:
   sort/argsort (quicksort + radix instantiations), dgemm.
 - statistics.c — stats kernels: var, quantile, correlation-kendall
   (radix pair sort + merge exchange count).
+- fourier.c — fft/ifft/cfft/icfft/magnitudes/hann on vendored PocketFFT:
+  conversion between telic's nx1 and nx2 matrices and PocketFFT's
+  half-complex and interleaved arrays.
 - indexing.c — the @i/!i index/store dispatch family across arrays/
   segments/slices, plus quickened "(word.tag)" specializations.
 - functional.c — map/nmap/filter/reduce and the parallel worker pool
@@ -200,7 +203,9 @@ new inline that calls functions → the tail.
 - Plumbing words are marked internal.
 - Image and audio formats go through an `ffmpeg` subprocess, not a vendored
   codec: `run-result` captures raw bytes intact, and `string>byte-vector`
-  turns them into a matrix. Do not propose stb, miniaudio or a codec library.
+  turns them into a matrix. Do not propose stb or a codec library. miniaudio
+  is vendored for audio device output only, built with MA_NO_DECODING and
+  MA_NO_ENCODING; never use it to read or write audio files.
 - C escape hatches are parenthesized primitives wrapped by the public
   word: `: wall-now (wall-now) s ;`. Fully-parameterized primitives carry
   -ext, wrapped by a defaulting word.

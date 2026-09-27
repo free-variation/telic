@@ -32,13 +32,13 @@ CFLAGS = -O3 -march=native -Wall -Wextra -pthread -D_GNU_SOURCE -fno-common
 ifneq ($(UNAME),Darwin)
 CFLAGS += -flto
 endif
-LDLIBS = -lm -lffi $(TIGR_LIBS)
+LDLIBS = -lm -lffi $(TIGR_LIBS) $(MINIAUDIO_LIBS)
 
-SRCS = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/foreign.c src/c/platform_posix.c src/c/dimension.c src/c/time.c src/c/exact.c src/c/serialize.c src/c/arrow.c src/c/graphics.c
+SRCS = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/fourier.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/foreign.c src/c/platform_posix.c src/c/dimension.c src/c/time.c src/c/exact.c src/c/serialize.c src/c/arrow.c src/c/graphics.c
 HDRS = src/c/telic.h src/c/platform.h src/c/lib_embed.h src/c/logo_embed.h src/c/repl_highlight_groups.h
 
-TELIC_INCS = -I$(PCRE2_SRC) -I$(SQLITE_DIR) -I$(SQLITE_VEC_DIR) -I$(NANOARROW_DIR)/include -I$(TIGR_DIR) -I$(ISOCLINE_DIR)/include
-TELIC_DEPS = $(PCRE2_LIB) $(SQLITE_OBJ) $(SQLITE_VEC_OBJ) $(NANOARROW_OBJS) $(TIGR_OBJ) $(ISOCLINE_OBJ)
+TELIC_INCS = -I$(PCRE2_SRC) -I$(SQLITE_DIR) -I$(SQLITE_VEC_DIR) -I$(NANOARROW_DIR)/include -I$(POCKETFFT_DIR) -I$(TIGR_DIR) -I$(MINIAUDIO_DIR) $(MINIAUDIO_DEFINES) -I$(ISOCLINE_DIR)/include
+TELIC_DEPS = $(PCRE2_LIB) $(SQLITE_OBJ) $(SQLITE_VEC_OBJ) $(NANOARROW_OBJS) $(POCKETFFT_OBJ) $(TIGR_OBJ) $(MINIAUDIO_OBJ) $(ISOCLINE_OBJ)
 
 # Embedded library, concatenated in this order. Binding is early: a word must
 # be defined in an earlier file than every file that uses it (units before the
@@ -80,6 +80,14 @@ NANOARROW_DIR    = external/nanoarrow
 NANOARROW_CFLAGS = -O2 -I$(NANOARROW_DIR)/include
 NANOARROW_OBJS   = $(NANOARROW_DIR)/src/nanoarrow.o $(NANOARROW_DIR)/src/nanoarrow_ipc.o $(NANOARROW_DIR)/src/flatcc.o
 
+# Vendored PocketFFT (see external/pocketfft/PROVENANCE; refresh with tools/vendor-pocketfft.sh).
+# One C99 file, double precision, any length; fourier.c is the only caller.
+# Both builds link it.
+POCKETFFT_DIR      = external/pocketfft
+POCKETFFT_CFLAGS   = -O2
+POCKETFFT_OBJ      = $(POCKETFFT_DIR)/pocketfft.o
+WASM_POCKETFFT_OBJ = $(POCKETFFT_DIR)/pocketfft.wasm.o
+
 # Vendored Tigr (see external/tigr/PROVENANCE; refresh with tools/vendor-tigr.sh).
 # A window holding a pixel buffer; graphics.c is the only caller and drives it
 # from thread 0. Plain C on every platform — on macOS it reaches Cocoa through
@@ -91,6 +99,22 @@ ifeq ($(UNAME),Darwin)
 TIGR_LIBS   = -framework Cocoa -framework OpenGL -lobjc
 else
 TIGR_LIBS   = -lGLU -lGL -lX11
+endif
+
+# Vendored miniaudio (see external/miniaudio/PROVENANCE; refresh with tools/vendor-miniaudio.sh).
+# Audio device output and the node graph. Decoding and encoding are compiled
+# out, since audio formats go through ffmpeg; MA_NO_DECODING also removes the
+# resource manager, which changes ma_engine's layout, so every file including
+# miniaudio.h compiles with MINIAUDIO_DEFINES. The platform audio libraries
+# are opened at run time; Linux needs libdl and libpthread for that.
+MINIAUDIO_DIR     = external/miniaudio
+MINIAUDIO_DEFINES = -DMA_NO_DECODING -DMA_NO_ENCODING
+MINIAUDIO_CFLAGS  = -O2 $(MINIAUDIO_DEFINES)
+MINIAUDIO_OBJ     = $(MINIAUDIO_DIR)/miniaudio.o
+ifeq ($(UNAME),Darwin)
+MINIAUDIO_LIBS    =
+else
+MINIAUDIO_LIBS    = -ldl -lpthread
 endif
 
 # Vendored isocline (see external/isocline/PROVENANCE; refresh with tools/vendor-isocline.sh).
@@ -138,8 +162,14 @@ NANOARROW_HDRS = $(wildcard $(NANOARROW_DIR)/include/nanoarrow/*.h $(NANOARROW_D
 $(NANOARROW_DIR)/src/%.o: $(NANOARROW_DIR)/src/%.c $(NANOARROW_HDRS)
 	$(CC) $(NANOARROW_CFLAGS) -c $< -o $@
 
+$(POCKETFFT_OBJ): $(POCKETFFT_DIR)/pocketfft.c $(POCKETFFT_DIR)/pocketfft.h
+	$(CC) $(POCKETFFT_CFLAGS) -c $< -o $@
+
 $(TIGR_OBJ): $(TIGR_DIR)/tigr.c $(TIGR_DIR)/tigr.h
 	$(CC) $(TIGR_CFLAGS) -c $< -o $@
+
+$(MINIAUDIO_OBJ): $(MINIAUDIO_DIR)/miniaudio.c $(MINIAUDIO_DIR)/miniaudio.h
+	$(CC) $(MINIAUDIO_CFLAGS) -c $< -o $@
 
 # src/isocline.c #includes the rest of src/, so the object must depend on all of
 # them: listing only isocline.c leaves edits to tty.c and friends unbuilt.
@@ -157,8 +187,8 @@ WASI_SDK        = $(HOME)/wasi-sdk
 WASI_CC         = $(WASI_SDK)/bin/clang
 WASI_AR         = $(WASI_SDK)/bin/llvm-ar
 WASI_SYSROOT    = $(WASI_SDK)/share/wasi-sysroot
-WASM_SRCS       = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/dimension.c src/c/platform_wasi.c src/c/time.c src/c/exact.c src/c/serialize.c src/c/arrow.c
-WASM_CFLAGS     = --sysroot $(WASI_SYSROOT) -O2 -I$(PCRE2_SRC) -I$(SQLITE_DIR) -I$(SQLITE_VEC_DIR) -I$(NANOARROW_DIR)/include -Wno-ignored-pragmas -Wl,-z,stack-size=8388608
+WASM_SRCS       = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/fourier.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/dimension.c src/c/platform_wasi.c src/c/time.c src/c/exact.c src/c/serialize.c src/c/arrow.c
+WASM_CFLAGS     = --sysroot $(WASI_SYSROOT) -O2 -I$(PCRE2_SRC) -I$(SQLITE_DIR) -I$(SQLITE_VEC_DIR) -I$(NANOARROW_DIR)/include -I$(POCKETFFT_DIR) -Wno-ignored-pragmas -Wl,-z,stack-size=8388608
 WASM_PCRE2_OBJS = $(patsubst %.c,%.wasm.o,$(wildcard $(PCRE2_SRC)/pcre2_*.c))
 WASM_PCRE2_LIB  = $(PCRE2_DIR)/libpcre2-8-wasm.a
 WASM_SQLITE_OBJ = $(SQLITE_DIR)/sqlite3.wasm.o
@@ -167,8 +197,8 @@ WASM_NANOARROW_OBJS = $(patsubst %.c,%.wasm.o,$(wildcard $(NANOARROW_DIR)/src/*.
 
 wasm: telic.wasm
 
-telic.wasm: $(WASM_SRCS) $(HDRS) $(WASM_PCRE2_LIB) $(WASM_SQLITE_OBJ) $(WASM_SQLITE_VEC_OBJ) $(WASM_NANOARROW_OBJS)
-	$(WASI_CC) $(WASM_CFLAGS) -o telic.wasm $(WASM_SRCS) $(WASM_PCRE2_LIB) $(WASM_SQLITE_OBJ) $(WASM_SQLITE_VEC_OBJ) $(WASM_NANOARROW_OBJS)
+telic.wasm: $(WASM_SRCS) $(HDRS) $(WASM_PCRE2_LIB) $(WASM_SQLITE_OBJ) $(WASM_SQLITE_VEC_OBJ) $(WASM_NANOARROW_OBJS) $(WASM_POCKETFFT_OBJ)
+	$(WASI_CC) $(WASM_CFLAGS) -o telic.wasm $(WASM_SRCS) $(WASM_PCRE2_LIB) $(WASM_SQLITE_OBJ) $(WASM_SQLITE_VEC_OBJ) $(WASM_NANOARROW_OBJS) $(WASM_POCKETFFT_OBJ)
 
 $(WASM_PCRE2_LIB): $(WASM_PCRE2_OBJS)
 	$(WASI_AR) rcs $@ $(WASM_PCRE2_OBJS)
@@ -184,6 +214,9 @@ $(WASM_SQLITE_VEC_OBJ): $(SQLITE_VEC_DIR)/sqlite-vec.c $(SQLITE_VEC_DIR)/sqlite-
 
 $(NANOARROW_DIR)/src/%.wasm.o: $(NANOARROW_DIR)/src/%.c $(NANOARROW_HDRS)
 	$(WASI_CC) --sysroot $(WASI_SYSROOT) $(NANOARROW_CFLAGS) -c $< -o $@
+
+$(WASM_POCKETFFT_OBJ): $(POCKETFFT_DIR)/pocketfft.c $(POCKETFFT_DIR)/pocketfft.h
+	$(WASI_CC) --sysroot $(WASI_SYSROOT) $(POCKETFFT_CFLAGS) -c $< -o $@
 
 # Build the LAPACKE shared library that FFI dlopens.
 lapacke: $(LAPACKE_SHARED)
@@ -310,6 +343,6 @@ install: all pack
 	ln -sf $(TELIC_HOME)/telic $(DESTDIR)$(BINDIR)/telic
 
 clean:
-	rm -f telic telic.wasm $(PCRE2_OBJS) $(PCRE2_LIB) $(WASM_PCRE2_OBJS) $(WASM_PCRE2_LIB) $(SQLITE_OBJ) $(WASM_SQLITE_OBJ) $(SQLITE_VEC_OBJ) $(WASM_SQLITE_VEC_OBJ) $(NANOARROW_OBJS) $(WASM_NANOARROW_OBJS) $(TIGR_OBJ) $(ISOCLINE_OBJ) $(LAPACKE_OBJS) $(LAPACKE_LIB) $(LAPACKE_SHARED) $(LAPACKE_DIR)/exports.map
+	rm -f telic telic.wasm $(PCRE2_OBJS) $(PCRE2_LIB) $(WASM_PCRE2_OBJS) $(WASM_PCRE2_LIB) $(SQLITE_OBJ) $(WASM_SQLITE_OBJ) $(SQLITE_VEC_OBJ) $(WASM_SQLITE_VEC_OBJ) $(NANOARROW_OBJS) $(WASM_NANOARROW_OBJS) $(POCKETFFT_OBJ) $(WASM_POCKETFFT_OBJ) $(TIGR_OBJ) $(MINIAUDIO_OBJ) $(ISOCLINE_OBJ) $(LAPACKE_OBJS) $(LAPACKE_LIB) $(LAPACKE_SHARED) $(LAPACKE_DIR)/exports.map
 
 .PHONY: all clean install test test-libs test-wasm bench wasm vendor-pcre2 vendor-sqlite vendor-isocline vendor-lapacke lapacke editors

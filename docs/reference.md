@@ -3952,6 +3952,84 @@ null [ 5 ] vector vstack matrix>array . cr
 5
 ```
 
+### Fourier transforms
+
+Discrete Fourier transforms on the vendored PocketFFT: double precision, any
+length, with Bluestein's algorithm keeping lengths with large prime factors at
+O(n log n). A real vector is n×1 or 1×n. A complex vector is an n×2 matrix,
+column 0 the real parts and column 1 the imaginary parts. The forward
+transforms are unnormalized (Xₖ = Σ xⱼ e^(−2πijk/n)); the inverses divide by
+n, so a forward transform followed by its inverse returns the input.
+
+| Word | Stack effect | Behavior | Ops | Alloc | O |
+|------|-------------|----------|-----|-------|---|
+| `fft` | `( v -- spectrum )` | The transform of a real vector of length n: its ⌊n/2⌋+1 non-negative-frequency bins as a complex vector, bin k at frequency k/n cycles per sample. The imaginary parts of bin 0, and of bin n/2 when n is even, are 0. An empty vector or a matrix with neither dimension 1 errors | n log n | `1m((⌊n/2⌋+1)×2)` | O(n log n) |
+| `ifft` | `( spectrum n -- v )` | The inverse of `fft`: the real vector of length n, as n×1, whose `fft` is `spectrum`. `spectrum` must have ⌊n/2⌋+1 rows; the imaginary parts of bin 0 and of bin n/2 (n even) are ignored. n must be a positive integer | n log n | `1m(n×1)` | O(n log n) |
+| `cfft` | `( z -- z' )` | The forward transform of a complex vector | n log n | `1m(n×2)` | O(n log n) |
+| `icfft` | `( z -- z' )` | The inverse transform of a complex vector, divided by n | n log n | `1m(n×2)` | O(n log n) |
+| `magnitudes` | `( z -- v )` | The modulus √(re² + im²) of each row of a complex vector, as n×1 | n | `1m(n×1)` | O(n) |
+| `hann` | `( n -- v )` | The n-point periodic Hann window, 0.5 − 0.5·cos(2πk/n) for k = 0…n−1, as n×1; n = 1 answers [ 1 ]. Its elements sum to n/2 for n ≥ 2 | n | `1m(n×1)` | O(n) |
+| `amplitude-spectrum` | `( samples rate -- dataset )` | matrix.telic: the Hann-windowed amplitude of every `fft` bin of a real signal sampled at `rate` Hz, as a dataset of `:hz` (bin frequencies) and `:amplitude`, scaled so a full-scale sine centered on a bin reads 1 there. The window's main lobe spreads a sine over its bin and each neighbour at half height | n log n | `1m` ×3 | O(n log n) |
+| `amplitude-at` | `( samples rate hz -- a )` | matrix.telic: the amplitude of the `hz` component of a real signal sampled at `rate` Hz — one Hann-windowed DFT term evaluated at `hz` itself, so a full-scale sine at `hz` reads 1 whether or not `hz` falls on a bin | n | `1m` ×4 | O(n) |
+
+```forth fft
+[ 1 0 0 0 ] vector fft matrix>array . cr
+```
+```output
+[ 1 0 1 0 1 0 ]
+```
+
+```forth ifft
+[ 1 2 3 4 5 ] vector fft 5 ifft round matrix>array . cr
+```
+```output
+[ 1 2 3 4 5 ]
+```
+
+```forth cfft
+[ 1 0 0 1 ] 2 2 matrix cfft matrix>array . cr
+```
+```output
+[ 1 1 1 -1 ]
+```
+
+```forth icfft
+[ 1 2 3 4 ] 2 2 matrix cfft icfft round matrix>array . cr
+```
+```output
+[ 1 2 3 4 ]
+```
+
+```forth magnitudes
+[ 3 4 0 1 ] 2 2 matrix magnitudes matrix>array . cr
+```
+```output
+[ 5 1 ]
+```
+
+```forth hann
+4 hann matrix>array . cr
+```
+```output
+[ 0 0.5 1 0.5 ]
+```
+
+```forth amplitude-spectrum
+0 7 1 matrix-range transpose 2 PI * 8 / * sin 8 amplitude-spectrum
+:amplitude @ 1000 * round 1000 / matrix>array . cr
+```
+```output
+[ 0 1 0.5 0 0 ]
+```
+
+```forth amplitude-at
+0 47999 1 matrix-range transpose 2 PI * 1000 * 48000 / * sin 0.5 *
+48000 1000 amplitude-at 1000 * round 1000 / . cr
+```
+```output
+0.5
+```
+
 ---
 
 ## Segments

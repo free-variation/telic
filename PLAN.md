@@ -4,6 +4,266 @@ A TODO list of pending work, highest priority first.
 
 ---
 
+## Audio synthesizer
+
+A polyphonic synthesizer computed in C on the audio device's thread and
+played from telic words: phase-modulation operators alongside band-limited
+analog waveforms, a Moog ladder filter per voice, per-voice envelopes and LFO,
+unison, and a master effects chain. Patches are frames; notes come from telic
+words and a sample-accurate sequencer. Sources to port: promini's
+`effects.c` (Moog ladder, ping-pong delay), `reverb.c` (Dattorro), and the
+envelope and LFO logic of `mod.c`; `synth.c`'s one-sound-per-oscillator
+design is replaced, not ported.
+
+### Semantics
+
+1. **Output.** The first word that makes sound opens the default output
+   device: 48 kHz, stereo, 32-bit float. Nothing about audio depends on the
+   graphics window; it runs with or without one.
+2. **Parts and voices.** Sixteen parts, numbered 0–15, each hold one patch.
+   A note on a part takes a voice from a shared pool of 32; when none is
+   free, the voice released longest ago is taken, else the oldest sounding.
+   A voice plays one note of one part.
+3. **Patch.** A frame. Every key is optional and has a default, so `{ }` is a
+   single sine operator at full level with a plain envelope. Keys:
+   - `:operators` — an array of up to 8 operator frames (below).
+   - `:modulation` — an array of `[ from to depth ]` triples: operator `from`
+     adds `depth` × its output to operator `to`'s phase, in radians per unit
+     of output. `from = to` is feedback from the operator's previous sample.
+   - `:carriers` — the operator indices that are heard, summed; default `[ 0 ]`.
+   - `:unison` 1–7, `:detune` in cents, `:spread` 0–1 — each note plays
+     `:unison` copies of every operator, detuned symmetrically across
+     `:detune` and panned symmetrically across `:spread`.
+   - `:cutoff` Hz, `:resonance` 0–4, `:drive` — the voice's ladder filter.
+     Omitted `:cutoff` bypasses the filter.
+   - `:filter-envelope` — an envelope frame plus `:amount` in octaves: the
+     cutoff at any sample is `:cutoff × 2^(:amount × level)`.
+   - `:lfo` — `:shape` (`:sine` `:triangle` `:saw` `:square`
+     `:sample-and-hold`), `:rate` Hz, `:delay` and `:fade` in seconds,
+     `:key-sync` flag, and depths `:pitch` in semitones, `:cutoff` in octaves,
+     `:pan` 0–1.
+   - `:glide` in seconds — portamento from the part's previous note.
+   - `:pan` −1 to 1, `:level` 0–1.
+   - `:velocity` 0–1 — how much note velocity scales carrier levels and the
+     filter envelope amount.
+4. **Operator.** A frame with `:wave` (`:sine` default, `:triangle`, `:saw`,
+   `:pulse`, `:white`, `:pink`, `:brown`), `:ratio` to the note frequency
+   (default 1) or `:fixed` Hz, `:detune` in cents, `:level` 0–1, `:width`
+   0–1 for `:pulse` (default 0.5), an envelope, `:lfo-level` 0–1 (tremolo on
+   a carrier, index wobble on a modulator), and `:lfo-width` 0–1 (PWM).
+   `:triangle`, `:saw` and `:pulse` are band-limited.
+5. **Envelope.** `:attack`, `:decay`, `:release` in seconds, `:sustain` level
+   0–1, and optional `:sustain-decay` in seconds: the time for the level to
+   fall from `:sustain` toward 0 while the gate stays open; omitted, the
+   sustain holds. Attack is linear; decay, sustain decay and release are
+   exponential. A gate-on attacks from the current level; a gate-off releases
+   from the current level.
+6. **Playing.** `note-on ( pitch velocity part -- )` and
+   `note-off ( pitch part -- )` act at the next audio block. A pitch is a
+   MIDI note number or a symbol `:c4`, `:f#3`, `:bb5`; `:a4` is 440 Hz, equal
+   temperament. `part! ( value key part -- )` changes one patch parameter of
+   a sounding part, with the same keys as the patch frame; the audio thread
+   ramps it over one block. `patch! ( frame part -- )` replaces a part's
+   patch; notes already sounding finish on the old one.
+7. **Sequencing.** `note ( pitch length -- )` and `rest ( length -- )` queue
+   on the current part at the current tempo; lengths are fractions of a
+   whole note, written as exact rationals (`1/8`, `3/8`). `tempo ( bpm -- )`,
+   `part ( n -- )`, `chord ( pitches length -- )`. Queued notes start at
+   exact sample times, independent of how busy the interpreter is. The words
+   return at once; `wait-notes ( -- )` blocks until the queue is empty.
+8. **Effects.** One master chain after the voice mix: chorus → ping-pong
+   delay → reverb → master level. Each stage has `:wet`/`:dry` and its own
+   parameters; the reverb keeps promini's set (predelay, bandwidth, decay,
+   damping, size, modulation, shimmer, freeze, width, low/high cut).
+   `effect! ( value key effect -- )` with `effect` one of `:chorus` `:delay`
+   `:reverb` `:master`.
+9. **Sample playback.** `play ( matrix -- )` plays an n×1 (mono) or n×2
+   (stereo) matrix of samples at 48 kHz through the same master chain,
+   mixed with the voices; `stop ( -- )` silences everything.
+10. **Offline rendering.** `render ( seconds -- matrix )` computes the same
+    output into an n×2 matrix without a device, from the current parts and
+    queued notes. This is the golden-test path and the way to analyse sound
+    as data.
+11. **Queue limit.** The command queue holds 4096 commands; a word that would
+    overflow it errors with "audio command queue full (max 4096)" and queues
+    nothing.
+12. **Determinism.** Noise generators and sample-and-hold draw from telic's
+    seeded RNG streams, so `n seed` followed by the same words renders the
+    same matrix.
+
+### Implementation
+
+1. **miniaudio device only.** Use `ma_device` with a data callback; build with
+   `MA_NO_DECODING MA_NO_ENCODING MA_NO_ENGINE MA_NO_NODE_GRAPH
+   MA_NO_RESOURCE_MANAGER MA_NO_GENERATION` in `MINIAUDIO_DEFINES`. The
+   mixing, effects and oscillators are telic's own code, so miniaudio's graph
+   is not needed.
+2. **`src/c/synth.c`** (~900 lines, both builds): voice pool and allocation,
+   operators (phase accumulators, PolyBLEP for triangle/saw/pulse, noise),
+   the modulation loop computed in operator order with feedback from the
+   previous sample, unison, envelopes, the per-voice LFO, glide, velocity,
+   the Moog ladder ported from promini with per-voice mono state, and pan.
+3. **`src/c/audio_effects.c`** (~1300 lines, both builds): chorus (new: a
+   stereo modulated delay of 5–25 ms), the ping-pong delay and the Dattorro
+   reverb ported from promini to plain buffer functions, telic's C
+   conventions applied (no comments, tabs, `n_` counts, `static`).
+4. **`src/c/audio.c`** (~600 lines): the telic words; the command queue, a
+   single-producer single-consumer ring of timestamped commands from the
+   interpreter to the audio thread, applied at block start or at their
+   sample time — the audio thread never takes a lock and never reads a
+   telic value; the sequencer; `render`; patch-frame validation and
+   conversion into the C voice structures on the interpreter side. The
+   device code is native only; the wasm build compiles everything else and
+   stubs `play`, `stop` and device opening, so `render` runs on both.
+5. **`src/forth/audio.telic`**: note-name parsing (`:f#3` → 54), `note`,
+   `rest`, `chord`, `tempo`, `part`, the default envelope and patch frames.
+   A library of named patches goes in `lib/patches.telic`.
+6. **Docs and conventions.** A reference section per layer (parts and
+   notes, patch keys, sequencing, effects, rendering); README line; the C
+   file map entries for the three files; revise the CLAUDE.md rule that
+   names miniaudio so it covers device output only, with formats still
+   through ffmpeg; Source invariants for the command queue and the
+   no-lock audio thread.
+
+### Acceptance
+
+1. **PM, discriminating.** A rendered 1 s note with carrier ratio 1 and
+   modulator ratio 1: at depth 0 the spectrum has one peak at the note
+   frequency; at depth 2 it has peaks at the note frequency ± whole
+   multiples of it with amplitudes proportional to |Jₙ(2)|, within 1 dB for
+   n = 0…3. An additive synthesizer fails the second case.
+2. **Band-limiting, discriminating.** A 5 kHz `:saw` rendered at 48 kHz has
+   every aliased component (frequencies not multiples of 5 kHz) at least
+   50 dB below the fundamental; a naive saw fails this.
+3. **Filter.** With `:cutoff 500`, a rendered 4 kHz `:saw` fundamental is at
+   least 60 dB below the unfiltered render (24 dB per octave, three octaves).
+4. **Filter envelope.** With `:amount 4` and `:cutoff 400`, the cutoff
+   estimated from the rendered spectrum peaks near 6.4 kHz at the end of the
+   attack and settles near `400 × 2^(4 × :sustain)`.
+5. **Envelope.** A rendered note with `:attack 0.1 :decay 0.2 :sustain 0.5`
+   reaches its peak at 0.1 s ± one block and half the peak at 0.3 s ± 10%.
+6. **Unison.** `:unison 3 :detune 20 :spread 1` renders left and right
+   channels that differ; `:spread 0` renders them identical.
+7. **Sequencer.** At 120 bpm, `:a4 1/4 note :a4 1/4 note` renders note
+   onsets at samples 0 and 24000 exactly.
+8. **Live control.** `part!` on `:cutoff` during a sounding note changes the
+   rendered spectrum within one block, with no discontinuity larger than the
+   block's ramp.
+9. **Cost.** 16 voices × `:unison 3` with the filter on use under 25% of one
+   core on the development machine, measured.
+10. **Builds.** Every golden test renders offline and runs native and wasm;
+    `play` and device words error on wasm with the stub message.
+
+### Tests
+
+Every test renders offline with `render` and prints measurements, never raw
+samples: amplitudes from `amplitude-at`, levels from `rms-windows`-style
+windowed RMS written in the test, times as sample indices. Each printed value
+is rounded to the tolerance it asserts, so native and wasm (which differ in
+libm's last bits) produce identical output. Every file seeds the RNG, groups
+its error cases at the end with the reason parenthesized, and runs in both
+suites. One file per component:
+
+1. `121_audio_pitch` — `:a4` = 69 = 440 Hz; `:c4`, `:c#4`/`:db4`, `:b3`,
+   `:c-1`, `:g9`; MIDI numbers 0 and 127; errors: `:h4`, `:c`, `:c10`, a
+   negative number, a non-integer, a string.
+2. `122_audio_patch` — `{ }` yields the documented defaults (read back);
+   every key accepted at its range limits; errors for each key: wrong type,
+   out of range, an operator index ≥ the operator count in `:modulation` or
+   `:carriers`, more than 8 operators, `:unison` 0 or 8, an unknown key.
+3. `123_audio_waveforms` — for each `:wave`: fundamental amplitude, and the
+   harmonic series that identifies it — sine: no harmonics above −80 dB;
+   saw: harmonic k at 1/k; square (`:pulse`, width 0.5): odd k at 1/k, even
+   k absent; triangle: odd k at 1/k², sign-alternating; pulse at width 0.25:
+   every 4th harmonic absent (discriminating for width). Noise: RMS within
+   5% of its nominal, white flat across octave bands within 1.5 dB, pink
+   falling 3 dB per octave, brown 6 dB per octave; the same seed renders the
+   same noise and a different seed does not. `:ratio 2` doubles, `:fixed 1000`
+   ignores the note, `:detune 100` = one semitone.
+4. `124_audio_band_limit` — saw and pulse at 5 kHz, 10 kHz and 15 kHz:
+   every non-harmonic component ≥ 50 dB below the fundamental; the same
+   measurement on a naive saw computed in telic fails it.
+5. `125_audio_modulation` — depth 0 equals the additive sum; depth 1, 2, 3
+   sidebands match |Jₙ(β)| within 1 dB for n = 0…3; ratio 2 modulator puts
+   sidebands at f ± 2k·f; a three-operator chain (2→1→0) differs from two
+   parallel modulators (2→0, 1→0) at equal depths (discriminating for
+   routing); feedback on a sine produces a harmonic series that grows with
+   depth; `:carriers [ 0 1 ]` sums both, `[ 1 ]` silences operator 0's own
+   output.
+6. `126_audio_envelope` — peak at `:attack` ± one block; level after one
+   `:decay` time constant within 5% of the exponential target; sustain held
+   flat for 1 s; `:sustain-decay` halves the level in the documented time;
+   release from sustain; gate-off during attack releases from the level
+   reached, not from the peak (discriminating for release-from-current);
+   retrigger during release attacks from the current level with no
+   discontinuity above one sample step; zero-length stages; each operator's
+   envelope independent (a modulator decaying faster than its carrier shows
+   the sideband amplitudes falling while the fundamental holds).
+7. `127_audio_filter` — no `:cutoff` bypasses (output equals unfiltered);
+   attenuation of a saw's harmonics above cutoff at 24 dB per octave within
+   3 dB; resonance 3 boosts the harmonic nearest the cutoff over resonance
+   0; resonance at the maximum stays finite (no NaN, peak ≤ 4); `:drive`
+   adds harmonics to a pure sine; filter envelope: estimated cutoff at the
+   attack peak and during sustain matches `:cutoff × 2^(:amount × level)`
+   within a third of an octave; negative `:amount` sweeps down.
+8. `128_audio_lfo` — each `:shape` identified from the pitch-deviation
+   trace of a rendered note (sine, triangle, saw, square, sample-and-hold
+   steps at `:rate`); `:rate` from the trace period; `:delay` — no deviation
+   before it; `:fade` — deviation grows linearly over it; `:key-sync` true —
+   two notes start at the same LFO phase, false — they do not; each
+   destination alone: `:pitch` (± semitones measured), `:cutoff`, `:pan`
+   (left/right RMS alternate), operator `:lfo-level` on a carrier
+   (amplitude tremolo depth) and on a modulator (sideband amplitude varies,
+   fundamental does not — discriminating), `:lfo-width` (pulse harmonic
+   balance varies).
+9. `129_audio_unison` — `:unison 1` equals no unison; `:unison 3 :detune 20`
+   shows three components at −10, 0, +10 cents; `:spread 1` makes left ≠
+   right, `:spread 0` left = right; total level normalized so unison count
+   does not change RMS by more than 1 dB.
+10. `130_audio_voices` — two parts with different patches sound
+    independently; 32 simultaneous notes all sound; the 33rd steals the
+    voice released longest ago, else the oldest (checked by which frequency
+    disappears); `:glide 0.1` — pitch reaches the new note at 0.1 s ± one
+    block, and a first note does not glide; `:velocity 1` scales level and
+    filter amount, `:velocity 0` ignores velocity; `:pan` −1/0/1 gives
+    left-only/equal/right-only; `:level`.
+11. `131_audio_live` — `note-on`/`note-off` take effect at the next block;
+    `part!` on each live key (`:cutoff`, `:resonance`, `:pan`, `:level`, an
+    operator `:level`/`:ratio`) changes the rendered measurement within one
+    block and ramps without a step larger than the ramp; `patch!` leaves
+    sounding notes on the old patch and applies to the next note.
+12. `132_audio_sequencer` — at 120 bpm, onsets of `1/4` notes at samples 0,
+    24000, 48000 exactly; `3/8` and `1/16` lengths; `rest`; `chord` sounds
+    all pitches from the same sample; a `tempo` change mid-sequence moves
+    later onsets only; 1000 `1/16` notes end at exactly 1000 × 6000 samples
+    (no drift — discriminating against float accumulation); legato,
+    normal and staccato gate lengths; `wait-notes` returns after the last
+    release; the queue-full error after 4096 commands, with nothing queued.
+13. `133_audio_effects` — each stage alone and in the chain: chorus — wet 0
+    equals dry, wet 1 shows spectral spreading around a sine; ping-pong — an
+    impulse echoes at the delay time on the left, then the right, then the
+    left, each echo scaled by `:feedback`; reverb — an impulse's RMS decays
+    over time with the tail length ordered by `:decay`; `:freeze` holds the
+    tail's RMS within 1 dB for 2 s; shimmer adds energy an octave up at
+    `:shimmer1-shift 12`; low/high cut attenuate outside their bands;
+    `:wet`/`:dry` of every stage; master level; the chain order (chorus
+    before delay) shown by an echo that is itself chorused.
+14. `134_audio_render` — `render` of nothing is silence; two `render`s of
+    the same seeded setup are identical (bitwise, via `=`); a matrix passed
+    to the sample-playback path mixes with voices in `render`; `stop`
+    silences queued and sounding output; errors: a 3-column matrix, an empty
+    matrix, a non-matrix.
+15. `135_audio_device` — native only, listed in `tests/wasm-skip.txt` as
+    "no audio device on WASI": `play` of a mono and a stereo matrix returns
+    at once and `wait-notes` returns after it ends; the same error cases as
+    134 through `play`. The wasm stub message has no golden test: both suites
+    share one `.expected` per test, and the runners have no wasm-only
+    expected output.
+
+The CPU budget (Acceptance 9) is a benchmark in `bench/`, not a golden test.
+
+---
+
 ## xgboost — follow-ups
 
 - **Multiclass / multi-output.** Read `out_dim`/`out_shape` in `xgb-predict`

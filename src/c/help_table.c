@@ -133,6 +133,8 @@ const HelpEntry help_entries[] = {
 	{ "all?", "( items pred -- bool )", "arrays.telic: true when every element satisfies pred, vacuously true on empty. Runs pred over **every** element, so it does not short-circuit and a side-effecting pred runs n times", "2n·xt", "1a(n)", "O(n·xt)", 25 },
 	{ "alloc-stats", "( -- )", "Print and reset the allocation counters (lvars=… arrays=…) since the last call, or since the embedded library finished loading — its own allocations are not counted", "2", "none", "O(1)", 30 },
 	{ "amb", "( xt1 xt2 -- … )", "Run xt1; if it fails (a unify mismatch or fail), roll its bindings back through the trail and run xt2. Commits to the first branch that succeeds.", "xt1", "none", "O(xt1 + xt2)", 28 },
+	{ "amplitude-at", "( samples rate hz -- a )", "matrix.telic: the amplitude of the hz component of a real signal sampled at rate Hz — one Hann-windowed DFT term evaluated at hz itself, so a full-scale sine at hz reads 1 whether or not hz falls on a bin", "n", "1m ×4", "O(n)", 20 },
+	{ "amplitude-spectrum", "( samples rate -- dataset )", "matrix.telic: the Hann-windowed amplitude of every fft bin of a real signal sampled at rate Hz, as a dataset of :hz (bin frequencies) and :amplitude, scaled so a full-scale sine centered on a bin reads 1 there. The window's main lobe spreads a sine over its bin and each neighbour at half height", "n log n", "1m ×3", "O(n log n)", 20 },
 	{ "and", "( a b -- bool )", "logical and of truthiness", "3", "none", "O(1)", 4 },
 	{ "annotate", "( x y label -- )", "Text at data point (x, y), current font size and text-anchor", NULL, NULL, NULL, 46 },
 	{ "any?", "( items pred -- bool )", "arrays.telic: true when pred is truthy for some element, false otherwise; short-circuits at the first hit", "n·xt", "none", "O(n·xt)", 25 },
@@ -186,6 +188,7 @@ const HelpEntry help_entries[] = {
 	{ "cat", "( path -- )", "io.telic: write the file's bytes to stdout. Byte-exact: nothing is added, so a file with no closing newline leaves the cursor mid-line", "file read + write", "1o + buffer", "O(file)", 32 },
 	{ "catch", "( xt -- result 0 | exc 1 )", "exceptions.telic: run xt; (result 0) on success, (exc 1) on a throw **or** an interpreter error (an error frame { :message :trace } becomes the exception value)", "—", "1f + 2s on a caught interpreter error", "O(xt)", 26 },
 	{ "cd", "( path -- )", "Change the interpreter's working directory; process-wide, so it moves the base for relative file I/O and is inherited by subsequent start-process children", "1", "none", "O(1)", 32 },
+	{ "cfft", "( z -- z' )", "The forward transform of a complex vector", "n log n", "1m(n×2)", "O(n log n)", 20 },
 	{ "char-at", "( str index -- char )", "The one-character string at codepoint index; bounds-checked against the codepoint count", "2 + n", "1o", "O(n)", 14 },
 	{ "choose", "( items goal -- )", "logic.telic: run the goal with each element of the array in turn, committing to the first for which it succeeds; fail if none do, and on an empty array", "n·goal", "two curried tokens per element tried, none for the last", "O(n·goal)", 28 },
 	{ "ci", "( mat level -- low high )", "statistics.telic: percentile confidence interval — level 0.95 gives the 0.025 and 0.975 quantiles", "2n log n", "malloc(n) ×2", "O(n log n)", 20 },
@@ -331,6 +334,7 @@ const HelpEntry help_entries[] = {
 	{ "ffi-function", "( lib symbol arg-types ret-type -- ) <name>", "Resolve symbol in lib, build a libffi call interface, and define the following word <name> to call it. arg-types is an array of type symbols, ret-type a single symbol. The interface is prepared once; calls are ~30–100 ns", "dlsym + prep_cif", "1 binding", "O(argc)", 37 },
 	{ "ffi-open", "( path -- lib )", "dlopen the library at path and push a T_PTR handle; \"\" opens the running process itself (dlopen(NULL)) for already-linked symbols. Errors if not found", "dlopen", "1 handle (not GC'd)", "O(1)", 37 },
 	{ "ffi-variadic", "( lib symbol arg-types ret-type n-fixed -- ) <name>", "Like ffi-function for a variadic C function: n-fixed leading arguments use the fixed convention, the rest the variadic one (ffi_prep_cif_var). Variadic argument types are fixed per binding, so declare one word per type combination (e.g. a :string setopt and a :long setopt)", "dlsym + prep_cif_var", "1 binding", "O(argc)", 37 },
+	{ "fft", "( v -- spectrum )", "The transform of a real vector of length n: its ⌊n/2⌋+1 non-negative-frequency bins as a complex vector, bin k at frequency k/n cycles per sample. The imaginary parts of bin 0, and of bin n/2 when n is even, are 0. An empty vector or a matrix with neither dimension 1 errors", "n log n", "1m((⌊n/2⌋+1)×2)", "O(n log n)", 20 },
 	{ "figure", "( width height -- )", "Start a new figure of that canvas size, marks empty, styled from the current aes; becomes the current figure", NULL, NULL, NULL, 46 },
 	{ "figure!", "( val sym -- )", "Set a property of the current figure — any aes key, or a domain bound (:xmin/:xmax/:ymin/:ymax)", NULL, NULL, NULL, 46 },
 	{ "figure>svg", "( -- svg )", "Resolve the domain and render the current figure to an SVG document string", NULL, NULL, NULL, 46 },
@@ -408,6 +412,7 @@ const HelpEntry help_entries[] = {
 	{ "group-by", "( array key -- frame ) or ( dataset sym -- frame )", "arrays.telic: group elements into a frame from each symbol to the set of elements under it. The key's type chooses the path: a symbol names a field read from each element frame, grouped in one sorted pass in C; an execution token ( element -- sym ) computes each element's group symbol. datasets.telic extends it to a dataset: the named column's distinct values each key the sub-dataset of the rows holding that value, gathered by select-rows so every column keeps its representation. A symbol value is the key itself, any other value keys by its rendered text interned as a symbol (\"red\" → :red, 2024 → :2024), so grouped@red reads a group; a rendering containing a space is reachable only through string>symbol", "symbol n log n; xt n·(xt + log n); dataset n log n + n·c", "frame + sets; dataset one sub-dataset each", "symbol O(n log n); xt O(n·xt + n log n); dataset O(n log n + n·c)", 15 },
 	{ "group-indices", "( column -- pairs )", "datasets.telic: [ [ value [indices] ] … ] per distinct value in natural order — each index array holds the value's row positions, ascending; a numeric column's NaN group orders last, a text column's null group first", "2n log n", "permutation + one pair and array per value", "O(n log n)", 24 },
 	{ "halt", "( code -- )", "Exit the process with the given code as its exit status", "—", "—", "—", 30 },
+	{ "hann", "( n -- v )", "The n-point periodic Hann window, 0.5 − 0.5·cos(2πk/n) for k = 0…n−1, as n×1; n = 1 answers [ 1 ]. Its elements sum to n/2 for n ≥ 2", "n", "1m(n×1)", "O(n)", 20 },
 	{ "has?", "( fr/set/str x -- bool )", "Existence test for a frame key or path, no error on miss; a search path is true if any node matches (short-circuits at the first); on a set ( set v -- bool ), membership by binary search in natural order (in? is the mask-producing form); on a string ( str pat -- bool ), true if regex pat matches anywhere", "3 + d log n", "none", "O(d log n)", 17 },
 	{ "head", "( dataset -- )", "datasets.telic: print the first 10 rows as an aligned table, columns alphabetical by name", "r·c", "rendered cells", "O(r·c)", 24 },
 	{ "help", "( \"name\" -- )", "repl.telic: parse the next word and print its reference entry, or the entry man builds from a loaded definition's declaration and the comment above it; bare help (no name on the line) prints a starter cheat sheet, and an unknown name prints unknown word: <name> without erroring", "dict scan + log n", "1o + strings + print", "O(|dict|)", 30 },
@@ -419,9 +424,11 @@ const HelpEntry help_entries[] = {
 	{ "http-post", "( url body -- body' )", "POST the body as-is (curl's default content-type), answering the response body; a non-2xx status throws", NULL, NULL, NULL, 48 },
 	{ "http-request", "( method url headers body -- response )", "One request; response is { :status :body } with the HTTP status code and the raw body. headers is an array of \"name: value\" strings, body a string or null (sent as-is, --data-binary). A non-HTTP URL (file://) reports status 0", NULL, NULL, NULL, 48 },
 	{ "i-times", "( xt n -- )", "Run xt n times, pushing index 0..n-1 first", "2 + n·(1+xt)", "none", "O(n·xt)", 25 },
+	{ "icfft", "( z -- z' )", "The inverse transform of a complex vector, divided by n", "n log n", "1m(n×2)", "O(n log n)", 20 },
 	{ "identity", "( a -- a )", "core.telic: the value unchanged — the no-op xt for higher-order words", "1", "none", "O(1)", 0 },
 	{ "identity-matrix", "( n -- mat )", "matrix.telic: n×n matrix with 1 on the diagonal", "n", "1m(n×n)", "O(n)", 20 },
 	{ "if", "( flag -- )", "Branch past the then/else if flag is falsy", NULL, NULL, NULL, 10 },
+	{ "ifft", "( spectrum n -- v )", "The inverse of fft: the real vector of length n, as n×1, whose fft is spectrum. spectrum must have ⌊n/2⌋+1 rows; the imaginary parts of bin 0 and of bin n/2 (n even) are ignored. n must be a positive integer", "n log n", "1m(n×1)", "O(n log n)", 20 },
 	{ "imaginary-part", "( z -- f )", "The imaginary part; a float answers 0", "2", "none", "O(1)", 7 },
 	{ "in?", "( members values -- mask/binary )", "datasets.telic: membership by binary search — a scalar values answers 1 when it is a member of members (a set, array, or vector; a dimensioned vector contributes quantities, so units reconcile); an array answers an n×1 mask, a vector a mask of its shape, each element 1 when a member; a NaN or null answers 0. [ 10 20 ] vector prices in? where select-rows keeps the rows at listed prices", "log m per element", "1m(n); a non-set members adds 1a(m) + 1o; a dimensioned values adds 2a(n)", "O(n log m), plus O(m log m) to build the set", 15 },
 	{ "index-of", "( str pat -- i )", "strings.telic: codepoint index of pat's first regex match in str, or -1 if none", "n", "1a + pieces", "O(n)", 14 },
@@ -466,6 +473,7 @@ const HelpEntry help_entries[] = {
 	{ "lvar", "( -- v )", "Push a fresh, unbound logic variable", "2", "1 lvar", "O(1)", 28 },
 	{ "lvar?", "( a -- bool )", "core.telic: 1 when the value is an unbound logic variable, else 0", "5", "none", "O(1)", 4 },
 	{ "magnitude", "( v -- v' )", "A quantity's bare magnitude (float or matrix, the unit dropped); any other value passes through unchanged", "2", "none", "O(1)", 5 },
+	{ "magnitudes", "( z -- v )", "The modulus √(re² + im²) of each row of a complex vector, as n×1", "n", "1m(n×1)", "O(n)", 20 },
 	{ "make-directory", "( path -- )", "Create the directory, intermediate components included; silent when it already exists, so it is idempotent. Errors when a component exists as a non-directory or the path is unwritable", "d", "none", "O(d), d = path components", 32 },
 	{ "man", "( xt -- fr )", "Frame of a word's reference entry (:word :effect :summary, plus :ops :alloc :order for runtime words); a unit word synthesizes its entry from the unit's definition (unit: m × 1000); a word a load defined answers { :word :effect :summary } built from its declared stack effect and the \\\\ comment lines directly above it; null otherwise", "dict scan + log n", "1o + strings", "O(|dict|)", 30 },
 	{ "map", "( arr/set/dataset xt -- arr )", "Apply xt to each element; xt must leave exactly one value. The answer is an array whatever the input was — a set maps to an array, and datasets.telic extends it to a dataset the same way: xt sees each row as a frame keyed by column name and the results come back as an array. To make a dataset again, have xt answer a row frame and pass the array to frames>dataset, which rebuilds the columns", "2 + n·xt", "1a(n); dataset one row frame each", "O(n·xt)", 25 },
@@ -828,7 +836,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, arrays element-wise with a trailing rest pattern taking the remaining elements, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails", "n", "none", "O(n)", 28 },
 };
 
-const int help_entry_count = 770;
+const int help_entry_count = 778;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -909,6 +917,8 @@ const HelpExample help_examples[] = {
 	{ "all?", "[ 2 4 ] ( 2 mod 0= ) all? . cr", "1" },
 	{ "alloc-stats", "alloc-stats", "lvars=0 arrays=0" },
 	{ "amb", "( 1 ) ( 2 ) amb . cr", "1" },
+	{ "amplitude-at", "0 47999 1 matrix-range transpose 2 PI * 1000 * 48000 / * sin 0.5 *\n48000 1000 amplitude-at 1000 * round 1000 / . cr", "0.5" },
+	{ "amplitude-spectrum", "0 7 1 matrix-range transpose 2 PI * 8 / * sin 8 amplitude-spectrum\n:amplitude @ 1000 * round 1000 / matrix>array . cr", "[ 0 1 0.5 0 0 ]" },
 	{ "and", "1 0 and . 1 2 and . cr", "0 1" },
 	{ "annotate", "\"plot\" load-library\n320 240 figure [ 0 2 ] vector [ 0 2 ] vector data-domain 1 1 \"note\" annotate figure>svg \"note\" has? . cr", "1" },
 	{ "any?", "[ 1 3 5 ] ( 2 mod 0= ) any? . cr", "0" },
@@ -962,6 +972,7 @@ const HelpExample help_examples[] = {
 	{ "cat", "\"two{nl}lines{nl}\" format \"/tmp/docs-cat.txt\" write-file\n\"/tmp/docs-cat.txt\" cat", "two\nlines" },
 	{ "catch", "( 42 ) catch . . cr", "0 42" },
 	{ "cd", "cwd \"/tmp\" cd cwd \"tmp\" has? . cd cr", "1" },
+	{ "cfft", "[ 1 0 0 1 ] 2 2 matrix cfft matrix>array . cr", "[ 1 1 1 -1 ]" },
 	{ "char-at", "\"héllo\" 1 char-at . cr", "é" },
 	{ "choose", "[ 1 2 3 ] ( dup 2 < if fail then . cr ) choose", "2" },
 	{ "ci", "[ 1 2 3 4 5 6 7 8 9 10 ] vector 0.8 ci . . cr", "9.1 1.9" },
@@ -1108,6 +1119,7 @@ const HelpExample help_examples[] = {
 	{ "ffi-function", "\"\" ffi-open \"cos\" [ :double ] :double ffi-function c-cos 0 c-cos . cr", "1" },
 	{ "ffi-open", "\"\" ffi-open \"cos\" [ :double ] :double ffi-function c-cos 0 c-cos . cr", "1" },
 	{ "ffi-variadic", "\"\" ffi-open \"printf\" [ :string :double ] :int 1 ffi-variadic c-printf", "" },
+	{ "fft", "[ 1 0 0 0 ] vector fft matrix>array . cr", "[ 1 0 1 0 1 0 ]" },
 	{ "figure", "\"plot\" load-library\n320 240 figure [ 1 2 ] vector [ 3 4 ] vector scatter figure>svg \"<svg\" has? . cr", "1" },
 	{ "figure!", "\"plot\" load-library\n320 240 figure 5 :xmin figure! :xmin figure@ . cr", "5" },
 	{ "figure>svg", "\"plot\" load-library\n320 240 figure [ 1 2 ] vector [ 3 4 ] vector scatter figure>svg \"<svg\" has? . cr", "1" },
@@ -1185,6 +1197,7 @@ const HelpExample help_examples[] = {
 	{ "group-by", "[ { :name \"ann\" :team :red } { :name \"bo\" :team :blue } { :name \"cy\" :team :red } ] :team group-by /red @ size . cr\n[ 1 2 3 4 ] ( 2 mod 0= if :even else :odd then ) group-by frame>array . cr\n{ :team [ \"red\" \"blue\" \"red\" ] :score [ 1 2 3 ] vector } :team group-by to grouped\ngrouped size . cr\ngrouped@red :score @ transpose matrix>array . cr", "2\n[ :even [< 2 4 >] :odd [< 1 3 >] ]\n2\n[ 1 3 ]" },
 	{ "group-indices", "[ :x :y :x ] group-indices . cr", "[ [ :x\n    [ 0 2 ] ]\n  [ :y\n    [ 1 ] ] ]" },
 	{ "halt", "3 halt", "" },
+	{ "hann", "4 hann matrix>array . cr", "[ 0 0.5 1 0.5 ]" },
 	{ "has?", "{ :a 1 } :a has? . { :a 1 } :b has? . [< 1 2 >] 2 has? . \"abc\" \"b+\" has? . cr", "1 0 1 1" },
 	{ "head", "[ [ \"name\" \"age\" ] [ \"ann\" 34 ] [ \"bo\" 25 ] ] true rows>dataset head", "age  name\n 34  ann\n 25  bo" },
 	{ "help", "help nip", "nip ( a b -- b )\n  Drop the second item, keeping the top\n  ops 1, alloc none, O(1)\n\n  > 1 2 nip . cr\n  2" },
@@ -1196,9 +1209,11 @@ const HelpExample help_examples[] = {
 	{ "http-post", "\"https://example.org/collect\" \"name=telic\" http-post", "" },
 	{ "http-request", "\"http\" load-library\n\"hi\" \"/tmp/docs-http.txt\" write-file\n\"GET\" \"file:///tmp/docs-http.txt\" [ ] null http-request dup :status @ . :body @ . cr", "0 hi" },
 	{ "i-times", "( . ) 3 i-times cr", "0 1 2" },
+	{ "icfft", "[ 1 2 3 4 ] 2 2 matrix cfft icfft round matrix>array . cr", "[ 1 2 3 4 ]" },
 	{ "identity", "[ 1 2 ] ' identity map . cr", "[ 1 2 ]" },
 	{ "identity-matrix", "2 identity-matrix render print cr", "<matrix 2x2>\n          1          0\n          0          1" },
 	{ "if", ": absolute ( n -- n ) dup 0 < if negate then ; -7 absolute . cr", "7" },
+	{ "ifft", "[ 1 2 3 4 5 ] vector fft 5 ifft round matrix>array . cr", "[ 1 2 3 4 5 ]" },
 	{ "imaginary-part", "3+4i imaginary-part . 5 imaginary-part . cr", "4 0" },
 	{ "in?", "[< 1 2 3 >] 2 in? . [< 1 2 3 >] 9 in? . cr\n[ 2 4 ] vector [ 1 2 3 4 ] vector in? matrix>array . cr\n[< \"b\" \"c\" >] [ \"a\" \"b\" ] in? matrix>array . cr", "1 0\n[ 0 1 0 1 ]\n[ 0 1 ]" },
 	{ "index-of", "\"hello\" \"l+\" index-of . cr", "2" },
@@ -1243,6 +1258,7 @@ const HelpExample help_examples[] = {
 	{ "lvar", "lvar dup 5 ~ drop ? . cr", "5" },
 	{ "lvar?", "lvar lvar? . cr", "1" },
 	{ "magnitude", "10 km magnitude . cr", "10" },
+	{ "magnitudes", "[ 3 4 0 1 ] 2 2 matrix magnitudes matrix>array . cr", "[ 5 1 ]" },
 	{ "make-directory", "\"/tmp/docs-mk/inner\" make-directory\n\"/tmp/docs-mk/inner\" make-directory\n\"/tmp/docs-mk\" list-directory . cr", "[ \"inner\" ]" },
 	{ "man", "' dup man :effect @ . cr", "( a -- a a )" },
 	{ "map", "[ 1 2 3 ] ( dup * ) map . cr\n[ [ \"name\" \"score\" ] [ \"ann\" 5 ] [ \"bo\" 1 ] ] true rows>dataset ( :score @ ) map . cr", "[ 1 4 9 ]\n[ 5 1 ]" },
@@ -1606,4 +1622,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 773;
+const int help_example_count = 781;

@@ -43,3 +43,30 @@
 
 \ frobenius-norm under the short name
 : norm ( m -- f ) frobenius-norm ; inline
+
+\ Hann-windowed amplitudes of a real signal's frequency bins, a full-scale sine reading 1
+: amplitude-spectrum ( samples rate -- dataset )
+	| samples rate |
+	samples as-column to column
+	column num-elements to n
+	n hann to window
+	column window * fft magnitudes 2 * window sum / to amplitudes
+	amplitudes amplitudes 0 @e 2 / 0 !e drop
+	n 2 mod 0 = n 1 > and if
+		amplitudes amplitudes n 2 / @e 2 / n 2 / !e drop
+	then
+	0 n 2 / truncate 1 matrix-range transpose rate n / * to frequencies
+	{ } frequencies :hz ! amplitudes :amplitude ! ;
+
+\ amplitude of the hz component of a real signal: one Hann-windowed DFT term at hz itself
+: amplitude-at ( samples rate hz -- a )
+	| samples rate hz |
+	samples as-column to column
+	column num-elements to n
+	n hann to window
+	column window * to weighted
+	0 n 1 - 1 matrix-range transpose -1 acos 2 * hz * rate / * to phases
+	weighted phases cos * sum to real
+	weighted phases sin * sum to imaginary
+	hz 0 = if 1 else 2 then to scale
+	real real * imaginary imaginary * + sqrt scale * window sum / ;

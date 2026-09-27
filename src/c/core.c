@@ -6247,6 +6247,12 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 
 	define_primitive(interp, "correlation-kendall", p_correlation_kendall, 0);
 	define_primitive(interp, "ks-distance", p_ks_distance, 0);
+	define_primitive(interp, "fft", p_fft, 0);
+	define_primitive(interp, "ifft", p_ifft, 0);
+	define_primitive(interp, "cfft", p_cfft, 0);
+	define_primitive(interp, "icfft", p_icfft, 0);
+	define_primitive(interp, "magnitudes", p_magnitudes, 0);
+	define_primitive(interp, "hann", p_hann, 0);
 
 
 	define_primitive(interp, "abs", p_abs, 0);

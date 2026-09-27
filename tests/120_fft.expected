@@ -1,0 +1,47 @@
+[ 1 0 1 0 1 0 ] 
+[ 5 0 0 0 0 0 ] 
+[ 0 0 0 8 0 0 0 0 0 ] 
+9 
+8 
+[ 1 1 1 -1 ] 
+[ 5 1 ] 
+[ 1 1 1 1 1 1 ] 
+[ 1 1 1 1 1 1 ] 
+1 
+[ 1 2 3 4 5 ] 
+1 
+1 
+1 
+1 
+[ 0 0.146447 0.5 0.853553 1 0.853553 0.5 0.146447 ] 
+4 
+1 
+[ 1 ] 
+1 
+1 
+0.5 
+1 
+1000 
+1 
+0.5 
+1 
+error: expected a vector (nx1 or 1xn); got 2x2
+in fft
+error: expected a matrix; got an array
+in fft
+error: expected a non-empty vector; got 0x1
+in fft
+error: expected 4 spectrum rows for length 6; got 3
+in ifft
+error: expected a positive integer length; got 4.5
+in ifft
+error: expected a positive integer length; got 0
+in ifft
+error: expected a complex vector (nx2, n >= 1); got 3x1
+in cfft
+error: expected a complex vector (nx2, n >= 1); got 3x1
+in magnitudes
+error: expected a positive integer length; got 0
+in hann
+error: expected a positive integer length; got 2.5
+in hann

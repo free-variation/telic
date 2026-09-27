@@ -1,0 +1,10 @@
+PocketFFT vendored source (C version).
+
+upstream:  https://github.com/mreineck/pocketfft (branch master)
+commit:    81d171a6d5562e3aaa2c73489b70f564c633ff81
+tarball:   https://codeload.github.com/mreineck/pocketfft/tar.gz/81d171a6d5562e3aaa2c73489b70f564c633ff81
+sha256:    70d1ac85b271a35a30e9bd709923170d5098413553b2380e33cb419282b8a35d
+
+One C99 source file and its header. 3-clause BSD (see LICENSE.md). Produced
+by tools/vendor-pocketfft.sh; do not edit these files by hand, re-run the
+script to update.

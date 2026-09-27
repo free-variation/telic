@@ -1,0 +1,101 @@
+\ ==== fft ( v -- spectrum ), ifft ( spectrum n -- v ), cfft icfft ( z -- z' ),
+\      magnitudes ( z -- v ), hann ( n -- v ),
+\      amplitude-spectrum ( samples rate -- dataset ), amplitude-at ( samples rate hz -- a ) ====
+
+\ Discrete Fourier transforms on PocketFFT. A complex vector is nx2 (real,
+\ imaginary); forward transforms are unnormalized, inverses divide by n.
+\ Printed values are rounded or reduced to 1/0 comparisons so the native and
+\ wasm builds, whose libm differs in the last bits, print the same lines.
+
+11 seed
+
+: tidy ( m -- m' ) 1000000 * round 1000000 / 0 + ;
+: max-difference ( a b -- d ) - abs max ;
+: ramp ( n -- v ) 0 swap 1 - 1 matrix-range transpose ;
+: sine-cycles ( k n -- v ) | k n | n ramp 2 PI * k * n / * sin ;
+: seeded-real ( n -- v ) iota ( drop random ) map vector ;
+: seeded-complex ( n -- z ) | n | n 2 * iota ( drop random ) map n 2 matrix ;
+
+\ the O(n^2) definition, one output bin per iteration
+: direct-dft ( z -- z' )
+	| z |
+	z dim drop to n
+	z 0 n 0 1 submatrix to real-parts
+	z 0 n 1 2 submatrix to imaginary-parts
+	n ramp to j
+	[ ] to values
+	0 n 1 do k
+		j 2 PI * k * n / * to theta
+		theta cos to c
+		theta sin to s
+		values real-parts c * imaginary-parts s * + sum add-last! drop
+		values imaginary-parts c * real-parts s * - sum add-last! drop
+	loop
+	values n 2 matrix ;
+
+\ === known transforms ===
+[ 1 0 0 0 ] vector fft tidy matrix>array . cr              \ [ 1 0 1 0 1 0 ]
+[ 1 1 1 1 1 ] vector fft tidy matrix>array . cr            \ [ 5 0 0 0 0 0 ]
+3 16 sine-cycles fft magnitudes tidy matrix>array . cr     \ [ 0 0 0 8 0 0 0 0 0 ]
+3 16 sine-cycles fft n-rows . cr                           \ 9 (bins 0..8)
+3 15 sine-cycles fft n-rows . cr                           \ 8 (odd n: bins 0..7)
+[ 1 0 0 1 ] 2 2 matrix cfft tidy matrix>array . cr         \ [ 1 1 1 -1 ]
+[ 3 4 0 1 ] 2 2 matrix magnitudes matrix>array . cr        \ [ 5 1 ]
+clear
+
+\ === round trips, including the prime 1009 (Bluestein) ===
+: real-round-trip ( n -- flag ) | n | n seeded-real dup fft n ifft max-difference 1e-12 < ;
+: complex-round-trip ( n -- flag ) | n | n seeded-complex dup cfft icfft max-difference 1e-12 < ;
+[ 1 2 7 64 1000 1009 ] ( real-round-trip ) map . cr        \ [ 1 1 1 1 1 1 ]
+[ 1 2 7 64 1000 1009 ] ( complex-round-trip ) map . cr     \ [ 1 1 1 1 1 1 ]
+[ 1 2 3 4 5 ] 1 5 matrix fft 5 ifft n-columns . cr         \ 1 (always nx1)
+[ 1 2 3 4 5 ] 1 5 matrix fft 5 ifft tidy matrix>array . cr \ [ 1 2 3 4 5 ] (a 1xn row is accepted)
+clear
+
+\ === against the direct DFT ===
+16 seeded-complex dup cfft swap direct-dft max-difference 1e-12 < . cr    \ 1
+1009 seeded-complex dup cfft swap direct-dft max-difference 1e-9 < . cr   \ 1 (prime length)
+clear
+
+\ === Parseval and linearity ===
+256 seeded-complex to z
+z dup * sum to energy
+z cfft dup * sum 256 / to spectral-energy
+energy spectral-energy - abs energy / 1e-12 < . cr         \ 1
+64 seeded-real to x
+64 seeded-real to y
+x 2 * y 3 * - fft  x fft 2 *  y fft 3 * -  max-difference 1e-12 < . cr   \ 1
+clear
+
+\ === hann ===
+8 hann tidy matrix>array . cr                              \ [ 0 0.146447 0.5 0.853553 1 0.853553 0.5 0.146447 ]
+8 hann sum . cr                                            \ 4
+8 hann dup 1 @e swap 7 @e - abs 1e-15 < . cr               \ 1 (w[k] = w[n-k])
+1 hann matrix>array . cr                                   \ [ 1 ]
+clear
+
+\ === amplitude-at and amplitude-spectrum ===
+: tone ( hz amplitude -- v ) | hz amplitude | 48000 ramp 2 PI * hz * 48000 / * sin amplitude * ;
+: millis ( f -- f' ) 1000 * round 1000 / ;
+1000 1 tone 48000 1000 amplitude-at millis . cr            \ 1
+1000 1 tone 48000 3000 amplitude-at 0.001 < . cr           \ 1
+1000 0.5 tone 48000 1000 amplitude-at millis . cr          \ 0.5
+1000.5 1 tone 48000 1000.5 amplitude-at millis . cr        \ 1 (off a bin, still exact)
+1000 1 tone 48000 amplitude-spectrum to spectrum
+spectrum :hz @ 1000 @e . cr                                \ 1000
+spectrum :amplitude @ 1000 @e millis . cr                  \ 1
+spectrum :amplitude @ 999 @e millis . cr                   \ 0.5 (Hann main lobe)
+spectrum :amplitude @ 1002 @e 0.001 < . cr                 \ 1
+clear
+
+\ errors
+[ 1 2 3 4 ] 2 2 matrix fft                                 \ (not a vector)
+[ 1 2 3 ] fft                                              \ (an array, not a matrix)
+[ ] 0 1 matrix fft                                         \ (empty)
+[ 1 2 3 4 ] vector fft 6 ifft                              \ (3 bins; length 6 needs 4)
+[ 1 2 3 4 ] vector fft 4.5 ifft                            \ (non-integer length)
+[ 1 2 3 4 ] vector fft 0 ifft                              \ (length below 1)
+[ 1 2 3 ] vector cfft                                      \ (not nx2)
+[ 1 2 3 ] vector magnitudes                                \ (not nx2)
+0 hann                                                     \ (length below 1)
+2.5 hann                                                   \ (non-integer length)

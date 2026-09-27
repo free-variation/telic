@@ -26,10 +26,13 @@ make bench     # runs the benchmark suite (Telic vs CPython)
 ```
 
 Self-contained: its vendored dependencies — PCRE2 (regex), isocline (REPL line
-editing), and SQLite (embedded SQL) — live under `external/` and are built from
+editing), SQLite (embedded SQL) with sqlite-vec (vector search), nanoarrow
+(Arrow IPC files), PocketFFT (Fourier transforms), Tigr (the graphics window),
+and miniaudio (audio device output) — live under `external/` and are built from
 source into the binary, so `make` needs only a C compiler and the system
 `libffi`. Refresh them with `make vendor-pcre2`, `make vendor-sqlite`, and
-`make vendor-isocline` (see each directory's `PROVENANCE`).
+`make vendor-isocline`, or `sh tools/vendor-<name>.sh` for sqlite-vec,
+nanoarrow, pocketfft, tigr and miniaudio (see each directory's `PROVENANCE`).
 
 `make` also builds `liblapacke_telic.so`, a thin shared library that wraps
 the platform BLAS/LAPACK (Accelerate on macOS, OpenBLAS on Linux) behind
@@ -284,6 +287,7 @@ exceptions.
 - **Selection** — `augment`/`hstack` (concatenate two matrices column-wise), `vstack` (row-wise), `submatrix` (copy a half-open row×column block), `select-rows` (gather rows named by a float index array or an index vector; a dataset operand gathers every column by the same indices).
 - **Reductions** — `sum`, `row-sums`, `column-sums`, `max`, `min`, `argmax`, `argmin` (flat row-major index of the extreme element), `row-maxes`, `row-mins`, `column-maxes`, `column-mins`, `cumulative-sum` (row-major prefix sums, shape preserved). Library `mean`, `row-means`, `column-means` on top.
 - **Norms** — `norm` and `frobenius-norm`, both √(Σ elements²); `dot` is the inner product.
+- **Fourier transforms** (vendored PocketFFT, any length) — `fft`/`ifft` for real vectors, `cfft`/`icfft` for complex ones as n×2 matrices, `magnitudes`, the `hann` window, and `amplitude-spectrum` / `amplitude-at` for measuring the components of a sampled signal.
 - **Descriptive statistics** — `var`, `quantile`, and `ks-distance` in C, with `std`, `se`, `median`, `percentile`, `quantiles`, `iqr`, `ci`, `summary`, `histogram-table`, `ecdf`, `binomial-deviance`, `cross-validate`, and the `bootstrap` family in the embedded library — LAPACK-free, so wasm-capable. NaN elements are missing values: the statistics skip them, and the correlations and regressions use complete cases.
 - **Correlations** — `covariance`, `correlation-pearson`, `correlation-spearman`, `correlation-kendall` (tau-b); `correlate-with` bootstraps a confidence interval for any of them, `cor` does it with kendall in one word. `qnorm` and `pnorm` are the standard normal quantile and CDF, `random-normal` a standard normal deviate.
 - **SVG plotting** (`lib/plot.telic`) — scatter, line series, histograms, bar charts, and Tukey boxplots over a deferred-rendering figure: marks accumulate with the style in effect and nothing maps to pixels until render, so draw order is free and the domain may be set after the data. `save-figure` writes a version, `show-figure` opens a browser view that later versions appear in.
@@ -534,6 +538,7 @@ src/c/collections.c    — sets, arrays, and frames
 src/c/indexing.c       — polymorphic element access: @i/!i and their fused forms, over arrays/segments/matrices
 src/c/matrix.c         — matrix words and numeric kernels
 src/c/statistics.c     — statistics kernels: var, quantile, kendall's tau-b
+src/c/fourier.c        — Fourier transforms on PocketFFT: fft/ifft, cfft/icfft, magnitudes, hann
 src/c/dimension.c      — dimensioned quantities: base dimensions, units, quantity arithmetic
 src/c/functional.c     — higher-order operations (map, nmap, …) and multi-core parallelism
 src/c/superwords.c     — compile-time instruction fusion (superwords)
@@ -543,10 +548,12 @@ src/c/database.c       — SQLite integration
 src/c/foreign.c        — FFI (libffi), pointer registry, matrix/segment bridges
 src/c/platform_posix.c — POSIX platform: arena mmap, isocline REPL, subprocesses
 src/c/platform_wasi.c  — WASI platform: allocator + erroring stubs for FFI/subprocess
+src/c/arrow.c          — Arrow IPC files via nanoarrow: read-arrow/write-arrow
+src/c/graphics.c       — the Tigr window, drawing words, and the thread-0 event pump
 src/c/help_table.c     — generated help/man text (from docs/reference.md)
 src/forth/*.telic        — standard library (concatenated in Makefile order, embedded)
 lib/                   — loadable libraries: statistics.telic, plot.telic, http.telic, claude.telic, mcp.telic
-external/              — vendored deps: pcre2, sqlite, isocline, lapacke
+external/              — vendored deps: pcre2, sqlite, sqlite-vec, nanoarrow, pocketfft, tigr, miniaudio, isocline, lapacke
 tests/                 — golden-output test files
 bench/                 — benchmark suite (Telic vs CPython) and inventory
 docs/                  — the word reference (reference.md, reference-libraries.md), idioms.md,

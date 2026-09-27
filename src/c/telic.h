@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.40.0-alpha"
+#define VERSION "0.41.0-alpha"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1601,6 +1601,14 @@ void p_where(DISPATCH_ARGS);
 // statistics.c
 void p_correlation_kendall(DISPATCH_ARGS);
 void p_ks_distance(DISPATCH_ARGS);
+
+// fourier.c
+void p_cfft(DISPATCH_ARGS);
+void p_fft(DISPATCH_ARGS);
+void p_hann(DISPATCH_ARGS);
+void p_icfft(DISPATCH_ARGS);
+void p_ifft(DISPATCH_ARGS);
+void p_magnitudes(DISPATCH_ARGS);
 
 // indexing.c
 void p_add_store_i(DISPATCH_ARGS);

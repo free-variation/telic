@@ -75,6 +75,8 @@ aggregate
 all?
 alloc-stats
 amb
+amplitude-at
+amplitude-spectrum
 and
 annotate
 any?
@@ -128,6 +130,7 @@ case
 cat
 catch
 cd
+cfft
 char-at
 choose
 ci
@@ -273,6 +276,7 @@ ffi-free
 ffi-function
 ffi-open
 ffi-variadic
+fft
 figure
 figure!
 figure>svg
@@ -350,6 +354,7 @@ gpd-quantile
 group-by
 group-indices
 halt
+hann
 has?
 head
 help
@@ -361,9 +366,11 @@ http-get
 http-post
 http-request
 i-times
+icfft
 identity
 identity-matrix
 if
+ifft
 imaginary-part
 in?
 index-of
@@ -408,6 +415,7 @@ lshift
 lvar
 lvar?
 magnitude
+magnitudes
 make-directory
 man
 map
