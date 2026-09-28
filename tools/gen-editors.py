@@ -177,7 +177,7 @@ def emit_vim(auto):
     L.append("")
     for grp, link in [
         ("Comment", "Comment"), ("String", "String"), ("Number", "Number"),
-        ("Symbol", "Constant"), ("Path", "Constant"),
+        ("Symbol", "Type"), ("Path", "Type"),
         ("FrameOp", "Operator"), ("FrameKey", "Type"),
         ("Define", "Define"), ("DefName", "Function"), ("Effect", "Identifier"),
         ("Conditional", "Conditional"),

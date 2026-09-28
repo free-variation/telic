@@ -100,8 +100,8 @@ syn keyword telicBuiltin write-in write-tsv xml-escape xt? yield zero-variance?
 hi def link telicComment      Comment
 hi def link telicString       String
 hi def link telicNumber       Number
-hi def link telicSymbol       Constant
-hi def link telicPath         Constant
+hi def link telicSymbol       Type
+hi def link telicPath         Type
 hi def link telicFrameOp      Operator
 hi def link telicFrameKey     Type
 hi def link telicDefine       Define
