@@ -6,134 +6,35 @@ A TODO list of pending work, highest priority first.
 
 ## Audio synthesizer — remaining work
 
-The voice engine is `src/c/synth.c`: parts, the voice pool, PM operators,
-envelopes, `render-audio` (reference: "Audio synthesizer"). What remains, in
-order, is device output, then the filter/LFO/unison layer, the sequencer and
-the effects. Sources to port for the later layers: promini's `effects.c`
-(Moog ladder, ping-pong delay), `reverb.c` (Dattorro), and the LFO logic of
-`mod.c`.
+The voice engine is `src/c/synth.c` and the output device `src/c/audio.c`
+(reference: "Audio synthesizer"). What remains, in order, is the sequencer
+and the effects. Sources to port for the effects: promini's `effects.c`
+(ping-pong delay) and `reverb.c` (Dattorro).
 
-### 1. Device output
+### 1. Device output — follow-ups
 
-#### Semantics
+- **Core Audio thread signal mask.** `audio_open` blocks every signal while
+  miniaudio creates its threads, so they inherit a full mask and SIGINT and
+  SIGUSR1 reach only the interpreter. Confirm that Core Audio's IO thread is
+  created from the calling thread (it is the system HAL's thread): send
+  SIGINT during `wait-audio` many times and check that it always interrupts.
+- **Output latency.** `wait-audio` returns when the last samples are handed
+  to the device, before they have played (a 0.5 s `play` returns at 489 ms).
+  Add the device's reported latency (`ma_device` period × periods) to the
+  wait if code after `wait-audio` must follow the sound's end.
+- **Queue-full path.** The 4096-command limit's error is untested: offline,
+  commands apply at once and never queue, so reaching it needs more than
+  4096 commands submitted live within one device buffer.
 
-1. `audio-on ( -- )` opens the default output device, 48 kHz stereo 32-bit
-   float, and runs the synthesizer on its thread; `note-on`, `note-off` and
-   `patch!` then act at the device's next block and are heard. `audio-off
-   ( -- )` closes it. Nothing depends on the graphics window.
-2. While the device is on, `render-audio` errors ("the synthesizer is playing
-   live; audio-off first"): one synthesizer state cannot advance on two
-   clocks.
-3. `play ( matrix -- )` plays an n×1 (mono) or n×2 (stereo) matrix of 48 kHz
-   samples, opening the device if needed, and returns at once; overlapping
-   `play`s and the voices mix. `silence` also ends every `play`.
-   `wait-audio ( -- )` blocks until every `play` has ended and every voice
-   has fallen silent.
-4. The command queue from the interpreter to the device thread holds 4096
-   commands; a word that would overflow it errors with "audio command queue
-   full (max 4096)" and queues nothing.
+### 2. Filter, LFO, unison — follow-ups
 
-#### Implementation
-
-1. `src/c/audio.c`, native only: `ma_device` with a data callback that drains
-   the queue, then calls synth.c's renderer for the period's frames.
-   `MINIAUDIO_DEFINES` gains `MA_NO_ENGINE MA_NO_NODE_GRAPH
-   MA_NO_RESOURCE_MANAGER MA_NO_GENERATION`.
-2. The queue is a single-producer single-consumer ring of commands (note-on,
-   note-off, patch replacement, play buffer, silence) with the patch already
-   converted to its C struct and a `play` buffer already copied out of the
-   matrix, so the device thread never takes a lock, allocates, or reads a
-   telic value. Finished `play` buffers return on a second ring for the
-   interpreter to free.
-3. synth.c exposes its renderer and command functions in telic.h's API block;
-   `platform_wasi.c` stubs `audio-on`, `audio-off`, `play` and `wait-audio`.
-4. Source invariants for the no-lock device thread and the two rings.
-
-#### Acceptance
-
-1. `play` of a 1 s matrix returns in under 10 ms and `wait-audio` returns
-   between 1.0 and 1.1 s later (measured with `now`).
-2. With `audio-on`, a `note-on` is audible and `note-off` releases it
-   (listened to).
-3. `135_audio_device`, native only and listed in `tests/wasm-skip.txt` as "no
-   audio device on WASI": the timings above; `render-audio` erroring while
-   live; `play` errors for a 3-column matrix, an empty matrix, a non-matrix.
-
-### 2. Filter, LFO, unison, glide, live parameters
-
-#### Semantics
-
-1. New patch keys:
-   - `:unison` 1–7, `:detune` in cents, `:spread` 0–1 — each note plays
-     `:unison` copies of every operator, detuned symmetrically across
-     `:detune` and panned symmetrically across `:spread`, the sum scaled by
-     1/√`:unison`.
-   - `:cutoff` Hz, `:resonance` 0–4, `:drive` — the voice's Moog ladder
-     filter, ported from promini with per-voice mono state. Omitted
-     `:cutoff` bypasses the filter.
-   - `:filter-envelope` — an envelope frame plus `:amount` in octaves: the
-     cutoff at any sample is `:cutoff × 2^(:amount × level)`.
-   - `:lfo` — `:shape` (`:sine` `:triangle` `:saw` `:square`
-     `:sample-and-hold`), `:rate` Hz, `:delay` and `:fade` in seconds,
-     `:key-sync` flag, and depths `:pitch` in semitones, `:cutoff` in octaves,
-     `:pan` 0–1. Sample-and-hold draws from the seeded note-on generator.
-   - `:glide` in seconds — portamento from the part's previous note.
-2. New operator keys: `:lfo-level` 0–1 (tremolo on a carrier, index wobble on
-   a modulator) and `:lfo-width` 0–1 (PWM on a pulse).
-3. `part! ( value key part -- )` changes one patch parameter of the part's
-   sounding voices and its patch, with the patch frame's keys; the voices
-   ramp it over one 64-frame block.
-
-#### Acceptance
-
-1. **Filter.** With `:cutoff 500`, a rendered 4 kHz `:saw` fundamental is at
-   least 60 dB below the unfiltered render (24 dB per octave, three octaves).
-2. **Filter envelope.** With `:amount 4` and `:cutoff 400`, the cutoff
-   estimated from the rendered spectrum peaks near 6.4 kHz at the end of the
-   attack and settles near `400 × 2^(4 × :sustain)`.
-3. **Unison.** `:unison 3 :detune 20 :spread 1` renders left and right
-   channels that differ; `:spread 0` renders them identical.
-4. **Live control.** `part!` on `:cutoff` during a sounding note changes the
-   rendered spectrum within one block, with no step larger than the ramp.
-5. **Cost.** 16 voices × `:unison 3` with the filter on use under 25% of one
-   core on the development machine, measured, as a benchmark in `bench/`.
-
-#### Tests
-
-As for the voice engine: offline renders measured with `amplitude-at` and
-windowed RMS, every printed value rounded to the tolerance it asserts so
-native and wasm print the same lines, the RNG seeded, errors grouped at the
-end, both suites.
-
-1. `127_audio_filter` — no `:cutoff` bypasses (output equals unfiltered);
-   attenuation of a saw's harmonics above cutoff at 24 dB per octave within
-   3 dB; resonance 3 boosts the harmonic nearest the cutoff over resonance
-   0; resonance at the maximum stays finite (no NaN, peak ≤ 4); `:drive`
-   adds harmonics to a pure sine; filter envelope: estimated cutoff at the
-   attack peak and during sustain matches `:cutoff × 2^(:amount × level)`
-   within a third of an octave; negative `:amount` sweeps down.
-2. `128_audio_lfo` — each `:shape` identified from the pitch-deviation
-   trace of a rendered note (sine, triangle, saw, square, sample-and-hold
-   steps at `:rate`); `:rate` from the trace period; `:delay` — no deviation
-   before it; `:fade` — deviation grows linearly over it; `:key-sync` true —
-   two notes start at the same LFO phase, false — they do not; each
-   destination alone: `:pitch` (± semitones measured), `:cutoff`, `:pan`
-   (left/right RMS alternate), operator `:lfo-level` on a carrier
-   (amplitude tremolo depth) and on a modulator (sideband amplitude varies,
-   fundamental does not — discriminating), `:lfo-width` (pulse harmonic
-   balance varies).
-3. `129_audio_unison` — `:unison 1` equals no unison; `:unison 3 :detune 20`
-   shows three components at −10, 0, +10 cents; `:spread 1` makes left ≠
-   right, `:spread 0` left = right; total level normalized so unison count
-   does not change RMS by more than 1 dB.
-4. `121_audio_notes` gains `:glide 0.1` — pitch reaches the new note at
-   0.1 s ± one block, and a first note does not glide — and `:velocity`
-   scaling the filter envelope amount.
-5. `131_audio_live` — `part!` on each live key (`:cutoff`, `:resonance`,
-   `:pan`, `:level`, an operator `:level`/`:ratio`) changes the rendered
-   measurement within one block and ramps without a step larger than the
-   ramp; `patch!` leaves sounding notes on the old patch and applies to the
-   next note.
+- **Cost benchmark.** 16 voices of a two-saw patch with `:unison 3`,
+  `:spread`, the filter, its envelope and a cutoff LFO render 10 s in 1.8 s
+  (18% of one core, measured offline). Add it to `bench/` so a regression
+  shows in the benchmark reports.
+- **Filter CPU.** The ladder calls `tanh` ten times per channel per sample;
+  a rational tanh approximation would cut the filter's share if voice counts
+  grow.
 
 ### 3. Sequencer
 
@@ -582,6 +483,22 @@ semantics of record.
 
 The C sources carry no comments; constraints a future change must honor
 live here instead. File and function name each invariant's home.
+
+- The audio device thread never takes a lock, allocates, frees, or reads a
+  telic value. The interpreter reaches it only through a single-producer
+  single-consumer ring of `SynthCommand`s, whose `play` buffers are copied to
+  floats before submission, and through one pending-patch slot per part
+  guarded by an atomic flag that the interpreter sets and the device thread
+  clears; finished `play` buffers return on a second ring and the
+  interpreter frees them in `synth_collect_finished`. Offline, the same
+  commands apply directly (synth.c, `synth_submit`, `synth_device_render`).
+- `synth_set_live` flips between the two modes only while the device is
+  stopped: `audio_close` uninitializes the device before `synth_set_live(0)`
+  drains what is queued, and `audio_open` sets live before starting it
+  (audio.c).
+- `audio_open` blocks every signal around `ma_device_init`/`ma_device_start`
+  so the threads miniaudio creates inherit a full mask and the interpreter's
+  signal handlers run only on the interpreter thread (audio.c, `audio_open`).
 
 - `main` runs the interpreter on a thread it spawns and keeps thread 0 pumping
   window events, because Cocoa requires the process's first thread and telic's

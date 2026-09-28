@@ -19,6 +19,7 @@ Dedicated to Chuck Peddle and Tony Wilkinson.
 ```
 make           # builds ./telic
 make test      # runs the golden-output test suite
+make test-synth  # plays the synthesizer's listening tests on the audio device
 make bench     # runs the benchmark suite (Telic vs CPython)
 ./telic              # REPL
 ./telic prog.telic     # run program files and exit (repeatable, in order; -i to drop into the REPL after)
@@ -449,7 +450,7 @@ Embedded relational storage via the vendored SQLite amalgamation — built into 
 
 ### Audio
 
-- **A phase-modulation synthesizer** — sixteen parts, each with a patch frame of up to eight operators (sine, triangle, saw and pulse band-limited, white, pink and brown noise), a modulation matrix with feedback, and per-operator envelopes; `note-on`/`note-off` take pitches as MIDI numbers or symbols like `:f#3`, and `render-audio` computes the output into a stereo matrix for the Fourier words or a file.
+- **A phase-modulation synthesizer** — sixteen parts, each with a patch frame of up to eight operators (sine, triangle, saw and pulse band-limited, white, pink and brown noise), a modulation matrix with feedback, per-operator envelopes, a Moog ladder filter with its own envelope, an LFO on pitch, cutoff, pan, level and pulse width, unison with detune and stereo spread, and glide; `part!`/`operator!` change parameters of sounding notes; `note-on`/`note-off` take pitches as MIDI numbers or symbols like `:f#3`; after `audio-on` it plays live on the output device (miniaudio), and `render-audio` computes the same output offline into a stereo matrix for the Fourier words or a file. `play` sends any sample matrix to the device.
 
 ### Data: TSV, datasets, and statistics
 
@@ -544,6 +545,7 @@ src/c/matrix.c         — matrix words and numeric kernels
 src/c/statistics.c     — statistics kernels: var, quantile, kendall's tau-b
 src/c/fourier.c        — Fourier transforms on PocketFFT: fft/ifft, cfft/icfft, magnitudes, hann
 src/c/synth.c          — the synthesizer: voices, operators, envelopes, patches, render-audio
+src/c/audio.c          — the miniaudio output device: audio-on/off, play, wait-audio
 src/c/dimension.c      — dimensioned quantities: base dimensions, units, quantity arithmetic
 src/c/functional.c     — higher-order operations (map, nmap, …) and multi-core parallelism
 src/c/superwords.c     — compile-time instruction fusion (superwords)
@@ -559,7 +561,7 @@ src/c/help_table.c     — generated help/man text (from docs/reference.md)
 src/forth/*.telic        — standard library (concatenated in Makefile order, embedded)
 lib/                   — loadable libraries: statistics.telic, plot.telic, http.telic, claude.telic, mcp.telic
 external/              — vendored deps: pcre2, sqlite, sqlite-vec, nanoarrow, pocketfft, tigr, miniaudio, isocline, lapacke
-tests/                 — golden-output test files
+tests/                 — golden-output test files; tests/lib/ the loadable-library tests, tests/synth/ the audible synthesizer tests
 bench/                 — benchmark suite (Telic vs CPython) and inventory
 docs/                  — the word reference (reference.md, reference-libraries.md), idioms.md,
                          and the primers: continuations, logic, tracing

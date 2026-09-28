@@ -2,7 +2,7 @@
 accepted 
 1 
 0.707 
-error: unknown patch key :cutoff
+error: unknown patch key :chorus
 in patch!
 error: unknown operator key :shape
 in patch!
@@ -16,7 +16,7 @@ error: expected an operator frame; got a float
 in patch!
 error: expected :wave one of :sine :triangle :saw :pulse :white :pink :brown; got :square
 in patch!
-error: expected a wave symbol for :wave; got a string
+error: expected :wave one of :sine :triangle :saw :pulse :white :pink :brown; got a string
 in patch!
 error: expected :ratio in [0.015625, 64]; got 0
 in patch!

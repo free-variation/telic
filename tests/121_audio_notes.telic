@@ -104,6 +104,15 @@ silence { :operators [ { :fixed 1000 } ] :pan 0.5 } 0 patch! :a4 1 0 note-on 0.5
 leaning left 1000 amp . leaning right 1000 amp . cr               \ 0.383 0.924 (cos and sin of 3 pi / 8)
 silence clear
 
+\ === :glide: the pitch slides from the part's previous note, linearly in semitones ===
+: glided ( glide -- stereo ) | glide | silence { } glide :glide ! 0 patch! :a4 1 0 note-on 0.2 render-audio drop :a5 1 0 note-on 0.3 render-audio left ;
+0.1 glided to sliding
+sliding 0 2400 0 1 submatrix 880 amp 0.1 < . cr        \ 1 (the first 50 ms are still below 880 Hz)
+sliding 5280 14400 0 1 submatrix 880 amp . cr          \ 0.707 (arrived by 0.11 s)
+0 glided 480 2400 0 1 submatrix 880 amp . cr           \ 0.707 (:glide 0 jumps, from the end of the 5 ms attack)
+silence { :glide 0.1 } 0 patch! :a5 1 0 note-on 0.1 render-audio left 880 amp . cr   \ 0.707 (a first note after silence does not glide)
+silence clear
+
 \ === note-off of a pitch that is not sounding does nothing ===
 :c4 0 note-off 0.1 render-audio abs max . cr     \ 0
 

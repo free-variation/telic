@@ -1,0 +1,17 @@
+1 
+0.577 0.577 0.577 
+1 
+0 
+1 
+0.817 0 
+1 
+error: expected :unison in [1, 7]; got 0
+in patch!
+error: expected :unison in [1, 7]; got 8
+in patch!
+error: expected an integer for :unison; got 2.5
+in patch!
+error: expected :detune in [0, 100]; got 101
+in patch!
+error: expected :spread in [0, 1]; got 2
+in patch!

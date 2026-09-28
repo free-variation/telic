@@ -1,0 +1,14 @@
+1 
+1 
+mono 
+stereo 
+1 
+2 4800 
+error: the synthesizer is playing live; audio-off first
+in render-audio
+error: expected a matrix of samples (nx1 or nx2, n >= 1); got 1x3
+in play
+error: expected a matrix of samples (nx1 or nx2, n >= 1); got 0x1
+in play
+error: expected a matrix of samples (nx1 or nx2); got an array
+in play

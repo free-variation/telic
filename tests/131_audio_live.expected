@@ -1,0 +1,23 @@
+1 
+0.25 
+0 1.414 
+0 1.414 
+1 
+1 
+1 0 
+0 
+0.5 
+1 0 
+1 
+error: expected a parameter key (:level :pan :cutoff :resonance :drive); got :glide
+in part!
+error: expected :level in [0, 1]; got 2
+in part!
+error: expected a parameter key (:level :pan :cutoff :resonance :drive); got a string
+in part!
+error: expected a part number in [0, 16); got 16
+in part!
+error: expected an operator index in operator! in [0, 8); got 8
+in operator!
+error: expected a parameter key (:level :ratio :width); got :detune
+in operator!

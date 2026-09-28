@@ -22,6 +22,12 @@
 { :operators [ { } { } { } { } { } { } { } { } ] :modulation [ [ 7 0 100 ] [ 0 0 -100 ] ]
   :carriers [ 0 7 ] :level 0 :pan -1 :velocity 0 } 0 patch!
 { :pan 1 } 15 patch!
+{ :unison 7 :detune 100 :spread 1 :cutoff 20000 :resonance 4 :drive 10 :glide 10
+  :filter-envelope { :attack 60 :decay 0 :sustain 1 :release 0 :sustain-decay 60 :amount -10 }
+  :lfo { :shape :sample-and-hold :rate 100 :delay 60 :fade 60 :key-sync 0 :pitch 24 :cutoff 8 :pan 1 }
+  :operators [ { :lfo-level 1 :lfo-width 0.49 } ] } 1 patch!
+{ :unison 1 :detune 0 :spread 0 :cutoff 20 :resonance 0 :drive 0.1 :glide 0
+  :lfo { :rate 0.01 } :filter-envelope { :amount 10 } } 2 patch!
 "accepted" . cr                                      \ accepted
 clear
 
@@ -31,7 +37,7 @@ clear
 silence :a4 1 0 note-on 1 render-audio settled 1000 amp . cr   \ 0.707 (still the 1 kHz patch)
 
 \ errors
-{ :cutoff 500 } 0 patch!                             \ (unknown patch key)
+{ :chorus 500 } 0 patch!                             \ (unknown patch key)
 { :operators [ { :shape :sine } ] } 0 patch!         \ (unknown operator key)
 { :operators [ ] } 0 patch!                          \ (no operators)
 { :operators [ { } { } { } { } { } { } { } { } { } ] } 0 patch!   \ (nine operators)

@@ -99,6 +99,8 @@ assoc
 atan
 atan2
 auc
+audio-off
+audio-on
 augment
 axes
 barchart
@@ -475,6 +477,7 @@ of
 on-tick
 open-app-window
 open-file
+operator!
 or
 over
 pad-left
@@ -483,6 +486,7 @@ panel
 paper
 parallel-run
 parse-time
+part!
 partition
 patch!
 pbootstrap
@@ -494,6 +498,7 @@ pfilter-ext
 pick
 pitch>hz
 pitch>midi
+play
 plot
 pmap
 pmap-ext
@@ -752,6 +757,7 @@ vvf+
 vvf-
 vvf/
 wait
+wait-audio
 wait-readable
 wall-now
 where

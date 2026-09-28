@@ -140,3 +140,15 @@ NO_WINDOW_SYSTEM(p_screen_shader, "screen-shader")
 NO_WINDOW_SYSTEM(p_screen_effect, "screen-effect")
 NO_WINDOW_SYSTEM(p_screen_frame, "screen-frame")
 NO_WINDOW_SYSTEM(p_screen_frames, "screen-frames")
+
+#define NO_AUDIO_DEVICE(c_name, word_name) \
+	void c_name(DISPATCH_ARGS) { \
+		(void)chain_ip; \
+		(void)chain_sp; \
+		fail(interp, "%s needs an audio device; the wasm build has none", word_name); \
+	}
+
+NO_AUDIO_DEVICE(p_audio_off, "audio-off")
+NO_AUDIO_DEVICE(p_audio_on, "audio-on")
+NO_AUDIO_DEVICE(p_play, "play")
+NO_AUDIO_DEVICE(p_wait_audio, "wait-audio")

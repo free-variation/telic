@@ -1141,6 +1141,14 @@ int vector_argsort_copy(Interpreter *interp, Object *source);
 int vector_length(Interpreter *interp, Object *vector, const char *noun_phrase);
 int vector_sorted_copy(Interpreter *interp, Object *source);
 
+// synth.c
+void synth_collect_finished(void);
+void synth_device_render(float *interleaved, int n_frames);
+int synth_is_live(void);
+void synth_set_live(int live);
+int synth_submit_play(Interpreter *interp, float *samples, int n_frames);
+int synth_wait_quiet(Interpreter *interp);
+
 // superwords.c
 void define_superwords(Interpreter *interp);
 int superword_cell_count(cell handler);
@@ -1613,11 +1621,19 @@ void p_magnitudes(DISPATCH_ARGS);
 // synth.c
 void p_note_off(DISPATCH_ARGS);
 void p_note_on(DISPATCH_ARGS);
+void p_operator_store(DISPATCH_ARGS);
+void p_part_store(DISPATCH_ARGS);
 void p_patch_store(DISPATCH_ARGS);
 void p_pitch_to_hz(DISPATCH_ARGS);
 void p_pitch_to_midi(DISPATCH_ARGS);
 void p_render_audio(DISPATCH_ARGS);
 void p_silence(DISPATCH_ARGS);
+
+// audio.c
+void p_audio_off(DISPATCH_ARGS);
+void p_audio_on(DISPATCH_ARGS);
+void p_play(DISPATCH_ARGS);
+void p_wait_audio(DISPATCH_ARGS);
 
 // indexing.c
 void p_add_store_i(DISPATCH_ARGS);

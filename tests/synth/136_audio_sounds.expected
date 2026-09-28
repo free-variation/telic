@@ -1,0 +1,13 @@
+Cmaj7 chord: FM electric piano (C4 E4 G4 B4), detuned saw pad (C3 G3), pulse bass (C2) (on time) 
+pink noise: 1 s, fading in over 0.2 s (on time) 
+rendered offline, the left side opens: 1 
+rendered offline, the right side closes: 1 
+filter sweeps: saws on C3, left opening 200 Hz to 6.4 kHz, right closing 6.4 kHz to 200 Hz (on time) 
+vibrato: a saw on A4, +/-0.4 semitone at 6 Hz, fading in after 0.2 s (on time) 
+tremolo: a sine on E4, its level pulsing at 7 Hz (on time) 
+pulse-width modulation: a pulse on C3, its width swinging 10% to 90% at 0.8 Hz (on time) 
+auto-pan: a triangle wave on G4, moving left to right once a second (on time) 
+sample-and-hold filter: a resonant saw on C2, its cutoff jumping to a random value 8 times a second (on time) 
+C major chord, one saw per note (on time) 
+the same chord, seven saws per note detuned across 30 cents and spread left to right (on time) 
+glide: a saw-and-pulse lead playing C4 G4 E4 C5 A4 F4 G4 C4, each note sliding 0.12 s from the last (on time) 

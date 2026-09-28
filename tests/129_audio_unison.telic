@@ -1,0 +1,47 @@
+\ ==== unison: :unison 1-7, :detune (cents, total span), :spread 0-1 ====
+
+\ Each note plays :unison copies of every operator, detuned evenly across
+\ :detune cents (a span of 20 puts three copies at -10, 0 and +10) and
+\ panned evenly across +/- :spread around the patch's :pan. The copies share
+\ the operator envelopes; the sum is scaled by 1/sqrt(:unison) so the level
+\ of the uncorrelated copies stays close to one voice's.
+
+11 seed
+
+: amp ( v hz -- a ) 48000 swap amplitude-at 0.70710678 / 1000 * round 1000 / ;
+: cents ( hz c -- hz' ) 1200 / 2 swap ^ * ;
+: left ( stereo -- v ) | stereo | stereo 0 stereo n-rows 0 1 submatrix ;
+: right ( stereo -- v ) | stereo | stereo 0 stereo n-rows 1 2 submatrix ;
+: rms ( v -- r ) dup * mean sqrt ;
+: sounding ( patch -- stereo ) silence 0 patch! :a4 1 0 note-on 2 render-audio ;
+
+\ === :unison 1 is the plain voice ===
+{ :unison 1 :detune 50 :spread 1 } sounding { } sounding = . cr        \ 1
+clear
+
+\ === three copies at -10, 0 and +10 cents ===
+{ :operators [ { :fixed 1000 } ] :unison 3 :detune 20 } sounding left to three
+three 1000 -10 cents amp . three 1000 amp . three 1000 10 cents amp . cr   \ 0.577 0.577 0.577 (each 1/sqrt 3)
+three 1000 -5 cents amp 0.1 < . cr                                        \ 1 (nothing between the copies)
+clear
+
+\ === :spread places the copies; 0 keeps left and right identical ===
+{ :unison 3 :detune 20 :spread 1 } sounding to wide
+wide left wide right = . cr                                    \ 0
+{ :unison 3 :detune 20 :spread 0 } sounding to narrow
+narrow left narrow right = . cr                                \ 1
+{ :operators [ { :fixed 1000 } ] :unison 3 :detune 20 :spread 1 } sounding to fanned
+fanned left 1000 -10 cents amp 0 + . fanned right 1000 -10 cents amp 0 + . cr   \ 0.817 0 (the lowest copy hard left: 1/sqrt 3 x sqrt 2)
+clear
+
+\ === the level barely moves with the count ===
+{ } sounding left rms to one
+{ :unison 5 :detune 30 } sounding left rms one / log10 20 * abs 1 < . cr   \ 1 (within 1 dB)
+silence clear
+
+\ errors
+{ :unison 0 } 0 patch!                                         \ (below 1)
+{ :unison 8 } 0 patch!                                         \ (above 7)
+{ :unison 2.5 } 0 patch!                                       \ (not an integer)
+{ :detune 101 } 0 patch!                                       \ (over 100 cents)
+{ :spread 2 } 0 patch!                                         \ (above 1)

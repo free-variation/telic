@@ -1,14 +1,27 @@
 #include "telic.h"
+#include <stdatomic.h>
+#include <time.h>
 
 #define SYNTH_SAMPLE_RATE 48000
+#define SYNTH_QUEUE_CAPACITY 4096
+#define SYNTH_MAX_PLAYS 64
+#define SYNTH_DEVICE_CHUNK 512
+#define SYNTH_WAIT_NANOSECONDS 1000000
 #define SYNTH_MAX_OPERATORS 8
 #define SYNTH_MAX_MODULATIONS 64
 #define SYNTH_MAX_PARTS 16
 #define SYNTH_MAX_VOICES 32
+#define SYNTH_MAX_UNISON 7
 #define SYNTH_MAX_RENDER_SECONDS 600
 #define SYNTH_MAX_STAGE_SECONDS 60
 #define SYNTH_MAX_DEPTH 100
 #define SYNTH_SILENT_LEVEL 1e-4
+#define SYNTH_RAMP_FRAMES 64
+#define SYNTH_MIN_CUTOFF 20.0
+#define SYNTH_MAX_CUTOFF 20000.0
+#define MOOG_VT 0.312
+#define MOOG_INPUT_SCALE 0.5
+#define MOOG_OVERSAMPLE 2
 
 typedef enum {
 	WAVE_SINE,
@@ -21,12 +34,31 @@ typedef enum {
 } SynthWave;
 
 typedef enum {
+	LFO_SINE,
+	LFO_TRIANGLE,
+	LFO_SAW,
+	LFO_SQUARE,
+	LFO_SAMPLE_AND_HOLD
+} LfoShape;
+
+typedef enum {
 	STAGE_ATTACK,
 	STAGE_DECAY,
 	STAGE_SUSTAIN,
 	STAGE_RELEASE,
 	STAGE_IDLE
 } EnvelopeStage;
+
+typedef enum {
+	PARAMETER_LEVEL,
+	PARAMETER_PAN,
+	PARAMETER_CUTOFF,
+	PARAMETER_RESONANCE,
+	PARAMETER_DRIVE,
+	PARAMETER_OPERATOR_LEVEL,
+	PARAMETER_OPERATOR_RATIO,
+	PARAMETER_OPERATOR_WIDTH
+} SynthParameter;
 
 typedef struct {
 	double attack;
@@ -43,6 +75,8 @@ typedef struct {
 	double detune_cents;
 	double level;
 	double width;
+	double lfo_level;
+	double lfo_width;
 	EnvelopeShape envelope;
 } SynthOperator;
 
@@ -53,6 +87,17 @@ typedef struct {
 } SynthModulation;
 
 typedef struct {
+	LfoShape shape;
+	double rate;
+	double delay;
+	double fade;
+	int key_sync;
+	double pitch;
+	double cutoff;
+	double pan;
+} SynthLfo;
+
+typedef struct {
 	int n_operators;
 	SynthOperator operators[SYNTH_MAX_OPERATORS];
 	int n_modulations;
@@ -61,6 +106,17 @@ typedef struct {
 	double level;
 	double pan;
 	double velocity_sensitivity;
+	int n_unison;
+	double unison_detune;
+	double spread;
+	int filter_on;
+	double cutoff;
+	double resonance;
+	double drive;
+	EnvelopeShape filter_envelope;
+	double filter_amount;
+	SynthLfo lfo;
+	double glide;
 } SynthPatch;
 
 typedef struct {
@@ -72,6 +128,20 @@ typedef struct {
 } EnvelopeRates;
 
 typedef struct {
+	double current;
+	double target;
+	double step;
+	int remaining;
+} SynthRamp;
+
+typedef struct {
+	double v[4][2];
+	double dv[4][2];
+	double tv[4][2];
+	double previous_input[2];
+} MoogState;
+
+typedef struct {
 	int active;
 	int part;
 	double note;
@@ -79,26 +149,97 @@ typedef struct {
 	long started;
 	long released;
 	SynthPatch patch;
-	double left_gain;
-	double right_gain;
-	double increments[SYNTH_MAX_OPERATORS];
-	double phases[SYNTH_MAX_OPERATORS];
-	double outputs[SYNTH_MAX_OPERATORS];
+	double note_hz;
+	double velocity_gain;
+	double filter_amount;
+	int n_copies;
+	double copy_ratios[SYNTH_MAX_UNISON];
+	double copy_pan_offsets[SYNTH_MAX_UNISON];
+	double copy_left[SYNTH_MAX_UNISON];
+	double copy_right[SYNTH_MAX_UNISON];
+	double copy_scale;
+	int stereo;
+	double phases[SYNTH_MAX_UNISON][SYNTH_MAX_OPERATORS];
+	double outputs[SYNTH_MAX_UNISON][SYNTH_MAX_OPERATORS];
+	uint64_t noise_states[SYNTH_MAX_UNISON][SYNTH_MAX_OPERATORS];
+	double pink_states[SYNTH_MAX_UNISON][SYNTH_MAX_OPERATORS][3];
+	double brown_states[SYNTH_MAX_UNISON][SYNTH_MAX_OPERATORS];
+	double detune_factors[SYNTH_MAX_OPERATORS];
 	int n_sources[SYNTH_MAX_OPERATORS];
 	int sources[SYNTH_MAX_OPERATORS][SYNTH_MAX_OPERATORS];
 	double depths[SYNTH_MAX_OPERATORS][SYNTH_MAX_OPERATORS];
 	EnvelopeStage stages[SYNTH_MAX_OPERATORS];
 	double levels[SYNTH_MAX_OPERATORS];
 	EnvelopeRates rates[SYNTH_MAX_OPERATORS];
-	uint64_t noise_states[SYNTH_MAX_OPERATORS];
-	double pink_states[SYNTH_MAX_OPERATORS][3];
-	double brown_states[SYNTH_MAX_OPERATORS];
+	EnvelopeStage filter_stage;
+	double filter_level;
+	EnvelopeRates filter_rates;
+	MoogState moog;
+	SynthRamp level_ramp;
+	SynthRamp pan_ramp;
+	SynthRamp cutoff_ramp;
+	SynthRamp resonance_ramp;
+	SynthRamp drive_ramp;
+	SynthRamp operator_level_ramps[SYNTH_MAX_OPERATORS];
+	SynthRamp operator_ratio_ramps[SYNTH_MAX_OPERATORS];
+	SynthRamp operator_width_ramps[SYNTH_MAX_OPERATORS];
+	int n_ramping;
+	double glide_offset;
+	double glide_step;
+	long glide_remaining;
+	double lfo_phase;
+	double lfo_held;
+	long lfo_age;
+	uint64_t lfo_noise;
+	int pan_moving;
 } SynthVoice;
 
+typedef enum {
+	COMMAND_NOTE_ON,
+	COMMAND_NOTE_OFF,
+	COMMAND_SILENCE,
+	COMMAND_PLAY,
+	COMMAND_PARAMETER
+} SynthCommandKind;
+
+typedef struct {
+	SynthCommandKind kind;
+	int part;
+	double note;
+	double velocity;
+	uint64_t seed;
+	float *samples;
+	int n_frames;
+	SynthParameter parameter;
+	int operator_index;
+	double value;
+} SynthCommand;
+
+typedef struct {
+	float *samples;
+	int n_frames;
+	int position;
+} SynthPlay;
+
 static SynthPatch synth_parts[SYNTH_MAX_PARTS];
+static double synth_last_notes[SYNTH_MAX_PARTS];
 static SynthVoice synth_voices[SYNTH_MAX_VOICES];
 static int synth_parts_ready;
 static long synth_clock;
+static SynthPlay synth_plays[SYNTH_MAX_PLAYS];
+static int synth_n_plays;
+
+static atomic_int synth_live;
+static SynthCommand synth_commands[SYNTH_QUEUE_CAPACITY];
+static atomic_int synth_command_head;
+static atomic_int synth_command_tail;
+static float *synth_finished[SYNTH_QUEUE_CAPACITY];
+static atomic_int synth_finished_head;
+static atomic_int synth_finished_tail;
+static SynthPatch synth_pending_patches[SYNTH_MAX_PARTS];
+static atomic_int synth_pending_ready[SYNTH_MAX_PARTS];
+static atomic_int synth_sounding;
+static atomic_long synth_n_device_renders;
 
 static void envelope_shape_default(EnvelopeShape *shape) {
 	shape->attack = 0.005;
@@ -109,10 +250,9 @@ static void envelope_shape_default(EnvelopeShape *shape) {
 }
 
 static void operator_default(SynthOperator *operator_) {
+	memset(operator_, 0, sizeof(SynthOperator));
 	operator_->wave = WAVE_SINE;
 	operator_->ratio = 1.0;
-	operator_->fixed_hz = 0.0;
-	operator_->detune_cents = 0.0;
 	operator_->level = 1.0;
 	operator_->width = 0.5;
 	envelope_shape_default(&operator_->envelope);
@@ -124,16 +264,24 @@ static void patch_default(SynthPatch *patch) {
 	operator_default(&patch->operators[0]);
 	patch->carrier_mask = 1;
 	patch->level = 1.0;
-	patch->pan = 0.0;
 	patch->velocity_sensitivity = 1.0;
+	patch->n_unison = 1;
+	patch->cutoff = SYNTH_MAX_CUTOFF;
+	patch->drive = 1.0;
+	envelope_shape_default(&patch->filter_envelope);
+	patch->lfo.shape = LFO_SINE;
+	patch->lfo.rate = 5.0;
+	patch->lfo.key_sync = 1;
 }
 
 static void synth_ensure_ready(void) {
 	if (synth_parts_ready)
 		return;
 
-	for (int part = 0; part < SYNTH_MAX_PARTS; part++)
+	for (int part = 0; part < SYNTH_MAX_PARTS; part++) {
 		patch_default(&synth_parts[part]);
+		synth_last_notes[part] = -1.0;
+	}
 	synth_parts_ready = 1;
 }
 
@@ -168,11 +316,7 @@ static int frame_value(Interpreter *interp, Object *frame, const char *key, Val 
 	return present;
 }
 
-static int frame_number(Interpreter *interp, Object *frame, const char *key, double low, double high, double *target) {
-	Val value;
-	if (!frame_value(interp, frame, key, &value))
-		return 1;
-
+static int number_in_range(Interpreter *interp, Val value, const char *key, double low, double high, double *target) {
 	if (VAL_TAG(value) != T_FLOAT) {
 		fail(interp, "expected a float for :%s; got %s", key, tag_name(VAL_TAG(value)));
 		return 0;
@@ -183,6 +327,25 @@ static int frame_number(Interpreter *interp, Object *frame, const char *key, dou
 		return 0;
 	}
 	*target = number;
+	return 1;
+}
+
+static int frame_number(Interpreter *interp, Object *frame, const char *key, double low, double high, double *target) {
+	Val value;
+	if (!frame_value(interp, frame, key, &value))
+		return 1;
+	return number_in_range(interp, value, key, low, high, target);
+}
+
+static int frame_integer(Interpreter *interp, Object *frame, const char *key, int low, int high, int *target) {
+	double number = *target;
+	if (!frame_number(interp, frame, key, low, high, &number))
+		return 0;
+	if (number != floor(number)) {
+		fail(interp, "expected an integer for :%s; got %g", key, number);
+		return 0;
+	}
+	*target = (int)number;
 	return 1;
 }
 
@@ -199,28 +362,65 @@ static int frame_index(Interpreter *interp, Val value, int n_operators, const ch
 	return (int)number;
 }
 
-static const struct {
-	const char *name;
-	SynthWave wave;
-} synth_wave_names[] = {
-	{"sine", WAVE_SINE},
-	{"triangle", WAVE_TRIANGLE},
-	{"saw", WAVE_SAW},
-	{"pulse", WAVE_PULSE},
-	{"white", WAVE_WHITE},
-	{"pink", WAVE_PINK},
-	{"brown", WAVE_BROWN},
-	{NULL, WAVE_SINE}
+static int frame_choice(Interpreter *interp, Object *frame, const char *key, const char *const *names, int *target) {
+	Val value;
+	if (!frame_value(interp, frame, key, &value))
+		return 1;
+
+	if (VAL_TAG(value) == T_SYMBOL) {
+		const char *name = symbol_text(VAL_DATA(value));
+		for (int i = 0; names[i]; i++)
+			if (strcmp(names[i], name) == 0) {
+				*target = i;
+				return 1;
+			}
+	}
+	char listing[160] = "";
+	for (int i = 0; names[i]; i++) {
+		strncat(listing, " :", sizeof listing - strlen(listing) - 1);
+		strncat(listing, names[i], sizeof listing - strlen(listing) - 1);
+	}
+	if (VAL_TAG(value) == T_SYMBOL)
+		fail(interp, "expected :%s one of%s; got :%s", key, listing, symbol_text(VAL_DATA(value)));
+	else
+		fail(interp, "expected :%s one of%s; got %s", key, listing, tag_name(VAL_TAG(value)));
+	return 0;
+}
+
+static const char *const synth_wave_names[] = {
+	"sine", "triangle", "saw", "pulse", "white", "pink", "brown", NULL
+};
+
+static const char *const synth_lfo_shape_names[] = {
+	"sine", "triangle", "saw", "square", "sample-and-hold", NULL
 };
 
 static const char *const synth_operator_keys[] = {
-	"wave", "ratio", "fixed", "detune", "level", "width",
+	"wave", "ratio", "fixed", "detune", "level", "width", "lfo-level", "lfo-width",
 	"attack", "decay", "sustain", "release", "sustain-decay", NULL
 };
 
-static const char *const synth_patch_keys[] = {
-	"operators", "modulation", "carriers", "level", "pan", "velocity", NULL
+static const char *const synth_envelope_keys[] = {
+	"attack", "decay", "sustain", "release", "sustain-decay", "amount", NULL
 };
+
+static const char *const synth_lfo_keys[] = {
+	"shape", "rate", "delay", "fade", "key-sync", "pitch", "cutoff", "pan", NULL
+};
+
+static const char *const synth_patch_keys[] = {
+	"operators", "modulation", "carriers", "level", "pan", "velocity",
+	"unison", "detune", "spread", "cutoff", "resonance", "drive",
+	"filter-envelope", "lfo", "glide", NULL
+};
+
+static int envelope_from_frame(Interpreter *interp, Object *frame, EnvelopeShape *envelope) {
+	return frame_number(interp, frame, "attack", 0, SYNTH_MAX_STAGE_SECONDS, &envelope->attack)
+		&& frame_number(interp, frame, "decay", 0, SYNTH_MAX_STAGE_SECONDS, &envelope->decay)
+		&& frame_number(interp, frame, "sustain", 0, 1, &envelope->sustain)
+		&& frame_number(interp, frame, "release", 0, SYNTH_MAX_STAGE_SECONDS, &envelope->release)
+		&& frame_number(interp, frame, "sustain-decay", 0, SYNTH_MAX_STAGE_SECONDS, &envelope->sustain_decay);
+}
 
 static int operator_from_frame(Interpreter *interp, Val operator_val, SynthOperator *operator_) {
 	operator_default(operator_);
@@ -232,34 +432,19 @@ static int operator_from_frame(Interpreter *interp, Val operator_val, SynthOpera
 	if (!frame_keys_allowed(interp, frame, synth_operator_keys, "operator"))
 		return 0;
 
-	Val wave_val;
-	if (frame_value(interp, frame, "wave", &wave_val)) {
-		if (VAL_TAG(wave_val) != T_SYMBOL) {
-			fail(interp, "expected a wave symbol for :wave; got %s", tag_name(VAL_TAG(wave_val)));
-			return 0;
-		}
-		const char *wave_name = symbol_text(VAL_DATA(wave_val));
-		int wave_index = 0;
-		while (synth_wave_names[wave_index].name && strcmp(synth_wave_names[wave_index].name, wave_name) != 0)
-			wave_index++;
-		if (!synth_wave_names[wave_index].name) {
-			fail(interp, "expected :wave one of :sine :triangle :saw :pulse :white :pink :brown; got :%s", wave_name);
-			return 0;
-		}
-		operator_->wave = synth_wave_names[wave_index].wave;
-	}
+	int wave = (int)operator_->wave;
+	if (!frame_choice(interp, frame, "wave", synth_wave_names, &wave))
+		return 0;
+	operator_->wave = (SynthWave)wave;
 
-	EnvelopeShape *envelope = &operator_->envelope;
 	return frame_number(interp, frame, "ratio", 1.0 / 64, 64, &operator_->ratio)
 		&& frame_number(interp, frame, "fixed", 0, SYNTH_SAMPLE_RATE / 2.0, &operator_->fixed_hz)
 		&& frame_number(interp, frame, "detune", -1200, 1200, &operator_->detune_cents)
 		&& frame_number(interp, frame, "level", 0, 1, &operator_->level)
 		&& frame_number(interp, frame, "width", 0.01, 0.99, &operator_->width)
-		&& frame_number(interp, frame, "attack", 0, SYNTH_MAX_STAGE_SECONDS, &envelope->attack)
-		&& frame_number(interp, frame, "decay", 0, SYNTH_MAX_STAGE_SECONDS, &envelope->decay)
-		&& frame_number(interp, frame, "sustain", 0, 1, &envelope->sustain)
-		&& frame_number(interp, frame, "release", 0, SYNTH_MAX_STAGE_SECONDS, &envelope->release)
-		&& frame_number(interp, frame, "sustain-decay", 0, SYNTH_MAX_STAGE_SECONDS, &envelope->sustain_decay);
+		&& frame_number(interp, frame, "lfo-level", 0, 1, &operator_->lfo_level)
+		&& frame_number(interp, frame, "lfo-width", 0, 0.49, &operator_->lfo_width)
+		&& envelope_from_frame(interp, frame, &operator_->envelope);
 }
 
 static int modulations_from_value(Interpreter *interp, Val modulation_val, SynthPatch *patch) {
@@ -321,6 +506,36 @@ static int carriers_from_value(Interpreter *interp, Val carriers_val, SynthPatch
 	return 1;
 }
 
+static int subframe(Interpreter *interp, Object *frame, const char *key, const char *const *allowed_keys, Object **subframe_out) {
+	Val value;
+	*subframe_out = NULL;
+	if (!frame_value(interp, frame, key, &value))
+		return 1;
+	if (VAL_TAG(value) != T_FRAME) {
+		fail(interp, "expected a frame for :%s; got %s", key, tag_name(VAL_TAG(value)));
+		return 0;
+	}
+	*subframe_out = OBJECT_AT(VAL_DATA(value));
+	return frame_keys_allowed(interp, *subframe_out, allowed_keys, key);
+}
+
+static int lfo_from_frame(Interpreter *interp, Object *frame, SynthLfo *lfo) {
+	int shape = (int)lfo->shape;
+	double key_sync = lfo->key_sync;
+	if (!frame_choice(interp, frame, "shape", synth_lfo_shape_names, &shape))
+		return 0;
+	lfo->shape = (LfoShape)shape;
+	if (!frame_number(interp, frame, "key-sync", 0, 1, &key_sync))
+		return 0;
+	lfo->key_sync = key_sync != 0;
+	return frame_number(interp, frame, "rate", 0.01, 100, &lfo->rate)
+		&& frame_number(interp, frame, "delay", 0, SYNTH_MAX_STAGE_SECONDS, &lfo->delay)
+		&& frame_number(interp, frame, "fade", 0, SYNTH_MAX_STAGE_SECONDS, &lfo->fade)
+		&& frame_number(interp, frame, "pitch", 0, 24, &lfo->pitch)
+		&& frame_number(interp, frame, "cutoff", 0, 8, &lfo->cutoff)
+		&& frame_number(interp, frame, "pan", 0, 1, &lfo->pan);
+}
+
 static int patch_from_frame(Interpreter *interp, Object *frame, SynthPatch *patch) {
 	patch_default(patch);
 	if (!frame_keys_allowed(interp, frame, synth_patch_keys, "patch"))
@@ -350,10 +565,31 @@ static int patch_from_frame(Interpreter *interp, Object *frame, SynthPatch *patc
 	Val carriers_val;
 	if (frame_value(interp, frame, "carriers", &carriers_val) && !carriers_from_value(interp, carriers_val, patch))
 		return 0;
+	Val cutoff_val;
+	patch->filter_on = frame_value(interp, frame, "cutoff", &cutoff_val);
+
+	Object *filter_envelope;
+	if (!subframe(interp, frame, "filter-envelope", synth_envelope_keys, &filter_envelope))
+		return 0;
+	if (filter_envelope && (!envelope_from_frame(interp, filter_envelope, &patch->filter_envelope)
+			|| !frame_number(interp, filter_envelope, "amount", -10, 10, &patch->filter_amount)))
+		return 0;
+	Object *lfo;
+	if (!subframe(interp, frame, "lfo", synth_lfo_keys, &lfo))
+		return 0;
+	if (lfo && !lfo_from_frame(interp, lfo, &patch->lfo))
+		return 0;
 
 	return frame_number(interp, frame, "level", 0, 1, &patch->level)
 		&& frame_number(interp, frame, "pan", -1, 1, &patch->pan)
-		&& frame_number(interp, frame, "velocity", 0, 1, &patch->velocity_sensitivity);
+		&& frame_number(interp, frame, "velocity", 0, 1, &patch->velocity_sensitivity)
+		&& frame_integer(interp, frame, "unison", 1, SYNTH_MAX_UNISON, &patch->n_unison)
+		&& frame_number(interp, frame, "detune", 0, 100, &patch->unison_detune)
+		&& frame_number(interp, frame, "spread", 0, 1, &patch->spread)
+		&& frame_number(interp, frame, "cutoff", SYNTH_MIN_CUTOFF, SYNTH_MAX_CUTOFF, &patch->cutoff)
+		&& frame_number(interp, frame, "resonance", 0, 4, &patch->resonance)
+		&& frame_number(interp, frame, "drive", 0.1, 10, &patch->drive)
+		&& frame_number(interp, frame, "glide", 0, 10, &patch->glide);
 }
 
 static int semitone_of_letter(char letter) {
@@ -489,10 +725,9 @@ static double wrap_phase(double phase) {
 	return phase - floor(phase);
 }
 
-static double operator_wave(SynthVoice *voice, int j, double phase_offset) {
+static double operator_wave(SynthVoice *voice, int copy, int j, double phase_offset, double dt, double width) {
 	const SynthOperator *operator_ = &voice->patch.operators[j];
-	double t = wrap_phase(voice->phases[j] + phase_offset);
-	double dt = voice->increments[j];
+	double t = wrap_phase(voice->phases[copy][j] + phase_offset);
 
 	switch (operator_->wave) {
 	case WAVE_SINE:
@@ -502,27 +737,94 @@ static double operator_wave(SynthVoice *voice, int j, double phase_offset) {
 	case WAVE_SAW:
 		return 2.0 * t - 1.0 - polyblep(t, dt);
 	case WAVE_PULSE: {
-		double width = operator_->width;
 		double naive = t < width ? 1.0 : -1.0;
 		return naive + polyblep(t, dt) - polyblep(wrap_phase(t - width), dt);
 	}
 	case WAVE_WHITE:
-		return noise_white(&voice->noise_states[j]);
+		return noise_white(&voice->noise_states[copy][j]);
 	case WAVE_PINK: {
-		double white = noise_white(&voice->noise_states[j]);
-		double *pink = voice->pink_states[j];
+		double white = noise_white(&voice->noise_states[copy][j]);
+		double *pink = voice->pink_states[copy][j];
 		pink[0] = 0.99765 * pink[0] + white * 0.0990460;
 		pink[1] = 0.96300 * pink[1] + white * 0.2965164;
 		pink[2] = 0.57000 * pink[2] + white * 1.0526913;
 		return (pink[0] + pink[1] + pink[2] + white * 0.1848) * 0.25;
 	}
 	case WAVE_BROWN: {
-		double white = noise_white(&voice->noise_states[j]);
-		voice->brown_states[j] = (voice->brown_states[j] + 0.02 * white) / 1.02;
-		return voice->brown_states[j] * 3.5;
+		double white = noise_white(&voice->noise_states[copy][j]);
+		voice->brown_states[copy][j] = (voice->brown_states[copy][j] + 0.02 * white) / 1.02;
+		return voice->brown_states[copy][j] * 3.5;
 	}
 	}
 	return 0.0;
+}
+
+static double lfo_wave(SynthVoice *voice, double phase, int wrapped) {
+	const SynthLfo *lfo = &voice->patch.lfo;
+	switch (lfo->shape) {
+	case LFO_SINE:
+		return sin(2.0 * M_PI * phase);
+	case LFO_TRIANGLE:
+		return 4.0 * fabs(wrap_phase(phase + 0.75) - 0.5) - 1.0;
+	case LFO_SAW:
+		return 2.0 * phase - 1.0;
+	case LFO_SQUARE:
+		return phase < 0.5 ? 1.0 : -1.0;
+	case LFO_SAMPLE_AND_HOLD:
+		if (wrapped)
+			voice->lfo_held = noise_white(&voice->lfo_noise);
+		return voice->lfo_held;
+	}
+	return 0.0;
+}
+
+static void ramp_start(SynthVoice *voice, SynthRamp *ramp, double target) {
+	if (ramp->remaining == 0)
+		voice->n_ramping++;
+	ramp->target = target;
+	ramp->step = (target - ramp->current) / SYNTH_RAMP_FRAMES;
+	ramp->remaining = SYNTH_RAMP_FRAMES;
+}
+
+static void ramp_set(SynthRamp *ramp, double value) {
+	ramp->current = value;
+	ramp->target = value;
+	ramp->remaining = 0;
+}
+
+static int ramp_advance(SynthRamp *ramp) {
+	if (ramp->remaining == 0)
+		return 0;
+	ramp->current += ramp->step;
+	if (--ramp->remaining == 0) {
+		ramp->current = ramp->target;
+		return 1;
+	}
+	return 0;
+}
+
+static void voice_ramps_advance(SynthVoice *voice) {
+	int n_finished = ramp_advance(&voice->level_ramp)
+		+ ramp_advance(&voice->pan_ramp)
+		+ ramp_advance(&voice->cutoff_ramp)
+		+ ramp_advance(&voice->resonance_ramp)
+		+ ramp_advance(&voice->drive_ramp);
+	for (int j = 0; j < voice->patch.n_operators; j++)
+		n_finished += ramp_advance(&voice->operator_level_ramps[j])
+			+ ramp_advance(&voice->operator_ratio_ramps[j])
+			+ ramp_advance(&voice->operator_width_ramps[j]);
+	voice->n_ramping -= n_finished;
+}
+
+static void voice_pan_gains(SynthVoice *voice, double lfo_pan) {
+	double base_pan = voice->pan_ramp.current + lfo_pan;
+	for (int copy = 0; copy < voice->n_copies; copy++) {
+		double pan = base_pan + voice->copy_pan_offsets[copy];
+		pan = pan < -1.0 ? -1.0 : pan > 1.0 ? 1.0 : pan;
+		double angle = (pan + 1.0) * M_PI / 4.0;
+		voice->copy_left[copy] = pan == 0.0 ? M_SQRT1_2 : cos(angle);
+		voice->copy_right[copy] = pan == 0.0 ? M_SQRT1_2 : sin(angle);
+	}
 }
 
 static void voice_start(SynthVoice *voice, int part, double note, double velocity, uint64_t seed) {
@@ -532,28 +834,48 @@ static void voice_start(SynthVoice *voice, int part, double note, double velocit
 	if (!retrigger) {
 		memset(voice, 0, sizeof(SynthVoice));
 		voice->patch = *patch;
-		for (int j = 0; j < patch->n_operators; j++) {
-			voice->stages[j] = STAGE_ATTACK;
-			voice->noise_states[j] = seed + (uint64_t)j * 0x632be59bd9b4e019ULL;
+		voice->n_copies = patch->n_unison;
+		for (int copy = 0; copy < voice->n_copies; copy++)
+			for (int j = 0; j < patch->n_operators; j++)
+				voice->noise_states[copy][j] = seed + (uint64_t)(copy * SYNTH_MAX_OPERATORS + j) * 0x632be59bd9b4e019ULL;
+		voice->lfo_noise = seed ^ 0xd6e8feb86659fd93ULL;
+		voice->filter_stage = STAGE_ATTACK;
+		double previous_note = synth_last_notes[part];
+		if (patch->glide > 0 && previous_note >= 0 && previous_note != note) {
+			voice->glide_offset = previous_note - note;
+			voice->glide_remaining = (long)llround(patch->glide * SYNTH_SAMPLE_RATE);
+			voice->glide_step = -voice->glide_offset / (double)voice->glide_remaining;
 		}
+		if (patch->lfo.key_sync)
+			voice->lfo_phase = 0.0;
+		else
+			voice->lfo_phase = wrap_phase((double)synth_clock * patch->lfo.rate / SYNTH_SAMPLE_RATE);
+		voice->lfo_held = noise_white(&voice->lfo_noise);
 	}
+	synth_last_notes[part] = note;
 	voice->active = 1;
 	voice->part = part;
 	voice->note = note;
 	voice->gate = 1;
 	voice->started = synth_clock;
+	voice->lfo_age = 0;
 
 	const SynthPatch *voice_patch = &voice->patch;
-	double hz = note_hz(note);
+	voice->note_hz = note_hz(note);
 	for (int j = 0; j < voice_patch->n_operators; j++) {
 		const SynthOperator *operator_ = &voice_patch->operators[j];
-		double operator_hz = operator_->fixed_hz > 0 ? operator_->fixed_hz : hz * operator_->ratio;
-		operator_hz *= pow(2.0, operator_->detune_cents / 1200.0);
-		voice->increments[j] = operator_hz / SYNTH_SAMPLE_RATE;
+		voice->detune_factors[j] = pow(2.0, operator_->detune_cents / 1200.0);
 		envelope_rates_for(&operator_->envelope, &voice->rates[j]);
 		voice->stages[j] = STAGE_ATTACK;
 		voice->n_sources[j] = 0;
+		if (!retrigger) {
+			ramp_set(&voice->operator_level_ramps[j], operator_->level);
+			ramp_set(&voice->operator_ratio_ramps[j], operator_->ratio);
+			ramp_set(&voice->operator_width_ramps[j], operator_->width);
+		}
 	}
+	envelope_rates_for(&voice_patch->filter_envelope, &voice->filter_rates);
+	voice->filter_stage = STAGE_ATTACK;
 
 	for (int m = 0; m < voice_patch->n_modulations; m++) {
 		const SynthModulation *modulation = &voice_patch->modulations[m];
@@ -570,11 +892,28 @@ static void voice_start(SynthVoice *voice, int part, double note, double velocit
 		voice->depths[target][slot] += modulation->depth;
 	}
 
+	int n_copies = voice->n_copies;
+	for (int copy = 0; copy < n_copies; copy++) {
+		double position = n_copies > 1 ? (double)copy / (n_copies - 1) - 0.5 : 0.0;
+		voice->copy_ratios[copy] = pow(2.0, voice_patch->unison_detune * position / 1200.0);
+		voice->copy_pan_offsets[copy] = voice_patch->spread * 2.0 * position;
+	}
+	voice->copy_scale = 1.0 / sqrt((double)n_copies);
+	voice->stereo = n_copies > 1 && voice_patch->spread > 0;
+
 	double sensitivity = voice_patch->velocity_sensitivity;
-	double gain = voice_patch->level * (1.0 - sensitivity + sensitivity * velocity);
-	double angle = (voice_patch->pan + 1.0) * M_PI / 4.0;
-	voice->left_gain = gain * cos(angle);
-	voice->right_gain = gain * sin(angle);
+	double velocity_scale = 1.0 - sensitivity + sensitivity * velocity;
+	voice->velocity_gain = velocity_scale;
+	voice->filter_amount = voice_patch->filter_amount * velocity_scale;
+	if (!retrigger) {
+		ramp_set(&voice->level_ramp, voice_patch->level);
+		ramp_set(&voice->pan_ramp, voice_patch->pan);
+		ramp_set(&voice->cutoff_ramp, voice_patch->cutoff);
+		ramp_set(&voice->resonance_ramp, voice_patch->resonance);
+		ramp_set(&voice->drive_ramp, voice_patch->drive);
+	}
+	voice->pan_moving = voice_patch->lfo.pan > 0;
+	voice_pan_gains(voice, 0.0);
 }
 
 static SynthVoice *voice_for_note(int part, double note) {
@@ -614,36 +953,250 @@ static void synth_note_off(int part, double note) {
 		voice->released = synth_clock;
 		for (int j = 0; j < voice->patch.n_operators; j++)
 			voice->stages[j] = STAGE_RELEASE;
+		voice->filter_stage = STAGE_RELEASE;
 	}
 }
 
-static double voice_sample(SynthVoice *voice) {
+static void voice_parameter(SynthVoice *voice, SynthParameter parameter, int operator_index, double value) {
+	switch (parameter) {
+	case PARAMETER_LEVEL:
+		ramp_start(voice, &voice->level_ramp, value);
+		break;
+	case PARAMETER_PAN:
+		ramp_start(voice, &voice->pan_ramp, value);
+		break;
+	case PARAMETER_CUTOFF:
+		if (!voice->patch.filter_on) {
+			voice->patch.filter_on = 1;
+			ramp_set(&voice->cutoff_ramp, SYNTH_MAX_CUTOFF);
+		}
+		ramp_start(voice, &voice->cutoff_ramp, value);
+		break;
+	case PARAMETER_RESONANCE:
+		ramp_start(voice, &voice->resonance_ramp, value);
+		break;
+	case PARAMETER_DRIVE:
+		ramp_start(voice, &voice->drive_ramp, value);
+		break;
+	case PARAMETER_OPERATOR_LEVEL:
+		if (operator_index < voice->patch.n_operators)
+			ramp_start(voice, &voice->operator_level_ramps[operator_index], value);
+		break;
+	case PARAMETER_OPERATOR_RATIO:
+		if (operator_index < voice->patch.n_operators)
+			ramp_start(voice, &voice->operator_ratio_ramps[operator_index], value);
+		break;
+	case PARAMETER_OPERATOR_WIDTH:
+		if (operator_index < voice->patch.n_operators)
+			ramp_start(voice, &voice->operator_width_ramps[operator_index], value);
+		break;
+	}
+}
+
+static void patch_parameter(SynthPatch *patch, SynthParameter parameter, int operator_index, double value) {
+	switch (parameter) {
+	case PARAMETER_LEVEL:
+		patch->level = value;
+		break;
+	case PARAMETER_PAN:
+		patch->pan = value;
+		break;
+	case PARAMETER_CUTOFF:
+		patch->cutoff = value;
+		patch->filter_on = 1;
+		break;
+	case PARAMETER_RESONANCE:
+		patch->resonance = value;
+		break;
+	case PARAMETER_DRIVE:
+		patch->drive = value;
+		break;
+	case PARAMETER_OPERATOR_LEVEL:
+		if (operator_index < patch->n_operators)
+			patch->operators[operator_index].level = value;
+		break;
+	case PARAMETER_OPERATOR_RATIO:
+		if (operator_index < patch->n_operators)
+			patch->operators[operator_index].ratio = value;
+		break;
+	case PARAMETER_OPERATOR_WIDTH:
+		if (operator_index < patch->n_operators)
+			patch->operators[operator_index].width = value;
+		break;
+	}
+}
+
+static void synth_parameter(int part, SynthParameter parameter, int operator_index, double value) {
+	patch_parameter(&synth_parts[part], parameter, operator_index, value);
+	for (int v = 0; v < SYNTH_MAX_VOICES; v++) {
+		SynthVoice *voice = &synth_voices[v];
+		if (voice->active && voice->part == part)
+			voice_parameter(voice, parameter, operator_index, value);
+	}
+}
+
+static void moog_stage(MoogState *moog, double input_sample, double g, double vt2, int channel) {
+	double sample_rate_2x = (double)SYNTH_SAMPLE_RATE * MOOG_OVERSAMPLE;
+
+	double dv0 = g * (tanh(input_sample / vt2) - moog->tv[0][channel]);
+	moog->v[0][channel] += (dv0 + moog->dv[0][channel]) / (2.0 * sample_rate_2x);
+	moog->dv[0][channel] = dv0;
+	moog->tv[0][channel] = tanh(moog->v[0][channel] / vt2);
+
+	for (int pole = 1; pole < 4; pole++) {
+		double dv = g * (moog->tv[pole - 1][channel] - moog->tv[pole][channel]);
+		moog->v[pole][channel] += (dv + moog->dv[pole][channel]) / (2.0 * sample_rate_2x);
+		moog->dv[pole][channel] = dv;
+		moog->tv[pole][channel] = tanh(moog->v[pole][channel] / vt2);
+	}
+}
+
+static double moog_sample(MoogState *moog, double sample, double cutoff, double resonance, double drive, int channel) {
+	double sample_rate_2x = (double)SYNTH_SAMPLE_RATE * MOOG_OVERSAMPLE;
+	double vt2 = 2.0 * MOOG_VT;
+	double x = M_PI * cutoff / sample_rate_2x;
+	double g = 4.0 * M_PI * MOOG_VT * cutoff * (1.0 - x) / (1.0 + x);
+
+	double midpoint = (moog->previous_input[channel] + sample) * 0.5;
+	moog_stage(moog, midpoint * MOOG_INPUT_SCALE * drive - resonance * moog->tv[3][channel], g, vt2, channel);
+	moog_stage(moog, sample * MOOG_INPUT_SCALE * drive - resonance * moog->tv[3][channel], g, vt2, channel);
+	moog->previous_input[channel] = sample;
+
+	return moog->v[3][channel] / MOOG_INPUT_SCALE * (1.0 + 0.5 * resonance);
+}
+
+static void voice_sample(SynthVoice *voice, double *left, double *right) {
 	const SynthPatch *patch = &voice->patch;
 	int n_operators = patch->n_operators;
 	unsigned carrier_mask = patch->carrier_mask;
-	double carrier_sum = 0.0;
 	int carriers_sounding = 0;
+	int pan_ramping = voice->pan_ramp.remaining > 0;
 
-	for (int j = n_operators - 1; j >= 0; j--) {
-		double phase_modulation = 0.0;
-		int n_sources = voice->n_sources[j];
-		for (int s = 0; s < n_sources; s++)
-			phase_modulation += voice->depths[j][s] * voice->outputs[voice->sources[j][s]];
+	if (voice->n_ramping)
+		voice_ramps_advance(voice);
+	if (voice->glide_remaining > 0) {
+		voice->glide_offset += voice->glide_step;
+		if (--voice->glide_remaining == 0)
+			voice->glide_offset = 0.0;
+	}
 
-		double level = envelope_step(&voice->stages[j], &voice->levels[j], &voice->rates[j]);
-		double wave = operator_wave(voice, j, phase_modulation / (2.0 * M_PI));
-		voice->outputs[j] = wave * patch->operators[j].level * level;
-		voice->phases[j] = wrap_phase(voice->phases[j] + voice->increments[j]);
+	const SynthLfo *lfo = &patch->lfo;
+	double lfo_value = 0.0;
+	double lfo_depth = 0.0;
+	double lfo_seconds = (double)voice->lfo_age / SYNTH_SAMPLE_RATE;
+	if (lfo_seconds >= lfo->delay) {
+		lfo_depth = lfo->fade > 0 ? (lfo_seconds - lfo->delay) / lfo->fade : 1.0;
+		lfo_depth = lfo_depth > 1.0 ? 1.0 : lfo_depth;
+	}
+	double next_phase = voice->lfo_phase + lfo->rate / SYNTH_SAMPLE_RATE;
+	int wrapped = next_phase >= 1.0;
+	lfo_value = lfo_wave(voice, voice->lfo_phase, wrapped || voice->lfo_age == 0);
+	voice->lfo_phase = wrap_phase(next_phase);
+	voice->lfo_age++;
+	double lfo_amount = lfo_value * lfo_depth;
 
-		if (carrier_mask & (1u << j)) {
-			carrier_sum += voice->outputs[j];
+	double levels[SYNTH_MAX_OPERATORS];
+	double widths[SYNTH_MAX_OPERATORS];
+	double increments[SYNTH_MAX_OPERATORS];
+	double pitch_offset = voice->glide_offset + lfo->pitch * lfo_amount;
+	double pitch_factor = pitch_offset != 0.0 ? exp2(pitch_offset / 12.0) : 1.0;
+	for (int j = 0; j < n_operators; j++) {
+		const SynthOperator *operator_ = &patch->operators[j];
+		double envelope = envelope_step(&voice->stages[j], &voice->levels[j], &voice->rates[j]);
+		double tremolo = 1.0 - operator_->lfo_level * (1.0 - lfo_amount) * 0.5;
+		levels[j] = voice->operator_level_ramps[j].current * envelope * (operator_->lfo_level > 0 ? tremolo : 1.0);
+		double width = voice->operator_width_ramps[j].current + operator_->lfo_width * lfo_amount;
+		widths[j] = width < 0.01 ? 0.01 : width > 0.99 ? 0.99 : width;
+		double hz = operator_->fixed_hz > 0
+			? operator_->fixed_hz
+			: voice->note_hz * voice->operator_ratio_ramps[j].current * pitch_factor;
+		increments[j] = hz * voice->detune_factors[j] / SYNTH_SAMPLE_RATE;
+		if (carrier_mask & (1u << j))
 			carriers_sounding |= voice->stages[j] != STAGE_IDLE;
+	}
+
+	if (voice->pan_moving || pan_ramping)
+		voice_pan_gains(voice, lfo->pan * lfo_amount);
+
+	double mono = 0.0;
+	double stereo_left = 0.0;
+	double stereo_right = 0.0;
+	for (int copy = 0; copy < voice->n_copies; copy++) {
+		double carrier_sum = 0.0;
+		double copy_ratio = voice->copy_ratios[copy];
+		for (int j = n_operators - 1; j >= 0; j--) {
+			double phase_modulation = 0.0;
+			int n_sources = voice->n_sources[j];
+			for (int s = 0; s < n_sources; s++)
+				phase_modulation += voice->depths[j][s] * voice->outputs[copy][voice->sources[j][s]];
+
+			double dt = increments[j] * copy_ratio;
+			double wave = operator_wave(voice, copy, j, phase_modulation / (2.0 * M_PI), dt, widths[j]);
+			voice->outputs[copy][j] = wave * levels[j];
+			voice->phases[copy][j] = wrap_phase(voice->phases[copy][j] + dt);
+			if (carrier_mask & (1u << j))
+				carrier_sum += voice->outputs[copy][j];
 		}
+		mono += carrier_sum;
+		stereo_left += carrier_sum * voice->copy_left[copy];
+		stereo_right += carrier_sum * voice->copy_right[copy];
+	}
+
+	double gain = voice->level_ramp.current * voice->velocity_gain * voice->copy_scale;
+	double filter_level = envelope_step(&voice->filter_stage, &voice->filter_level, &voice->filter_rates);
+	if (patch->filter_on) {
+		double octaves = voice->filter_amount * filter_level + lfo->cutoff * lfo_amount;
+		double cutoff = voice->cutoff_ramp.current * exp2(octaves);
+		cutoff = cutoff < SYNTH_MIN_CUTOFF ? SYNTH_MIN_CUTOFF : cutoff > SYNTH_MAX_CUTOFF ? SYNTH_MAX_CUTOFF : cutoff;
+		double resonance = voice->resonance_ramp.current;
+		double drive = voice->drive_ramp.current;
+		if (voice->stereo) {
+			stereo_left = moog_sample(&voice->moog, stereo_left, cutoff, resonance, drive, 0);
+			stereo_right = moog_sample(&voice->moog, stereo_right, cutoff, resonance, drive, 1);
+		} else {
+			mono = moog_sample(&voice->moog, mono, cutoff, resonance, drive, 0);
+		}
+	}
+
+	if (voice->stereo) {
+		*left += stereo_left * gain;
+		*right += stereo_right * gain;
+	} else {
+		*left += mono * voice->copy_left[0] * gain;
+		*right += mono * voice->copy_right[0] * gain;
 	}
 
 	if (!carriers_sounding)
 		voice->active = 0;
-	return carrier_sum;
+}
+
+static void play_finished(float *samples) {
+	if (!atomic_load_explicit(&synth_live, memory_order_relaxed)) {
+		free(samples);
+		return;
+	}
+
+	int tail = atomic_load_explicit(&synth_finished_tail, memory_order_relaxed);
+	int next = (tail + 1) % SYNTH_QUEUE_CAPACITY;
+	if (next == atomic_load_explicit(&synth_finished_head, memory_order_acquire))
+		return;
+	synth_finished[tail] = samples;
+	atomic_store_explicit(&synth_finished_tail, next, memory_order_release);
+}
+
+static void plays_mix(double *left, double *right) {
+	int kept = 0;
+	for (int p = 0; p < synth_n_plays; p++) {
+		SynthPlay *play = &synth_plays[p];
+		*left += play->samples[2 * play->position];
+		*right += play->samples[2 * play->position + 1];
+		play->position++;
+		if (play->position < play->n_frames)
+			synth_plays[kept++] = *play;
+		else
+			play_finished(play->samples);
+	}
+	synth_n_plays = kept;
 }
 
 static void synth_render(double *interleaved, int n_frames) {
@@ -652,15 +1205,166 @@ static void synth_render(double *interleaved, int n_frames) {
 		double right = 0.0;
 		for (int v = 0; v < SYNTH_MAX_VOICES; v++) {
 			SynthVoice *voice = &synth_voices[v];
-			if (!voice->active)
-				continue;
-			double sample = voice_sample(voice);
-			left += sample * voice->left_gain;
-			right += sample * voice->right_gain;
+			if (voice->active)
+				voice_sample(voice, &left, &right);
 		}
+		if (synth_n_plays)
+			plays_mix(&left, &right);
 		interleaved[2 * frame] = left;
 		interleaved[2 * frame + 1] = right;
 		synth_clock++;
+	}
+}
+
+static void synth_silence_all(void) {
+	for (int v = 0; v < SYNTH_MAX_VOICES; v++)
+		synth_voices[v].active = 0;
+	for (int part = 0; part < SYNTH_MAX_PARTS; part++)
+		synth_last_notes[part] = -1.0;
+	for (int p = 0; p < synth_n_plays; p++)
+		play_finished(synth_plays[p].samples);
+	synth_n_plays = 0;
+}
+
+static void synth_apply(const SynthCommand *command) {
+	switch (command->kind) {
+	case COMMAND_NOTE_ON:
+		synth_note_on(command->part, command->note, command->velocity, command->seed);
+		break;
+	case COMMAND_NOTE_OFF:
+		synth_note_off(command->part, command->note);
+		break;
+	case COMMAND_SILENCE:
+		synth_silence_all();
+		break;
+	case COMMAND_PLAY:
+		if (synth_n_plays < SYNTH_MAX_PLAYS) {
+			SynthPlay *play = &synth_plays[synth_n_plays++];
+			play->samples = command->samples;
+			play->n_frames = command->n_frames;
+			play->position = 0;
+		} else {
+			play_finished(command->samples);
+		}
+		break;
+	case COMMAND_PARAMETER:
+		synth_parameter(command->part, command->parameter, command->operator_index, command->value);
+		break;
+	}
+}
+
+static void synth_wait_briefly(void) {
+	struct timespec pause = {.tv_sec = 0, .tv_nsec = SYNTH_WAIT_NANOSECONDS};
+	nanosleep(&pause, NULL);
+}
+
+void synth_collect_finished(void) {
+	int head = atomic_load_explicit(&synth_finished_head, memory_order_relaxed);
+	int tail = atomic_load_explicit(&synth_finished_tail, memory_order_acquire);
+	while (head != tail) {
+		free(synth_finished[head]);
+		head = (head + 1) % SYNTH_QUEUE_CAPACITY;
+	}
+	atomic_store_explicit(&synth_finished_head, head, memory_order_release);
+}
+
+static int synth_submit(Interpreter *interp, const SynthCommand *command) {
+	synth_collect_finished();
+	if (!atomic_load_explicit(&synth_live, memory_order_acquire)) {
+		synth_apply(command);
+		return 1;
+	}
+
+	int tail = atomic_load_explicit(&synth_command_tail, memory_order_relaxed);
+	int next = (tail + 1) % SYNTH_QUEUE_CAPACITY;
+	if (next == atomic_load_explicit(&synth_command_head, memory_order_acquire)) {
+		fail(interp, "audio command queue full (max %d)", SYNTH_QUEUE_CAPACITY);
+		return 0;
+	}
+	synth_commands[tail] = *command;
+	atomic_store_explicit(&synth_command_tail, next, memory_order_release);
+	return 1;
+}
+
+int synth_submit_play(Interpreter *interp, float *samples, int n_frames) {
+	SynthCommand command = {.kind = COMMAND_PLAY, .samples = samples, .n_frames = n_frames};
+	return synth_submit(interp, &command);
+}
+
+static void synth_take_pending_patches(void) {
+	for (int part = 0; part < SYNTH_MAX_PARTS; part++) {
+		if (!atomic_load_explicit(&synth_pending_ready[part], memory_order_acquire))
+			continue;
+		synth_parts[part] = synth_pending_patches[part];
+		atomic_store_explicit(&synth_pending_ready[part], 0, memory_order_release);
+	}
+}
+
+static void synth_drain_commands(void) {
+	int head = atomic_load_explicit(&synth_command_head, memory_order_relaxed);
+	int tail = atomic_load_explicit(&synth_command_tail, memory_order_acquire);
+	while (head != tail) {
+		synth_apply(&synth_commands[head]);
+		head = (head + 1) % SYNTH_QUEUE_CAPACITY;
+	}
+	atomic_store_explicit(&synth_command_head, head, memory_order_release);
+}
+
+void synth_device_render(float *interleaved, int n_frames) {
+	static double chunk[2 * SYNTH_DEVICE_CHUNK];
+
+	synth_take_pending_patches();
+	synth_drain_commands();
+	for (int done = 0; done < n_frames; ) {
+		int n_chunk = MIN(SYNTH_DEVICE_CHUNK, n_frames - done);
+		synth_render(chunk, n_chunk);
+		for (int i = 0; i < 2 * n_chunk; i++)
+			interleaved[2 * done + i] = (float)chunk[i];
+		done += n_chunk;
+	}
+
+	int n_sounding = synth_n_plays;
+	for (int v = 0; v < SYNTH_MAX_VOICES; v++)
+		n_sounding += synth_voices[v].active;
+	atomic_store_explicit(&synth_sounding, n_sounding, memory_order_release);
+	atomic_fetch_add_explicit(&synth_n_device_renders, 1, memory_order_release);
+}
+
+void synth_set_live(int live) {
+	synth_ensure_ready();
+	if (live) {
+		atomic_store_explicit(&synth_command_head, 0, memory_order_relaxed);
+		atomic_store_explicit(&synth_command_tail, 0, memory_order_relaxed);
+		atomic_store_explicit(&synth_live, 1, memory_order_release);
+		return;
+	}
+
+	atomic_store_explicit(&synth_live, 0, memory_order_release);
+	synth_take_pending_patches();
+	synth_drain_commands();
+	synth_collect_finished();
+	for (int p = 0; p < synth_n_plays; p++)
+		free(synth_plays[p].samples);
+	synth_n_plays = 0;
+}
+
+int synth_is_live(void) {
+	return atomic_load_explicit(&synth_live, memory_order_acquire);
+}
+
+int synth_wait_quiet(Interpreter *interp) {
+	long renders_at_start = atomic_load_explicit(&synth_n_device_renders, memory_order_acquire);
+	for (;;) {
+		synth_collect_finished();
+		int queue_empty = atomic_load_explicit(&synth_command_head, memory_order_acquire)
+			== atomic_load_explicit(&synth_command_tail, memory_order_acquire);
+		long renders = atomic_load_explicit(&synth_n_device_renders, memory_order_acquire);
+		int n_sounding = atomic_load_explicit(&synth_sounding, memory_order_acquire);
+		if (queue_empty && renders > renders_at_start + 1 && n_sounding == 0)
+			return 1;
+		if (interp->gc_pending & INTERRUPT_PENDING)
+			return 0;
+		synth_wait_briefly();
 	}
 }
 
@@ -668,6 +1372,57 @@ static uint64_t synth_seed(void) {
 	uint64_t high = (uint64_t)random_below(1 << 30);
 	uint64_t low = (uint64_t)random_below(1 << 30);
 	return (high << 30) | low;
+}
+
+typedef struct {
+	const char *key;
+	SynthParameter parameter;
+	double low;
+	double high;
+} ParameterRow;
+
+static const ParameterRow synth_part_parameters[] = {
+	{"level", PARAMETER_LEVEL, 0, 1},
+	{"pan", PARAMETER_PAN, -1, 1},
+	{"cutoff", PARAMETER_CUTOFF, SYNTH_MIN_CUTOFF, SYNTH_MAX_CUTOFF},
+	{"resonance", PARAMETER_RESONANCE, 0, 4},
+	{"drive", PARAMETER_DRIVE, 0.1, 10},
+	{NULL, PARAMETER_LEVEL, 0, 0}
+};
+
+static const ParameterRow synth_operator_parameters[] = {
+	{"level", PARAMETER_OPERATOR_LEVEL, 0, 1},
+	{"ratio", PARAMETER_OPERATOR_RATIO, 1.0 / 64, 64},
+	{"width", PARAMETER_OPERATOR_WIDTH, 0.01, 0.99},
+	{NULL, PARAMETER_LEVEL, 0, 0}
+};
+
+static int parameter_submit(Interpreter *interp, Val value_val, Val key_val, int part, int operator_index,
+		const ParameterRow *table, const char *keys_phrase) {
+	if (VAL_TAG(key_val) != T_SYMBOL) {
+		fail(interp, "expected a parameter key (%s); got %s", keys_phrase, tag_name(VAL_TAG(key_val)));
+		return 0;
+	}
+	const char *key = symbol_text(VAL_DATA(key_val));
+	int row = 0;
+	while (table[row].key && strcmp(table[row].key, key) != 0)
+		row++;
+	if (!table[row].key) {
+		fail(interp, "expected a parameter key (%s); got :%s", keys_phrase, key);
+		return 0;
+	}
+	double value;
+	if (!number_in_range(interp, value_val, key, table[row].low, table[row].high, &value))
+		return 0;
+
+	SynthCommand command = {
+		.kind = COMMAND_PARAMETER,
+		.part = part,
+		.parameter = table[row].parameter,
+		.operator_index = operator_index,
+		.value = value,
+	};
+	return synth_submit(interp, &command);
 }
 
 void p_pitch_to_midi(DISPATCH_ARGS) {
@@ -704,9 +1459,48 @@ void p_patch_store(DISPATCH_ARGS) {
 	SynthPatch patch;
 	if (!patch_from_frame(interp, OBJECT_AT(VAL_DATA(patch_val)), &patch))
 		return;
-	synth_parts[part] = patch;
+	if (!synth_is_live()) {
+		synth_parts[part] = patch;
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 2);
+	}
+
+	while (atomic_load_explicit(&synth_pending_ready[part], memory_order_acquire) && synth_is_live())
+		synth_wait_briefly();
+	synth_pending_patches[part] = patch;
+	atomic_store_explicit(&synth_pending_ready[part], 1, memory_order_release);
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 2);
+}
+
+void p_part_store(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 3);
+	int part = part_index(interp, chain_sp[-1]);
+	if (part < 0)
+		return;
+
+	synth_ensure_ready();
+	if (!parameter_submit(interp, chain_sp[-3], chain_sp[-2], part, -1, synth_part_parameters,
+			":level :pan :cutoff :resonance :drive"))
+		return;
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 3);
+}
+
+void p_operator_store(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 4);
+	int part = part_index(interp, chain_sp[-1]);
+	if (part < 0)
+		return;
+	int operator_index = frame_index(interp, chain_sp[-2], SYNTH_MAX_OPERATORS, "operator!");
+	if (operator_index < 0)
+		return;
+
+	synth_ensure_ready();
+	if (!parameter_submit(interp, chain_sp[-4], chain_sp[-3], part, operator_index, synth_operator_parameters,
+			":level :ratio :width"))
+		return;
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 4);
 }
 
 void p_note_on(DISPATCH_ARGS) {
@@ -726,7 +1520,9 @@ void p_note_on(DISPATCH_ARGS) {
 		return;
 
 	synth_ensure_ready();
-	synth_note_on(part, note, velocity, synth_seed());
+	SynthCommand command = {.kind = COMMAND_NOTE_ON, .part = part, .note = note, .velocity = velocity, .seed = synth_seed()};
+	if (!synth_submit(interp, &command))
+		return;
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 3);
 }
@@ -740,7 +1536,9 @@ void p_note_off(DISPATCH_ARGS) {
 	if (part < 0)
 		return;
 
-	synth_note_off(part, note);
+	SynthCommand command = {.kind = COMMAND_NOTE_OFF, .part = part, .note = note};
+	if (!synth_submit(interp, &command))
+		return;
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 2);
 }
@@ -752,6 +1550,10 @@ void p_render_audio(DISPATCH_ARGS) {
 	double seconds = VAL_NUMBER(seconds_val);
 	if (!(seconds >= 0 && seconds <= SYNTH_MAX_RENDER_SECONDS)) {
 		fail(interp, "expected seconds in [0, %d]; got %g", SYNTH_MAX_RENDER_SECONDS, seconds);
+		return;
+	}
+	if (synth_is_live()) {
+		fail(interp, "the synthesizer is playing live; audio-off first");
 		return;
 	}
 
@@ -766,8 +1568,9 @@ void p_render_audio(DISPATCH_ARGS) {
 }
 
 void p_silence(DISPATCH_ARGS) {
-	for (int v = 0; v < SYNTH_MAX_VOICES; v++)
-		synth_voices[v].active = 0;
+	SynthCommand command = {.kind = COMMAND_SILENCE};
+	if (!synth_submit(interp, &command))
+		return;
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }

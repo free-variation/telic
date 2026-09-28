@@ -34,7 +34,7 @@ CFLAGS += -flto
 endif
 LDLIBS = -lm -lffi $(TIGR_LIBS) $(MINIAUDIO_LIBS)
 
-SRCS = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/fourier.c src/c/synth.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/foreign.c src/c/platform_posix.c src/c/dimension.c src/c/time.c src/c/exact.c src/c/serialize.c src/c/arrow.c src/c/graphics.c
+SRCS = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/fourier.c src/c/synth.c src/c/audio.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/foreign.c src/c/platform_posix.c src/c/dimension.c src/c/time.c src/c/exact.c src/c/serialize.c src/c/arrow.c src/c/graphics.c
 HDRS = src/c/telic.h src/c/platform.h src/c/lib_embed.h src/c/logo_embed.h src/c/repl_highlight_groups.h
 
 TELIC_INCS = -I$(PCRE2_SRC) -I$(SQLITE_DIR) -I$(SQLITE_VEC_DIR) -I$(NANOARROW_DIR)/include -I$(POCKETFFT_DIR) -I$(TIGR_DIR) -I$(MINIAUDIO_DIR) $(MINIAUDIO_DEFINES) -I$(ISOCLINE_DIR)/include
@@ -102,13 +102,15 @@ TIGR_LIBS   = -lGLU -lGL -lX11
 endif
 
 # Vendored miniaudio (see external/miniaudio/PROVENANCE; refresh with tools/vendor-miniaudio.sh).
-# Audio device output and the node graph. Decoding and encoding are compiled
-# out, since audio formats go through ffmpeg; MA_NO_DECODING also removes the
-# resource manager, which changes ma_engine's layout, so every file including
-# miniaudio.h compiles with MINIAUDIO_DEFINES. The platform audio libraries
-# are opened at run time; Linux needs libdl and libpthread for that.
+# Audio device output only: audio.c drives an ma_device whose callback runs
+# synth.c. Decoding and encoding are compiled out, since audio formats go
+# through ffmpeg, and so are the engine, node graph, resource manager and
+# generators, which telic's own synthesizer replaces. The defines change
+# struct layouts, so every file including miniaudio.h compiles with
+# MINIAUDIO_DEFINES. The platform audio libraries are opened at run time;
+# Linux needs libdl and libpthread for that.
 MINIAUDIO_DIR     = external/miniaudio
-MINIAUDIO_DEFINES = -DMA_NO_DECODING -DMA_NO_ENCODING
+MINIAUDIO_DEFINES = -DMA_NO_DECODING -DMA_NO_ENCODING -DMA_NO_ENGINE -DMA_NO_NODE_GRAPH -DMA_NO_RESOURCE_MANAGER -DMA_NO_GENERATION
 MINIAUDIO_CFLAGS  = -O2 $(MINIAUDIO_DEFINES)
 MINIAUDIO_OBJ     = $(MINIAUDIO_DIR)/miniaudio.o
 ifeq ($(UNAME),Darwin)
@@ -315,6 +317,11 @@ acceptance-refs: telic
 test-libs: telic $(LAPACKE_SHARED) docs-tests
 	sh tests/run-libs.sh
 
+# Audible synthesizer tests (tests/synth/): they open the audio output device
+# and play sound, so they stay out of `make test` and the wasm suite.
+test-synth: telic
+	sh tests/run-synth.sh
+
 # Runs the golden suite against the wasm build under a WASI runtime. The runner
 # finds wasmtime on PATH or ~/.wasmtime/bin; otherwise set WASMTIME=<path>.
 test-wasm: telic.wasm docs-tests
@@ -345,4 +352,4 @@ install: all pack
 clean:
 	rm -f telic telic.wasm $(PCRE2_OBJS) $(PCRE2_LIB) $(WASM_PCRE2_OBJS) $(WASM_PCRE2_LIB) $(SQLITE_OBJ) $(WASM_SQLITE_OBJ) $(SQLITE_VEC_OBJ) $(WASM_SQLITE_VEC_OBJ) $(NANOARROW_OBJS) $(WASM_NANOARROW_OBJS) $(POCKETFFT_OBJ) $(WASM_POCKETFFT_OBJ) $(TIGR_OBJ) $(MINIAUDIO_OBJ) $(ISOCLINE_OBJ) $(LAPACKE_OBJS) $(LAPACKE_LIB) $(LAPACKE_SHARED) $(LAPACKE_DIR)/exports.map
 
-.PHONY: all clean install test test-libs test-wasm bench wasm vendor-pcre2 vendor-sqlite vendor-isocline vendor-lapacke lapacke editors
+.PHONY: all clean install test test-libs test-synth test-wasm bench wasm vendor-pcre2 vendor-sqlite vendor-isocline vendor-lapacke lapacke editors

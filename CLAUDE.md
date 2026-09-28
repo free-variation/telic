@@ -65,8 +65,13 @@ by file in SRCS order. What each file is:
   half-complex and interleaved arrays.
 - synth.c — the synthesizer: patch-frame validation into C structs, the
   voice pool, operators (PolyBLEP waves, seeded noise), the phase-modulation
-  loop, envelopes, pitch parsing, and the words pitch>midi … render-audio.
+  loop, unison copies, envelopes, the per-voice Moog ladder and LFO, glide,
+  64-frame parameter ramps, pitch parsing, and the words pitch>midi …
+  render-audio, part!, operator!;
+  also the lock-free rings to the device thread and synth_device_render.
   Plain C with libm only, so it builds for wasm.
+- audio.c — native only: the miniaudio ma_device, its data callback, and
+  audio-on/audio-off/play/wait-audio (platform_wasi.c stubs them).
 - indexing.c — the @i/!i index/store dispatch family across arrays/
   segments/slices, plus quickened "(word.tag)" specializations.
 - functional.c — map/nmap/filter/reduce and the parallel worker pool
@@ -310,6 +315,10 @@ new inline that calls functions → the tail.
   native-only and excluded from `make test` so the core suite builds without
   those deps. A new such test goes in tests/lib/, not the wasm-skip list.
   Pure-forth lib tests (e.g. lib/plot.telic) stay in the core suite.
+- Tests that open the audio output device and play sound live in
+  tests/synth/ and run via `make test-synth` (tests/run-synth.sh), outside
+  `make test` and the wasm suite. Everything else about the synthesizer is
+  tested offline through render-audio in the core suite.
 - A test needing an input file it cannot write itself reads a fixture from
   data/ by relative path, as 079_tsv_to_db reads data/iris.tsv. A fixture no
   other tool can produce carries a tools/gen-*.py that regenerates it, run by

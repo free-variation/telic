@@ -1,0 +1,70 @@
+\ ==== the ladder filter: :cutoff :resonance :drive, :filter-envelope ====
+
+\ A patch with :cutoff runs each voice through a 4-pole Moog ladder (ported
+\ from promini: D'Angelo and Valimaki's model, 2x oversampled). Without
+\ :cutoff there is no filter. The filter envelope moves the cutoff to
+\ :cutoff x 2^(:amount x level). The source here is a 110 Hz saw, whose
+\ harmonics sit at every multiple of 110 Hz; levels are in dB against the
+\ unfiltered saw.
+
+11 seed
+
+: settled ( stereo -- v ) | stereo | stereo 9600 48000 0 1 submatrix ;
+: amp ( v hz -- a ) 48000 swap amplitude-at ;
+: db ( a b -- d ) / log10 20 * round ;
+: voice ( patch -- v ) silence 0 patch! 45 1 0 note-on 1 render-audio settled ;
+: saw ( -- patch ) { :operators [ { :wave :saw } ] } ;
+: window ( stereo t -- v ) | stereo t | stereo t 48000 * round dup 2400 + 0 1 submatrix ;
+
+saw voice to dry
+
+\ === no :cutoff, no filter; :resonance alone does nothing ===
+saw 3 :resonance ! voice dry = . cr                            \ 1
+saw 20000 :cutoff ! voice dry = . cr                           \ 0 (a filter at 20 kHz still colors the saw)
+clear
+
+\ === 24 dB per octave above the cutoff ===
+saw 440 :cutoff ! voice to wet
+: loss ( hz -- db ) | hz | wet hz amp dry hz amp db ;
+440 loss . 880 loss . 1760 loss . 3520 loss . cr               \ -13 -28 -65 -84 (the knee, then steeper than 24 dB/octave)
+220 loss . cr                                                  \ -6 (the ladder rolls off gradually below its knee)
+saw 4000 :cutoff ! voice 110 amp dry 110 amp db . cr           \ 0 (well below the cutoff: unity gain)
+clear
+
+\ === resonance boosts the harmonic nearest the cutoff; the maximum stays finite ===
+saw 880 :cutoff ! 3.5 :resonance ! voice 880 amp  saw 880 :cutoff ! voice 880 amp db . cr   \ 16
+saw 880 :cutoff ! 4 :resonance ! voice to ringing
+ringing abs max 2 < . ringing nan? sum . cr                    \ 1 0 (finite, no NaN)
+clear
+
+\ === :drive saturates the ladder's tanh stages: a sine gains harmonics ===
+: sine-through ( drive -- v ) | drive | { } 1000 :cutoff ! drive :drive ! voice ;
+10 sine-through 330 amp  1 sine-through 330 amp / 5 > . cr    \ 1 (the 3rd harmonic grows from 0.044 to 0.371)
+clear
+
+\ === the filter envelope ===
+saw 400 :cutoff ! { :attack 0.05 :decay 0.2 :sustain 0.25 :amount 4 } :filter-envelope ! 0 patch!
+silence 45 1 0 note-on 1.5 render-audio to swept
+saw 800 :cutoff ! 0 patch! silence 45 1 0 note-on 1.5 render-audio to steady
+swept 1.2 window 1760 amp steady 1.2 window 1760 amp db . cr    \ 0 (sustain: 400 x 2^(4 x 0.25) = 800 Hz)
+swept 0.05 window 1760 amp steady 1.2 window 1760 amp db 10 > . cr   \ 1 (the attack peak opens toward 6.4 kHz)
+saw 3200 :cutoff ! { :attack 0.3 :decay 0 :sustain 1 :amount -3 } :filter-envelope ! 0 patch!
+silence 45 1 0 note-on 1.5 render-audio to closing
+closing 1.2 window 1760 amp closing 0.02 window 1760 amp db -20 < . cr   \ 1 (a negative amount sweeps down, 3.2 kHz toward 400 Hz)
+clear
+
+\ === velocity scales the envelope's amount ===
+saw 400 :cutoff ! { :attack 0 :decay 0 :sustain 1 :amount 3 } :filter-envelope ! 0 patch!
+silence 45 1 0 note-on 0.5 render-audio to hard
+silence 45 0.2 0 note-on 0.5 render-audio to soft
+: brightness ( stereo -- ratio ) | stereo | stereo 0.3 window 1760 amp stereo 0.3 window 110 amp / ;
+hard brightness soft brightness db 10 > . cr     \ 1 (velocity 0.2 opens 0.6 octaves, not 3)
+silence clear
+
+\ errors
+{ :cutoff 10 } 0 patch!                                        \ (below 20 Hz)
+{ :resonance 5 } 0 patch!                                      \ (above 4)
+{ :drive 0 } 0 patch!                                          \ (below 0.1)
+{ :filter-envelope 1 } 0 patch!                                \ (not a frame)
+{ :filter-envelope { :amount 11 } } 0 patch!                   \ (amount beyond 10 octaves)
+{ :filter-envelope { :shape :sine } } 0 patch!                 \ (unknown key)

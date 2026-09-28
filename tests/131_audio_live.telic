@@ -1,0 +1,66 @@
+\ ==== part! ( value key part -- ), operator! ( value key operator part -- ) ====
+
+\ part! changes one parameter of a part: its patch, for later notes, and
+\ its sounding voices, which move to the new value in a straight line over
+\ 64 frames (1.3 ms) rather than jumping. Keys: :level :pan :cutoff
+\ :resonance :drive. operator! does the same for one operator's :level
+\ :ratio or :width. patch! instead replaces the part's patch for later
+\ notes only.
+
+11 seed
+
+: amp ( v hz -- a ) 48000 swap amplitude-at 0.70710678 / 1000 * round 1000 / ;
+: left ( stereo -- v ) | stereo | stereo 0 stereo n-rows 0 1 submatrix ;
+: right ( stereo -- v ) | stereo | stereo 0 stereo n-rows 1 2 submatrix ;
+: begin-note ( patch -- ) silence 0 patch! :a4 1 0 note-on 0.3 render-audio drop ;
+
+\ === :level, ramped ===
+{ :operators [ { :fixed 1000 } ] } begin-note
+0.25 :level 0 part! 0.5 render-audio to quieter
+quieter 0 64 0 1 submatrix successive-differences abs max 0.1 < . cr   \ 1 (no step beyond a sine's own)
+quieter 4800 24000 0 1 submatrix 1000 amp . cr                          \ 0.25
+clear
+
+\ === :pan ===
+{ :operators [ { :fixed 1000 } ] } begin-note
+1 :pan 0 part! 0.5 render-audio to moved
+moved left 1000 amp . moved right 1000 amp . cr                     \ 0 1.414 (the 64-frame ramp is too short to register)
+0.2 render-audio to settled
+settled left 1000 amp . settled right 1000 amp . cr                 \ 0 1.414 (right only)
+clear
+
+\ === :cutoff on a filtered saw, and on a patch without a filter ===
+{ :operators [ { :wave :saw } ] :cutoff 5000 } begin-note
+500 :cutoff 0 part! 0.5 render-audio to closed
+closed 4800 24000 0 1 submatrix 3520 amp 0.001 < . cr               \ 1 (5 kHz to 500 Hz)
+{ :operators [ { :wave :saw } ] } begin-note
+500 :cutoff 0 part! 0.5 render-audio 4800 24000 0 1 submatrix 3520 amp 0.001 < . cr   \ 1 (the filter comes in)
+clear
+
+\ === operator! :ratio and :level ===
+{ :operators [ { } ] } begin-note
+2 :ratio 0 0 operator! 0.5 render-audio 4800 24000 0 1 submatrix to octave
+octave 880 amp . octave 440 amp . cr                                \ 1 0
+{ :operators [ { :fixed 1000 } { :fixed 100 } ] :modulation [ [ 1 0 2 ] ] } begin-note
+0 :level 1 0 operator! 0.5 render-audio 4800 24000 0 1 submatrix 1100 amp . cr   \ 0 (the modulator silenced: no sidebands)
+clear
+
+\ === the patch keeps the change for the next note ===
+{ :operators [ { :fixed 1000 } ] } begin-note 0.5 :level 0 part! silence
+:a4 1 0 note-on 0.5 render-audio 4800 24000 0 1 submatrix 1000 amp . cr   \ 0.5
+clear
+
+\ === patch! leaves sounding notes alone ===
+{ :operators [ { :fixed 1000 } ] } begin-note
+{ :operators [ { :fixed 1500 } ] } 0 patch! 0.5 render-audio to unchanged
+unchanged left 1000 amp . unchanged left 1500 amp . cr               \ 1 0
+:e5 1 0 note-on 0.5 render-audio 4800 24000 0 1 submatrix 1500 amp 0 > . cr   \ 1 (the next note has it)
+silence clear
+
+\ errors
+0.5 :glide 0 part!                                  \ (not a live key)
+2 :level 0 part!                                    \ (level above 1)
+0.5 "level" 0 part!                                 \ (key not a symbol)
+0.5 :level 16 part!                                 \ (part out of range)
+2 :ratio 8 0 operator!                              \ (operator out of range)
+2 :detune 0 0 operator!                             \ (not a live key)

@@ -6134,7 +6134,9 @@ colors :dodgerblue @ . colors size . cr
 
 ## Audio synthesizer
 
-A polyphonic phase-modulation synthesizer computed in C at 48 kHz, stereo.
+A polyphonic phase-modulation synthesizer computed in C at 48 kHz, stereo,
+played live on the output device after `audio-on` or computed offline by
+`render-audio` — one or the other at a time.
 Sixteen parts, numbered 0–15, each hold a patch; a note on a part takes one
 of 32 voices, and when none is free it takes the voice released longest ago,
 else the one started longest ago. A note-on for a pitch already sounding on
@@ -6157,7 +6159,16 @@ its range errors and leaves the part's patch unchanged:
 | `:carriers` | the indices of the operators heard, summed | `[ 0 ]` |
 | `:level` | output gain, [0, 1] | 1 |
 | `:pan` | −1 left to 1 right, constant power: gains cos and sin of (pan + 1)·π/4 | 0 |
-| `:velocity` | how much note velocity scales the gain: gain × (1 − v + v × velocity), [0, 1] | 1 |
+| `:velocity` | how much note velocity scales the gain and the filter envelope's amount: × (1 − v + v × velocity), [0, 1] | 1 |
+| `:unison` | copies of every operator per note, 1–7, sharing the envelopes; the sum is scaled by 1/√n | 1 |
+| `:detune` | the unison copies' total detuning span in cents, spread evenly (20 puts three copies at −10, 0, +10), [0, 100] | 0 |
+| `:spread` | the unison copies' pan spread, evenly across ± this around `:pan`, [0, 1] | 0 |
+| `:cutoff` | turns on the voice's 4-pole Moog ladder filter (promini's port of D'Angelo and Välimäki's model, 2× oversampled) at this cutoff in Hz, [20, 20000]; without it there is no filter | none |
+| `:resonance` | the ladder's feedback, [0, 4]; near 4 it rings at the cutoff | 0 |
+| `:drive` | input gain into the ladder's tanh stages, [0.1, 10]; above 1 it saturates | 1 |
+| `:filter-envelope` | a frame of `:attack :decay :sustain :release :sustain-decay` (as for an operator) plus `:amount` in octaves, [−10, 10]: the cutoff is `:cutoff` × 2^(amount × level) | amount 0 |
+| `:lfo` | a frame: `:shape` (`:sine` `:triangle` `:saw` `:square` `:sample-and-hold`), `:rate` Hz [0.01, 100], `:delay` s before it acts, `:fade` s to reach full depth, `:key-sync` 1 to start at phase 0 on each note or 0 to follow the free-running clock, and depths `:pitch` in semitones [0, 24], `:cutoff` in octaves [0, 8], `:pan` [0, 1] | sine, 5 Hz, synced, depths 0 |
+| `:glide` | seconds for a note's pitch to slide, linearly in semitones, from the part's previous note; `silence` forgets the previous note, [0, 10] | 0 |
 
 An **operator** frame:
 
@@ -6169,6 +6180,8 @@ An **operator** frame:
 | `:detune` | cents, [−1200, 1200] | 0 |
 | `:level` | output level, [0, 1] | 1 |
 | `:width` | the pulse's duty cycle, [0.01, 0.99]; 0.5 is square | 0.5 |
+| `:lfo-level` | tremolo depth from the patch LFO l: the operator's output × (1 − d(1 − l)/2), [0, 1]; on a modulator it moves the modulation index | 0 |
+| `:lfo-width` | pulse-width modulation: the width + d × l, [0, 0.49] | 0 |
 | `:attack` | seconds for a linear rise from the current level to 1 | 0.005 |
 | `:decay` | the time constant, in seconds, of the exponential fall toward `:sustain` | 0.1 |
 | `:sustain` | the level held while the gate is open, [0, 1] | 1 |
@@ -6183,10 +6196,16 @@ Times are in [0, 60] seconds. After one time constant a stage has covered
 | `pitch>midi` | `( pitch -- n )` | The MIDI note number of a pitch | 1 | none | O(1) |
 | `pitch>hz` | `( pitch -- hz )` | The equal-tempered frequency of a pitch, 440 × 2^((n − 69)/12) | 1 | none | O(1) |
 | `patch!` | `( frame part -- )` | Give a part a patch; notes already sounding keep the patch they started with | keys | none | O(keys) |
+| `part!` | `( value key part -- )` | Change one parameter of a part — `:level` `:pan` `:cutoff` `:resonance` `:drive`, with the patch's ranges — in its patch and in its sounding voices, which move to the value linearly over 64 frames (1.3 ms). `:cutoff` on a voice without a filter turns the filter on | 1 | none | O(voices) |
+| `operator!` | `( value key operator part -- )` | As `part!` for one operator's `:level`, `:ratio` or `:width` | 1 | none | O(voices) |
 | `note-on` | `( pitch velocity part -- )` | Start a note, velocity in [0, 1], at the start of the next `render-audio` | 1 | none | O(voices) |
 | `note-off` | `( pitch part -- )` | Release the part's sounding voices at that pitch; a pitch not sounding is ignored | 1 | none | O(voices) |
-| `render-audio` | `( seconds -- matrix )` | Advance the synthesizer by `seconds`, [0, 600], and answer its output as an n×2 matrix, n = seconds × 48000, column 0 left, column 1 right. Consecutive calls continue one signal | n × voices | `1m(n×2)` | O(n × voices × operators) |
-| `silence` | `( -- )` | End every sounding voice at once; parts keep their patches | 1 | none | O(voices) |
+| `render-audio` | `( seconds -- matrix )` | Advance the synthesizer by `seconds`, [0, 600], and answer its output as an n×2 matrix, n = seconds × 48000, column 0 left, column 1 right. Consecutive calls continue one signal. Errors while `audio-on` has the synthesizer playing live | n × voices | `1m(n×2)` | O(n × voices × operators) |
+| `silence` | `( -- )` | End every sounding voice and every `play` at once; parts keep their patches | 1 | none | O(voices) |
+| `audio-on` | `( -- )` | Open the default output device, 48 kHz stereo, and run the synthesizer on its thread: from then on `note-on`, `note-off`, `patch!` and `silence` take effect at the device's next buffer and are heard. The interpreter reaches the device thread through a queue of 4096 commands, and a word that would overflow it errors. Native only | 1 | the device | O(1) |
+| `audio-off` | `( -- )` | Close the output device; commands still queued are applied, `play`s still sounding are dropped, and the synthesizer renders offline again | 1 | none | O(1) |
+| `play` | `( matrix -- )` | Play an n×1 (mono) or n×2 (stereo) matrix of samples at 48 kHz, opening the device if needed, and return at once; overlapping `play`s and the voices mix. The samples are copied, so the matrix can change afterwards. Native only | n | a float copy of n×2 | O(n) |
+| `wait-audio` | `( -- )` | Block until every `play` has ended and every voice is silent — until the last samples have been handed to the device, whose output latency follows; returns at once when the device is off. Ctrl-C interrupts it | waits | none | O(duration) |
 
 ```forth pitch>midi
 :a4 pitch>midi . :c4 pitch>midi . :f#3 pitch>midi . cr
@@ -6209,6 +6228,23 @@ silence :a4 1 0 note-on 1 render-audio 4800 48000 0 1 submatrix
 ```
 ```output
 0.577
+```
+
+```forth part!
+{ :operators [ { :fixed 1000 } ] } 0 patch! silence :a4 1 0 note-on 0.1 render-audio drop
+0.5 :level 0 part! 0.5 render-audio 4800 24000 0 1 submatrix
+48000 1000 amplitude-at 0.70710678 / 1000 * round 1000 / . cr silence
+```
+```output
+0.5
+```
+
+```forth operator!
+{ } 0 patch! silence :a4 1 0 note-on 0.1 render-audio drop 2 :ratio 0 0 operator!
+0.5 render-audio 4800 24000 0 1 submatrix 48000 880 amplitude-at 0.70710678 / 1000 * round 1000 / . cr silence
+```
+```output
+1
 ```
 
 ```forth note-on
@@ -6238,6 +6274,32 @@ silence 0.5 render-audio dim . . cr
 ```
 ```output
 0
+```
+
+```forth-noexec audio-on
+{ :operators [ { :wave :saw :release 0.3 } ] :level 0.3 } 0 patch! audio-on
+:c4 1 0 note-on :e4 1 0 note-on :g4 1 0 note-on 1 sleep
+:c4 0 note-off :e4 0 note-off :g4 0 note-off wait-audio audio-off
+```
+```output
+```
+
+```forth-noexec audio-off
+audio-on :a4 1 0 note-on 0.5 sleep audio-off
+```
+```output
+```
+
+```forth-noexec play
+0 47999 1 matrix-range transpose 2 PI * 440 * 48000 / * sin 0.2 * play wait-audio
+```
+```output
+```
+
+```forth-noexec wait-audio
+{ } 0 patch! 1 render-audio play wait-audio
+```
+```output
 ```
 
 ---

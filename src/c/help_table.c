@@ -158,6 +158,8 @@ const HelpEntry help_entries[] = {
 	{ "atan", "( a -- atan a )", "inverse tangent", "2", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 3 },
 	{ "atan2", "( y x -- f )", "the angle of the point (x, y) in (−π, π] — atan2(y, x), using the signs of both arguments to place the quadrant; float, or matrix element-wise with scalar broadcast", "3 (float)", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 1 },
 	{ "auc", "( outcomes scores -- f )", "statistics.telic: area under the ROC curve = P(a random positive scores above a random negative), ties counted half (Mann–Whitney). outcomes n×1 in {0,1}, scores real; a NaN score drops its row (outcomes stay aligned); throws if either class is absent. Ties are handled exactly, so the result is independent of row order", "n_pos·n_neg", "index vectors + per-positive masks", "O(n_pos·n_neg)", 20 },
+	{ "audio-off", "( -- )", "Close the output device; commands still queued are applied, plays still sounding are dropped, and the synthesizer renders offline again", "1", "none", "O(1)", 35 },
+	{ "audio-on", "( -- )", "Open the default output device, 48 kHz stereo, and run the synthesizer on its thread: from then on note-on, note-off, patch! and silence take effect at the device's next buffer and are heard. The interpreter reaches the device thread through a queue of 4096 commands, and a word that would overflow it errors. Native only", "1", "the device", "O(1)", 35 },
 	{ "augment", "( a b -- mat )", "Concatenate two matrices column-wise; errors unless row counts match", "2 + r·c", "1m(r×c)", "O(r·c)", 20 },
 	{ "axes", "( -- )", "Plot-area border plus labeled x and y ticks, laid out at render time; tick labels use the aes :tick-format string (default {0:g} — whole numbers as integers, no forced scientific notation); an axis marked categorical (:x-categorical/:y-categorical, set by barchart/y-categories) shows no numeric ticks", NULL, NULL, NULL, 47 },
 	{ "barchart", "( heights labels -- )", "Vertical bars on a categorical x axis, one per height from the y=0 baseline; labels a parallel array of category strings; pins the domain and sets :x-categorical so axes/panel drop the numeric x-ticks; aes :bar-fill :bar-stroke", NULL, NULL, NULL, 47 },
@@ -534,6 +536,7 @@ const HelpEntry help_entries[] = {
 	{ "on-tick", "( -- )", "repl.telic: the timer hook — a deferred word run once per tick-every tick, with the data stack as the running code left it, so a target must leave the stack as it found it; the default target does nothing, ' xt embodies on-tick installs another. An error in the hook prints on-tick: <message> to stderr and the running code continues", "target", "target", "target", 30 },
 	{ "open-app-window", "( path -- )", "browser.telic: open path in a detached browser application window (Chromium --app), falling back to the system open / xdg-open", "fork", "none", "O(1)", 36 },
 	{ "open-file", "( path -- stream )", "The file as a read-only stream, so read-line / read / read-available / wait-readable / close walk a file too large to read whole line by line; errors if it can't be opened", "1", "none", "O(1)", 32 },
+	{ "operator!", "( value key operator part -- )", "As part! for one operator's :level, :ratio or :width", "1", "none", "O(voices)", 35 },
 	{ "or", "( a b -- bool )", "logical or of truthiness", "3", "none", "O(1)", 4 },
 	{ "over", "( a b -- a b a )", "Copy second over top", "5", "none", "O(1)", 0 },
 	{ "pad-left", "( str width -- str' )", "strings.telic: s left-padded with spaces to width (unchanged when already that wide; codepoint widths)", "n", "1a + 1o", "O(n)", 14 },
@@ -542,6 +545,7 @@ const HelpEntry help_entries[] = {
 	{ "paper", "( color -- )", "graphics.telic: the color cls fills with, and the color a new bitmap starts at. Default black", "3", "none", "O(1)", 34 },
 	{ "parallel-run", "( commands width -- results )", "subprocess.telic: run each argv array in commands as a subprocess, at most width at once; collect { :out :err :status } per command in input order, refilling a slot as each child finishes", "fork per command + poll", "1a + per-child frames/streams", "O(critical path)", 36 },
 	{ "parse-time", "( string format -- instant )", "Parse with strptime; uncaptured fields default to 1970-01-01 00:00:00, read as UTC unless the format captures an offset with %z; errors on a mismatch", "len", "1 pair", "O(len)", 23 },
+	{ "part!", "( value key part -- )", "Change one parameter of a part — :level :pan :cutoff :resonance :drive, with the patch's ranges — in its patch and in its sounding voices, which move to the value linearly over 64 frames (1.3 ms). :cutoff on a voice without a filter turns the filter on", "1", "none", "O(voices)", 35 },
 	{ "partition", "( items pred -- matches rest )", "arrays.telic: the elements satisfying pred and the others, one pass, input order kept", "n·xt", "2 arrays + the curried predicate token", "O(n·xt)", 25 },
 	{ "patch!", "( frame part -- )", "Give a part a patch; notes already sounding keep the patch they started with", "keys", "none", "O(keys)", 35 },
 	{ "pbootstrap", "( data fit-xt B -- arr )", "statistics.telic: B refits of fit-xt over resamples of data (dataset/matrix rows, or an array's elements), the fits run in parallel; identical results to a serial run through per-replicate seeding", "as bootstrap", "as bootstrap", "O(B·(n + fit) / cores)", 20 },
@@ -553,6 +557,7 @@ const HelpEntry help_entries[] = {
 	{ "pick", "( xₙ … x₀ n -- xₙ … x₀ xₙ )", "Copy the item n deep to the top, leaving it in place; 0 pick copies the top, 1 pick copies the second, and n counts down from the top. Reads a value a caller parked below a combinator's operands: where a combinator peeks its source and leaves the current element on top, the element is at 0, the source at 1, and a parked value at 2", "3", "none", "O(1)", 0 },
 	{ "pitch>hz", "( pitch -- hz )", "The equal-tempered frequency of a pitch, 440 × 2^((n − 69)/12)", "1", "none", "O(1)", 35 },
 	{ "pitch>midi", "( pitch -- n )", "The MIDI note number of a pitch", "1", "none", "O(1)", 35 },
+	{ "play", "( matrix -- )", "Play an n×1 (mono) or n×2 (stereo) matrix of samples at 48 kHz, opening the device if needed, and return at once; overlapping plays and the voices mix. The samples are copied, so the matrix can change afterwards. Native only", "n", "a float copy of n×2", "O(n)", 35 },
 	{ "plot", "( x y -- )", "Set one pixel", "1", "the bitmap, once", "O(1)", 34 },
 	{ "pmap", "( arr xt -- arr )", "Apply xt to each element across worker threads, results in input order (num-cores workers, claim 1)", "2 + n·xt", "1a(n)", "O(n·xt / w)", 25 },
 	{ "pmap-ext", "( arr w c xt -- arr )", "Apply xt to each element across worker threads, results in input order, with explicit worker count w and items-per-claim c", "2 + n·xt", "1a(n)", "O(n·xt / w)", 25 },
@@ -613,7 +618,7 @@ const HelpEntry help_entries[] = {
 	{ "rename-file", "( from to -- )", "Rename from to to, replacing an existing to — a move within one filesystem, files and directories alike; errors across filesystems", "1", "none", "O(1)", 32 },
 	{ "rename-key!", "( fr old new -- fr )", "core.telic: move the value at key old to key new in place and leave fr — a dataset column renames the same way (ds :price :cost rename-key!); old absent errors, an existing new is overwritten; keys stay in symbol-id order", "2n", "none", "O(n)", 17 },
 	{ "render", "( a -- str )", "The text . would print, returned as a string instead of printed: no truncation, no trailing separator (a matrix grid's final newline is dropped). Strings render raw, symbols with their colon, collections/frames/matrices in their laid-out form", "1 + size", "1o", "O(size)", 13 },
-	{ "render-audio", "( seconds -- matrix )", "Advance the synthesizer by seconds, [0, 600], and answer its output as an n×2 matrix, n = seconds × 48000, column 0 left, column 1 right. Consecutive calls continue one signal", "n × voices", "1m(n×2)", "O(n × voices × operators)", 35 },
+	{ "render-audio", "( seconds -- matrix )", "Advance the synthesizer by seconds, [0, 600], and answer its output as an n×2 matrix, n = seconds × 48000, column 0 left, column 1 right. Consecutive calls continue one signal. Errors while audio-on has the synthesizer playing live", "n × voices", "1m(n×2)", "O(n × voices × operators)", 35 },
 	{ "repeat", "—", "Branch back to begin; patches the while exit", NULL, NULL, NULL, 10 },
 	{ "repeat-column!", "( dataset value sym -- dataset )", "datasets.telic: store value repeated over the rows as the named column, in place, and leave the dataset: a scalar fills every row; an array or vector of length k repeats n-rows/k times, and n-rows not a multiple of k errors. The column takes the representation column-from-cells infers — floats and null a vector, one-unit quantities a dimensioned vector, else an array; an existing key is overwritten", "4n", "2a(n) + one column", "O(n)", 24 },
 	{ "replace", "( str pat rep -- str' )", "Replace **all** matches; in rep, & or \\0 is the whole match, \\1–\\9 a capture, \\& and \\\\ literals", "n", "1o + buffer growth", "O(n)", 14 },
@@ -692,7 +697,7 @@ const HelpEntry help_entries[] = {
 	{ "side-peek", "( -- a )", "Copy side-stack top to the data stack", "1", "none", "O(1)", 9 },
 	{ "side>", "( -- a )", "Pop from side stack", "2", "none", "O(1)", 9 },
 	{ "sigmoid", "( mat -- mat' )", "statistics.telic: elementwise logistic 1/(1+e⁻ˣ), mapping reals to (0,1)", "4n", "1m(r×c)", "O(n)", 20 },
-	{ "silence", "( -- )", "End every sounding voice at once; parts keep their patches", "1", "none", "O(voices)", 35 },
+	{ "silence", "( -- )", "End every sounding voice and every play at once; parts keep their patches", "1", "none", "O(voices)", 35 },
 	{ "sin", "( a -- sin a )", "sine (radians)", "2", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 3 },
 	{ "sinh", "( a -- sinh a )", "hyperbolic sine", "2", "matrix 1m(r×c)", "float O(1); matrix O(r×c)", 3 },
 	{ "size", "( coll -- n )", "Element count: set/array members, **codepoints** of a string, pair count of a frame; a string's codepoint count is computed on first use and memoized on the object", "2", "none", "O(1); a string's first size is O(n)", 15 },
@@ -811,6 +816,7 @@ const HelpEntry help_entries[] = {
 	{ "vvf-", "vvf- a b", "Load variables a and b, subtract (a−b), push the result", NULL, NULL, NULL, 29 },
 	{ "vvf/", "vvf/ a b", "Load variables a and b, divide (a/b), push the result", NULL, NULL, NULL, 29 },
 	{ "wait", "( pid -- status )", "Block until the child exits; return its exit code, or 128 + signo if it was killed by a signal", "blocks", "none", "O(1)", 36 },
+	{ "wait-audio", "( -- )", "Block until every play has ended and every voice is silent — until the last samples have been handed to the device, whose output latency follows; returns at once when the device is off. Ctrl-C interrupts it", "waits", "none", "O(duration)", 35 },
 	{ "wait-readable", "( streams seconds -- ready )", "Wait until at least one of streams has bytes to read, and answer a new array of those that do — empty when the wait expires first. seconds is a float with sub-second granularity: 0 polls without waiting, a negative value waits indefinitely. End of input counts as readable, so a stream whose writer has exited comes back and the read that follows answers null instead of blocking. poll(2) underneath, retrying EINTR; errors on a non-stream element, a closed stream, or more than 256 streams", "1 + n", "1a(k)", "O(n)", 36 },
 	{ "wall-now", "( -- instant )", "units.telic: current epoch seconds as a quantity in s; steps when the system clock is adjusted", "2", "1 pair", "O(1)", 23 },
 	{ "where", "( mat -- v )", "Flat row-major indices of the nonzero elements, as a k×1 index vector (1×k for a 1×n mask)", "1 + n", "1m(k)", "O(n)", 20 },
@@ -844,7 +850,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, arrays element-wise with a trailing rest pattern taking the remaining elements, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails", "n", "none", "O(n)", 28 },
 };
 
-const int help_entry_count = 785;
+const int help_entry_count = 791;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -949,6 +955,8 @@ const HelpExample help_examples[] = {
 	{ "atan", "0 atan . cr", "0" },
 	{ "atan2", "1 1 atan2 . cr\n0 -1 atan2 . cr", "0.785398\n3.14159" },
 	{ "auc", "[ 1 0 1 0 ] vector [ 0.9 0.2 0.7 0.4 ] vector auc . cr", "1" },
+	{ "audio-off", "audio-on :a4 1 0 note-on 0.5 sleep audio-off", "" },
+	{ "audio-on", "{ :operators [ { :wave :saw :release 0.3 } ] :level 0.3 } 0 patch! audio-on\n:c4 1 0 note-on :e4 1 0 note-on :g4 1 0 note-on 1 sleep\n:c4 0 note-off :e4 0 note-off :g4 0 note-off wait-audio audio-off", "" },
 	{ "augment", "[ 1 2 ] vector [ 3 4 ] vector augment matrix>array . cr", "[ 1 3 2 4 ]" },
 	{ "axes", "\"plot\" load-library\n320 240 figure [ 1 2 ] vector [ 3 4 ] vector data-domain axes figure>svg \"<line\" has? . cr", "1" },
 	{ "barchart", "\"plot\" load-library\n320 240 figure [ 3 5 ] vector [ \"a\" \"b\" ] barchart figure>svg \"<rect\" has? . cr", "1" },
@@ -1326,6 +1334,7 @@ const HelpExample help_examples[] = {
 	{ "on-tick", "' publish-gauges-entry embodies on-tick", "" },
 	{ "open-app-window", "\"figures/plot.svg\" open-app-window", "" },
 	{ "open-file", "\"one\ntwo\" \"/tmp/docs-file.txt\" write-file\n\"/tmp/docs-file.txt\" open-file dup read-line . dup read-line . close cr", "one two" },
+	{ "operator!", "{ } 0 patch! silence :a4 1 0 note-on 0.1 render-audio drop 2 :ratio 0 0 operator!\n0.5 render-audio 4800 24000 0 1 submatrix 48000 880 amplitude-at 0.70710678 / 1000 * round 1000 / . cr silence", "1" },
 	{ "or", "0 0 or . 0 3 or . cr", "0 1" },
 	{ "over", "1 2 over . . . cr", "1 2 1" },
 	{ "pad-left", "\"7\" 3 pad-left \"|\" + . cr", "  7|" },
@@ -1334,6 +1343,7 @@ const HelpExample help_examples[] = {
 	{ "paper", "\"#102040\" paper  cls", "" },
 	{ "parallel-run", "[ [ \"echo\" \"a\" ] [ \"echo\" \"b\" ] ] 2 parallel-run ( :out @ trim . ) each cr", "a b" },
 	{ "parse-time", "\"2001-02-03\" \"%Y-%m-%d\" parse-time time>iso . cr", "2001-02-03T00:00:00Z" },
+	{ "part!", "{ :operators [ { :fixed 1000 } ] } 0 patch! silence :a4 1 0 note-on 0.1 render-audio drop\n0.5 :level 0 part! 0.5 render-audio 4800 24000 0 1 submatrix\n48000 1000 amplitude-at 0.70710678 / 1000 * round 1000 / . cr silence", "0.5" },
 	{ "partition", "[ 1 2 3 4 ] ( 2 mod ) partition . . cr", "[ 2 4 ] [ 1 3 ]" },
 	{ "patch!", "{ :operators [ { :fixed 1000 } { :fixed 100 } ] :modulation [ [ 1 0 2 ] ] } 0 patch!\nsilence :a4 1 0 note-on 1 render-audio 4800 48000 0 1 submatrix\n48000 1100 amplitude-at 0.70710678 / 1000 * round 1000 / . cr silence", "0.577" },
 	{ "pbootstrap", "42 seed [ 1 2 3 4 5 ] ( vector mean ) 3 pbootstrap . cr", "[ 2.2 2.4 2.6 ]" },
@@ -1345,6 +1355,7 @@ const HelpExample help_examples[] = {
 	{ "pick", "10 20 30 1 pick . clear cr", "20" },
 	{ "pitch>hz", ":a4 pitch>hz . :a5 pitch>hz . cr", "440 880" },
 	{ "pitch>midi", ":a4 pitch>midi . :c4 pitch>midi . :f#3 pitch>midi . cr", "69 60 54" },
+	{ "play", "0 47999 1 matrix-range transpose 2 PI * 440 * 48000 / * sin 0.2 * play wait-audio", "" },
 	{ "plot", "20 30 plot", "" },
 	{ "pmap", "[ 1 2 3 4 ] ( dup * ) pmap . cr", "[ 1 4 9 16 ]" },
 	{ "pmap-ext", "[ 1 2 3 4 ] 2 1 ( 10 * ) pmap-ext . cr", "[ 10 20 30 40 ]" },
@@ -1604,6 +1615,7 @@ const HelpExample help_examples[] = {
 	{ "vvf-", "variable a 3 to a variable b 4 to b\n: diff-ab ( -- v ) vvf- a b ; diff-ab . cr", "-1" },
 	{ "vvf/", "variable a 3 to a variable b 4 to b\n: quot-ab ( -- v ) vvf/ a b ; quot-ab . cr", "0.75" },
 	{ "wait", "[ \"true\" ] start-process :pid @ wait . cr", "0" },
+	{ "wait-audio", "{ } 0 patch! 1 render-audio play wait-audio", "" },
 	{ "wait-readable", "[ \"printf\" \"now\" ] start-process to source\n[ source :out @ ] 5 wait-readable size . cr\nsource :out @ read-line . cr\nsource end-process", "1\nnow" },
 	{ "wall-now", "wall-now time>iso . cr", "2026-08-06T23:14:09Z" },
 	{ "where", "[ 5 0 7 ] vector where matrix>array . cr\n[ 5 0 7 ] vector m where matrix>array . cr", "[ 0 2 ]\n[ 0 2 ]" },
@@ -1637,4 +1649,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 788;
+const int help_example_count = 794;

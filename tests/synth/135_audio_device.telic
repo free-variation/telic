@@ -1,0 +1,47 @@
+\ ==== audio-on ( -- ), audio-off ( -- ), play ( matrix -- ), wait-audio ( -- ) ====
+
+\ audio-on opens the default output device (48 kHz stereo) and runs the
+\ synthesizer on its thread; play hands an nx1 or nx2 matrix of samples to
+\ it and returns at once; wait-audio blocks until every play has ended and
+\ every voice is silent, i.e. until the last samples are handed to the
+\ device, whose own output latency follows. While the device is on,
+\ render-audio errors.
+\ Native only: the wasm build has no audio device.
+
+11 seed
+
+: tone ( seconds -- v ) 48000 * 1 - 0 swap 1 matrix-range transpose 2 PI * 440 * 48000 / * sin 0.05 * ;
+: elapsed-ms ( start -- ms ) now magnitude swap - 1000 * ;
+
+\ === play returns at once; wait-audio returns when it ends ===
+audio-on
+0.5 tone to half-second
+now magnitude to started
+half-second play
+started elapsed-ms 10 < . cr                     \ 1 (returned in under 10 ms)
+wait-audio
+started elapsed-ms dup 450 >= swap 650 < and . cr  \ 1 (the last samples handed over between 0.45 and 0.65 s)
+clear
+
+\ === mono and stereo matrices ===
+0.1 tone play wait-audio "mono" . cr             \ mono
+0.1 tone dup hstack play wait-audio "stereo" . cr   \ stereo
+clear
+
+\ === live notes ===
+{ :operators [ { :release 0.02 } ] :level 0.05 } 0 patch!
+now magnitude to started
+:a4 1 0 note-on 0.2 sleep :a4 0 note-off wait-audio
+started elapsed-ms dup 200 >= swap 450 < and . cr  \ 1 (the note, then a 20 ms release)
+silence wait-audio
+audio-off
+0.1 render-audio dim . . cr                      \ 2 4800 (offline again after audio-off)
+clear
+
+\ errors
+audio-on 0.1 render-audio                        \ (live: render-audio refused)
+audio-off
+[ 1 2 3 ] 1 3 matrix play                        \ (1x3: three channels)
+[ ] 0 1 matrix play                              \ (empty)
+[ 1 2 3 ] play                                   \ (an array, not a matrix)
+audio-off

@@ -6256,10 +6256,16 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "pitch>midi", p_pitch_to_midi, 0);
 	define_primitive(interp, "pitch>hz", p_pitch_to_hz, 0);
 	define_primitive(interp, "patch!", p_patch_store, 0);
+	define_primitive(interp, "part!", p_part_store, 0);
+	define_primitive(interp, "operator!", p_operator_store, 0);
 	define_primitive(interp, "note-on", p_note_on, 0);
 	define_primitive(interp, "note-off", p_note_off, 0);
 	define_primitive(interp, "render-audio", p_render_audio, 0);
 	define_primitive(interp, "silence", p_silence, 0);
+	define_primitive(interp, "audio-on", p_audio_on, 0);
+	define_primitive(interp, "audio-off", p_audio_off, 0);
+	define_primitive(interp, "play", p_play, 0);
+	define_primitive(interp, "wait-audio", p_wait_audio, 0);
 
 
 	define_primitive(interp, "abs", p_abs, 0);
