@@ -27,12 +27,12 @@
 : settled-silence ( -- ) silence-audio 0.01 render-audio drop silence-audio ;
 : tone ( hz pan seconds -- stereo )
 	| hz pan seconds |
-	settled-silence { } [ { :attack 0 :release 0 } hz :fixed-hz ! ] :oscillators ! pan :pan ! 0 instrument-patch!
-	:a4 1 0 note-on seconds render-audio ;
+	settled-silence { } [ { :attack 0 :release 0 } hz :fixed-hz ! ] :oscillators ! pan :pan ! :probe instrument-patch!
+	:a4 1 :probe note-on seconds render-audio ;
 : burst ( hz pan seconds -- stereo )
 	| hz pan seconds |
-	settled-silence { } [ { :attack 0 :release 0 } hz :fixed-hz ! ] :oscillators ! pan :pan ! 0 instrument-patch!
-	:a4 1 0 note-on 0.01 render-audio :a4 0 note-off seconds render-audio vstack ;
+	settled-silence { } [ { :attack 0 :release 0 } hz :fixed-hz ! ] :oscillators ! pan :pan ! :probe instrument-patch!
+	:a4 1 :probe note-on 0.01 render-audio :a4 :probe note-off seconds render-audio vstack ;
 : echoes ( stereo channel -- )
 	| stereo channel |
 	[ 0 0.1 0.2 0.3 0.4 ] ( stereo 0 stereo n-rows channel channel 1 + submatrix swap dup 0.01 + window 1000 amp-at . ) each cr ;
@@ -104,8 +104,8 @@ clear
 0.5 :decay :reverb effect!
 1000 0 0.3 burst drop 1 :freeze :reverb effect! 2.5 render-audio left to frozen
 frozen 0.3 0.8 window db frozen 2 2.5 window db - abs 2 < . cr       \ 1 (within 2 dB across 2 s)
-:a4 1 0 note-on 0.5 render-audio left db frozen 2 2.5 window db - abs 2 < . cr   \ 1 (a new note does not enter)
-:a4 0 note-off 0 :freeze :reverb effect! 2 render-audio left 1.5 2 window db frozen 2 2.5 window db - -20 < . cr   \ 1 (unfrozen, the tail dies)
+:a4 1 :probe note-on 0.5 render-audio left db frozen 2 2.5 window db - abs 2 < . cr   \ 1 (a new note does not enter)
+:a4 :probe note-off 0 :freeze :reverb effect! 2 render-audio left 1.5 2 window db frozen 2 2.5 window db - -20 < . cr   \ 1 (unfrozen, the tail dies)
 silence-audio
 clear
 

@@ -18,7 +18,7 @@
 	| stereo |
 	stereo 0 stereo n-rows 1 2 submatrix ;
 : rms ( v -- r ) dup * mean sqrt ;
-: sounding ( patch -- stereo ) silence-audio 0 instrument-patch! :a4 1 0 note-on 2 render-audio ;
+: sounding ( patch -- stereo ) silence-audio :copies instrument-patch! :a4 1 :copies note-on 2 render-audio ;
 
 \ === :unison 1 is the plain voice ===
 { :unison 1 :unison-detune 50 :unison-spread 1 } sounding { } sounding = . cr   \ 1
@@ -45,8 +45,8 @@ clear
 silence-audio clear
 
 \ errors
-{ :unison 0 } 0 instrument-patch!                              \ (below 1)
-{ :unison 8 } 0 instrument-patch!                              \ (above 7)
-{ :unison 2.5 } 0 instrument-patch!                            \ (not an integer)
-{ :unison-detune 101 } 0 instrument-patch!                     \ (over 100 cents)
-{ :unison-spread 2 } 0 instrument-patch!                       \ (above 1)
+{ :unison 0 } :copies instrument-patch!                              \ (below 1)
+{ :unison 8 } :copies instrument-patch!                              \ (above 7)
+{ :unison 2.5 } :copies instrument-patch!                            \ (not an integer)
+{ :unison-detune 101 } :copies instrument-patch!                     \ (over 100 cents)
+{ :unison-spread 2 } :copies instrument-patch!                       \ (above 1)

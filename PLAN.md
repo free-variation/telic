@@ -443,6 +443,12 @@ live here instead. File and function name each invariant's home.
   device thread clears; finished `play-samples` buffers return on a second
   ring and the interpreter frees them in `synth_collect_finished`. Offline, the same
   commands apply directly (synth.c, `synth_submit`, `synth_device_render`).
+- An instrument slot freed by `forget-instrument` is bound to a new name only
+  after the device has finished two renders since the forget (at once
+  offline). The device takes pending patches before it drains commands, so
+  without the wait a new name's patch could arrive in the same buffer as an
+  `instrument!` change still queued for the old name, and receive it
+  (synth.c, `instrument_slot_reusable`).
 - `recent-audio` reads the ring of recent output frames while the device
   thread writes it, without a lock. The ring holds 16384 frames and the word
   reads at most 8192 behind the published count, so the reader and writer

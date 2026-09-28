@@ -48,7 +48,7 @@
   :cutoff 6500 :resonance 0.3 :filter-envelope { :attack 0.1 :decay 0.9 :sustain 0.6 :release 0.4 :amount 0.8 }
   :lfo { :shape :sine :rate 5.1 :delay 0.35 :fade 0.6 :pitch-depth 0.12 }
   :unison 2 :unison-detune 5 :unison-spread 0.25
-  :glide 0.025 :velocity-sensitivity 0.4 :pan -0.3 :level 0.15 } 0 instrument-patch!
+  :glide 0.025 :velocity-sensitivity 0.4 :pan -0.3 :level 0.15 } :soprano instrument-patch!
 
 \ alto: 0 self-modulated sine, 1 pulse with its width swept, 2 third-harmonic modulator, 3 pink chiff
 { :oscillators [
@@ -61,7 +61,7 @@
   :cutoff 2400 :resonance 0.8 :drive 1.2 :filter-envelope { :attack 0.08 :decay 0.6 :sustain 0.4 :release 0.4 :amount 1 }
   :lfo { :shape :triangle :rate 0.35 }
   :unison 2 :unison-detune 8 :unison-spread 0.35
-  :velocity-sensitivity 0.4 :pan 0.3 :level 0.11 } 1 instrument-patch!
+  :velocity-sensitivity 0.4 :pan 0.3 :level 0.11 } :alto instrument-patch!
 
 \ tenor: 0 carrier, 1 modulator swelling after it, 2 sine an octave down, 3 fifth harmonic into the modulator
 { :oscillators [
@@ -73,7 +73,7 @@
   :carriers [ 0 2 ]
   :cutoff 3200 :resonance 0.4 :filter-envelope { :attack 0.12 :decay 0.8 :sustain 0.5 :release 0.5 :amount 0.6 }
   :lfo { :shape :sine :rate 4.6 :delay 0.5 :fade 0.7 :pitch-depth 0.08 :cutoff-depth 0.15 }
-  :velocity-sensitivity 0.4 :pan -0.12 :level 0.15 } 2 instrument-patch!
+  :velocity-sensitivity 0.4 :pan -0.12 :level 0.15 } :tenor instrument-patch!
 
 \ bass: 0 saw, 1 sine carrier, 2 octave modulator on it, 3 triangle an octave down
 { :oscillators [
@@ -86,7 +86,7 @@
   :cutoff 700 :resonance 1 :drive 1.4 :filter-envelope { :attack 0.12 :decay 0.9 :sustain 0.5 :release 0.5 :amount 1.2 }
   :lfo { :shape :sine :rate 0.2 :cutoff-depth 0.2 }
   :unison 2 :unison-detune 6 :unison-spread 0.2
-  :velocity-sensitivity 0.4 :pan 0.12 :level 0.19 } 3 instrument-patch!
+  :velocity-sensitivity 0.4 :pan 0.12 :level 0.19 } :bass instrument-patch!
 
 \ === the score ===
 \ each phrase is soprano, alto, tenor, bass as [ pitch length ... ], two whole
@@ -156,10 +156,10 @@
 \ queue the four voices of a phrase, the lower two a little softer
 : queue-phrase ( phrase hold factors dynamic -- )
 	| phrase hold factors dynamic |
-	phrase 0 @i 0 hold factors dynamic queue-voice
-	phrase 1 @i 1 hold factors dynamic queue-voice
-	phrase 2 @i 2 hold factors dynamic 0.05 - queue-voice
-	phrase 3 @i 3 hold factors dynamic 0.05 - queue-voice ;
+	phrase 0 @i :soprano hold factors dynamic queue-voice
+	phrase 1 @i :alto hold factors dynamic queue-voice
+	phrase 2 @i :tenor hold factors dynamic 0.05 - queue-voice
+	phrase 3 @i :bass hold factors dynamic 0.05 - queue-voice ;
 
 \ === the performance plan: per phrase, its line, notes, fermata hold, stretch, dynamic, and changes ===
 \ the changes run as the phrase begins
@@ -167,15 +167,15 @@
 [ [ "Befiehl du deine Wege," phrase-a1 1/4 steady 0.62 ( ) ]
   [ "Und was dein Herze kränkt," phrase-a2 1/4 steady 0.68 ( ) ]
   \ the repeat: a ping-pong delay joins, the tenor's modulator eases for a rounder tone
-  [ "Der allertreusten Pflege" phrase-a1 1/4 steady 0.66 ( 0.14 :wet :delay effect! 0.7 :level 1 2 oscillator! ) ]
+  [ "Der allertreusten Pflege" phrase-a1 1/4 steady 0.66 ( 0.14 :wet :delay effect! 0.7 :level 1 :tenor oscillator! ) ]
   [ "Des, der den Himmel lenkt!" phrase-a2 1/4 steady 0.7 ( ) ]
   \ the second half: the delay leaves, the tenor returns, the soprano's filter opens toward the climax in phrase 7
-  [ "Der Wolken, Luft und Winden" phrase-b1 1/4 steady 0.72 ( 0 :wet :delay effect! 1 :level 1 2 oscillator! 8000 :cutoff 0 instrument! ) ]
+  [ "Der Wolken, Luft und Winden" phrase-b1 1/4 steady 0.72 ( 0 :wet :delay effect! 1 :level 1 :tenor oscillator! 8000 :cutoff :soprano instrument! ) ]
   [ "Gibt Wege, Lauf und Bahn," phrase-b2 1/4 steady 0.72 ( ) ]
   [ "Der wird auch Wege finden," phrase-b3 1/4 steady 0.8 ( ) ]
   \ the last phrase slows and softens, and a shimmer climbs out of the plate
   [ "Da dein Fuß gehen kann." phrase-b4 1/2 slowing 0.6
-    ( 12 :shimmer1-shift :reverb effect! 0.12 :shimmer1-mix :reverb effect! 1 :shimmer-in-loop :reverb effect! 6500 :cutoff 0 instrument! ) ]
+    ( 12 :shimmer1-shift :reverb effect! 0.12 :shimmer1-mix :reverb effect! 1 :shimmer-in-loop :reverb effect! 6500 :cutoff :soprano instrument! ) ]
 ] to performance
 
 \ === the spectrum analyzer ===

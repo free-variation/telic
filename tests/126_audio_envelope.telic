@@ -16,7 +16,7 @@
 	stereo t 48000 * round dup 480 - swap 480 + 0 1 submatrix 1000 amp 1000 * round 1000 / ;
 : shaped ( oscillator -- )
 	| oscillator |
-	silence-audio { } [ oscillator 1000 :fixed-hz ! ] :oscillators ! 0 instrument-patch! :a4 1 0 note-on ;
+	silence-audio { } [ oscillator 1000 :fixed-hz ! ] :oscillators ! :shaped instrument-patch! :a4 1 :shaped note-on ;
 : e ( -- f ) 1 exp ;
 
 \ === attack, decay, sustain ===
@@ -34,35 +34,35 @@ falling 0.5 level-at . 0.8 e / 1000 * round 1000 / . cr     \ 0.294 0.294 (one s
 clear
 
 \ === release from sustain ===
-{ :attack 0 :decay 0 :sustain 1 :release 0.3 } shaped 0.5 render-audio drop :a4 0 note-off 1 render-audio to tail
+{ :attack 0 :decay 0 :sustain 1 :release 0.3 } shaped 0.5 render-audio drop :a4 :shaped note-off 1 render-audio to tail
 tail 0.3 level-at . 1 e / 1000 * round 1000 / . cr           \ 0.368 0.368
 clear
 
 \ === discriminating: a gate-off during the attack releases from the level reached ===
-{ :attack 0.2 :release 0.1 } shaped 0.1 render-audio drop :a4 0 note-off 0.5 render-audio to early
+{ :attack 0.2 :release 0.1 } shaped 0.1 render-audio drop :a4 :shaped note-off 0.5 render-audio to early
 early 0.1 level-at . cr                           \ 0.184 (0.5/e; from the peak it would be 0.368)
 clear
 
 \ === a retrigger during the release attacks from the current level ===
-{ :attack 0.05 :release 0.2 } shaped 0.5 render-audio drop :a4 0 note-off 0.1 render-audio drop
-:a4 1 0 note-on 0.2 render-audio to retriggered
+{ :attack 0.05 :release 0.2 } shaped 0.5 render-audio drop :a4 :shaped note-off 0.1 render-audio drop
+:a4 1 :shaped note-on 0.2 render-audio to retriggered
 retriggered 0 1 0 1 submatrix abs max 0.5 < . cr      \ 1 (the first sample continues from the release, not from 1)
 retriggered 0 2400 0 1 submatrix successive-differences abs max 0.1 < . cr    \ 1 (no step beyond a 1 kHz sine's 0.093)
 clear
 
 \ === zero-length stages ===
 { :attack 0 :decay 0 :sustain 0.25 :release 0 } shaped 0.2 render-audio 0.1 level-at . cr   \ 0.25
-:a4 0 note-off 0.1 render-audio abs max . cr     \ 0 (release 0: silent at once)
+:a4 :shaped note-off 0.1 render-audio abs max . cr     \ 0 (release 0: silent at once)
 clear
 
 \ === a voice ends after its release ===
-{ :release 0.05 } shaped 0.2 render-audio drop :a4 0 note-off 1 render-audio drop
+{ :release 0.05 } shaped 0.2 render-audio drop :a4 :shaped note-off 1 render-audio drop
 1 render-audio abs max . cr                       \ 0
 clear
 
 \ === each oscillator has its own envelope ===
 { } [ { :fixed-hz 1000 } { :fixed-hz 100 :decay 0.1 :sustain 0 } ] :oscillators ! [ [ 1 0 2 ] ] :modulation !
-silence-audio 0 instrument-patch! :a4 1 0 note-on 1 render-audio to fading
+silence-audio :shaped instrument-patch! :a4 1 :shaped note-on 1 render-audio to fading
 fading 0 4800 0 1 submatrix 1100 amp  fading 38400 48000 0 1 submatrix 1100 amp > . cr    \ 1 (the sideband fades with its modulator)
 fading 38400 48000 0 1 submatrix 1000 amp 1000 * round 1000 / . cr                       \ 1 (the carrier alone remains)
 clear

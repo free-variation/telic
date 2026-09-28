@@ -29,8 +29,13 @@ A sample is computed in this order:
 4. The sum passes through the effects chain: chorus, delay, reverb, master
    level.
 
-Sixteen **instruments**, numbered 0–15, each hold a **patch**: a frame that
-describes a sound. A note names an instrument; the voice that plays it copies
+An **instrument** is a name, a symbol such as `:soprano`, that holds a
+**patch**: a frame that describes a sound. `instrument-patch!` gives a name
+its first patch; every other word that takes an instrument errors on a name
+without one, so a misspelled name is caught rather than silent. At most 16
+names hold patches at once; `forget-instrument` frees one, ending its voices
+and dropping its queued notes, and `silence-audio` keeps every name and its
+patch. A note names an instrument; the voice that plays it copies
 the instrument's patch when it starts, so a patch given later with
 `instrument-patch!` changes only later notes. `instrument!` and `oscillator!`
 change one parameter both in the patch and in every voice already sounding on
@@ -86,8 +91,8 @@ sine at 100 Hz with index β has sidebands at 1000 ± 100k Hz with amplitudes
 |Jk(β)|, the Bessel functions of the first kind.
 
 ```forth phase-modulation
-{ :oscillators [ { :fixed-hz 1000 } { :fixed-hz 100 } ] :modulation [ [ 1 0 1 ] ] } 0 instrument-patch!
-silence-audio :a4 1 0 note-on 1 render-audio 4800 48000 0 1 submatrix to sidebands
+{ :oscillators [ { :fixed-hz 1000 } { :fixed-hz 100 } ] :modulation [ [ 1 0 1 ] ] } :tone instrument-patch!
+silence-audio :a4 1 :tone note-on 1 render-audio 4800 48000 0 1 submatrix to sidebands
 [ 1000 1100 1200 ] ( sidebands 48000 rot amplitude-at 0.70710678 / 1000 * round 1000 / . ) each cr silence-audio
 ```
 ```output
@@ -106,8 +111,8 @@ a modulator can modulate another modulator, and several routes into one
 target add.
 
 ```forth feedback
-{ :oscillators [ { :fixed-hz 1000 } ] :modulation [ [ 0 0 1 ] ] } 0 instrument-patch!
-silence-audio :a4 1 0 note-on 1 render-audio 4800 48000 0 1 submatrix to fed
+{ :oscillators [ { :fixed-hz 1000 } ] :modulation [ [ 0 0 1 ] ] } :tone instrument-patch!
+silence-audio :a4 1 :tone note-on 1 render-audio 4800 48000 0 1 submatrix to fed
 [ 1000 2000 3000 ] ( fed 48000 rot amplitude-at 0.70710678 / 100 * round 100 / . ) each cr silence-audio
 ```
 ```output
@@ -144,8 +149,8 @@ the same instrument retriggers that voice: every envelope restarts its attack
 from its current level, so a repeated note swells again without a click.
 
 ```forth envelope
-{ :oscillators [ { :fixed-hz 1000 :attack 0.1 :decay 0.2 :sustain 0.5 } ] } 0 instrument-patch!
-silence-audio :a4 1 0 note-on 1 render-audio to held
+{ :oscillators [ { :fixed-hz 1000 :attack 0.1 :decay 0.2 :sustain 0.5 } ] } :tone instrument-patch!
+silence-audio :a4 1 :tone note-on 1 render-audio to held
 held 0.3 48000 * round dup 480 - swap 480 + 0 1 submatrix 48000 1000 amplitude-at 0.70710678 / 1000 * round 1000 / .
 0.5 0.5 1 exp / + 1000 * round 1000 / . cr silence-audio
 ```
@@ -174,8 +179,8 @@ envelopes, and their sum is scaled by 1/√n, which keeps the level of n
 uncorrelated copies near that of one.
 
 ```forth unison
-{ :oscillators [ { :fixed-hz 1000 } ] :unison 3 :unison-detune 20 } 0 instrument-patch!
-silence-audio :a4 1 0 note-on 2 render-audio to copies
+{ :oscillators [ { :fixed-hz 1000 } ] :unison 3 :unison-detune 20 } :tone instrument-patch!
+silence-audio :a4 1 :tone note-on 2 render-audio to copies
 [ -10 0 10 ] ( copies 0 96000 0 1 submatrix 48000 rot 1000 swap 1200 / 2 swap ^ * amplitude-at 0.70710678 / 1000 * round 1000 / . ) each cr silence-audio
 ```
 ```output
@@ -195,8 +200,8 @@ in stereo runs two ladders, one per side. Without `:cutoff` there is no
 filter.
 
 ```forth ladder
-{ :oscillators [ { :wave :saw } ] } 0 instrument-patch! silence-audio 45 1 0 note-on 1 render-audio 9600 48000 0 1 submatrix to dry
-{ :oscillators [ { :wave :saw } ] :cutoff 440 } 0 instrument-patch! silence-audio 45 1 0 note-on 1 render-audio 9600 48000 0 1 submatrix to wet
+{ :oscillators [ { :wave :saw } ] } :tone instrument-patch! silence-audio 45 1 :tone note-on 1 render-audio 9600 48000 0 1 submatrix to dry
+{ :oscillators [ { :wave :saw } ] :cutoff 440 } :tone instrument-patch! silence-audio 45 1 :tone note-on 1 render-audio 9600 48000 0 1 submatrix to wet
 [ 880 1760 ] ( dup wet 48000 rot amplitude-at swap dry 48000 rot amplitude-at / log10 20 * round . ) each cr silence-audio
 ```
 ```output
@@ -228,8 +233,8 @@ Its destinations are:
 - a pulse's width, by that oscillator's `:lfo-width`: the width + d × l.
 
 ```forth vibrato
-{ :oscillators [ { :fixed-hz 0 } ] :lfo { :shape :square :rate 0.5 :pitch-depth 1 } } 0 instrument-patch!
-silence-audio :a4 1 0 note-on 2 render-audio to swung
+{ :oscillators [ { :fixed-hz 0 } ] :lfo { :shape :square :rate 0.5 :pitch-depth 1 } } :tone instrument-patch!
+silence-audio :a4 1 :tone note-on 2 render-audio to swung
 swung 4800 43200 0 1 submatrix 48000 440 2 1 12 / ^ * amplitude-at 0.70710678 / 100 * round 100 / . cr silence-audio
 ```
 ```output
@@ -276,7 +281,7 @@ a sample (a whole note is 11,520,000,000 / (1000 × tempo) samples), so a sum of
 lengths never drifts. A float length is converted with `float>exact`.
 
 ```forth exact-positions
-silence-audio 120 sequence-tempo 0 sequence-instrument
+{ } :tone instrument-patch! silence-audio 120 sequence-tempo :tone sequence-instrument
 : sevenths ( -- ) 0 7000 1 do k 1/7 sequence-rest loop ; sevenths
 sequence-end . cr silence-audio
 ```
@@ -338,9 +343,9 @@ and `:level` move linearly over 64 frames.
 - **Master.** `:level` scales the output.
 
 ```forth straight-delay
-{ :oscillators [ { :fixed-hz 1000 :attack 0 :release 0 } ] :pan -1 } 0 instrument-patch! silence-audio
+{ :oscillators [ { :fixed-hz 1000 :attack 0 :release 0 } ] :pan -1 } :tone instrument-patch! silence-audio
 0.1 :time :delay effect! 0.5 :feedback :delay effect! 1 :wet :delay effect! :straight :mode :delay effect!
-:a4 1 0 note-on 0.01 render-audio drop :a4 0 note-off 0.4 render-audio to echoes
+:a4 1 :tone note-on 0.01 render-audio drop :a4 :tone note-off 0.4 render-audio to echoes
 [ 0.09 0.19 0.29 ] ( echoes swap 48000 * round dup 480 + 0 1 submatrix 48000 1000 amplitude-at 1000 * round 1000 / . ) each cr
 0 :wet :delay effect! :ping-pong :mode :delay effect! 0.375 :time :delay effect! 0.01 render-audio drop silence-audio
 ```
@@ -398,8 +403,8 @@ document are measurements of this kind, and so is the synthesizer's test suite
 sidebands, envelope levels, filter slopes, echo positions and reverb decay.
 
 ```forth spectrum-peak
-{ :oscillators [ { :wave :saw :fixed-hz 1000 } ] } 0 instrument-patch!
-silence-audio :a4 1 0 note-on 1 render-audio 4800 48000 0 1 submatrix 48000 amplitude-spectrum to bins
+{ :oscillators [ { :wave :saw :fixed-hz 1000 } ] } :tone instrument-patch!
+silence-audio :a4 1 :tone note-on 1 render-audio 4800 48000 0 1 submatrix 48000 amplitude-spectrum to bins
 bins :amplitude @ argmax bins :hz @ swap @e . cr silence-audio
 ```
 ```output

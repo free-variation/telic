@@ -13,7 +13,7 @@
 	| stereo |
 	stereo 4800 48000 0 1 submatrix ;
 : amp ( v hz -- a ) 48000 swap amplitude-at 0.70710678 / 10000 * round 10000 / ;
-: voice ( patch -- v ) silence-audio 0 instrument-patch! :a4 1 0 note-on 1 render-audio settled ;
+: voice ( patch -- v ) silence-audio :modulated instrument-patch! :a4 1 :modulated note-on 1 render-audio settled ;
 : pm ( depth -- v )
 	| depth |
 	{ } [ { :fixed-hz 1000 } { :fixed-hz 100 } ] :oscillators ! [ [ 1 0 depth ] ] :modulation ! voice ;

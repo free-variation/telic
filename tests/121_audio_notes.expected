@@ -42,6 +42,10 @@
 0.707 
 0.707 
 0 
+0 
+1 
+1 
+bound 
 error: expected a pitch such as :c4, :f#3, :bb5 or :c+4; got :h4
 in pitch>midi
 error: expected a pitch such as :c4, :f#3, :bb5 or :c+4; got :c
@@ -64,14 +68,18 @@ error: pitch :g+9 is outside MIDI notes [0, 127]
 in pitch>midi
 error: expected a velocity in [0, 1]; got 1.5
 in note-on
-error: expected an instrument number in [0, 16); got 16
+error: unknown instrument :oboe; give it a patch with instrument-patch!
 in note-on
 error: expected a pitch such as :c4, :f#3, :bb5 or :c+4; got :h4
 in note-on
 error: expected a float velocity; got a string
 in note-on
-error: expected an instrument number in [0, 16); got -1
+error: expected an instrument name (a symbol); got a float
 in note-off
+error: unknown instrument :oboe; give it a patch with instrument-patch!
+in forget-instrument
+error: expected an instrument name (a symbol); got a float
+in instrument-patch!
 error: expected seconds in [0, 600]; got -1
 in render-audio
 error: expected seconds in [0, 600]; got 601

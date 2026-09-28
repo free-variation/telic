@@ -6157,7 +6157,11 @@ colors :dodgerblue @ . colors size . cr
 A polyphonic phase-modulation synthesizer computed in C at 48 kHz, stereo,
 played live on the output device after `audio-on` or computed offline by
 `render-audio` — one or the other at a time.
-Sixteen instruments, numbered 0–15, each hold a patch; a note on an
+An **instrument** is named by a symbol (`:soprano`, `:bass`) and holds a
+patch. `instrument-patch!` gives a new name its first patch, and every other
+word taking an instrument errors on a name that has none, so a misspelled
+name is caught; at most 16 names hold patches at once, `forget-instrument`
+frees one, and `silence-audio` keeps them all. A note on an
 instrument takes one of 32 voices, and when none is free it takes the voice
 released longest ago, else the one started longest ago. A note-on for a
 pitch already sounding on the instrument retriggers that voice. Each voice
@@ -6219,7 +6223,8 @@ Times are in [0, 60] seconds. After one time constant a stage has covered
 |------|-------------|----------|-----|-------|---|
 | `pitch>midi` | `( pitch -- n )` | The MIDI note number of a pitch | 1 | none | O(1) |
 | `pitch>hz` | `( pitch -- hz )` | The equal-tempered frequency of a pitch, 440 × 2^((n − 69)/12) | 1 | none | O(1) |
-| `instrument-patch!` | `( frame instrument -- )` | Give an instrument a patch; notes already sounding keep the patch they started with | keys | none | O(keys) |
+| `instrument-patch!` | `( frame instrument -- )` | Give an instrument, named by a symbol, a patch, binding the name when it is new; notes already sounding keep the patch they started with. A 17th name errors | keys | none | O(keys) |
+| `forget-instrument` | `( instrument -- )` | Unbind an instrument's name: its sounding voices end, its queued sequencer notes are dropped, and its previous note (for `:glide`) and sequence position reset, so the name is unknown again and its place is free for another | 1 | none | O(voices + queued events) |
 | `instrument!` | `( value key instrument -- )` | Change one parameter of an instrument — `:level` `:pan` `:cutoff` `:resonance` `:drive`, with the patch's ranges — in its patch and in its sounding voices, which move to the value linearly over 64 frames (1.3 ms). `:cutoff` on a voice without a filter turns the filter on | 1 | none | O(voices) |
 | `oscillator!` | `( value key oscillator instrument -- )` | As `instrument!` for one oscillator's `:level`, `:ratio` or `:width` | 1 | none | O(voices) |
 | `note-on` | `( pitch velocity instrument -- )` | Start a note, velocity in [0, 1], at the start of the next `render-audio` | 1 | none | O(voices) |
@@ -6249,7 +6254,7 @@ queued note sounds during the `render-audio` that reaches its sample.
 | `sequence-chord` | `( pitches length -- )` | audio.telic: As `sequence-note` for an array of 1–32 pitches starting together; the position advances once | 4 | none | O(pitches) |
 | `sequence-rest` | `( length -- )` | audio.telic: Advance the current instrument's position by length without sounding | 4 | none | O(1) |
 | `sequence-tempo` | `( bpm -- )` | Set the tempo, in (0, 1000] beats per minute, for lengths queued after it; 120 at startup | 1 | none | O(1) |
-| `sequence-instrument` | `( instrument -- )` | Set the instrument that later `sequence-note`, `sequence-chord` and `sequence-rest` use; 0 at startup | 1 | none | O(1) |
+| `sequence-instrument` | `( instrument -- )` | Set the instrument that later `sequence-note`, `sequence-chord` and `sequence-rest` use; until one is set, those words error | 1 | none | O(1) |
 | `sequence-articulation` | `( fraction -- )` | Set the sounding fraction of each later note's length, in (0, 1], float or exact; 1 is legato; 7/8 at startup | 1 | none | O(1) |
 | `sequence-velocity` | `( velocity -- )` | Set the velocity, [0, 1], of later notes; 1 at startup | 1 | none | O(1) |
 | `sequence-end` | `( -- seconds )` | The seconds from the synthesizer's clock until the latest instrument position; 0 when every position is past | 1 | none | O(instruments) |
@@ -6318,8 +6323,8 @@ target pitch.
 ```
 
 ```forth instrument-patch!
-{ :oscillators [ { :fixed-hz 1000 } { :fixed-hz 100 } ] :modulation [ [ 1 0 2 ] ] } 0 instrument-patch!
-silence-audio :a4 1 0 note-on 1 render-audio 4800 48000 0 1 submatrix
+{ :oscillators [ { :fixed-hz 1000 } { :fixed-hz 100 } ] :modulation [ [ 1 0 2 ] ] } :tone instrument-patch!
+silence-audio :a4 1 :tone note-on 1 render-audio 4800 48000 0 1 submatrix
 48000 1100 amplitude-at 0.70710678 / 1000 * round 1000 / . cr silence-audio
 ```
 ```output
@@ -6327,16 +6332,24 @@ silence-audio :a4 1 0 note-on 1 render-audio 4800 48000 0 1 submatrix
 ```
 
 ```forth instrument!
-{ :oscillators [ { :fixed-hz 1000 } ] } 0 instrument-patch! silence-audio :a4 1 0 note-on 0.1 render-audio drop
-0.5 :level 0 instrument! 0.5 render-audio 4800 24000 0 1 submatrix
+{ :oscillators [ { :fixed-hz 1000 } ] } :tone instrument-patch! silence-audio :a4 1 :tone note-on 0.1 render-audio drop
+0.5 :level :tone instrument! 0.5 render-audio 4800 24000 0 1 submatrix
 48000 1000 amplitude-at 0.70710678 / 1000 * round 1000 / . cr silence-audio
 ```
 ```output
 0.5
 ```
 
+```forth forget-instrument
+{ } :tone instrument-patch! silence-audio :a4 1 :tone note-on :tone forget-instrument 0.1 render-audio abs max .
+( :a4 1 :tone note-on ) catch . drop cr
+```
+```output
+0 1
+```
+
 ```forth oscillator!
-{ } 0 instrument-patch! silence-audio :a4 1 0 note-on 0.1 render-audio drop 2 :ratio 0 0 oscillator!
+{ } :tone instrument-patch! silence-audio :a4 1 :tone note-on 0.1 render-audio drop 2 :ratio 0 :tone oscillator!
 0.5 render-audio 4800 24000 0 1 submatrix 48000 880 amplitude-at 0.70710678 / 1000 * round 1000 / . cr silence-audio
 ```
 ```output
@@ -6344,15 +6357,15 @@ silence-audio :a4 1 0 note-on 1 render-audio 4800 48000 0 1 submatrix
 ```
 
 ```forth note-on
-{ } 0 instrument-patch! silence-audio :a4 1 0 note-on 0.1 render-audio abs max 0 > . cr silence-audio
+{ } :tone instrument-patch! silence-audio :a4 1 :tone note-on 0.1 render-audio abs max 0 > . cr silence-audio
 ```
 ```output
 1
 ```
 
 ```forth note-off
-{ :oscillators [ { :release 0 } ] } 0 instrument-patch! silence-audio :a4 1 0 note-on 0.1 render-audio drop
-:a4 0 note-off 0.1 render-audio abs max . cr
+{ :oscillators [ { :release 0 } ] } :tone instrument-patch! silence-audio :a4 1 :tone note-on 0.1 render-audio drop
+:a4 :tone note-off 0.1 render-audio abs max . cr
 ```
 ```output
 0
@@ -6366,7 +6379,7 @@ silence-audio 0.5 render-audio dim . . cr
 ```
 
 ```forth recent-audio
-{ :oscillators [ { :fixed-hz 1000 } ] } 0 instrument-patch! silence-audio :a4 1 0 note-on 0.5 render-audio drop
+{ :oscillators [ { :fixed-hz 1000 } ] } :tone instrument-patch! silence-audio :a4 1 :tone note-on 0.5 render-audio drop
 4096 recent-audio 0 @j 48000 1000 amplitude-at 0.70710678 / 1000 * round 1000 / . cr silence-audio
 ```
 ```output
@@ -6374,22 +6387,22 @@ silence-audio 0.5 render-audio dim . . cr
 ```
 
 ```forth silence-audio
-{ } 0 instrument-patch! :a4 1 0 note-on silence-audio 0.1 render-audio abs max . cr
+{ } :tone instrument-patch! :a4 1 :tone note-on silence-audio 0.1 render-audio abs max . cr
 ```
 ```output
 0
 ```
 
 ```forth-noexec audio-on
-{ :oscillators [ { :wave :saw :release 0.3 } ] :level 0.3 } 0 instrument-patch! audio-on
-:c4 1 0 note-on :e4 1 0 note-on :g4 1 0 note-on 1 sleep
-:c4 0 note-off :e4 0 note-off :g4 0 note-off wait-audio audio-off
+{ :oscillators [ { :wave :saw :release 0.3 } ] :level 0.3 } :tone instrument-patch! audio-on
+:c4 1 :tone note-on :e4 1 :tone note-on :g4 1 :tone note-on 1 sleep
+:c4 :tone note-off :e4 :tone note-off :g4 :tone note-off wait-audio audio-off
 ```
 ```output
 ```
 
 ```forth-noexec audio-off
-audio-on :a4 1 0 note-on 0.5 sleep audio-off
+{ } :tone instrument-patch! audio-on :a4 1 :tone note-on 0.5 sleep audio-off
 ```
 ```output
 ```
@@ -6401,48 +6414,49 @@ audio-on :a4 1 0 note-on 0.5 sleep audio-off
 ```
 
 ```forth-noexec wait-audio
-{ } 0 instrument-patch! 1 render-audio play-samples wait-audio
+{ } :tone instrument-patch! 1 render-audio play-samples wait-audio
 ```
 ```output
 ```
 
 ```forth sequence-note
-silence-audio 120 sequence-tempo 0 sequence-instrument :a4 1/4 sequence-note :c5 1/8 sequence-note sequence-end . cr silence-audio
+{ } :tone instrument-patch! silence-audio 120 sequence-tempo :tone sequence-instrument :a4 1/4 sequence-note :c5 1/8 sequence-note sequence-end . cr silence-audio
 ```
 ```output
 0.75
 ```
 
 ```forth sequence-chord
-silence-audio 120 sequence-tempo 0 sequence-instrument [ :c4 :e4 :g4 ] 1/2 sequence-chord :c5 1/4 sequence-note sequence-end . cr silence-audio
+{ } :tone instrument-patch! silence-audio 120 sequence-tempo :tone sequence-instrument [ :c4 :e4 :g4 ] 1/2 sequence-chord :c5 1/4 sequence-note sequence-end . cr silence-audio
 ```
 ```output
 1.5
 ```
 
 ```forth sequence-rest
-silence-audio 60 sequence-tempo 0 sequence-instrument 1/4 sequence-rest :a4 1/4 sequence-note sequence-end . cr silence-audio 120 sequence-tempo
+{ } :tone instrument-patch! silence-audio 60 sequence-tempo :tone sequence-instrument 1/4 sequence-rest :a4 1/4 sequence-note sequence-end . cr silence-audio 120 sequence-tempo
 ```
 ```output
 2
 ```
 
 ```forth sequence-tempo
-silence-audio 90 sequence-tempo 0 sequence-instrument :a4 3/4 sequence-note sequence-end . cr silence-audio 120 sequence-tempo
+{ } :tone instrument-patch! silence-audio 90 sequence-tempo :tone sequence-instrument :a4 3/4 sequence-note sequence-end . cr silence-audio 120 sequence-tempo
 ```
 ```output
 2
 ```
 
 ```forth sequence-instrument
-silence-audio 120 sequence-tempo 0 sequence-instrument :a4 1 sequence-note 1 sequence-instrument :c4 1/2 sequence-note sequence-end . cr 0 sequence-instrument silence-audio
+{ } :melody instrument-patch! { } :drone instrument-patch! silence-audio 120 sequence-tempo
+:melody sequence-instrument :a4 1 sequence-note :drone sequence-instrument :c4 1/2 sequence-note sequence-end . cr silence-audio
 ```
 ```output
 2
 ```
 
 ```forth sequence-articulation
-{ :oscillators [ { :attack 0 :release 0 } ] } 0 instrument-patch! silence-audio 120 sequence-tempo 0 sequence-instrument
+{ :oscillators [ { :attack 0 :release 0 } ] } :tone instrument-patch! silence-audio 120 sequence-tempo :tone sequence-instrument
 1/2 sequence-articulation :a4 1/4 sequence-note 0.5 render-audio
 dup 0 12000 0 1 submatrix abs max 0 > . 12000 24000 0 1 submatrix abs max . cr 7/8 sequence-articulation silence-audio
 ```
@@ -6451,7 +6465,7 @@ dup 0 12000 0 1 submatrix abs max 0 > . 12000 24000 0 1 submatrix abs max . cr 7
 ```
 
 ```forth sequence-velocity
-{ :oscillators [ { :fixed-hz 1000 :attack 0 :release 0 } ] } 0 instrument-patch! silence-audio 120 sequence-tempo 0 sequence-instrument
+{ :oscillators [ { :fixed-hz 1000 :attack 0 :release 0 } ] } :tone instrument-patch! silence-audio 120 sequence-tempo :tone sequence-instrument
 0.5 sequence-velocity :a4 1/2 sequence-note 0.5 render-audio 4800 19200 0 1 submatrix
 48000 1000 amplitude-at 0.70710678 / 100 * round 100 / . cr 1 sequence-velocity silence-audio
 ```
@@ -6460,22 +6474,22 @@ dup 0 12000 0 1 submatrix abs max 0 > . 12000 24000 0 1 submatrix abs max . cr 7
 ```
 
 ```forth sequence-end
-silence-audio 120 sequence-tempo 0 sequence-instrument :a4 1/2 sequence-note 0.25 render-audio drop sequence-end . cr silence-audio
+{ } :tone instrument-patch! silence-audio 120 sequence-tempo :tone sequence-instrument :a4 1/2 sequence-note 0.25 render-audio drop sequence-end . cr silence-audio
 ```
 ```output
 0.75
 ```
 
 ```forth-noexec wait-sequence
-{ } 0 instrument-patch! audio-on :c4 1/4 sequence-note :e4 1/4 sequence-note :g4 1/2 sequence-note wait-sequence audio-off
+{ } :tone instrument-patch! :tone sequence-instrument audio-on :c4 1/4 sequence-note :e4 1/4 sequence-note :g4 1/2 sequence-note wait-sequence audio-off
 ```
 ```output
 ```
 
 ```forth effect!
-{ :oscillators [ { :fixed-hz 1000 :attack 0 :release 0 } ] :pan -1 } 0 instrument-patch! silence-audio
+{ :oscillators [ { :fixed-hz 1000 :attack 0 :release 0 } ] :pan -1 } :tone instrument-patch! silence-audio
 0.1 :time :delay effect! 1 :wet :delay effect! :straight :mode :delay effect!
-:a4 1 0 note-on 0.01 render-audio drop :a4 0 note-off 0.2 render-audio 4320 4800 0 1 submatrix
+:a4 1 :tone note-on 0.01 render-audio drop :a4 :tone note-off 0.2 render-audio 4320 4800 0 1 submatrix
 48000 1000 amplitude-at 1000 * round 1000 / . cr
 0 :wet :delay effect! :ping-pong :mode :delay effect! 0.375 :time :delay effect! 0.01 render-audio drop silence-audio
 ```

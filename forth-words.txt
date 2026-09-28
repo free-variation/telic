@@ -322,6 +322,7 @@ fmod
 fnegate
 fold-times
 forget
+forget-instrument
 format
 format-time
 format-time-local

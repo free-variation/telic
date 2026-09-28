@@ -1,7 +1,8 @@
 \ ==== sequence-note ( pitch length -- ), sequence-chord ( pitches length -- ),
 \      sequence-rest ( length -- ), sequence-tempo ( bpm -- ),
-\      sequence-instrument ( n -- ), sequence-articulation ( fraction -- ),
-\      sequence-velocity ( v -- ), sequence-end ( -- seconds ), wait-sequence ( -- ) ====
+\      sequence-instrument ( instrument -- ), sequence-articulation ( fraction -- ),
+\      sequence-velocity ( v -- ), sequence-end ( -- seconds ), wait-sequence ( -- ),
+\      forget-instrument ( instrument -- ) ====
 
 \ Lengths are fractions of a whole note, best written as exact rationals
 \ (1/4, 3/8); at 120 bpm a whole note is 2 s, 96000 samples. Each instrument
@@ -10,13 +11,15 @@
 \ ended, or now when that is in the past. A note sounds for articulation x
 \ its length (default 7/8). sequence-tempo, sequence-instrument,
 \ sequence-articulation and sequence-velocity apply to the notes queued
-\ after them. Onsets are measured here on white noise with no attack, whose
-\ first sample is already loud.
+\ after them; until sequence-instrument names one there is no current
+\ instrument. forget-instrument drops the instrument's queued notes and
+\ resets its position. Onsets are measured here on white noise with no
+\ attack, whose first sample is already loud.
 
 11 seed
 
-{ :oscillators [ { :wave :white :attack 0 :release 0 } ] } 0 instrument-patch!
-{ :oscillators [ { :wave :white :attack 0 :release 0 } ] } 1 instrument-patch!
+{ :oscillators [ { :wave :white :attack 0 :release 0 } ] } :first-line instrument-patch!
+{ :oscillators [ { :wave :white :attack 0 :release 0 } ] } :second-line instrument-patch!
 : loud ( stereo -- mask )
 	| stereo |
 	stereo 0 stereo n-rows 0 1 submatrix abs 1e-12 > ;
@@ -34,7 +37,7 @@
 		current previous < if found k add-last! drop then
 		current to previous
 	loop found ;
-: fresh ( -- ) silence-audio 120 sequence-tempo 0 sequence-instrument 0.875 sequence-articulation 1 sequence-velocity ;
+: fresh ( -- ) silence-audio 120 sequence-tempo :first-line sequence-instrument 0.875 sequence-articulation 1 sequence-velocity ;
 
 \ === quarter notes at 120 bpm start 24000 samples apart ===
 fresh :a4 1/4 sequence-note :a4 1/4 sequence-note :a4 1/4 sequence-note
@@ -56,8 +59,8 @@ fresh 1/2 sequence-articulation :a4 1/4 sequence-note
 clear
 
 \ === a chord starts all its pitches together and advances once ===
-{ :oscillators [ { :attack 0 :release 0 } ] } 2 instrument-patch!
-fresh 2 sequence-instrument [ :a4 :c#5 :e5 ] 1/2 sequence-chord :a3 1/2 sequence-note
+{ :oscillators [ { :attack 0 :release 0 } ] } :chord-tones instrument-patch!
+fresh :chord-tones sequence-instrument [ :a4 :c#5 :e5 ] 1/2 sequence-chord :a3 1/2 sequence-note
 2 render-audio to triad
 : amp ( v hz -- a ) 48000 swap amplitude-at 0.70710678 / 100 * round 100 / ;
 triad 1200 21600 0 1 submatrix to held
@@ -72,10 +75,10 @@ sequence-end . cr                                \ 2.5 (0.5 s, then 1 s, then 1 
 clear
 
 \ === instruments keep separate positions and play together ===
-fresh 0 sequence-instrument :a4 1/2 sequence-note 1 sequence-instrument :c4 1/4 sequence-note :c4 1/4 sequence-note
-1.1 render-audio onsets . cr                     \ [ 0 ] (instrument 1's second note starts inside instrument 0's)
-fresh 1/2 sequence-articulation 0 sequence-instrument :a4 1/2 sequence-note 1 sequence-instrument 3/8 sequence-rest :c4 1/4 sequence-note
-1.1 render-audio dup onsets . offsets . cr       \ [ 0 36000 ] [ 24000 48000 ] (instrument 0 sounds 0-24000, instrument 1 36000-48000)
+fresh :first-line sequence-instrument :a4 1/2 sequence-note :second-line sequence-instrument :c4 1/4 sequence-note :c4 1/4 sequence-note
+1.1 render-audio onsets . cr                     \ [ 0 ] (:second-line's second note starts inside :first-line's)
+fresh 1/2 sequence-articulation :first-line sequence-instrument :a4 1/2 sequence-note :second-line sequence-instrument 3/8 sequence-rest :c4 1/4 sequence-note
+1.1 render-audio dup onsets . offsets . cr       \ [ 0 36000 ] [ 24000 48000 ] (:first-line sounds 0-24000, :second-line 36000-48000)
 clear
 
 \ === exact positions: 7000 rests of 1/7 at 120 bpm end at exactly 2000 s ===
@@ -84,8 +87,8 @@ sequence-end . cr                                \ 2000 (13714.2857... samples e
 clear
 
 \ === velocity ===
-{ :oscillators [ { :fixed-hz 1000 :attack 0 :release 0 } ] } 3 instrument-patch!
-fresh 3 sequence-instrument 0.5 sequence-velocity :a4 1/2 sequence-note
+{ :oscillators [ { :fixed-hz 1000 :attack 0 :release 0 } ] } :steady-tone instrument-patch!
+fresh :steady-tone sequence-instrument 0.5 sequence-velocity :a4 1/2 sequence-note
 0.5 render-audio 4800 19200 0 1 submatrix 1000 amp . cr   \ 0.5
 clear
 
@@ -101,7 +104,18 @@ sequence-end . cr                                \ 128 (4096 x 1/64 x 2 s)
 ( :a4 1/64 sequence-note ) catch . drop sequence-end . cr   \ 1 128 (the 4097th is refused whole)
 silence-audio clear
 
+\ === forget-instrument drops the instrument's queued notes and resets its position ===
+{ :oscillators [ { :wave :white :attack 0 :release 0 } ] } :doomed instrument-patch!
+fresh :a4 1/4 sequence-note :doomed sequence-instrument 1/2 sequence-rest :a4 1/4 sequence-note
+sequence-end . cr                                \ 1.5 (:doomed ends last: a half-note rest, then a quarter note)
+:doomed forget-instrument
+sequence-end . cr                                \ 0.5 (only :first-line's quarter note remains)
+1.6 render-audio onsets . cr                     \ [ 0 ] (the note :doomed queued at 48000 never sounds)
+clear
+
 \ errors
+:a4 1/4 sequence-note                            \ (no current instrument: :doomed was current and is forgotten)
+:doomed sequence-instrument                      \ (forgotten: no instrument by that name)
 :a4 0 sequence-note                              \ (zero length)
 :a4 -1/4 sequence-note                           \ (negative length)
 :a4 "long" sequence-note                         \ (not a number)
@@ -114,4 +128,6 @@ silence-audio clear
 0 sequence-articulation                          \ (must be above 0)
 1.5 sequence-articulation                        \ (over 1)
 2 sequence-velocity                              \ (above 1)
-16 sequence-instrument                           \ (instrument out of range)
+:absent sequence-instrument                      \ (no instrument by that name)
+0 sequence-instrument                            \ (an instrument number, not a name)
+:absent forget-instrument                        \ (no instrument by that name)

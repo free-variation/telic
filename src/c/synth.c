@@ -206,7 +206,8 @@ typedef enum {
 	COMMAND_SILENCE,
 	COMMAND_PLAY,
 	COMMAND_PARAMETER,
-	COMMAND_EFFECT
+	COMMAND_EFFECT,
+	COMMAND_FORGET_INSTRUMENT
 } SynthCommandKind;
 
 typedef struct {
@@ -265,7 +266,10 @@ static SampleTime synth_instrument_cursors[SYNTH_MAX_INSTRUMENTS];
 static int64_t synth_tempo_milli = 120000;
 static double synth_articulation = SYNTH_DEFAULT_ARTICULATION;
 static double synth_velocity = 1.0;
-static int synth_current_instrument;
+static int synth_current_instrument = -1;
+static cell synth_instrument_names[SYNTH_MAX_INSTRUMENTS];
+static int synth_instrument_bound[SYNTH_MAX_INSTRUMENTS];
+static long synth_instrument_released_at[SYNTH_MAX_INSTRUMENTS];
 static double synth_recent[2 * SYNTH_RECENT_CAPACITY];
 static long synth_recent_written;
 static atomic_long synth_recent_published;
@@ -680,17 +684,30 @@ static double note_hz(double note) {
 	return 440.0 * pow(2.0, (note - 69.0) / 12.0);
 }
 
-static int instrument_index(Interpreter *interp, Val instrument_val) {
-	if (VAL_TAG(instrument_val) != T_FLOAT) {
-		fail(interp, "expected an instrument number; got %s", tag_name(VAL_TAG(instrument_val)));
-		return -1;
+static int instrument_name(Interpreter *interp, Val instrument_val, cell *name) {
+	if (VAL_TAG(instrument_val) != T_SYMBOL) {
+		fail(interp, "expected an instrument name (a symbol); got %s", tag_name(VAL_TAG(instrument_val)));
+		return 0;
 	}
-	double instrument = VAL_NUMBER(instrument_val);
-	if (!(instrument >= 0 && instrument < SYNTH_MAX_INSTRUMENTS) || instrument != floor(instrument)) {
-		fail(interp, "expected an instrument number in [0, %d); got %g", SYNTH_MAX_INSTRUMENTS, instrument);
+	*name = VAL_DATA(instrument_val);
+	return 1;
+}
+
+static int instrument_bound_slot(cell name) {
+	for (int slot = 0; slot < SYNTH_MAX_INSTRUMENTS; slot++)
+		if (synth_instrument_bound[slot] && synth_instrument_names[slot] == name)
+			return slot;
+	return -1;
+}
+
+static int instrument_slot(Interpreter *interp, Val instrument_val) {
+	cell name;
+	if (!instrument_name(interp, instrument_val, &name))
 		return -1;
-	}
-	return (int)instrument;
+	int slot = instrument_bound_slot(name);
+	if (slot < 0)
+		fail(interp, "unknown instrument :%s; give it a patch with instrument-patch!", symbol_text(name));
+	return slot;
 }
 
 static double stage_factor(double seconds) {
@@ -1315,6 +1332,22 @@ static void synth_silence_all(void) {
 	effects_clear();
 }
 
+static void synth_forget_instrument(int instrument) {
+	for (int v = 0; v < SYNTH_MAX_VOICES; v++)
+		if (synth_voices[v].instrument == instrument)
+			synth_voices[v].active = 0;
+	synth_last_notes[instrument] = -1.0;
+
+	int kept = synth_schedule_start;
+	int end = synth_schedule_start + synth_n_scheduled;
+	for (int e = synth_schedule_start; e < end; e++)
+		if (synth_schedule[e].instrument != instrument)
+			synth_schedule[kept++] = synth_schedule[e];
+	int n_dropped = end - kept;
+	synth_n_scheduled -= n_dropped;
+	atomic_fetch_add_explicit(&synth_n_scheduled_applied, n_dropped, memory_order_release);
+}
+
 static void synth_apply(const SynthCommand *command) {
 	if (command->scheduled) {
 		schedule_insert(command);
@@ -1345,6 +1378,9 @@ static void synth_apply(const SynthCommand *command) {
 		break;
 	case COMMAND_EFFECT:
 		effects_apply(command->effect_parameter, command->value);
+		break;
+	case COMMAND_FORGET_INSTRUMENT:
+		synth_forget_instrument(command->instrument);
 		break;
 	}
 }
@@ -1607,6 +1643,12 @@ static SampleTime *cursor_for(int instrument) {
 	return cursor;
 }
 
+static int current_instrument(Interpreter *interp) {
+	if (synth_current_instrument < 0)
+		fail(interp, "no current instrument; name one with sequence-instrument");
+	return synth_current_instrument;
+}
+
 static int length_fraction(Interpreter *interp, Val numerator_val, Val denominator_val, int64_t *numerator, int64_t *denominator) {
 	int64_t numerator_value;
 	int64_t denominator_value;
@@ -1632,7 +1674,9 @@ static int sequence_notes(Interpreter *interp, const double *notes, int n_notes,
 		return 0;
 	}
 
-	int instrument = synth_current_instrument;
+	int instrument = current_instrument(interp);
+	if (instrument < 0)
+		return 0;
 	SampleTime *cursor = cursor_for(instrument);
 	long onset = time_floor(*cursor);
 	SampleTime length = length_samples(numerator, denominator);
@@ -1707,8 +1751,11 @@ void p_sequence_rest(DISPATCH_ARGS) {
 	int64_t denominator;
 	if (!length_fraction(interp, chain_sp[-2], chain_sp[-1], &numerator, &denominator))
 		return;
+	int instrument = current_instrument(interp);
+	if (instrument < 0)
+		return;
 
-	time_add(cursor_for(synth_current_instrument), length_samples(numerator, denominator));
+	time_add(cursor_for(instrument), length_samples(numerator, denominator));
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 2);
 }
@@ -1741,7 +1788,7 @@ void p_sequence_tempo(DISPATCH_ARGS) {
 
 void p_sequence_instrument(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
-	int instrument = instrument_index(interp, chain_sp[-1]);
+	int instrument = instrument_slot(interp, chain_sp[-1]);
 	if (instrument < 0)
 		return;
 
@@ -1821,17 +1868,52 @@ void p_pitch_to_hz(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
 
+static int instrument_slot_reusable(int slot) {
+	if (synth_instrument_bound[slot])
+		return 0;
+	if (!synth_is_live())
+		return 1;
+	return atomic_load_explicit(&synth_n_device_renders, memory_order_acquire) > synth_instrument_released_at[slot] + 1;
+}
+
+static int instrument_binding_slot(Interpreter *interp, cell name) {
+	int slot = instrument_bound_slot(name);
+	if (slot >= 0)
+		return slot;
+
+	int n_free = 0;
+	for (int candidate = 0; candidate < SYNTH_MAX_INSTRUMENTS; candidate++)
+		n_free += !synth_instrument_bound[candidate];
+	if (n_free == 0) {
+		fail(interp, "no free instrument (max %d); forget-instrument frees one", SYNTH_MAX_INSTRUMENTS);
+		return -1;
+	}
+	for (;;) {
+		for (int candidate = 0; candidate < SYNTH_MAX_INSTRUMENTS; candidate++) {
+			if (!instrument_slot_reusable(candidate))
+				continue;
+			synth_instrument_bound[candidate] = 1;
+			synth_instrument_names[candidate] = name;
+			return candidate;
+		}
+		synth_wait_briefly();
+	}
+}
+
 void p_instrument_patch_store(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
 	Val patch_val = chain_sp[-2];
 	REQUIRE_CHAIN_TAG(patch_val, T_FRAME, "instrument-patch!", "a patch frame");
-	int instrument = instrument_index(interp, chain_sp[-1]);
-	if (instrument < 0)
+	cell name;
+	if (!instrument_name(interp, chain_sp[-1], &name))
 		return;
 
 	synth_ensure_ready();
 	SynthPatch patch;
 	if (!patch_from_frame(interp, OBJECT_AT(VAL_DATA(patch_val)), &patch))
+		return;
+	int instrument = instrument_binding_slot(interp, name);
+	if (instrument < 0)
 		return;
 	if (!synth_is_live()) {
 		synth_instruments[instrument] = patch;
@@ -1846,9 +1928,28 @@ void p_instrument_patch_store(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 2);
 }
 
+void p_forget_instrument(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	int instrument = instrument_slot(interp, chain_sp[-1]);
+	if (instrument < 0)
+		return;
+
+	synth_ensure_ready();
+	SynthCommand command = {.kind = COMMAND_FORGET_INSTRUMENT, .instrument = instrument};
+	if (!synth_submit(interp, &command))
+		return;
+	synth_instrument_bound[instrument] = 0;
+	synth_instrument_released_at[instrument] = atomic_load_explicit(&synth_n_device_renders, memory_order_acquire);
+	synth_instrument_cursors[instrument].denominator = 0;
+	if (synth_current_instrument == instrument)
+		synth_current_instrument = -1;
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+}
+
 void p_instrument_store(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 3);
-	int instrument = instrument_index(interp, chain_sp[-1]);
+	int instrument = instrument_slot(interp, chain_sp[-1]);
 	if (instrument < 0)
 		return;
 
@@ -1862,7 +1963,7 @@ void p_instrument_store(DISPATCH_ARGS) {
 
 void p_oscillator_store(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 4);
-	int instrument = instrument_index(interp, chain_sp[-1]);
+	int instrument = instrument_slot(interp, chain_sp[-1]);
 	if (instrument < 0)
 		return;
 	int oscillator_index = frame_index(interp, chain_sp[-2], SYNTH_MAX_OSCILLATORS, "oscillator!");
@@ -1889,7 +1990,7 @@ void p_note_on(DISPATCH_ARGS) {
 		fail(interp, "expected a velocity in [0, 1]; got %g", velocity);
 		return;
 	}
-	int instrument = instrument_index(interp, chain_sp[-1]);
+	int instrument = instrument_slot(interp, chain_sp[-1]);
 	if (instrument < 0)
 		return;
 
@@ -1906,7 +2007,7 @@ void p_note_off(DISPATCH_ARGS) {
 	double note = pitch_note(interp, chain_sp[-2]);
 	if (note < 0)
 		return;
-	int instrument = instrument_index(interp, chain_sp[-1]);
+	int instrument = instrument_slot(interp, chain_sp[-1]);
 	if (instrument < 0)
 		return;
 

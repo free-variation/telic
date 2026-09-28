@@ -1,6 +1,7 @@
 \ ==== pitch>midi ( pitch -- n ), pitch>hz ( pitch -- hz ),
 \      note-on ( pitch velocity instrument -- ), note-off ( pitch instrument -- ),
-\      render-audio ( seconds -- matrix ), silence-audio ( -- ) ====
+\      render-audio ( seconds -- matrix ), silence-audio ( -- ),
+\      forget-instrument ( instrument -- ) ====
 
 \ A pitch is a MIDI note number in [0, 127] or a symbol: a letter a-g, an
 \ optional # (sharp) or b (flat), and an octave from -1 to 9, so :c4 is 60
@@ -10,11 +11,13 @@
 \ between calls take effect at the start of the next render. A note takes
 \ one of 32 voices; when none is free it takes the voice released longest
 \ ago, else the one started longest ago. A note-on for a pitch already
-\ sounding on the instrument retriggers that voice. Each instrument plays
-\ its own patch.
-\ :level and velocity scale the output, velocity by :velocity-sensitivity (0
-\ ignores it); :pan places the voice with a constant-power law. silence-audio
-\ ends every sounding voice; the instruments keep their patches.
+\ sounding on the instrument retriggers that voice. An instrument is a name,
+\ a symbol that instrument-patch! binds to one of 16 slots; each instrument
+\ plays its own patch, and forget-instrument ends its voices and frees its
+\ slot. :level and velocity scale the output, velocity by
+\ :velocity-sensitivity (0 ignores it); :pan places the voice with a
+\ constant-power law. silence-audio ends every sounding voice; the
+\ instruments keep their names and patches.
 
 11 seed
 
@@ -61,83 +64,96 @@ clear
 silence-audio 0.5 render-audio dim . . cr              \ 2 24000 (columns, rows)
 0 render-audio dim . . cr                        \ 2 0
 silence-audio 0.25 render-audio abs max . cr           \ 0 (nothing playing)
-{ } 0 instrument-patch! :a4 1 0 note-on 0.1 render-audio abs max 0 > . cr   \ 1
+{ } :sine instrument-patch! :a4 1 :sine note-on 0.1 render-audio abs max 0 > . cr   \ 1
 silence-audio 0.1 render-audio abs max . cr            \ 0 (silence-audio ended the note)
 clear
 
 \ === recent-audio: the last frames rendered, zeros before the first ===
-silence-audio { } 0 instrument-patch! :a4 1 0 note-on 0.1 render-audio to rendered
+silence-audio { } :sine instrument-patch! :a4 1 :sine note-on 0.1 render-audio to rendered
 64 recent-audio rendered 4736 4800 0 2 submatrix = . cr       \ 1 (the render's last 64 frames)
 8192 recent-audio dim . . cr                                   \ 2 8192
 silence-audio clear
 
 \ === consecutive renders continue one signal ===
-silence-audio :a4 1 0 note-on 0.5 render-audio to opening 0.5 render-audio to closing
-silence-audio :a4 1 0 note-on 1 render-audio to whole
+silence-audio :a4 1 :sine note-on 0.5 render-audio to opening 0.5 render-audio to closing
+silence-audio :a4 1 :sine note-on 1 render-audio to whole
 opening closing vstack whole = . cr              \ 1
 clear
 
 \ === the same seed renders the same noise ===
-{ :oscillators [ { :wave :white } ] } 0 instrument-patch!
-: noisy ( -- m ) silence-audio :a4 1 0 note-on 0.1 render-audio ;
+{ :oscillators [ { :wave :white } ] } :noise instrument-patch!
+: noisy ( -- m ) silence-audio :a4 1 :noise note-on 0.1 render-audio ;
 3 seed noisy 3 seed noisy = . cr                 \ 1
 3 seed noisy 4 seed noisy = . cr                 \ 0
 silence-audio clear
 
 \ === two instruments play their own patches ===
-silence-audio 1000 0 sine-instrument 1500 1 sine-instrument
-:a4 1 0 note-on :a4 1 1 note-on 0.5 render-audio left to both
+silence-audio 1000 :low sine-instrument 1500 :high sine-instrument
+:a4 1 :low note-on :a4 1 :high note-on 0.5 render-audio left to both
 both 1000 amp . both 1500 amp . cr               \ 0.707 0.707
-:a4 1 note-off 1 render-audio drop 0.5 render-audio left to one
-one 1000 amp . one 1500 amp . cr                 \ 0.707 0 (only instrument 1 was released)
+:a4 :high note-off 1 render-audio drop 0.5 render-audio left to one
+one 1000 amp . one 1500 amp . cr                 \ 0.707 0 (only :high was released)
 clear
 
 \ === 32 voices sound together; a 33rd steals ===
-{ } 0 instrument-patch! silence-audio
-: notes-from ( low high -- ) 2 do k k 1 0 note-on loop ;
+{ } :sine instrument-patch! silence-audio
+: notes-from ( low high -- ) 2 do k k 1 :sine note-on loop ;
 60 124 notes-from
 1 render-audio left to many-voices
 many-voices 60 pitch>hz amp 0.01 > . many-voices 122 pitch>hz amp 0.01 > . cr   \ 1 1 (the lowest and highest of 32)
-90 0 note-off 0.1 render-audio drop
-123 1 0 note-on 1 render-audio left to stolen
+90 :sine note-off 0.1 render-audio drop
+123 1 :sine note-on 1 render-audio left to stolen
 stolen 90 pitch>hz amp . stolen 123 pitch>hz amp 0.01 > . stolen 60 pitch>hz amp 0.01 > . cr   \ 0 1 1 (the released voice was taken)
-124 1 0 note-on 1 render-audio left to oldest
+124 1 :sine note-on 1 render-audio left to oldest
 oldest 60 pitch>hz amp . oldest 124 pitch>hz amp 0.01 > . cr   \ 0 1 (none released: the oldest was taken)
 silence-audio clear
 
 \ === a repeated note-on retriggers the same voice ===
-1000 0 sine-instrument :a4 1 0 note-on :a4 1 0 note-on 0.5 render-audio left 1000 amp . cr   \ 0.707 (one voice, not two)
+1000 :sine sine-instrument :a4 1 :sine note-on :a4 1 :sine note-on 0.5 render-audio left 1000 amp . cr   \ 0.707 (one voice, not two)
 silence-audio clear
 
 \ === :level and velocity ===
-{ :oscillators [ { :fixed-hz 1000 } ] :level 0.5 } 0 instrument-patch! :a4 1 0 note-on 0.5 render-audio left 1000 amp . cr   \ 0.354
-silence-audio { :oscillators [ { :fixed-hz 1000 } ] } 0 instrument-patch! :a4 0.5 0 note-on 0.5 render-audio left 1000 amp . cr     \ 0.354 (full sensitivity)
-silence-audio { :oscillators [ { :fixed-hz 1000 } ] :velocity-sensitivity 0 } 0 instrument-patch! :a4 0.5 0 note-on 0.5 render-audio left 1000 amp . cr   \ 0.707 (velocity ignored)
-silence-audio { :oscillators [ { :fixed-hz 1000 } ] :velocity-sensitivity 0.5 } 0 instrument-patch! :a4 0 0 note-on 0.5 render-audio left 1000 amp . cr   \ 0.354 (half the gain comes from velocity)
+{ :oscillators [ { :fixed-hz 1000 } ] :level 0.5 } :sine instrument-patch! :a4 1 :sine note-on 0.5 render-audio left 1000 amp . cr   \ 0.354
+silence-audio { :oscillators [ { :fixed-hz 1000 } ] } :sine instrument-patch! :a4 0.5 :sine note-on 0.5 render-audio left 1000 amp . cr     \ 0.354 (full sensitivity)
+silence-audio { :oscillators [ { :fixed-hz 1000 } ] :velocity-sensitivity 0 } :sine instrument-patch! :a4 0.5 :sine note-on 0.5 render-audio left 1000 amp . cr   \ 0.707 (velocity ignored)
+silence-audio { :oscillators [ { :fixed-hz 1000 } ] :velocity-sensitivity 0.5 } :sine instrument-patch! :a4 0 :sine note-on 0.5 render-audio left 1000 amp . cr   \ 0.354 (half the gain comes from velocity)
 silence-audio clear
 
 \ === :pan, constant power ===
-{ :oscillators [ { :fixed-hz 1000 } ] :pan -1 } 0 instrument-patch! :a4 1 0 note-on 0.5 render-audio to hard-left
+{ :oscillators [ { :fixed-hz 1000 } ] :pan -1 } :sine instrument-patch! :a4 1 :sine note-on 0.5 render-audio to hard-left
 hard-left left 1000 amp . hard-left right 1000 amp . cr           \ 1 0
-silence-audio { :oscillators [ { :fixed-hz 1000 } ] :pan 1 } 0 instrument-patch! :a4 1 0 note-on 0.5 render-audio to hard-right
+silence-audio { :oscillators [ { :fixed-hz 1000 } ] :pan 1 } :sine instrument-patch! :a4 1 :sine note-on 0.5 render-audio to hard-right
 hard-right left 1000 amp . hard-right right 1000 amp . cr         \ 0 1
-silence-audio { :oscillators [ { :fixed-hz 1000 } ] :pan 0.5 } 0 instrument-patch! :a4 1 0 note-on 0.5 render-audio to leaning
+silence-audio { :oscillators [ { :fixed-hz 1000 } ] :pan 0.5 } :sine instrument-patch! :a4 1 :sine note-on 0.5 render-audio to leaning
 leaning left 1000 amp . leaning right 1000 amp . cr               \ 0.383 0.924 (cos and sin of 3 pi / 8)
 silence-audio clear
 
 \ === :glide: the pitch slides from the instrument's previous note, linearly in semitones ===
 : glided ( glide -- stereo )
 	| glide |
-	silence-audio { } glide :glide ! 0 instrument-patch! :a4 1 0 note-on 0.2 render-audio drop :a5 1 0 note-on 0.3 render-audio left ;
+	silence-audio { } glide :glide ! :sine instrument-patch! :a4 1 :sine note-on 0.2 render-audio drop :a5 1 :sine note-on 0.3 render-audio left ;
 0.1 glided to sliding
 sliding 0 2400 0 1 submatrix 880 amp 0.1 < . cr        \ 1 (the first 50 ms are still below 880 Hz)
 sliding 5280 14400 0 1 submatrix 880 amp . cr          \ 0.707 (arrived by 0.11 s)
 0 glided 480 2400 0 1 submatrix 880 amp . cr           \ 0.707 (:glide 0 jumps, from the end of the 5 ms attack)
-silence-audio { :glide 0.1 } 0 instrument-patch! :a5 1 0 note-on 0.1 render-audio left 880 amp . cr   \ 0.707 (a first note after silence-audio does not glide)
+silence-audio { :glide 0.1 } :sine instrument-patch! :a5 1 :sine note-on 0.1 render-audio left 880 amp . cr   \ 0.707 (a first note after silence-audio does not glide)
 silence-audio clear
 
 \ === note-off of a pitch that is not sounding does nothing ===
-:c4 0 note-off 0.1 render-audio abs max . cr     \ 0
+:c4 :sine note-off 0.1 render-audio abs max . cr     \ 0
+clear
+
+\ === forget-instrument: its voices end, the name is unknown again, its slot is free ===
+:low forget-instrument :high forget-instrument :noise forget-instrument
+{ } :sine instrument-patch! silence-audio :a4 1 :sine note-on 0.1 render-audio drop
+:sine forget-instrument 0.1 render-audio abs max . cr                    \ 0 (its sounding voice ended)
+( :a4 1 :sine note-on ) catch . drop cr                                  \ 1 (the forgotten name is unknown)
+: bind-sixteen ( -- ) 0 16 1 do k { } k "slot{0}" format string>symbol instrument-patch! loop ;
+bind-sixteen ( { } :extra instrument-patch! ) catch . drop cr            \ 1 (a 17th name finds no free slot)
+:slot0 forget-instrument { } :extra instrument-patch! "bound" . cr       \ bound (forgetting one frees its slot)
+: forget-slots ( -- ) 1 16 1 do k k "slot{0}" format string>symbol forget-instrument loop ;
+forget-slots :extra forget-instrument { } :sine instrument-patch!
+clear
 
 \ errors
 :h4 pitch>midi                                   \ (not a letter a-g)
@@ -150,11 +166,13 @@ silence-audio clear
 :c++4 pitch>midi                                 \ (two quarter-tone accidentals)
 :cd-1 pitch>midi                                 \ (below 0)
 :g+9 pitch>midi                                  \ (above 127)
-:a4 1.5 0 note-on                                \ (velocity above 1)
-:a4 1 16 note-on                                 \ (instrument out of range)
-:h4 1 0 note-on                                  \ (not a pitch)
-:a4 "one" 0 note-on                              \ (velocity not a float)
-:a4 -1 note-off                                  \ (instrument out of range)
+:a4 1.5 :sine note-on                            \ (velocity above 1)
+:a4 1 :oboe note-on                              \ (unknown instrument)
+:h4 1 :sine note-on                              \ (not a pitch)
+:a4 "one" :sine note-on                          \ (velocity not a float)
+:a4 0 note-off                                   \ (instrument not a symbol)
+:oboe forget-instrument                          \ (unknown instrument)
+{ } 3 instrument-patch!                          \ (instrument not a symbol)
 -1 render-audio                                  \ (negative)
 601 render-audio                                 \ (over 600 s)
 "1" render-audio                                 \ (not a float)

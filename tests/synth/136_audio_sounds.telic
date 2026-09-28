@@ -20,11 +20,11 @@
 : playing ( description -- ) . ;
 : finished ( flag -- ) if "(on time)" else "(late)" then . cr ;
 
-\ a single note on instrument 4: held, released, 0.2 s of release, then silence
+\ a single note on the :solo instrument: held, released, 0.2 s of release, then silence
 : timed ( patch pitch seconds -- flag )
 	| patch pitch seconds |
-	patch 4 instrument-patch! now magnitude to started
-	pitch 1 4 note-on seconds sleep pitch 4 note-off 0.2 sleep silence-audio wait-audio
+	patch :solo instrument-patch! now magnitude to started
+	pitch 1 :solo note-on seconds sleep pitch :solo note-off 0.2 sleep silence-audio wait-audio
 	started seconds 0.2 + 1000 * on-time ;
 
 audio-on
@@ -32,20 +32,20 @@ audio-on
 \ === a three-instrument chord: electric piano, detuned saw pad, pulse bass ===
 { :oscillators [ { :attack 0.002 :decay 1.5 :sustain 0.3 :release 0.6 }
                  { :attack 0.001 :decay 0.4 :sustain 0.1 :release 0.3 } ]
-  :modulation [ [ 1 0 2.5 ] ] :level 0.12 } 0 instrument-patch!
+  :modulation [ [ 1 0 2.5 ] ] :level 0.12 } :piano instrument-patch!
 { :oscillators [ { :wave :saw :detune -7 :attack 0.3 :release 0.8 :level 0.5 }
                  { :wave :saw :detune 7 :attack 0.3 :release 0.8 :level 0.5 } ]
-  :carriers [ 0 1 ] :level 0.08 :pan -0.4 } 1 instrument-patch!
+  :carriers [ 0 1 ] :level 0.08 :pan -0.4 } :pad instrument-patch!
 { :oscillators [ { :wave :pulse :width 0.3 :attack 0.005 :decay 0.6 :sustain 0.6 :release 0.3 } ]
-  :level 0.15 :pan 0.3 } 2 instrument-patch!
+  :level 0.15 :pan 0.3 } :bass instrument-patch!
 : chord-on ( -- )
-	:c4 0.9 0 note-on :e4 0.8 0 note-on :g4 0.8 0 note-on :b4 0.7 0 note-on
-	:c3 1 1 note-on :g3 1 1 note-on
-	:c2 1 2 note-on ;
+	:c4 0.9 :piano note-on :e4 0.8 :piano note-on :g4 0.8 :piano note-on :b4 0.7 :piano note-on
+	:c3 1 :pad note-on :g3 1 :pad note-on
+	:c2 1 :bass note-on ;
 : chord-off ( -- )
-	:c4 0 note-off :e4 0 note-off :g4 0 note-off :b4 0 note-off
-	:c3 1 note-off :g3 1 note-off
-	:c2 2 note-off ;
+	:c4 :piano note-off :e4 :piano note-off :g4 :piano note-off :b4 :piano note-off
+	:c3 :pad note-off :g3 :pad note-off
+	:c2 :bass note-off ;
 "Cmaj7 chord: FM electric piano (C4 E4 G4 B4), detuned saw pad (C3 G3), pulse bass (C2)" playing
 now magnitude to started
 chord-on 0.6 sleep chord-off 0.3 sleep silence-audio wait-audio
@@ -57,7 +57,7 @@ clear
 { :oscillators [ { :wave :pink :attack 0.2 :release 0.4 } ] :level 0.3 } :a4 1 timed finished
 clear
 
-\ === opposite filter sweeps: instrument 5 hard left sweeps up, instrument 6 hard right down ===
+\ === opposite filter sweeps: :sweep-up hard left sweeps up, :sweep-down hard right down ===
 : saw-sweep ( cutoff amount pan -- patch )
 	| cutoff amount pan |
 	{ :oscillators [ { :wave :saw :release 0.2 } { :wave :saw :ratio 1.004 :release 0.2 } ]
@@ -67,16 +67,16 @@ clear
 	| stereo column start finish |
 	stereo start 48000 * round finish 48000 * round column column 1 + submatrix ;
 : bright ( v -- a ) 48000 1569.6 amplitude-at ;
-200 5 -1 saw-sweep 5 instrument-patch!
-6400 -5 1 saw-sweep 6 instrument-patch!
+200 5 -1 saw-sweep :sweep-up instrument-patch!
+6400 -5 1 saw-sweep :sweep-down instrument-patch!
 audio-off
-silence-audio :c3 1 5 note-on :c3 1 6 note-on 1.5 render-audio to swept silence-audio
+silence-audio :c3 1 :sweep-up note-on :c3 1 :sweep-down note-on 1.5 render-audio to swept silence-audio
 "rendered offline, the left side opens:" . swept 0 1.3 1.4 side bright  swept 0 0.1 0.2 side bright  / 100 > . cr   \ 1
 "rendered offline, the right side closes:" . swept 1 0.1 0.2 side bright  swept 1 1.3 1.4 side bright  / 100 > . cr   \ 1
 audio-on
 "filter sweeps: saws on C3, left opening 200 Hz to 6.4 kHz, right closing 6.4 kHz to 200 Hz" playing
 now magnitude to started
-:c3 1 5 note-on :c3 1 6 note-on 1.5 sleep :c3 5 note-off :c3 6 note-off 0.3 sleep silence-audio wait-audio
+:c3 1 :sweep-up note-on :c3 1 :sweep-down note-on 1.5 sleep :c3 :sweep-up note-off :c3 :sweep-down note-off 0.3 sleep silence-audio wait-audio
 started 1800 on-time finished
 clear
 
@@ -102,10 +102,10 @@ clear
 : saw-chord ( unison seconds -- flag )
 	| unison seconds |
 	{ :oscillators [ { :wave :saw :attack 0.02 :release 0.2 } ] :cutoff 3000 :level 0.07 :unison-detune 30 :unison-spread 1 }
-	unison :unison ! 7 instrument-patch!
+	unison :unison ! :saws instrument-patch!
 	now magnitude to begun
-	:c3 1 7 note-on :e3 1 7 note-on :g3 1 7 note-on :c4 1 7 note-on seconds sleep
-	:c3 7 note-off :e3 7 note-off :g3 7 note-off :c4 7 note-off 0.2 sleep silence-audio wait-audio
+	:c3 1 :saws note-on :e3 1 :saws note-on :g3 1 :saws note-on :c4 1 :saws note-on seconds sleep
+	:c3 :saws note-off :e3 :saws note-off :g3 :saws note-off :c4 :saws note-off 0.2 sleep silence-audio wait-audio
 	begun seconds 0.2 + 1000 * on-time ;
 "C major chord, one saw per note" playing
 1 0.8 saw-chord finished
@@ -115,18 +115,18 @@ clear
 
 \ === glide: a legato line, each note sliding from the last ===
 { :oscillators [ { :wave :saw :release 0.15 } { :wave :pulse :ratio 0.5 :width 0.3 :level 0.6 :release 0.15 } ]
-  :carriers [ 0 1 ] :cutoff 1800 :resonance 1.5 :level 0.12 :glide 0.12 } 8 instrument-patch!
+  :carriers [ 0 1 ] :cutoff 1800 :resonance 1.5 :level 0.12 :glide 0.12 } :lead instrument-patch!
 : legato ( pitches -- )
 	| pitches |
 	-1 to previous
 	0 pitches size 1 do k
 		pitches k @i to pitch
-		pitch 1 8 note-on
-		previous 0 >= if previous 8 note-off then
+		pitch 1 :lead note-on
+		previous 0 >= if previous :lead note-off then
 		pitch pitch>midi to previous
 		0.3 sleep
 	loop
-	previous 8 note-off ;
+	previous :lead note-off ;
 "glide: a saw-and-pulse lead playing C4 G4 E4 C5 A4 F4 G4 C4, each note sliding 0.12 s from the last" playing
 now magnitude to started
 [ :c4 :g4 :e4 :c5 :a4 :f4 :g4 :c4 ] legato 0.2 sleep silence-audio wait-audio
@@ -136,31 +136,31 @@ clear
 \ === the sequencer: phrases queued at once, then wait-sequence ===
 { :oscillators [ { :attack 0.002 :decay 0.5 :sustain 0.4 :release 0.05 }
                  { :attack 0.001 :decay 0.3 :sustain 0.1 :release 0.05 } ]
-  :modulation [ [ 1 0 2 ] ] :level 0.12 :pan -0.2 } 9 instrument-patch!
-{ :oscillators [ { :wave :saw :release 0.05 } ] :cutoff 600 :resonance 1 :level 0.15 :pan 0.2 } 10 instrument-patch!
+  :modulation [ [ 1 0 2 ] ] :level 0.12 :pan -0.2 } :keys instrument-patch!
+{ :oscillators [ { :wave :saw :release 0.05 } ] :cutoff 600 :resonance 1 :level 0.15 :pan 0.2 } :saw-bass instrument-patch!
 : sequence-on-time ( started end-ms -- flag )
 	| started end-ms |
 	started elapsed-ms end-ms - dup 0 >= swap 800 < and ;
 silence-audio 120 sequence-tempo 7/8 sequence-articulation 1 sequence-velocity
 "sequencer: FM keys E4 G4 C5 B4 G4 and a C major chord over a saw bass C2 G2 A2 G2 C2, 120 bpm" playing
 now magnitude to started
-9 sequence-instrument
+:keys sequence-instrument
 :e4 1/8 sequence-note :g4 1/8 sequence-note :c5 1/4 sequence-note :b4 1/8 sequence-note :g4 1/8 sequence-note
 [ :c4 :e4 :g4 :c5 ] 1/2 sequence-chord
-10 sequence-instrument
+:saw-bass sequence-instrument
 :c2 1/4 sequence-note :g2 1/4 sequence-note :a2 1/4 sequence-note :g2 1/4 sequence-note :c2 1/4 sequence-note
 sequence-end 1000 * to end-ms
 wait-sequence
 started end-ms sequence-on-time finished
 "quarter tones: FM keys C4 C+4 C#4 Dd4 D4 and back down, an eighth note each" playing
 now magnitude to started
-9 sequence-instrument
+:keys sequence-instrument
 :c4 1/8 sequence-note :c+4 1/8 sequence-note :c#4 1/8 sequence-note :dd4 1/8 sequence-note :d4 1/8 sequence-note
 :dd4 1/8 sequence-note :c#4 1/8 sequence-note :c+4 1/8 sequence-note :c4 1/8 sequence-note
 sequence-end 1000 * to end-ms
 wait-sequence
 started end-ms sequence-on-time finished
-0 sequence-instrument silence-audio
+silence-audio
 clear
 
 audio-off

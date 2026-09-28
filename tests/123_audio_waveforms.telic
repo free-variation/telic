@@ -16,7 +16,7 @@
 : amp ( v hz -- a ) 48000 swap amplitude-at 0.70710678 / 1000 * round 1000 / ;
 : tone ( oscillator -- v )
 	| oscillator |
-	silence-audio { } [ oscillator ] :oscillators ! 0 instrument-patch! :a4 1 0 note-on 1 render-audio settled ;
+	silence-audio { } [ oscillator ] :oscillators ! :tone instrument-patch! :a4 1 :tone note-on 1 render-audio settled ;
 : series ( v hzs -- )
 	| v hzs |
 	hzs ( v swap amp . ) each cr ;
@@ -58,7 +58,7 @@ clear
 \ === noise: RMS, and energy per octave band averaged over 250 Hz-16 kHz ===
 : noise ( wave -- v )
 	| wave |
-	silence-audio { } [ { } wave :wave ! ] :oscillators ! 0 instrument-patch! :a4 1 0 note-on 2 render-audio 9600 96000 0 1 submatrix ;
+	silence-audio { } [ { } wave :wave ! ] :oscillators ! :noise instrument-patch! :a4 1 :noise note-on 2 render-audio 9600 96000 0 1 submatrix ;
 : rms ( v -- r ) dup * mean sqrt 0.70710678 / 100 * round 100 / ;
 : band ( amplitudes lo hi -- energy )
 	| amplitudes lo hi |

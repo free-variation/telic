@@ -66,7 +66,8 @@ by file in SRCS order. What each file is:
 - synth.c — the synthesizer: patch-frame validation into C structs, the
   voice pool, oscillators (PolyBLEP waves, seeded noise), the
   phase-modulation loop, unison copies, envelopes, the per-voice Moog ladder
-  and LFO, glide, 64-frame parameter ramps, pitch parsing, the words
+  and LFO, glide, 64-frame parameter ramps, pitch parsing, the instrument
+  names (symbol to slot, binding, forget-instrument), the words
   pitch>midi … render-audio, instrument!, oscillator!, the sequencer (exact
   per-instrument positions, the sample-accurate schedule, the sequence-*
   words), effect!, recent-audio; also the lock-free rings to the device

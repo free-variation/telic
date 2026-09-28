@@ -2,9 +2,10 @@
 
 \ A patch is a frame; every key is optional. { } is one sine oscillator at
 \ ratio 1 and full level, attack 5 ms, decay 0.1 s to sustain 1, release
-\ 0.1 s, a carrier, level 1, centered, full velocity sensitivity. Sixteen
-\ instruments, 0-15, each hold one patch. A patch key or value outside its
-\ range errors and leaves the instrument's patch unchanged.
+\ 0.1 s, a carrier, level 1, centered, full velocity sensitivity. Up to 16
+\ instruments exist at once, each a name its first instrument-patch! binds,
+\ and each holds one patch. A patch key or value outside its range errors and leaves
+\ the instrument's patch unchanged.
 
 11 seed
 
@@ -12,58 +13,58 @@
 	| stereo |
 	stereo 4800 48000 0 1 submatrix ;
 : amp ( v hz -- a ) 48000 swap amplitude-at 1000 * round 1000 / ;
-: sounds ( frame -- v ) silence-audio 0 instrument-patch! :a4 1 0 note-on 1 render-audio settled ;
+: sounds ( frame -- v ) silence-audio :test instrument-patch! :a4 1 :test note-on 1 render-audio settled ;
 
 \ === the default patch: a centered sine at the note frequency ===
 { } sounds dup 440 amp . 880 amp . cr               \ 0.707 0 (left channel of a centered voice)
 
 \ === every key at its range limits is accepted ===
 { :oscillators [ { :wave :pulse :ratio 64 :detune 1200 :level 0 :width 0.99
-                   :attack 60 :decay 0 :sustain 0 :release 60 :sustain-decay 60 } ] } 0 instrument-patch!
-{ :oscillators [ { :fixed-hz 24000 :detune -1200 :width 0.01 :ratio 0.015625 } ] } 0 instrument-patch!
+                   :attack 60 :decay 0 :sustain 0 :release 60 :sustain-decay 60 } ] } :test instrument-patch!
+{ :oscillators [ { :fixed-hz 24000 :detune -1200 :width 0.01 :ratio 0.015625 } ] } :test instrument-patch!
 { :oscillators [ { } { } { } { } { } { } { } { } ] :modulation [ [ 7 0 100 ] [ 0 0 -100 ] ]
-  :carriers [ 0 7 ] :level 0 :pan -1 :velocity-sensitivity 0 } 0 instrument-patch!
-{ :pan 1 } 15 instrument-patch!
+  :carriers [ 0 7 ] :level 0 :pan -1 :velocity-sensitivity 0 } :test instrument-patch!
+{ :pan 1 } :right instrument-patch!
 { :unison 7 :unison-detune 100 :unison-spread 1 :cutoff 20000 :resonance 4 :drive 10 :glide 10
   :filter-envelope { :attack 60 :decay 0 :sustain 1 :release 0 :sustain-decay 60 :amount -10 }
   :lfo { :shape :sample-and-hold :rate 100 :delay 60 :fade 60 :key-sync 0 :pitch-depth 24 :cutoff-depth 8 :pan-depth 1 }
-  :oscillators [ { :lfo-level 1 :lfo-width 0.49 } ] } 1 instrument-patch!
+  :oscillators [ { :lfo-level 1 :lfo-width 0.49 } ] } :upper-limits instrument-patch!
 { :unison 1 :unison-detune 0 :unison-spread 0 :cutoff 20 :resonance 0 :drive 0.1 :glide 0
-  :lfo { :rate 0.01 } :filter-envelope { :amount 10 } } 2 instrument-patch!
+  :lfo { :rate 0.01 } :filter-envelope { :amount 10 } } :lower-limits instrument-patch!
 "accepted" . cr                                      \ accepted
 clear
 
 \ === a rejected patch leaves the instrument unchanged ===
-{ :oscillators [ { :fixed-hz 1000 } ] } 0 instrument-patch!
-( { :level 2 } 0 instrument-patch! ) catch . drop cr   \ 1 (caught)
-silence-audio :a4 1 0 note-on 1 render-audio settled 1000 amp . cr   \ 0.707 (still the 1 kHz patch)
+{ :oscillators [ { :fixed-hz 1000 } ] } :test instrument-patch!
+( { :level 2 } :test instrument-patch! ) catch . drop cr   \ 1 (caught)
+silence-audio :a4 1 :test note-on 1 render-audio settled 1000 amp . cr   \ 0.707 (still the 1 kHz patch)
 
 \ errors
-{ :chorus 500 } 0 instrument-patch!                               \ (unknown patch key)
-{ :oscillators [ { :shape :sine } ] } 0 instrument-patch!         \ (unknown oscillator key)
-{ :oscillators [ ] } 0 instrument-patch!                          \ (no oscillators)
-{ :oscillators [ { } { } { } { } { } { } { } { } { } ] } 0 instrument-patch!   \ (nine oscillators)
-{ :oscillators { } } 0 instrument-patch!                          \ (not an array)
-{ :oscillators [ 5 ] } 0 instrument-patch!                        \ (an oscillator that is not a frame)
-{ :oscillators [ { :wave :square } ] } 0 instrument-patch!        \ (unknown wave)
-{ :oscillators [ { :wave "sine" } ] } 0 instrument-patch!         \ (wave not a symbol)
-{ :oscillators [ { :ratio 0 } ] } 0 instrument-patch!             \ (ratio below 1/64)
-{ :oscillators [ { :fixed-hz 30000 } ] } 0 instrument-patch!      \ (above half the sample rate)
-{ :oscillators [ { :detune 1300 } ] } 0 instrument-patch!         \ (detune beyond an octave)
-{ :oscillators [ { :level 1.5 } ] } 0 instrument-patch!           \ (level above 1)
-{ :oscillators [ { :width 1 } ] } 0 instrument-patch!             \ (width at 1)
-{ :oscillators [ { :attack -1 } ] } 0 instrument-patch!           \ (negative time)
-{ :oscillators [ { :release 61 } ] } 0 instrument-patch!          \ (over 60 s)
-{ :oscillators [ { :sustain 2 } ] } 0 instrument-patch!           \ (sustain above 1)
-{ :oscillators [ { :decay "slow" } ] } 0 instrument-patch!        \ (not a float)
-{ :modulation [ [ 1 0 1 ] ] } 0 instrument-patch!                 \ (oscillator 1 does not exist)
-{ :modulation [ [ 0 0 101 ] ] } 0 instrument-patch!               \ (depth beyond 100)
-{ :modulation [ [ 0 0 ] ] } 0 instrument-patch!                   \ (not a triple)
-{ :modulation [ [ 0.5 0 1 ] ] } 0 instrument-patch!               \ (fractional index)
-{ :carriers [ ] } 0 instrument-patch!                             \ (no carrier)
-{ :carriers [ 1 ] } 0 instrument-patch!                           \ (carrier out of range)
-{ :pan 1.5 } 0 instrument-patch!                                  \ (pan beyond 1)
-{ :velocity-sensitivity -0.1 } 0 instrument-patch!                \ (velocity sensitivity below 0)
-{ } 16 instrument-patch!                                          \ (instrument out of range)
-{ } 1.5 instrument-patch!                                         \ (fractional instrument)
-[ ] 0 instrument-patch!                                           \ (not a frame)
+{ :chorus 500 } :test instrument-patch!                           \ (unknown patch key)
+{ :oscillators [ { :shape :sine } ] } :test instrument-patch!     \ (unknown oscillator key)
+{ :oscillators [ ] } :test instrument-patch!                      \ (no oscillators)
+{ :oscillators [ { } { } { } { } { } { } { } { } { } ] } :test instrument-patch!   \ (nine oscillators)
+{ :oscillators { } } :test instrument-patch!                      \ (not an array)
+{ :oscillators [ 5 ] } :test instrument-patch!                    \ (an oscillator that is not a frame)
+{ :oscillators [ { :wave :square } ] } :test instrument-patch!    \ (unknown wave)
+{ :oscillators [ { :wave "sine" } ] } :test instrument-patch!     \ (wave not a symbol)
+{ :oscillators [ { :ratio 0 } ] } :test instrument-patch!         \ (ratio below 1/64)
+{ :oscillators [ { :fixed-hz 30000 } ] } :test instrument-patch!  \ (above half the sample rate)
+{ :oscillators [ { :detune 1300 } ] } :test instrument-patch!     \ (detune beyond an octave)
+{ :oscillators [ { :level 1.5 } ] } :test instrument-patch!       \ (level above 1)
+{ :oscillators [ { :width 1 } ] } :test instrument-patch!         \ (width at 1)
+{ :oscillators [ { :attack -1 } ] } :test instrument-patch!       \ (negative time)
+{ :oscillators [ { :release 61 } ] } :test instrument-patch!      \ (over 60 s)
+{ :oscillators [ { :sustain 2 } ] } :test instrument-patch!       \ (sustain above 1)
+{ :oscillators [ { :decay "slow" } ] } :test instrument-patch!    \ (not a float)
+{ :modulation [ [ 1 0 1 ] ] } :test instrument-patch!             \ (oscillator 1 does not exist)
+{ :modulation [ [ 0 0 101 ] ] } :test instrument-patch!           \ (depth beyond 100)
+{ :modulation [ [ 0 0 ] ] } :test instrument-patch!               \ (not a triple)
+{ :modulation [ [ 0.5 0 1 ] ] } :test instrument-patch!           \ (fractional index)
+{ :carriers [ ] } :test instrument-patch!                         \ (no carrier)
+{ :carriers [ 1 ] } :test instrument-patch!                       \ (carrier out of range)
+{ :pan 1.5 } :test instrument-patch!                              \ (pan beyond 1)
+{ :velocity-sensitivity -0.1 } :test instrument-patch!            \ (velocity sensitivity below 0)
+{ } 16 instrument-patch!                                          \ (instrument not a symbol)
+{ } "lead" instrument-patch!                                      \ (a string, not a symbol)
+[ ] :test instrument-patch!                                       \ (not a frame)

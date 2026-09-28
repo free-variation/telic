@@ -6257,6 +6257,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "pitch>hz", p_pitch_to_hz, 0);
 	define_primitive(interp, "instrument-patch!", p_instrument_patch_store, 0);
 	define_primitive(interp, "instrument!", p_instrument_store, 0);
+	define_primitive(interp, "forget-instrument", p_forget_instrument, 0);
 	define_primitive(interp, "oscillator!", p_oscillator_store, 0);
 	define_primitive(interp, "note-on", p_note_on, 0);
 	define_primitive(interp, "note-off", p_note_off, 0);

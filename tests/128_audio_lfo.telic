@@ -22,7 +22,7 @@
 : r2 ( f -- f ) 100 * round 100 / 0 + ;
 : play-for ( patch seconds -- stereo )
 	| patch seconds |
-	silence-audio patch 0 instrument-patch! :a4 1 0 note-on seconds render-audio ;
+	silence-audio patch :modulated instrument-patch! :a4 1 :modulated note-on seconds render-audio ;
 : up ( -- hz ) 440 2 1 12 / ^ * ;
 : down ( -- hz ) 440 2 -1 12 / ^ * ;
 
@@ -65,8 +65,8 @@ clear
 \ === :key-sync: 1 starts at phase 0; 0 follows the clock ===
 : late-note ( sync -- stereo )
 	| sync |
-	silence-audio { } { :shape :square :rate 1 :pitch-depth 1 } sync :key-sync ! :lfo ! 0 instrument-patch!
-	0.75 render-audio drop :a4 1 0 note-on 0.4 render-audio ;
+	silence-audio { } { :shape :square :rate 1 :pitch-depth 1 } sync :key-sync ! :lfo ! :modulated instrument-patch!
+	0.75 render-audio drop :a4 1 :modulated note-on 0.4 render-audio ;
 1 late-note 0.05 0.35 span up amp r2 . cr          \ 1 (synced: the first half-cycle, +1 semitone)
 0 late-note 0.05 0.2 span down amp r2 . cr          \ 1 (free: the clock is at phase 0.75, the second half)
 clear
@@ -91,9 +91,9 @@ widths 0.1 0.9 span 2000 amp r2 . widths 1.1 1.9 span 2000 amp r2 . cr      \ 0.
 silence-audio clear
 
 \ errors
-{ :lfo { :shape :wobble } } 0 instrument-patch!               \ (unknown shape)
-{ :lfo { :rate 0 } } 0 instrument-patch!                      \ (rate below 0.01 Hz)
-{ :lfo { :pitch-depth 25 } } 0 instrument-patch!              \ (beyond two octaves)
-{ :lfo { :key-sync 2 } } 0 instrument-patch!                  \ (not 0 or 1)
-{ :lfo { :speed 1 } } 0 instrument-patch!                     \ (unknown key)
-{ :oscillators [ { :lfo-width 0.5 } ] } 0 instrument-patch!   \ (width swing beyond 0.49)
+{ :lfo { :shape :wobble } } :modulated instrument-patch!               \ (unknown shape)
+{ :lfo { :rate 0 } } :modulated instrument-patch!                      \ (rate below 0.01 Hz)
+{ :lfo { :pitch-depth 25 } } :modulated instrument-patch!              \ (beyond two octaves)
+{ :lfo { :key-sync 2 } } :modulated instrument-patch!                  \ (not 0 or 1)
+{ :lfo { :speed 1 } } :modulated instrument-patch!                     \ (unknown key)
+{ :oscillators [ { :lfo-width 0.5 } ] } :modulated instrument-patch!   \ (width swing beyond 0.49)

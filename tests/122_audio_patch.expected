@@ -52,9 +52,9 @@ error: expected :pan in [-1, 1]; got 1.5
 in instrument-patch!
 error: expected :velocity-sensitivity in [0, 1]; got -0.1
 in instrument-patch!
-error: expected an instrument number in [0, 16); got 16
+error: expected an instrument name (a symbol); got a float
 in instrument-patch!
-error: expected an instrument number in [0, 16); got 1.5
+error: expected an instrument name (a symbol); got a string
 in instrument-patch!
 error: expected a patch frame; got an array
 in instrument-patch!

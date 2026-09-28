@@ -1627,6 +1627,7 @@ void p_magnitudes(DISPATCH_ARGS);
 
 // synth.c
 void p_effect_store(DISPATCH_ARGS);
+void p_forget_instrument(DISPATCH_ARGS);
 void p_instrument_patch_store(DISPATCH_ARGS);
 void p_instrument_store(DISPATCH_ARGS);
 void p_note_off(DISPATCH_ARGS);

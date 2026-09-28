@@ -14,7 +14,7 @@
 	stereo 9600 48000 0 1 submatrix ;
 : amp ( v hz -- a ) 48000 swap amplitude-at ;
 : db ( a b -- d ) / log10 20 * round ;
-: voice ( patch -- v ) silence-audio 0 instrument-patch! 45 1 0 note-on 1 render-audio settled ;
+: voice ( patch -- v ) silence-audio :filtered instrument-patch! 45 1 :filtered note-on 1 render-audio settled ;
 : saw ( -- patch ) { :oscillators [ { :wave :saw } ] } ;
 : window ( stereo t -- v )
 	| stereo t |
@@ -51,20 +51,20 @@ clear
 clear
 
 \ === the filter envelope ===
-saw 400 :cutoff ! { :attack 0.05 :decay 0.2 :sustain 0.25 :amount 4 } :filter-envelope ! 0 instrument-patch!
-silence-audio 45 1 0 note-on 1.5 render-audio to swept
-saw 800 :cutoff ! 0 instrument-patch! silence-audio 45 1 0 note-on 1.5 render-audio to steady
+saw 400 :cutoff ! { :attack 0.05 :decay 0.2 :sustain 0.25 :amount 4 } :filter-envelope ! :filtered instrument-patch!
+silence-audio 45 1 :filtered note-on 1.5 render-audio to swept
+saw 800 :cutoff ! :filtered instrument-patch! silence-audio 45 1 :filtered note-on 1.5 render-audio to steady
 swept 1.2 window 1760 amp steady 1.2 window 1760 amp db . cr    \ 0 (sustain: 400 x 2^(4 x 0.25) = 800 Hz)
 swept 0.05 window 1760 amp steady 1.2 window 1760 amp db 10 > . cr   \ 1 (the attack peak opens toward 6.4 kHz)
-saw 3200 :cutoff ! { :attack 0.3 :decay 0 :sustain 1 :amount -3 } :filter-envelope ! 0 instrument-patch!
-silence-audio 45 1 0 note-on 1.5 render-audio to closing
+saw 3200 :cutoff ! { :attack 0.3 :decay 0 :sustain 1 :amount -3 } :filter-envelope ! :filtered instrument-patch!
+silence-audio 45 1 :filtered note-on 1.5 render-audio to closing
 closing 1.2 window 1760 amp closing 0.02 window 1760 amp db -20 < . cr   \ 1 (a negative amount sweeps down, 3.2 kHz toward 400 Hz)
 clear
 
 \ === velocity scales the envelope's amount ===
-saw 400 :cutoff ! { :attack 0 :decay 0 :sustain 1 :amount 3 } :filter-envelope ! 0 instrument-patch!
-silence-audio 45 1 0 note-on 0.5 render-audio to hard
-silence-audio 45 0.2 0 note-on 0.5 render-audio to soft
+saw 400 :cutoff ! { :attack 0 :decay 0 :sustain 1 :amount 3 } :filter-envelope ! :filtered instrument-patch!
+silence-audio 45 1 :filtered note-on 0.5 render-audio to hard
+silence-audio 45 0.2 :filtered note-on 0.5 render-audio to soft
 : brightness ( stereo -- ratio )
 	| stereo |
 	stereo 0.3 window 1760 amp stereo 0.3 window 110 amp / ;
@@ -72,9 +72,9 @@ hard brightness soft brightness db 10 > . cr     \ 1 (velocity 0.2 opens 0.6 oct
 silence-audio clear
 
 \ errors
-{ :cutoff 10 } 0 instrument-patch!                             \ (below 20 Hz)
-{ :resonance 5 } 0 instrument-patch!                           \ (above 4)
-{ :drive 0 } 0 instrument-patch!                               \ (below 0.1)
-{ :filter-envelope 1 } 0 instrument-patch!                     \ (not a frame)
-{ :filter-envelope { :amount 11 } } 0 instrument-patch!        \ (amount beyond 10 octaves)
-{ :filter-envelope { :shape :sine } } 0 instrument-patch!      \ (unknown key)
+{ :cutoff 10 } :filtered instrument-patch!                             \ (below 20 Hz)
+{ :resonance 5 } :filtered instrument-patch!                           \ (above 4)
+{ :drive 0 } :filtered instrument-patch!                               \ (below 0.1)
+{ :filter-envelope 1 } :filtered instrument-patch!                     \ (not a frame)
+{ :filter-envelope { :amount 11 } } :filtered instrument-patch!        \ (amount beyond 10 octaves)
+{ :filter-envelope { :shape :sine } } :filtered instrument-patch!      \ (unknown key)

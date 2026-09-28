@@ -29,9 +29,9 @@ clear
 clear
 
 \ === live notes ===
-{ :oscillators [ { :release 0.02 } ] :level 0.05 } 0 instrument-patch!
+{ :oscillators [ { :release 0.02 } ] :level 0.05 } :beep instrument-patch!
 now magnitude to started
-:a4 1 0 note-on 0.2 sleep :a4 0 note-off wait-audio
+:a4 1 :beep note-on 0.2 sleep :a4 :beep note-off wait-audio
 started elapsed-ms dup 200 >= swap 450 < and . cr  \ 1 (the note, then a 20 ms release)
 silence-audio wait-audio
 audio-off
