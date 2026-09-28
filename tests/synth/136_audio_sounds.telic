@@ -1,12 +1,15 @@
 \ ==== audible: what the synthesizer sounds like ====
 
 \ Played live on the output device, so they are heard during the test run:
-\ a three-part chord, pink noise, opposite filter sweeps, the LFO on each of
-\ its destinations, unison, and glide. Each section lets its release ring
-\ briefly, then silence cuts the rest of the tail (a voice ends only at -80
-\ dB, nine time constants in). The printed lines name each sound and check
-\ that wait-audio returned on time. Correctness is measured offline in the
-\ core suite; this file is for listening. Native only.
+\ a three-instrument chord, pink noise, opposite filter sweeps, the LFO on
+\ each of its destinations, unison, glide, and two sequenced phrases, one in
+\ quarter tones. Each section lets its release ring briefly, then
+\ silence-audio cuts the rest of the tail (a voice ends only at -80 dB, nine
+\ time constants in). The printed lines name each sound and check that
+\ wait-audio returned on time; a sequenced phrase is on time when
+\ wait-sequence returns between sequence-end and 800 ms after it, the last
+\ release included. Correctness is measured
+\ offline in the core suite; this file is for listening. Native only.
 
 11 seed
 
@@ -15,23 +18,23 @@
 : playing ( description -- ) . ;
 : finished ( flag -- ) if "(on time)" else "(late)" then . cr ;
 
-\ a single note on part 4: held, released, 0.2 s of release, then silence
+\ a single note on instrument 4: held, released, 0.2 s of release, then silence
 : timed ( patch pitch seconds -- flag ) | patch pitch seconds |
-	patch 4 patch! now magnitude to started
-	pitch 1 4 note-on seconds sleep pitch 4 note-off 0.2 sleep silence wait-audio
+	patch 4 instrument-patch! now magnitude to started
+	pitch 1 4 note-on seconds sleep pitch 4 note-off 0.2 sleep silence-audio wait-audio
 	started seconds 0.2 + 1000 * on-time ;
 
 audio-on
 
-\ === a three-part chord: electric piano, detuned saw pad, pulse bass ===
-{ :operators [ { :attack 0.002 :decay 1.5 :sustain 0.3 :release 0.6 }
-               { :attack 0.001 :decay 0.4 :sustain 0.1 :release 0.3 } ]
-  :modulation [ [ 1 0 2.5 ] ] :level 0.12 } 0 patch!
-{ :operators [ { :wave :saw :detune -7 :attack 0.3 :release 0.8 :level 0.5 }
-               { :wave :saw :detune 7 :attack 0.3 :release 0.8 :level 0.5 } ]
-  :carriers [ 0 1 ] :level 0.08 :pan -0.4 } 1 patch!
-{ :operators [ { :wave :pulse :width 0.3 :attack 0.005 :decay 0.6 :sustain 0.6 :release 0.3 } ]
-  :level 0.15 :pan 0.3 } 2 patch!
+\ === a three-instrument chord: electric piano, detuned saw pad, pulse bass ===
+{ :oscillators [ { :attack 0.002 :decay 1.5 :sustain 0.3 :release 0.6 }
+                 { :attack 0.001 :decay 0.4 :sustain 0.1 :release 0.3 } ]
+  :modulation [ [ 1 0 2.5 ] ] :level 0.12 } 0 instrument-patch!
+{ :oscillators [ { :wave :saw :detune -7 :attack 0.3 :release 0.8 :level 0.5 }
+                 { :wave :saw :detune 7 :attack 0.3 :release 0.8 :level 0.5 } ]
+  :carriers [ 0 1 ] :level 0.08 :pan -0.4 } 1 instrument-patch!
+{ :oscillators [ { :wave :pulse :width 0.3 :attack 0.005 :decay 0.6 :sustain 0.6 :release 0.3 } ]
+  :level 0.15 :pan 0.3 } 2 instrument-patch!
 : chord-on ( -- )
 	:c4 0.9 0 note-on :e4 0.8 0 note-on :g4 0.8 0 note-on :b4 0.7 0 note-on
 	:c3 1 1 note-on :g3 1 1 note-on
@@ -42,61 +45,61 @@ audio-on
 	:c2 2 note-off ;
 "Cmaj7 chord: FM electric piano (C4 E4 G4 B4), detuned saw pad (C3 G3), pulse bass (C2)" playing
 now magnitude to started
-chord-on 0.6 sleep chord-off 0.3 sleep silence wait-audio
+chord-on 0.6 sleep chord-off 0.3 sleep silence-audio wait-audio
 started 900 on-time finished
 clear
 
 \ === pink noise ===
 "pink noise: 1 s, fading in over 0.2 s" playing
-{ :operators [ { :wave :pink :attack 0.2 :release 0.4 } ] :level 0.3 } :a4 1 timed finished
+{ :oscillators [ { :wave :pink :attack 0.2 :release 0.4 } ] :level 0.3 } :a4 1 timed finished
 clear
 
-\ === opposite filter sweeps: part 5 hard left sweeps up, part 6 hard right down ===
+\ === opposite filter sweeps: instrument 5 hard left sweeps up, instrument 6 hard right down ===
 : saw-sweep ( cutoff amount pan -- patch ) | cutoff amount pan |
-	{ :operators [ { :wave :saw :release 0.2 } { :wave :saw :ratio 1.004 :release 0.2 } ]
+	{ :oscillators [ { :wave :saw :release 0.2 } { :wave :saw :ratio 1.004 :release 0.2 } ]
 	  :carriers [ 0 1 ] :level 0.12 :resonance 2 }
 	cutoff :cutoff ! pan :pan ! { :attack 1.5 :decay 0 :sustain 1 :release 0.2 } amount :amount ! :filter-envelope ! ;
 : side ( stereo column start finish -- v ) | stereo column start finish |
 	stereo start 48000 * round finish 48000 * round column column 1 + submatrix ;
 : bright ( v -- a ) 48000 1569.6 amplitude-at ;
-200 5 -1 saw-sweep 5 patch!
-6400 -5 1 saw-sweep 6 patch!
+200 5 -1 saw-sweep 5 instrument-patch!
+6400 -5 1 saw-sweep 6 instrument-patch!
 audio-off
-silence :c3 1 5 note-on :c3 1 6 note-on 1.5 render-audio to swept silence
+silence-audio :c3 1 5 note-on :c3 1 6 note-on 1.5 render-audio to swept silence-audio
 "rendered offline, the left side opens:" . swept 0 1.3 1.4 side bright  swept 0 0.1 0.2 side bright  / 100 > . cr   \ 1
 "rendered offline, the right side closes:" . swept 1 0.1 0.2 side bright  swept 1 1.3 1.4 side bright  / 100 > . cr   \ 1
 audio-on
 "filter sweeps: saws on C3, left opening 200 Hz to 6.4 kHz, right closing 6.4 kHz to 200 Hz" playing
 now magnitude to started
-:c3 1 5 note-on :c3 1 6 note-on 1.5 sleep :c3 5 note-off :c3 6 note-off 0.3 sleep silence wait-audio
+:c3 1 5 note-on :c3 1 6 note-on 1.5 sleep :c3 5 note-off :c3 6 note-off 0.3 sleep silence-audio wait-audio
 started 1800 on-time finished
 clear
 
 \ === the LFO ===
 "vibrato: a saw on A4, +/-0.4 semitone at 6 Hz, fading in after 0.2 s" playing
-{ :operators [ { :wave :saw :release 0.1 } ] :cutoff 2500 :level 0.15
-  :lfo { :shape :sine :rate 6 :pitch 0.4 :delay 0.2 :fade 0.3 } } :a4 1.2 timed finished
+{ :oscillators [ { :wave :saw :release 0.1 } ] :cutoff 2500 :level 0.15
+  :lfo { :shape :sine :rate 6 :pitch-depth 0.4 :delay 0.2 :fade 0.3 } } :a4 1.2 timed finished
 "tremolo: a sine on E4, its level pulsing at 7 Hz" playing
-{ :operators [ { :release 0.1 :lfo-level 0.8 } ] :level 0.2
+{ :oscillators [ { :release 0.1 :lfo-level 0.8 } ] :level 0.2
   :lfo { :shape :sine :rate 7 } } :e4 1 timed finished
 "pulse-width modulation: a pulse on C3, its width swinging 10% to 90% at 0.8 Hz" playing
-{ :operators [ { :wave :pulse :release 0.1 :lfo-width 0.4 } ] :cutoff 3000 :level 0.12
+{ :oscillators [ { :wave :pulse :release 0.1 :lfo-width 0.4 } ] :cutoff 3000 :level 0.12
   :lfo { :shape :triangle :rate 0.8 } } :c3 1.5 timed finished
 "auto-pan: a triangle wave on G4, moving left to right once a second" playing
-{ :operators [ { :wave :triangle :release 0.1 } ] :level 0.25
-  :lfo { :shape :sine :rate 1 :pan 1 } } :g4 1.5 timed finished
+{ :oscillators [ { :wave :triangle :release 0.1 } ] :level 0.25
+  :lfo { :shape :sine :rate 1 :pan-depth 1 } } :g4 1.5 timed finished
 "sample-and-hold filter: a resonant saw on C2, its cutoff jumping to a random value 8 times a second" playing
-{ :operators [ { :wave :saw :release 0.1 } ] :cutoff 700 :resonance 3 :level 0.12
-  :lfo { :shape :sample-and-hold :rate 8 :cutoff 2 } } :c2 1.5 timed finished
+{ :oscillators [ { :wave :saw :release 0.1 } ] :cutoff 700 :resonance 3 :level 0.12
+  :lfo { :shape :sample-and-hold :rate 8 :cutoff-depth 2 } } :c2 1.5 timed finished
 clear
 
 \ === unison: a C major chord as one saw, then as seven spread across the field ===
 : saw-chord ( unison seconds -- flag ) | unison seconds |
-	{ :operators [ { :wave :saw :attack 0.02 :release 0.2 } ] :cutoff 3000 :level 0.07 :detune 30 :spread 1 }
-	unison :unison ! 7 patch!
+	{ :oscillators [ { :wave :saw :attack 0.02 :release 0.2 } ] :cutoff 3000 :level 0.07 :unison-detune 30 :unison-spread 1 }
+	unison :unison ! 7 instrument-patch!
 	now magnitude to begun
 	:c3 1 7 note-on :e3 1 7 note-on :g3 1 7 note-on :c4 1 7 note-on seconds sleep
-	:c3 7 note-off :e3 7 note-off :g3 7 note-off :c4 7 note-off 0.2 sleep silence wait-audio
+	:c3 7 note-off :e3 7 note-off :g3 7 note-off :c4 7 note-off 0.2 sleep silence-audio wait-audio
 	begun seconds 0.2 + 1000 * on-time ;
 "C major chord, one saw per note" playing
 1 0.8 saw-chord finished
@@ -105,8 +108,8 @@ clear
 clear
 
 \ === glide: a legato line, each note sliding from the last ===
-{ :operators [ { :wave :saw :release 0.15 } { :wave :pulse :ratio 0.5 :width 0.3 :level 0.6 :release 0.15 } ]
-  :carriers [ 0 1 ] :cutoff 1800 :resonance 1.5 :level 0.12 :glide 0.12 } 8 patch!
+{ :oscillators [ { :wave :saw :release 0.15 } { :wave :pulse :ratio 0.5 :width 0.3 :level 0.6 :release 0.15 } ]
+  :carriers [ 0 1 ] :cutoff 1800 :resonance 1.5 :level 0.12 :glide 0.12 } 8 instrument-patch!
 : legato ( pitches -- ) | pitches |
 	-1 to previous
 	0 pitches size 1 do k
@@ -119,8 +122,36 @@ clear
 	previous 8 note-off ;
 "glide: a saw-and-pulse lead playing C4 G4 E4 C5 A4 F4 G4 C4, each note sliding 0.12 s from the last" playing
 now magnitude to started
-[ :c4 :g4 :e4 :c5 :a4 :f4 :g4 :c4 ] legato 0.2 sleep silence wait-audio
+[ :c4 :g4 :e4 :c5 :a4 :f4 :g4 :c4 ] legato 0.2 sleep silence-audio wait-audio
 started 2600 on-time finished
+clear
+
+\ === the sequencer: phrases queued at once, then wait-sequence ===
+{ :oscillators [ { :attack 0.002 :decay 0.5 :sustain 0.4 :release 0.05 }
+                 { :attack 0.001 :decay 0.3 :sustain 0.1 :release 0.05 } ]
+  :modulation [ [ 1 0 2 ] ] :level 0.12 :pan -0.2 } 9 instrument-patch!
+{ :oscillators [ { :wave :saw :release 0.05 } ] :cutoff 600 :resonance 1 :level 0.15 :pan 0.2 } 10 instrument-patch!
+: sequence-on-time ( started end-ms -- flag ) | started end-ms | started elapsed-ms end-ms - dup 0 >= swap 800 < and ;
+silence-audio 120 sequence-tempo 7/8 sequence-articulation 1 sequence-velocity
+"sequencer: FM keys E4 G4 C5 B4 G4 and a C major chord over a saw bass C2 G2 A2 G2 C2, 120 bpm" playing
+now magnitude to started
+9 sequence-instrument
+:e4 1/8 sequence-note :g4 1/8 sequence-note :c5 1/4 sequence-note :b4 1/8 sequence-note :g4 1/8 sequence-note
+[ :c4 :e4 :g4 :c5 ] 1/2 sequence-chord
+10 sequence-instrument
+:c2 1/4 sequence-note :g2 1/4 sequence-note :a2 1/4 sequence-note :g2 1/4 sequence-note :c2 1/4 sequence-note
+sequence-end 1000 * to end-ms
+wait-sequence
+started end-ms sequence-on-time finished
+"quarter tones: FM keys C4 C+4 C#4 Dd4 D4 and back down, an eighth note each" playing
+now magnitude to started
+9 sequence-instrument
+:c4 1/8 sequence-note :c+4 1/8 sequence-note :c#4 1/8 sequence-note :dd4 1/8 sequence-note :d4 1/8 sequence-note
+:dd4 1/8 sequence-note :c#4 1/8 sequence-note :c+4 1/8 sequence-note :c4 1/8 sequence-note
+sequence-end 1000 * to end-ms
+wait-sequence
+started end-ms sequence-on-time finished
+0 sequence-instrument silence-audio
 clear
 
 audio-off

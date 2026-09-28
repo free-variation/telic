@@ -77,10 +77,10 @@ void p_audio_off(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
 
-void p_play(DISPATCH_ARGS) {
+void p_play_samples(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	Val samples_val = chain_sp[-1];
-	REQUIRE_CHAIN_TAG(samples_val, T_MATRIX, "play", "a matrix of samples (nx1 or nx2)");
+	REQUIRE_CHAIN_TAG(samples_val, T_MATRIX, "play-samples", "a matrix of samples (nx1 or nx2)");
 	Object *samples = OBJECT_AT(VAL_DATA(samples_val));
 	int n_frames = samples->matrix.rows;
 	int n_columns = samples->matrix.columns;

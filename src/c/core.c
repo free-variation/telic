@@ -6255,16 +6255,25 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "hann", p_hann, 0);
 	define_primitive(interp, "pitch>midi", p_pitch_to_midi, 0);
 	define_primitive(interp, "pitch>hz", p_pitch_to_hz, 0);
-	define_primitive(interp, "patch!", p_patch_store, 0);
-	define_primitive(interp, "part!", p_part_store, 0);
-	define_primitive(interp, "operator!", p_operator_store, 0);
+	define_primitive(interp, "instrument-patch!", p_instrument_patch_store, 0);
+	define_primitive(interp, "instrument!", p_instrument_store, 0);
+	define_primitive(interp, "oscillator!", p_oscillator_store, 0);
 	define_primitive(interp, "note-on", p_note_on, 0);
 	define_primitive(interp, "note-off", p_note_off, 0);
 	define_primitive(interp, "render-audio", p_render_audio, 0);
-	define_primitive(interp, "silence", p_silence, 0);
+	define_primitive(interp, "silence-audio", p_silence_audio, 0);
+	define_primitive(interp, "(sequence-note)", p_sequence_note, 4);
+	define_primitive(interp, "(sequence-chord)", p_sequence_chord, 4);
+	define_primitive(interp, "(sequence-rest)", p_sequence_rest, 4);
+	define_primitive(interp, "sequence-tempo", p_sequence_tempo, 0);
+	define_primitive(interp, "sequence-instrument", p_sequence_instrument, 0);
+	define_primitive(interp, "sequence-articulation", p_sequence_articulation, 0);
+	define_primitive(interp, "sequence-velocity", p_sequence_velocity, 0);
+	define_primitive(interp, "sequence-end", p_sequence_end, 0);
+	define_primitive(interp, "wait-sequence", p_wait_sequence, 0);
 	define_primitive(interp, "audio-on", p_audio_on, 0);
 	define_primitive(interp, "audio-off", p_audio_off, 0);
-	define_primitive(interp, "play", p_play, 0);
+	define_primitive(interp, "play-samples", p_play_samples, 0);
 	define_primitive(interp, "wait-audio", p_wait_audio, 0);
 
 

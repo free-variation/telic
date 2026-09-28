@@ -4,6 +4,11 @@
 59 
 82 
 0 127 
+60.5 63.5 
+61.5 62.5 
+61.5 70.5 
+0.5 
+269.292 
 0 127 60.5 
 440 
 880 220 
@@ -35,9 +40,9 @@
 0.707 
 0.707 
 0 
-error: expected a pitch such as :c4, :f#3 or :bb5; got :h4
+error: expected a pitch such as :c4, :f#3, :bb5 or :c+4; got :h4
 in pitch>midi
-error: expected a pitch such as :c4, :f#3 or :bb5; got :c
+error: expected a pitch such as :c4, :f#3, :bb5 or :c+4; got :c
 in pitch>midi
 error: pitch :c10 is outside MIDI notes [0, 127]
 in pitch>midi
@@ -49,15 +54,21 @@ error: expected a MIDI note number in [0, 127]; got 128
 in pitch>hz
 error: expected a pitch (a MIDI note number or a symbol such as :c4 or :f#3); got a string
 in pitch>midi
+error: expected a pitch such as :c4, :f#3, :bb5 or :c+4; got :c++4
+in pitch>midi
+error: pitch :cd-1 is outside MIDI notes [0, 127]
+in pitch>midi
+error: pitch :g+9 is outside MIDI notes [0, 127]
+in pitch>midi
 error: expected a velocity in [0, 1]; got 1.5
 in note-on
-error: expected a part number in [0, 16); got 16
+error: expected an instrument number in [0, 16); got 16
 in note-on
-error: expected a pitch such as :c4, :f#3 or :bb5; got :h4
+error: expected a pitch such as :c4, :f#3, :bb5 or :c+4; got :h4
 in note-on
 error: expected a float velocity; got a string
 in note-on
-error: expected a part number in [0, 16); got -1
+error: expected an instrument number in [0, 16); got -1
 in note-off
 error: expected seconds in [0, 600]; got -1
 in render-audio

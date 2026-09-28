@@ -1,18 +1,18 @@
 \ ==== :modulation [ [ from to depth ] ... ], :carriers ====
 
-\ Operator `from` adds depth x its output to operator `to`'s phase, in
-\ radians. Operators are computed from the highest index down: a source with
-\ a higher index than its target contributes this sample's output, any other
-\ its previous sample's, so [ i i d ] is feedback. With a 1 kHz carrier and a
-\ 100 Hz modulator at full level, the sidebands at 1000 + 100n Hz have the
-\ amplitudes |Jn(depth)|.
+\ Oscillator `from` adds depth x its output to oscillator `to`'s phase, in
+\ radians. Oscillators are computed from the highest index down: a source
+\ with a higher index than its target contributes this sample's output, any
+\ other its previous sample's, so [ i i d ] is feedback. With a 1 kHz
+\ carrier and a 100 Hz modulator at full level, the sidebands at 1000 + 100n
+\ Hz have the amplitudes |Jn(depth)|.
 
 11 seed
 
 : settled ( stereo -- v ) | stereo | stereo 4800 48000 0 1 submatrix ;
 : amp ( v hz -- a ) 48000 swap amplitude-at 0.70710678 / 10000 * round 10000 / ;
-: voice ( patch -- v ) silence 0 patch! :a4 1 0 note-on 1 render-audio settled ;
-: pm ( depth -- v ) | depth | { } [ { :fixed 1000 } { :fixed 100 } ] :operators ! [ [ 1 0 depth ] ] :modulation ! voice ;
+: voice ( patch -- v ) silence-audio 0 instrument-patch! :a4 1 0 note-on 1 render-audio settled ;
+: pm ( depth -- v ) | depth | { } [ { :fixed-hz 1000 } { :fixed-hz 100 } ] :oscillators ! [ [ 1 0 depth ] ] :modulation ! voice ;
 : sidebands ( v -- ) | v | [ 1000 1100 900 1200 800 1300 700 ] ( v swap amp . ) each cr ;
 
 \ === Bessel sidebands, discriminating against an additive sum ===
@@ -23,26 +23,26 @@
 clear
 
 \ === routing: a chain 2 -> 1 -> 0 differs from 2 -> 0 and 1 -> 0 ===
-{ :operators [ { :fixed 1000 } { :fixed 100 } { :fixed 30 } ] :modulation [ [ 2 1 1 ] [ 1 0 1 ] ] } voice to chain
-{ :operators [ { :fixed 1000 } { :fixed 100 } { :fixed 30 } ] :modulation [ [ 2 0 1 ] [ 1 0 1 ] ] } voice to parallel
+{ :oscillators [ { :fixed-hz 1000 } { :fixed-hz 100 } { :fixed-hz 30 } ] :modulation [ [ 2 1 1 ] [ 1 0 1 ] ] } voice to chain
+{ :oscillators [ { :fixed-hz 1000 } { :fixed-hz 100 } { :fixed-hz 30 } ] :modulation [ [ 2 0 1 ] [ 1 0 1 ] ] } voice to parallel
 chain 1030 amp 0.001 < . parallel 1030 amp 0.1 > . cr          \ 1 1 (only the parallel form has a 30 Hz sideband at 1030)
 chain parallel = . cr                                            \ 0
 clear
 
 \ === feedback: [ 0 0 d ] turns a sine into a harmonic series ===
 : harmonics ( v -- ) | v | [ 2000 3000 ] ( v swap amp . ) each cr ;
-{ :operators [ { :fixed 1000 } ] :modulation [ [ 0 0 0 ] ] } voice harmonics      \ 0 0
-{ :operators [ { :fixed 1000 } ] :modulation [ [ 0 0 0.5 ] ] } voice 2000 amp 0.1 > . cr        \ 1
-{ :operators [ { :fixed 1000 } ] :modulation [ [ 0 0 0.5 ] ] } voice 2000 amp
-{ :operators [ { :fixed 1000 } ] :modulation [ [ 0 0 1 ] ] } voice 2000 amp < . cr              \ 1 (more depth, more harmonic)
+{ :oscillators [ { :fixed-hz 1000 } ] :modulation [ [ 0 0 0 ] ] } voice harmonics      \ 0 0
+{ :oscillators [ { :fixed-hz 1000 } ] :modulation [ [ 0 0 0.5 ] ] } voice 2000 amp 0.1 > . cr        \ 1
+{ :oscillators [ { :fixed-hz 1000 } ] :modulation [ [ 0 0 0.5 ] ] } voice 2000 amp
+{ :oscillators [ { :fixed-hz 1000 } ] :modulation [ [ 0 0 1 ] ] } voice 2000 amp < . cr              \ 1 (more depth, more harmonic)
 clear
 
 \ === carriers: which outputs are heard ===
-{ :operators [ { :fixed 1000 } { :fixed 1500 } ] :carriers [ 0 1 ] } voice dup 1000 amp . 1500 amp . cr   \ 1 1
-{ :operators [ { :fixed 1000 } { :fixed 1500 } ] :carriers [ 1 ] } voice dup 1000 amp . 1500 amp . cr     \ 0 1
-{ :operators [ { :fixed 1000 } { :fixed 1500 } ] } voice dup 1000 amp . 1500 amp . cr                     \ 1 0 (default [ 0 ])
+{ :oscillators [ { :fixed-hz 1000 } { :fixed-hz 1500 } ] :carriers [ 0 1 ] } voice dup 1000 amp . 1500 amp . cr   \ 1 1
+{ :oscillators [ { :fixed-hz 1000 } { :fixed-hz 1500 } ] :carriers [ 1 ] } voice dup 1000 amp . 1500 amp . cr     \ 0 1
+{ :oscillators [ { :fixed-hz 1000 } { :fixed-hz 1500 } ] } voice dup 1000 amp . 1500 amp . cr                     \ 1 0 (default [ 0 ])
 clear
 
 \ === a modulator's level scales the index ===
-{ :operators [ { :fixed 1000 } { :fixed 100 :level 0.5 } ] :modulation [ [ 1 0 2 ] ] } voice 1000 amp . cr   \ 0.7652 (J0(1): depth 2 x level 0.5)
+{ :oscillators [ { :fixed-hz 1000 } { :fixed-hz 100 :level 0.5 } ] :modulation [ [ 1 0 2 ] ] } voice 1000 amp . cr   \ 0.7652 (J0(1): depth 2 x level 0.5)
 clear

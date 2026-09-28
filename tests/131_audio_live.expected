@@ -10,14 +10,14 @@
 1 0 
 1 
 error: expected a parameter key (:level :pan :cutoff :resonance :drive); got :glide
-in part!
+in instrument!
 error: expected :level in [0, 1]; got 2
-in part!
+in instrument!
 error: expected a parameter key (:level :pan :cutoff :resonance :drive); got a string
-in part!
-error: expected a part number in [0, 16); got 16
-in part!
-error: expected an operator index in operator! in [0, 8); got 8
-in operator!
+in instrument!
+error: expected an instrument number in [0, 16); got 16
+in instrument!
+error: expected an oscillator index in oscillator! in [0, 8); got 8
+in oscillator!
 error: expected a parameter key (:level :ratio :width); got :detune
-in operator!
+in oscillator!

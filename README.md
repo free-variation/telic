@@ -450,7 +450,8 @@ Embedded relational storage via the vendored SQLite amalgamation — built into 
 
 ### Audio
 
-- **A phase-modulation synthesizer** — sixteen parts, each with a patch frame of up to eight operators (sine, triangle, saw and pulse band-limited, white, pink and brown noise), a modulation matrix with feedback, per-operator envelopes, a Moog ladder filter with its own envelope, an LFO on pitch, cutoff, pan, level and pulse width, unison with detune and stereo spread, and glide; `part!`/`operator!` change parameters of sounding notes; `note-on`/`note-off` take pitches as MIDI numbers or symbols like `:f#3`; after `audio-on` it plays live on the output device (miniaudio), and `render-audio` computes the same output offline into a stereo matrix for the Fourier words or a file. `play` sends any sample matrix to the device.
+- **A phase-modulation synthesizer** — sixteen instruments, each with a patch frame of up to eight oscillators (sine, triangle, saw and pulse band-limited, white, pink and brown noise), a modulation matrix with feedback, per-oscillator envelopes, a Moog ladder filter with its own envelope, an LFO on pitch, cutoff, pan, level and pulse width, unison with detune and stereo spread, and glide; `instrument!`/`oscillator!` change parameters of sounding notes; `note-on`/`note-off` take pitches as MIDI numbers or symbols like `:f#3` and `:c+4` (quarter tones); after `audio-on` it plays live on the output device (miniaudio), and `render-audio` computes the same output offline into a stereo matrix for the Fourier words or a file. `play-samples` sends any sample matrix to the device.
+- **A sequencer** — `sequence-note`, `sequence-chord` and `sequence-rest` queue notes by exact fractions of a whole note (`1/4`, `3/8`) on per-instrument positions that never drift, at a set tempo, articulation and velocity, each note starting on its exact sample.
 
 ### Data: TSV, datasets, and statistics
 
@@ -544,8 +545,8 @@ src/c/indexing.c       — polymorphic element access: @i/!i and their fused for
 src/c/matrix.c         — matrix words and numeric kernels
 src/c/statistics.c     — statistics kernels: var, quantile, kendall's tau-b
 src/c/fourier.c        — Fourier transforms on PocketFFT: fft/ifft, cfft/icfft, magnitudes, hann
-src/c/synth.c          — the synthesizer: voices, operators, envelopes, patches, render-audio
-src/c/audio.c          — the miniaudio output device: audio-on/off, play, wait-audio
+src/c/synth.c          — the synthesizer: voices, oscillators, envelopes, patches, render-audio, the sequencer
+src/c/audio.c          — the miniaudio output device: audio-on/off, play-samples, wait-audio
 src/c/dimension.c      — dimensioned quantities: base dimensions, units, quantity arithmetic
 src/c/functional.c     — higher-order operations (map, nmap, …) and multi-core parallelism
 src/c/superwords.c     — compile-time instruction fusion (superwords)

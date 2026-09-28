@@ -1,0 +1,13 @@
+\ audio: the sequencer's note-length words over the (sequence-note) (sequence-chord) (sequence-rest) primitives
+
+\ a note length as the exact numerator and denominator of a fraction of a whole note
+: length>fraction ( length -- numerator denominator ) float>exact dup numerator swap denominator ; internal
+
+\ queue a note on the current instrument, starting where that instrument's previous note ended
+: sequence-note ( pitch length -- ) length>fraction (sequence-note) ;
+
+\ queue several pitches starting together, then advance the instrument by one length
+: sequence-chord ( pitches length -- ) length>fraction (sequence-chord) ;
+
+\ advance the current instrument by a length without sounding
+: sequence-rest ( length -- ) length>fraction (sequence-rest) ;

@@ -6137,50 +6137,54 @@ colors :dodgerblue @ . colors size . cr
 A polyphonic phase-modulation synthesizer computed in C at 48 kHz, stereo,
 played live on the output device after `audio-on` or computed offline by
 `render-audio` — one or the other at a time.
-Sixteen parts, numbered 0–15, each hold a patch; a note on a part takes one
-of 32 voices, and when none is free it takes the voice released longest ago,
-else the one started longest ago. A note-on for a pitch already sounding on
-the part retriggers that voice. `render-audio` computes the output offline
+Sixteen instruments, numbered 0–15, each hold a patch; a note on an
+instrument takes one of 32 voices, and when none is free it takes the voice
+released longest ago, else the one started longest ago. A note-on for a
+pitch already sounding on the instrument retriggers that voice. Each voice
+sums up to 8 oscillators. `render-audio` computes the output offline
 into a matrix, so a sound can be analysed with the Fourier words or written
 out; it runs on native and wasm.
 
-A **pitch** is a MIDI note number in [0, 127], fractional values allowed, or
-a symbol: a letter a–g, an optional `#` (sharp) or `b` (flat), and an octave
-from −1 to 9, so `:c4` is 60, `:a4` is 69, `:bb5` is 82. Frequencies are
+A **pitch** is a MIDI note number in [0, 127], fractional values allowed
+(60.5 is a quarter tone above C4), or a symbol: a letter a–g, an optional `#`
+(sharp) or `b` (flat), an optional quarter-tone accidental `+` (a quarter tone
+up) or `d` (a quarter tone down, after the reversed-flat sign), and an octave
+from −1 to 9. So `:c4` is 60, `:a4` is 69, `:bb5` is 82, `:c+4` is 60.5,
+`:ed4` is 63.5 and `:c#+4` is 61.5. Frequencies are 440 × 2^((n − 69)/12),
 equal-tempered with `:a4` at 440 Hz.
 
 A **patch** is a frame; every key is optional, and a key or value outside
-its range errors and leaves the part's patch unchanged:
+its range errors and leaves the instrument's patch unchanged:
 
 | Key | Value | Default |
 |-----|-------|---------|
-| `:operators` | an array of 1–8 operator frames | one default operator |
-| `:modulation` | an array of `[ from to depth ]`: operator `from` adds depth × its output to operator `to`'s phase, in radians, depth in [−100, 100]. Operators are computed from the highest index down, so a source above its target contributes this sample's output and any other its previous sample's; `[ i i d ]` is feedback | `[ ]` |
-| `:carriers` | the indices of the operators heard, summed | `[ 0 ]` |
+| `:oscillators` | an array of 1–8 oscillator frames | one default oscillator |
+| `:modulation` | an array of `[ from to depth ]`: oscillator `from` adds depth × its output to oscillator `to`'s phase, in radians, depth in [−100, 100]. Oscillators are computed from the highest index down, so a source above its target contributes this sample's output and any other its previous sample's; `[ i i d ]` is feedback | `[ ]` |
+| `:carriers` | the indices of the oscillators heard, summed | `[ 0 ]` |
 | `:level` | output gain, [0, 1] | 1 |
 | `:pan` | −1 left to 1 right, constant power: gains cos and sin of (pan + 1)·π/4 | 0 |
-| `:velocity` | how much note velocity scales the gain and the filter envelope's amount: × (1 − v + v × velocity), [0, 1] | 1 |
-| `:unison` | copies of every operator per note, 1–7, sharing the envelopes; the sum is scaled by 1/√n | 1 |
-| `:detune` | the unison copies' total detuning span in cents, spread evenly (20 puts three copies at −10, 0, +10), [0, 100] | 0 |
-| `:spread` | the unison copies' pan spread, evenly across ± this around `:pan`, [0, 1] | 0 |
+| `:velocity-sensitivity` | how much note velocity v scales the gain and the filter envelope's amount: × (1 − s + s × v), [0, 1] | 1 |
+| `:unison` | copies of every oscillator per note, 1–7, sharing the envelopes; the sum is scaled by 1/√n | 1 |
+| `:unison-detune` | the unison copies' total detuning span in cents, spread evenly (20 puts three copies at −10, 0, +10), [0, 100] | 0 |
+| `:unison-spread` | the unison copies' pan spread, evenly across ± this around `:pan`, [0, 1] | 0 |
 | `:cutoff` | turns on the voice's 4-pole Moog ladder filter (promini's port of D'Angelo and Välimäki's model, 2× oversampled) at this cutoff in Hz, [20, 20000]; without it there is no filter | none |
 | `:resonance` | the ladder's feedback, [0, 4]; near 4 it rings at the cutoff | 0 |
 | `:drive` | input gain into the ladder's tanh stages, [0.1, 10]; above 1 it saturates | 1 |
-| `:filter-envelope` | a frame of `:attack :decay :sustain :release :sustain-decay` (as for an operator) plus `:amount` in octaves, [−10, 10]: the cutoff is `:cutoff` × 2^(amount × level) | amount 0 |
-| `:lfo` | a frame: `:shape` (`:sine` `:triangle` `:saw` `:square` `:sample-and-hold`), `:rate` Hz [0.01, 100], `:delay` s before it acts, `:fade` s to reach full depth, `:key-sync` 1 to start at phase 0 on each note or 0 to follow the free-running clock, and depths `:pitch` in semitones [0, 24], `:cutoff` in octaves [0, 8], `:pan` [0, 1] | sine, 5 Hz, synced, depths 0 |
-| `:glide` | seconds for a note's pitch to slide, linearly in semitones, from the part's previous note; `silence` forgets the previous note, [0, 10] | 0 |
+| `:filter-envelope` | a frame of `:attack :decay :sustain :release :sustain-decay` (as for an oscillator) plus `:amount` in octaves, [−10, 10]: the cutoff is `:cutoff` × 2^(amount × level) | amount 0 |
+| `:lfo` | a frame: `:shape` (`:sine` `:triangle` `:saw` `:square` `:sample-and-hold`), `:rate` Hz [0.01, 100], `:delay` s before it acts, `:fade` s to reach full depth, `:key-sync` 1 to start at phase 0 on each note or 0 to follow the free-running clock, and depths `:pitch-depth` in semitones [0, 24], `:cutoff-depth` in octaves [0, 8], `:pan-depth` [0, 1] | sine, 5 Hz, synced, depths 0 |
+| `:glide` | seconds for a note's pitch to slide, linearly in semitones, from the instrument's previous note; `silence-audio` forgets the previous note, [0, 10] | 0 |
 
-An **operator** frame:
+An **oscillator** frame:
 
 | Key | Value | Default |
 |-----|-------|---------|
 | `:wave` | `:sine` `:triangle` `:saw` `:pulse` `:white` `:pink` `:brown`; saw and pulse are band-limited with PolyBLEP; the noise waves are seeded at note-on from the RNG, so `seed` makes a render repeatable | `:sine` |
 | `:ratio` | frequency as a multiple of the note's, [1/64, 64] | 1 |
-| `:fixed` | a frequency in Hz that ignores the note and `:ratio`, [0, 24000]; 0 means none | 0 |
+| `:fixed-hz` | a frequency in Hz that ignores the note and `:ratio`, [0, 24000]; 0 means none | 0 |
 | `:detune` | cents, [−1200, 1200] | 0 |
 | `:level` | output level, [0, 1] | 1 |
 | `:width` | the pulse's duty cycle, [0.01, 0.99]; 0.5 is square | 0.5 |
-| `:lfo-level` | tremolo depth from the patch LFO l: the operator's output × (1 − d(1 − l)/2), [0, 1]; on a modulator it moves the modulation index | 0 |
+| `:lfo-level` | tremolo depth from the patch LFO l: the oscillator's output × (1 − d(1 − l)/2), [0, 1]; on a modulator it moves the modulation index | 0 |
 | `:lfo-width` | pulse-width modulation: the width + d × l, [0, 0.49] | 0 |
 | `:attack` | seconds for a linear rise from the current level to 1 | 0.005 |
 | `:decay` | the time constant, in seconds, of the exponential fall toward `:sustain` | 0.1 |
@@ -6195,17 +6199,40 @@ Times are in [0, 60] seconds. After one time constant a stage has covered
 |------|-------------|----------|-----|-------|---|
 | `pitch>midi` | `( pitch -- n )` | The MIDI note number of a pitch | 1 | none | O(1) |
 | `pitch>hz` | `( pitch -- hz )` | The equal-tempered frequency of a pitch, 440 × 2^((n − 69)/12) | 1 | none | O(1) |
-| `patch!` | `( frame part -- )` | Give a part a patch; notes already sounding keep the patch they started with | keys | none | O(keys) |
-| `part!` | `( value key part -- )` | Change one parameter of a part — `:level` `:pan` `:cutoff` `:resonance` `:drive`, with the patch's ranges — in its patch and in its sounding voices, which move to the value linearly over 64 frames (1.3 ms). `:cutoff` on a voice without a filter turns the filter on | 1 | none | O(voices) |
-| `operator!` | `( value key operator part -- )` | As `part!` for one operator's `:level`, `:ratio` or `:width` | 1 | none | O(voices) |
-| `note-on` | `( pitch velocity part -- )` | Start a note, velocity in [0, 1], at the start of the next `render-audio` | 1 | none | O(voices) |
-| `note-off` | `( pitch part -- )` | Release the part's sounding voices at that pitch; a pitch not sounding is ignored | 1 | none | O(voices) |
-| `render-audio` | `( seconds -- matrix )` | Advance the synthesizer by `seconds`, [0, 600], and answer its output as an n×2 matrix, n = seconds × 48000, column 0 left, column 1 right. Consecutive calls continue one signal. Errors while `audio-on` has the synthesizer playing live | n × voices | `1m(n×2)` | O(n × voices × operators) |
-| `silence` | `( -- )` | End every sounding voice and every `play` at once; parts keep their patches | 1 | none | O(voices) |
-| `audio-on` | `( -- )` | Open the default output device, 48 kHz stereo, and run the synthesizer on its thread: from then on `note-on`, `note-off`, `patch!` and `silence` take effect at the device's next buffer and are heard. The interpreter reaches the device thread through a queue of 4096 commands, and a word that would overflow it errors. Native only | 1 | the device | O(1) |
-| `audio-off` | `( -- )` | Close the output device; commands still queued are applied, `play`s still sounding are dropped, and the synthesizer renders offline again | 1 | none | O(1) |
-| `play` | `( matrix -- )` | Play an n×1 (mono) or n×2 (stereo) matrix of samples at 48 kHz, opening the device if needed, and return at once; overlapping `play`s and the voices mix. The samples are copied, so the matrix can change afterwards. Native only | n | a float copy of n×2 | O(n) |
-| `wait-audio` | `( -- )` | Block until every `play` has ended and every voice is silent — until the last samples have been handed to the device, whose output latency follows; returns at once when the device is off. Ctrl-C interrupts it | waits | none | O(duration) |
+| `instrument-patch!` | `( frame instrument -- )` | Give an instrument a patch; notes already sounding keep the patch they started with | keys | none | O(keys) |
+| `instrument!` | `( value key instrument -- )` | Change one parameter of an instrument — `:level` `:pan` `:cutoff` `:resonance` `:drive`, with the patch's ranges — in its patch and in its sounding voices, which move to the value linearly over 64 frames (1.3 ms). `:cutoff` on a voice without a filter turns the filter on | 1 | none | O(voices) |
+| `oscillator!` | `( value key oscillator instrument -- )` | As `instrument!` for one oscillator's `:level`, `:ratio` or `:width` | 1 | none | O(voices) |
+| `note-on` | `( pitch velocity instrument -- )` | Start a note, velocity in [0, 1], at the start of the next `render-audio` | 1 | none | O(voices) |
+| `note-off` | `( pitch instrument -- )` | Release the instrument's sounding voices at that pitch; a pitch not sounding is ignored | 1 | none | O(voices) |
+| `render-audio` | `( seconds -- matrix )` | Advance the synthesizer by `seconds`, [0, 600], and answer its output as an n×2 matrix, n = seconds × 48000, column 0 left, column 1 right. Consecutive calls continue one signal. Errors while `audio-on` has the synthesizer playing live | n × voices | `1m(n×2)` | O(n × voices × oscillators) |
+| `silence-audio` | `( -- )` | End every sounding voice and every `play-samples` at once, empty the sequencer's queue, and reset every instrument's sequence position; instruments keep their patches | 1 | none | O(voices) |
+| `audio-on` | `( -- )` | Open the default output device, 48 kHz stereo, and run the synthesizer on its thread: from then on `note-on`, `note-off`, `instrument-patch!` and `silence-audio` take effect at the device's next buffer and are heard. The interpreter reaches the device thread through a queue of 4096 commands, and a word that would overflow it errors. Native only | 1 | the device | O(1) |
+| `audio-off` | `( -- )` | Close the output device; commands still queued are applied, `play-samples` still sounding are dropped, and the synthesizer renders offline again | 1 | none | O(1) |
+| `play-samples` | `( matrix -- )` | Play an n×1 (mono) or n×2 (stereo) matrix of samples at 48 kHz, opening the device if needed, and return at once; overlapping `play-samples` and the voices mix. The samples are copied, so the matrix can change afterwards. Native only | n | a float copy of n×2 | O(n) |
+| `wait-audio` | `( -- )` | Block until every `play-samples` has ended and every voice is silent — until the last samples have been handed to the device, whose output latency follows; returns at once when the device is off. Ctrl-C interrupts it | waits | none | O(duration) |
+
+The **sequencer** queues notes at exact positions in time. Each instrument
+keeps its own position as an exact fraction of a sample, so a sum of lengths
+never drifts; a note or rest starts at the instrument's position, or at the
+synthesizer's clock when that position is past (live, at the clock plus
+2048 samples, 43 ms), and advances it by its length. A length
+is a positive fraction of a whole note — an exact rational such as `1/4` or
+`3/8` stays exact, a float is converted by `float>exact` — and a whole note
+lasts 240 / tempo seconds, four beats. The queue holds 8192 events, two per
+note; a word that would overflow it errors and queues nothing. Offline, a
+queued note sounds during the `render-audio` that reaches its sample.
+
+| Word | Stack effect | Behavior | Ops | Alloc | O |
+|------|-------------|----------|-----|-------|---|
+| `sequence-note` | `( pitch length -- )` | audio.telic: Queue a note on the current instrument at its position, sounding for articulation × length at the current velocity, and advance the position by length | 4 | none | O(1) |
+| `sequence-chord` | `( pitches length -- )` | audio.telic: As `sequence-note` for an array of 1–32 pitches starting together; the position advances once | 4 | none | O(pitches) |
+| `sequence-rest` | `( length -- )` | audio.telic: Advance the current instrument's position by length without sounding | 4 | none | O(1) |
+| `sequence-tempo` | `( bpm -- )` | Set the tempo, in (0, 1000] beats per minute, for lengths queued after it; 120 at startup | 1 | none | O(1) |
+| `sequence-instrument` | `( instrument -- )` | Set the instrument that later `sequence-note`, `sequence-chord` and `sequence-rest` use; 0 at startup | 1 | none | O(1) |
+| `sequence-articulation` | `( fraction -- )` | Set the sounding fraction of each later note's length, in (0, 1], float or exact; 1 is legato; 7/8 at startup | 1 | none | O(1) |
+| `sequence-velocity` | `( velocity -- )` | Set the velocity, [0, 1], of later notes; 1 at startup | 1 | none | O(1) |
+| `sequence-end` | `( -- seconds )` | The seconds from the synthesizer's clock until the latest instrument position; 0 when every position is past | 1 | none | O(instruments) |
+| `wait-sequence` | `( -- )` | Block until every queued note has sounded and every voice is silent; returns at once when the device is off. Ctrl-C interrupts it | waits | none | O(duration) |
 
 ```forth pitch>midi
 :a4 pitch>midi . :c4 pitch>midi . :f#3 pitch>midi . cr
@@ -6221,41 +6248,41 @@ Times are in [0, 60] seconds. After one time constant a stage has covered
 440 880
 ```
 
-```forth patch!
-{ :operators [ { :fixed 1000 } { :fixed 100 } ] :modulation [ [ 1 0 2 ] ] } 0 patch!
-silence :a4 1 0 note-on 1 render-audio 4800 48000 0 1 submatrix
-48000 1100 amplitude-at 0.70710678 / 1000 * round 1000 / . cr silence
+```forth instrument-patch!
+{ :oscillators [ { :fixed-hz 1000 } { :fixed-hz 100 } ] :modulation [ [ 1 0 2 ] ] } 0 instrument-patch!
+silence-audio :a4 1 0 note-on 1 render-audio 4800 48000 0 1 submatrix
+48000 1100 amplitude-at 0.70710678 / 1000 * round 1000 / . cr silence-audio
 ```
 ```output
 0.577
 ```
 
-```forth part!
-{ :operators [ { :fixed 1000 } ] } 0 patch! silence :a4 1 0 note-on 0.1 render-audio drop
-0.5 :level 0 part! 0.5 render-audio 4800 24000 0 1 submatrix
-48000 1000 amplitude-at 0.70710678 / 1000 * round 1000 / . cr silence
+```forth instrument!
+{ :oscillators [ { :fixed-hz 1000 } ] } 0 instrument-patch! silence-audio :a4 1 0 note-on 0.1 render-audio drop
+0.5 :level 0 instrument! 0.5 render-audio 4800 24000 0 1 submatrix
+48000 1000 amplitude-at 0.70710678 / 1000 * round 1000 / . cr silence-audio
 ```
 ```output
 0.5
 ```
 
-```forth operator!
-{ } 0 patch! silence :a4 1 0 note-on 0.1 render-audio drop 2 :ratio 0 0 operator!
-0.5 render-audio 4800 24000 0 1 submatrix 48000 880 amplitude-at 0.70710678 / 1000 * round 1000 / . cr silence
+```forth oscillator!
+{ } 0 instrument-patch! silence-audio :a4 1 0 note-on 0.1 render-audio drop 2 :ratio 0 0 oscillator!
+0.5 render-audio 4800 24000 0 1 submatrix 48000 880 amplitude-at 0.70710678 / 1000 * round 1000 / . cr silence-audio
 ```
 ```output
 1
 ```
 
 ```forth note-on
-{ } 0 patch! silence :a4 1 0 note-on 0.1 render-audio abs max 0 > . cr silence
+{ } 0 instrument-patch! silence-audio :a4 1 0 note-on 0.1 render-audio abs max 0 > . cr silence-audio
 ```
 ```output
 1
 ```
 
 ```forth note-off
-{ :operators [ { :release 0 } ] } 0 patch! silence :a4 1 0 note-on 0.1 render-audio drop
+{ :oscillators [ { :release 0 } ] } 0 instrument-patch! silence-audio :a4 1 0 note-on 0.1 render-audio drop
 :a4 0 note-off 0.1 render-audio abs max . cr
 ```
 ```output
@@ -6263,21 +6290,21 @@ silence :a4 1 0 note-on 1 render-audio 4800 48000 0 1 submatrix
 ```
 
 ```forth render-audio
-silence 0.5 render-audio dim . . cr
+silence-audio 0.5 render-audio dim . . cr
 ```
 ```output
 2 24000
 ```
 
-```forth silence
-{ } 0 patch! :a4 1 0 note-on silence 0.1 render-audio abs max . cr
+```forth silence-audio
+{ } 0 instrument-patch! :a4 1 0 note-on silence-audio 0.1 render-audio abs max . cr
 ```
 ```output
 0
 ```
 
 ```forth-noexec audio-on
-{ :operators [ { :wave :saw :release 0.3 } ] :level 0.3 } 0 patch! audio-on
+{ :oscillators [ { :wave :saw :release 0.3 } ] :level 0.3 } 0 instrument-patch! audio-on
 :c4 1 0 note-on :e4 1 0 note-on :g4 1 0 note-on 1 sleep
 :c4 0 note-off :e4 0 note-off :g4 0 note-off wait-audio audio-off
 ```
@@ -6290,14 +6317,80 @@ audio-on :a4 1 0 note-on 0.5 sleep audio-off
 ```output
 ```
 
-```forth-noexec play
-0 47999 1 matrix-range transpose 2 PI * 440 * 48000 / * sin 0.2 * play wait-audio
+```forth-noexec play-samples
+0 47999 1 matrix-range transpose 2 PI * 440 * 48000 / * sin 0.2 * play-samples wait-audio
 ```
 ```output
 ```
 
 ```forth-noexec wait-audio
-{ } 0 patch! 1 render-audio play wait-audio
+{ } 0 instrument-patch! 1 render-audio play-samples wait-audio
+```
+```output
+```
+
+```forth sequence-note
+silence-audio 120 sequence-tempo 0 sequence-instrument :a4 1/4 sequence-note :c5 1/8 sequence-note sequence-end . cr silence-audio
+```
+```output
+0.75
+```
+
+```forth sequence-chord
+silence-audio 120 sequence-tempo 0 sequence-instrument [ :c4 :e4 :g4 ] 1/2 sequence-chord :c5 1/4 sequence-note sequence-end . cr silence-audio
+```
+```output
+1.5
+```
+
+```forth sequence-rest
+silence-audio 60 sequence-tempo 0 sequence-instrument 1/4 sequence-rest :a4 1/4 sequence-note sequence-end . cr silence-audio 120 sequence-tempo
+```
+```output
+2
+```
+
+```forth sequence-tempo
+silence-audio 90 sequence-tempo 0 sequence-instrument :a4 3/4 sequence-note sequence-end . cr silence-audio 120 sequence-tempo
+```
+```output
+2
+```
+
+```forth sequence-instrument
+silence-audio 120 sequence-tempo 0 sequence-instrument :a4 1 sequence-note 1 sequence-instrument :c4 1/2 sequence-note sequence-end . cr 0 sequence-instrument silence-audio
+```
+```output
+2
+```
+
+```forth sequence-articulation
+{ :oscillators [ { :attack 0 :release 0 } ] } 0 instrument-patch! silence-audio 120 sequence-tempo 0 sequence-instrument
+1/2 sequence-articulation :a4 1/4 sequence-note 0.5 render-audio
+dup 0 12000 0 1 submatrix abs max 0 > . 12000 24000 0 1 submatrix abs max . cr 7/8 sequence-articulation silence-audio
+```
+```output
+1 0
+```
+
+```forth sequence-velocity
+{ :oscillators [ { :fixed-hz 1000 :attack 0 :release 0 } ] } 0 instrument-patch! silence-audio 120 sequence-tempo 0 sequence-instrument
+0.5 sequence-velocity :a4 1/2 sequence-note 0.5 render-audio 4800 19200 0 1 submatrix
+48000 1000 amplitude-at 0.70710678 / 100 * round 100 / . cr 1 sequence-velocity silence-audio
+```
+```output
+0.5
+```
+
+```forth sequence-end
+silence-audio 120 sequence-tempo 0 sequence-instrument :a4 1/2 sequence-note 0.25 render-audio drop sequence-end . cr silence-audio
+```
+```output
+0.75
+```
+
+```forth-noexec wait-sequence
+{ } 0 instrument-patch! audio-on :c4 1/4 sequence-note :e4 1/4 sequence-note :g4 1/2 sequence-note wait-sequence audio-off
 ```
 ```output
 ```

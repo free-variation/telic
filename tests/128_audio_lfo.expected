@@ -18,14 +18,14 @@
 0.63 0.63 
 0 
 error: expected :shape one of :sine :triangle :saw :square :sample-and-hold; got :wobble
-in patch!
+in instrument-patch!
 error: expected :rate in [0.01, 100]; got 0
-in patch!
-error: expected :pitch in [0, 24]; got 25
-in patch!
+in instrument-patch!
+error: expected :pitch-depth in [0, 24]; got 25
+in instrument-patch!
 error: expected :key-sync in [0, 1]; got 2
-in patch!
+in instrument-patch!
 error: unknown lfo key :speed
-in patch!
+in instrument-patch!
 error: expected :lfo-width in [0, 0.49]; got 0.5
-in patch!
+in instrument-patch!

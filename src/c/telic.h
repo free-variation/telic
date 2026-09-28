@@ -1619,20 +1619,29 @@ void p_ifft(DISPATCH_ARGS);
 void p_magnitudes(DISPATCH_ARGS);
 
 // synth.c
+void p_instrument_patch_store(DISPATCH_ARGS);
+void p_instrument_store(DISPATCH_ARGS);
 void p_note_off(DISPATCH_ARGS);
 void p_note_on(DISPATCH_ARGS);
-void p_operator_store(DISPATCH_ARGS);
-void p_part_store(DISPATCH_ARGS);
-void p_patch_store(DISPATCH_ARGS);
+void p_oscillator_store(DISPATCH_ARGS);
 void p_pitch_to_hz(DISPATCH_ARGS);
 void p_pitch_to_midi(DISPATCH_ARGS);
 void p_render_audio(DISPATCH_ARGS);
-void p_silence(DISPATCH_ARGS);
+void p_sequence_articulation(DISPATCH_ARGS);
+void p_sequence_chord(DISPATCH_ARGS);
+void p_sequence_end(DISPATCH_ARGS);
+void p_sequence_instrument(DISPATCH_ARGS);
+void p_sequence_note(DISPATCH_ARGS);
+void p_sequence_rest(DISPATCH_ARGS);
+void p_sequence_tempo(DISPATCH_ARGS);
+void p_sequence_velocity(DISPATCH_ARGS);
+void p_silence_audio(DISPATCH_ARGS);
+void p_wait_sequence(DISPATCH_ARGS);
 
 // audio.c
 void p_audio_off(DISPATCH_ARGS);
 void p_audio_on(DISPATCH_ARGS);
-void p_play(DISPATCH_ARGS);
+void p_play_samples(DISPATCH_ARGS);
 void p_wait_audio(DISPATCH_ARGS);
 
 // indexing.c

@@ -150,5 +150,5 @@ NO_WINDOW_SYSTEM(p_screen_frames, "screen-frames")
 
 NO_AUDIO_DEVICE(p_audio_off, "audio-off")
 NO_AUDIO_DEVICE(p_audio_on, "audio-on")
-NO_AUDIO_DEVICE(p_play, "play")
+NO_AUDIO_DEVICE(p_play_samples, "play-samples")
 NO_AUDIO_DEVICE(p_wait_audio, "wait-audio")

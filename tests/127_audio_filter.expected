@@ -11,14 +11,14 @@
 1 
 1 
 error: expected :cutoff in [20, 20000]; got 10
-in patch!
+in instrument-patch!
 error: expected :resonance in [0, 4]; got 5
-in patch!
+in instrument-patch!
 error: expected :drive in [0.1, 10]; got 0
-in patch!
+in instrument-patch!
 error: expected a frame for :filter-envelope; got a float
-in patch!
+in instrument-patch!
 error: expected :amount in [-10, 10]; got 11
-in patch!
+in instrument-patch!
 error: unknown filter-envelope key :shape
-in patch!
+in instrument-patch!

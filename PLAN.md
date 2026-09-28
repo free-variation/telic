@@ -7,9 +7,9 @@ A TODO list of pending work, highest priority first.
 ## Audio synthesizer — remaining work
 
 The voice engine is `src/c/synth.c` and the output device `src/c/audio.c`
-(reference: "Audio synthesizer"). What remains, in order, is the sequencer
-and the effects. Sources to port for the effects: promini's `effects.c`
-(ping-pong delay) and `reverb.c` (Dattorro).
+(reference: "Audio synthesizer"). What remains is the effects. Sources to
+port for the effects: promini's `effects.c` (ping-pong delay) and `reverb.c`
+(Dattorro).
 
 ### 1. Device output — follow-ups
 
@@ -19,7 +19,8 @@ and the effects. Sources to port for the effects: promini's `effects.c`
   created from the calling thread (it is the system HAL's thread): send
   SIGINT during `wait-audio` many times and check that it always interrupts.
 - **Output latency.** `wait-audio` returns when the last samples are handed
-  to the device, before they have played (a 0.5 s `play` returns at 489 ms).
+  to the device, before they have played (a 0.5 s `play-samples` returns at
+  489 ms).
   Add the device's reported latency (`ma_device` period × periods) to the
   wait if code after `wait-audio` must follow the sound's end.
 - **Queue-full path.** The 4096-command limit's error is untested: offline,
@@ -29,42 +30,19 @@ and the effects. Sources to port for the effects: promini's `effects.c`
 ### 2. Filter, LFO, unison — follow-ups
 
 - **Cost benchmark.** 16 voices of a two-saw patch with `:unison 3`,
-  `:spread`, the filter, its envelope and a cutoff LFO render 10 s in 1.8 s
+  `:unison-spread`, the filter, its envelope and a cutoff LFO render 10 s in 1.8 s
   (18% of one core, measured offline). Add it to `bench/` so a regression
   shows in the benchmark reports.
 - **Filter CPU.** The ladder calls `tanh` ten times per channel per sample;
   a rational tanh approximation would cut the filter's share if voice counts
   grow.
 
-### 3. Sequencer
+### 3. Effects
 
 #### Semantics
 
-1. `note ( pitch length -- )` and `rest ( length -- )` queue on the current
-   part at the current tempo; lengths are fractions of a whole note, written
-   as exact rationals (`1/8`, `3/8`), so onsets land on exact samples.
-   `tempo ( bpm -- )`, `part ( n -- )`, `chord ( pitches length -- )`, and
-   legato/normal/staccato gate lengths.
-2. Offline, queued notes play during the following `render-audio` calls; live,
-   on the device thread. The words return at once; `wait-notes ( -- )` blocks
-   until the queue has played.
-
-#### Acceptance and tests
-
-1. `132_audio_sequencer` — at 120 bpm, onsets of `1/4` notes at samples 0,
-   24000, 48000 exactly; `3/8` and `1/16` lengths; `rest`; `chord` sounds
-   all pitches from the same sample; a `tempo` change mid-sequence moves
-   later onsets only; 1000 `1/16` notes end at exactly 1000 × 6000 samples
-   (no drift — discriminating against float accumulation); legato, normal
-   and staccato gate lengths; `wait-notes` returns after the last release;
-   the queue-full error after 4096 commands, with nothing queued.
-
-### 4. Effects
-
-#### Semantics
-
-1. One master chain after the voice and `play` mix: chorus → ping-pong delay
-   → reverb → master level. Each stage has `:wet`/`:dry` and its own
+1. One master chain after the voice and `play-samples` mix: chorus →
+   ping-pong delay → reverb → master level. Each stage has `:wet`/`:dry` and its own
    parameters; the reverb keeps promini's set (predelay, bandwidth, decay,
    damping, size, modulation, shimmer, freeze, width, low/high cut).
    `effect! ( value key effect -- )` with `effect` one of `:chorus` `:delay`
@@ -89,7 +67,7 @@ and the effects. Sources to port for the effects: promini's `effects.c`
 
 PolyBLEP leaves a 5 kHz `:saw`'s strongest alias (the 7th harmonic folded
 to 13 kHz) 36 dB below the fundamental, against 17 dB for a naive saw. If a
-patch shows audible aliasing, oversample the saw and pulse operators 2× or
+patch shows audible aliasing, oversample the saw and pulse oscillators 2× or
 replace PolyBLEP with a four-point BLEP, and raise `123_audio_waveforms`' band-limiting
 threshold to match.
 
@@ -486,11 +464,11 @@ live here instead. File and function name each invariant's home.
 
 - The audio device thread never takes a lock, allocates, frees, or reads a
   telic value. The interpreter reaches it only through a single-producer
-  single-consumer ring of `SynthCommand`s, whose `play` buffers are copied to
-  floats before submission, and through one pending-patch slot per part
-  guarded by an atomic flag that the interpreter sets and the device thread
-  clears; finished `play` buffers return on a second ring and the
-  interpreter frees them in `synth_collect_finished`. Offline, the same
+  single-consumer ring of `SynthCommand`s, whose `play-samples` buffers are
+  copied to floats before submission, and through one pending-patch slot per
+  instrument guarded by an atomic flag that the interpreter sets and the
+  device thread clears; finished `play-samples` buffers return on a second
+  ring and the interpreter frees them in `synth_collect_finished`. Offline, the same
   commands apply directly (synth.c, `synth_submit`, `synth_device_render`).
 - `synth_set_live` flips between the two modes only while the device is
   stopped: `audio_close` uninitializes the device before `synth_set_live(0)`

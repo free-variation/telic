@@ -3,58 +3,58 @@ accepted
 1 
 0.707 
 error: unknown patch key :chorus
-in patch!
-error: unknown operator key :shape
-in patch!
-error: expected 1 to 8 operators; got 0
-in patch!
-error: expected 1 to 8 operators; got 9
-in patch!
-error: expected an array of operator frames for :operators; got a frame
-in patch!
-error: expected an operator frame; got a float
-in patch!
+in instrument-patch!
+error: unknown oscillator key :shape
+in instrument-patch!
+error: expected 1 to 8 oscillators; got 0
+in instrument-patch!
+error: expected 1 to 8 oscillators; got 9
+in instrument-patch!
+error: expected an array of oscillator frames for :oscillators; got a frame
+in instrument-patch!
+error: expected an oscillator frame; got a float
+in instrument-patch!
 error: expected :wave one of :sine :triangle :saw :pulse :white :pink :brown; got :square
-in patch!
+in instrument-patch!
 error: expected :wave one of :sine :triangle :saw :pulse :white :pink :brown; got a string
-in patch!
+in instrument-patch!
 error: expected :ratio in [0.015625, 64]; got 0
-in patch!
-error: expected :fixed in [0, 24000]; got 30000
-in patch!
+in instrument-patch!
+error: expected :fixed-hz in [0, 24000]; got 30000
+in instrument-patch!
 error: expected :detune in [-1200, 1200]; got 1300
-in patch!
+in instrument-patch!
 error: expected :level in [0, 1]; got 1.5
-in patch!
+in instrument-patch!
 error: expected :width in [0.01, 0.99]; got 1
-in patch!
+in instrument-patch!
 error: expected :attack in [0, 60]; got -1
-in patch!
+in instrument-patch!
 error: expected :release in [0, 60]; got 61
-in patch!
+in instrument-patch!
 error: expected :sustain in [0, 1]; got 2
-in patch!
+in instrument-patch!
 error: expected a float for :decay; got a string
-in patch!
-error: expected an operator index in :modulation in [0, 1); got 1
-in patch!
+in instrument-patch!
+error: expected an oscillator index in :modulation in [0, 1); got 1
+in instrument-patch!
 error: expected a :modulation depth in [-100, 100]
-in patch!
+in instrument-patch!
 error: expected [ from to depth ] in :modulation; got an array
-in patch!
-error: expected an operator index in :modulation in [0, 1); got 0.5
-in patch!
+in instrument-patch!
+error: expected an oscillator index in :modulation in [0, 1); got 0.5
+in instrument-patch!
 error: expected at least one carrier in :carriers
-in patch!
-error: expected an operator index in :carriers in [0, 1); got 1
-in patch!
+in instrument-patch!
+error: expected an oscillator index in :carriers in [0, 1); got 1
+in instrument-patch!
 error: expected :pan in [-1, 1]; got 1.5
-in patch!
-error: expected :velocity in [0, 1]; got -0.1
-in patch!
-error: expected a part number in [0, 16); got 16
-in patch!
-error: expected a part number in [0, 16); got 1.5
-in patch!
+in instrument-patch!
+error: expected :velocity-sensitivity in [0, 1]; got -0.1
+in instrument-patch!
+error: expected an instrument number in [0, 16); got 16
+in instrument-patch!
+error: expected an instrument number in [0, 16); got 1.5
+in instrument-patch!
 error: expected a patch frame; got an array
-in patch!
+in instrument-patch!

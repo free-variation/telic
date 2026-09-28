@@ -64,14 +64,16 @@ by file in SRCS order. What each file is:
   conversion between telic's nx1 and nx2 matrices and PocketFFT's
   half-complex and interleaved arrays.
 - synth.c — the synthesizer: patch-frame validation into C structs, the
-  voice pool, operators (PolyBLEP waves, seeded noise), the phase-modulation
-  loop, unison copies, envelopes, the per-voice Moog ladder and LFO, glide,
-  64-frame parameter ramps, pitch parsing, and the words pitch>midi …
-  render-audio, part!, operator!;
-  also the lock-free rings to the device thread and synth_device_render.
+  voice pool, oscillators (PolyBLEP waves, seeded noise), the
+  phase-modulation loop, unison copies, envelopes, the per-voice Moog ladder
+  and LFO, glide, 64-frame parameter ramps, pitch parsing, the words
+  pitch>midi … render-audio, instrument!, oscillator!, the sequencer (exact
+  per-instrument positions, the sample-accurate schedule, the sequence-*
+  words); also the lock-free rings to the device thread and
+  synth_device_render.
   Plain C with libm only, so it builds for wasm.
 - audio.c — native only: the miniaudio ma_device, its data callback, and
-  audio-on/audio-off/play/wait-audio (platform_wasi.c stubs them).
+  audio-on/audio-off/play-samples/wait-audio (platform_wasi.c stubs them).
 - indexing.c — the @i/!i index/store dispatch family across arrays/
   segments/slices, plus quickened "(word.tag)" specializations.
 - functional.c — map/nmap/filter/reduce and the parallel worker pool

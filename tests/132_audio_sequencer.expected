@@ -1,0 +1,44 @@
+1.5 
+[ 0 24000 48000 ] [ 21000 45000 69000 ] 
+1.625 
+[ 0 36000 54000 ] 
+[ 0 ] [ 48000 ] 
+[ 12000 ] 
+1 1 1 0 
+1 
+2.5 
+[ 0 24000 72000 ] 
+[ 0 ] 
+[ 0 36000 ] [ 24000 48000 ] 
+2000 
+0.5 
+0 0 
+offline, wait-sequence returns at once 
+128 
+1 128 
+error: expected a positive note length; got 0/1
+in (sequence-note) ← sequence-note
+error: expected a positive note length; got -1/4
+in (sequence-note) ← sequence-note
+error: expected a float; got a string
+in float>exact ← length>fraction ← sequence-note
+error: expected a pitch such as :c4, :f#3, :bb5 or :c+4; got :h4
+in (sequence-note) ← sequence-note
+error: expected 1 to 32 pitches in a chord; got 0
+in (sequence-chord) ← sequence-chord
+error: expected an array of pitches; got a symbol
+in (sequence-chord) ← sequence-chord
+error: expected a positive note length; got 0/1
+in (sequence-rest) ← sequence-rest
+error: expected a tempo in beats per minute in (0, 1000]; got 0
+in sequence-tempo
+error: expected a tempo in beats per minute in (0, 1000]; got 1001
+in sequence-tempo
+error: expected an articulation (the sounding fraction of a note) in (0, 1]; got 0
+in sequence-articulation
+error: expected an articulation (the sounding fraction of a note) in (0, 1]; got 1.5
+in sequence-articulation
+error: expected a velocity in [0, 1]; got 2
+in sequence-velocity
+error: expected an instrument number in [0, 16); got 16
+in sequence-instrument

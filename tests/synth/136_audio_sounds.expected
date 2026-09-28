@@ -11,3 +11,5 @@ sample-and-hold filter: a resonant saw on C2, its cutoff jumping to a random val
 C major chord, one saw per note (on time) 
 the same chord, seven saws per note detuned across 30 cents and spread left to right (on time) 
 glide: a saw-and-pulse lead playing C4 G4 E4 C5 A4 F4 G4 C4, each note sliding 0.12 s from the last (on time) 
+sequencer: FM keys E4 G4 C5 B4 G4 and a C major chord over a saw bass C2 G2 A2 G2 C2, 120 bpm (on time) 
+quarter tones: FM keys C4 C+4 C#4 Dd4 D4 and back down, an eighth note each (on time) 

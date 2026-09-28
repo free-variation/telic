@@ -379,6 +379,8 @@ index-of
 indicators!
 ink
 inline
+instrument!
+instrument-patch!
 int-segment
 internal
 intersection
@@ -477,8 +479,8 @@ of
 on-tick
 open-app-window
 open-file
-operator!
 or
+oscillator!
 over
 pad-left
 pad-right
@@ -486,9 +488,7 @@ panel
 paper
 parallel-run
 parse-time
-part!
 partition
-patch!
 pbootstrap
 pcv-logistic-ridge
 peek
@@ -498,7 +498,7 @@ pfilter-ext
 pick
 pitch>hz
 pitch>midi
-play
+play-samples
 plot
 pmap
 pmap-ext
@@ -621,6 +621,14 @@ select-keys
 select-neq
 select-rows
 select-values
+sequence-articulation
+sequence-chord
+sequence-end
+sequence-instrument
+sequence-note
+sequence-rest
+sequence-tempo
+sequence-velocity
 series
 series-plot
 set
@@ -638,7 +646,7 @@ side-drop
 side-peek
 side>
 sigmoid
-silence
+silence-audio
 sin
 sinh
 size
@@ -759,6 +767,7 @@ vvf/
 wait
 wait-audio
 wait-readable
+wait-sequence
 wall-now
 where
 while

@@ -1,4 +1,4 @@
-\ ==== operator envelopes: :attack :decay :sustain :release :sustain-decay ====
+\ ==== oscillator envelopes: :attack :decay :sustain :release :sustain-decay ====
 
 \ The attack rises linearly from the current level to 1 in :attack seconds.
 \ The decay moves exponentially toward :sustain with time constant :decay:
@@ -12,7 +12,7 @@
 
 : amp ( v hz -- a ) 48000 swap amplitude-at 0.70710678 / ;
 : level-at ( stereo t -- a ) | stereo t | stereo t 48000 * round dup 480 - swap 480 + 0 1 submatrix 1000 amp 1000 * round 1000 / ;
-: shaped ( operator -- ) | operator | silence { } [ operator 1000 :fixed ! ] :operators ! 0 patch! :a4 1 0 note-on ;
+: shaped ( oscillator -- ) | oscillator | silence-audio { } [ oscillator 1000 :fixed-hz ! ] :oscillators ! 0 instrument-patch! :a4 1 0 note-on ;
 : e ( -- f ) 1 exp ;
 
 \ === attack, decay, sustain ===
@@ -56,9 +56,9 @@ clear
 1 render-audio abs max . cr                       \ 0
 clear
 
-\ === each operator has its own envelope ===
-{ } [ { :fixed 1000 } { :fixed 100 :decay 0.1 :sustain 0 } ] :operators ! [ [ 1 0 2 ] ] :modulation !
-silence 0 patch! :a4 1 0 note-on 1 render-audio to fading
+\ === each oscillator has its own envelope ===
+{ } [ { :fixed-hz 1000 } { :fixed-hz 100 :decay 0.1 :sustain 0 } ] :oscillators ! [ [ 1 0 2 ] ] :modulation !
+silence-audio 0 instrument-patch! :a4 1 0 note-on 1 render-audio to fading
 fading 0 4800 0 1 submatrix 1100 amp  fading 38400 48000 0 1 submatrix 1100 amp > . cr    \ 1 (the sideband fades with its modulator)
 fading 38400 48000 0 1 submatrix 1000 amp 1000 * round 1000 / . cr                       \ 1 (the carrier alone remains)
 clear
