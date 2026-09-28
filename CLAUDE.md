@@ -69,9 +69,14 @@ by file in SRCS order. What each file is:
   and LFO, glide, 64-frame parameter ramps, pitch parsing, the words
   pitch>midi … render-audio, instrument!, oscillator!, the sequencer (exact
   per-instrument positions, the sample-accurate schedule, the sequence-*
-  words); also the lock-free rings to the device thread and
+  words), effect!; also the lock-free rings to the device thread and
   synth_device_render.
   Plain C with libm only, so it builds for wasm.
+- audio_effects.c — the master effects chain synth_render runs each frame:
+  chorus, ping-pong/straight delay, the Dattorro plate reverb with its
+  shimmer pitch shifters (ported from promini), master level; the effect!
+  key table and its validation. Static buffers only, so the device thread
+  never allocates; plain C with libm, both builds.
 - audio.c — native only: the miniaudio ma_device, its data callback, and
   audio-on/audio-off/play-samples/wait-audio (platform_wasi.c stubs them).
 - indexing.c — the @i/!i index/store dispatch family across arrays/

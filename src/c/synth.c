@@ -203,7 +203,8 @@ typedef enum {
 	COMMAND_NOTE_OFF,
 	COMMAND_SILENCE,
 	COMMAND_PLAY,
-	COMMAND_PARAMETER
+	COMMAND_PARAMETER,
+	COMMAND_EFFECT
 } SynthCommandKind;
 
 typedef struct {
@@ -216,6 +217,7 @@ typedef struct {
 	int n_frames;
 	SynthParameter parameter;
 	int oscillator_index;
+	int effect_parameter;
 	double value;
 	int scheduled;
 	long at;
@@ -304,6 +306,7 @@ static void synth_ensure_ready(void) {
 		patch_default(&synth_instruments[instrument]);
 		synth_last_notes[instrument] = -1.0;
 	}
+	effects_reset();
 	synth_instruments_ready = 1;
 }
 
@@ -1283,6 +1286,7 @@ static void synth_render(double *interleaved, int n_frames) {
 		}
 		if (synth_n_plays)
 			plays_mix(&left, &right);
+		effects_process(&left, &right);
 		interleaved[2 * frame] = left;
 		interleaved[2 * frame + 1] = right;
 		synth_clock++;
@@ -1298,6 +1302,7 @@ static void synth_silence_all(void) {
 	for (int p = 0; p < synth_n_plays; p++)
 		play_finished(synth_plays[p].samples);
 	synth_n_plays = 0;
+	effects_clear();
 }
 
 static void synth_apply(const SynthCommand *command) {
@@ -1327,6 +1332,9 @@ static void synth_apply(const SynthCommand *command) {
 		break;
 	case COMMAND_PARAMETER:
 		synth_parameter(command->instrument, command->parameter, command->oscillator_index, command->value);
+		break;
+	case COMMAND_EFFECT:
+		effects_apply(command->effect_parameter, command->value);
 		break;
 	}
 }
@@ -1921,6 +1929,21 @@ void p_render_audio(DISPATCH_ARGS) {
 	chain_sp[-1] = make_matrix(samples_handle);
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
+
+void p_effect_store(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 3);
+	int parameter;
+	double value;
+	if (!effects_parameter_parse(interp, chain_sp[-3], chain_sp[-2], chain_sp[-1], &parameter, &value))
+		return;
+
+	synth_ensure_ready();
+	SynthCommand command = {.kind = COMMAND_EFFECT, .effect_parameter = parameter, .value = value};
+	if (!synth_submit(interp, &command))
+		return;
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 3);
 }
 
 void p_silence_audio(DISPATCH_ARGS) {

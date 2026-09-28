@@ -452,6 +452,7 @@ Embedded relational storage via the vendored SQLite amalgamation — built into 
 
 - **A phase-modulation synthesizer** — sixteen instruments, each with a patch frame of up to eight oscillators (sine, triangle, saw and pulse band-limited, white, pink and brown noise), a modulation matrix with feedback, per-oscillator envelopes, a Moog ladder filter with its own envelope, an LFO on pitch, cutoff, pan, level and pulse width, unison with detune and stereo spread, and glide; `instrument!`/`oscillator!` change parameters of sounding notes; `note-on`/`note-off` take pitches as MIDI numbers or symbols like `:f#3` and `:c+4` (quarter tones); after `audio-on` it plays live on the output device (miniaudio), and `render-audio` computes the same output offline into a stereo matrix for the Fourier words or a file. `play-samples` sends any sample matrix to the device.
 - **A sequencer** — `sequence-note`, `sequence-chord` and `sequence-rest` queue notes by exact fractions of a whole note (`1/4`, `3/8`) on per-instrument positions that never drift, at a set tempo, articulation and velocity, each note starting on its exact sample.
+- **An effects chain** — `effect!` sets the master chain's chorus, delay (ping-pong or straight), Dattorro plate reverb (with shimmer and freeze) and master level.
 
 ### Data: TSV, datasets, and statistics
 
@@ -546,6 +547,7 @@ src/c/matrix.c         — matrix words and numeric kernels
 src/c/statistics.c     — statistics kernels: var, quantile, kendall's tau-b
 src/c/fourier.c        — Fourier transforms on PocketFFT: fft/ifft, cfft/icfft, magnitudes, hann
 src/c/synth.c          — the synthesizer: voices, oscillators, envelopes, patches, render-audio, the sequencer
+src/c/audio_effects.c  — the effects chain: chorus, ping-pong and straight delay, Dattorro plate reverb, master level
 src/c/audio.c          — the miniaudio output device: audio-on/off, play-samples, wait-audio
 src/c/dimension.c      — dimensioned quantities: base dimensions, units, quantity arithmetic
 src/c/functional.c     — higher-order operations (map, nmap, …) and multi-core parallelism

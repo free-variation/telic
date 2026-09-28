@@ -1,0 +1,109 @@
+\ ==== audible: the master effects chain, each stage alone and all together ====
+
+\ Played live on the output device through the sequencer at 120 bpm: the
+\ same phrases dry, through the chorus, the ping-pong and straight delays,
+\ the plate reverb, a shimmer, a freeze, and the full chain. Each phrase
+\ checks that wait-sequence returned between sequence-end and 1 s after it
+\ (the last release included), then sleeps while the effect's tail rings
+\ (the waits do not count a tail) and cuts it with silence-audio. This file
+\ is for listening; the chain is measured offline in 133_audio_effects.
+\ Native only.
+
+11 seed
+
+: elapsed-ms ( start -- ms ) now magnitude swap - 1000 * ;
+: playing ( description -- ) . ;
+: finished ( flag -- ) if "(on time)" else "(late)" then . cr ;
+: dry-chain ( -- )
+	0 :wet :chorus effect! 1 :dry :chorus effect!
+	0 :wet :delay effect! 1 :dry :delay effect! :ping-pong :mode :delay effect!
+	0 :wet :reverb effect! 1 :dry :reverb effect! 0 :freeze :reverb effect!
+	0 :shimmer1-mix :reverb effect! 0 :shimmer-in-loop :reverb effect!
+	1 :size :reverb effect! 0.02 :predelay :reverb effect!
+	1 :level :master effect! ;
+
+{ :oscillators [ { :attack 0.002 :decay 0.4 :sustain 0.3 :release 0.06 }
+                 { :attack 0.001 :decay 0.25 :sustain 0.1 :release 0.06 } ]
+  :modulation [ [ 1 0 2.2 ] ] :level 0.1 } 11 instrument-patch!
+{ :oscillators [ { :wave :saw :detune -8 :attack 0.25 :release 0.08 :level 0.5 }
+                 { :wave :saw :detune 8 :attack 0.25 :release 0.08 :level 0.5 } ]
+  :carriers [ 0 1 ] :cutoff 1800 :level 0.05 } 12 instrument-patch!
+{ :oscillators [ { :wave :saw :release 0.05 } ] :cutoff 500 :resonance 1 :level 0.12 } 13 instrument-patch!
+
+: keys-phrase ( -- ) 11 sequence-instrument
+	:c4 1/8 sequence-note :eb4 1/8 sequence-note :g4 1/8 sequence-note :c5 1/8 sequence-note
+	:g4 1/8 sequence-note :eb4 1/8 sequence-note :c4 1/4 sequence-note ;
+: pad-chord ( -- ) 12 sequence-instrument [ :c3 :g3 :bb3 :eb4 ] 1 sequence-chord ;
+: bass-line ( -- ) 13 sequence-instrument
+	:c2 1/4 sequence-note :c2 1/8 sequence-note :g2 1/8 sequence-note :bb2 1/4 sequence-note :g2 1/4 sequence-note ;
+: arrangement ( -- ) pad-chord bass-line keys-phrase ;
+: fresh-sequence ( -- ) silence-audio 120 sequence-tempo 7/8 sequence-articulation 1 sequence-velocity ;
+: timed-sequence ( xt -- ) | xt |
+	now magnitude to started
+	xt execute
+	sequence-end 1000 * to end-ms
+	wait-sequence
+	started elapsed-ms end-ms - dup 0 >= swap 1000 < and finished ;
+: perform ( xt tail -- ) | xt tail | fresh-sequence xt timed-sequence tail sleep silence-audio ;
+
+audio-on
+
+\ === dry ===
+"dry: FM keys C4 Eb4 G4 C5 G4 Eb4 C4, no effects" playing
+' keys-phrase 0.2 perform
+
+\ === chorus alone ===
+0.6 :wet :chorus effect! 0.8 :dry :chorus effect! 0.004 :depth :chorus effect! 0.6 :rate :chorus effect!
+"chorus: a detuned saw pad, Cm7, widened across both sides" playing
+' pad-chord 0.2 perform
+"chorus: the keys phrase" playing
+' keys-phrase 0.2 perform
+dry-chain
+
+\ === ping-pong delay alone ===
+0.375 :time :delay effect! 0.45 :feedback :delay effect! 0.5 :wet :delay effect!
+"ping-pong delay: the keys echoing left, then right, every 0.375 s (a dotted eighth), feedback 0.45" playing
+' keys-phrase 2 perform
+dry-chain
+
+\ === straight delay alone ===
+:straight :mode :delay effect! 0.12 :time :delay effect! 0.3 :feedback :delay effect! 0.5 :wet :delay effect!
+"straight delay: the keys with a 0.12 s slapback, each echo on its own side" playing
+' keys-phrase 0.8 perform
+dry-chain
+
+\ === plate reverb alone ===
+0.35 :wet :reverb effect! 0.7 :decay :reverb effect!
+"plate reverb: the keys in a medium plate, decay 0.7" playing
+' keys-phrase 2 perform
+0.4 :wet :reverb effect! 0.9 :decay :reverb effect! 1.5 :size :reverb effect! 0.05 :predelay :reverb effect!
+"large plate: size 1.5, decay 0.9, 50 ms predelay" playing
+' keys-phrase 3 perform
+dry-chain
+
+\ === shimmer ===
+0.45 :wet :reverb effect! 0.85 :decay :reverb effect! 12 :shimmer1-shift :reverb effect! 0.4 :shimmer1-mix :reverb effect!
+1 :shimmer-in-loop :reverb effect!
+"shimmer: the pad in a reverb whose feedback is shifted up an octave on every pass" playing
+' pad-chord 3 perform
+dry-chain
+
+\ === freeze ===
+0.6 :wet :reverb effect! 0.85 :decay :reverb effect!
+"freeze: the pad frozen in the reverb after 1.5 s, the keys played dry over the held wash" playing
+fresh-sequence pad-chord 1.5 sleep 1 :freeze :reverb effect!
+' keys-phrase timed-sequence
+"the freeze released: the wash dies away" . cr
+1 sleep 0 :freeze :reverb effect! 3 sleep silence-audio
+dry-chain
+
+\ === the full chain ===
+0.3 :wet :chorus effect! 0.9 :dry :chorus effect!
+0.375 :time :delay effect! 0.35 :feedback :delay effect! 0.25 :wet :delay effect!
+0.3 :wet :reverb effect! 0.75 :decay :reverb effect!
+0.8 :level :master effect!
+"full chain: pad, bass and keys through the chorus, the ping-pong delay, the plate reverb and master level 0.8" playing
+' arrangement 2.5 perform
+dry-chain
+
+audio-off

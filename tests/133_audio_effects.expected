@@ -1,0 +1,60 @@
+0 
+1 
+1 
+1 
+0 
+0.5 
+1 
+1 0.5 0 0.25 0 
+0 0 0.5 0 0.25 
+1 0.5 0 0 0 
+1 1 0.5 0.25 0.125 
+0 0 0 0 0 
+1 0 1 0 0.5 
+1 1 
+1 
+0 
+1 
+1 
+1 
+1 
+1 
+1 
+1 
+1 
+1 
+1 
+0.354 
+1 
+1 
+1 0 
+1 
+1 
+error: expected an effect (:chorus :delay :reverb :master); got :flanger
+in effect!
+error: expected an effect (:chorus :delay :reverb :master); got a string
+in effect!
+error: unknown :chorus key :speed
+in effect!
+error: expected a :chorus key; got a string
+in effect!
+error: expected :wet in [0, 1]; got 2
+in effect!
+error: expected a float for :wet; got a string
+in effect!
+error: expected :delay in [0.005, 0.025]; got 0.03
+in effect!
+error: expected :time in [0.001, 2]; got 3
+in effect!
+error: expected :feedback in [0, 0.99]; got 1
+in effect!
+error: expected :mode :ping-pong or :straight; got :bounce
+in effect!
+error: expected :mode :ping-pong or :straight; got a float
+in effect!
+error: expected :freeze 0 or 1; got 0.5
+in effect!
+error: expected :size in [0.1, 2]; got 0
+in effect!
+error: expected :level in [0, 1]; got 2
+in effect!

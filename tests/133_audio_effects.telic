@@ -1,0 +1,160 @@
+\ ==== effect! ( value key effect -- ): the master chain chorus -> delay -> reverb -> master ====
+
+\ Every voice and play-samples sums into one stereo signal, which passes
+\ through the chorus, the delay and the reverb, then the master level. Each
+\ stage mixes dry x its input + wet x its processed signal; :wet :dry and
+\ :level move linearly over 64 frames, other keys apply at once. A stage
+\ whose :wet is 0 is skipped, and every stage starts at :wet 0 :dry 1, so an
+\ untouched chain passes the signal unchanged. silence-audio empties every
+\ stage's buffers. The sources here are a 1 kHz sine and a 10 ms burst of
+\ one, rendered offline, each after 10 ms of silence that lets the previous
+\ section's ramps finish.
+
+11 seed
+
+: left ( stereo -- v ) | stereo | stereo 0 stereo n-rows 0 1 submatrix ;
+: right ( stereo -- v ) | stereo | stereo 0 stereo n-rows 1 2 submatrix ;
+: window ( v start finish -- v ) | v start finish | v start 48000 * round finish 48000 * round 0 1 submatrix ;
+: amp-at ( v hz -- a ) 48000 swap amplitude-at 1000 * round 1000 / ;
+: rms ( v -- r ) dup * mean sqrt ;
+: db ( v -- d ) rms log10 20 * ;
+: settled-silence ( -- ) silence-audio 0.01 render-audio drop silence-audio ;
+: tone ( hz pan seconds -- stereo ) | hz pan seconds |
+	settled-silence { } [ { :attack 0 :release 0 } hz :fixed-hz ! ] :oscillators ! pan :pan ! 0 instrument-patch!
+	:a4 1 0 note-on seconds render-audio ;
+: burst ( hz pan seconds -- stereo ) | hz pan seconds |
+	settled-silence { } [ { :attack 0 :release 0 } hz :fixed-hz ! ] :oscillators ! pan :pan ! 0 instrument-patch!
+	:a4 1 0 note-on 0.01 render-audio :a4 0 note-off seconds render-audio vstack ;
+: echoes ( stereo channel -- ) | stereo channel |
+	[ 0 0.1 0.2 0.3 0.4 ] ( stereo 0 stereo n-rows channel channel 1 + submatrix swap dup 0.01 + window 1000 amp-at . ) each cr ;
+
+\ === an untouched chain, and a stage set back to :wet 0, pass the signal unchanged ===
+1000 0 1 tone to untouched
+1 :wet :chorus effect! 1 :wet :delay effect! 1 :wet :reverb effect!
+1000 0 1 tone untouched = . cr                                        \ 0 (all three stages on)
+0 :wet :chorus effect! 0 :wet :delay effect! 0 :wet :reverb effect!
+1000 0 1 tone untouched = . cr                                        \ 1
+clear
+
+\ === chorus: a delay of 15 ms +/- 3 ms swept at 0.8 Hz, the right side 90 degrees behind ===
+1 :wet :chorus effect! 0 :dry :chorus effect!
+1000 0 1 tone to chorused
+chorused left 0.2 1 window 1000 amp-at 0.1 < . cr                      \ 1 (the sine's own frequency nearly vanishes)
+chorused left 0.2 1 window 1010 amp-at 0.1 > . cr                      \ 1 (energy moves to 1010 Hz and beyond)
+chorused left chorused right = . cr                                   \ 0 (the sides are swept apart)
+chorused left 0.2 1 window rms 100 * round 100 / . cr                  \ 0.5 (a delayed copy keeps the sine's level)
+0.5 :dry :chorus effect! 0.5 :wet :chorus effect!
+1000 0 1 tone left 0.2 1 window rms 0.5 < . cr                         \ 1 (dry and swept copies partly cancel)
+0 :wet :chorus effect! 1 :dry :chorus effect!
+clear
+
+\ === delay :ping-pong: the input's mono sum echoes left, then right, then left x feedback ===
+0.1 :time :delay effect! 0.5 :feedback :delay effect! 1 :wet :delay effect!
+1000 -1 0.5 burst to bounced
+bounced 0 echoes                              \ 1 0.5 0 0.25 0 (at 0, 0.1, 0.2, 0.3, 0.4 s on the left)
+bounced 1 echoes                              \ 0 0 0.5 0 0.25 (the right side answers at 0.2 and 0.4 s)
+0 :feedback :delay effect!
+1000 -1 0.5 burst 0 echoes                    \ 1 0.5 0 0 0 (feedback 0: one echo each side)
+clear
+
+\ === delay :straight: each side echoes itself, each echo x feedback ===
+:straight :mode :delay effect! 0.5 :feedback :delay effect!
+1000 -1 0.5 burst to repeated
+repeated 0 echoes                             \ 1 1 0.5 0.25 0.125
+repeated 1 echoes                             \ 0 0 0 0 0 (a burst on the left never crosses)
+0.2 :time :delay effect!
+1000 -1 0.5 burst 0 echoes                    \ 1 0 1 0 0.5 (a 0.2 s time: echoes at 0.2 and 0.4 s)
+:ping-pong :mode :delay effect! 0 :wet :delay effect! 0.375 :time :delay effect!
+clear
+
+\ === reverb: the Dattorro plate's tail lengthens with :decay ===
+1 :wet :reverb effect! 0 :dry :reverb effect!
+: tail-db ( decay -- d ) :decay :reverb effect! 1000 0 3 burst left 1.5 1.7 window db ;
+0.3 tail-db to short 0.6 tail-db to medium 0.9 tail-db to long
+short medium < . medium long < . cr                                   \ 1 1
+long short - 40 > . cr                                                \ 1 (0.9 rings over 40 dB above 0.3 at 1.5 s)
+0.5 :decay :reverb effect!
+1000 0 1 burst to diffused
+diffused left diffused right = . cr                                   \ 0 (a centered burst returns a stereo tail)
+clear
+
+\ === :predelay holds the tail back ===
+0.1 :predelay :reverb effect!
+1000 0 0.3 burst left 0.03 0.09 window rms 1e-6 < . cr                 \ 1 (nothing before 0.1 s)
+0.02 :predelay :reverb effect!
+1000 0 0.3 burst left 0.03 0.09 window rms 1e-3 > . cr                 \ 1
+clear
+
+\ === :width 0 folds the tail to mono ===
+0 :width :reverb effect!
+1000 0 1 burst dup left swap right = . cr                              \ 1
+1 :width :reverb effect!
+clear
+
+\ === :freeze holds the tail and shuts the input ===
+0.5 :decay :reverb effect!
+1000 0 0.3 burst drop 1 :freeze :reverb effect! 2.5 render-audio left to frozen
+frozen 0.3 0.8 window db frozen 2 2.5 window db - abs 2 < . cr       \ 1 (within 2 dB across 2 s)
+:a4 1 0 note-on 0.5 render-audio left db frozen 2 2.5 window db - abs 2 < . cr   \ 1 (a new note does not enter)
+:a4 0 note-off 0 :freeze :reverb effect! 2 render-audio left 1.5 2 window db frozen 2 2.5 window db - -20 < . cr   \ 1 (unfrozen, the tail dies)
+silence-audio
+clear
+
+\ === shimmer: the tail's pitch shifted an octave up ===
+: octave-band ( v -- a ) | v | 0 780 1000 5 do k v 48000 k amplitude-at + loop ;
+0.8 :decay :reverb effect!
+440 0 2 tone left 1 2 window octave-band to plain
+12 :shimmer1-shift :reverb effect! 1 :shimmer1-mix :reverb effect!
+440 0 2 tone left 1 2 window octave-band to shifted
+shifted plain 20 * > . cr                                             \ 1 (after the tank)
+1 :shimmer-in-loop :reverb effect! 0.5 :shimmer1-mix :reverb effect!
+440 0 2 tone left 1 2 window octave-band plain 20 * > . cr             \ 1 (inside the tank's loop)
+0 :shimmer-in-loop :reverb effect! 0 :shimmer1-mix :reverb effect! 0 :shimmer1-shift :reverb effect!
+clear
+
+\ === :low-cut and :high-cut filter the tail ===
+0 :low-cut :reverb effect! 60 0 2 tone left 1 2 window 60 amp-at to open-low
+1000 :low-cut :reverb effect! 60 0 2 tone left 1 2 window 60 amp-at open-low 0.2 * < . cr   \ 1 (60 Hz falls below a fifth)
+80 :low-cut :reverb effect!
+24000 :high-cut :reverb effect! 8000 0 2 tone left 1 2 window 8000 amp-at to open-high
+1000 :high-cut :reverb effect! 8000 0 2 tone left 1 2 window 8000 amp-at open-high 0.2 * < . cr   \ 1
+12000 :high-cut :reverb effect! 0 :wet :reverb effect! 1 :dry :reverb effect!
+clear
+
+\ === master :level ===
+0.5 :level :master effect!
+1000 0 1 tone left 0.2 1 window 1000 amp-at . cr                       \ 0.354 (half of 0.707)
+1 :level :master effect!
+clear
+
+\ === the full chain: chorus, then ping-pong echoes, then the plate ===
+0.3 :wet :chorus effect! 0.1 :time :delay effect! 0.5 :wet :delay effect! 0.3 :wet :reverb effect!
+1000 -1 1 burst to chained
+chained left 0.1 0.11 window rms chained left 0.07 0.09 window rms > . cr   \ 1 (the first echo stands above the reverb at 0.1 s)
+chained right 0.2 0.21 window rms chained right 0.17 0.19 window rms > . cr   \ 1 (the second, on the right, at 0.2 s)
+chained right 0.6 1 window rms 1e-4 > . chained nan? sum . cr         \ 1 0 (a finite tail)
+silence-audio 0.5 render-audio abs max 1e-20 < . cr                   \ 1 (silence-audio empties every stage, down to the reverb's 1e-25 denormal guard)
+0 :wet :chorus effect! 0 :wet :delay effect! 0 :wet :reverb effect! 0.375 :time :delay effect!
+clear
+
+\ === :wet moves over 64 frames ===
+1000 0 0.2 tone drop 1 :wet :delay effect! 0.01 :time :delay effect! 0 :dry :delay effect!
+0.1 render-audio left 0 64 0 1 submatrix successive-differences abs max 0.2 < . cr   \ 1 (no step as the dry fades out)
+0 :wet :delay effect! 1 :dry :delay effect! 0.375 :time :delay effect! silence-audio
+clear
+
+\ errors
+1 :wet :flanger effect!                        \ (unknown effect)
+1 :wet "chorus" effect!                        \ (effect not a symbol)
+1 :speed :chorus effect!                       \ (unknown key)
+1 "wet" :chorus effect!                        \ (key not a symbol)
+2 :wet :reverb effect!                         \ (wet above 1)
+"1" :wet :reverb effect!                       \ (not a float)
+0.03 :delay :chorus effect!                    \ (chorus delay above 25 ms)
+3 :time :delay effect!                         \ (delay time above 2 s)
+1 :feedback :delay effect!                     \ (feedback above 0.99)
+:bounce :mode :delay effect!                   \ (unknown mode)
+1 :mode :delay effect!                         \ (mode not a symbol)
+0.5 :freeze :reverb effect!                    \ (not 0 or 1)
+0 :size :reverb effect!                        \ (size below 0.1)
+2 :level :master effect!                       \ (level above 1)

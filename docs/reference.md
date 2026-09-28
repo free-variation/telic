@@ -6234,6 +6234,54 @@ queued note sounds during the `render-audio` that reaches its sample.
 | `sequence-end` | `( -- seconds )` | The seconds from the synthesizer's clock until the latest instrument position; 0 when every position is past | 1 | none | O(instruments) |
 | `wait-sequence` | `( -- )` | Block until every queued note has sounded and every voice is silent; returns at once when the device is off. Ctrl-C interrupts it | waits | none | O(duration) |
 
+The voices and every `play-samples` sum into one stereo signal that passes
+through a fixed **effects chain**: chorus, then delay, then reverb, then the
+master level. Each of the first three mixes dry × its input + wet × its
+processed signal. A stage whose `:wet` is 0 is skipped, and every stage
+starts at `:wet 0 :dry 1`, so an untouched chain passes the signal
+unchanged. `:wet`, `:dry` and `:level` move to a new value linearly over 64
+frames; every other key applies at once. `silence-audio` empties the delay
+and reverb buffers; `wait-audio` and `wait-sequence` do not wait for an
+effect's tail.
+
+| Effect | Key | Value | Default |
+|--------|-----|-------|---------|
+| `:chorus` | `:wet` `:dry` | mix gains, [0, 1] | 0, 1 |
+| `:chorus` | `:delay` | the delay the sweep centers on, seconds, [0.005, 0.025] | 0.015 |
+| `:chorus` | `:depth` | the sweep's amplitude, seconds, [0, 0.005]; the right side sweeps 90° behind the left | 0.003 |
+| `:chorus` | `:rate` | the sweep's frequency in Hz, [0.01, 10] | 0.8 |
+| `:delay` | `:wet` `:dry` | mix gains, [0, 1] | 0, 1 |
+| `:delay` | `:time` | the echo time in seconds, [0.001, 2]; a change moves the read position one sample per sample, bending the pitch of the echoes in flight | 0.375 |
+| `:delay` | `:feedback` | the gain of each recirculation, [0, 0.99] | 0.5 |
+| `:delay` | `:mode` | `:ping-pong`: the input's mono sum (L + R)/2 echoes on the left at `:time`, on the right at 2 × `:time`, then alternates with each pair × `:feedback`; `:straight`: each side echoes itself at every multiple of `:time`, the nth echo × feedback^(n−1) | `:ping-pong` |
+| `:reverb` | `:wet` `:dry` | mix gains, [0, 1] | 0, 1 |
+| `:reverb` | `:predelay` | seconds before the tail starts, [0, 0.2] | 0.02 |
+| `:reverb` | `:bandwidth` | the input's brightness, [0, 1] | 0.7 |
+| `:reverb` | `:decay` | the tank's gain per pass, [0, 0.99]; the tail lengthens with it | 0.5 |
+| `:reverb` | `:damping` | high-frequency loss per pass, [0, 1] | 0.5 |
+| `:reverb` | `:size` | scales every delay in the plate, [0.1, 2] | 1 |
+| `:reverb` | `:modulation-rate` `:modulation-depth` | the sweep of the tank's first allpasses, Hz [0, 10] and [0, 1] (up to 16 samples) | 0.5, 0.5 |
+| `:reverb` | `:shimmer1-shift` `:shimmer1-mix` | a pitch shift in semitones, [−24, 24], mixed in at [0, 1]: on the tail, or on the tank's feedback with `:shimmer-in-loop 1`, so each pass climbs further | 0, 0 |
+| `:reverb` | `:shimmer2-shift` `:shimmer2-mix` | a second shift, always on the tail | 0, 0 |
+| `:reverb` | `:shimmer-in-loop` | 0 or 1 | 0 |
+| `:reverb` | `:freeze` | 1 shuts the input and holds the tail at a gain of 0.9999 per pass; 0 lets it decay again | 0 |
+| `:reverb` | `:width` | the tail's stereo width, [0, 2]; 0 is mono | 1 |
+| `:reverb` | `:cross-feed` | how much of each side feeds the other side's plate, [0, 1] | 0.15 |
+| `:reverb` | `:low-cut` `:high-cut` | one-pole filters on the tail in Hz, [0, 1000] (0: none) and [1000, 24000] (24000: none) | 80, 12000 |
+| `:master` | `:level` | the output gain, [0, 1] | 1 |
+
+The chorus is a stereo modulated delay; the delay is promini's ping-pong
+delay with a `:straight` mode added; the reverb is promini's port of Jon
+Dattorro's plate (true stereo: one plate per input side, cross-fed), with
+its allpasses reading `t − delay` as the paper specifies, and its shimmer a
+four-grain overlap-add pitch shifter, whose grains restart every 512
+samples, so a pure tone shifts to a set of lines 93.75 Hz apart around the
+target pitch.
+
+| Word | Stack effect | Behavior | Ops | Alloc | O |
+|------|-------------|----------|-----|-------|---|
+| `effect!` | `( value key effect -- )` | Set one key of one effect — `:chorus`, `:delay`, `:reverb` or `:master` — with the ranges in the table above; `:mode` takes `:ping-pong` or `:straight`, `:freeze` and `:shimmer-in-loop` take 0 or 1. Live, the change reaches the device at its next buffer | 1 | none | O(1) |
+
 ```forth pitch>midi
 :a4 pitch>midi . :c4 pitch>midi . :f#3 pitch>midi . cr
 ```
@@ -6393,6 +6441,17 @@ silence-audio 120 sequence-tempo 0 sequence-instrument :a4 1/2 sequence-note 0.2
 { } 0 instrument-patch! audio-on :c4 1/4 sequence-note :e4 1/4 sequence-note :g4 1/2 sequence-note wait-sequence audio-off
 ```
 ```output
+```
+
+```forth effect!
+{ :oscillators [ { :fixed-hz 1000 :attack 0 :release 0 } ] :pan -1 } 0 instrument-patch! silence-audio
+0.1 :time :delay effect! 1 :wet :delay effect! :straight :mode :delay effect!
+:a4 1 0 note-on 0.01 render-audio drop :a4 0 note-off 0.2 render-audio 4320 4800 0 1 submatrix
+48000 1000 amplitude-at 1000 * round 1000 / . cr
+0 :wet :delay effect! :ping-pong :mode :delay effect! 0.375 :time :delay effect! 0.01 render-audio drop silence-audio
+```
+```output
+1
 ```
 
 ---

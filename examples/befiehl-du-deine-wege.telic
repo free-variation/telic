@@ -1,0 +1,210 @@
+\ J. S. Bach, "Befiehl du deine Wege", BWV 270, on the synthesizer.
+\
+\   ./telic examples/befiehl-du-deine-wege.telic
+\
+\ Bach's four-part setting of Hans Leo Hassler's melody (1601) to verse 1 of
+\ Paul Gerhardt's hymn (1653), played in its form A A B: eight phrases,
+\ each ending on a fermata, about 80 seconds. The notes are transcribed from
+\ Craig Stuart Sapp's Humdrum edition of the 371 chorales (chorale 286,
+\ https://github.com/craigsapp/bach-370-chorales, CC BY-NC-SA 4.0), after
+\ the Breitkopf & Haertel edition of c. 1875.
+\
+\ Each voice is its own instrument, a phase-modulation patch with slow
+\ attacks, a high sustain that fades over many seconds, and releases that
+\ overlap the next note:
+\   soprano  a sine carrier under an octave modulator whose index settles
+\            after the attack, a modulator a few cents off the twelfth
+\            beating slowly, a breath of pink noise, delayed vibrato, two
+\            unison copies
+\   alto     a self-modulated sine (a soft saw) beside a pulse whose width
+\            the LFO sweeps, through a gently resonant ladder filter
+\   tenor    a horn-like pair whose modulator swells after the carrier,
+\            a fifth-harmonic modulator feeding the modulator, a sine an
+\            octave down
+\   bass     a filtered saw and a phase-modulated sine over a triangle an
+\            octave down, the cutoff breathing with a slow LFO
+\ The sequencer queues each phrase with exact lengths (1/8, 3/8), so the
+\ four voices stay together to the sample; every fermata holds all four for
+\ the same extra beat, and the last phrase slows beat by beat through exact
+\ stretch factors. The effects chain carries a chorus and a light plate
+\ reverb throughout, a ping-pong delay on the repeat, a shimmer in the last
+\ phrase, and a freeze of the final chord. Each line of the text prints as
+\ its phrase begins. Ctrl-C stops the performance.
+
+11 seed
+
+\ === the four instruments ===
+
+\ soprano: 0 carrier, 1 octave modulator, 2 modulator a few cents off the twelfth, 3 pink breath
+{ :oscillators [
+    { :attack 0.09 :decay 1.2 :sustain 0.88 :sustain-decay 14 :release 0.45 }
+    { :ratio 2 :level 0.9 :attack 0.05 :decay 0.7 :sustain 0.35 :release 0.45 }
+    { :ratio 3.004 :level 0.5 :attack 0.6 :decay 2 :sustain 0.6 :release 0.45 }
+    { :wave :pink :level 0.035 :attack 0.02 :decay 0.18 :sustain 0.08 :release 0.2 } ]
+  :modulation [ [ 1 0 1.3 ] [ 2 0 0.35 ] ]
+  :carriers [ 0 3 ]
+  :cutoff 6500 :resonance 0.3 :filter-envelope { :attack 0.1 :decay 0.9 :sustain 0.6 :release 0.4 :amount 0.8 }
+  :lfo { :shape :sine :rate 5.1 :delay 0.35 :fade 0.6 :pitch-depth 0.12 }
+  :unison 2 :unison-detune 5 :unison-spread 0.25
+  :glide 0.025 :velocity-sensitivity 0.4 :pan -0.3 :level 0.15 } 0 instrument-patch!
+
+\ alto: 0 self-modulated sine, 1 pulse with its width swept, 2 third-harmonic modulator, 3 pink chiff
+{ :oscillators [
+    { :level 0.8 :attack 0.07 :decay 1 :sustain 0.85 :sustain-decay 12 :release 0.4 }
+    { :wave :pulse :width 0.4 :lfo-width 0.12 :level 0.3 :attack 0.12 :decay 1 :sustain 0.9 :sustain-decay 12 :release 0.4 }
+    { :ratio 3 :level 0.8 :attack 0.12 :decay 0.8 :sustain 0.5 :release 0.4 }
+    { :wave :pink :level 0.02 :attack 0.01 :decay 0.1 :sustain 0 :release 0.1 } ]
+  :modulation [ [ 0 0 0.9 ] [ 2 0 0.6 ] ]
+  :carriers [ 0 1 3 ]
+  :cutoff 2400 :resonance 0.8 :drive 1.2 :filter-envelope { :attack 0.08 :decay 0.6 :sustain 0.4 :release 0.4 :amount 1 }
+  :lfo { :shape :triangle :rate 0.35 }
+  :unison 2 :unison-detune 8 :unison-spread 0.35
+  :velocity-sensitivity 0.4 :pan 0.3 :level 0.11 } 1 instrument-patch!
+
+\ tenor: 0 carrier, 1 modulator swelling after it, 2 sine an octave down, 3 fifth harmonic into the modulator
+{ :oscillators [
+    { :attack 0.09 :decay 1.2 :sustain 0.85 :sustain-decay 12 :release 0.5 }
+    { :level 1 :attack 0.2 :decay 0.9 :sustain 0.55 :release 0.5 }
+    { :ratio 0.5 :level 0.22 :attack 0.12 :decay 1 :sustain 0.9 :release 0.5 }
+    { :ratio 5 :level 0.4 :attack 0.3 :decay 1 :sustain 0.4 :release 0.5 } ]
+  :modulation [ [ 1 0 1.6 ] [ 3 1 0.25 ] ]
+  :carriers [ 0 2 ]
+  :cutoff 3200 :resonance 0.4 :filter-envelope { :attack 0.12 :decay 0.8 :sustain 0.5 :release 0.5 :amount 0.6 }
+  :lfo { :shape :sine :rate 4.6 :delay 0.5 :fade 0.7 :pitch-depth 0.08 :cutoff-depth 0.15 }
+  :velocity-sensitivity 0.4 :pan -0.12 :level 0.15 } 2 instrument-patch!
+
+\ bass: 0 saw, 1 sine carrier, 2 octave modulator on it, 3 triangle an octave down
+{ :oscillators [
+    { :wave :saw :level 0.55 :attack 0.1 :decay 1.5 :sustain 0.8 :sustain-decay 12 :release 0.55 }
+    { :level 0.7 :attack 0.1 :decay 1.5 :sustain 0.85 :sustain-decay 12 :release 0.55 }
+    { :ratio 2 :level 0.8 :attack 0.15 :decay 1 :sustain 0.4 :release 0.5 }
+    { :wave :triangle :ratio 0.5 :level 0.3 :attack 0.15 :decay 1 :sustain 0.9 :release 0.55 } ]
+  :modulation [ [ 2 1 0.8 ] ]
+  :carriers [ 0 1 3 ]
+  :cutoff 700 :resonance 1 :drive 1.4 :filter-envelope { :attack 0.12 :decay 0.9 :sustain 0.5 :release 0.5 :amount 1.2 }
+  :lfo { :shape :sine :rate 0.2 :cutoff-depth 0.2 }
+  :unison 2 :unison-detune 6 :unison-spread 0.2
+  :velocity-sensitivity 0.4 :pan 0.12 :level 0.19 } 3 instrument-patch!
+
+\ === the score ===
+\ each phrase is soprano, alto, tenor, bass as [ pitch length ... ], two whole
+\ notes long, its last note under a fermata; the A phrases are sung twice
+
+[ [ :f#4 1/4 :b4 1/4 :a4 1/4 :g4 1/4 :f#4 1/4 :e4 1/2 :f#4 1/4 ]
+  [ :d4 1/4 :d4 1/8 :e4 1/8 :f#4 1/4 :b3 1/8 :c#4 1/8 :d4 1/4 :d4 1/4 :c#4 1/8 :b3 1/8 :c#4 1/4 ]
+  [ :b3 1/4 :b3 1/8 :c#4 1/8 :d4 1/4 :d4 1/8 :c#4 1/8 :c#4 1/8 :b3 1/8 :b3 1/8 :a#3 1/8 :b3 1/4 :a#3 1/4 ]
+  [ :b3 1/8 :a3 1/8 :g3 1/4 :f#3 1/4 :e3 1/4 :d3 1/4 :g3 1/2 :f#3 1/4 ] ] to phrase-a1
+
+[ [ :c#5 1/4 :d5 1/4 :d5 1/4 :c#5 1/8 :b4 1/8 :c#5 1/4 :b4 3/4 ]
+  [ :f#4 1/4 :f#4 1/4 :f#4 1/4 :f#4 3/8 :e4 1/8 :d4 3/4 ]
+  [ :a#3 1/4 :b3 1/4 :b3 1/4 :b3 1/4 :a#3 1/4 :f#3 3/4 ]
+  [ :f#3 1/4 :b2 1/8 :c#3 1/8 :d3 1/8 :e3 1/8 :f#3 1/4 :f#3 1/4 :b2 3/4 ] ] to phrase-a2
+
+[ [ :d5 1/4 :c#5 1/8 :b4 1/8 :a4 1/4 :b4 1/4 :c#5 1/4 :d5 1/2 :d5 1/4 ]
+  [ :f#4 1/4 :e4 1/4 :e4 1/8 :d4 1/8 :d4 1/4 :g4 1/4 :a4 1/4 :g4 1/4 :f#4 1/4 ]
+  [ :b3 1/8 :a3 1/8 :g3 1/4 :a3 1/4 :g3 1/8 :b3 1/8 :e4 1/4 :d4 1/8 :c4 1/8 :b3 1/4 :a3 1/4 ]
+  [ :b3 1/4 :e3 1/4 :f#3 1/4 :g3 1/4 :f#3 1/8 :e3 1/8 :f#3 1/4 :g3 1/4 :d3 1/4 ] ] to phrase-b1
+
+[ [ :a4 1/4 :b4 1/4 :a4 1/4 :g4 1/8 :f#4 1/8 :g4 1/4 :f#4 3/4 ]
+  [ :f#4 1/4 :f#4 1/8 :e4 1/8 :e4 1/8 :d#4 1/8 :e4 1/4 :e4 1/4 :d#4 3/4 ]
+  [ :d4 1/8 :c4 1/8 :b3 1/4 :c4 1/8 :b3 1/8 :b3 1/4 :b3 1/4 :b3 3/4 ]
+  [ :d3 1/4 :g3 1/4 :f#3 1/4 :e3 1/8 :g3 1/8 :f#3 1/8 :e3 1/8 :b3 3/4 ] ] to phrase-b2
+
+[ [ :d5 1/4 :c#5 1/8 :d5 1/8 :e5 1/4 :d5 1/4 :c#5 1/4 :b4 1/2 :c#5 1/4 ]
+  [ :e4 1/4 :e4 1/4 :e4 1/4 :f#4 1/8 :e4 1/4 :g#4 1/8 :f#4 1/4 :e4 1/4 :e4 1/4 ]
+  [ :b3 1/4 :a3 3/8 :g#3 1/8 :a3 1/8 :b3 1/8 :c#4 1/4 :d4 1/8 :b3 1/8 :g#3 1/4 :a3 1/4 ]
+  [ :g#3 1/4 :a3 1/8 :b3 1/8 :c#4 1/4 :f#3 1/8 :g#3 1/8 :a3 1/4 :d3 1/4 :e3 1/4 :a2 1/4 ] ] to phrase-b3
+
+[ [ :f#4 1/4 :g4 1/4 :f#4 1/4 :e4 1/4 :a4 1/4 :f#4 3/4 ]
+  [ :d4 1/4 :d4 1/4 :d4 1/4 :e4 1/4 :e4 1/4 :e4 1/4 :d4 1/4 :c#4 1/4 ]
+  [ :a3 1/4 :b3 1/4 :a3 1/4 :a3 1/4 :c#4 1/4 :c#4 1/8 :a#3 1/8 :b3 1/8 :g#3 1/8 :a#3 1/4 ]
+  [ :d3 1/8 :c#3 1/8 :b2 1/8 :c#3 1/8 :d3 3/8 :c#3 1/8 :b2 1/8 :c#3 1/8 :d3 1/8 :c#3 1/8 :b2 1/4 :f#3 1/4 ] ] to phrase-b4
+
+\ === timing: exact score positions, stretched beat by beat, fermatas held ===
+
+\ per-beat stretch factors across a phrase's eight beats: steady, and slowing into the last cadence
+[ 1/1 1/1 1/1 1/1 1/1 1/1 1/1 1/1 ] to steady
+[ 1/1 1/1 1/1 1/1 9/8 5/4 11/8 3/2 ] to slowing
+
+\ the performed position of a score position (in whole notes), each beat scaled by its factor
+: warp ( position factors -- warped ) | position factors |
+	0/1 to warped
+	0 8 1 do k
+		k float>exact 1/4 * to beat-start
+		position beat-start - 0/1 max2 1/4 min2 factors k @i * warped + to warped
+	loop warped ;
+
+\ queue one voice's phrase: its last note held for hold more, its loudness arching over the phrase
+: queue-voice ( notes instrument hold factors dynamic -- ) | notes instrument hold factors dynamic |
+	instrument sequence-instrument
+	0/1 to position
+	0 notes size 2 do k
+		notes k @i to pitch
+		notes k 1 + @i to length
+		position factors warp to onset
+		position exact>float 0.5 * PI * sin 0.18 * dynamic + sequence-velocity
+		position length + to position
+		position factors warp to ending
+		k 2 + notes size = if ending hold + to ending then
+		pitch ending onset - sequence-note
+	loop ;
+
+\ queue the four voices of a phrase, the lower two a little softer
+: queue-phrase ( phrase hold factors dynamic -- ) | phrase hold factors dynamic |
+	phrase 0 @i 0 hold factors dynamic queue-voice
+	phrase 1 @i 1 hold factors dynamic queue-voice
+	phrase 2 @i 2 hold factors dynamic 0.05 - queue-voice
+	phrase 3 @i 3 hold factors dynamic 0.05 - queue-voice ;
+
+\ queue a phrase 1.5 s before the one sounding ends, run the changes as it begins, print its line
+: next-phrase ( line phrase hold factors dynamic changes -- ) | line phrase hold factors dynamic changes |
+	sequence-end 1.5 - 0 max2 sleep
+	sequence-end to remaining
+	phrase hold factors dynamic queue-phrase
+	remaining sleep
+	changes execute
+	line . cr ;
+
+: fade-out ( seconds -- ) | seconds |
+	0 30 1 do k
+		1 k 1 + 30 / - :level :master effect!
+		seconds 30 / sleep
+	loop ;
+
+\ === the effects ===
+0.22 :wet :chorus effect! 0.0025 :depth :chorus effect! 0.4 :rate :chorus effect!
+0.18 :wet :reverb effect! 1 :dry :reverb effect! 0.75 :decay :reverb effect! 1.25 :size :reverb effect!
+0.035 :predelay :reverb effect! 0.45 :damping :reverb effect! 0.65 :bandwidth :reverb effect!
+0.6 :modulation-depth :reverb effect! 110 :low-cut :reverb effect! 8500 :high-cut :reverb effect!
+0.5 :time :delay effect! 0.3 :feedback :delay effect!
+
+\ === the performance ===
+silence-audio 60 sequence-tempo 0.96 sequence-articulation
+
+\ the first phrase is queued before the device opens, so all four voices start on its first sample
+phrase-a1 1/4 steady 0.62 queue-phrase
+audio-on
+"Befiehl du deine Wege," . cr
+"Und was dein Herze kränkt," phrase-a2 1/4 steady 0.68 ( ) next-phrase
+
+\ the repeat: a ping-pong delay joins, the tenor's modulator eases for a rounder tone
+"Der allertreusten Pflege" phrase-a1 1/4 steady 0.66 ( 0.14 :wet :delay effect! 0.7 :level 1 2 oscillator! ) next-phrase
+"Des, der den Himmel lenkt!" phrase-a2 1/4 steady 0.7 ( ) next-phrase
+
+\ the second half: the delay leaves, the tenor returns, the soprano's filter opens toward the climax in phrase 7
+"Der Wolken, Luft und Winden" phrase-b1 1/4 steady 0.72 ( 0 :wet :delay effect! 1 :level 1 2 oscillator! 8000 :cutoff 0 instrument! ) next-phrase
+"Gibt Wege, Lauf und Bahn," phrase-b2 1/4 steady 0.72 ( ) next-phrase
+"Der wird auch Wege finden," phrase-b3 1/4 steady 0.8 ( ) next-phrase
+
+\ the last phrase slows and softens, and a shimmer climbs out of the plate
+"Da dein Fuß gehen kann." phrase-b4 1/2 slowing 0.6 ( 12 :shimmer1-shift :reverb effect! 0.12 :shimmer1-mix :reverb effect! 1 :shimmer-in-loop :reverb effect! 6500 :cutoff 0 instrument! ) next-phrase
+
+\ freeze the final chord in the reverb, let it hang, then fade
+sequence-end 1.4 - 0 max2 sleep
+1 :freeze :reverb effect!
+wait-sequence
+4 sleep
+0 :freeze :reverb effect!
+4 fade-out
+silence-audio 1 :level :master effect! 0 :shimmer1-mix :reverb effect! 0 :shimmer-in-loop :reverb effect!
+audio-off

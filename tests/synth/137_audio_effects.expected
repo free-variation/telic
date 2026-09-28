@@ -1,0 +1,11 @@
+dry: FM keys C4 Eb4 G4 C5 G4 Eb4 C4, no effects (on time) 
+chorus: a detuned saw pad, Cm7, widened across both sides (on time) 
+chorus: the keys phrase (on time) 
+ping-pong delay: the keys echoing left, then right, every 0.375 s (a dotted eighth), feedback 0.45 (on time) 
+straight delay: the keys with a 0.12 s slapback, each echo on its own side (on time) 
+plate reverb: the keys in a medium plate, decay 0.7 (on time) 
+large plate: size 1.5, decay 0.9, 50 ms predelay (on time) 
+shimmer: the pad in a reverb whose feedback is shifted up an octave on every pass (on time) 
+freeze: the pad frozen in the reverb after 1.5 s, the keys played dry over the held wash (on time) 
+the freeze released: the wash dies away 
+full chain: pad, bass and keys through the chorus, the ping-pong delay, the plate reverb and master level 0.8 (on time) 

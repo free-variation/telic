@@ -34,7 +34,7 @@ CFLAGS += -flto
 endif
 LDLIBS = -lm -lffi $(TIGR_LIBS) $(MINIAUDIO_LIBS)
 
-SRCS = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/fourier.c src/c/synth.c src/c/audio.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/foreign.c src/c/platform_posix.c src/c/dimension.c src/c/time.c src/c/exact.c src/c/serialize.c src/c/arrow.c src/c/graphics.c
+SRCS = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/fourier.c src/c/synth.c src/c/audio_effects.c src/c/audio.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/foreign.c src/c/platform_posix.c src/c/dimension.c src/c/time.c src/c/exact.c src/c/serialize.c src/c/arrow.c src/c/graphics.c
 HDRS = src/c/telic.h src/c/platform.h src/c/lib_embed.h src/c/logo_embed.h src/c/repl_highlight_groups.h
 
 TELIC_INCS = -I$(PCRE2_SRC) -I$(SQLITE_DIR) -I$(SQLITE_VEC_DIR) -I$(NANOARROW_DIR)/include -I$(POCKETFFT_DIR) -I$(TIGR_DIR) -I$(MINIAUDIO_DIR) $(MINIAUDIO_DEFINES) -I$(ISOCLINE_DIR)/include
@@ -189,7 +189,7 @@ WASI_SDK        = $(HOME)/wasi-sdk
 WASI_CC         = $(WASI_SDK)/bin/clang
 WASI_AR         = $(WASI_SDK)/bin/llvm-ar
 WASI_SYSROOT    = $(WASI_SDK)/share/wasi-sysroot
-WASM_SRCS       = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/fourier.c src/c/synth.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/dimension.c src/c/platform_wasi.c src/c/time.c src/c/exact.c src/c/serialize.c src/c/arrow.c
+WASM_SRCS       = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/fourier.c src/c/synth.c src/c/audio_effects.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/dimension.c src/c/platform_wasi.c src/c/time.c src/c/exact.c src/c/serialize.c src/c/arrow.c
 WASM_CFLAGS     = --sysroot $(WASI_SYSROOT) -O2 -I$(PCRE2_SRC) -I$(SQLITE_DIR) -I$(SQLITE_VEC_DIR) -I$(NANOARROW_DIR)/include -I$(POCKETFFT_DIR) -Wno-ignored-pragmas -Wl,-z,stack-size=8388608
 WASM_PCRE2_OBJS = $(patsubst %.c,%.wasm.o,$(wildcard $(PCRE2_SRC)/pcre2_*.c))
 WASM_PCRE2_LIB  = $(PCRE2_DIR)/libpcre2-8-wasm.a

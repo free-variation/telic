@@ -222,6 +222,7 @@ each
 ecdf
 edit
 edit-distance
+effect!
 else
 embodies
 embodies!

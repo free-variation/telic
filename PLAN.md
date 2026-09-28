@@ -6,10 +6,9 @@ A TODO list of pending work, highest priority first.
 
 ## Audio synthesizer — remaining work
 
-The voice engine is `src/c/synth.c` and the output device `src/c/audio.c`
-(reference: "Audio synthesizer"). What remains is the effects. Sources to
-port for the effects: promini's `effects.c` (ping-pong delay) and `reverb.c`
-(Dattorro).
+The voice engine is `src/c/synth.c`, the effects chain
+`src/c/audio_effects.c` and the output device `src/c/audio.c` (reference:
+"Audio synthesizer").
 
 ### 1. Device output — follow-ups
 
@@ -37,33 +36,7 @@ port for the effects: promini's `effects.c` (ping-pong delay) and `reverb.c`
   a rational tanh approximation would cut the filter's share if voice counts
   grow.
 
-### 3. Effects
-
-#### Semantics
-
-1. One master chain after the voice and `play-samples` mix: chorus →
-   ping-pong delay → reverb → master level. Each stage has `:wet`/`:dry` and its own
-   parameters; the reverb keeps promini's set (predelay, bandwidth, decay,
-   damping, size, modulation, shimmer, freeze, width, low/high cut).
-   `effect! ( value key effect -- )` with `effect` one of `:chorus` `:delay`
-   `:reverb` `:master`.
-2. `src/c/audio_effects.c`, both builds: chorus (a stereo modulated delay of
-   5–25 ms), the ping-pong delay and the Dattorro reverb ported from promini
-   to plain buffer functions with telic's C conventions.
-
-#### Acceptance and tests
-
-1. `133_audio_effects` — each stage alone and in the chain: chorus — wet 0
-   equals dry, wet 1 shows spectral spreading around a sine; ping-pong — an
-   impulse echoes at the delay time on the left, then the right, then the
-   left, each echo scaled by `:feedback`; reverb — an impulse's RMS decays
-   over time with the tail length ordered by `:decay`; `:freeze` holds the
-   tail's RMS within 1 dB for 2 s; shimmer adds energy an octave up at
-   `:shimmer1-shift 12`; low/high cut attenuate outside their bands;
-   `:wet`/`:dry` of every stage; master level; the chain order (chorus
-   before delay) shown by an echo that is itself chorused.
-
-### 5. Band-limiting headroom
+### 3. Band-limiting headroom
 
 PolyBLEP leaves a 5 kHz `:saw`'s strongest alias (the 7th harmonic folded
 to 13 kHz) 36 dB below the fundamental, against 17 dB for a naive saw. If a
@@ -470,6 +443,18 @@ live here instead. File and function name each invariant's home.
   device thread clears; finished `play-samples` buffers return on a second
   ring and the interpreter frees them in `synth_collect_finished`. Offline, the same
   commands apply directly (synth.c, `synth_submit`, `synth_device_render`).
+- The effects chain's state belongs to whichever thread renders: `effect!`
+  validates on the interpreter thread (`effects_parameter_parse` reads only
+  the constant key table) and changes state only through `COMMAND_EFFECT`,
+  applied by `effects_apply`. A stage empties its buffers on the first
+  frame it processes after being skipped or after `effects_clear`, so
+  `silence-audio` never clears megabytes on the interpreter thread while the
+  device thread reads them (audio_effects.c, the `dormant` flags).
+- A stage at `:wet 0` passes its input × `:dry` and nothing else; with the
+  defaults (`:dry 1`, `:level 1`) that is a multiplication by 1.0, which
+  keeps every render with an untouched chain bit-identical to one without
+  the chain (audio_effects.c, `effect_ramp_silent`; 133_audio_effects'
+  first section).
 - `synth_set_live` flips between the two modes only while the device is
   stopped: `audio_close` uninitializes the device before `synth_set_live(0)`
   drains what is queued, and `audio_open` sets live before starting it

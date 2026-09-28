@@ -1149,6 +1149,13 @@ void synth_set_live(int live);
 int synth_submit_play(Interpreter *interp, float *samples, int n_frames);
 int synth_wait_quiet(Interpreter *interp);
 
+// audio_effects.c
+void effects_apply(int parameter, double value);
+void effects_clear(void);
+int effects_parameter_parse(Interpreter *interp, Val value_val, Val key_val, Val effect_val, int *parameter, double *value);
+void effects_process(double *left, double *right);
+void effects_reset(void);
+
 // superwords.c
 void define_superwords(Interpreter *interp);
 int superword_cell_count(cell handler);
@@ -1619,6 +1626,7 @@ void p_ifft(DISPATCH_ARGS);
 void p_magnitudes(DISPATCH_ARGS);
 
 // synth.c
+void p_effect_store(DISPATCH_ARGS);
 void p_instrument_patch_store(DISPATCH_ARGS);
 void p_instrument_store(DISPATCH_ARGS);
 void p_note_off(DISPATCH_ARGS);

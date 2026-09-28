@@ -281,6 +281,7 @@ const HelpEntry help_entries[] = {
 	{ "ecdf", "( v -- xs ys )", "statistics.telic: the empirical CDF as two n×1 vectors — the finite elements sorted ascending, and the cumulative fractions (i+1)/n, so ys at index i is F(xs at i). Ties stay as consecutive points; NaNs are excluded from the points and from n; errors when no finite values remain", "2n log n", "2m(n) + 1a(n)", "O(n log n)", 20 },
 	{ "edit", "( \"name\" -- )", "Parse the following word and open its source — what see prints — in $EDITOR (vi when unset) on a temporary .telic file, waiting until the editor exits; a saved change runs the edited text as a load, so the definition is replaced, and an unchanged file leaves the word as it was. A name not yet defined opens as : name ( -- ) on one line and ; on the next. Needs a terminal on stdin and stdout and an editor exiting with status 0; errors otherwise", "editor", "temp file", "—", 30 },
 	{ "edit-distance", "( a b -- n )", "Edit distance between two strings over codepoints: insertions, deletions, substitutions, and adjacent transpositions each cost 1 (Levenshtein with transpositions — optimal string alignment); symmetric", "n·m", "none", "O(n·m)", 14 },
+	{ "effect!", "( value key effect -- )", "Set one key of one effect — :chorus, :delay, :reverb or :master — with the ranges in the table above; :mode takes :ping-pong or :straight, :freeze and :shimmer-in-loop take 0 or 1. Live, the change reaches the device at its next buffer", "1", "none", "O(1)", 35 },
 	{ "else", "—", "Separate the true and false arms", NULL, NULL, NULL, 10 },
 	{ "embodies", "( xt \"name\" -- )", "Pop an xt (a colon word or quotation) and read the following name; install it as the named deferred word's target. Retargetable — each later call re-reads it — so a call to the deferred word forwards through one dispatch. Top-level only", NULL, NULL, NULL, 12 },
 	{ "embodies!", "( xt \"name\" -- )", "Pop an xt (a colon word or quotation) and read the following name; install it as the named deferred word's target, finalizing: rewrite every existing call site of the deferred word to call the target directly (no forwarding cost), then turn the word into an ordinary word. Not retargetable afterward; a further embodies/embodies! reports it is no longer deferred. Top-level only", NULL, NULL, NULL, 12 },
@@ -859,7 +860,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, arrays element-wise with a trailing rest pattern taking the remaining elements, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails", "n", "none", "O(n)", 28 },
 };
 
-const int help_entry_count = 800;
+const int help_entry_count = 801;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -1088,6 +1089,7 @@ const HelpExample help_examples[] = {
 	{ "ecdf", "[ 3 1 2 ] vector ecdf matrix>array . matrix>array . cr", "[ 0.333333 0.666667 1 ] [ 1 2 3 ]" },
 	{ "edit", "edit sq", "" },
 	{ "edit-distance", "\"kitten\" \"sitting\" edit-distance . cr", "3" },
+	{ "effect!", "{ :oscillators [ { :fixed-hz 1000 :attack 0 :release 0 } ] :pan -1 } 0 instrument-patch! silence-audio\n0.1 :time :delay effect! 1 :wet :delay effect! :straight :mode :delay effect!\n:a4 1 0 note-on 0.01 render-audio drop :a4 0 note-off 0.2 render-audio 4320 4800 0 1 submatrix\n48000 1000 amplitude-at 1000 * round 1000 / . cr\n0 :wet :delay effect! :ping-pong :mode :delay effect! 0.375 :time :delay effect! 0.01 render-audio drop silence-audio", "1" },
 	{ "else", ": parity ( n -- ) 2 mod 0= if \"even\" else \"odd\" then . cr ; 7 parity", "odd" },
 	{ "embodies", "defer greeting : hello-word ( -- ) \"hello\" . cr ; ' hello-word embodies greeting greeting", "hello" },
 	{ "embodies!", "defer farewell : bye-word ( -- ) \"bye\" . cr ; ' bye-word embodies! farewell farewell", "bye" },
@@ -1667,4 +1669,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 803;
+const int help_example_count = 804;
