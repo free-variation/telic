@@ -23,7 +23,8 @@ num-cores 16 * to domain
 	nip ;
 
 \ loop rounds times; each round is a full-core pmap over every work item
-: stress ( -- ) ^t0 |
+: stress ( -- )
+	^t0 |
 	0 to i
 	begin i rounds < while
 		now to t0

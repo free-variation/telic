@@ -30,10 +30,14 @@ variable gauges-publishing internal
 \ publish the gauges to gauges-publication-path after every REPL entry and
 \ every second while an entry runs, for a gauges-view in another terminal;
 \ unpublish-gauges stops it
-: publish-gauges ( -- ) | ^gauges-publishing | 1 to gauges-publishing 1 tick-every ;
+: publish-gauges ( -- )
+	| ^gauges-publishing |
+	1 to gauges-publishing 1 tick-every ;
 
 \ stop publishing the gauges
-: unpublish-gauges ( -- ) | ^gauges-publishing | 0 to gauges-publishing 0 tick-every ;
+: unpublish-gauges ( -- )
+	| ^gauges-publishing |
+	0 to gauges-publishing 0 tick-every ;
 
 \ the string's bytes, then a newline
 : gauges-view-line ( str -- ) string>codepoints ' emit each cr ; internal

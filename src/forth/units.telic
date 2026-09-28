@@ -121,4 +121,6 @@ base unit MiB
 1024 TiB unit PiB
 
 \ re-express q in the unit that unit-xt attaches (' MiB)
-: as ( q unit-xt -- q' ) | q unit-xt | 1 unit-xt execute 0 * q + ;
+: as ( q unit-xt -- q' )
+	| q unit-xt |
+	1 unit-xt execute 0 * q + ;

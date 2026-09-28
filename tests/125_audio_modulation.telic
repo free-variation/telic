@@ -9,11 +9,17 @@
 
 11 seed
 
-: settled ( stereo -- v ) | stereo | stereo 4800 48000 0 1 submatrix ;
+: settled ( stereo -- v )
+	| stereo |
+	stereo 4800 48000 0 1 submatrix ;
 : amp ( v hz -- a ) 48000 swap amplitude-at 0.70710678 / 10000 * round 10000 / ;
 : voice ( patch -- v ) silence-audio 0 instrument-patch! :a4 1 0 note-on 1 render-audio settled ;
-: pm ( depth -- v ) | depth | { } [ { :fixed-hz 1000 } { :fixed-hz 100 } ] :oscillators ! [ [ 1 0 depth ] ] :modulation ! voice ;
-: sidebands ( v -- ) | v | [ 1000 1100 900 1200 800 1300 700 ] ( v swap amp . ) each cr ;
+: pm ( depth -- v )
+	| depth |
+	{ } [ { :fixed-hz 1000 } { :fixed-hz 100 } ] :oscillators ! [ [ 1 0 depth ] ] :modulation ! voice ;
+: sidebands ( v -- )
+	| v |
+	[ 1000 1100 900 1200 800 1300 700 ] ( v swap amp . ) each cr ;
 
 \ === Bessel sidebands, discriminating against an additive sum ===
 0 pm sidebands                  \ 1 0 0 0 0 0 0 (depth 0: the carrier alone)
@@ -30,7 +36,9 @@ chain parallel = . cr                                            \ 0
 clear
 
 \ === feedback: [ 0 0 d ] turns a sine into a harmonic series ===
-: harmonics ( v -- ) | v | [ 2000 3000 ] ( v swap amp . ) each cr ;
+: harmonics ( v -- )
+	| v |
+	[ 2000 3000 ] ( v swap amp . ) each cr ;
 { :oscillators [ { :fixed-hz 1000 } ] :modulation [ [ 0 0 0 ] ] } voice harmonics      \ 0 0
 { :oscillators [ { :fixed-hz 1000 } ] :modulation [ [ 0 0 0.5 ] ] } voice 2000 amp 0.1 > . cr        \ 1
 { :oscillators [ { :fixed-hz 1000 } ] :modulation [ [ 0 0 0.5 ] ] } voice 2000 amp

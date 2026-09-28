@@ -24,7 +24,9 @@ variable current-figure
   :panel-fill "gainsboro" :grid-stroke "white" :grid-width 1 :grid-width-minor 0.5 }
 to aes
 
-: aes! ( fr -- ) ^aes | aes swap merge to aes ;
+: aes! ( fr -- )
+	^aes |
+	aes swap merge to aes ;
 
 \ starts a new figure: canvas size, empty mark list, defaults to aes
 : figure ( width height -- )

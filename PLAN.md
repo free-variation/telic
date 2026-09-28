@@ -443,6 +443,13 @@ live here instead. File and function name each invariant's home.
   device thread clears; finished `play-samples` buffers return on a second
   ring and the interpreter frees them in `synth_collect_finished`. Offline, the same
   commands apply directly (synth.c, `synth_submit`, `synth_device_render`).
+- `recent-audio` reads the ring of recent output frames while the device
+  thread writes it, without a lock. The ring holds 16384 frames and the word
+  reads at most 8192 behind the published count, so the reader and writer
+  touch the same slot only if the device renders more than 8192 frames during
+  one copy; a device buffer is far smaller. `synth_render` stores the frames
+  and then publishes the count with a release store, and the word loads it
+  with acquire (synth.c, `synth_recent`, `p_recent_audio`).
 - The effects chain's state belongs to whichever thread renders: `effect!`
   validates on the interpreter thread (`effects_parameter_parse` reads only
   the constant key table) and changes state only through `COMMAND_EFFECT`,

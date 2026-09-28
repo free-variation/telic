@@ -22,7 +22,8 @@ variable loops  70 to loops
 \ --- S-box from the GF(2^8) inverse + affine transform -----------------------
 variable gf-exp  variable gf-log  variable sbox  variable acc
 
-: build-gf ( -- ) ^gf-exp ^gf-log ^acc |
+: build-gf ( -- )
+  ^gf-exp ^gf-log ^acc |
   0 256 array-of to gf-exp
   0 256 array-of to gf-log
   1 to acc
@@ -39,7 +40,8 @@ variable gf-exp  variable gf-log  variable sbox  variable acc
   | s |
   s  s 1 rotl8 bit-xor  s 2 rotl8 bit-xor  s 3 rotl8 bit-xor  s 4 rotl8 bit-xor  99 bit-xor ;
 
-: build-sbox ( -- ) ^sbox |
+: build-sbox ( -- )
+  ^sbox |
   build-gf
   0 256 array-of to sbox
   0 256 1 do i  sbox  i ginv affine  i  !i drop  loop ;
@@ -56,7 +58,8 @@ variable tab1  variable tab2  variable tab3  variable tab4
   tab3  sb  24 lshift  s3 16 lshift bit-or  s2 8 lshift bit-or  sb  bit-or  a  !i drop
   tab4  sb  24 lshift  sb  16 lshift bit-or  s3 8 lshift bit-or  s2 bit-or  a  !i drop ; internal
 
-: build-ttables ( -- ) ^tab1 ^tab2 ^tab3 ^tab4 |
+: build-ttables ( -- )
+  ^tab1 ^tab2 ^tab3 ^tab4 |
   0 256 array-of to tab1  0 256 array-of to tab2
   0 256 array-of to tab3  0 256 array-of to tab4
   0 256 1 do a  a build-ttable-row  loop ;
@@ -149,7 +152,8 @@ variable ke
 
 \ --- verification: FIPS-197 AES-128 known-answer test ------------------------
 variable katout
-: kat ( -- ok ) ^katout |
+: kat ( -- ok )
+  ^katout |
   [ 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 ] key-expand
   0 16 array-of to katout
   [ 0 17 34 51 68 85 102 119 136 153 170 187 204 221 238 255 ] katout encrypt-block
@@ -158,14 +162,17 @@ variable katout
 \ --- benchmark: CTR-encrypt and decrypt a message, check round-trip ----------
 variable msg  variable ct  variable back  variable msg-bytes
 
-: build-message ( -- ) ^msg ^msg-bytes ^ct ^back |
+: build-message ( -- )
+  ^msg ^msg-bytes ^ct ^back |
   "This is a test. What could possibly go wrong? " 500 array-of "" join
   string>codepoints to msg
   msg size to msg-bytes
   0 msg-bytes array-of to ct
   0 msg-bytes array-of to back ;
 
-: cksum ( arr -- s )  | arr |  0  0 arr size 1 do i  arr i @i +  loop ;
+: cksum ( arr -- s )
+  | arr |
+  0  0 arr size 1 do i  arr i @i +  loop ;
 
 : aes-bench ( -- )
   build-sbox  build-ttables

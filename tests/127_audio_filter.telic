@@ -9,12 +9,16 @@
 
 11 seed
 
-: settled ( stereo -- v ) | stereo | stereo 9600 48000 0 1 submatrix ;
+: settled ( stereo -- v )
+	| stereo |
+	stereo 9600 48000 0 1 submatrix ;
 : amp ( v hz -- a ) 48000 swap amplitude-at ;
 : db ( a b -- d ) / log10 20 * round ;
 : voice ( patch -- v ) silence-audio 0 instrument-patch! 45 1 0 note-on 1 render-audio settled ;
 : saw ( -- patch ) { :oscillators [ { :wave :saw } ] } ;
-: window ( stereo t -- v ) | stereo t | stereo t 48000 * round dup 2400 + 0 1 submatrix ;
+: window ( stereo t -- v )
+	| stereo t |
+	stereo t 48000 * round dup 2400 + 0 1 submatrix ;
 
 saw voice to dry
 
@@ -25,7 +29,9 @@ clear
 
 \ === 24 dB per octave above the cutoff ===
 saw 440 :cutoff ! voice to wet
-: loss ( hz -- db ) | hz | wet hz amp dry hz amp db ;
+: loss ( hz -- db )
+	| hz |
+	wet hz amp dry hz amp db ;
 440 loss . 880 loss . 1760 loss . 3520 loss . cr               \ -13 -28 -65 -84 (the knee, then steeper than 24 dB/octave)
 220 loss . cr                                                  \ -6 (the ladder rolls off gradually below its knee)
 saw 4000 :cutoff ! voice 110 amp dry 110 amp db . cr           \ 0 (well below the cutoff: unity gain)
@@ -38,7 +44,9 @@ ringing abs max 2 < . ringing nan? sum . cr                    \ 1 0 (finite, no
 clear
 
 \ === :drive saturates the ladder's tanh stages: a sine gains harmonics ===
-: sine-through ( drive -- v ) | drive | { } 1000 :cutoff ! drive :drive ! voice ;
+: sine-through ( drive -- v )
+	| drive |
+	{ } 1000 :cutoff ! drive :drive ! voice ;
 10 sine-through 330 amp  1 sine-through 330 amp / 5 > . cr    \ 1 (the 3rd harmonic grows from 0.044 to 0.371)
 clear
 
@@ -57,7 +65,9 @@ clear
 saw 400 :cutoff ! { :attack 0 :decay 0 :sustain 1 :amount 3 } :filter-envelope ! 0 instrument-patch!
 silence-audio 45 1 0 note-on 0.5 render-audio to hard
 silence-audio 45 0.2 0 note-on 0.5 render-audio to soft
-: brightness ( stereo -- ratio ) | stereo | stereo 0.3 window 1760 amp stereo 0.3 window 110 amp / ;
+: brightness ( stereo -- ratio )
+	| stereo |
+	stereo 0.3 window 1760 amp stereo 0.3 window 110 amp / ;
 hard brightness soft brightness db 10 > . cr     \ 1 (velocity 0.2 opens 0.6 octaves, not 3)
 silence-audio clear
 

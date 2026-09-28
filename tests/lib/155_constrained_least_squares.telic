@@ -45,7 +45,8 @@ w sum 1 1e-12 expect-near "sums to one" . cr             \ sums to one
 [ 0.2 1.0392304845413263 ] vector fit-simplex matrix>array . cr  \ [ 0 1 ]
 
 \ === random designs: KKT verified whatever path the solver took ===
-: kkt-holds ( design response -- flag ) | design response |
+: kkt-holds ( design response -- flag )
+	| design response |
 	design response fit-nonnegative to solution
 	solution min 0 >= expect
 	design transpose  response design solution matmul -  matmul to gradient

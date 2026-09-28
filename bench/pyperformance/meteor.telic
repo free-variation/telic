@@ -93,7 +93,8 @@ variable sols   variable done
   cells ;
 
 \ --- board + code->index table -------------------------------------------
-: init-board ( -- ) ^cti ^board |
+: init-board ( -- )
+  ^cti ^board |
   -1.0 460.0 array-of to cti
   0.0 50.0 array-of to board
   0 10 1 do y
@@ -112,7 +113,8 @@ variable sols   variable done
   pieces pi @i  pi 3.0 =  permute  ' convert map
   pieces swap pi !i drop ; internal
 
-: init-pieces ( -- ) ^pieces |
+: init-pieces ( -- )
+  ^pieces |
   [ [ 2.0 2.0 2.0 51.0 ]
     [ 51.0 49.0 -2.0 49.0 ]
     [ -2.0 -2.0 49.0 51.0 ]
@@ -131,7 +133,8 @@ variable sols   variable done
   0 10 1 do i  row [ ] i !i drop  loop
   row ;
 
-: init-fps ( -- ) ^fps |
+: init-fps ( -- )
+  ^fps |
   0.0 50.0 array-of to fps
   0 50 1 do ci  fps empty-row ci !i drop  loop ;
 
@@ -159,7 +162,8 @@ variable sols   variable done
 : get-footprints ( -- )
   0 50 1 do ci  ci record-cell  loop ;
 
-: get-senh ( -- ) ^se-nh |
+: get-senh ( -- )
+  ^se-nh |
   0.0 50.0 array-of to se-nh
   0 50 1 do ci
      se-nh  board ci @i  [ 2.0 49.0 51.0 ] foot set>mask  ci  !i drop
@@ -210,7 +214,8 @@ variable sols   variable done
      done if exit then
   repeat ;
 
-: solve-once ( -- ) ^done ^sols |
+: solve-once ( -- )
+  ^done ^sols |
   0.0 to done
   [< >] to sols
   0.0

@@ -38,13 +38,16 @@
 	:c2 1/4 sequence-note :c2 1/8 sequence-note :g2 1/8 sequence-note :bb2 1/4 sequence-note :g2 1/4 sequence-note ;
 : arrangement ( -- ) pad-chord bass-line keys-phrase ;
 : fresh-sequence ( -- ) silence-audio 120 sequence-tempo 7/8 sequence-articulation 1 sequence-velocity ;
-: timed-sequence ( xt -- ) | xt |
+: timed-sequence ( xt -- )
+	| xt |
 	now magnitude to started
 	xt execute
 	sequence-end 1000 * to end-ms
 	wait-sequence
 	started elapsed-ms end-ms - dup 0 >= swap 1000 < and finished ;
-: perform ( xt tail -- ) | xt tail | fresh-sequence xt timed-sequence tail sleep silence-audio ;
+: perform ( xt tail -- )
+	| xt tail |
+	fresh-sequence xt timed-sequence tail sleep silence-audio ;
 
 audio-on
 

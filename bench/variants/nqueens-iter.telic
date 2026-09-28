@@ -18,7 +18,8 @@ variable cycles
   [< ( i | board i @i i - ) queens i-times >] size queens =
   * ;
 
-: check-perm ( -- ) ^solutions |
+: check-perm ( -- )
+  ^solutions |
   valid? if f++ solutions then ;
 
 : rotate-left ( i -- )
@@ -36,7 +37,8 @@ variable cycles
     board tmp  queens 1 -  !i drop
   then ;
 
-: init-arrays ( -- ) ^board ^cycles |
+: init-arrays ( -- )
+  ^board ^cycles |
   0 queens array-of to board
   ( k | board k k !i drop ) queens i-times
   0 queens array-of to cycles
@@ -70,7 +72,8 @@ variable cycles
     done
   until ;
 
-: nqueens-run ( -- ) ^solutions |
+: nqueens-run ( -- )
+  ^solutions |
   now to t0
   0 loops 1 do rep
      0 to solutions

@@ -66,7 +66,9 @@
 : std ( matrix -- float ) var sqrt ; inline
 
 \ standard error of the mean: s / sqrt(n), n the non-NaN count
-: se ( matrix -- float ) | mat | mat var mat nonmissing-count / sqrt ;
+: se ( matrix -- float )
+	| mat |
+	mat var mat nonmissing-count / sqrt ;
 
 \ median
 : median ( matrix -- float ) 0.5 quantile ; inline
@@ -249,7 +251,9 @@
 
 \ Brier score: mean squared error of probabilities against 0/1
 \ outcomes; NaN elements are skipped by mean
-: brier ( outcomes probabilities -- f ) | outcomes probabilities | probabilities outcomes - dup * mean ;
+: brier ( outcomes probabilities -- f )
+	| outcomes probabilities |
+	probabilities outcomes - dup * mean ;
 
 \ qnorm tail expansion at sqrt(-2 ln p); signed for the lower tail
 : qnorm-tail ( tail-deviate -- z )

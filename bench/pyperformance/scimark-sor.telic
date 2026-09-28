@@ -18,7 +18,8 @@ variable g
 1.25 0.25 f* constant omega-over-four
 1.0 1.25 f- constant one-minus-omega
 
-: build-g ( -- ) ^g |
+: build-g ( -- )
+  ^g |
   nn 1 0-matrix to g ;
 
 : sor-execute ( -- )

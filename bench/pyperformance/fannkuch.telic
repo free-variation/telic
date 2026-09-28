@@ -12,7 +12,8 @@ variable perm
 variable count
 variable max-flips
 
-: init-arrays ( -- ) ^perm1 ^perm ^count |
+: init-arrays ( -- )
+  ^perm1 ^perm ^count |
   0 n array-of to perm1
   ( dup perm1 swap rot !i drop ) n i-times
   0 n array-of to perm
@@ -46,10 +47,12 @@ inline
   then ;
 inline
 
-: update-max ( flips -- ) ^max-flips |
+: update-max ( flips -- )
+  ^max-flips |
   dup max-flips > if to max-flips else drop then ;
 
-: fannkuch ( -- ) ^max-flips |
+: fannkuch ( -- )
+  ^max-flips |
   0 to max-flips
   init-arrays
   n to r

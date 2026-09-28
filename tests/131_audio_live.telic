@@ -10,8 +10,12 @@
 11 seed
 
 : amp ( v hz -- a ) 48000 swap amplitude-at 0.70710678 / 1000 * round 1000 / ;
-: left ( stereo -- v ) | stereo | stereo 0 stereo n-rows 0 1 submatrix ;
-: right ( stereo -- v ) | stereo | stereo 0 stereo n-rows 1 2 submatrix ;
+: left ( stereo -- v )
+	| stereo |
+	stereo 0 stereo n-rows 0 1 submatrix ;
+: right ( stereo -- v )
+	| stereo |
+	stereo 0 stereo n-rows 1 2 submatrix ;
 : begin-note ( patch -- ) silence-audio 0 instrument-patch! :a4 1 0 note-on 0.3 render-audio drop ;
 
 \ === :level, ramped ===

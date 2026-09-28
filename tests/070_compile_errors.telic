@@ -19,7 +19,9 @@ clear
 \ ==== partial definition rollback ====
 
 \ a definition that fails mid-compile rolls back entirely: no callable stub
-: loopy ( -- ) | acc | ( no-such-word ) ;
+: loopy ( -- )
+	| acc |
+	( no-such-word ) ;
 loopy
 
 \ compiler state is clean afterward: locals compile and run fine

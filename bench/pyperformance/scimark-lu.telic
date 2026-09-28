@@ -13,13 +13,15 @@ variable rm  variable ri  variable rj
 2147483647.0 constant m1
 4.656612875245797e-10 constant dm1
 
-: rng-init ( -- ) ^rm ^ri ^rj |
+: rng-init ( -- )
+  ^rm ^ri ^rj |
   [ 253932.0 731212090.0 468995992.0 1775900326.0 1784309764.0 636090706.0
     606937648.0 841957950.0 1453856540.0 1744446058.0 305151944.0 1494977238.0
     896709940.0 1989340290.0 810774624.0 217839726.0 200215116.0 ] to rm
   4 to ri  16 to rj ;
 
-: rng-next ( -- d ) ^ri ^rj |
+: rng-next ( -- d )
+  ^ri ^rj |
   rm ri @i  rm rj @i  f-  to k
   k 0 < if  k m1 f+ to k  then
   rm k rj !i drop

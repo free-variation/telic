@@ -12,20 +12,29 @@
 
 11 seed
 
-: left ( stereo -- v ) | stereo | stereo 0 stereo n-rows 0 1 submatrix ;
-: right ( stereo -- v ) | stereo | stereo 0 stereo n-rows 1 2 submatrix ;
-: window ( v start finish -- v ) | v start finish | v start 48000 * round finish 48000 * round 0 1 submatrix ;
+: left ( stereo -- v )
+	| stereo |
+	stereo 0 stereo n-rows 0 1 submatrix ;
+: right ( stereo -- v )
+	| stereo |
+	stereo 0 stereo n-rows 1 2 submatrix ;
+: window ( v start finish -- v )
+	| v start finish |
+	v start 48000 * round finish 48000 * round 0 1 submatrix ;
 : amp-at ( v hz -- a ) 48000 swap amplitude-at 1000 * round 1000 / ;
 : rms ( v -- r ) dup * mean sqrt ;
 : db ( v -- d ) rms log10 20 * ;
 : settled-silence ( -- ) silence-audio 0.01 render-audio drop silence-audio ;
-: tone ( hz pan seconds -- stereo ) | hz pan seconds |
+: tone ( hz pan seconds -- stereo )
+	| hz pan seconds |
 	settled-silence { } [ { :attack 0 :release 0 } hz :fixed-hz ! ] :oscillators ! pan :pan ! 0 instrument-patch!
 	:a4 1 0 note-on seconds render-audio ;
-: burst ( hz pan seconds -- stereo ) | hz pan seconds |
+: burst ( hz pan seconds -- stereo )
+	| hz pan seconds |
 	settled-silence { } [ { :attack 0 :release 0 } hz :fixed-hz ! ] :oscillators ! pan :pan ! 0 instrument-patch!
 	:a4 1 0 note-on 0.01 render-audio :a4 0 note-off seconds render-audio vstack ;
-: echoes ( stereo channel -- ) | stereo channel |
+: echoes ( stereo channel -- )
+	| stereo channel |
 	[ 0 0.1 0.2 0.3 0.4 ] ( stereo 0 stereo n-rows channel channel 1 + submatrix swap dup 0.01 + window 1000 amp-at . ) each cr ;
 
 \ === an untouched chain, and a stage set back to :wet 0, pass the signal unchanged ===
@@ -101,7 +110,9 @@ silence-audio
 clear
 
 \ === shimmer: the tail's pitch shifted an octave up ===
-: octave-band ( v -- a ) | v | 0 780 1000 5 do k v 48000 k amplitude-at + loop ;
+: octave-band ( v -- a )
+	| v |
+	0 780 1000 5 do k v 48000 k amplitude-at + loop ;
 0.8 :decay :reverb effect!
 440 0 2 tone left 1 2 window octave-band to plain
 12 :shimmer1-shift :reverb effect! 1 :shimmer1-mix :reverb effect!

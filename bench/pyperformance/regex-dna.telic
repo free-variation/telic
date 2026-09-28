@@ -48,7 +48,8 @@ variable rng-seed
   out ;
 
 \ advance the LCG, return seed / 139968 in [0, 1)
-: next-u ( -- u ) ^rng-seed |
+: next-u ( -- u )
+  ^rng-seed |
   rng-seed 3877.0 *  29573.0 +  139968.0 mod  dup to rng-seed
   139968.0 / ;
 
@@ -108,7 +109,8 @@ variable rng-seed
 
 \ assemble the FASTA: headers + three wrapped blocks. The IUB block draws
 \ before the Homo block, so the shared rng-seed threads correctly.
-: build-fasta ( -- seq ) ^iub-cum ^homo-cum ^rng-seed |
+: build-fasta ( -- seq )
+  ^iub-cum ^homo-cum ^rng-seed |
   iub-base  cumulative to iub-cum
   homo-base cumulative to homo-cum
   42.0 to rng-seed

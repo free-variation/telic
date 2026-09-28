@@ -11,8 +11,12 @@
 
 : amp ( v hz -- a ) 48000 swap amplitude-at 0.70710678 / 1000 * round 1000 / ;
 : cents ( hz c -- hz' ) 1200 / 2 swap ^ * ;
-: left ( stereo -- v ) | stereo | stereo 0 stereo n-rows 0 1 submatrix ;
-: right ( stereo -- v ) | stereo | stereo 0 stereo n-rows 1 2 submatrix ;
+: left ( stereo -- v )
+	| stereo |
+	stereo 0 stereo n-rows 0 1 submatrix ;
+: right ( stereo -- v )
+	| stereo |
+	stereo 0 stereo n-rows 1 2 submatrix ;
 : rms ( v -- r ) dup * mean sqrt ;
 : sounding ( patch -- stereo ) silence-audio 0 instrument-patch! :a4 1 0 note-on 2 render-audio ;
 

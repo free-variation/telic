@@ -13,10 +13,16 @@
 11 seed
 
 : amp ( v hz -- a ) 48000 swap amplitude-at 0.70710678 / ;
-: span ( stereo start finish -- v ) | stereo start finish | stereo start 48000 * round finish 48000 * round 0 1 submatrix ;
-: right-span ( stereo start finish -- v ) | stereo start finish | stereo start 48000 * round finish 48000 * round 1 2 submatrix ;
+: span ( stereo start finish -- v )
+	| stereo start finish |
+	stereo start 48000 * round finish 48000 * round 0 1 submatrix ;
+: right-span ( stereo start finish -- v )
+	| stereo start finish |
+	stereo start 48000 * round finish 48000 * round 1 2 submatrix ;
 : r2 ( f -- f ) 100 * round 100 / 0 + ;
-: play-for ( patch seconds -- stereo ) | patch seconds | silence-audio patch 0 instrument-patch! :a4 1 0 note-on seconds render-audio ;
+: play-for ( patch seconds -- stereo )
+	| patch seconds |
+	silence-audio patch 0 instrument-patch! :a4 1 0 note-on seconds render-audio ;
 : up ( -- hz ) 440 2 1 12 / ^ * ;
 : down ( -- hz ) 440 2 -1 12 / ^ * ;
 
@@ -27,9 +33,15 @@ vibrato 0.1 0.9 span 440 amp 0.05 < . cr                                    \ 1 
 clear
 
 \ === shapes, from a full-depth tremolo sampled at eighths of a 2 Hz cycle ===
-: tremolo ( shape -- stereo ) | shape | { } [ { :fixed-hz 1000 :lfo-level 1 } ] :oscillators ! { } shape :shape ! 2 :rate ! :lfo ! 0.6 play-for ;
-: level-at ( stereo cycle -- a ) | stereo cycle | stereo cycle 0.5 * 0.0025 - cycle 0.5 * 0.0025 + span 1000 amp ;
-: trace ( shape -- ) | shape | shape tremolo to wave [ 0.125 0.25 0.375 0.625 0.75 ] ( wave swap level-at r2 . ) each cr ;
+: tremolo ( shape -- stereo )
+	| shape |
+	{ } [ { :fixed-hz 1000 :lfo-level 1 } ] :oscillators ! { } shape :shape ! 2 :rate ! :lfo ! 0.6 play-for ;
+: level-at ( stereo cycle -- a )
+	| stereo cycle |
+	stereo cycle 0.5 * 0.0025 - cycle 0.5 * 0.0025 + span 1000 amp ;
+: trace ( shape -- )
+	| shape |
+	shape tremolo to wave [ 0.125 0.25 0.375 0.625 0.75 ] ( wave swap level-at r2 . ) each cr ;
 :sine trace                       \ 0.85 1 0.85 0.15 0 ((1 + sin)/2)
 :triangle trace                   \ 0.75 1 0.75 0.25 0 (straight lines)
 :saw trace                        \ 0.13 0.25 0.38 0.63 0.75 (a ramp from -1 to 1: the phase itself)
@@ -51,7 +63,9 @@ fading 0.45 0.55 span 440 2 0.5 ^ * amp 0.5 > . cr                          \ 1 
 clear
 
 \ === :key-sync: 1 starts at phase 0; 0 follows the clock ===
-: late-note ( sync -- stereo ) | sync | silence-audio { } { :shape :square :rate 1 :pitch-depth 1 } sync :key-sync ! :lfo ! 0 instrument-patch!
+: late-note ( sync -- stereo )
+	| sync |
+	silence-audio { } { :shape :square :rate 1 :pitch-depth 1 } sync :key-sync ! :lfo ! 0 instrument-patch!
 	0.75 render-audio drop :a4 1 0 note-on 0.4 render-audio ;
 1 late-note 0.05 0.35 span up amp r2 . cr          \ 1 (synced: the first half-cycle, +1 semitone)
 0 late-note 0.05 0.2 span down amp r2 . cr          \ 1 (free: the clock is at phase 0.75, the second half)

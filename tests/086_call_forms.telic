@@ -40,7 +40,9 @@ clear
 1000000 countdown  42 . cr             \ 42
 
 \ === tail recursion with an accumulator local, deep ===
-: sum-to ( n acc -- n )  | n acc | n 0 = if acc else n 1 - n acc + recurse then ;
+: sum-to ( n acc -- n )
+	| n acc |
+	n 0 = if acc else n 1 - n acc + recurse then ;
 1000000 0 sum-to . cr                  \ 500000500000
 
 \ === both arms of if/else in tail position become (tailcall) ===

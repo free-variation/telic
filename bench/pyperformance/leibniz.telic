@@ -23,7 +23,8 @@ variable pi-est
 variable x
 variable t0
 
-: leibniz ( -- ) ^pi-est ^x ^t0 |
+: leibniz ( -- )
+  ^pi-est ^x ^t0 |
   1.0 to pi-est
   1.0 to x
   now to t0

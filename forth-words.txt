@@ -546,6 +546,7 @@ read-line
 read-out
 read-tsv
 real-part
+recent-audio
 rect
 rect-at
 recurse

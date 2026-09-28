@@ -41,7 +41,9 @@ before its body, so `[ "^fit-program" ]` finds a word called only through
 `map`.
 
 ```forth trace-filtered
-: sq-traced ( x -- sq ) | x | x x * ;
+: sq-traced ( x -- sq )
+  | x |
+  x x * ;
 ( 5 sq-traced 2 + ) [ "^exit" "\| 27" ] trace . cr
 ```
 ```output

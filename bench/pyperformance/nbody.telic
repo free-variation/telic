@@ -15,7 +15,8 @@ PI PI * 4 * constant solar-mass
 variable bodies
 variable sun  variable jupiter  variable saturn  variable uranus  variable neptune
 
-: init-bodies ( -- ) ^bodies ^sun ^jupiter ^saturn ^uranus ^neptune |
+: init-bodies ( -- )
+  ^bodies ^sun ^jupiter ^saturn ^uranus ^neptune |
   0 0 0  0 0 0  solar-mass  make-body
   4.84143144246472090
   -1.16032004402742839

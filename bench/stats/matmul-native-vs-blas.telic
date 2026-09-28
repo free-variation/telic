@@ -15,13 +15,19 @@
 "statistics" load-library
 
 \ n x n ramp, deterministic
-: ramp ( n -- m ) | n | 0 n n * 1- 1 matrix-range n n reshape ; internal
+: ramp ( n -- m )
+	| n |
+	0 n n * 1- 1 matrix-range n n reshape ; internal
 
 \ hold the work per size roughly constant, capped so the batches stay short
-: reps-for ( n -- reps ) | n | 20000000 n n * n * / round-down 20 max2 100000 min2 ; internal
+: reps-for ( n -- reps )
+	| n |
+	20000000 n n * n * / round-down 20 max2 100000 min2 ; internal
 
 \ do the two spellings answer the same matrix?
-: agree? ( n -- flag ) | n | n ramp to a  n ramp to b  a b native-matmul execute  a b matmul  = ; internal
+: agree? ( n -- flag )
+	| n |
+	n ramp to a  n ramp to b  a b native-matmul execute  a b matmul  = ; internal
 
 \ time both spellings of the same product
 : bench-size ( n reps -- )

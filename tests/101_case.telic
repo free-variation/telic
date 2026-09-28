@@ -22,10 +22,14 @@ clear
 clear
 \ === logic vars in a pattern bind for the body ===
 
-: pick-second ( arr -- v ) | ?x | case [ _ x ] of x ? endof drop null endcase ;
+: pick-second ( arr -- v )
+	| ?x |
+	case [ _ x ] of x ? endof drop null endcase ;
 [ 1 2 ] pick-second . [ 7 9 ] pick-second . "nope" pick-second . cr  \ 2 9 null
 
-: shape ( arr -- str ) | ?x | case [ x x ] of "twins" endof [ x ] of "single" endof drop "other" endcase ;
+: shape ( arr -- str )
+	| ?x |
+	case [ x x ] of "twins" endof [ x ] of "single" endof drop "other" endcase ;
 [ 3 3 ] shape . [ 5 ] shape . [ 3 4 ] shape . cr  \ twins single other (a failed arm unbinds x)
 
 clear
@@ -37,7 +41,9 @@ clear
 clear
 \ === nesting and quotations ===
 
-: nested ( arr -- str ) | ?x | case [ :a x ] of x ? case 1 of "a-one" endof drop "a-other" endcase endof drop "outer" endcase ;
+: nested ( arr -- str )
+	| ?x |
+	case [ :a x ] of x ? case 1 of "a-one" endof drop "a-other" endcase endof drop "outer" endcase ;
 [ :a 1 ] nested . [ :a 2 ] nested . [ :b 1 ] nested . cr  \ a-one a-other outer
 
 ( case 5 of "five" endof drop "other" endcase ) to q

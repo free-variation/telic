@@ -36,7 +36,8 @@ variable init  variable data
   loop
   4.0 to ri  16.0 to rj ;
 
-: next-double ( -- d ) ^ri ^rj |
+: next-double ( -- d )
+  ^ri ^rj |
   ri to ii  rj to jj
   rand-m ii @e  rand-m jj @e f- to k
   k 0.0 < if k m1 f+ to k then
@@ -129,7 +130,8 @@ variable init  variable data
     data  data k @e scale f*  k  !e drop
   loop ;
 
-: fft-bench ( -- ) ^init ^data |
+: fft-bench ( -- )
+  ^init ^data |
   nlen 1 0-matrix to init
   nlen 1 0-matrix to data
   7.0 rng-init

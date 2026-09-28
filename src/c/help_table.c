@@ -605,6 +605,7 @@ const HelpEntry help_entries[] = {
 	{ "read-out", "( proc -- str )", "subprocess.telic: read the child's :out stream to EOF", "read syscalls", "1o + buffer growth", "O(bytes)", 36 },
 	{ "read-tsv", "( path -- dataset )", "datasets.telic: read a TSV file with a header row into a column-oriented dataset; columns are typed — uniformly float-or-null cells become an n×1 vector (null → NaN), anything else a cell array", "bytes + 2·r·c", "rows + one array per column + 1m per numeric column + 1fr", "O(bytes + r·c)", 24 },
 	{ "real-part", "( z -- f )", "The real part; a float answers itself", "2", "none", "O(1)", 7 },
+	{ "recent-audio", "( frames -- matrix )", "The last frames, [1, 8192], of the synthesizer's output after the effects chain, as an n×2 matrix in the layout of render-audio, oldest first: what the device was last given when live, the end of the last render-audio offline; frames from before the first rendered sample are 0. Each render publishes its frames when it finishes, so live the answer ends at the device's latest buffer, for a display such as a spectrum analyzer", "n", "1m(n×2)", "O(n)", 35 },
 	{ "rect", "( x y w h -- )", "The outline of the w×h rectangle with its top-left corner at x y", "n", "none", "O(n)", 34 },
 	{ "rect-at", "( x1 y1 x2 y2 -- )", "Rectangle between two data-space corners, mapped through the domain; drawn with the current :fill :stroke :stroke-width", NULL, NULL, NULL, 47 },
 	{ "recurse", "—", "Compile a call to the innermost definition being compiled — the enclosing quotation, else the enclosing colon word — so an anonymous quotation can self-call. In tail position the call is eliminated (constant return-stack depth); elsewhere it grows the return stack. Compile error outside a definition", NULL, NULL, NULL, 12 },
@@ -860,7 +861,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, arrays element-wise with a trailing rest pattern taking the remaining elements, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails", "n", "none", "O(n)", 28 },
 };
 
-const int help_entry_count = 801;
+const int help_entry_count = 802;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -869,7 +870,7 @@ const HelpExample help_examples[] = {
 	{ "!i,j", "[ 1 2 3 4 ] 2 2 matrix 99 1 1 !i,j matrix>array . cr", "[ 1 2 3 99 ]" },
 	{ "%", "7 3 % . . cr", "2 1" },
 	{ "'", "16 ' sqrt execute . cr", "4" },
-	{ "(", "5 ( 2 * ) execute . cr\n: scale-all ( rows factor -- rows ) | rows factor | rows ( factor * ) map ;\n[ 1 2 3 ] 10 scale-all . cr", "10\n[ 10 20 30 ]" },
+	{ "(", "5 ( 2 * ) execute . cr\n: scale-all ( rows factor -- rows )\n  | rows factor |\n  rows ( factor * ) map ;\n[ 1 2 3 ] 10 scale-all . cr", "10\n[ 10 20 30 ]" },
 	{ ")", "5 ( 2 * ) execute . cr", "10" },
 	{ "*", "6 7 * . cr\n[< 1 2 3 >] [< 2 3 4 >] * . cr", "42\n[< 2 3 >]" },
 	{ "*!", "[ 1 2 ] vector 3 *! matrix>array . cr", "[ 3 6 ]" },
@@ -1303,7 +1304,7 @@ const HelpExample help_examples[] = {
 	{ "matrix?", "[ 1 ] vector matrix? . cr", "1" },
 	{ "max", "[ 1 2 3 4 ] 2 2 matrix max . cr", "4" },
 	{ "max2", "3 7 max2 . cr", "7" },
-	{ "mcp-add-tool", "\\ a host program's own tool, registered before serving\n: greet-tool ( id arguments -- ) | id arguments |\n  id \"hello \" arguments :who @ + false mcp-tool-result ;\n\n{ :name \"greet\"\n  :title \"Greet someone\"\n  :description \"Answer a greeting\"\n  :inputSchema { :type \"object\"\n                 :properties { :who { :type \"string\" } }\n                 :required [ \"who\" ] }\n} ' greet-tool mcp-add-tool\n\nmcp-serve", "" },
+	{ "mcp-add-tool", "\\ a host program's own tool, registered before serving\n: greet-tool ( id arguments -- )\n  | id arguments |\n  id \"hello \" arguments :who @ + false mcp-tool-result ;\n\n{ :name \"greet\"\n  :title \"Greet someone\"\n  :description \"Answer a greeting\"\n  :inputSchema { :type \"object\"\n                 :properties { :who { :type \"string\" } }\n                 :required [ \"who\" ] }\n} ' greet-tool mcp-add-tool\n\nmcp-serve", "" },
 	{ "mcp-serve", "telic -e '\"mcp\" load-library mcp-serve'", "" },
 	{ "mcp-tool-result", "id \"hello \" arguments :who @ + false mcp-tool-result", "" },
 	{ "mean", "[ 2 4 6 ] vector mean . cr", "4" },
@@ -1319,8 +1320,8 @@ const HelpExample help_examples[] = {
 	{ "mv", "\"carried\" \"/tmp/docs-mv-from.txt\" write-file\n\"/tmp/docs-mv-from.txt\" \"/tmp/docs-mv-to.txt\" mv\n\"/tmp/docs-mv-to.txt\" read-file . cr", "carried" },
 	{ "n-columns", "[ 1 2 3 4 5 6 ] 2 3 matrix n-columns . cr", "3" },
 	{ "n-rows", "[ 1 2 3 4 5 6 ] 2 3 matrix n-rows . cr", "2" },
-	{ "name!key", ": mark-sold ( row -- row ) row | 0 row!price row ; { :price 9 } mark-sold frame>array . cr", "[ :price 0 ]" },
-	{ "name@key", ": price-of ( row -- price ) row | row@price ; { :price 9 } price-of . cr", "9" },
+	{ "name!key", ": mark-sold ( row -- row )\n  row |\n  0 row!price row ;\n{ :price 9 } mark-sold frame>array . cr", "[ :price 0 ]" },
+	{ "name@key", ": price-of ( row -- price )\n  row |\n  row@price ;\n{ :price 9 } price-of . cr", "9" },
 	{ "nan?", "null nan? . cr\n[ 1 null 3 ] vector nan? matrix>array . cr", "1\n[ 0 1 0 ]" },
 	{ "ncurry", "1 2 ' swap 2 ncurry execute . . cr", "1 2" },
 	{ "negate", "5 negate . cr", "-5" },
@@ -1343,7 +1344,7 @@ const HelpExample help_examples[] = {
 	{ "num-cores", "num-cores 0 > . cr", "1" },
 	{ "num-elements", "[ 1 2 3 4 5 6 ] 2 3 matrix num-elements . cr", "6" },
 	{ "numerator", "-6/8 numerator . cr", "-3" },
-	{ "of", ": dispatch ( fr -- ) | ?x | case { :cmd :add :n x } of x ? 1 + . endof { :cmd :quit } of \"bye\" . endof drop \"?\" . endcase cr ;\n{ :cmd :add :n 4 } dispatch\n{ :cmd :quit :id 7 } dispatch", "5\nbye" },
+	{ "of", ": dispatch ( fr -- )\n  | ?x |\n  case { :cmd :add :n x } of x ? 1 + . endof { :cmd :quit } of \"bye\" . endof drop \"?\" . endcase cr ;\n{ :cmd :add :n 4 } dispatch\n{ :cmd :quit :id 7 } dispatch", "5\nbye" },
 	{ "on-tick", "' publish-gauges-entry embodies on-tick", "" },
 	{ "open-app-window", "\"figures/plot.svg\" open-app-window", "" },
 	{ "open-file", "\"one\ntwo\" \"/tmp/docs-file.txt\" write-file\n\"/tmp/docs-file.txt\" open-file dup read-line . dup read-line . close cr", "one two" },
@@ -1413,6 +1414,7 @@ const HelpExample help_examples[] = {
 	{ "read-out", "\"echo hi\" run read-out trim . cr", "hi" },
 	{ "read-tsv", "[ [ \"x\" ] [ 1 ] [ 2 ] ] true rows>dataset \"/tmp/docs-example2.tsv\" write-tsv \"/tmp/docs-example2.tsv\" read-tsv :x @ mean . cr", "1.5" },
 	{ "real-part", "3+4i real-part . cr", "3" },
+	{ "recent-audio", "{ :oscillators [ { :fixed-hz 1000 } ] } 0 instrument-patch! silence-audio :a4 1 0 note-on 0.5 render-audio drop\n4096 recent-audio 0 @j 48000 1000 amplitude-at 0.70710678 / 1000 * round 1000 / . cr silence-audio", "1" },
 	{ "rect", "10 10 200 120 rect", "" },
 	{ "rect-at", "\"plot\" load-library\n320 240 figure [ 0 3 ] vector [ 0 3 ] vector data-domain 1 1 2 2 rect-at figure>svg \"<rect\" has? . cr", "1" },
 	{ "recurse", ": fact ( n -- n! ) dup 1 > if dup 1- recurse * then ; 5 fact . cr", "120" },
@@ -1576,7 +1578,7 @@ const HelpExample help_examples[] = {
 	{ "text-anchor", "\"plot\" load-library\n320 240 figure \"middle\" text-anchor 10 10 \"hi\" svg-text figure>svg \"middle\" has? . cr", "1" },
 	{ "then", ": past-ten ( n -- ) 10 > if \"big\" . then \"done\" . cr ; 42 past-ten", "big done" },
 	{ "throw", ": catch-demo ( -- ) ( \"boom\" throw ) catch if \"caught\" . . cr then ; catch-demo", "caught boom" },
-	{ "tick-every", "variable ticks 0 to ticks\n: count-tick ( -- ) | ^ticks | ++ ticks ;\n' count-tick embodies on-tick\n1 tick-every 2.5 sleep 0 tick-every\nticks . cr", "2" },
+	{ "tick-every", "variable ticks 0 to ticks\n: count-tick ( -- )\n  | ^ticks |\n  ++ ticks ;\n' count-tick embodies on-tick\n1 tick-every 2.5 sleep 0 tick-every\nticks . cr", "2" },
 	{ "time>iso", "0 s time>iso . cr", "1970-01-01T00:00:00Z" },
 	{ "timed", "( [ 1 2 3 ] ' 1+ map ) timed . cr", "2.1e-06\n[ 2 3 4 ]" },
 	{ "times", "( \"ho\" . ) 3 times cr", "ho ho ho" },
@@ -1584,7 +1586,7 @@ const HelpExample help_examples[] = {
 	{ "to-slice!", "7 8 2 [ 0 0 0 0 ] 1 to-slice! . cr", "[ 0 7 8 0 ]" },
 	{ "touch", "\"/tmp/docs-touched\" touch\n\"/tmp/docs-touched\" file-exists? . cr", "1" },
 	{ "touch-file", "\"/tmp/docs-touch\" touch-file\n\"/tmp/docs-touch\" file-exists? . cr\n\"kept\" \"/tmp/docs-touch\" write-file\n\"/tmp/docs-touch\" touch-file\n\"/tmp/docs-touch\" read-file . cr", "1\nkept" },
-	{ "trace", "( 3 4 + ) [ ] trace . cr\n: sq-traced ( x -- sq ) | x | x x * ;\n( 5 sq-traced 2 + ) [ \"^sq\" ] trace . cr", "> (lit) 3                 |\n> (lit) 4                 | 3\n> +                       | 3 4\n> exit                    | 7\n7\n\n> sq-traced               | 5\n\n27" },
+	{ "trace", "( 3 4 + ) [ ] trace . cr\n: sq-traced ( x -- sq )\n  | x |\n  x x * ;\n( 5 sq-traced 2 + ) [ \"^sq\" ] trace . cr", "> (lit) 3                 |\n> (lit) 4                 | 3\n> +                       | 3 4\n> exit                    | 7\n7\n\n> sq-traced               | 5\n\n27" },
 	{ "transpose", "[ 1 2 3 4 ] 2 2 matrix transpose matrix>array . cr", "[ 1 3 2 4 ]" },
 	{ "trim", "\"  pad  \" trim \"|\" + . cr", "pad|" },
 	{ "true", "true . false . cr", "1 0" },
@@ -1664,9 +1666,9 @@ const HelpExample help_examples[] = {
 	{ "yield", ": nums ( -- ) 1 yield 2 yield ; ' nums 2 gen-take . cr\n: countdown-gen ( -- ) 3 to remaining begin remaining 0 > while remaining yield remaining 1- to remaining repeat ;\n' countdown-gen 3 gen-take . cr\n: naturals ( -- ) 0 to natural begin natural yield natural 1+ to natural again ;\n' naturals 4 gen-take . cr", "[ 1 2 ]\n[ 3 2 1 ]\n[ 0 1 2 3 ]" },
 	{ "zero-variance?", "[ 1 1 1 ] vector zero-variance? . [ 1 2 ] vector zero-variance? . cr", "1 0" },
 	{ "{", "{ :a 1 :b 2 } frame>array . cr", "[ :a 1 :b 2 ]" },
-	{ "|", ": hyp ( a b -- h ) | a b | a a * b b * + sqrt ; 3 4 hyp . cr\n: discounted ( price -- net ) | price | 0.2 to rate price price rate * - ; 100 discounted . cr\n: staged ( -- n ) 10 to start-value  start-value 3 * to scaled  start-value scaled + ; staged . cr", "5\n80\n40" },
+	{ "|", ": hyp ( a b -- h )\n  | a b |\n  a a * b b * + sqrt ;\n3 4 hyp . cr\n: discounted ( price -- net )\n  | price |\n  0.2 to rate price price rate * - ;\n100 discounted . cr\n: staged ( -- n ) 10 to start-value  start-value 3 * to scaled  start-value scaled + ; staged . cr", "5\n80\n40" },
 	{ "}", "{ :x 9 } :x @ . cr", "9" },
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 804;
+const int help_example_count = 805;

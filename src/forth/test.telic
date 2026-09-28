@@ -7,7 +7,8 @@ variable tests-passed internal
 variable tests-failed internal
 
 \ clears the test counters
-: new-tests ( -- ) ^tests-passed ^tests-failed |
+: new-tests ( -- )
+	^tests-passed ^tests-failed |
 	0 to tests-passed
 	0 to tests-failed ;
 

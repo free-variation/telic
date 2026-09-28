@@ -1634,6 +1634,7 @@ void p_note_on(DISPATCH_ARGS);
 void p_oscillator_store(DISPATCH_ARGS);
 void p_pitch_to_hz(DISPATCH_ARGS);
 void p_pitch_to_midi(DISPATCH_ARGS);
+void p_recent_audio(DISPATCH_ARGS);
 void p_render_audio(DISPATCH_ARGS);
 void p_sequence_articulation(DISPATCH_ARGS);
 void p_sequence_chord(DISPATCH_ARGS);

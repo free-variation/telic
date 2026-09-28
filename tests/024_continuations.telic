@@ -31,20 +31,28 @@ ex3 swap drop 3 swap resume . cr
 ex4 .s cr
 
 \ -- 7: reset in a word with its own locals; shift unwinds past the locals scope
-: locals-reset ( seed -- n ) | seed | reset seed 7 + shifter ;
+: locals-reset ( seed -- n )
+	| seed |
+	reset seed 7 + shifter ;
 5 locals-reset drop . cr
 
 \ -- 8: resume after unwinding past a locals scope
-: locals-resume ( seed -- n ) | seed | reset seed shifter 100 + ;
+: locals-resume ( seed -- n )
+	| seed |
+	reset seed shifter 100 + ;
 5 locals-resume swap drop 3 swap resume . cr
 
 \ -- 9: shift inside a nested execute whose reset-owner has locals
-: locals-exec ( producer -- n ) | producer | reset producer execute ;
+: locals-exec ( producer -- n )
+	| producer |
+	reset producer execute ;
 ( 9 shift ) locals-exec drop . cr
 
 \ -- 10: shift across an execute between the reset and the shift: the word that
 \ called execute is inside the captured slice, so its remaining body runs on resume
-: through-execute ( x -- n ) | x | ( shifter ) execute x 2 * ;
+: through-execute ( x -- n )
+	| x |
+	( shifter ) execute x 2 * ;
 : ex5 ( -- n ) reset 7 through-execute ;
 ex5 resume . cr
 

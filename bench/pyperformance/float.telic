@@ -34,7 +34,8 @@ variable maxx variable maxy variable maxz
      zs  zi length f/  i  !e drop
   ) points i-times ;
 
-: maximize-points ( -- ) ^maxx ^maxy ^maxz |
+: maximize-points ( -- )
+  ^maxx ^maxy ^maxz |
   xs 0 @e to maxx  ys 0 @e to maxy  zs 0 @e to maxz
   ( i |
      xs i @e to xi  xi maxx >= if xi to maxx then
@@ -42,7 +43,8 @@ variable maxx variable maxy variable maxz
      zs i @e to xi  xi maxz >= if xi to maxz then
   ) points i-times ;
 
-: float-once ( -- ) ^xs ^ys ^zs |
+: float-once ( -- )
+  ^xs ^ys ^zs |
   points 1 0-matrix to xs
   points 1 0-matrix to ys
   points 1 0-matrix to zs

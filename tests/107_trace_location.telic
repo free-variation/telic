@@ -22,7 +22,9 @@
 
 \ -- forget drops the location with the word; a redefinition at the REPL has none
 forget faulty
-: faulty ( x -- n ) | x | x 0 / ;
+: faulty ( x -- n )
+  | x |
+  x 0 / ;
 ( 3 faulty ) ( :trace @ . cr ) try-catch
 \ in / ← faulty ← try-catch
 

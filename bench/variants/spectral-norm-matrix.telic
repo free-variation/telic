@@ -31,15 +31,18 @@ variable zero-col
 : set-a-row ( i flat -- )
   ' set-a 2 ncurry  n i-times ; internal
 
-: build-a ( -- ) ^a-mat |
+: build-a ( -- )
+  ^a-mat |
   0 n n * array-of to flat
   flat ' set-a-row curry  n i-times
   flat n n matrix to a-mat ;
 
-: build-u ( -- ) ^u-mat |
+: build-u ( -- )
+  ^u-mat |
   1 n array-of  n 1 matrix to u-mat ;
 
-: prep ( -- ) ^zero-col |
+: prep ( -- )
+  ^zero-col |
   n 1 0-matrix to zero-col
   build-a ;
 
@@ -58,10 +61,14 @@ variable zero-col
      v-mat ata-times to u-mat ) 10 times ;
 
 \ add u_i * v_i
-: add-uv ( sum i -- sum' )  | sum i |  u-mat i 0 @i,j  v-mat i 0 @i,j  *  sum + ; internal
+: add-uv ( sum i -- sum' )
+  | sum i |
+  u-mat i 0 @i,j  v-mat i 0 @i,j  *  sum + ; internal
 
 \ add v_i squared
-: add-vv ( sum i -- sum' )  | sum i |  v-mat i 0 @i,j  dup *  sum + ; internal
+: add-vv ( sum i -- sum' )
+  | sum i |
+  v-mat i 0 @i,j  dup *  sum + ; internal
 
 : spectral-norm-run ( loops -- )
   to n_loops

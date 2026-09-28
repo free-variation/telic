@@ -3,9 +3,13 @@
 "claude-opus-4-8" to claude-model
 65536 to claude-max-tokens
 
-: user-message ( content -- message ) | content | { :role "user" :content content } ;
+: user-message ( content -- message )
+	| content |
+	{ :role "user" :content content } ;
 
-: assistant-message ( content -- message ) | content | { :role "assistant" :content content } ;
+: assistant-message ( content -- message )
+	| content |
+	{ :role "assistant" :content content } ;
 
 : request-body ( prompt -- json )
   | messages |

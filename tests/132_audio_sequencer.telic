@@ -17,7 +17,9 @@
 
 { :oscillators [ { :wave :white :attack 0 :release 0 } ] } 0 instrument-patch!
 { :oscillators [ { :wave :white :attack 0 :release 0 } ] } 1 instrument-patch!
-: loud ( stereo -- mask ) | stereo | stereo 0 stereo n-rows 0 1 submatrix abs 1e-12 > ;
+: loud ( stereo -- mask )
+	| stereo |
+	stereo 0 stereo n-rows 0 1 submatrix abs 1e-12 > ;
 : onsets ( stereo -- array ) loud to mask
 	[ ] to found 0 to previous
 	0 mask n-rows 1 do k

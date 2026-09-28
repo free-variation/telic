@@ -17,7 +17,9 @@ clear
 clear
 
 \ === a curried quotation survives another word's locals frame ===
-: mapper-word ( items quotation -- arr ) | items quotation | items quotation map ; internal
+: mapper-word ( items quotation -- arr )
+	| items quotation |
+	items quotation map ; internal
 [ 4 9 16 ] ' sqrt ( element xt | element xt execute ) curry mapper-word .a cr  \ [ 2 3 4 ]
 
 clear
@@ -36,7 +38,9 @@ clear
 10 3 ' - 2curry execute . cr          \ 7   (order preserved: 10 3 -, not 3 10 -)
 10 3 ' - curry curry execute . cr     \ 7   (same result as chained curry)
 
-: weighted-sum ( a b -- n ) | a b | a 2 * b 3 * + ; internal
+: weighted-sum ( a b -- n )
+	| a b |
+	a 2 * b 3 * + ; internal
 4 5 ' weighted-sum 2curry execute . cr        \ 23  (both reach the target: 4*2 + 5*3)
 
 clear
@@ -119,9 +123,13 @@ clear
 \ === execute as a combinator's xt runs each token's whole body, including targets
 \ whose ops return to the loop rather than dispatch (sum and the reductions), and
 \ the loop's state is fresh for every element ===
-: reduce-then-more ( m scale -- f ) | m scale | m sum sqrt scale * ;
+: reduce-then-more ( m scale -- f )
+	| m scale |
+	m sum sqrt scale * ;
 [ [ 9 16 ] vector 2 ' reduce-then-more 2curry [ 1 3 ] vector 10 ' reduce-then-more 2curry ] ' execute map .a cr   \ [ 10 20 ]
-: a-thunk ( mat -- f ) | mat | mat dup * sum sqrt "step" . ;
+: a-thunk ( mat -- f )
+	| mat |
+	mat dup * sum sqrt "step" . ;
 [ [ 3 4 ] vector ' a-thunk curry dup ] ' execute map .a cr   \ step step [ 5 5 ]
 [ [ 9 16 ] vector 2 ' reduce-then-more 2curry [ 1 3 ] vector 10 ' reduce-then-more 2curry ] ' execute pmap .a cr  \ [ 10 20 ]
 

@@ -14,12 +14,15 @@
 11 seed
 
 : elapsed-ms ( start -- ms ) now magnitude swap - 1000 * ;
-: on-time ( started expected-ms -- flag ) | started expected-ms | started elapsed-ms expected-ms - dup 0 >= swap 200 < and ;
+: on-time ( started expected-ms -- flag )
+	| started expected-ms |
+	started elapsed-ms expected-ms - dup 0 >= swap 200 < and ;
 : playing ( description -- ) . ;
 : finished ( flag -- ) if "(on time)" else "(late)" then . cr ;
 
 \ a single note on instrument 4: held, released, 0.2 s of release, then silence
-: timed ( patch pitch seconds -- flag ) | patch pitch seconds |
+: timed ( patch pitch seconds -- flag )
+	| patch pitch seconds |
 	patch 4 instrument-patch! now magnitude to started
 	pitch 1 4 note-on seconds sleep pitch 4 note-off 0.2 sleep silence-audio wait-audio
 	started seconds 0.2 + 1000 * on-time ;
@@ -55,11 +58,13 @@ clear
 clear
 
 \ === opposite filter sweeps: instrument 5 hard left sweeps up, instrument 6 hard right down ===
-: saw-sweep ( cutoff amount pan -- patch ) | cutoff amount pan |
+: saw-sweep ( cutoff amount pan -- patch )
+	| cutoff amount pan |
 	{ :oscillators [ { :wave :saw :release 0.2 } { :wave :saw :ratio 1.004 :release 0.2 } ]
 	  :carriers [ 0 1 ] :level 0.12 :resonance 2 }
 	cutoff :cutoff ! pan :pan ! { :attack 1.5 :decay 0 :sustain 1 :release 0.2 } amount :amount ! :filter-envelope ! ;
-: side ( stereo column start finish -- v ) | stereo column start finish |
+: side ( stereo column start finish -- v )
+	| stereo column start finish |
 	stereo start 48000 * round finish 48000 * round column column 1 + submatrix ;
 : bright ( v -- a ) 48000 1569.6 amplitude-at ;
 200 5 -1 saw-sweep 5 instrument-patch!
@@ -94,7 +99,8 @@ clear
 clear
 
 \ === unison: a C major chord as one saw, then as seven spread across the field ===
-: saw-chord ( unison seconds -- flag ) | unison seconds |
+: saw-chord ( unison seconds -- flag )
+	| unison seconds |
 	{ :oscillators [ { :wave :saw :attack 0.02 :release 0.2 } ] :cutoff 3000 :level 0.07 :unison-detune 30 :unison-spread 1 }
 	unison :unison ! 7 instrument-patch!
 	now magnitude to begun
@@ -110,7 +116,8 @@ clear
 \ === glide: a legato line, each note sliding from the last ===
 { :oscillators [ { :wave :saw :release 0.15 } { :wave :pulse :ratio 0.5 :width 0.3 :level 0.6 :release 0.15 } ]
   :carriers [ 0 1 ] :cutoff 1800 :resonance 1.5 :level 0.12 :glide 0.12 } 8 instrument-patch!
-: legato ( pitches -- ) | pitches |
+: legato ( pitches -- )
+	| pitches |
 	-1 to previous
 	0 pitches size 1 do k
 		pitches k @i to pitch
@@ -131,7 +138,9 @@ clear
                  { :attack 0.001 :decay 0.3 :sustain 0.1 :release 0.05 } ]
   :modulation [ [ 1 0 2 ] ] :level 0.12 :pan -0.2 } 9 instrument-patch!
 { :oscillators [ { :wave :saw :release 0.05 } ] :cutoff 600 :resonance 1 :level 0.15 :pan 0.2 } 10 instrument-patch!
-: sequence-on-time ( started end-ms -- flag ) | started end-ms | started elapsed-ms end-ms - dup 0 >= swap 800 < and ;
+: sequence-on-time ( started end-ms -- flag )
+	| started end-ms |
+	started elapsed-ms end-ms - dup 0 >= swap 800 < and ;
 silence-audio 120 sequence-tempo 7/8 sequence-articulation 1 sequence-velocity
 "sequencer: FM keys E4 G4 C5 B4 G4 and a C major chord over a saw bass C2 G2 A2 G2 C2, 120 bpm" playing
 now magnitude to started

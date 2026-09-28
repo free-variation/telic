@@ -15,7 +15,8 @@ variable row  variable col  variable val  variable x  variable y
 50.0 constant nr
 50000.0 constant anz
 
-: build-sparse ( -- ) ^row ^col ^val ^x ^y |
+: build-sparse ( -- )
+  ^row ^col ^val ^x ^y |
   n 1.0 f+ 1 0-matrix to row
   nz 1 0-matrix to col
   anz 1 0-matrix to val

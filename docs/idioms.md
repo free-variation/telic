@@ -66,12 +66,13 @@ through consumption to its destination — a `to name`, a store, a print, an
 - The head names what a word **receives**; its working values are declared
   where they are first assigned. A `to` on a free name makes a local, so the
   head shrinks to the inputs and a word that takes none writes no head at all.
-  The opening bar is optional — `| data n-bins |` and `data n-bins |` are the
-  same head, and the longer form is the one to write when the head shares a
-  line with a stack comment:
+  The head goes on its own line under the `: name ( stack effect )` line, and
+  the body starts on the line after it. The opening bar is optional —
+  `| data n-bins |` and `data n-bins |` are the same head:
 
   ```forth
-  : histogram-table ( v n-bins -- table ) | data n-bins |
+  : histogram-table ( v n-bins -- table )
+      | data n-bins |
       data as-column drop-nans to data
       data num-elements to n-values
       data min to low
@@ -95,7 +96,8 @@ through consumption to its destination — a `to name`, a store, a print, an
 
   ```forth
   variable tests-failed
-  : record-failure ( reason -- ) | reason ^tests-failed |
+  : record-failure ( reason -- )
+      | reason ^tests-failed |
       reason . cr
       ++ tests-failed ;
   ```
@@ -167,7 +169,8 @@ result must compose with `map`/`filter`/`unify`. The two interoperate — a
   Prolog's member, clause for clause:
 
   ```forth
-  : lmember ( X L -- ) | X L |
+  : lmember ( X L -- )
+    | X L |
     X L ( x l | l [ x _ rest ] ~ drop ) 2 ncurry
     X L ( x l ?T | l [ _ T rest ] ~ drop x T lmember ) 2 ncurry
     amb ;
@@ -618,7 +621,9 @@ How values reach a quotation body, beyond its own locals.
   builds for you (`scale-all`):
 
   ```forth capture-enclosing-local
-  : scale-all ( rows factor -- rows ) | rows factor | rows ( factor * ) map ;
+  : scale-all ( rows factor -- rows )
+      | rows factor |
+      rows ( factor * ) map ;
   [ 1 2 3 ] 10 scale-all . cr
   ```
   ```output
@@ -894,7 +899,8 @@ anything failed — so a test file run as a program exits non-zero.
   connection closes on either exit:
 
   ```forth
-  : query-db-bound ( sql params -- dataset ) | sql params |
+  : query-db-bound ( sql params -- dataset )
+      | sql params |
       db-path sql params ' db-query 2curry with-db ;
   ```
 

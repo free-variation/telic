@@ -74,7 +74,8 @@
 	dup "TELIC_LOG_FILE" env! ; internal
 
 \ one line, <iso time> <level> <message>, to the log file or stderr
-: log ( str level -- ) | message level |
+: log ( str level -- )
+	| message level |
 	wall-now time>iso level message "{2} {1} {0}{nl}" format
 	log-destination dup null? if drop stderr write exit then
 	append-file ;

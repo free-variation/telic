@@ -78,24 +78,24 @@ syn keyword telicBuiltin pfilter-ext pick pitch>hz pitch>midi play-samples plot 
 syn keyword telicBuiltin pointer-deref pointer-long pointer-string-at pointer>address position-of print print-at print-gauges print-stack product-times ptr? pwd
 syn keyword telicBuiltin qnorm quantile quantiles quantity? query query-rows quotient r> r@ random random-int random-normal
 syn keyword telicBuiltin range ranks rationalize read read-arrow read-available read-err read-file read-line read-out read-tsv real-part
-syn keyword telicBuiltin rect recurse reduce reify reload remove-last! rename-file rename-key! render render-audio repeat-column! replace
-syn keyword telicBuiltin replace-where! resample resample-indices resample-indices-ext reset reshape rest resume reverse rm rmdir roll
-syn keyword telicBuiltin rot round round-down round-up row-at row-maxes row-means row-mins row-sums rows>dataset rshift run
-syn keyword telicBuiltin run-result running? sample sample-with-replacement sample-without-replacement save save-tsv save-value screen-effect screen-frame screen-frames screen-shader
-syn keyword telicBuiltin screen-size screen-zoom se second see see-compiled see-compiled>string see-tree see-tree>string see>string seed segment>pointer
-syn keyword telicBuiltin segment? select-columns select-eq select-keys select-neq select-rows select-values sequence-articulation sequence-chord sequence-end sequence-instrument sequence-note
-syn keyword telicBuiltin sequence-rest sequence-tempo sequence-velocity set set-add! set-remove! set-unit! set>array set? shift shift-with shuffle
-syn keyword telicBuiltin side-depth side-drop side-peek sigmoid silence-audio sin sinh size skip sleep slice! solutions
-syn keyword telicBuiltin sort sort-by sort-rows sort-rows-descending spaces split split-by spread sq sqrt start-generator start-process
-syn keyword telicBuiltin std stderr stdin stdout stdout>string stop stream? string>byte-vector string>chars string>codepoints string>number string>symbol
-syn keyword telicBuiltin string? submatrix substring successive-differences sum sum-times summary swap symbol? take take-solutions tan
-syn keyword telicBuiltin tanh telic telic-version test test-report throw tick-every time>iso timed to-slice! touch touch-file
-syn keyword telicBuiltin trace transpose trim true true? truncate try-catch tsv>db tty? tuck type-of unify?
-syn keyword telicBuiltin union unit unit-of update-at upper-case value>bytes values var variables vars vector vf*
-syn keyword telicBuiltin vf+ vf- vf/ vfabs vfcos vfexp vflog vfneg vfsin vfsq vfsqrt vftan
-syn keyword telicBuiltin vftanh vstack vvf* vvf*+ vvf*- vvf+ vvf- vvf/ wait wait-audio wait-readable wait-sequence
-syn keyword telicBuiltin wall-now where wildcard? with-db with-stream within-groups words write write-arrow write-file write-in write-tsv
-syn keyword telicBuiltin xml-escape xt? yield zero-variance?
+syn keyword telicBuiltin recent-audio rect recurse reduce reify reload remove-last! rename-file rename-key! render render-audio repeat-column!
+syn keyword telicBuiltin replace replace-where! resample resample-indices resample-indices-ext reset reshape rest resume reverse rm rmdir
+syn keyword telicBuiltin roll rot round round-down round-up row-at row-maxes row-means row-mins row-sums rows>dataset rshift
+syn keyword telicBuiltin run run-result running? sample sample-with-replacement sample-without-replacement save save-tsv save-value screen-effect screen-frame screen-frames
+syn keyword telicBuiltin screen-shader screen-size screen-zoom se second see see-compiled see-compiled>string see-tree see-tree>string see>string seed
+syn keyword telicBuiltin segment>pointer segment? select-columns select-eq select-keys select-neq select-rows select-values sequence-articulation sequence-chord sequence-end sequence-instrument
+syn keyword telicBuiltin sequence-note sequence-rest sequence-tempo sequence-velocity set set-add! set-remove! set-unit! set>array set? shift shift-with
+syn keyword telicBuiltin shuffle side-depth side-drop side-peek sigmoid silence-audio sin sinh size skip sleep slice!
+syn keyword telicBuiltin solutions sort sort-by sort-rows sort-rows-descending spaces split split-by spread sq sqrt start-generator
+syn keyword telicBuiltin start-process std stderr stdin stdout stdout>string stop stream? string>byte-vector string>chars string>codepoints string>number
+syn keyword telicBuiltin string>symbol string? submatrix substring successive-differences sum sum-times summary swap symbol? take take-solutions
+syn keyword telicBuiltin tan tanh telic telic-version test test-report throw tick-every time>iso timed to-slice! touch
+syn keyword telicBuiltin touch-file trace transpose trim true true? truncate try-catch tsv>db tty? tuck type-of
+syn keyword telicBuiltin unify? union unit unit-of update-at upper-case value>bytes values var variables vars vector
+syn keyword telicBuiltin vf* vf+ vf- vf/ vfabs vfcos vfexp vflog vfneg vfsin vfsq vfsqrt
+syn keyword telicBuiltin vftan vftanh vstack vvf* vvf*+ vvf*- vvf+ vvf- vvf/ wait wait-audio wait-readable
+syn keyword telicBuiltin wait-sequence wall-now where wildcard? with-db with-stream within-groups words write write-arrow write-file write-in
+syn keyword telicBuiltin write-tsv xml-escape xt? yield zero-variance?
 
 hi def link telicComment      Comment
 hi def link telicString       String

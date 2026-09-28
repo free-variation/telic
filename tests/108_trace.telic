@@ -10,11 +10,15 @@
 ( 3 4 + ) [ ] trace . cr
 
 \ -- a colon call with a head: the frame ops show, and the fused load
-: sq ( x -- n ) | x | x x * ;
+: sq ( x -- n )
+	| x |
+	x x * ;
 ( 5 sq ) [ ] trace . cr
 
 \ -- a loop: the fused compare-and-branch and the back branch
-: count-to ( n -- n ) | n | 0 begin dup n < while 1+ repeat ;
+: count-to ( n -- n )
+	| n |
+	0 begin dup n < while 1+ repeat ;
 ( 2 count-to ) [ ] trace . cr
 
 \ -- a deep stack shows the top four with an ellipsis

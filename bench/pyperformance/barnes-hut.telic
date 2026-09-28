@@ -167,7 +167,8 @@ variable tpidx  variable tpx  variable tpy  variable tpmass
      p  perpy orbv f*  3  !i drop
   then ; internal
 
-: create-galaxy ( -- ) ^particles ^pfill |
+: create-galaxy ( -- )
+  ^particles ^pfill |
   0.0 n array-of to particles
   0.0 to pfill
   n 0.3 f* ftruncate to bulge

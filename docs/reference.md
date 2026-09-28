@@ -1810,7 +1810,9 @@ many
 ```
 
 ```forth of
-: dispatch ( fr -- ) | ?x | case { :cmd :add :n x } of x ? 1 + . endof { :cmd :quit } of "bye" . endof drop "?" . endcase cr ;
+: dispatch ( fr -- )
+  | ?x |
+  case { :cmd :add :n x } of x ? 1 + . endof { :cmd :quit } of "bye" . endof drop "?" . endcase cr ;
 { :cmd :add :n 4 } dispatch
 { :cmd :quit :id 7 } dispatch
 ```
@@ -1910,8 +1912,14 @@ closers are self-delimiting tokens (see the note in the introduction).
 ```
 
 ```forth |
-: hyp ( a b -- h ) | a b | a a * b b * + sqrt ; 3 4 hyp . cr
-: discounted ( price -- net ) | price | 0.2 to rate price price rate * - ; 100 discounted . cr
+: hyp ( a b -- h )
+  | a b |
+  a a * b b * + sqrt ;
+3 4 hyp . cr
+: discounted ( price -- net )
+  | price |
+  0.2 to rate price price rate * - ;
+100 discounted . cr
 : staged ( -- n ) 10 to start-value  start-value 3 * to scaled  start-value scaled + ; staged . cr
 ```
 ```output
@@ -2059,7 +2067,9 @@ base unit inch 12 inch unit foot 2 foot 6 inch + . cr
 
 ```forth (
 5 ( 2 * ) execute . cr
-: scale-all ( rows factor -- rows ) | rows factor | rows ( factor * ) map ;
+: scale-all ( rows factor -- rows )
+  | rows factor |
+  rows ( factor * ) map ;
 [ 1 2 3 ] 10 scale-all . cr
 ```
 ```output
@@ -2963,14 +2973,20 @@ Symbol-keyed sorted maps; binary-search lookup. Storage order is symbol id, whic
 ```
 
 ```forth name@key
-: price-of ( row -- price ) row | row@price ; { :price 9 } price-of . cr
+: price-of ( row -- price )
+  row |
+  row@price ;
+{ :price 9 } price-of . cr
 ```
 ```output
 9
 ```
 
 ```forth name!key
-: mark-sold ( row -- row ) row | 0 row!price row ; { :price 9 } mark-sold frame>array . cr
+: mark-sold ( row -- row )
+  row |
+  0 row!price row ;
+{ :price 9 } mark-sold frame>array . cr
 ```
 ```output
 [ :price 0 ]
@@ -5529,7 +5545,9 @@ gauges gauges>rows size . cr
 
 ```forth-noexec tick-every
 variable ticks 0 to ticks
-: count-tick ( -- ) | ^ticks | ++ ticks ;
+: count-tick ( -- )
+  | ^ticks |
+  ++ ticks ;
 ' count-tick embodies on-tick
 1 tick-every 2.5 sleep 0 tick-every
 ticks . cr
@@ -5599,7 +5617,9 @@ woke
 
 ```forth trace
 ( 3 4 + ) [ ] trace . cr
-: sq-traced ( x -- sq ) | x | x x * ;
+: sq-traced ( x -- sq )
+  | x |
+  x x * ;
 ( 5 sq-traced 2 + ) [ "^sq" ] trace . cr
 ```
 ```output
@@ -6205,6 +6225,7 @@ Times are in [0, 60] seconds. After one time constant a stage has covered
 | `note-on` | `( pitch velocity instrument -- )` | Start a note, velocity in [0, 1], at the start of the next `render-audio` | 1 | none | O(voices) |
 | `note-off` | `( pitch instrument -- )` | Release the instrument's sounding voices at that pitch; a pitch not sounding is ignored | 1 | none | O(voices) |
 | `render-audio` | `( seconds -- matrix )` | Advance the synthesizer by `seconds`, [0, 600], and answer its output as an n×2 matrix, n = seconds × 48000, column 0 left, column 1 right. Consecutive calls continue one signal. Errors while `audio-on` has the synthesizer playing live | n × voices | `1m(n×2)` | O(n × voices × oscillators) |
+| `recent-audio` | `( frames -- matrix )` | The last `frames`, [1, 8192], of the synthesizer's output after the effects chain, as an n×2 matrix in the layout of `render-audio`, oldest first: what the device was last given when live, the end of the last `render-audio` offline; frames from before the first rendered sample are 0. Each render publishes its frames when it finishes, so live the answer ends at the device's latest buffer, for a display such as a spectrum analyzer | n | `1m(n×2)` | O(n) |
 | `silence-audio` | `( -- )` | End every sounding voice and every `play-samples` at once, empty the sequencer's queue, and reset every instrument's sequence position; instruments keep their patches | 1 | none | O(voices) |
 | `audio-on` | `( -- )` | Open the default output device, 48 kHz stereo, and run the synthesizer on its thread: from then on `note-on`, `note-off`, `instrument-patch!` and `silence-audio` take effect at the device's next buffer and are heard. The interpreter reaches the device thread through a queue of 4096 commands, and a word that would overflow it errors. Native only | 1 | the device | O(1) |
 | `audio-off` | `( -- )` | Close the output device; commands still queued are applied, `play-samples` still sounding are dropped, and the synthesizer renders offline again | 1 | none | O(1) |
@@ -6342,6 +6363,14 @@ silence-audio 0.5 render-audio dim . . cr
 ```
 ```output
 2 24000
+```
+
+```forth recent-audio
+{ :oscillators [ { :fixed-hz 1000 } ] } 0 instrument-patch! silence-audio :a4 1 0 note-on 0.5 render-audio drop
+4096 recent-audio 0 @j 48000 1000 amplitude-at 0.70710678 / 1000 * round 1000 / . cr silence-audio
+```
+```output
+1
 ```
 
 ```forth silence-audio

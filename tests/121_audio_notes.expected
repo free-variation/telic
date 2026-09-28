@@ -20,6 +20,8 @@
 1 
 0 
 1 
+2 8192 
+1 
 1 
 0 
 0.707 0.707 
@@ -76,3 +78,11 @@ error: expected seconds in [0, 600]; got 601
 in render-audio
 error: expected a float number of seconds; got a string
 in render-audio
+error: expected a whole number of frames in [1, 8192]; got 0
+in recent-audio
+error: expected a whole number of frames in [1, 8192]; got 8193
+in recent-audio
+error: expected a whole number of frames in [1, 8192]; got 1.5
+in recent-audio
+error: expected a float number of frames; got a string
+in recent-audio

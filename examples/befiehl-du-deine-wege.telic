@@ -28,8 +28,10 @@
 \ the same extra beat, and the last phrase slows beat by beat through exact
 \ stretch factors. The effects chain carries a chorus and a light plate
 \ reverb throughout, a ping-pong delay on the repeat, a shimmer in the last
-\ phrase, and a freeze of the final chord. Each line of the text prints as
-\ its phrase begins. Ctrl-C stops the performance.
+\ phrase, and a freeze of the final chord. A window shows a spectrum
+\ analyzer of the output, redrawn every display frame from recent-audio, with
+\ each line of the text appearing as its phrase begins. Closing the window
+\ stops the performance.
 
 11 seed
 
@@ -127,7 +129,8 @@
 [ 1/1 1/1 1/1 1/1 9/8 5/4 11/8 3/2 ] to slowing
 
 \ the performed position of a score position (in whole notes), each beat scaled by its factor
-: warp ( position factors -- warped ) | position factors |
+: warp ( position factors -- warped )
+	| position factors |
 	0/1 to warped
 	0 8 1 do k
 		k float>exact 1/4 * to beat-start
@@ -135,7 +138,8 @@
 	loop warped ;
 
 \ queue one voice's phrase: its last note held for hold more, its loudness arching over the phrase
-: queue-voice ( notes instrument hold factors dynamic -- ) | notes instrument hold factors dynamic |
+: queue-voice ( notes instrument hold factors dynamic -- )
+	| notes instrument hold factors dynamic |
 	instrument sequence-instrument
 	0/1 to position
 	0 notes size 2 do k
@@ -150,26 +154,130 @@
 	loop ;
 
 \ queue the four voices of a phrase, the lower two a little softer
-: queue-phrase ( phrase hold factors dynamic -- ) | phrase hold factors dynamic |
+: queue-phrase ( phrase hold factors dynamic -- )
+	| phrase hold factors dynamic |
 	phrase 0 @i 0 hold factors dynamic queue-voice
 	phrase 1 @i 1 hold factors dynamic queue-voice
 	phrase 2 @i 2 hold factors dynamic 0.05 - queue-voice
 	phrase 3 @i 3 hold factors dynamic 0.05 - queue-voice ;
 
-\ queue a phrase 1.5 s before the one sounding ends, run the changes as it begins, print its line
-: next-phrase ( line phrase hold factors dynamic changes -- ) | line phrase hold factors dynamic changes |
-	sequence-end 1.5 - 0 max2 sleep
-	sequence-end to remaining
-	phrase hold factors dynamic queue-phrase
-	remaining sleep
-	changes execute
-	line . cr ;
+\ === the performance plan: per phrase, its line, notes, fermata hold, stretch, dynamic, and changes ===
+\ the changes run as the phrase begins
 
-: fade-out ( seconds -- ) | seconds |
-	0 30 1 do k
-		1 k 1 + 30 / - :level :master effect!
-		seconds 30 / sleep
-	loop ;
+[ [ "Befiehl du deine Wege," phrase-a1 1/4 steady 0.62 ( ) ]
+  [ "Und was dein Herze kränkt," phrase-a2 1/4 steady 0.68 ( ) ]
+  \ the repeat: a ping-pong delay joins, the tenor's modulator eases for a rounder tone
+  [ "Der allertreusten Pflege" phrase-a1 1/4 steady 0.66 ( 0.14 :wet :delay effect! 0.7 :level 1 2 oscillator! ) ]
+  [ "Des, der den Himmel lenkt!" phrase-a2 1/4 steady 0.7 ( ) ]
+  \ the second half: the delay leaves, the tenor returns, the soprano's filter opens toward the climax in phrase 7
+  [ "Der Wolken, Luft und Winden" phrase-b1 1/4 steady 0.72 ( 0 :wet :delay effect! 1 :level 1 2 oscillator! 8000 :cutoff 0 instrument! ) ]
+  [ "Gibt Wege, Lauf und Bahn," phrase-b2 1/4 steady 0.72 ( ) ]
+  [ "Der wird auch Wege finden," phrase-b3 1/4 steady 0.8 ( ) ]
+  \ the last phrase slows and softens, and a shimmer climbs out of the plate
+  [ "Da dein Fuß gehen kann." phrase-b4 1/2 slowing 0.6
+    ( 12 :shimmer1-shift :reverb effect! 0.12 :shimmer1-mix :reverb effect! 1 :shimmer-in-loop :reverb effect! 6500 :cutoff 0 instrument! ) ]
+] to performance
+
+\ === the spectrum analyzer ===
+\ 60 bars on a logarithmic axis from 40 Hz to 12 kHz, from a Hann-windowed 4096-point
+\ transform of the last 4096 frames the synthesizer produced, 0 dB at the top of the
+\ bars and 66 dB below it at their base; each bar falls back at 10% a frame and a
+\ peak mark above it falls more slowly
+
+480 270 screen-size 2 screen-zoom :black paper
+4096 hann to analysis-window
+60 1 0-matrix to bar-levels
+60 1 0-matrix to bar-peaks
+
+\ the fft bin where bar k begins: 40 Hz x 300^(k/60), at 48000/4096 Hz per bin
+: bar-edge ( k -- bin ) 60 / 300 swap ^ 40 * 4096 * 48000 / round ;
+61 iota ' bar-edge map to bar-edges
+
+\ the magnitudes of the last 4096 frames' mono sum
+: spectrum ( -- bins )
+	4096 recent-audio to stereo
+	stereo 0 @j stereo 1 @j + 0.5 * analysis-window * fft magnitudes ;
+
+\ bar k's level in [0, 1]: its loudest bin in dB, a full-scale sine (magnitude 1024) at 1
+: bar-level ( bins k -- level )
+	| bins k |
+	bar-edges k @i to low
+	bar-edges k 1+ @i low 1+ max2 to high
+	bins low high 0 1 submatrix max 1024 / 1e-9 max2 log10 20 * 66 + 66 / 0 1 clamp ;
+
+\ a packed color between two red-green-blue triples, a fraction of the way from the first
+: blend ( r0 g0 b0 r1 g1 b1 fraction -- color )
+	| r0 g0 b0 r1 g1 b1 fraction |
+	r1 r0 - fraction * r0 + round 65536 *
+	g1 g0 - fraction * g0 + round 256 * +
+	b1 b0 - fraction * b0 + round + ;
+
+\ bar k's color: deep sky blue at the bass, gold through the middle, a warm orange at the treble
+: bar-color ( k -- color ) 59 / to shade
+	shade 0.6 < if 0 191 255 255 215 0 shade 0.6 / blend exit then
+	255 215 0 255 100 30 shade 0.6 - 0.4 / blend ;
+
+\ one frame: the bars and their peak marks, the frequency marks, the title, and the text
+: draw-frame ( previous current -- )
+	| previous current |
+	cls
+	spectrum to bins
+	0 60 1 do k
+		bins k bar-level to fresh
+		bar-levels k @e 0.9 * fresh max2 to shown
+		bar-levels shown k !e drop
+		bar-peaks k @e 0.005 - shown max2 to peak
+		bar-peaks peak k !e drop
+		k bar-color ink
+		k 8 * 1 +  196 shown 160 * -  6  shown 160 * 1 max2  fill-rect
+		:white ink
+		k 8 * 1 +  194 peak 160 * -  6  1  fill-rect
+	loop
+	:dimgray ink
+	74 200 "100 Hz" print-at 262 200 "1 kHz" print-at 400 200 "5 kHz" print-at
+	:gray ink 12 8 "J. S. Bach   Befiehl du deine Wege   BWV 270" print-at
+	:dimgray ink 12 224 previous print-at
+	:gold ink 12 244 current print-at ;
+
+\ === the performance loop, one display frame per pass ===
+\ each phrase is queued 1.5 s before the one sounding ends; as it begins, its changes run
+\ and its line shows; after the last phrase the final chord freezes in the reverb 1.4 s
+\ before the end, hangs for 6 s, and fades over 4 s
+: perform ( -- )
+	1 to next-phrase
+	0 to pending-index
+	now to pending-start
+	"" to previous-line
+	"" to current-line
+	0 to score-end
+	0 to frozen
+	0 to thawed
+	1 to playing
+	begin playing while
+		now to moment
+		pending-start 0 >= moment pending-start >= and if
+			performance pending-index @i to entry
+			entry 5 @i execute
+			current-line to previous-line
+			entry 0 @i to current-line
+			-1 to pending-start
+		then
+		next-phrase performance size < pending-start 0 < and sequence-end 1.5 < and if
+			performance next-phrase @i to entry
+			moment sequence-end + to pending-start
+			next-phrase to pending-index
+			entry 1 @i entry 2 @i entry 3 @i entry 4 @i queue-phrase
+			++ next-phrase
+			next-phrase performance size = if moment sequence-end + to score-end then
+		then
+		score-end 0 > if
+			moment score-end 1.4 - >= frozen 0= and if 1 :freeze :reverb effect! 1 to frozen then
+			moment score-end 6 + >= thawed 0= and if 0 :freeze :reverb effect! 1 to thawed then
+			thawed if 1 moment score-end 6 + - 4 / 0 1 clamp - :level :master effect! then
+			moment score-end 10 + > if 0 to playing then
+		then
+		previous-line current-line ' draw-frame screen-frame
+	repeat ;
 
 \ === the effects ===
 0.22 :wet :chorus effect! 0.0025 :depth :chorus effect! 0.4 :rate :chorus effect!
@@ -182,29 +290,9 @@
 silence-audio 60 sequence-tempo 0.96 sequence-articulation
 
 \ the first phrase is queued before the device opens, so all four voices start on its first sample
-phrase-a1 1/4 steady 0.62 queue-phrase
+performance 0 @i to opening
+opening 1 @i opening 2 @i opening 3 @i opening 4 @i queue-phrase
 audio-on
-"Befiehl du deine Wege," . cr
-"Und was dein Herze kränkt," phrase-a2 1/4 steady 0.68 ( ) next-phrase
-
-\ the repeat: a ping-pong delay joins, the tenor's modulator eases for a rounder tone
-"Der allertreusten Pflege" phrase-a1 1/4 steady 0.66 ( 0.14 :wet :delay effect! 0.7 :level 1 2 oscillator! ) next-phrase
-"Des, der den Himmel lenkt!" phrase-a2 1/4 steady 0.7 ( ) next-phrase
-
-\ the second half: the delay leaves, the tenor returns, the soprano's filter opens toward the climax in phrase 7
-"Der Wolken, Luft und Winden" phrase-b1 1/4 steady 0.72 ( 0 :wet :delay effect! 1 :level 1 2 oscillator! 8000 :cutoff 0 instrument! ) next-phrase
-"Gibt Wege, Lauf und Bahn," phrase-b2 1/4 steady 0.72 ( ) next-phrase
-"Der wird auch Wege finden," phrase-b3 1/4 steady 0.8 ( ) next-phrase
-
-\ the last phrase slows and softens, and a shimmer climbs out of the plate
-"Da dein Fuß gehen kann." phrase-b4 1/2 slowing 0.6 ( 12 :shimmer1-shift :reverb effect! 0.12 :shimmer1-mix :reverb effect! 1 :shimmer-in-loop :reverb effect! 6500 :cutoff 0 instrument! ) next-phrase
-
-\ freeze the final chord in the reverb, let it hang, then fade
-sequence-end 1.4 - 0 max2 sleep
-1 :freeze :reverb effect!
-wait-sequence
-4 sleep
-0 :freeze :reverb effect!
-4 fade-out
+perform
 silence-audio 1 :level :master effect! 0 :shimmer1-mix :reverb effect! 0 :shimmer-in-loop :reverb effect!
 audio-off

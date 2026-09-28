@@ -5,7 +5,9 @@
 \ remaining time. Nothing ticks until armed; 0 disarms.
 
 variable ticks 0 to ticks
-: count-tick ( -- ) | ^ticks | ++ ticks ;
+: count-tick ( -- )
+	| ^ticks |
+	++ ticks ;
 ' count-tick embodies on-tick
 
 \ -- unarmed: a sleep sees no tick

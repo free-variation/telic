@@ -6261,6 +6261,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "note-on", p_note_on, 0);
 	define_primitive(interp, "note-off", p_note_off, 0);
 	define_primitive(interp, "render-audio", p_render_audio, 0);
+	define_primitive(interp, "recent-audio", p_recent_audio, 0);
 	define_primitive(interp, "silence-audio", p_silence_audio, 0);
 	define_primitive(interp, "effect!", p_effect_store, 0);
 	define_primitive(interp, "(sequence-note)", p_sequence_note, 4);

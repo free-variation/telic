@@ -25,7 +25,9 @@ lvar to Args
 [ ] shape [ 5 ] shape [ 5 6 7 ] shape 42 shape           \ empty / one / two or more / not an array
 
 \ === a fresh rest variable per call via a ?-local ===
-: tail-of ( arr -- v ) | ?tail-var | [ _ tail-var rest ] ~ drop tail-var ? ;
+: tail-of ( arr -- v )
+	| ?tail-var |
+	[ _ tail-var rest ] ~ drop tail-var ? ;
 [ 1 2 3 ] tail-of . [ 1 ] tail-of . cr                  \ [ 2 3 ] [ ]
 
 \ === a bound rest variable compares structurally on the next use ===

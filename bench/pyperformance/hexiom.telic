@@ -15,7 +15,8 @@
 variable cell-links  variable tiles
 variable solution-sig
 
-: init-data ( -- ) ^cell-links ^tiles |
+: init-data ( -- )
+  ^cell-links ^tiles |
   [ [ 1.0 3.0 4.0 ]
     [ 2.0 0.0 4.0 5.0 ]
     [ 1.0 5.0 6.0 ]
@@ -143,7 +144,8 @@ variable solution-sig
   changed ;
 
 \ --- record the solved board's 19 cell values (id order) ------------------
-: capture-sig ( cells -- ) | cells ^solution-sig |
+: capture-sig ( cells -- )
+  | cells ^solution-sig |
   0 count 1 do i  cells i cell-val 48.0 f+  loop
   count array codepoints>string to solution-sig ;
 

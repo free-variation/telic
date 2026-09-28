@@ -569,7 +569,9 @@
 	dataset keys ( 2 pick swap @ column>array ) map nip transpose ; internal
 
 \ a frame mapping each key to null, the miss-fill template
-: null-frame ( keys -- frame ) | keys | keys { } ( | fr key | fr null key ! ) reduce ; internal
+: null-frame ( keys -- frame )
+	| keys |
+	keys { } ( | fr key | fr null key ! ) reduce ; internal
 
 \ probe secondary (which
 \ must be unique) by each primary row's key tuple: a match merges the two rows, a

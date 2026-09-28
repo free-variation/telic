@@ -10,10 +10,16 @@
 
 11 seed
 
-: settled ( stereo -- v ) | stereo | stereo 4800 48000 0 1 submatrix ;
+: settled ( stereo -- v )
+	| stereo |
+	stereo 4800 48000 0 1 submatrix ;
 : amp ( v hz -- a ) 48000 swap amplitude-at 0.70710678 / 1000 * round 1000 / ;
-: tone ( oscillator -- v ) | oscillator | silence-audio { } [ oscillator ] :oscillators ! 0 instrument-patch! :a4 1 0 note-on 1 render-audio settled ;
-: series ( v hzs -- ) | v hzs | hzs ( v swap amp . ) each cr ;
+: tone ( oscillator -- v )
+	| oscillator |
+	silence-audio { } [ oscillator ] :oscillators ! 0 instrument-patch! :a4 1 0 note-on 1 render-audio settled ;
+: series ( v hzs -- )
+	| v hzs |
+	hzs ( v swap amp . ) each cr ;
 
 \ === periodic waves at 1 kHz, harmonics 1-5 ===
 { :fixed-hz 1000 } tone [ 1000 2000 3000 ] series                       \ 1 0 0
@@ -36,8 +42,12 @@ clear
 clear
 
 \ === band-limiting: the discriminating alias, PolyBLEP against a naive saw ===
-: below ( v hz alias -- db ) | v hz alias | v 48000 alias amplitude-at v 48000 hz amplitude-at / log10 -20 * round ;
-: naive-saw ( hz -- v ) | hz | 0 43199 1 matrix-range transpose 4800 + hz * 48000 / 1 mod 2 * 1 - ;
+: below ( v hz alias -- db )
+	| v hz alias |
+	v 48000 alias amplitude-at v 48000 hz amplitude-at / log10 -20 * round ;
+: naive-saw ( hz -- v )
+	| hz |
+	0 43199 1 matrix-range transpose 4800 + hz * 48000 / 1 mod 2 * 1 - ;
 { :wave :saw :fixed-hz 5000 } tone 5000 13000 below 30 > . cr           \ 1 (5 kHz: the 7th harmonic's alias at 13 kHz)
 { :wave :pulse :fixed-hz 5000 } tone 5000 13000 below 30 > . cr         \ 1 (square: odd harmonics, 35 kHz folds to 13 kHz)
 5000 naive-saw 5000 13000 below 25 < . cr                               \ 1 (the naive saw fails)
@@ -46,9 +56,13 @@ clear
 clear
 
 \ === noise: RMS, and energy per octave band averaged over 250 Hz-16 kHz ===
-: noise ( wave -- v ) | wave | silence-audio { } [ { } wave :wave ! ] :oscillators ! 0 instrument-patch! :a4 1 0 note-on 2 render-audio 9600 96000 0 1 submatrix ;
+: noise ( wave -- v )
+	| wave |
+	silence-audio { } [ { } wave :wave ! ] :oscillators ! 0 instrument-patch! :a4 1 0 note-on 2 render-audio 9600 96000 0 1 submatrix ;
 : rms ( v -- r ) dup * mean sqrt 0.70710678 / 100 * round 100 / ;
-: band ( amplitudes lo hi -- energy ) | amplitudes lo hi | amplitudes lo 86400 * 48000 / round hi 86400 * 48000 / round 0 1 submatrix dup * sum ;
+: band ( amplitudes lo hi -- energy )
+	| amplitudes lo hi |
+	amplitudes lo 86400 * 48000 / round hi 86400 * 48000 / round 0 1 submatrix dup * sum ;
 : octave-slope ( v -- db ) 48000 amplitude-spectrum :amplitude @ to a
 	[ 250 500 1000 2000 4000 8000 ] ( a over dup 2 * band swap drop ) map to energies
 	energies 5 @i energies 0 @i / log10 10 * 5 / round ;

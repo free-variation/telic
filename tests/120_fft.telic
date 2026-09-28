@@ -12,9 +12,13 @@
 : tidy ( m -- m' ) 1000000 * round 1000000 / 0 + ;
 : max-difference ( a b -- d ) - abs max ;
 : ramp ( n -- v ) 0 swap 1 - 1 matrix-range transpose ;
-: sine-cycles ( k n -- v ) | k n | n ramp 2 PI * k * n / * sin ;
+: sine-cycles ( k n -- v )
+	| k n |
+	n ramp 2 PI * k * n / * sin ;
 : seeded-real ( n -- v ) iota ( drop random ) map vector ;
-: seeded-complex ( n -- z ) | n | n 2 * iota ( drop random ) map n 2 matrix ;
+: seeded-complex ( n -- z )
+	| n |
+	n 2 * iota ( drop random ) map n 2 matrix ;
 
 \ the O(n^2) definition, one output bin per iteration
 : direct-dft ( z -- z' )
@@ -44,8 +48,12 @@
 clear
 
 \ === round trips, including the prime 1009 (Bluestein) ===
-: real-round-trip ( n -- flag ) | n | n seeded-real dup fft n ifft max-difference 1e-12 < ;
-: complex-round-trip ( n -- flag ) | n | n seeded-complex dup cfft icfft max-difference 1e-12 < ;
+: real-round-trip ( n -- flag )
+	| n |
+	n seeded-real dup fft n ifft max-difference 1e-12 < ;
+: complex-round-trip ( n -- flag )
+	| n |
+	n seeded-complex dup cfft icfft max-difference 1e-12 < ;
 [ 1 2 7 64 1000 1009 ] ( real-round-trip ) map . cr        \ [ 1 1 1 1 1 1 ]
 [ 1 2 7 64 1000 1009 ] ( complex-round-trip ) map . cr     \ [ 1 1 1 1 1 1 ]
 [ 1 2 3 4 5 ] 1 5 matrix fft 5 ifft n-columns . cr         \ 1 (always nx1)
@@ -75,7 +83,9 @@ clear
 clear
 
 \ === amplitude-at and amplitude-spectrum ===
-: tone ( hz amplitude -- v ) | hz amplitude | 48000 ramp 2 PI * hz * 48000 / * sin amplitude * ;
+: tone ( hz amplitude -- v )
+	| hz amplitude |
+	48000 ramp 2 PI * hz * 48000 / * sin amplitude * ;
 : millis ( f -- f' ) 1000 * round 1000 / ;
 1000 1 tone 48000 1000 amplitude-at millis . cr            \ 1
 1000 1 tone 48000 3000 amplitude-at 0.001 < . cr           \ 1

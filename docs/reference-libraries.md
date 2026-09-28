@@ -1091,7 +1091,8 @@ telic -e '"mcp" load-library mcp-serve'
 
 ```forth-noexec mcp-add-tool
 \ a host program's own tool, registered before serving
-: greet-tool ( id arguments -- ) | id arguments |
+: greet-tool ( id arguments -- )
+  | id arguments |
   id "hello " arguments :who @ + false mcp-tool-result ;
 
 { :name "greet"

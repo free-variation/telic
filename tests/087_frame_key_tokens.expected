@@ -11,7 +11,9 @@ Cambridge
 100 
 100 7 
 1 
-: price-of ( r -- price ) | r | r@price ;
+: price-of ( r -- price )
+	| r |
+	r@price ;
 77 
 1 
 9 

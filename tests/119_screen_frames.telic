@@ -14,7 +14,9 @@ clear
 
 \ === screen-frame ( xt -- ) runs xt; a body that draws nothing opens no window ===
 ( 1 2 + . ) screen-frame cr                          \ 3
-: captured ( n -- ) | n | ( n 10 * . ) screen-frame cr ;
+: captured ( n -- )
+	| n |
+	( n 10 * . ) screen-frame cr ;
 4 captured                                           \ 40
 ( ( 5 . ) screen-frame 6 . ) screen-frame cr         \ 5 6
 screen-frames . cr                                   \ 0

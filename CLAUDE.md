@@ -69,8 +69,8 @@ by file in SRCS order. What each file is:
   and LFO, glide, 64-frame parameter ramps, pitch parsing, the words
   pitch>midi … render-audio, instrument!, oscillator!, the sequencer (exact
   per-instrument positions, the sample-accurate schedule, the sequence-*
-  words), effect!; also the lock-free rings to the device thread and
-  synth_device_render.
+  words), effect!, recent-audio; also the lock-free rings to the device
+  thread, the ring of recent output frames, and synth_device_render.
   Plain C with libm only, so it builds for wasm.
 - audio_effects.c — the master effects chain synth_render runs each frame:
   chorus, ping-pong/straight delay, the Dattorro plate reverb with its
@@ -234,9 +234,11 @@ new inline that calls functions → the tail.
   binding makes partial masking useless). The word's golden runs native
   (masked) and wasm (unmasked) and must agree, pinning both copies.
 - Locals: a head names what the body receives, rightmost from the top,
-  and the opening bar is optional — `: hypotenuse a b | …` and
-  `( element index | … )` are the heads `| a b |` and
-  `| element index |`. Everything else is declared by a `to` on an
+  and the opening bar is optional — `a b |` and `( element index | … )`
+  are the heads `| a b |` and `| element index |`. In a colon
+  definition the head goes on its own line, indented, under the
+  `: name ( stack effect )` line, and the body starts on the line after
+  it, however short. Everything else is declared by a `to` on an
   undeclared name and reads as null until assigned. `^name` in the head
   names an enclosing global the body assigns; `?name` is a fresh logic
   variable per call.
@@ -283,7 +285,8 @@ new inline that calls functions → the tail.
   golden trios (tests/9*_docs_*, gitignored). A word's example pairs sit
   after its section's table — self-contained, seeded, newline-terminated,
   both stacks left empty — and surface in help/man as :examples. The
-  explanatory docs (continuations, logic, regression, idioms) carry the
+  explanatory docs (continuations, logic, regression, idioms, tracing,
+  synthesizer) carry the
   same pair format with a free-text label instead of a word name; all of
   one doc's pairs become one trio (tests/901_docs_<stem>), indented
   fences allowed inside list bullets, and a bare ```forth fence there is

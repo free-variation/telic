@@ -32,7 +32,8 @@ variable rand-m  variable ri  variable rj
   loop
   4.0 to ri  16.0 to rj ;
 
-: next-double ( -- d ) ^ri ^rj |
+: next-double ( -- d )
+  ^ri ^rj |
   ri to ii  rj to jj
   rand-m ii @e  rand-m jj @e f- to k
   k 0.0 < if k m1 f+ to k then

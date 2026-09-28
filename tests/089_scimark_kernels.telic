@@ -19,7 +19,8 @@
 1.0 1.25 f- constant one-minus-omega
 variable g
 
-: seed-g ( -- ) ^g |
+: seed-g ( -- )
+  ^g |
   sor-nn 1 0-matrix to g
   ( i | g  i i f* 97.0 fmod 97.0 f/  i  !e drop ) sor-nn i-times ;
 
@@ -66,7 +67,8 @@ clear
 64.0 constant sp-anz
 variable row  variable col  variable val  variable x  variable y
 
-: seed-sparse ( -- ) ^row ^col ^val ^x ^y |
+: seed-sparse ( -- )
+  ^row ^col ^val ^x ^y |
   sp-n 1.0 f+ 1 0-matrix to row
   sp-anz 1 0-matrix to col
   sp-anz 1 0-matrix to val

@@ -10,7 +10,9 @@
 leftover . cr
 
 \ -- received in the head, never read
-: ignores ( a b -- b ) | a b | b ;
+: ignores ( a b -- b )
+	| a b |
+	b ;
 1 2 ignores . cr
 
 \ -- a read anywhere counts, including inside a branch or a nested quotation

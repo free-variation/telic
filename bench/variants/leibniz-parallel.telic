@@ -31,7 +31,8 @@ variable t0
   repeat
   acc ;
 
-: pleibniz ( -- ) ^t0 ^pi-est |
+: pleibniz ( -- )
+  ^t0 ^pi-est |
   now to t0
   0 chunks 1- range
   chunks 1 ' partial pmap-ext

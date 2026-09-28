@@ -11,8 +11,12 @@
 11 seed
 
 : amp ( v hz -- a ) 48000 swap amplitude-at 0.70710678 / ;
-: level-at ( stereo t -- a ) | stereo t | stereo t 48000 * round dup 480 - swap 480 + 0 1 submatrix 1000 amp 1000 * round 1000 / ;
-: shaped ( oscillator -- ) | oscillator | silence-audio { } [ oscillator 1000 :fixed-hz ! ] :oscillators ! 0 instrument-patch! :a4 1 0 note-on ;
+: level-at ( stereo t -- a )
+	| stereo t |
+	stereo t 48000 * round dup 480 - swap 480 + 0 1 submatrix 1000 amp 1000 * round 1000 / ;
+: shaped ( oscillator -- )
+	| oscillator |
+	silence-audio { } [ oscillator 1000 :fixed-hz ! ] :oscillators ! 0 instrument-patch! :a4 1 0 note-on ;
 : e ( -- f ) 1 exp ;
 
 \ === attack, decay, sustain ===

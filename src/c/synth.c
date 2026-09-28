@@ -23,6 +23,8 @@
 #define SYNTH_SCHEDULE_LEAD 2048
 #define SYNTH_WHOLE_NOTE_BASE 11520000000LL
 #define SYNTH_DEFAULT_ARTICULATION 0.875
+#define SYNTH_RECENT_CAPACITY 16384
+#define SYNTH_MAX_RECENT 8192
 #define MOOG_VT 0.312
 #define MOOG_INPUT_SCALE 0.5
 #define MOOG_OVERSAMPLE 2
@@ -264,6 +266,9 @@ static int64_t synth_tempo_milli = 120000;
 static double synth_articulation = SYNTH_DEFAULT_ARTICULATION;
 static double synth_velocity = 1.0;
 static int synth_current_instrument;
+static double synth_recent[2 * SYNTH_RECENT_CAPACITY];
+static long synth_recent_written;
+static atomic_long synth_recent_published;
 
 static void envelope_shape_default(EnvelopeShape *shape) {
 	shape->attack = 0.005;
@@ -1289,8 +1294,13 @@ static void synth_render(double *interleaved, int n_frames) {
 		effects_process(&left, &right);
 		interleaved[2 * frame] = left;
 		interleaved[2 * frame + 1] = right;
+		int slot = (int)(synth_recent_written & (SYNTH_RECENT_CAPACITY - 1));
+		synth_recent[2 * slot] = left;
+		synth_recent[2 * slot + 1] = right;
+		synth_recent_written++;
 		synth_clock++;
 	}
+	atomic_store_explicit(&synth_recent_published, synth_recent_written, memory_order_release);
 }
 
 static void synth_silence_all(void) {
@@ -1927,6 +1937,32 @@ void p_render_audio(DISPATCH_ARGS) {
 	synth_render(samples->matrix.elements, n_frames);
 
 	chain_sp[-1] = make_matrix(samples_handle);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
+
+void p_recent_audio(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val frames_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(frames_val, T_FLOAT, "recent-audio", "a float number of frames");
+	double frames = VAL_NUMBER(frames_val);
+	if (!(frames >= 1 && frames <= SYNTH_MAX_RECENT) || frames != floor(frames)) {
+		fail(interp, "expected a whole number of frames in [1, %d]; got %g", SYNTH_MAX_RECENT, frames);
+		return;
+	}
+
+	int n_frames = (int)frames;
+	NEW_MATRIX(recent_handle, recent, n_frames, 2);
+	double *elements = recent->matrix.elements;
+	long n_published = atomic_load_explicit(&synth_recent_published, memory_order_acquire);
+	for (int i = 0; i < n_frames; i++) {
+		long frame = n_published - n_frames + i;
+		int slot = (int)(frame & (SYNTH_RECENT_CAPACITY - 1));
+		elements[2 * i] = frame >= 0 ? synth_recent[2 * slot] : 0.0;
+		elements[2 * i + 1] = frame >= 0 ? synth_recent[2 * slot + 1] : 0.0;
+	}
+
+	chain_sp[-1] = make_matrix(recent_handle);
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }

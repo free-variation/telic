@@ -11,7 +11,9 @@
 : unrelated ( -- n ) 1 2 + ;
 variable counter
 : reads-counter ( -- n ) counter ;
-: writes-counter ( -- ) | ^counter | 5 to counter ;
+: writes-counter ( -- )
+	| ^counter |
+	5 to counter ;
 : recursive ( n -- ) dup 0 > if 1- recursive then ;
 
 \ -- a call, a tail call, a call inside a quotation, and a ' literal all count

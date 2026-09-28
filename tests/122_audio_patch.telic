@@ -8,7 +8,9 @@
 
 11 seed
 
-: settled ( stereo -- v ) | stereo | stereo 4800 48000 0 1 submatrix ;
+: settled ( stereo -- v )
+	| stereo |
+	stereo 4800 48000 0 1 submatrix ;
 : amp ( v hz -- a ) 48000 swap amplitude-at 1000 * round 1000 / ;
 : sounds ( frame -- v ) silence-audio 0 instrument-patch! :a4 1 0 note-on 1 render-audio settled ;
 

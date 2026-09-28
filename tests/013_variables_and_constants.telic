@@ -38,8 +38,12 @@ vars
 \ === ++ / -- increment a global variable in place; ^ declares it, as `to` needs ===
 variable counter
 5 to counter
-: bump ( -- )  ^counter | ++ counter ;
-: unbump ( -- )  ^counter | -- counter ;
+: bump ( -- )
+	^counter |
+	++ counter ;
+: unbump ( -- )
+	^counter |
+	-- counter ;
 : undeclared-bump ( -- ) ++ counter ;          \ (error: no ^counter in the head)
 bump counter . bump counter . unbump counter . cr    \ 6 7 6
 
@@ -83,11 +87,15 @@ counted . cr                            \ 1
 counted . cr                            \ 1
 
 \ intermediates chain, and a head list that receives grows to hold them
-: chained ( n -- n ) | n | n 2 * to doubled  doubled 1 + to bumped  doubled bumped + ;
+: chained ( n -- n )
+	| n |
+	n 2 * to doubled  doubled 1 + to bumped  doubled bumped + ;
 5 chained . cr                          \ 21
 
 \ a loop body assigns the same slot each turn
-: summed ( n -- n ) | n | 0 to total  0 to i
+: summed ( n -- n )
+	| n |
+	0 to total  0 to i
 	begin i n < while  total i + to total  i 1+ to i  repeat
 	total ;
 5 summed . cr                           \ 10

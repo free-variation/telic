@@ -66,6 +66,7 @@ DOC_EXAMPLE_SOURCES = [
     os.path.join("docs", "logic.md"),
     os.path.join("docs", "idioms.md"),
     os.path.join("docs", "tracing.md"),
+    os.path.join("docs", "synthesizer.md"),
 ]
 
 MAIN_TEST = os.path.join("tests", "090_readme_taste.telic")
