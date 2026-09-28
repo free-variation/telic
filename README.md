@@ -447,6 +447,10 @@ Embedded relational storage via the vendored SQLite amalgamation — built into 
 
 - **A screen that is simply there** — `plot`, `line`, `rect`, `fill-rect`, `circle`, `fill-circle`, `print-at` and `cls` draw into a window the first of them opens, with no setup and no event loop; `ink` and `paper` take a hex color or one of 157 X11 color names, the same names `format` and `print-at` accept as `{name}` color tags, `screen-size` sets the dimensions in virtual pixels and `screen-zoom` how large each one is displayed, `screen-shader` and `screen-effect` present the window through a GLSL shader, `screen-frame` presents what a quotation draws as one frame, and `screen-frames` counts the frames presented.
 
+### Audio
+
+- **A phase-modulation synthesizer** — sixteen parts, each with a patch frame of up to eight operators (sine, triangle, saw and pulse band-limited, white, pink and brown noise), a modulation matrix with feedback, and per-operator envelopes; `note-on`/`note-off` take pitches as MIDI numbers or symbols like `:f#3`, and `render-audio` computes the output into a stereo matrix for the Fourier words or a file.
+
 ### Data: TSV, datasets, and statistics
 
 TSV is the one tabular file format (convert other formats to TSV before loading).
@@ -539,6 +543,7 @@ src/c/indexing.c       — polymorphic element access: @i/!i and their fused for
 src/c/matrix.c         — matrix words and numeric kernels
 src/c/statistics.c     — statistics kernels: var, quantile, kendall's tau-b
 src/c/fourier.c        — Fourier transforms on PocketFFT: fft/ifft, cfft/icfft, magnitudes, hann
+src/c/synth.c          — the synthesizer: voices, operators, envelopes, patches, render-audio
 src/c/dimension.c      — dimensioned quantities: base dimensions, units, quantity arithmetic
 src/c/functional.c     — higher-order operations (map, nmap, …) and multi-core parallelism
 src/c/superwords.c     — compile-time instruction fusion (superwords)

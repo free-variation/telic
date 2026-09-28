@@ -1610,6 +1610,15 @@ void p_icfft(DISPATCH_ARGS);
 void p_ifft(DISPATCH_ARGS);
 void p_magnitudes(DISPATCH_ARGS);
 
+// synth.c
+void p_note_off(DISPATCH_ARGS);
+void p_note_on(DISPATCH_ARGS);
+void p_patch_store(DISPATCH_ARGS);
+void p_pitch_to_hz(DISPATCH_ARGS);
+void p_pitch_to_midi(DISPATCH_ARGS);
+void p_render_audio(DISPATCH_ARGS);
+void p_silence(DISPATCH_ARGS);
+
 // indexing.c
 void p_add_store_i(DISPATCH_ARGS);
 void p_at_i(DISPATCH_ARGS);

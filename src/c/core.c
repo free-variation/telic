@@ -6253,6 +6253,13 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "icfft", p_icfft, 0);
 	define_primitive(interp, "magnitudes", p_magnitudes, 0);
 	define_primitive(interp, "hann", p_hann, 0);
+	define_primitive(interp, "pitch>midi", p_pitch_to_midi, 0);
+	define_primitive(interp, "pitch>hz", p_pitch_to_hz, 0);
+	define_primitive(interp, "patch!", p_patch_store, 0);
+	define_primitive(interp, "note-on", p_note_on, 0);
+	define_primitive(interp, "note-off", p_note_off, 0);
+	define_primitive(interp, "render-audio", p_render_audio, 0);
+	define_primitive(interp, "silence", p_silence, 0);
 
 
 	define_primitive(interp, "abs", p_abs, 0);

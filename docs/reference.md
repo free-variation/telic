@@ -6132,6 +6132,116 @@ colors :dodgerblue @ . colors size . cr
 
 ---
 
+## Audio synthesizer
+
+A polyphonic phase-modulation synthesizer computed in C at 48 kHz, stereo.
+Sixteen parts, numbered 0–15, each hold a patch; a note on a part takes one
+of 32 voices, and when none is free it takes the voice released longest ago,
+else the one started longest ago. A note-on for a pitch already sounding on
+the part retriggers that voice. `render-audio` computes the output offline
+into a matrix, so a sound can be analysed with the Fourier words or written
+out; it runs on native and wasm.
+
+A **pitch** is a MIDI note number in [0, 127], fractional values allowed, or
+a symbol: a letter a–g, an optional `#` (sharp) or `b` (flat), and an octave
+from −1 to 9, so `:c4` is 60, `:a4` is 69, `:bb5` is 82. Frequencies are
+equal-tempered with `:a4` at 440 Hz.
+
+A **patch** is a frame; every key is optional, and a key or value outside
+its range errors and leaves the part's patch unchanged:
+
+| Key | Value | Default |
+|-----|-------|---------|
+| `:operators` | an array of 1–8 operator frames | one default operator |
+| `:modulation` | an array of `[ from to depth ]`: operator `from` adds depth × its output to operator `to`'s phase, in radians, depth in [−100, 100]. Operators are computed from the highest index down, so a source above its target contributes this sample's output and any other its previous sample's; `[ i i d ]` is feedback | `[ ]` |
+| `:carriers` | the indices of the operators heard, summed | `[ 0 ]` |
+| `:level` | output gain, [0, 1] | 1 |
+| `:pan` | −1 left to 1 right, constant power: gains cos and sin of (pan + 1)·π/4 | 0 |
+| `:velocity` | how much note velocity scales the gain: gain × (1 − v + v × velocity), [0, 1] | 1 |
+
+An **operator** frame:
+
+| Key | Value | Default |
+|-----|-------|---------|
+| `:wave` | `:sine` `:triangle` `:saw` `:pulse` `:white` `:pink` `:brown`; saw and pulse are band-limited with PolyBLEP; the noise waves are seeded at note-on from the RNG, so `seed` makes a render repeatable | `:sine` |
+| `:ratio` | frequency as a multiple of the note's, [1/64, 64] | 1 |
+| `:fixed` | a frequency in Hz that ignores the note and `:ratio`, [0, 24000]; 0 means none | 0 |
+| `:detune` | cents, [−1200, 1200] | 0 |
+| `:level` | output level, [0, 1] | 1 |
+| `:width` | the pulse's duty cycle, [0.01, 0.99]; 0.5 is square | 0.5 |
+| `:attack` | seconds for a linear rise from the current level to 1 | 0.005 |
+| `:decay` | the time constant, in seconds, of the exponential fall toward `:sustain` | 0.1 |
+| `:sustain` | the level held while the gate is open, [0, 1] | 1 |
+| `:sustain-decay` | the time constant of a fall from `:sustain` toward 0 while the gate is open; 0 holds | 0 |
+| `:release` | the time constant of the fall toward 0 after note-off, from the level reached | 0.1 |
+
+Times are in [0, 60] seconds. After one time constant a stage has covered
+1 − 1/e of its distance; a voice ends when its carriers fall below 10⁻⁴.
+
+| Word | Stack effect | Behavior | Ops | Alloc | O |
+|------|-------------|----------|-----|-------|---|
+| `pitch>midi` | `( pitch -- n )` | The MIDI note number of a pitch | 1 | none | O(1) |
+| `pitch>hz` | `( pitch -- hz )` | The equal-tempered frequency of a pitch, 440 × 2^((n − 69)/12) | 1 | none | O(1) |
+| `patch!` | `( frame part -- )` | Give a part a patch; notes already sounding keep the patch they started with | keys | none | O(keys) |
+| `note-on` | `( pitch velocity part -- )` | Start a note, velocity in [0, 1], at the start of the next `render-audio` | 1 | none | O(voices) |
+| `note-off` | `( pitch part -- )` | Release the part's sounding voices at that pitch; a pitch not sounding is ignored | 1 | none | O(voices) |
+| `render-audio` | `( seconds -- matrix )` | Advance the synthesizer by `seconds`, [0, 600], and answer its output as an n×2 matrix, n = seconds × 48000, column 0 left, column 1 right. Consecutive calls continue one signal | n × voices | `1m(n×2)` | O(n × voices × operators) |
+| `silence` | `( -- )` | End every sounding voice at once; parts keep their patches | 1 | none | O(voices) |
+
+```forth pitch>midi
+:a4 pitch>midi . :c4 pitch>midi . :f#3 pitch>midi . cr
+```
+```output
+69 60 54
+```
+
+```forth pitch>hz
+:a4 pitch>hz . :a5 pitch>hz . cr
+```
+```output
+440 880
+```
+
+```forth patch!
+{ :operators [ { :fixed 1000 } { :fixed 100 } ] :modulation [ [ 1 0 2 ] ] } 0 patch!
+silence :a4 1 0 note-on 1 render-audio 4800 48000 0 1 submatrix
+48000 1100 amplitude-at 0.70710678 / 1000 * round 1000 / . cr silence
+```
+```output
+0.577
+```
+
+```forth note-on
+{ } 0 patch! silence :a4 1 0 note-on 0.1 render-audio abs max 0 > . cr silence
+```
+```output
+1
+```
+
+```forth note-off
+{ :operators [ { :release 0 } ] } 0 patch! silence :a4 1 0 note-on 0.1 render-audio drop
+:a4 0 note-off 0.1 render-audio abs max . cr
+```
+```output
+0
+```
+
+```forth render-audio
+silence 0.5 render-audio dim . . cr
+```
+```output
+2 24000
+```
+
+```forth silence
+{ } 0 patch! :a4 1 0 note-on silence 0.1 render-audio abs max . cr
+```
+```output
+0
+```
+
+---
+
 ## Subprocesses and streams
 
 A stream (`T_STREAM`) wraps an OS file descriptor — a pipe to a child process, or a file from `open-file` (see Files and environment). `start-process` launches a program directly from an argv array (no shell, so no quoting or injection surface) and returns a frame `{ :pid :in :out :err }` whose `:in`/`:out`/`:err` are streams. The lifecycle is: `write` input → `close` `:in` (sends EOF) → `read` the output → `wait`. `SIGPIPE` is ignored process-wide, so a `write` to a child that has exited returns an error rather than killing the interpreter. Bytes are raw and length-counted, so streams are binary-safe.

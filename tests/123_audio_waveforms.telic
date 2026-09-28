@@ -1,0 +1,61 @@
+\ ==== operator :wave, :ratio, :fixed, :detune, :width ====
+
+\ Each wave is identified by its harmonic series. Amplitudes are measured on
+\ the left channel of a centered voice, divided by its 0.7071 pan gain.
+\ :saw and :pulse are band-limited with PolyBLEP, which smooths each jump
+\ over two samples: a 5 kHz saw's 7th harmonic (35 kHz) folds back to 13 kHz
+\ 36 dB below the fundamental, against 17 dB for a naive saw computed here
+\ in telic from the same phase. The noise waves draw from a generator seeded
+\ at note-on from the RNG.
+
+11 seed
+
+: settled ( stereo -- v ) | stereo | stereo 4800 48000 0 1 submatrix ;
+: amp ( v hz -- a ) 48000 swap amplitude-at 0.70710678 / 1000 * round 1000 / ;
+: tone ( operator -- v ) | operator | silence { } [ operator ] :operators ! 0 patch! :a4 1 0 note-on 1 render-audio settled ;
+: series ( v hzs -- ) | v hzs | hzs ( v swap amp . ) each cr ;
+
+\ === periodic waves at 1 kHz, harmonics 1-5 ===
+{ :fixed 1000 } tone [ 1000 2000 3000 ] series                       \ 1 0 0
+{ :wave :saw :fixed 1000 } tone [ 1000 2000 3000 4000 ] series       \ 0.636 0.316 0.209 0.156 (2/(pi k), less PolyBLEP's droop)
+{ :wave :pulse :fixed 1000 } tone [ 1000 2000 3000 4000 5000 ] series   \ 1.271 0 0.419 0 0.245 (4/(pi k), odd k)
+{ :wave :triangle :fixed 1000 } tone [ 1000 2000 3000 5000 ] series  \ 0.812 0 0.091 0.034 (8/(pi^2 k^2), odd k)
+clear
+
+\ === pulse width: at 0.25 every fourth harmonic vanishes ===
+{ :wave :pulse :width 0.25 :fixed 1000 } tone [ 1000 2000 3000 4000 8000 ] series   \ 0.899 0.633 0.296 0 0
+{ :wave :pulse :width 0.5 :fixed 1000 } tone [ 4000 ] series         \ 0 (square: even harmonics absent)
+clear
+
+\ === pitch: :ratio, :fixed, :detune ===
+{ :ratio 2 } tone [ 880 440 ] series                                 \ 1 0
+{ :ratio 0.5 } tone [ 220 440 ] series                               \ 1 0
+{ :fixed 1234 :ratio 2 } tone [ 1234 880 ] series                    \ 1 0 (:fixed ignores the note and ratio)
+{ :detune 100 } tone [ :a#4 pitch>hz 440 ] series                    \ 1 0 (100 cents = one semitone)
+{ :detune -1200 } tone [ 220 ] series                                \ 1
+clear
+
+\ === band-limiting: the discriminating alias, PolyBLEP against a naive saw ===
+: below ( v hz alias -- db ) | v hz alias | v 48000 alias amplitude-at v 48000 hz amplitude-at / log10 -20 * round ;
+: naive-saw ( hz -- v ) | hz | 0 43199 1 matrix-range transpose 4800 + hz * 48000 / 1 mod 2 * 1 - ;
+{ :wave :saw :fixed 5000 } tone 5000 13000 below 30 > . cr           \ 1 (5 kHz: the 7th harmonic's alias at 13 kHz)
+{ :wave :pulse :fixed 5000 } tone 5000 13000 below 30 > . cr         \ 1 (square: odd harmonics, 35 kHz folds to 13 kHz)
+5000 naive-saw 5000 13000 below 25 < . cr                            \ 1 (the naive saw fails)
+{ :wave :saw :fixed 10000 } tone 10000 18000 below 20 > . cr         \ 1 (10 kHz: the 3rd harmonic's alias at 18 kHz)
+10000 naive-saw 10000 18000 below 15 < . cr                          \ 1
+clear
+
+\ === noise: RMS, and energy per octave band averaged over 250 Hz-16 kHz ===
+: noise ( wave -- v ) | wave | silence { } [ { } wave :wave ! ] :operators ! 0 patch! :a4 1 0 note-on 2 render-audio 9600 96000 0 1 submatrix ;
+: rms ( v -- r ) dup * mean sqrt 0.70710678 / 100 * round 100 / ;
+: band ( amplitudes lo hi -- energy ) | amplitudes lo hi | amplitudes lo 86400 * 48000 / round hi 86400 * 48000 / round 0 1 submatrix dup * sum ;
+: octave-slope ( v -- db ) 48000 amplitude-spectrum :amplitude @ to a
+	[ 250 500 1000 2000 4000 8000 ] ( a over dup 2 * band swap drop ) map to energies
+	energies 5 @i energies 0 @i / log10 10 * 5 / round ;
+:white noise rms . :pink noise rms . :brown noise rms . cr           \ 0.58 0.43 0.2
+:white noise octave-slope . cr                                        \ 3 (flat density: +3 dB per octave band)
+:pink noise octave-slope . cr                                         \ 0 (-3 dB per octave density)
+:brown noise octave-slope . cr                                        \ -3 (-6 dB per octave density)
+7 seed :white noise 7 seed :white noise = . cr                        \ 1 (same seed, same noise)
+7 seed :white noise 8 seed :white noise = . cr                        \ 0 (different seed)
+clear

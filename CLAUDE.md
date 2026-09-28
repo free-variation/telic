@@ -63,6 +63,10 @@ by file in SRCS order. What each file is:
 - fourier.c — fft/ifft/cfft/icfft/magnitudes/hann on vendored PocketFFT:
   conversion between telic's nx1 and nx2 matrices and PocketFFT's
   half-complex and interleaved arrays.
+- synth.c — the synthesizer: patch-frame validation into C structs, the
+  voice pool, operators (PolyBLEP waves, seeded noise), the phase-modulation
+  loop, envelopes, pitch parsing, and the words pitch>midi … render-audio.
+  Plain C with libm only, so it builds for wasm.
 - indexing.c — the @i/!i index/store dispatch family across arrays/
   segments/slices, plus quickened "(word.tag)" specializations.
 - functional.c — map/nmap/filter/reduce and the parallel worker pool

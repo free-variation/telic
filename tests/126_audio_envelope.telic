@@ -1,0 +1,64 @@
+\ ==== operator envelopes: :attack :decay :sustain :release :sustain-decay ====
+
+\ The attack rises linearly from the current level to 1 in :attack seconds.
+\ The decay moves exponentially toward :sustain with time constant :decay:
+\ after :decay seconds the level has covered 1 - 1/e of the distance. While
+\ the gate is open the level holds at :sustain, or falls toward 0 with time
+\ constant :sustain-decay. The release falls toward 0 with time constant
+\ :release from wherever the level is at note-off; a retrigger attacks from
+\ the current level. A voice ends once its carriers fall below 1e-4.
+
+11 seed
+
+: amp ( v hz -- a ) 48000 swap amplitude-at 0.70710678 / ;
+: level-at ( stereo t -- a ) | stereo t | stereo t 48000 * round dup 480 - swap 480 + 0 1 submatrix 1000 amp 1000 * round 1000 / ;
+: shaped ( operator -- ) | operator | silence { } [ operator 1000 :fixed ! ] :operators ! 0 patch! :a4 1 0 note-on ;
+: e ( -- f ) 1 exp ;
+
+\ === attack, decay, sustain ===
+{ :attack 0.1 :decay 0.2 :sustain 0.5 } shaped 1 render-audio to held
+held 0.05 level-at . cr                           \ 0.5 (half way through a linear attack)
+held 0.3 level-at . 0.5 0.5 e / + 1000 * round 1000 / . cr   \ 0.684 0.684 (one decay time constant after the peak)
+held 0.9 level-at . cr                            \ 0.509 (nearly at sustain)
+clear
+
+\ === sustain holds; sustain-decay falls ===
+{ :attack 0 :decay 0 :sustain 0.8 } shaped 1 render-audio to flat
+flat 0.2 level-at . flat 0.9 level-at . cr        \ 0.8 0.8
+{ :attack 0 :decay 0 :sustain 0.8 :sustain-decay 0.5 } shaped 1 render-audio to falling
+falling 0.5 level-at . 0.8 e / 1000 * round 1000 / . cr     \ 0.294 0.294 (one sustain-decay time constant)
+clear
+
+\ === release from sustain ===
+{ :attack 0 :decay 0 :sustain 1 :release 0.3 } shaped 0.5 render-audio drop :a4 0 note-off 1 render-audio to tail
+tail 0.3 level-at . 1 e / 1000 * round 1000 / . cr           \ 0.368 0.368
+clear
+
+\ === discriminating: a gate-off during the attack releases from the level reached ===
+{ :attack 0.2 :release 0.1 } shaped 0.1 render-audio drop :a4 0 note-off 0.5 render-audio to early
+early 0.1 level-at . cr                           \ 0.184 (0.5/e; from the peak it would be 0.368)
+clear
+
+\ === a retrigger during the release attacks from the current level ===
+{ :attack 0.05 :release 0.2 } shaped 0.5 render-audio drop :a4 0 note-off 0.1 render-audio drop
+:a4 1 0 note-on 0.2 render-audio to retriggered
+retriggered 0 1 0 1 submatrix abs max 0.5 < . cr      \ 1 (the first sample continues from the release, not from 1)
+retriggered 0 2400 0 1 submatrix successive-differences abs max 0.1 < . cr    \ 1 (no step beyond a 1 kHz sine's 0.093)
+clear
+
+\ === zero-length stages ===
+{ :attack 0 :decay 0 :sustain 0.25 :release 0 } shaped 0.2 render-audio 0.1 level-at . cr   \ 0.25
+:a4 0 note-off 0.1 render-audio abs max . cr     \ 0 (release 0: silent at once)
+clear
+
+\ === a voice ends after its release ===
+{ :release 0.05 } shaped 0.2 render-audio drop :a4 0 note-off 1 render-audio drop
+1 render-audio abs max . cr                       \ 0
+clear
+
+\ === each operator has its own envelope ===
+{ } [ { :fixed 1000 } { :fixed 100 :decay 0.1 :sustain 0 } ] :operators ! [ [ 1 0 2 ] ] :modulation !
+silence 0 patch! :a4 1 0 note-on 1 render-audio to fading
+fading 0 4800 0 1 submatrix 1100 amp  fading 38400 48000 0 1 submatrix 1100 amp > . cr    \ 1 (the sideband fades with its modulator)
+fading 38400 48000 0 1 submatrix 1000 amp 1000 * round 1000 / . cr                       \ 1 (the carrier alone remains)
+clear

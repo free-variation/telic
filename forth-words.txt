@@ -463,6 +463,8 @@ nmap
 nonmissing-count
 norm
 not
+note-off
+note-on
 now
 null
 null?
@@ -482,6 +484,7 @@ paper
 parallel-run
 parse-time
 partition
+patch!
 pbootstrap
 pcv-logistic-ridge
 peek
@@ -489,6 +492,8 @@ percentile
 pfilter
 pfilter-ext
 pick
+pitch>hz
+pitch>midi
 plot
 pmap
 pmap-ext
@@ -549,6 +554,7 @@ remove-last!
 rename-file
 rename-key!
 render
+render-audio
 repeat
 repeat-column!
 replace
@@ -627,6 +633,7 @@ side-drop
 side-peek
 side>
 sigmoid
+silence
 sin
 sinh
 size

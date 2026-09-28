@@ -1,0 +1,125 @@
+\ ==== pitch>midi ( pitch -- n ), pitch>hz ( pitch -- hz ),
+\      note-on ( pitch velocity part -- ), note-off ( pitch part -- ),
+\      render-audio ( seconds -- matrix ), silence ( -- ) ====
+
+\ A pitch is a MIDI note number in [0, 127] or a symbol: a letter a-g, an
+\ optional # (sharp) or b (flat), and an octave from -1 to 9, so :c4 is 60
+\ and :a4 is 69; frequencies are equal-tempered with :a4 at 440 Hz.
+\ render-audio advances the synthesizer by `seconds` and answers an n x 2
+\ matrix at 48 kHz, column 0 left, column 1 right; notes started or released
+\ between calls take effect at the start of the next render. A note takes
+\ one of 32 voices; when none is free it takes the voice released longest
+\ ago, else the one started longest ago. A note-on for a pitch already
+\ sounding on the part retriggers that voice. Each part plays its own patch.
+\ :level and velocity scale the output, velocity by :velocity (0 ignores
+\ it); :pan places the voice with a constant-power law. silence ends every
+\ sounding voice; the parts keep their patches.
+
+11 seed
+
+: amp ( v hz -- a ) 48000 swap amplitude-at 1000 * round 1000 / ;
+: left ( stereo -- v ) | stereo | stereo 0 stereo n-rows 0 1 submatrix ;
+: right ( stereo -- v ) | stereo | stereo 0 stereo n-rows 1 2 submatrix ;
+: sine-part ( hz part -- ) | hz part | { } [ { } hz :fixed ! ] :operators ! part patch! ;
+
+\ === pitch symbols ===
+:a4 pitch>midi . cr                          \ 69
+:c4 pitch>midi . cr                          \ 60
+:c#4 pitch>midi . :db4 pitch>midi . cr       \ 61 61
+:b3 pitch>midi . cr                          \ 59
+:bb5 pitch>midi . cr                         \ 82 (b, flat, octave 5)
+:c-1 pitch>midi . :g9 pitch>midi . cr        \ 0 127 (the MIDI range)
+clear
+
+\ === numbers pass through ===
+0 pitch>midi . 127 pitch>midi . 60.5 pitch>midi . cr   \ 0 127 60.5
+clear
+
+\ === frequencies ===
+:a4 pitch>hz . cr                            \ 440
+:a5 pitch>hz . :a3 pitch>hz . cr             \ 880 220
+69 pitch>hz . cr                             \ 440
+:c4 pitch>hz 1000 * round 1000 / . cr        \ 261.626
+clear
+
+\ === render-audio: shape and silence ===
+silence 0.5 render-audio dim . . cr              \ 2 24000 (columns, rows)
+0 render-audio dim . . cr                        \ 2 0
+silence 0.25 render-audio abs max . cr           \ 0 (nothing playing)
+{ } 0 patch! :a4 1 0 note-on 0.1 render-audio abs max 0 > . cr   \ 1
+silence 0.1 render-audio abs max . cr            \ 0 (silence ended the note)
+clear
+
+\ === consecutive renders continue one signal ===
+silence :a4 1 0 note-on 0.5 render-audio to opening 0.5 render-audio to closing
+silence :a4 1 0 note-on 1 render-audio to whole
+opening closing vstack whole = . cr              \ 1
+clear
+
+\ === the same seed renders the same noise ===
+{ :operators [ { :wave :white } ] } 0 patch!
+: noisy ( -- m ) silence :a4 1 0 note-on 0.1 render-audio ;
+3 seed noisy 3 seed noisy = . cr                 \ 1
+3 seed noisy 4 seed noisy = . cr                 \ 0
+silence clear
+
+\ === two parts play their own patches ===
+silence 1000 0 sine-part 1500 1 sine-part
+:a4 1 0 note-on :a4 1 1 note-on 0.5 render-audio left to both
+both 1000 amp . both 1500 amp . cr               \ 0.707 0.707
+:a4 1 note-off 1 render-audio drop 0.5 render-audio left to one
+one 1000 amp . one 1500 amp . cr                 \ 0.707 0 (only part 1 was released)
+clear
+
+\ === 32 voices sound together; a 33rd steals ===
+{ } 0 patch! silence
+: notes-from ( low high -- ) 2 do k k 1 0 note-on loop ;
+60 124 notes-from
+1 render-audio left to chord
+chord 60 pitch>hz amp 0.01 > . chord 122 pitch>hz amp 0.01 > . cr   \ 1 1 (the lowest and highest of 32)
+90 0 note-off 0.1 render-audio drop
+123 1 0 note-on 1 render-audio left to stolen
+stolen 90 pitch>hz amp . stolen 123 pitch>hz amp 0.01 > . stolen 60 pitch>hz amp 0.01 > . cr   \ 0 1 1 (the released voice was taken)
+124 1 0 note-on 1 render-audio left to oldest
+oldest 60 pitch>hz amp . oldest 124 pitch>hz amp 0.01 > . cr   \ 0 1 (none released: the oldest was taken)
+silence clear
+
+\ === a repeated note-on retriggers the same voice ===
+1000 0 sine-part :a4 1 0 note-on :a4 1 0 note-on 0.5 render-audio left 1000 amp . cr   \ 0.707 (one voice, not two)
+silence clear
+
+\ === :level and velocity ===
+{ :operators [ { :fixed 1000 } ] :level 0.5 } 0 patch! :a4 1 0 note-on 0.5 render-audio left 1000 amp . cr   \ 0.354
+silence { :operators [ { :fixed 1000 } ] } 0 patch! :a4 0.5 0 note-on 0.5 render-audio left 1000 amp . cr     \ 0.354 (full sensitivity)
+silence { :operators [ { :fixed 1000 } ] :velocity 0 } 0 patch! :a4 0.5 0 note-on 0.5 render-audio left 1000 amp . cr   \ 0.707 (velocity ignored)
+silence { :operators [ { :fixed 1000 } ] :velocity 0.5 } 0 patch! :a4 0 0 note-on 0.5 render-audio left 1000 amp . cr   \ 0.354 (half the gain comes from velocity)
+silence clear
+
+\ === :pan, constant power ===
+{ :operators [ { :fixed 1000 } ] :pan -1 } 0 patch! :a4 1 0 note-on 0.5 render-audio to hard-left
+hard-left left 1000 amp . hard-left right 1000 amp . cr           \ 1 0
+silence { :operators [ { :fixed 1000 } ] :pan 1 } 0 patch! :a4 1 0 note-on 0.5 render-audio to hard-right
+hard-right left 1000 amp . hard-right right 1000 amp . cr         \ 0 1
+silence { :operators [ { :fixed 1000 } ] :pan 0.5 } 0 patch! :a4 1 0 note-on 0.5 render-audio to leaning
+leaning left 1000 amp . leaning right 1000 amp . cr               \ 0.383 0.924 (cos and sin of 3 pi / 8)
+silence clear
+
+\ === note-off of a pitch that is not sounding does nothing ===
+:c4 0 note-off 0.1 render-audio abs max . cr     \ 0
+
+\ errors
+:h4 pitch>midi                                   \ (not a letter a-g)
+:c pitch>midi                                    \ (no octave)
+:c10 pitch>midi                                  \ (above 127)
+:c#-2 pitch>midi                                 \ (below 0)
+-1 pitch>midi                                    \ (negative number)
+128 pitch>hz                                     \ (above 127)
+"c4" pitch>midi                                  \ (a string, not a symbol)
+:a4 1.5 0 note-on                                \ (velocity above 1)
+:a4 1 16 note-on                                 \ (part out of range)
+:h4 1 0 note-on                                  \ (not a pitch)
+:a4 "one" 0 note-on                              \ (velocity not a float)
+:a4 -1 note-off                                  \ (part out of range)
+-1 render-audio                                  \ (negative)
+601 render-audio                                 \ (over 600 s)
+"1" render-audio                                 \ (not a float)
