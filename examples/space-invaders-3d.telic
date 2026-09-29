@@ -1,0 +1,364 @@
+\ Space Invaders in 3D, seen from the cannon, drawn by a GPU shader from the
+\ same game.
+\
+\   ./telic examples/space-invaders-3d.telic
+\   ./telic examples/space-invaders-3d.telic --level 4
+\
+\ Run it from the repository root, as examples/space-invaders.telic. The game
+\ is examples/invaders/game.telic unchanged: the rules, the keys, the sound.
+\ Only the picture differs. You are the cannon: its barrel shows at the
+\ bottom of the view, the arrow keys move you sideways, and the formation
+\ hangs ahead and above, rank behind rank, each rank higher than the one in
+\ front, so you see the invaders' fronts and undersides. The game's vertical
+\ axis becomes distance: a formation step down brings the invaders nearer,
+\ your shots fly away into the distance, and theirs come toward you. The
+\ bunkers are low walls between you and them whose floor plan is the 2D
+\ bunker, so shots wear tunnels through them.
+\
+\ The shader's only inputs are the canvas, as a texture, and four numbers
+\ from screen-effect, so telic writes the game into the canvas as data each
+\ frame instead of drawing it:
+\   rows 0-223    the score line and the banners, laid over the 3D picture
+\   rows 224-231  the art: each formation row's two poses in this level's
+\                 colors, the mothership, the cannon and its bursts, the
+\                 invader burst, the splat and the mothership's burst
+\   rows 232-247  the twelve invader-shot bitmaps, the cannon's shot, and the
+\                 four bunkers as they are worn away
+\   row 248       the state: one pixel per number, its red, green and blue
+\                 bytes holding the mode, the formation's origin and pose,
+\                 which invaders live, and the positions of the cannon, the
+\                 shots, the mothership and the bursts
+\ The shader reads these pixels with texelFetch and draws each sprite as its
+\ pixels extruded into cubes: a ray meets a sprite's box, then steps through
+\ its pixel grid until it enters a visible pixel, whose color it takes. The
+\ sprites stand upright; the bunkers lie flat, extruded upward. The ground is
+\ a lit grid, the sky the level's background color with stars.
+\
+\ A GLSL error makes Tigr exit the process; this shader compiles under
+\ glslc --target-env=opengl with Tigr's #version 330 core prelude.
+
+"invaders/game.telic" load
+
+"
+const int STATE_ROW = 248;
+const float EYE_HEIGHT = 6.0;
+
+int zoom;
+
+vec3 canvas_color(int x, int y) {
+	return texelFetch(image, ivec2(x, y) * zoom, 0).rgb;
+}
+
+ivec3 state_cell(int k) {
+	return ivec3(canvas_color(k, STATE_ROW) * 255.0 + 0.5);
+}
+
+float depth_of(float game_y) {
+	return (216.0 - game_y) * 0.6;
+}
+
+float altitude_at(float depth) {
+	return max(1.3 * depth - 50.0, 4.0);
+}
+
+struct Hit {
+	float t;
+	vec3 normal;
+	vec3 color;
+	float glow;
+};
+
+void trace_voxels(vec3 origin, vec3 ray, vec3 low, vec3 high, ivec2 art, ivec2 size, float glow, bool lying, inout Hit hit) {
+	if (lying) {
+		origin = origin.xzy;
+		ray = ray.xzy;
+		low = low.xzy;
+		high = high.xzy;
+	}
+	vec3 inverse = 1.0 / ray;
+	vec3 t0 = (low - origin) * inverse;
+	vec3 t1 = (high - origin) * inverse;
+	vec3 near = min(t0, t1);
+	vec3 far = max(t0, t1);
+	float enter = max(max(near.x, near.y), near.z);
+	float leave = min(min(far.x, far.y), far.z);
+	if (enter > leave || leave < 0.0 || enter > hit.t)
+		return;
+
+	vec3 normal = enter == near.x ? vec3(-sign(ray.x), 0.0, 0.0)
+		: (enter == near.y ? vec3(0.0, -sign(ray.y), 0.0) : vec3(0.0, 0.0, -sign(ray.z)));
+	float t = max(enter, 0.0);
+	vec3 point = origin + ray * t;
+	vec2 local = vec2(point.x - low.x, high.y - point.y);
+	vec2 direction = vec2(ray.x, -ray.y);
+	direction = vec2(abs(direction.x) < 1e-6 ? 1e-6 : direction.x, abs(direction.y) < 1e-6 ? 1e-6 : direction.y);
+	ivec2 cell = clamp(ivec2(floor(local)), ivec2(0), size - 1);
+	vec2 stride = abs(1.0 / direction);
+	vec2 boundary = t + (vec2(cell) + step(0.0, direction) - local) / direction;
+	ivec2 advance = ivec2(sign(direction));
+	for (int i = 0; i < 48; i++) {
+		vec3 texel = canvas_color(art.x + cell.x, art.y + cell.y);
+		if (max(texel.r, max(texel.g, texel.b)) > 0.02) {
+			hit = Hit(t, lying ? normal.xzy : normal, texel, glow);
+			return;
+		}
+		if (boundary.x < boundary.y) {
+			t = boundary.x;
+			boundary.x += stride.x;
+			cell.x += advance.x;
+			normal = vec3(-sign(ray.x), 0.0, 0.0);
+		} else {
+			t = boundary.y;
+			boundary.y += stride.y;
+			cell.y += advance.y;
+			normal = vec3(0.0, -sign(ray.y), 0.0);
+		}
+		if (t > leave || t > hit.t || cell.x < 0 || cell.y < 0 || cell.x >= size.x || cell.y >= size.y)
+			return;
+	}
+}
+
+void trace_standing(vec3 origin, vec3 ray, float left, float game_y, ivec2 art, ivec2 size, float thickness, float glow, inout Hit hit) {
+	float depth = depth_of(game_y + 0.5 * float(size.y));
+	float base = altitude_at(depth) + 0.5 * (8.0 - float(size.y));
+	vec3 low = vec3(left, base, depth - 0.5 * thickness);
+	vec3 high = vec3(left + float(size.x), base + float(size.y), depth + 0.5 * thickness);
+	trace_voxels(origin, ray, low, high, art, size, glow, false, hit);
+}
+
+Hit trace_scene(vec3 origin, vec3 ray) {
+	Hit hit = Hit(1e9, vec3(0.0), vec3(0.0), 0.0);
+	int pose = state_cell(0).b;
+	ivec3 formation = state_cell(2);
+	vec2 formation_origin = vec2(float(formation.r) - 64.0, float(formation.g));
+
+	for (int row = 0; row < 5; row++) {
+		ivec2 art = row == 0 ? ivec2(0, 224) : (row < 3 ? ivec2(16, 224) : ivec2(38, 224));
+		ivec2 size = row == 0 ? ivec2(8, 8) : (row < 3 ? ivec2(11, 8) : ivec2(12, 8));
+		for (int column = 0; column < 11; column++) {
+			if (state_cell(3 + row * 11 + column).r < 128)
+				continue;
+			float left = formation_origin.x + float(column * 16 - size.x / 2);
+			trace_standing(origin, ray, left, formation_origin.y + float(row * 16), art + ivec2(pose * size.x, 0), size, 4.0, 0.0, hit);
+		}
+	}
+
+	for (int k = 0; k < 4; k++) {
+		float left = float(31 + 45 * k);
+		vec3 low = vec3(left, 0.0, depth_of(200.0));
+		vec3 high = vec3(left + 22.0, 8.0, depth_of(184.0));
+		trace_voxels(origin, ray, low, high, ivec2(40 + 22 * k, 232), ivec2(22, 16), 0.0, true, hit);
+	}
+
+	ivec3 cannon = state_cell(58);
+	if (cannon.g > 128) {
+		vec3 low = vec3(origin.x - 6.5, -3.5, 6.0);
+		vec3 high = vec3(origin.x + 6.5, 4.5, 8.0);
+		trace_voxels(origin, ray, low, high, ivec2(94 + 13 * cannon.b, 224), ivec2(13, 8), cannon.b == 0 ? 0.1 : 0.9, false, hit);
+	}
+
+	ivec3 shot = state_cell(59);
+	if (shot.b > 0)
+		trace_standing(origin, ray, float(shot.r - 16), float(shot.g), ivec2(36, 232), ivec2(1, 4), 8.0, 1.5, hit);
+
+	for (int k = 0; k < 3; k++) {
+		ivec3 bomb = state_cell(60 + k);
+		if (bomb.b > 0)
+			trace_standing(origin, ray, float(bomb.r - 17), float(bomb.g), ivec2((bomb.b - 1) * 3, 232), ivec2(3, 7), 3.0, 0.8, hit);
+	}
+
+	ivec3 saucer = state_cell(63);
+	if (saucer.g > 0)
+		trace_standing(origin, ray, float(saucer.r - 24), 34.0, ivec2(62 + 16 * saucer.b, 224), ivec2(16, 8), 6.0, 0.4, hit);
+
+	for (int k = 0; k < 8; k++) {
+		ivec3 burst = state_cell(64 + k);
+		if (burst.b == 0)
+			continue;
+		ivec2 art = burst.b == 1 ? ivec2(133, 224) : (burst.b == 2 ? ivec2(145, 224) : ivec2(155, 224));
+		ivec2 size = burst.b == 1 ? ivec2(12, 8) : (burst.b == 2 ? ivec2(10, 8) : ivec2(16, 8));
+		trace_standing(origin, ray, float(burst.r - 16 - size.x / 2), float(burst.g), art, size, 3.0, 1.2, hit);
+	}
+	return hit;
+}
+
+void fxShader(out vec4 color, in vec2 uv) {
+	vec2 size = vec2(textureSize(image, 0));
+	zoom = max(1, int(size.x) / 224);
+	int mode = state_cell(0).r;
+	vec3 sky_tint = vec3(state_cell(1)) / 255.0;
+
+	vec2 screen = (uv - 0.5) * vec2(size.x / size.y, -1.0) * 2.0;
+	vec3 eye = vec3(float(state_cell(58).r - 16), EYE_HEIGHT, 0.0);
+	float pitch = radians(12.0);
+	vec3 forward = vec3(0.0, sin(pitch), cos(pitch));
+	vec3 right = vec3(1.0, 0.0, 0.0);
+	vec3 up = cross(forward, right);
+	vec3 ray = normalize(forward * 1.0 + right * screen.x + up * screen.y);
+
+	vec3 sky = mix(sky_tint * 0.7 + vec3(0.02, 0.02, 0.06), vec3(0.0, 0.0, 0.01), clamp(ray.y * 1.6, 0.0, 1.0));
+	vec2 star_cell = floor(ray.xy / max(ray.z, 0.05) * 160.0);
+	float star = fract(sin(dot(star_cell, vec2(12.9898, 78.233))) * 43758.5453);
+	if (star > 0.996 && ray.y > 0.0)
+		sky += vec3(0.8) * (0.6 + 0.4 * sin(parameters.x * 3.0 + star * 100.0));
+	vec3 shade = sky;
+
+	if (mode != 0) {
+		Hit hit = trace_scene(eye, ray);
+		float ground_t = ray.y < 0.0 ? -eye.y / ray.y : 1e9;
+		if (ground_t < hit.t) {
+			vec3 point = eye + ray * ground_t;
+			vec2 grid = abs(fract(point.xz / 10.0) - 0.5);
+			float line = smoothstep(0.42, 0.5, max(grid.x, grid.y));
+			vec3 ground = mix(vec3(0.02, 0.04, 0.03), vec3(0.1, 0.9, 0.3), line * 0.6);
+			shade = mix(ground, sky, 1.0 - exp(-0.008 * ground_t));
+		} else if (hit.t < 1e8) {
+			vec3 light = normalize(vec3(-0.3, 0.5, -0.8));
+			float diffuse = max(dot(hit.normal, light), 0.0);
+			float bounce = max(-hit.normal.y, 0.0) * 0.45;
+			vec3 lit = hit.color * (0.22 + 0.8 * diffuse + bounce * vec3(0.6, 1.0, 0.7) + hit.glow);
+			shade = mix(lit, sky, 1.0 - exp(-0.004 * hit.t));
+		}
+	}
+
+	ivec2 pixel = ivec2(uv * vec2(224.0, 256.0));
+	vec3 overlay = canvas_color(pixel.x, pixel.y);
+	int limit = mode == 0 ? 248 : 224;
+	if (pixel.y < limit && max(overlay.r, max(overlay.g, overlay.b)) > 0.02)
+		shade = overlay;
+	color = vec4(shade, 1.0);
+}
+" to invaders-shader
+
+\ === the canvas as data ===
+
+\ a packed color from three bytes, each rounded and held to [0, 255]
+: pack ( red green blue -- color )
+	| red green blue |
+	red 0 255 clamp round 65536 *
+	green 0 255 clamp round 256 * +
+	blue 0 255 clamp round + ;
+
+\ the number the shader reads for each mode
+{ :title 0 :playing 1 :dying 2 :cleared 3 :over 4 } to mode-codes
+
+\ the art strips at rows 224 and 232, in the positions the shader reads them from
+: draw-art ( -- )
+	:row-poses game@ to row-poses
+	row-poses 0 @i 0 @i 0 224 draw-bitmap
+	row-poses 0 @i 1 @i 8 224 draw-bitmap
+	row-poses 1 @i 0 @i 16 224 draw-bitmap
+	row-poses 1 @i 1 @i 27 224 draw-bitmap
+	row-poses 3 @i 0 @i 38 224 draw-bitmap
+	row-poses 3 @i 1 @i 50 224 draw-bitmap
+	saucer-lights 0 @i 62 224 draw-bitmap
+	saucer-lights 1 @i 78 224 draw-bitmap
+	cannon-bitmaps 0 @i 94 224 draw-bitmap
+	cannon-burst 0 @i 107 224 draw-bitmap
+	cannon-burst 1 @i 120 224 draw-bitmap
+	invader-burst 0 @i 133 224 draw-bitmap
+	splat 0 @i 145 224 draw-bitmap
+	saucer-burst 0 @i 155 224 draw-bitmap
+	0 3 1 do kind
+		0 4 1 do pose
+			shot-kinds kind @i pose @i kind 4 * pose + 3 * 232 draw-bitmap
+		loop
+	loop
+	laser-bitmaps 0 @i 36 232 draw-bitmap
+	:bunkers game@ to bunkers
+	0 4 1 do k
+		bunkers k @i bunker-bitmap-of k 22 * 40 + 232 draw-bitmap
+	loop ;
+
+\ the shader's number for a burst: 1 an invader's, 2 a splat, 3 the mothership's
+: burst-type ( burst -- n )
+	:animations @ :main @ to bitmaps
+	bitmaps invader-burst = if 1 exit then
+	bitmaps splat = if 2 exit then
+	3 ;
+
+\ the state row at canvas row 248: one packed pixel per number the shader reads
+: draw-state ( -- )
+	1 72 0-matrix to cells
+	:invaders game@ to invaders
+	0 to pose
+	0 to origin-x
+	0 to origin-y
+	invaders size 0 > if
+		invaders 0 @i to leader
+		leader :frame 0 @or truncate 2 mod to pose
+		leader :x @ leader :column @ 16 * - to origin-x
+		leader :y @ leader :row @ 16 * - to origin-y
+	then
+	cells mode-codes :mode game@ @ :paused game@ 255 * pose pack 0 0 !i,j drop
+	cells colors level-palette 2 @i @ 0 1 !i,j drop
+	cells origin-x 64 + origin-y 0 pack 0 2 !i,j drop
+	0 invaders size 1 do k
+		invaders k @i to invader
+		cells 255 0 0 pack 0 invader :row @ 11 * invader :column @ + 3 + !i,j drop
+	loop
+
+	:player game@ to cannon
+	cannon :animation @ :burst = if cannon :frame 0 @or truncate 2 mod 1+ else 0 then to cannon-frame
+	:mode game@ :over = if 0 else 255 then to cannon-shown
+	cells cannon :x @ 16 + cannon-shown cannon-frame pack 0 58 !i,j drop
+
+	:player-shot game@ to shot
+	shot null? not if cells shot :x @ 16 + shot :y @ 1 pack 0 59 !i,j drop then
+
+	:shots game@ to bombs
+	0 bombs size 3 min2 1 do k
+		bombs k @i to bomb
+		cells bomb :x @ 16 + bomb :y @ bomb :kind @ 4 * bomb :frame 0 @or truncate 4 mod + 1+ pack 0 k 60 + !i,j drop
+	loop
+
+	:saucer game@ to saucer
+	saucer null? not if
+		cells saucer :x @ 16 + 1 saucer :frame 0 @or truncate 2 mod pack 0 63 !i,j drop
+	then
+
+	:bursts game@ to bursts
+	0 bursts size 8 min2 1 do k
+		bursts k @i to burst
+		cells burst :x @ 16 + burst :y @ burst burst-type pack 0 k 64 + !i,j drop
+	loop
+
+	cells 0 248 draw-bitmap ;
+
+\ the text laid over the 3D picture: the lives left and the mothership's scores
+: draw-overlay ( -- )
+	:white ink
+	6 210 :lives game@ "LIVES {0}" format print-at
+	:red ink
+	:labels game@ ( label | label :x @ label :y @ label :text @ print-at ) each ;
+
+\ the frames the window presented per second, measured over each half second
+{ :presented 0 :seconds 0 :rate 0 } to meter
+
+\ the frame rate below the level number
+: draw-frame-rate ( -- )
+	now to moment
+	moment meter :seconds @ - to span
+	span 0.5 >= if
+		screen-frames to presented
+		meter presented meter :presented @ - span / :rate ! presented :presented ! moment :seconds ! drop
+	then
+	:gray ink
+	176 26 meter :rate @ "{0:.0f} FPS" format print-at ;
+
+\ one 3D screen frame: advance, then write the canvas the shader reads
+: frame-3d ( elapsed -- )
+	advance
+	:black paper
+	cls
+	draw-score-line
+	draw-frame-rate
+	now 0 0 0 screen-effect
+	:mode game@ :title = if draw-title exit then
+	draw-overlay
+	draw-banner
+	draw-art
+	draw-state ;
+
+invaders-shader screen-shader
+' frame-3d run-frames

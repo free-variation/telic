@@ -570,7 +570,7 @@ tests/                 — golden-output test files; tests/lib/ the loadable-lib
 bench/                 — benchmark suite (Telic vs CPython) and inventory
 docs/                  — the word reference (reference.md, reference-libraries.md), idioms.md,
                          and the primers: continuations, logic, tracing, synthesizer
-examples/              — graphics demos (primitives, shader), a Bach chorale on the synthesizer with a live spectrum analyzer, and Space Invaders (sprites, keyboard, synthesized music and effects; CC0 art in examples/assets)
+examples/              — graphics demos (primitives, shader), a Bach chorale on the synthesizer with a live spectrum analyzer, and Space Invaders (sprites, keyboard, synthesized music and effects; CC0 art in examples/assets), also in 3D through a GPU shader that reads the game state from the canvas
 PLAN.md                — future work
 ```
 
