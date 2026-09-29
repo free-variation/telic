@@ -1,0 +1,33 @@
+\ ==== read-bitmap ( path -- bitmap ), write-bitmap ( bitmap path -- ) ====
+
+\ Both go through an ffmpeg subprocess. write-bitmap picks the format from
+\ the path's extension; read-bitmap decodes the first frame as RGBA. A PNG
+\ keeps the alpha channel, so null and partial transparency survive a round
+\ trip exactly.
+
+: show ( bitmap -- ) matrix>array . cr ;
+
+[ "rg." "b#w" ]
+{ "r" string>symbol :red "g" string>symbol :lime "b" string>symbol :blue "#" string>symbol 0x80123456 "w" string>symbol :white }
+art>bitmap constant sample
+
+\ === PNG round trip ===
+sample "/tmp/telic-139-sample.png" write-bitmap
+"/tmp/telic-139-sample.png" read-bitmap to decoded
+decoded dim . . cr                                   \ 3 2
+decoded show                                         \ [ 16711680 65280 null 255 2148676694 16777215 ]
+decoded sample = . cr                                \ 1
+clear
+
+\ === a fully transparent pixel reads back as null ===
+1 1 blank-bitmap 0xff00ff00 0 0 !i,j "/tmp/telic-139-clear.png" write-bitmap
+"/tmp/telic-139-clear.png" read-bitmap show          \ [ null ]
+[ -5 4294967296 ] 1 2 matrix "/tmp/telic-139-clear.png" write-bitmap
+"/tmp/telic-139-clear.png" read-bitmap show          \ [ null null ]
+clear
+
+[ "rm" "-f" "/tmp/telic-139-sample.png" "/tmp/telic-139-clear.png" ] run-result drop
+
+\ errors
+"/tmp/telic-139-missing.png" read-bitmap             \ (no such file)
+"x" "/tmp/telic-139-bad.png" write-bitmap           \ (not a bitmap)

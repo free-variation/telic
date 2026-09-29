@@ -68,6 +68,7 @@ abline
 abs
 acos
 add-last!
+advance-sprite
 aes!
 after-entry
 again
@@ -78,6 +79,7 @@ amb
 amplitude-at
 amplitude-spectrum
 and
+animation-finished?
 annotate
 any?
 append-file
@@ -92,6 +94,7 @@ array-of
 array>frame
 array>set
 array?
+art>bitmap
 as
 as-column
 asin
@@ -115,6 +118,8 @@ bit-and
 bit-not
 bit-or
 bit-xor
+blank-bitmap
+blit
 bootstrap
 bootstrap-with
 boxplot
@@ -128,6 +133,7 @@ byte-substring
 byte-vector>string
 bytes>value
 callers
+capture-bitmap
 case
 cat
 catch
@@ -144,6 +150,7 @@ cls
 codepoint-at
 codepoint>char
 codepoints>string
+colliding-sprites
 colors
 column-maxes
 column-means
@@ -215,6 +222,9 @@ difference
 dim
 do
 dot
+draw-bitmap
+draw-sprite
+draw-sprites
 drop
 drop-nans
 dup
@@ -392,6 +402,8 @@ iqr
 iso>time
 join
 json>frame
+key-down?
+key-pressed?
 key-set
 keys
 ks-distance
@@ -500,6 +512,7 @@ pfilter-ext
 pick
 pitch>hz
 pitch>midi
+play-animation
 play-samples
 plot
 pmap
@@ -541,6 +554,7 @@ rationalize
 read
 read-arrow
 read-available
+read-bitmap
 read-err
 read-file
 read-line
@@ -579,6 +593,8 @@ rm
 rmdir
 roll
 rot
+rotate-bitmap
+rotate-bitmap-angle
 round
 round-down
 round-up
@@ -640,6 +656,7 @@ set-remove!
 set-unit!
 set>array
 set?
+sheet>bitmaps
 shift
 shift-with
 show-figure
@@ -665,6 +682,10 @@ spaces
 split
 split-by
 spread
+sprite-bitmap
+sprite-box
+sprites-collide?
+sprites-overlap?
 sq
 sqrt
 stacked-barchart
@@ -729,6 +750,7 @@ tsv>db
 tty?
 tuck
 type-of
+typed-text
 unify
 unify?
 union
@@ -782,6 +804,7 @@ within-groups
 words
 write
 write-arrow
+write-bitmap
 write-file
 write-in
 write-tsv

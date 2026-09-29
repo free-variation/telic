@@ -6152,6 +6152,227 @@ colors :dodgerblue @ . colors size . cr
 
 ---
 
+## Sprites and bitmaps
+
+A **bitmap** is a matrix of packed colors, rows as y and columns as x. An
+element below 2^24 is an opaque `0xRRGGBB`; bits 24–31 hold a transparency,
+0 opaque through 255 invisible, so `0x80ff0000` is half-transparent red; a
+`null` (NaN) element, a negative one, and one at or above 255·2^24 are
+invisible. Drawing composites each pixel over what is beneath it with coverage
+(255 − transparency)/255 × opacity.
+
+A **sprite** is a frame the program draws each screen frame; nothing keeps it
+between frames. Its keys:
+
+- `:animations` — a frame of animation name → array of bitmaps; required
+- `:animation` — the name playing; required
+- `:frame` — a number; bitmap floor(`:frame`) of the playing animation is shown, the last one past the end; default 0
+- `:x` `:y` — the screen position of the anchor; default 0 0
+- `:anchor` — `[ x y ]` in bitmap pixels from the bitmap's top-left corner, mirrored with the bitmap under `:flip`; default `[ 0 0 ]`
+- `:flip` — `:none`, `:horizontal`, `:vertical` or `:both`; default `:none`
+- `:scale` — each bitmap pixel as a `:scale`×`:scale` block, an integer in [1, 64]; default 1
+- `:opacity` — from 0 to 1; default 1
+- `:rate` — bitmaps per second for `advance-sprite`; default 10
+- `:ending` — `:loop` or `:hold`; default `:loop`
+- `:hitbox` — `[ x y w h ]` in bitmap pixels from the bitmap's top-left corner, flipped and scaled with it; default the whole bitmap
+- `:depth` — `draw-sprites` order, lower first; default 0
+
+Keys are named by their position on a US keyboard, whatever the layout:
+`:a`…`:z`, `:0`…`:9`, `:space` `:return` `:escape` `:tab` `:backspace`
+`:delete` `:insert` `:left` `:right` `:up` `:down` `:home` `:end` `:page-up`
+`:page-down` `:shift` `:control` `:alt` `:left-shift` `:right-shift`
+`:left-control` `:right-control` `:left-alt` `:right-alt` `:semicolon`
+`:equals` `:comma` `:minus` `:period` `:slash` `:backquote` `:left-bracket`
+`:backslash` `:right-bracket` `:quote` `:f1`…`:f12`. The key state is read once
+per window update and fixed when the outermost `screen-frame` starts its
+`xt`, so every test inside one frame sees the same keys. `typed-text` follows
+the keyboard layout instead. Without a window nothing is held, pressed or
+typed. The wasm build has no window system, and these words error there.
+
+| Word | Stack effect | Behavior | Ops | Alloc | O |
+|------|-------------|----------|-----|-------|---|
+| `draw-bitmap` | `( bitmap x y -- )` | graphics.telic: draw `bitmap` with its top-left corner at `x y`, at scale 1, clipped to the canvas | w·h | none | O(w·h) |
+| `blit` | `( source target x y -- target )` | graphics.telic: composite `source` over the bitmap `target` with its top-left corner at `x y`, in place, clipped to `target`; a pixel left with no coverage is `null`. The matrix twin of `draw-bitmap` | w·h | none | O(w·h) |
+| `blank-bitmap` | `( height width -- bitmap )` | graphics.telic: a bitmap every element of which is `null` | h·w | `3m(h×w)` | O(h·w) |
+| `capture-bitmap` | `( x y w h -- bitmap )` | The canvas's `w`×`h` block with its top-left corner at `x y` as opaque colors; a pixel outside the canvas is `null`. Edges outside [1, 8192] error | w·h | `1m(h×w)` | O(w·h) |
+| `art>bitmap` | `( rows palette -- bitmap )` | graphics.telic: a bitmap from an array of strings, one row each and one pixel per character. `palette` maps a character, as a symbol, to a color (a number, color name or string, as `ink` takes); an unmapped character is `null`, and a short row is padded with `null` to the longest | rows·cols | `1m` + one symbol per character | O(rows·cols) |
+| `sheet>bitmaps` | `( sheet cell-width cell-height -- bitmaps )` | graphics.telic: the whole `cell-width`×`cell-height` cells of a sprite sheet, left to right then top to bottom; a partial cell at the right or bottom edge is dropped | cells | `1a` + `1m` per cell | O(w·h) |
+| `rotate-bitmap` | `( bitmap quarter-turns -- bitmap )` | graphics.telic: a copy turned clockwise on screen by a whole number of quarter turns, negative counter-clockwise; exact, a transpose and a flip. A fractional count errors | w·h | `2m(w×h)` | O(w·h) |
+| `rotate-bitmap-angle` | `( bitmap radians -- bitmap )` | A copy turned by `radians` about its centre, clockwise on screen for a positive angle, into the smallest bitmap enclosing the turned rectangle; each pixel takes the nearest source pixel, and a pixel outside the source is `null`. Turning a bitmap once and keeping the result avoids resampling it every frame | w'·h' | `1m(h'×w')` | O(w'·h') |
+| `read-bitmap` | `( path -- bitmap )` | graphics.telic: the first frame of an image file, decoded through an `ffmpeg` subprocess (with `ffprobe` for the size) as RGBA; alpha 0 reads as `null`. ffmpeg's message is thrown when decoding fails | file size | `1m(h×w)` + the decoded bytes | O(w·h) |
+| `write-bitmap` | `( bitmap path -- )` | graphics.telic: write `bitmap` as an image file through an `ffmpeg` subprocess, the format chosen by the path's extension; an invisible element is written as transparent black. PNG keeps the alpha channel, so a PNG round trip is exact | w·h | channel matrices + the bytes | O(w·h) |
+| `sprite-bitmap` | `( sprite -- bitmap )` | graphics.telic: the bitmap the sprite shows now: floor(`:frame`) of the playing animation's bitmaps, the last one when `:frame` is past the end | 8 | none | O(1) |
+| `play-animation` | `( sprite name -- )` | graphics.telic: start the named animation from its first bitmap by setting `:animation` and a `:frame` of 0; when `name` is already playing nothing changes, so calling it every frame is safe. A name missing from `:animations` errors | 12 | none | O(1) |
+| `advance-sprite` | `( sprite amount -- )` | graphics.telic: add `amount` × `:rate` to `:frame`, `amount` in seconds (a frame's elapsed time). Under `:loop` the frame wraps into [0, n) for n bitmaps, backwards too; under `:hold` it stays in [0, n] | 20 | none | O(1) |
+| `animation-finished?` | `( sprite -- flag )` | graphics.telic: `1` when the sprite's `:ending` is `:hold` and its `:frame` has reached the bitmap count, so the last bitmap has had its full time; `:loop` animations never finish | 10 | none | O(1) |
+| `draw-sprite` | `( sprite -- )` | graphics.telic: draw the sprite's current bitmap with its `:anchor` at `:x :y`, applying `:flip`, `:scale` and `:opacity` | w·h·scale² | none | O(w·h·scale²) |
+| `draw-sprites` | `( sprites -- )` | graphics.telic: draw an array of sprites in ascending `:depth`, equal depths in array order | n log n + draws | `1a(n)` | O(n log n + draws) |
+| `sprite-box` | `( sprite -- x y width height )` | graphics.telic: the screen rectangle of the sprite's `:hitbox`, or of its whole bitmap when none is set, after anchor, flip and scale | 40 | none | O(1) |
+| `sprites-overlap?` | `( a b -- flag )` | graphics.telic: `1` when the two `sprite-box` rectangles share any area; rectangles that only touch at an edge do not overlap | 90 | none | O(1) |
+| `sprites-collide?` | `( a b -- flag )` | graphics.telic: `1` when some screen pixel is solid in both sprites as drawn, solid meaning visible with transparency below 128; ignores `:hitbox` and `:opacity`. Stops at the first shared solid pixel | overlap area | none | O(overlap area) |
+| `colliding-sprites` | `( sprite sprites test -- hits )` | graphics.telic: the elements of `sprites` for which `sprite element test` answers true, in array order; `test` is usually `' sprites-overlap?` or `' sprites-collide?`, and `sprite` itself is a hit when it is in `sprites` | n·test | `1a` | O(n·test) |
+| `key-down?` | `( key -- flag )` | `1` while the key is held in the current frame's key state. A key name not in the list above errors | 3 | none | O(1) |
+| `key-pressed?` | `( key -- flag )` | `1` when the key went down since the previous frame's key state, so a tap shorter than a frame still counts once | 3 | none | O(1) |
+| `typed-text` | `( -- string )` | The characters typed since the last call, as the keyboard layout produces them, and clear them; at most one character per window update is kept, and 256 bytes between calls | 3 | `1o` | O(n) |
+
+```forth draw-bitmap
+[ "#" ] { "#" string>symbol :red } art>bitmap  2 2 blank-bitmap  1 1 blit matrix>array . cr
+```
+```output
+[ null null null 16711680 ]
+```
+
+```forth blit
+[ 1 2 3 4 ] 2 2 matrix  0x80000000 +  1 3 blank-bitmap  1 0 blit matrix>array . cr
+```
+```output
+[ null 2147483649 2147483650 ]
+```
+
+```forth blank-bitmap
+1 2 blank-bitmap matrix>array . cr
+```
+```output
+[ null null ]
+```
+
+```forth-noexec capture-bitmap
+:gold ink  0 0 8 8 fill-rect  0 0 8 8 capture-bitmap 0 0 @i,j . cr
+```
+```output
+16766720
+```
+
+```forth art>bitmap
+[ "#." ".#" ] { "#" string>symbol :red } art>bitmap matrix>array . cr
+```
+```output
+[ 16711680 null null 16711680 ]
+```
+
+```forth sheet>bitmaps
+[ 1 2 3 4 5 6 7 8 ] 2 4 matrix  2 2 sheet>bitmaps ( matrix>array . ) each cr
+```
+```output
+[ 1 2 5 6 ] [ 3 4 7 8 ]
+```
+
+```forth rotate-bitmap
+[ 1 2 3 4 ] 2 2 matrix 1 rotate-bitmap matrix>array . cr
+```
+```output
+[ 3 1 4 2 ]
+```
+
+```forth rotate-bitmap-angle
+[ 1 2 3 4 ] 2 2 matrix PI 4 / rotate-bitmap-angle dim . . cr
+```
+```output
+3 3
+```
+
+```forth-noexec read-bitmap
+"hero.png" read-bitmap dim . . cr
+```
+```output
+```
+
+```forth-noexec write-bitmap
+[ "#." ".#" ] { "#" string>symbol :red } art>bitmap "checker.png" write-bitmap
+```
+```output
+```
+
+```forth sprite-bitmap
+{ :animations { :spin [ 1 1 blank-bitmap 1 1 0-matrix ] } :animation :spin :frame 1.7 } sprite-bitmap matrix>array . cr
+```
+```output
+[ 0 ]
+```
+
+```forth play-animation
+{ :animations { :idle [ 1 1 0-matrix ] :run [ 1 1 0-matrix ] } :animation :idle :frame 0.5 } dup :run play-animation dup :animation @ . :frame @ . cr
+```
+```output
+:run 0
+```
+
+```forth advance-sprite
+{ :animations { :walk [ 1 1 0-matrix 1 1 0-matrix ] } :animation :walk } dup 0.25 advance-sprite :frame @ . cr
+```
+```output
+0.5
+```
+
+```forth animation-finished?
+{ :animations { :hit [ 1 1 0-matrix ] } :animation :hit :ending :hold } dup 0.1 advance-sprite animation-finished? . cr
+```
+```output
+1
+```
+
+```forth-noexec draw-sprite
+{ :animations { :idle [ [ ".#." "###" ] { "#" string>symbol :gold } art>bitmap ] } :animation :idle :x 100 :y 80 :scale 4 } draw-sprite
+```
+```output
+```
+
+```forth-noexec draw-sprites
+[ { :animations { :a [ 4 4 0-matrix ] } :animation :a :depth 1 } { :animations { :a [ 8 8 0-matrix 255 + ] } :animation :a } ] draw-sprites
+```
+```output
+```
+
+```forth sprite-box
+{ :animations { :a [ 2 2 0-matrix ] } :animation :a :x 10 :y 5 :anchor [ 1 1 ] :scale 2 } sprite-box . . . . cr
+```
+```output
+4 4 3 8
+```
+
+```forth sprites-overlap?
+{ :animations { :a [ 2 2 0-matrix ] } :animation :a } dup copy 1 :x ! sprites-overlap? . cr
+```
+```output
+1
+```
+
+```forth sprites-collide?
+[ "#." ".." ] { "#" string>symbol 1 } art>bitmap to corner
+{ :animations { :a [ corner ] } :animation :a } dup copy 1 :x ! sprites-collide? . cr
+```
+```output
+0
+```
+
+```forth colliding-sprites
+{ :animations { :a [ 2 2 0-matrix ] } :animation :a } to hero
+hero [ hero copy 1 :x ! hero copy 5 :x ! ] ' sprites-overlap? colliding-sprites size . cr
+```
+```output
+1
+```
+
+```forth-noexec key-down?
+( cls :left key-down? if "left" else "" then 8 8 rot print-at ) screen-frame
+```
+```output
+```
+
+```forth-noexec key-pressed?
+( :space key-pressed? if "jump" . cr then ) screen-frame
+```
+```output
+```
+
+```forth-noexec typed-text
+( typed-text dup size if . cr else drop then ) screen-frame
+```
+```output
+```
+
+---
+
 ## Audio synthesizer
 
 A polyphonic phase-modulation synthesizer computed in C at 48 kHz, stereo,

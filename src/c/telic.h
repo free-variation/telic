@@ -1825,22 +1825,30 @@ void p_read_arrow(DISPATCH_ARGS);
 void p_write_arrow(DISPATCH_ARGS);
 
 // graphics.c
+void p_blit_ext(DISPATCH_ARGS);
+void p_capture_bitmap(DISPATCH_ARGS);
 void p_circle(DISPATCH_ARGS);
 void p_cls(DISPATCH_ARGS);
+void p_draw_bitmap_ext(DISPATCH_ARGS);
 void p_fill_circle(DISPATCH_ARGS);
 void p_fill_rect(DISPATCH_ARGS);
 void p_ink(DISPATCH_ARGS);
+void p_key_down(DISPATCH_ARGS);
+void p_key_pressed(DISPATCH_ARGS);
 void p_line(DISPATCH_ARGS);
 void p_paper(DISPATCH_ARGS);
+void p_pixels_collide(DISPATCH_ARGS);
 void p_plot(DISPATCH_ARGS);
 void p_print_at(DISPATCH_ARGS);
 void p_rect(DISPATCH_ARGS);
+void p_rotate_bitmap_angle(DISPATCH_ARGS);
 void p_screen_effect(DISPATCH_ARGS);
 void p_screen_frame(DISPATCH_ARGS);
 void p_screen_frames(DISPATCH_ARGS);
 void p_screen_shader(DISPATCH_ARGS);
 void p_screen_size(DISPATCH_ARGS);
 void p_screen_zoom(DISPATCH_ARGS);
+void p_typed_text(DISPATCH_ARGS);
 
 // inline functions whose bodies call the declarations above
 static inline int truthy(Val value) {

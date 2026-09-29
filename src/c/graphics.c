@@ -74,6 +74,8 @@ static int application_drain_events(void) { return 1; }
 #define SCREEN_PUMP_MICROSECONDS 16000
 #define SCREEN_FRAME_WAIT_MICROSECONDS 100000
 #define INTERPRETER_STACK_BYTES (8 * 1024 * 1024)
+#define SCREEN_KEY_CAPACITY 256
+#define SCREEN_TYPED_CAPACITY 256
 
 static struct {
 	pthread_mutex_t lock;
@@ -101,10 +103,17 @@ static struct {
 	int frame_ready;
 	long frames_queued;
 	long frames_shown;
+	unsigned char keys_held[SCREEN_KEY_CAPACITY];
+	unsigned char keys_pressed[SCREEN_KEY_CAPACITY];
+	unsigned char frame_keys_held[SCREEN_KEY_CAPACITY];
+	unsigned char frame_keys_pressed[SCREEN_KEY_CAPACITY];
+	char typed[SCREEN_TYPED_CAPACITY];
+	int n_typed;
 } screen = {
 	PTHREAD_MUTEX_INITIALIZER, NULL, SCREEN_DEFAULT_WIDTH, SCREEN_DEFAULT_HEIGHT, 1,
 	{255, 255, 255, 255}, {0, 0, 0, 255}, 0, 0, 0, NULL, 0, 0, {0, 0, 0, 1}, 0, 0, 0, 0, 0,
-	PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER, NULL, 0, 0, 0
+	PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER, NULL, 0, 0, 0,
+	{0}, {0}, {0}, {0}, {0}, 0
 };
 
 static Tigr *canvas_for_drawing(Interpreter *interp) {
@@ -152,7 +161,7 @@ DRAW_WORD(p_line, "line", 4,
 DRAW_WORD(p_rect, "rect", 4,
 		tigrRect(canvas, (int)operand[0], (int)operand[1], (int)operand[2], (int)operand[3], ink))
 DRAW_WORD(p_fill_rect, "fill-rect", 4,
-		tigrFillRect(canvas, (int)operand[0], (int)operand[1], (int)operand[2], (int)operand[3], ink))
+		tigrFillRect(canvas, (int)operand[0] - 1, (int)operand[1] - 1, (int)operand[2] + 2, (int)operand[3] + 2, ink))
 DRAW_WORD(p_circle, "circle", 3,
 		tigrCircle(canvas, (int)operand[0], (int)operand[1], (int)operand[2], ink))
 DRAW_WORD(p_fill_circle, "fill-circle", 3,
@@ -509,6 +518,11 @@ void p_screen_frame(DISPATCH_ARGS) {
 
 	pthread_mutex_lock(&screen.lock);
 	screen.hold++;
+	if (screen.hold == 1) {
+		memcpy(screen.frame_keys_held, screen.keys_held, sizeof screen.keys_held);
+		memcpy(screen.frame_keys_pressed, screen.keys_pressed, sizeof screen.keys_pressed);
+		memset(screen.keys_pressed, 0, sizeof screen.keys_pressed);
+	}
 	pthread_mutex_unlock(&screen.lock);
 
 	execute_xt(interp, body);
@@ -542,6 +556,391 @@ void p_screen_frames(DISPATCH_ARGS) {
 
 	chain_sp[0] = make_float((double)frames);
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
+}
+
+#define BITMAP_FLIP_HORIZONTAL 1
+#define BITMAP_FLIP_VERTICAL 2
+#define BITMAP_MAX_SCALE 64
+#define BITMAP_SOLID_TRANSPARENCY 128
+#define BITMAP_OPAQUE_LIMIT 16777216.0
+
+typedef struct {
+	Object *bitmap;
+	int x;
+	int y;
+	int scale;
+	int flip;
+	double opacity;
+} BitmapPlacement;
+
+typedef void (*PixelSink)(void *target, int x, int y, unsigned int rgb, double coverage);
+
+static int bitmap_color(double element, unsigned int *rgb, int *transparency) {
+	if (isnan(element) || element < 0)
+		return 0;
+	unsigned long packed = element >= 4294967296.0 ? 0xFFFFFFFFul : (unsigned long)element;
+	*rgb = (unsigned int)(packed & 0xFFFFFF);
+	*transparency = (int)((packed >> 24) & 0xFF);
+	return *transparency < 255;
+}
+
+static int placement_from_operands(Interpreter *interp, Val bitmap_val, const Val *operands, const char *word_name,
+		BitmapPlacement *placement) {
+	if (VAL_TAG(bitmap_val) != T_MATRIX) {
+		fail(interp, "expected a bitmap (a matrix); got %s", tag_name(VAL_TAG(bitmap_val)));
+		return 0;
+	}
+	for (int i = 0; i < 5; i++)
+		if (VAL_TAG(operands[i]) != T_FLOAT) {
+			fail(interp, "expected a number for %s; got %s", word_name, tag_name(VAL_TAG(operands[i])));
+			return 0;
+		}
+	double scale = VAL_NUMBER(operands[2]);
+	double flip = VAL_NUMBER(operands[3]);
+	double opacity = VAL_NUMBER(operands[4]);
+	if (!(scale >= 1 && scale <= BITMAP_MAX_SCALE) || scale != floor(scale)) {
+		fail(interp, "expected a scale that is an integer in [1, %d]; got %g", BITMAP_MAX_SCALE, scale);
+		return 0;
+	}
+	if (!(flip >= 0 && flip <= 3) || flip != floor(flip)) {
+		fail(interp, "expected a flip code in [0, 3]; got %g", flip);
+		return 0;
+	}
+	if (!(opacity >= 0 && opacity <= 1)) {
+		fail(interp, "expected an opacity in [0, 1]; got %g", opacity);
+		return 0;
+	}
+	placement->bitmap = OBJECT_AT(VAL_DATA(bitmap_val));
+	placement->x = (int)floor(VAL_NUMBER(operands[0]));
+	placement->y = (int)floor(VAL_NUMBER(operands[1]));
+	placement->scale = (int)scale;
+	placement->flip = (int)flip;
+	placement->opacity = opacity;
+	return 1;
+}
+
+static double placement_element(const BitmapPlacement *placement, int screen_x, int screen_y) {
+	Object *bitmap = placement->bitmap;
+	int n_rows = bitmap->matrix.rows;
+	int n_columns = bitmap->matrix.columns;
+	int column = (screen_x - placement->x) / placement->scale;
+	int row = (screen_y - placement->y) / placement->scale;
+	if (placement->flip & BITMAP_FLIP_HORIZONTAL)
+		column = n_columns - 1 - column;
+	if (placement->flip & BITMAP_FLIP_VERTICAL)
+		row = n_rows - 1 - row;
+	return MAT(bitmap, row, column);
+}
+
+static void place_bitmap(const BitmapPlacement *placement, int target_width, int target_height, PixelSink sink, void *target) {
+	Object *bitmap = placement->bitmap;
+	int left = MAX(placement->x, 0);
+	int top = MAX(placement->y, 0);
+	int right = MIN(placement->x + bitmap->matrix.columns * placement->scale, target_width);
+	int bottom = MIN(placement->y + bitmap->matrix.rows * placement->scale, target_height);
+
+	for (int screen_y = top; screen_y < bottom; screen_y++)
+		for (int screen_x = left; screen_x < right; screen_x++) {
+			unsigned int rgb;
+			int transparency;
+			if (!bitmap_color(placement_element(placement, screen_x, screen_y), &rgb, &transparency))
+				continue;
+			double coverage = (255 - transparency) / 255.0 * placement->opacity;
+			if (coverage > 0)
+				sink(target, screen_x, screen_y, rgb, coverage);
+		}
+}
+
+static unsigned char blended_channel(unsigned int over, unsigned int under, double coverage) {
+	return (unsigned char)lround(over * coverage + under * (1.0 - coverage));
+}
+
+static void canvas_sink(void *target, int x, int y, unsigned int rgb, double coverage) {
+	Tigr *canvas = target;
+	TPixel *pixel = &canvas->pix[y * canvas->w + x];
+	pixel->r = blended_channel((rgb >> 16) & 0xFF, pixel->r, coverage);
+	pixel->g = blended_channel((rgb >> 8) & 0xFF, pixel->g, coverage);
+	pixel->b = blended_channel(rgb & 0xFF, pixel->b, coverage);
+}
+
+static void bitmap_sink(void *target, int x, int y, unsigned int rgb, double coverage) {
+	Object *bitmap = target;
+	double *element = &MAT(bitmap, y, x);
+	unsigned int under_rgb = 0;
+	int under_transparency = 255;
+	bitmap_color(*element, &under_rgb, &under_transparency);
+	double under_coverage = (255 - under_transparency) / 255.0;
+	double combined = coverage + under_coverage * (1.0 - coverage);
+	if (combined <= 0) {
+		*element = NAN;
+		return;
+	}
+
+	unsigned int channels = 0;
+	for (int shift = 16; shift >= 0; shift -= 8) {
+		double over = (rgb >> shift) & 0xFF;
+		double under = (under_rgb >> shift) & 0xFF;
+		double mixed = (over * coverage + under * under_coverage * (1.0 - coverage)) / combined;
+		channels |= (unsigned int)lround(mixed) << shift;
+	}
+	long transparency = lround((1.0 - combined) * 255.0);
+	*element = (double)channels + (double)transparency * BITMAP_OPAQUE_LIMIT;
+}
+
+void p_draw_bitmap_ext(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 6);
+	BitmapPlacement placement;
+	if (!placement_from_operands(interp, chain_sp[-6], chain_sp - 5, "(draw-bitmap)", &placement))
+		return;
+
+	pthread_mutex_lock(&screen.lock);
+	Tigr *canvas = canvas_for_drawing(interp);
+	if (canvas) {
+		place_bitmap(&placement, canvas->w, canvas->h, canvas_sink, canvas);
+		screen.requested = 1;
+		screen.dirty = 1;
+	}
+	pthread_mutex_unlock(&screen.lock);
+	if (!canvas)
+		return;
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 6);
+}
+
+void p_blit_ext(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 7);
+	Val target_val = chain_sp[-6];
+	REQUIRE_CHAIN_TAG(target_val, T_MATRIX, "(blit)", "a target bitmap (a matrix)");
+	BitmapPlacement placement;
+	if (!placement_from_operands(interp, chain_sp[-7], chain_sp - 5, "(blit)", &placement))
+		return;
+	Object *target = OBJECT_AT(VAL_DATA(target_val));
+
+	place_bitmap(&placement, target->matrix.columns, target->matrix.rows, bitmap_sink, target);
+
+	chain_sp[-7] = target_val;
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 6);
+}
+
+void p_capture_bitmap(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 4);
+	double region[4];
+	for (int i = 0; i < 4; i++) {
+		Val region_val = chain_sp[i - 4];
+		REQUIRE_CHAIN_TAG(region_val, T_FLOAT, "capture-bitmap", "a coordinate");
+		region[i] = VAL_NUMBER(region_val);
+	}
+	int left = (int)floor(region[0]);
+	int top = (int)floor(region[1]);
+	double width = region[2];
+	double height = region[3];
+	if (!(width >= 1 && height >= 1 && width <= SCREEN_MAX_EDGE && height <= SCREEN_MAX_EDGE)) {
+		fail(interp, "expected a region with edges in [1, %d]; got %gx%g", SCREEN_MAX_EDGE, width, height);
+		return;
+	}
+
+	int n_columns = (int)width;
+	int n_rows = (int)height;
+	NEW_MATRIX(bitmap_handle, bitmap, n_rows, n_columns);
+
+	pthread_mutex_lock(&screen.lock);
+	Tigr *canvas = canvas_for_drawing(interp);
+	if (canvas)
+		for (int row = 0; row < n_rows; row++)
+			for (int column = 0; column < n_columns; column++) {
+				int x = left + column;
+				int y = top + row;
+				if (x < 0 || y < 0 || x >= canvas->w || y >= canvas->h) {
+					MAT(bitmap, row, column) = NAN;
+					continue;
+				}
+				TPixel pixel = canvas->pix[y * canvas->w + x];
+				MAT(bitmap, row, column) = (double)(((unsigned int)pixel.r << 16) | ((unsigned int)pixel.g << 8) | pixel.b);
+			}
+	pthread_mutex_unlock(&screen.lock);
+	if (!canvas)
+		return;
+
+	chain_sp[-4] = make_matrix(bitmap_handle);
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 3);
+}
+
+static int placement_solid_at(const BitmapPlacement *placement, int screen_x, int screen_y) {
+	unsigned int rgb;
+	int transparency;
+	return bitmap_color(placement_element(placement, screen_x, screen_y), &rgb, &transparency)
+		&& transparency < BITMAP_SOLID_TRANSPARENCY;
+}
+
+void p_pixels_collide(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 12);
+	BitmapPlacement first;
+	BitmapPlacement second;
+	if (!placement_from_operands(interp, chain_sp[-12], chain_sp - 11, "(pixels-collide)", &first)
+			|| !placement_from_operands(interp, chain_sp[-6], chain_sp - 5, "(pixels-collide)", &second))
+		return;
+
+	int left = MAX(first.x, second.x);
+	int top = MAX(first.y, second.y);
+	int right = MIN(first.x + first.bitmap->matrix.columns * first.scale, second.x + second.bitmap->matrix.columns * second.scale);
+	int bottom = MIN(first.y + first.bitmap->matrix.rows * first.scale, second.y + second.bitmap->matrix.rows * second.scale);
+	int collide = 0;
+	for (int screen_y = top; screen_y < bottom && !collide; screen_y++)
+		for (int screen_x = left; screen_x < right && !collide; screen_x++)
+			collide = placement_solid_at(&first, screen_x, screen_y) && placement_solid_at(&second, screen_x, screen_y);
+
+	chain_sp[-12] = make_float(collide ? 1.0 : 0.0);
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 11);
+}
+
+void p_rotate_bitmap_angle(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
+	Val source_val = chain_sp[-2];
+	REQUIRE_CHAIN_TAG(source_val, T_MATRIX, "rotate-bitmap-angle", "a bitmap (a matrix)");
+	Val angle_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(angle_val, T_FLOAT, "rotate-bitmap-angle", "an angle in radians");
+	Object *source = OBJECT_AT(VAL_DATA(source_val));
+	double angle = VAL_NUMBER(angle_val);
+	double cosine = cos(angle);
+	double sine = sin(angle);
+	int n_source_rows = source->matrix.rows;
+	int n_source_columns = source->matrix.columns;
+	int n_columns = (int)ceil(fabs(n_source_columns * cosine) + fabs(n_source_rows * sine) - 1e-9);
+	int n_rows = (int)ceil(fabs(n_source_columns * sine) + fabs(n_source_rows * cosine) - 1e-9);
+	n_columns = MAX(n_columns, 1);
+	n_rows = MAX(n_rows, 1);
+
+	NEW_MATRIX(rotated_handle, rotated, n_rows, n_columns);
+	for (int row = 0; row < n_rows; row++)
+		for (int column = 0; column < n_columns; column++) {
+			double dx = column + 0.5 - n_columns / 2.0;
+			double dy = row + 0.5 - n_rows / 2.0;
+			double source_x = cosine * dx + sine * dy + n_source_columns / 2.0;
+			double source_y = -sine * dx + cosine * dy + n_source_rows / 2.0;
+			int source_column = (int)floor(source_x);
+			int source_row = (int)floor(source_y);
+			int inside = source_column >= 0 && source_row >= 0 && source_column < n_source_columns && source_row < n_source_rows;
+			MAT(rotated, row, column) = inside ? MAT(source, source_row, source_column) : NAN;
+		}
+
+	chain_sp[-2] = make_matrix(rotated_handle);
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+}
+
+static const struct {
+	const char *name;
+	int key;
+} keyboard_names[] = {
+	{"space", TK_SPACE}, {"return", TK_RETURN}, {"escape", TK_ESCAPE}, {"tab", TK_TAB},
+	{"backspace", TK_BACKSPACE}, {"delete", TK_DELETE}, {"insert", TK_INSERT},
+	{"left", TK_LEFT}, {"right", TK_RIGHT}, {"up", TK_UP}, {"down", TK_DOWN},
+	{"home", TK_HOME}, {"end", TK_END}, {"page-up", TK_PAGEUP}, {"page-down", TK_PAGEDN},
+	{"shift", TK_SHIFT}, {"control", TK_CONTROL}, {"alt", TK_ALT},
+	{"left-shift", TK_LSHIFT}, {"right-shift", TK_RSHIFT}, {"left-control", TK_LCONTROL},
+	{"right-control", TK_RCONTROL}, {"left-alt", TK_LALT}, {"right-alt", TK_RALT},
+	{"semicolon", TK_SEMICOLON}, {"equals", TK_EQUALS}, {"comma", TK_COMMA}, {"minus", TK_MINUS},
+	{"period", TK_DOT}, {"slash", TK_SLASH}, {"backquote", TK_BACKTICK}, {"left-bracket", TK_LSQUARE},
+	{"backslash", TK_BACKSLASH}, {"right-bracket", TK_RSQUARE}, {"quote", TK_TICK},
+	{"f1", TK_F1}, {"f2", TK_F2}, {"f3", TK_F3}, {"f4", TK_F4}, {"f5", TK_F5}, {"f6", TK_F6},
+	{"f7", TK_F7}, {"f8", TK_F8}, {"f9", TK_F9}, {"f10", TK_F10}, {"f11", TK_F11}, {"f12", TK_F12},
+	{NULL, 0}
+};
+
+static int keyboard_key(Interpreter *interp, Val key_val) {
+	if (VAL_TAG(key_val) != T_SYMBOL) {
+		fail(interp, "expected a key name (a symbol such as :a or :space); got %s", tag_name(VAL_TAG(key_val)));
+		return -1;
+	}
+	const char *name = &vocab.symbol_pool[VAL_DATA(key_val)];
+	if (name[0] && !name[1] && name[0] >= 'a' && name[0] <= 'z')
+		return 'A' + (name[0] - 'a');
+	if (name[0] && !name[1] && name[0] >= '0' && name[0] <= '9')
+		return name[0];
+	for (int i = 0; keyboard_names[i].name; i++)
+		if (strcmp(keyboard_names[i].name, name) == 0)
+			return keyboard_names[i].key;
+	fail(interp, "unknown key :%s", name);
+	return -1;
+}
+
+static int keyboard_state(Interpreter *interp, Val key_val, const unsigned char *keys) {
+	int key = keyboard_key(interp, key_val);
+	if (key < 0)
+		return -1;
+
+	pthread_mutex_lock(&screen.lock);
+	int down = keys[key];
+	pthread_mutex_unlock(&screen.lock);
+	return down;
+}
+
+void p_key_down(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	int down = keyboard_state(interp, chain_sp[-1], screen.frame_keys_held);
+	if (down < 0)
+		return;
+
+	chain_sp[-1] = make_float(down ? 1.0 : 0.0);
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
+
+void p_key_pressed(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	int pressed = keyboard_state(interp, chain_sp[-1], screen.frame_keys_pressed);
+	if (pressed < 0)
+		return;
+
+	chain_sp[-1] = make_float(pressed ? 1.0 : 0.0);
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
+
+void p_typed_text(DISPATCH_ARGS) {
+	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);
+	char typed[SCREEN_TYPED_CAPACITY];
+
+	pthread_mutex_lock(&screen.lock);
+	int n_typed = screen.n_typed;
+	memcpy(typed, screen.typed, (size_t)n_typed);
+	screen.n_typed = 0;
+	pthread_mutex_unlock(&screen.lock);
+
+	int text_handle = object_new_string(interp, typed, n_typed);
+	if (interp->error_flag)
+		return;
+
+	chain_sp[0] = make_string(text_handle);
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
+}
+
+static void keyboard_collect(Tigr *source) {
+	for (int key = 0; key < SCREEN_KEY_CAPACITY; key++) {
+		screen.keys_held[key] = (unsigned char)(tigrKeyHeld(source, key) != 0);
+		if (tigrKeyDown(source, key))
+			screen.keys_pressed[key] = 1;
+	}
+	int code = tigrReadChar(source);
+	if (code <= 0 || screen.n_typed + 4 > SCREEN_TYPED_CAPACITY)
+		return;
+	char *out = &screen.typed[screen.n_typed];
+	if (code < 0x80) {
+		out[0] = (char)code;
+		screen.n_typed += 1;
+	} else if (code < 0x800) {
+		out[0] = (char)(0xC0 | (code >> 6));
+		out[1] = (char)(0x80 | (code & 0x3F));
+		screen.n_typed += 2;
+	} else if (code < 0x10000) {
+		out[0] = (char)(0xE0 | (code >> 12));
+		out[1] = (char)(0x80 | ((code >> 6) & 0x3F));
+		out[2] = (char)(0x80 | (code & 0x3F));
+		screen.n_typed += 3;
+	} else {
+		out[0] = (char)(0xF0 | (code >> 18));
+		out[1] = (char)(0x80 | ((code >> 12) & 0x3F));
+		out[2] = (char)(0x80 | ((code >> 6) & 0x3F));
+		out[3] = (char)(0x80 | (code & 0x3F));
+		screen.n_typed += 4;
+	}
 }
 
 static Tigr *window = NULL;
@@ -650,6 +1049,7 @@ static int screen_step(void) {
 
 	pthread_mutex_lock(&screen.lock);
 	screen.frames_presented++;
+	keyboard_collect(window);
 	pthread_mutex_unlock(&screen.lock);
 
 	if (window_needs_front) {

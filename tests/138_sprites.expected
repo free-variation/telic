@@ -1,0 +1,74 @@
+[ 16711680 null null 16711680 ] 
+[ 255 null 255 255 ] 
+[ 1 2 3 4 ] 
+[ null null ] 
+[ 1 2 3 4 ] 
+[ 3 1 4 2 ] 
+[ 4 3 2 1 ] 
+[ 2 4 1 3 ] 
+[ 2 4 1 3 ] 
+1 2 
+[ 3 1 4 2 ] 
+[ 4 3 2 1 ] 
+3 3 
+[ null 1 2 null 3 4 ] 
+[ 4 null null null ] 
+[ 2147483649 ] 
+[ 1 2 3 4 ] 
+[ 0 0 0 0 ] 
+[ 1 2 5 6 ] 
+[ 3 4 7 8 ] 
+6 
+2 
+:jump 0 
+1.5 
+0.5 
+1.5 
+0.5 
+0 
+0 1.5 
+1 2 
+2 
+0 
+[ 1 2 3 4 ] 
+[ 3 1 4 2 ] 
+[ 3 1 4 2 ] 
+2 2 5 10 
+4 4 3 8 
+4 2 3 8 
+4 2 3 10 
+2 4 5 8 
+1 
+0 
+1 0 
+1 
+0 
+1 
+0 
+2 
+1 
+[ null 0 ] 
+0 0 0 0 
+0 
+error: expected an opacity in [0, 1]; got 2
+in (pixels-collide) ← sprites-collide?
+error: expected a scale that is an integer in [1, 64]; got 0
+in (pixels-collide) ← sprites-collide?
+error: expected a scale that is an integer in [1, 64]; got 1.5
+in (pixels-collide) ← sprites-collide?
+error: expected a bitmap (a matrix); got a string
+in (blit) ← blit
+error: uncaught exception: "expected a whole number of quarter turns; got 1.5"
+in throw ← rotate-bitmap
+error: uncaught exception: "no animation :run in this sprite"
+in throw ← play-animation
+error: uncaught exception: "expected a flip of :none, :horizontal, :vertical or :both; got :sideways"
+in throw ← flip-code ← sprite-placement ← draw-sprite
+error: uncaught exception: "expected an ending of :loop or :hold; got :bounce"
+in throw ← sprite-ending ← advance-sprite
+error: expected a region with edges in [1, 8192]; got 0x1
+in capture-bitmap
+error: unknown key :shift-lock
+in key-down?
+error: expected a key name (a symbol such as :a or :space); got a string
+in key-down?

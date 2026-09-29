@@ -1,0 +1,9 @@
+3 2 
+[ 16711680 65280 null 255 2148676694 16777215 ] 
+1 
+[ null ] 
+[ null null ] 
+error: uncaught exception: "/tmp/telic-139-missing.png: No such file or directory"
+in throw ← read-bitmap
+error: expected a matrix; got a string
+in dim ← write-bitmap

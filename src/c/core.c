@@ -6165,6 +6165,14 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "(colors)", p_colors, 4);
 	define_primitive(interp, "(ink)", p_ink, 4);
 	define_primitive(interp, "(paper)", p_paper, 4);
+	define_primitive(interp, "(draw-bitmap)", p_draw_bitmap_ext, 4);
+	define_primitive(interp, "(blit)", p_blit_ext, 4);
+	define_primitive(interp, "(pixels-collide)", p_pixels_collide, 4);
+	define_primitive(interp, "capture-bitmap", p_capture_bitmap, 0);
+	define_primitive(interp, "rotate-bitmap-angle", p_rotate_bitmap_angle, 0);
+	define_primitive(interp, "key-down?", p_key_down, 0);
+	define_primitive(interp, "key-pressed?", p_key_pressed, 0);
+	define_primitive(interp, "typed-text", p_typed_text, 0);
 
 	define_primitive(interp, "read-arrow", p_read_arrow, 0);
 	define_primitive(interp, "write-arrow", p_write_arrow, 0);

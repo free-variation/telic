@@ -33,3 +33,223 @@
 \ the color cls fills with, and the background a new screen starts at
 : paper ( color -- ) color>number (paper) ;
 
+
+\ the flip code (draw-bitmap) and (blit) take for a flip name
+: flip-code ( flip -- n )
+	| flip |
+	{ :none 0 :horizontal 1 :vertical 2 :both 3 } to codes
+	codes flip has? not if
+		flip "expected a flip of :none, :horizontal, :vertical or :both; got :{0}" format throw
+	then
+	codes flip @ ; internal
+
+\ draw a bitmap with its top-left corner at x y
+: draw-bitmap ( bitmap x y -- ) 1 0 1 (draw-bitmap) ;
+
+\ composite source over target with source's top-left corner at x y; target is changed in place
+: blit ( source target x y -- target ) 1 0 1 (blit) ;
+
+\ a fully transparent bitmap of the given size
+: blank-bitmap ( height width -- bitmap ) 0-matrix dup 0 eq null mesh ;
+
+\ a copy of bitmap mirrored by a flip code
+: flip-bitmap ( bitmap code -- bitmap )
+	| bitmap code |
+	bitmap bitmap dim blank-bitmap 0 0 1 code 1 (blit) ; internal
+
+\ bitmap turned clockwise by a whole number of quarter turns, exactly
+: rotate-bitmap ( bitmap quarter-turns -- bitmap )
+	| bitmap quarter-turns |
+	quarter-turns dup truncate = not if
+		quarter-turns "expected a whole number of quarter turns; got {0}" format throw
+	then
+	quarter-turns 4 mod 4 + 4 mod to turns
+	turns 0 = if bitmap copy exit then
+	turns 1 = if bitmap transpose 1 flip-bitmap exit then
+	turns 2 = if bitmap 3 flip-bitmap exit then
+	bitmap transpose 2 flip-bitmap ;
+
+\ a bitmap from rows of text: each character is a pixel, the palette maps
+\ characters (as symbols) to colors, and unmapped characters are transparent
+: art>bitmap ( rows palette -- bitmap )
+	| rows palette |
+	0 to width
+	0 rows size 1 do row
+		rows row @i string>chars size width max2 to width
+	loop
+	rows size width blank-bitmap to bitmap
+	0 rows size 1 do row
+		rows row @i string>chars to characters
+		0 characters size 1 do column
+			characters column @i string>symbol to key
+			palette key has? if
+				bitmap palette key @ color>number row column !i,j drop
+			then
+		loop
+	loop
+	bitmap ;
+
+\ the cells of a sprite sheet as bitmaps, in reading order
+: sheet>bitmaps ( sheet cell-width cell-height -- bitmaps )
+	| sheet cell-width cell-height |
+	sheet dim to n-sheet-columns to n-sheet-rows
+	[ ] to bitmaps
+	0 n-sheet-rows cell-height quotient 1 do cell-row
+		0 n-sheet-columns cell-width quotient 1 do cell-column
+			bitmaps
+			sheet
+			cell-row cell-height * dup cell-height +
+			cell-column cell-width * dup cell-width +
+			submatrix
+			add-last! drop
+		loop
+	loop
+	bitmaps ;
+
+\ the first frame of an image file as a bitmap, decoded through ffmpeg
+: read-bitmap ( path -- bitmap )
+	| path |
+	[ "ffprobe" "-v" "error" "-select_streams" "v:0" "-show_entries" "stream=width,height" "-of" "csv=p=0" path ]
+	run-result to probe
+	probe :status @ 0 = not if probe :err @ trim throw then
+	probe :out @ trim "," split to dimensions
+	dimensions 0 @i string>number to width
+	dimensions 1 @i string>number to height
+	[ "ffmpeg" "-v" "error" "-i" path "-frames:v" "1" "-f" "rawvideo" "-pix_fmt" "rgba" "-" ]
+	run-result to decoded
+	decoded :status @ 0 = not if decoded :err @ trim throw then
+	decoded :out @ string>byte-vector width height * 4 reshape
+	[ 65536 256 1 -16777216 ] 4 1 matrix matmul 4278190080 +
+	dup 4278190080 >= null mesh
+	height width reshape ;
+
+\ write a bitmap as an image file through ffmpeg, the format chosen by the path's extension
+: write-bitmap ( bitmap path -- )
+	| bitmap path |
+	bitmap dim to width to height
+	bitmap dup nan? 4278190080 mesh dup 0 < 4278190080 mesh dup 4278190080 >= 4278190080 mesh
+	width height * 1 reshape to packed
+	packed 16777216 / truncate to transparency
+	packed 65536 / truncate 256 mod
+	packed 256 / truncate 256 mod hstack
+	packed 256 mod hstack
+	255 transparency - hstack
+	width height * 4 * 1 reshape byte-vector>string to pixels
+	width height "{1}x{0}" format to size
+	[ "ffmpeg" "-v" "error" "-y" "-f" "rawvideo" "-pix_fmt" "rgba" "-s" size "-i" "-" path ]
+	start-process to process
+	pixels process write-in
+	process :in @ close
+	process read-err to errors
+	process :pid @ wait to status
+	process :out @ close
+	process :err @ close
+	status 0 = not if errors trim throw then ;
+
+\ the bitmaps of the animation a sprite is playing
+: animation-bitmaps ( sprite -- bitmaps ) dup :animations @ swap :animation @ @ ; internal
+
+\ the bitmap a sprite shows: the one floor(:frame) indexes in its playing animation
+: sprite-bitmap ( sprite -- bitmap )
+	| sprite |
+	sprite animation-bitmaps to bitmaps
+	bitmaps sprite :frame 0 @or truncate bitmaps size 1- min2 @i ;
+
+\ switch a sprite to the named animation from its first bitmap, unless that animation is already playing
+: play-animation ( sprite name -- )
+	| sprite name |
+	sprite :animations @ name has? not if
+		name "no animation :{0} in this sprite" format throw
+	then
+	sprite :animation null @or name = if exit then
+	sprite name :animation ! 0 :frame ! drop ;
+
+\ the ending a sprite's animation has, :loop unless set
+: sprite-ending ( sprite -- ending )
+	:ending :loop @or
+	dup :loop = over :hold = or not if
+		"expected an ending of :loop or :hold; got :{0}" format throw
+	then ; internal
+
+\ advance a sprite's :frame by amount seconds at :rate frames per second, looping or holding at the end
+: advance-sprite ( sprite amount -- )
+	| sprite amount |
+	sprite animation-bitmaps size to n-bitmaps
+	sprite :frame 0 @or amount sprite :rate 10 @or * + to position
+	sprite sprite-ending :hold = if
+		position 0 max2 n-bitmaps min2 to position
+	else
+		position n-bitmaps mod to position
+		position 0 < if position n-bitmaps + to position then
+	then
+	sprite position :frame ! drop ;
+
+\ true when a :hold animation has run past its last bitmap's time
+: animation-finished? ( sprite -- flag )
+	| sprite |
+	sprite sprite-ending :hold =
+	sprite :frame 0 @or sprite animation-bitmaps size >= and ;
+
+\ the operands (draw-bitmap) and (pixels-collide) take for a sprite
+: sprite-placement ( sprite -- bitmap x y scale flip opacity )
+	| sprite |
+	sprite sprite-bitmap to bitmap
+	sprite :scale 1 @or to scale
+	sprite :flip :none @or flip-code to flip
+	sprite :anchor [ 0 0 ] @or to anchor
+	bitmap dim to width to height
+	anchor 0 @i to anchor-x
+	anchor 1 @i to anchor-y
+	flip 1 bit-and if width anchor-x - to anchor-x then
+	flip 2 bit-and if height anchor-y - to anchor-y then
+	bitmap
+	sprite :x 0 @or anchor-x scale * -
+	sprite :y 0 @or anchor-y scale * -
+	scale
+	flip
+	sprite :opacity 1 @or ; internal
+
+\ draw a sprite's current bitmap at :x :y, placed by :anchor, :flip, :scale and :opacity
+: draw-sprite ( sprite -- ) sprite-placement (draw-bitmap) ;
+
+\ draw sprites in ascending :depth (default 0), equal depths in array order
+: draw-sprites ( sprites -- ) ( :depth 0 @or ) sort-by ( draw-sprite ) each ;
+
+\ a sprite's screen rectangle: its :hitbox where set, else its bitmap's, after anchor, flip and scale
+: sprite-box ( sprite -- x y width height )
+	| sprite |
+	sprite sprite-placement drop to flip to scale to top to left to bitmap
+	bitmap dim to width to height
+	sprite :hitbox [ 0 0 width height ] @or to hitbox
+	hitbox 0 @i to box-x
+	hitbox 1 @i to box-y
+	hitbox 2 @i to box-width
+	hitbox 3 @i to box-height
+	flip 1 bit-and if width box-x - box-width - to box-x then
+	flip 2 bit-and if height box-y - box-height - to box-y then
+	left box-x scale * +
+	top box-y scale * +
+	box-width scale *
+	box-height scale * ;
+
+\ true when two sprites' boxes overlap
+: sprites-overlap? ( a b -- flag )
+	| a b |
+	a sprite-box to a-height to a-width to a-y to a-x
+	b sprite-box to b-height to b-width to b-y to b-x
+	a-x b-x b-width + < b-x a-x a-width + < and
+	a-y b-y b-height + < b-y a-y a-height + < and
+	and ;
+
+\ true when two sprites have a solid pixel (not null, transparency below 128) at the same screen point
+: sprites-collide? ( a b -- flag ) >r sprite-placement r> sprite-placement (pixels-collide) ;
+
+\ the sprites for which sprite other test answers true
+: colliding-sprites ( sprite sprites test -- hits )
+	| sprite sprites test |
+	[ ] to hits
+	0 sprites size 1 do k
+		sprites k @i to other
+		sprite other test execute if hits other add-last! drop then
+	loop
+	hits ;

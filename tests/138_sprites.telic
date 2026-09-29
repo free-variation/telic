@@ -1,0 +1,133 @@
+\ ==== sprites and bitmaps, offline ====
+
+\ A bitmap is a matrix of packed colors, rows as y and columns as x: below
+\ 2^24 an opaque 0xRRGGBB, bits 24-31 a transparency (255 invisible), null
+\ invisible. A sprite is a frame naming animations (arrays of bitmaps) and
+\ the one playing. blit composites onto a matrix, so everything here runs
+\ without a window.
+
+: show ( bitmap -- ) matrix>array . cr ;
+
+[ "ab" "cd" ] { "a" string>symbol 1 "b" string>symbol 2 "c" string>symbol 3 "d" string>symbol 4 } art>bitmap constant quad
+
+\ === art>bitmap ( rows palette -- bitmap ) ===
+[ "#." ".#" ] { "#" string>symbol :red } art>bitmap show    \ [ 16711680 null null 16711680 ]
+[ "#" "##" ] { "#" string>symbol "#0000ff" } art>bitmap show \ [ 255 null 255 255 ]
+quad show                                                  \ [ 1 2 3 4 ]
+clear
+
+\ === blank-bitmap ( height width -- bitmap ) ===
+1 2 blank-bitmap show                                      \ [ null null ]
+clear
+
+\ === rotate-bitmap ( bitmap quarter-turns -- bitmap ), clockwise ===
+quad 0 rotate-bitmap show                                  \ [ 1 2 3 4 ]
+quad 1 rotate-bitmap show                                  \ [ 3 1 4 2 ]
+quad 2 rotate-bitmap show                                  \ [ 4 3 2 1 ]
+quad 3 rotate-bitmap show                                  \ [ 2 4 1 3 ]
+quad -1 rotate-bitmap show                                 \ [ 2 4 1 3 ]
+[ "ab" ] { "a" string>symbol 1 "b" string>symbol 2 } art>bitmap 1 rotate-bitmap dim . . cr \ 1 2
+clear
+
+\ === rotate-bitmap-angle ( bitmap radians -- bitmap ) ===
+quad PI 2 / rotate-bitmap-angle show                       \ [ 3 1 4 2 ]
+quad PI rotate-bitmap-angle show                           \ [ 4 3 2 1 ]
+quad PI 4 / rotate-bitmap-angle dim . . cr                 \ 3 3
+clear
+
+\ === blit ( source target x y -- target ) ===
+quad 2 3 blank-bitmap 1 0 blit show                        \ [ null 1 2 null 3 4 ]
+quad 2 2 blank-bitmap -1 -1 blit show                      \ [ 4 null null null ]
+quad 0x80000000 + 1 1 blank-bitmap 0 0 blit show           \ [ 2147483649 ]
+quad 2 2 0-matrix 0 0 blit show                            \ [ 1 2 3 4 ]
+quad 0xff000000 + 2 2 0-matrix 0 0 blit show               \ [ 0 0 0 0 ]
+clear
+
+\ === sheet>bitmaps ( sheet cell-width cell-height -- bitmaps ) ===
+[ 1 2 3 4 5 6 7 8 ] 2 4 matrix 2 2 sheet>bitmaps ( show ) each \ [ 1 2 5 6 ] / [ 3 4 7 8 ]
+[ 1 2 3 4 5 6 ] 3 2 matrix 1 1 sheet>bitmaps size . cr     \ 6
+clear
+
+\ === play-animation ( sprite name -- ) ===
+{ :animations { :walk [ quad quad quad ] :jump [ quad quad ] } :animation :walk :frame 2 } to hero
+hero :walk play-animation hero :frame @ . cr               \ 2
+hero :jump play-animation hero :animation @ . hero :frame @ . cr \ :jump 0
+clear
+
+\ === advance-sprite ( sprite amount -- ), :rate 10 by default ===
+hero 0.15 advance-sprite hero :frame @ . cr                \ 1.5
+hero 0.1 advance-sprite hero :frame @ . cr                 \ 0.5
+hero -0.1 advance-sprite hero :frame @ . cr                \ 1.5
+hero 4 :rate ! drop hero 0.25 advance-sprite hero :frame @ . cr \ 0.5
+hero :rate delete-at drop
+hero animation-finished? . cr                              \ 0
+hero :hold :ending ! drop
+hero 0.1 advance-sprite hero animation-finished? . hero :frame @ . cr \ 0 1.5
+hero 0.1 advance-sprite hero animation-finished? . hero :frame @ . cr \ 1 2
+hero 5 advance-sprite hero :frame @ . cr                   \ 2
+hero -5 advance-sprite hero :frame @ . cr                  \ 0
+clear
+
+\ === sprite-bitmap ( sprite -- bitmap ): floor(:frame), the last bitmap past the end ===
+{ :animations { :count [ quad quad 1 rotate-bitmap ] } :animation :count } to counter
+counter sprite-bitmap show                                 \ [ 1 2 3 4 ]
+counter 1.9 :frame ! sprite-bitmap show                    \ [ 3 1 4 2 ]
+counter 2 :frame ! sprite-bitmap show                      \ [ 3 1 4 2 ]
+clear
+
+\ === sprite-box ( sprite -- x y width height ) ===
+{ :animations { :a [ quad ] } :animation :a :x 10 :y 5 } to box
+box sprite-box . . . . cr                                  \ 2 2 5 10
+box [ 1 1 ] :anchor ! 2 :scale ! drop box sprite-box . . . . cr \ 4 4 3 8
+box [ 0 0 1 2 ] :hitbox ! drop box sprite-box . . . . cr  \ 4 2 3 8
+box :horizontal :flip ! drop box sprite-box . . . . cr    \ 4 2 3 10
+box :both :flip ! [ 0 0 2 1 ] :hitbox ! drop box sprite-box . . . . cr \ 2 4 5 8
+clear
+
+\ === sprites-overlap? ( a b -- flag ) ===
+{ :animations { :a [ quad ] } :animation :a :x 0 :y 0 } to left-one
+{ :animations { :a [ quad ] } :animation :a :x 1 :y 1 } to touching
+{ :animations { :a [ quad ] } :animation :a :x 2 :y 0 } to beside
+left-one touching sprites-overlap? . cr                    \ 1
+left-one beside sprites-overlap? . cr                      \ 0
+clear
+
+\ === sprites-collide? ( a b -- flag ): solid is not null and transparency below 128 ===
+[ "#." ".." ] { "#" string>symbol 1 } art>bitmap constant corner
+{ :animations { :a [ corner ] } :animation :a } to spot
+{ :animations { :a [ corner ] } :animation :a :x 1 } to shifted
+spot shifted sprites-overlap? . spot shifted sprites-collide? . cr \ 1 0
+shifted :horizontal :flip ! drop spot shifted sprites-collide? . cr \ 0
+shifted -1 :x ! drop spot shifted sprites-collide? . cr     \ 1
+[ "#." ".." ] { "#" string>symbol 0x7f000001 } art>bitmap constant faint
+[ "#." ".." ] { "#" string>symbol 0x80000001 } art>bitmap constant fainter
+spot { :animations { :a [ faint ] } :animation :a } sprites-collide? . cr   \ 1
+spot { :animations { :a [ fainter ] } :animation :a } sprites-collide? . cr \ 0
+clear
+
+\ === colliding-sprites ( sprite sprites test -- hits ) ===
+left-one [ touching beside left-one ] ' sprites-overlap? colliding-sprites size . cr \ 2
+spot [ spot shifted ] ' sprites-collide? colliding-sprites size . cr \ 2
+clear
+
+\ === capture-bitmap ( x y w h -- bitmap ): outside the canvas is null ===
+-1 0 2 1 capture-bitmap show                               \ [ null 0 ]
+clear
+
+\ === keyboard, with no window: nothing held, pressed or typed ===
+:a key-down? . :space key-pressed? . :7 key-down? . :f12 key-pressed? . cr \ 0 0 0 0
+typed-text size . cr                                       \ 0
+clear
+
+\ errors
+spot { :animations { :a [ quad ] } :animation :a :opacity 2 } sprites-collide? \ (opacity outside [0, 1])
+spot { :animations { :a [ quad ] } :animation :a :scale 0 } sprites-collide?   \ (scale outside [1, 64])
+spot { :animations { :a [ quad ] } :animation :a :scale 1.5 } sprites-collide? \ (scale not an integer)
+"x" 2 1 blank-bitmap 0 0 blit                              \ (source is not a matrix)
+quad 1.5 rotate-bitmap                                     \ (not a whole number of quarter turns)
+hero :run play-animation                                   \ (no such animation)
+{ :animations { :a [ quad ] } :animation :a :flip :sideways } draw-sprite \ (unknown flip)
+{ :animations { :a [ quad ] } :animation :a :ending :bounce } 1 advance-sprite \ (unknown ending)
+0 0 0 1 capture-bitmap                                     \ (an edge outside [1, 8192])
+:shift-lock key-down?                                      \ (unknown key)
+"a" key-down?                                              \ (key is not a symbol)
