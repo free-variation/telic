@@ -1,0 +1,62 @@
+\ The Jupiter Ace (Jupiter Cantab, 1982), simulated on telic.
+\
+\   ./telic examples/jupiter-ace.telic [ROM file] [RAMTOP] [tape file] [speed]
+\
+\ The Ace's Forth is not emulated: its words are telic words working on a
+\ 64K memory laid out as the Ace's, with the ROM (by default data/ace.rom,
+\ 8192 bytes) read into it for the character set, the default system
+\ variables and the ROM dictionary's headers. Headers, variables and compiled
+\ definitions are written into RAM in the Ace's own format, so FIND, VLIST,
+\ LIST, HERE and programs that read memory see what an Ace holds; each
+\ finished definition is translated into a telic word, which runs it. The
+\ data stack is in the simulated memory, as on the Ace. RAMTOP defaults to
+\ 32768 (a 16K RAM pack). The arguments are told apart by their form: a
+\ path ending .rom, a number, a path ending .tap, and a speed such as 0.5x
+\ (half a real Ace's speed; 1x by default, from an estimate of the cycles
+\ each word takes on the Ace's 3.25 MHz Z80). The cassette is the .tap
+\ file (by default ace-tape.tap in the current directory): SAVE and BSAVE
+\ append to it, LOAD, BLOAD, VERIFY and BVERIFY search it from the start.
+\
+\ Type as on the Ace: the cursor keys move in the input buffer, backspace is
+\ DELETE, delete is DELETE LINE, F1 is CAPS LOCK, F2 GRAPHICS, F3 INVERSE
+\ VIDEO, escape is BREAK. CALL runs no machine code.
+\
+\ The memory map and stacks are in examples/ace/memory.telic; the screen and
+\ input buffer routines in buffer.telic; floating point in float.telic; the
+\ dictionary, the compiler and the outer interpreter in dictionary.telic;
+\ the other ROM words in words.telic; LIST, EDIT and REDEFINE in
+\ editing.telic; the cassette in tape.telic; the window, keyboard, clock and
+\ beeper in screen.telic.
+
+"ace/memory.telic" load
+"ace/buffer.telic" load
+"ace/float.telic" load
+"ace/dictionary.telic" load
+"ace/words.telic" load
+"ace/editing.telic" load
+"ace/tape.telic" load
+"ace/screen.telic" load
+
+\ the argument matching a pattern, or a default
+: argument-like ( pattern default -- value )
+	| pattern default |
+	args ( argument | argument pattern has? ) find-first to found
+	found null? if default else found then ;
+
+\ switch the Ace on in its window
+: switch-on ( -- )
+	| ^tape-path ^speed-factor |
+	"\.rom$" "data/ace.rom" argument-like to path
+	"^[0-9]+$" "32768" argument-like string>number to top
+	"\.tap$" "ace-tape.tap" argument-like to tape-path
+	"^[0-9.]+x$" "1x" argument-like "x$" "" replace string>number to speed-factor
+	path file-exists? 0= if path "no ROM at {0}" format . cr exit then
+	path load-rom
+	index-rom
+	register-compiler-words
+	register-words
+	register-editing-words
+	register-tape-words
+	top run-ace ;
+
+switch-on

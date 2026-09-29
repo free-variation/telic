@@ -1,0 +1,87 @@
+\ The Jupiter Ace simulation: floating point. A number takes two cells,
+\ four bytes: six BCD digits of mantissa and a byte holding the sign (bit
+\ 7) and the exponent (bits 0-6, biased by 0x40), the value being
+\ 0.d1d2d3d4d5d6 times ten to the exponent. 123.456 is the cells 0x3456
+\ (below) and 0x4312 (on top); zero is four zero bytes. Loaded after
+\ buffer.telic.
+
+\ the six digits of a mantissa, first digit first, from the two cells
+: mantissa-digits ( low high -- digits )
+	| low high |
+	[ high 255 bit-and low 8 rshift low 255 bit-and ] to digit-pairs
+	[ ] to digits
+	0 3 1 do k
+		digit-pairs k @i to pair
+		digits pair 4 rshift add-last! pair 15 bit-and add-last! drop
+	loop
+	digits ;
+
+\ a float's value as a telic number
+: float-value ( low high -- value )
+	| low high |
+	low high mantissa-digits 0 ( swap 10 * + ) reduce to mantissa
+	mantissa 0 = if 0 exit then
+	high 8 rshift to exponent-byte
+	mantissa 1000000 / 10 exponent-byte 127 bit-and 64 - ^ * to value
+	exponent-byte 128 bit-and if value negate else value then ;
+
+\ the cells of a float from a sign, six digits and a decimal exponent, the value 0.digits times ten to it; ERROR 8 out of range, zero below it
+: pack-float ( negative mantissa exponent -- low high )
+	| negative mantissa exponent |
+	mantissa 0 = if 0 0 exit then
+	exponent 64 + to exponent-byte
+	exponent-byte 1 < if 0 0 exit then
+	exponent-byte 127 > if 8 ace-error then
+	[ ] to digits
+	mantissa to remaining
+	0 6 1 do k
+		digits remaining 10 mod add-last! drop
+		remaining 10 / truncate to remaining
+	loop
+	digits reverse to digits
+	digits 4 @i 16 * digits 5 @i + digits 2 @i 16 * digits 3 @i + 256 * + to low
+	negative if 128 else 0 then exponent-byte bit-or to sign-and-exponent
+	digits 0 @i 16 * digits 1 @i + sign-and-exponent 256 * + to high
+	low high ;
+
+\ a telic number as a float, rounded to six significant digits
+: float-cells ( value -- low high )
+	| value |
+	value 0 = if 0 0 exit then
+	value abs to absolute
+	absolute log10 round-down 1+ to exponent
+	absolute 10 exponent ^ / 1000000 * round to mantissa
+	mantissa 1000000 >= if mantissa 10 / round to mantissa ++ exponent then
+	mantissa 100000 < if mantissa 10 * to mantissa -- exponent then
+	value 0 < mantissa exponent pack-float ;
+
+\ print a float as F. does (0AB1-0B10): a minus sign; E format with the point after the first digit outside 1.0E-4 to 1.0E9; a point before leading zeros, the digits, the point where the exponent passes zero
+: print-float ( low high -- )
+	| low high |
+	low high mantissa-digits to digits
+	digits ( 0 > ) any? not if 48 print-char 46 print-char 32 print-char exit then
+	high 8 rshift to exponent-byte
+	exponent-byte 128 bit-and if 45 print-char then
+	exponent-byte 127 bit-and to exponent-byte
+	0 to original-exponent
+	exponent-byte 1- to below
+	below 0x49 >= below 0x3C < or if
+		exponent-byte to original-exponent
+		0x41 to exponent-byte
+	then
+	0x40 exponent-byte - to leading-zeros
+	leading-zeros 0 >= if
+		46 print-char
+		0 leading-zeros 1 do k 48 print-char loop
+	then
+	begin
+		digits ( 0 > ) any? exponent-byte 0x40 > or
+	while
+		digits 0 @i 48 + print-char
+		digits 1 skip 0 add-last! to digits
+		-- exponent-byte
+		exponent-byte 0x40 = if 46 print-char then
+	repeat
+	original-exponent 0 = if 32 print-char exit then
+	69 print-char
+	original-exponent 0x41 - print-signed ;

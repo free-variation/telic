@@ -1,0 +1,566 @@
+\ The Hobbit: the action handlers 8C2D-9436, each registered under its
+\ address for the handler lists and the default table at 0xC61F. A handler
+\ that meets its trial point (9C99) during a trial stops there. Loaded after
+\ execute.telic.
+
+0x8D15 constant arrival-record
+0x8D18 constant load-size
+0x9190 constant wound-messages
+
+\ === carrying and taking ===
+
+\ the actor does not hold the target (8C3A): "you are not carrying it."
+: not-carrying? ( -- flag )
+	holding-target? if 0 exit then
+	0xACE4 message
+	1 ;
+
+\ LOOK (8C2D)
+: look ( -- )
+	trial? if exit then
+	actor-record w@ 16 + b@ describe-room ;
+
+\ DROP (8C45): what is tied to the rope drops the rope; things that evaporate vanish
+: drop-target ( -- )
+	not-carrying? if exit then
+	trial? if exit then
+	target-record w@ to record
+	record 1+ b@ 18 = if 0xC255 to record then
+	255 record 1+ b!
+	1 record 7 + bit? 0= if exit then
+	0 record 16 + b!
+	record 8 + parameter
+	0xB034 message ;
+
+\ the target cannot be taken (8CBA): a door or other multi-place object, or something that pours; reported as a failure
+: untakeable? ( -- flag )
+	target-record w@ to record
+	record b@ 1 = if 1 record 7 + bit? 0= if 0 exit then then
+	report-failure
+	1 ;
+
+\ the actor cannot lift the target (8C86): "the X is too heavy to lift.", "you are carrying too much.", or untakeable
+: cannot-lift? ( -- flag )
+	target-record w@ to record
+	current-target b@ contents-weight record 3 + b@ + 255 min2 to lift-load
+	actor-record w@ 3 + b@ lift-load - to spare
+	spare 0 < if 0xACF7 message 1 exit then
+	spare current-actor b@ contents-weight - 255 bit-and 128 >= if 0xACFF message 1 exit then
+	untakeable? ;
+
+\ take the target once it is known not to be held already (8CD1); the rope test compares the new holder, the actor, with 18
+: take-now ( -- )
+	cannot-lift? if exit then
+	trial? if exit then
+	target-record w@ to record
+	current-actor b@ record 1+ b!
+	current-actor b@ 18 = if current-actor b@ 0xC256 b! then ;
+
+\ TAKE and CARRY (8CC8)
+: take ( -- )
+	holding-target? if 0xAD04 message exit then
+	take-now ;
+
+\ TAKE OUT OF (8C75): the target must be inside the instrument
+: take-out-of ( -- )
+	current-target b@ 255 = not if
+		current-target b@ current-instrument b@ inside? 0= if 0xAEA8 message exit then
+	then
+	take-now ;
+
+\ === moving ===
+
+\ "the X is too small/full for you to enter" (8E28): the parameter is the word at bytes 2-3 of the record, a room's noun or a door's size and weight
+: too-big ( record address -- )
+	| record address |
+	record 2 + w@ parameter
+	address message ;
+
+\ describe the room arrived in (8DE8): nothing in the dark; the player's first visit sets bit 6, scores the room from 0x8CEA and describes it in full, a later visit briefly
+: describe-arrival ( -- )
+	too-dark? if exit then
+	destination-room b@ to room
+	current-actor b@ if room describe-room exit then
+	arrival-record w@ to record
+	6 record bit? if room describe-briefly exit then
+	6 record bit-set
+	room 0x8CEA table-entry to entry
+	entry found? if score w@ entry entry-value + 65535 bit-and score w! then
+	room describe-room ;
+
+\ arrive in a room (8DC1): the record in IY takes the room, the actor's things move with it, and for Bilbo the room-entry routine at 0xC67D runs before the room is described
+: arrive ( iy-record room -- )
+	| iy-record room |
+	trial? if exit then
+	room iy-record 16 + b!
+	current-actor b@ room iy-record move-with-contents
+	current-actor b@ if exit then
+	destination-room b@ 0xC67D table-entry to entry
+	entry found? if entry entry-value run-routine then
+	describe-arrival ;
+
+later-words ' arrive :enter-room ! drop
+
+\ no way out (8D55): a failure, but Bilbo in the dark falls, his strength halved, and dies when none is left
+: cannot-go ( -- )
+	too-dark? 0= if report-failure exit then
+	trial? if exit then
+	0xC010 b@ 1 rshift to strength
+	strength 0xC010 b!
+	strength if 0xAC71 message exit then
+	0xAC7E message
+	bilbo-dies ;
+
+\ move the actor in the direction of the action (8D27): a living holder sets it down; the exit needs a destination, an open or broken door Bilbo may use and the actor and load smaller than the door; a room with a capacity needs space
+: move-actor ( -- )
+	actor-record w@ to actor
+	actor 1+ b@ 255 = not if
+		actor 1+ b@ object-record to holder
+		6 holder 7 + bit? 0= if cannot-go exit then
+		255 actor 1+ b!
+	then
+	current-actor b@ contents-size actor 2 + b@ + 255 bit-and load-size b!
+	current-action b@ exit-towards to exit-address
+	exit-address 0 = if cannot-go exit then
+	exit-address 2 + b@ destination-room b!
+	exit-address 1+ b@ to door
+	door if
+		door object-record to door-record
+		door-record 7 + b@ 0x28 bit-and 0 = if cannot-go exit then
+		current-actor b@ 0 = if 7 door-record 4 + bit? if cannot-go exit then then
+		load-size b@ door-record 2 + b@ >= if door-record 0xAD16 too-big exit then
+	then
+	destination-room b@ to room
+	room room-record to room-address
+	room-address arrival-record w!
+	room-address 1+ b@ 255 = not if
+		load-size b@ room room-space >= if room-address 0xAD21 too-big exit then
+	then
+	actor room arrive ;
+
+\ GO north ... down (8D19): in the dark Bilbo goes a random way
+: go ( -- )
+	too-dark? if 9 random-to 1+ current-action b! then
+	move-actor ;
+
+\ object A is shut inside something closed (8E34)
+: shut-inside? ( object -- flag )
+	object-record to record
+	begin
+		record 1+ b@ to held-by
+		held-by 255 = if 0 exit then
+		held-by object-record to record
+		5 record 7 + bit? 0= if 1 exit then
+	again ;
+
+\ LOOK ACROSS (8E5A): the room beyond the target, seen from there for a moment, or "it is dark."; nothing when the actor is shut in
+: look-across ( -- )
+	current-actor b@ shut-inside? if exit then
+	exit-through-target to exit-address
+	exit-address 0 = if report-failure exit then
+	exit-address 2 + b@ 0 = if report-failure exit then
+	trial? if exit then
+	exit-address 2 + b@ to room
+	room room-record b@ 128 bit-and 0 = if dark-message message exit then
+	actor-record w@ to actor
+	actor 16 + b@ to true-room
+	room actor 16 + b!
+	room describe-seen
+	true-room actor 16 + b! ;
+
+\ LOOK THROUGH (8E4E): the door must be open
+: look-through ( -- )
+	current-target b@ object-record to record
+	record open? 0= if 5 record say-state exit then
+	look-across ;
+
+\ go through an exit (8EA0), 0 for none: it needs a destination and any door open; its direction becomes the action
+: go-through-exit ( exit-address -- )
+	| exit-address |
+	exit-address 0 = if report-failure exit then
+	exit-address 2 + b@ 0 = if report-failure exit then
+	exit-address 1+ b@ to door
+	door if 5 door object-record 7 + bit? 0= if report-failure exit then then
+	trial? if exit then
+	exit-address b@ current-action b!
+	255 current-target b!
+	move-actor ;
+
+\ GO THROUGH (8E9D)
+: go-through ( -- ) exit-through-target go-through-exit ;
+
+\ ENTER and GO INTO (8F37)
+: enter ( -- ) current-target b@ exit-to go-through-exit ;
+
+\ RUN (8F17): a random direction 1-10, then onwards through 1-9 until an exit has a destination; where none has one the tape loops for ever, and here it fails after a full cycle
+: run-away ( -- )
+	0 to direction
+	begin direction 0 = while 10 random-to to direction repeat
+	0 to tries
+	begin
+		direction exit-towards if direction current-action b! go exit then
+		tries 1+ to tries
+		tries 10 > if report-failure exit then
+		direction 1+ to direction
+		direction 10 < 0= if 1 to direction then
+	again ;
+
+\ FOLLOW (8F40): through the exit straight to the target's room, else "I cannot follow X from here."
+: follow ( -- )
+	actor-record w@ 16 + b@ to room
+	target-record w@ 16 + b@ to target-room
+	target-room room = not if
+		target-room exit-to to exit-address
+		exit-address if exit-address go-through-exit exit then
+	then
+	0xAEDB message ;
+
+\ === containers ===
+
+\ PUT IN, PUT ON and DROP IN (91B9): the target must be takeable and elsewhere; the container open except for PUT ON, with room to spare
+: put-in ( -- )
+	untakeable? if exit then
+	target-record w@ to record
+	current-instrument b@ record 1+ b@ = if cannot-do exit then
+	instrument-record w@ to container
+	current-action b@ 18 = not if container open? 0= if 5 container say-state exit then then
+	container 2 + b@ record 2 + b@ - to room-left
+	room-left 0 >= if room-left current-instrument b@ contents-size - to room-left then
+	room-left 0 > not if 0xAD0D message exit then
+	trial? if exit then
+	container 16 + b@ record 16 + b!
+	current-instrument b@ record 1+ b! ;
+
+\ FILL WITH (8ED3): PUT IN with target and instrument swapped; the rivers' water gives fresh water, object 21 or 22
+: fill ( -- )
+	target-record w@ to container
+	current-instrument b@ to liquid
+	liquid 23 = liquid 24 = or if
+		liquid 23 = if 21 0xC343 else 22 0xC358 then to fresh-record to fresh
+		fresh current-instrument b!
+		fresh-record instrument-record w!
+		255 fresh-record 1+ b!
+	then
+	1 instrument-record w@ 7 + bit? 0= if report-failure exit then
+	2 container 7 + bit? if 0x82 container say-state exit then
+	' put-in with-swapped ;
+
+\ OPEN from bit 5 on (9081): an opened container lists what is in it
+: open-now ( record -- )
+	| record |
+	5 record 7 + bit-set
+	record b@ 1 = not if exit then
+	current-target b@ visible-count 0 = if exit then
+	current-target b@ contents-heading if exit then
+	current-target b@ record 16 + b@ list-held ;
+
+\ OPEN (9078): not locked, not already open
+: open-target ( -- )
+	locked-or-open if target-record w@ say-state exit then
+	drop
+	trial? if exit then
+	target-record w@ open-now ;
+
+\ CLOSE (90A2)
+: close-target ( -- )
+	target-record w@ to record
+	record open? 0= if 5 record say-state exit then
+	trial? if exit then
+	5 record 7 + bit-clear ;
+
+\ DIG (8FCF): opens the sand, or closes it again
+: dig ( -- )
+	trial? if exit then
+	target-record w@ to record
+	record open? if 5 record 7 + bit-clear else record open-now then ;
+
+\ EMPTY (936E): open and holding something visible; the contents fall out
+: empty-target ( -- )
+	target-record w@ to record
+	record open? 0= if 5 record say-state exit then
+	current-target b@ visible-count 0 = if 2 record say-state exit then
+	trial? if exit then
+	current-target b@ drop-all
+	2 record 7 + bit-clear ;
+
+\ PUT or DROP IN the river (9392): the target goes to the location after the bank the actor started the turn on, or is lost from the last one
+: put-in-river ( -- )
+	untakeable? if exit then
+	trial? if exit then
+	start-room b@ to bank
+	instrument-record w@ to river
+	river b@ to n-locations
+	-1 to position
+	0 n-locations 1 do k position 0 < if river 16 + k + b@ bank = if k to position then then loop
+	position 0 < if cannot-do exit then
+	position n-locations 1- = if 0 else river 17 + position + b@ then to far-bank
+	target-record w@ to record
+	far-bank record 16 + b!
+	255 record 1+ b!
+	current-target b@ far-bank actor-record w@ move-with-contents
+	0xACEF message ;
+
+\ LOCK and UNLOCK from the key check on (93D5): a broken key says so
+: lock-with ( locking -- )
+	| locking |
+	instrument-record w@ to key-record
+	3 key-record 7 + bit? if 0x83 key-record say-state exit then
+	trial? if exit then
+	target-record w@ to record
+	locking if 0 record 7 + bit-set else 0 record 7 + bit-clear then ;
+
+\ LOCK (93CD): the target neither locked nor open
+: lock-target ( -- )
+	locked-or-open if target-record w@ say-state exit then
+	drop
+	1 lock-with ;
+
+\ UNLOCK (93ED): the target locked and not open
+: unlock-target ( -- )
+	target-record w@ to record
+	0 record 7 + bit? 0= if 0 record say-state exit then
+	record open? if 0x85 record say-state exit then
+	0 lock-with ;
+
+\ === fighting ===
+
+\ the target is on the attacker's side (90B4): Bilbo takes a friend off his side for good first; the same side means the attack would not work
+: same-side? ( -- flag )
+	target-record w@ to record
+	current-actor b@ 0 = if 4 record 4 + bit? if 4 record 4 + bit-clear then then
+	record 4 + b@ 0x70 bit-and actor-record w@ 4 + b@ bit-and 0 = if 0 exit then
+	0 would-work b!
+	1 ;
+
+\ randomise a fight value by -10 to +10 (917D): a byte carry gives 255, or 0 when the random number was negative
+: randomise ( value -- value' )
+	| value |
+	10 random-in-range to adjustment
+	adjustment 0 < if adjustment 256 + else adjustment then value + to total
+	total 256 < if total exit then
+	adjustment 0 < if 0 else 255 then ;
+
+\ rotate a byte right, bit 0 into bit 7 (RRCA)
+: rotate-right ( byte -- byte' ) dup 1 rshift swap 1 bit-and 7 lshift bit-or ;
+
+\ halve a byte keeping its sign bit (SRA)
+: halve-signed ( byte -- byte' ) dup 1 rshift swap 128 bit-and bit-or ;
+
+\ STRIKE, BREAK, SMASH (9257): force from the instrument's and actor's strength and a random -21 to +21 against the target's defence; the instrument may break as well
+: strike ( -- )
+	target-record w@ to record
+	1 record 7 + bit? if report-failure exit then
+	3 record 7 + bit? if 0x83 record say-state exit then
+	record 6 + b@ 0 = if report-failure exit then
+	0 to force
+	current-instrument b@ 255 = not if
+		instrument-record w@ to tool
+		tool 5 + b@ 0 = if report-failure exit then
+		11 tool object-handler found? 0= if report-failure exit then
+		tool 5 + b@ to force
+	then
+	trial? if exit then
+	21 random-in-range 256 + force + 255 bit-and actor-record w@ 5 + b@ + 255 min2 to blow
+	blow record 6 + b@ >= if
+		3 record 7 + bit-set
+		current-target b@ mark-dead-or-broken
+		record 5 + b@ halve-signed record 5 + b!
+		record 4 + b@ 2 < if current-target b@ drop-all then
+		0x83 record say-state
+	then
+	current-instrument b@ 255 = if exit then
+	instrument-record w@ to tool
+	3 tool 7 + bit? if exit then
+	21 random-in-range 256 + 255 bit-and tool 6 + b@ + 255 min2 to wear
+	wear record 6 + b@ < if exit then
+	3 tool 7 + bit-set
+	current-instrument b@ mark-dead-or-broken
+	tool 5 + b@ halve-signed tool 5 + b!
+	current-target b@ drop-all
+	0x83 tool say-state ;
+
+\ ATTACK, HIT, KILL (90DB): attack and defence randomised; wasted, fatal beyond 16, else a wound by the margin from 0x9190 that cuts strength and defence by rotated halves
+: attack ( -- )
+	same-side? if exit then
+	0x026F to noun
+	current-instrument b@ 255 = not if instrument-record w@ 8 + w@ to noun then
+	noun instrument-noun w!
+	actor-record w@ 5 + b@ to force
+	current-instrument b@ 255 = not if
+		instrument-record w@ to weapon
+		weapon b@ 1 = not if 0xAE52 message exit then
+		weapon 5 + b@ force + 255 min2 to force
+	then
+	force randomise to force
+	trial? if exit then
+	target-record w@ to record
+	record 6 + b@ randomise to defence
+	defence force >= if 0xAE43 message exit then
+	defence 16 + 255 min2 force < if
+		0xAD2D message
+		3 record 7 + bit-set
+		current-target b@ kill
+		6 record say-state
+		exit
+	then
+	force defence - 2 * to doubled
+	wound-messages doubled + w@ to wound
+	doubled rotate-right rotate-right to half-margin
+	record 5 + b@ 255 half-margin - + to reduced
+	reduced 256 >= if reduced 256 - record 5 + b! then
+	half-margin rotate-right to quarter-margin
+	record 6 + b@ 255 quarter-margin - + to reduced
+	reduced 256 >= if reduced 256 - record 6 + b! then
+	wound message ;
+
+\ THROW AT (8F5F): an attack on a living target, else a strike, with the thrown thing as the weapon; the thrown thing falls, and it reacts to an action numbered as the instrument, which is what B holds there
+: throw-at ( -- )
+	cannot-lift? if exit then
+	instrument-record w@ to receiver
+	6 receiver 7 + bit? if 15 ' attack else 11 ' strike then to routine current-action b!
+	routine with-swapped
+	42 current-action b!
+	really b@ 1 = not if exit then
+	255 target-record w@ 1+ b!
+	15 current-action b!
+	current-target b@ target-record w@ current-instrument b@ involve ;
+
+\ SHOOT (8FE0): with the bow; only Bard hits the dragon; others miss one time in three
+: shoot ( -- )
+	25 held-by-actor? 0= if 0xB013 message exit then
+	same-side? if exit then
+	trial? if exit then
+	15 current-action b!
+	current-actor b@ 70 = not if
+		current-target b@ 60 = if 0xB019 message exit then
+		8 random-to 3 < if 0xB019 message exit then
+	then
+	current-target b@ 26 = not if 255 0xC3DA b! then
+	0xB028 message
+	target-record w@ alive? 0= if strike exit then
+	current-target b@ kill
+	6 target-record w@ say-state ;
+
+\ === speech, food and the rest ===
+
+\ TALK TO and SAY TO (8F9E): a character takes as many waiting orders as Gollum's waiting value, or else a random number up to its willingness at byte 6 of its entry, "no" for 0
+: talk-to ( -- )
+	trial? if exit then
+	current-target b@ character-entry to entry
+	0 to wanted
+	entry b@ 255 = not if
+		gollum-waiting b@ to wanted
+		wanted 0 = if
+			entry 6 + b@ to wanted
+			wanted if
+				wanted random-to to wanted
+				wanted 0 = if 0xB0D5 message then
+			then
+		then
+	then
+	wanted hand-orders ;
+
+\ INVENTORY (9055)
+: inventory ( -- )
+	trial? if exit then
+	0xACE9 message
+	current-actor b@ visible-count 0 = if 0xB22D message exit then
+	current-actor b@ actor-record w@ 16 + b@ list-held ;
+
+\ the actor gains strength from the target, which vanishes (9224); 128 or more is fatal gluttony
+: nourish ( gain -- )
+	| gain |
+	actor-record w@ to actor
+	actor 5 + b@ gain + to strength
+	strength 128 >= if 0xB038 message current-actor b@ kill exit then
+	strength actor 5 + b!
+	target-record w@ to record
+	255 record 1+ b!
+	0 record b@ 1 do k 0 record 16 + k + b! loop ;
+
+\ eat or drink something loose (921F): 10
+: eat-alone ( -- )
+	trial? if exit then
+	10 nourish ;
+
+\ EAT and DRINK (9206): from a container, which is no longer full, only 1
+: eat ( -- )
+	trial? if exit then
+	target-record w@ 1+ b@ to holder
+	holder 255 = if eat-alone exit then
+	2 holder object-record 7 + bit-clear
+	1 nourish ;
+
+\ GIVE TO (9308): the actor holds the target and the receiver can carry it
+: give ( -- )
+	instrument-record w@ to receiver
+	holding-target? 0= if 0xACE4 message exit then
+	current-instrument b@ contents-weight target-record w@ 3 + b@ + 255 bit-and to lift-load
+	receiver 3 + b@ lift-load < if 0xACFF message exit then
+	trial? if exit then
+	target-record w@ to record
+	current-instrument b@ record 1+ b!
+	receiver 16 + b@ to room
+	room record 16 + b!
+	current-target b@ room receiver move-with-contents ;
+
+\ EXAMINE (9344): the description at bytes 14-15, else "you see the X."
+: examine ( -- )
+	trial? if exit then
+	current-target b@ object-record to record
+	record 14 + w@ to description
+	description if description message exit then
+	0xAEF2 message
+	record print-object
+	46 print-char
+	newline ;
+
+\ THROW ACROSS and THROUGH (9404): through an open exit's obstacle, to the room beyond
+: throw-through ( -- )
+	not-carrying? if exit then
+	current-instrument b@ exit-through to exit-address
+	exit-address 0 = if report-failure exit then
+	instrument-record w@ to opening
+	opening open? 0= if 5 opening say-state exit then
+	trial? if exit then
+	exit-address 2 + b@ to room
+	target-record w@ to record
+	255 record 1+ b!
+	room record 16 + b!
+	current-target b@ room opening move-with-contents ;
+
+\ === registration ===
+
+' look 0x8C2D define-routine
+' drop-target 0x8C45 define-routine
+' take-out-of 0x8C75 define-routine
+' take 0x8CC8 define-routine
+' go 0x8D19 define-routine
+' look-through 0x8E4E define-routine
+' look-across 0x8E5A define-routine
+' go-through 0x8E9D define-routine
+' fill 0x8ED3 define-routine
+' run-away 0x8F17 define-routine
+' enter 0x8F37 define-routine
+' follow 0x8F40 define-routine
+' throw-at 0x8F5F define-routine
+' talk-to 0x8F9E define-routine
+' dig 0x8FCF define-routine
+' shoot 0x8FE0 define-routine
+' bilbo-dies 0x903C define-routine
+' inventory 0x9055 define-routine
+' open-target 0x9078 define-routine
+' close-target 0x90A2 define-routine
+' attack 0x90DB define-routine
+' put-in 0x91B9 define-routine
+' eat 0x9206 define-routine
+' eat-alone 0x921F define-routine
+' strike 0x9257 define-routine
+' give 0x9308 define-routine
+' examine 0x9344 define-routine
+' empty-target 0x936E define-routine
+' put-in-river 0x9392 define-routine
+' lock-target 0x93CD define-routine
+' unlock-target 0x93ED define-routine
+' throw-through 0x9404 define-routine
+' note-bilbo-room 0x9A5D define-routine

@@ -66,6 +66,7 @@ typedef int64_t cell;
 #define LVAR_STACK_DEPTH (1 << 16)
 #define PROMPT_EXCEPTION 0
 #define PROMPT_CHOICE 1
+#define PROMPT_CATCH 2
 #define PROMPT_KIND_MASK 3
 #define MAX_UNIT_TERMS (1 << 4)
 #define NAME_MAX_LENGTH (1 << 8)
@@ -230,6 +231,7 @@ typedef struct Object {
 			int resume_ip;
 			int local_base_offset;
 			int capture_generation;
+			int capture_depth;
 		} continuation;
 		struct {
 			int length;
@@ -1074,9 +1076,10 @@ Val complex_from_parts(Interpreter *interp, double real_part, double imaginary_p
 int complex_truthy(Val value);
 int parse_complex_literal(Interpreter *interp, const char *token, Val *out);
 int capture_continuation(Interpreter *interp, int what_kind, int *out_mark_index);
+int catch_interpreter_error(Interpreter *interp, int floor);
 int color_named(const char *name, int length, unsigned int *rgb);
 int interpolate(Interpreter *interp, int template_handle);
-int prompt_index(Interpreter *interp, int kind);
+int prompt_index(Interpreter *interp, int kinds);
 int push_prompt(Interpreter *interp, int kind);
 int random_below(int bound);
 int read_string_literal(void);
@@ -1272,6 +1275,8 @@ void p_bit_not(DISPATCH_ARGS);
 void p_bit_or(DISPATCH_ARGS);
 void p_bit_xor(DISPATCH_ARGS);
 void p_bye(DISPATCH_ARGS);
+void p_catch_end(DISPATCH_ARGS);
+void p_catch_prompt(DISPATCH_ARGS);
 void p_clear(DISPATCH_ARGS);
 void p_colors(DISPATCH_ARGS);
 void p_complex(DISPATCH_ARGS);
@@ -1304,7 +1309,6 @@ void p_eq_zbranch(DISPATCH_ARGS);
 void p_erf(DISPATCH_ARGS);
 void p_erfc(DISPATCH_ARGS);
 void p_execute(DISPATCH_ARGS);
-void p_execute_catching(DISPATCH_ARGS);
 void p_exp(DISPATCH_ARGS);
 void p_fabs(DISPATCH_ARGS);
 void p_facos(DISPATCH_ARGS);

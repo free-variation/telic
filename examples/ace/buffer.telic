@@ -1,0 +1,288 @@
+\ The Jupiter Ace simulation: the screen and the input buffer, which are
+\ one piece of video RAM. The upper screen scrolls above L_HALF; the input
+\ buffer below it is a run of logical lines, each starting with a zero
+\ byte, and grows upwards as it fills. These are the ROM's routines ported
+\ one for one, named with the ROM address they replace. Loaded after
+\ memory.telic.
+
+\ === printing to the upper screen ===
+
+\ scroll the characters from an address up to an end up one line and blank the line left at the end (042F)
+: scroll-region ( from end -- )
+	| from end |
+	from to source
+	begin source end < while source b@ source 32 - b! source 1+ to source repeat
+	end 32 - end space-fill ;
+
+\ scroll the upper screen up a line (0421): an LDIR of up to 704 bytes at 21 cycles each, doubled for the display's hold on video RAM
+: scroll-upper ( -- )
+	30000 count-cycles
+	screen-position w@ 32 - screen-position w!
+	0x2420 buffer-start w@ scroll-region ;
+
+\ print a character on the upper screen (03FF): the screen scrolls when the print position reaches the input buffer; a carriage return moves to the next line
+: print-upper ( char -- )
+	| char |
+	screen-position w@ buffer-start w@ >= if scroll-upper then
+	screen-position w@ to position
+	char 13 = if
+		begin position 1+ to position position 31 bit-and 0 = until
+	else
+		char position b!
+		position 1+ to position
+	then
+	position screen-position w! ;
+
+\ === the input buffer ===
+
+\ the next zero byte after the current logical line's start (02B0), and whether another line follows
+: next-zero ( -- address more )
+	line-start w@ 1+ to position
+	begin position b@ 0 = not while position 1+ to position repeat
+	position position after-screen < ;
+
+\ the characters from the cursor to the end of the logical line (0302)
+: count-to-end ( -- n ) line-end w@ cursor-position w@ - ;
+
+\ insert a character at the cursor (0198): when the line's end is full the buffer grows up a line, the upper screen scrolling if it must; at 22 lines the character is lost
+: insert-in-buffer ( char -- )
+	| char |
+	line-end w@ to finish
+	finish b@ 0 = finish after-screen >= or if
+		buffer-start w@ 0x2460 < if exit then
+		screen-position w@ 32 + buffer-start w@ >= if scroll-upper then
+		next-zero drop to zero-address
+		buffer-start w@ zero-address scroll-region
+		line-start w@ 32 - line-start w!
+		cursor-position w@ 32 - cursor-position w!
+		line-end w@ 32 - line-end w!
+		buffer-start w@ 32 - buffer-start w!
+	then
+	count-to-end to n
+	line-end w@ to finish
+	finish 1+ line-end w!
+	0 n 1 do k finish k - 1- b@ finish k - b! loop
+	char cursor-position w@ b!
+	cursor-position w@ 1+ cursor-position w! ;
+
+\ print a character into the input buffer (017E, 0196): a carriage return starts a new logical line at the bottom
+: print-lower ( char -- )
+	| char |
+	char 13 = if
+		after-screen line-end w!
+		after-screen cursor-position w!
+		0 insert-in-buffer
+		bottom-line line-start w!
+		exit
+	then
+	char 0 = if exit then
+	char insert-in-buffer ;
+
+\ print a character (0008, 03EE): into the input buffer when FLAGS bit 3 is set, else on the upper screen
+: print-char ( char -- )
+	| char |
+	300 count-cycles
+	flags b@ 3 rshift 1 bit-and if char print-lower exit then
+	char print-upper ;
+
+\ print characters from memory (097F)
+: print-memory ( address n -- )
+	| address n |
+	0 n 1 do k address k + b@ print-char loop ;
+
+\ print a string's characters
+: print-string ( string -- ) string>codepoints ' print-char each ;
+
+\ print a ROM-style string whose last character has bit 7 set, then a space (17FB)
+: print-marked ( address -- )
+	| address |
+	address to position
+	begin
+		position b@ to char
+		char 127 bit-and print-char
+		position 1+ to position
+		char 128 bit-and
+	until
+	32 print-char ;
+
+\ print a signed number in the base held in BASE and a space, as . does; digits above 9 are letters
+: print-signed ( n -- )
+	| n |
+	n 0 < if 45 print-char n negate to n then
+	number-base b@ to radix
+	[ ] to digits
+	begin
+		digits n radix mod add-last! drop
+		n radix / truncate to n
+		n 0 =
+	until
+	digits reverse ( digit | digit 9 > if digit 55 + else digit 48 + then print-char ) each
+	32 print-char ;
+
+\ set the end of the logical line after its last non-space (02F4)
+: find-line-end ( -- )
+	next-zero drop to position
+	begin position 1- to position position b@ 32 = while repeat
+	position 1+ line-end w! ;
+
+\ make a logical line current (02ED): the cursor just after its zero
+: set-line ( address -- )
+	| address |
+	address line-start w!
+	address 1+ cursor-position w!
+	find-line-end ;
+
+\ clear the input buffer to one empty line at the bottom (02D8)
+: set-buffer ( -- )
+	buffer-start w@ after-screen space-fill
+	bottom-line buffer-start w!
+	0 bottom-line b!
+	bottom-line set-line ;
+
+\ the cursor's character (0282): the pixel cursor, C with CAPS LOCK, G in GRAPHICS mode
+: show-cursor ( -- )
+	key-state b@ to state
+	0x97 to shape
+	state 2 bit-and if 0xC3 to shape then
+	state 4 bit-and if 0xC7 to shape then
+	shape cursor-position w@ b! ;
+
+\ put the cursor into the line (0276): a space inserted at the cursor, the cursor on it
+: insert-cursor ( -- )
+	0xA0 print-lower
+	cursor-position w@ 1- cursor-position w!
+	show-cursor ;
+
+\ === the edit keys ===
+
+\ move the cursor left unless a zero is to its left (0204)
+: cursor-left ( -- moved )
+	cursor-position w@ 1- to position
+	position b@ to char
+	char 0 = if 0 exit then
+	position cursor-position w!
+	char position 1+ b!
+	1 ;
+
+\ move the cursor right unless it is at the line's end (0211)
+: cursor-right ( -- moved )
+	cursor-position w@ 1+ to position
+	position line-end w@ = if 0 exit then
+	position cursor-position w!
+	position b@ position 1- b!
+	1 ;
+
+\ delete the character left of the cursor (022C)
+: delete-char ( -- deleted )
+	count-to-end to n
+	cursor-position w@ to position
+	position 1- b@ 0 = if 0 exit then
+	position 1- cursor-position w!
+	0 n 1 do k position k + b@ position k + 1- b! loop
+	position n + 1- to finish
+	32 finish b!
+	finish line-end w!
+	1 ;
+
+\ delete the cursor itself (0225)
+: delete-cursor ( -- )
+	cursor-position w@ 1+ cursor-position w!
+	delete-char drop ;
+
+\ move the cursor up a screen line, or to the previous logical line (0247)
+: cursor-up ( -- )
+	cursor-left if 0 31 1 do k cursor-left drop loop exit then
+	line-start w@ buffer-start w@ = if exit then
+	delete-cursor
+	line-start w@ to position
+	begin position 32 - to position position b@ 0 = until
+	position line-start w!
+	find-line-end
+	line-end w@ cursor-position w!
+	insert-cursor ;
+
+\ move the cursor down a screen line, or to the next logical line (0295)
+: cursor-down ( -- )
+	cursor-right if 0 31 1 do k cursor-right drop loop exit then
+	next-zero 0= if drop exit then
+	to position
+	delete-cursor
+	position set-line
+	insert-cursor ;
+
+\ delete the whole logical line (02C3)
+: delete-line ( -- )
+	line-end w@ 1- cursor-position w!
+	begin delete-char while repeat ;
+
+\ an edit key (01E6): 1 left, 2 CAPS LOCK, 3 right, 4 GRAPHICS, 5 DELETE, 7 up, 8 INVERSE VIDEO, 9 down, 10 DELETE LINE, 13 ENTER
+: edit-key ( code -- )
+	| code |
+	code 1 = if cursor-left drop exit then
+	code 3 = if cursor-right drop exit then
+	code 2 = code 4 = or code 8 = or if key-state b@ code bit-xor key-state b! exit then
+	code 5 = if delete-char drop exit then
+	code 7 = if cursor-up exit then
+	code 9 = if cursor-down exit then
+	code 10 = if delete-line exit then
+	code 13 = if key-state b@ 32 bit-or 254 bit-and key-state b! then ;
+
+\ a character in upper case (0807)
+: capital ( char -- char' )
+	127 bit-and to char
+	char 97 >= char 122 <= and if char 95 bit-and else char then ;
+
+\ a key reaches the editor (013A-0173): only while the Ace is waiting for input; a character takes CAPS LOCK, GRAPHICS and INVERSE VIDEO and goes into the buffer
+: editor-key ( code -- )
+	| code |
+	key-state b@ to state
+	state 1 bit-and 0 = if exit then
+	code 0 = if exit then
+	code 32 < if code edit-key show-cursor exit then
+	state 2 bit-and if code capital to code then
+	state 4 bit-and if code 0x9F bit-and to code then
+	state 8 bit-and if code 128 bit-or to code then
+	code insert-in-buffer
+	show-cursor ;
+
+\ === words from the input buffer ===
+
+\ the next word in the buffer up to a delimiter, leading delimiters skipped (05E1): its address, length and whether one was found; empty lines passed over are cleared
+: get-word ( delimiter -- start length found )
+	| delimiter |
+	begin
+		buffer-start w@ to position
+		position line-start w!
+		begin position 1+ to position position b@ delimiter = while repeat
+		position b@ 0 = not if
+			position to start
+			0 to length
+			begin
+				length 1+ to length
+				position 1+ to position
+				position b@ to char
+				char 0 = not char delimiter = not and
+			while
+			repeat
+			start length 1 exit
+		then
+		next-zero to more to zero-address
+		more 0= if zero-address 0 0 exit then
+		buffer-start w@ zero-address space-fill
+		zero-address buffer-start w!
+	again ;
+
+\ take a word out of the buffer (07DA): it and its delimiter are copied up to the upper screen unless INVIS, and the rest of the logical line moves left over it
+: consume-word ( start length -- )
+	| start length |
+	start length + 1+ to after-word
+	flags b@ 4 rshift 1 bit-and 0 = if start length 1+ print-memory then
+	next-zero drop to zero-address
+	line-start w@ 1+ to destination
+	zero-address after-word - to n
+	n 0 > if
+		0 n 1 do k after-word k + b@ destination k + b! loop
+		destination n + zero-address space-fill
+	else
+		destination zero-address space-fill
+	then ;

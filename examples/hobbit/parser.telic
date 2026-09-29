@@ -1,0 +1,433 @@
+\ The Hobbit: the parser (7C4F). It reads the tokens and builds 24-byte
+\ command frames downwards from 0xB8B8: the verb at offset 0 (bit 7 of byte
+\ 1 marks ALL, bit 6 an ALL EXCEPT exception), a particle at 2, and two noun
+\ phrases of prepositions, noun and adjectives at 4 and 14. Its registers
+\ are kept in the frame `parser`: e the state flags (bit 0 a direction may
+\ follow GO, bit 1 a verb may start, bit 2 an adverb is allowed, bit 3 no
+\ AND is pending, bit 4 an article is allowed, bits 6 and 7 the first and
+\ second phrase are empty), d the token's class, word its 12-bit word and iy
+\ the frame. Each jump of the original is a label of the loop in `parse`.
+
+0xB5CB constant word-position
+0xB5CD constant token-pointer
+0xB5CF constant previous-class
+0xB5D0 constant verb-matched
+0xB5D1 constant it-words
+0x7C3E constant and-pointer
+0x7C40 constant and-state
+0x7C41 constant and-frame
+0x7C43 constant and-count
+0x7C44 constant preposition-count
+0x7C45 constant phrase-buffer
+
+{ :e 255 :d 0 :word 0 :iy 0xB8B8 } to parser
+[ ] to quote-saves
+
+: e@ ( -- e ) parser :e @ ;
+: e! ( e -- ) parser swap :e ! drop ;
+: d@ ( -- d ) parser :d @ ;
+: d! ( d -- ) parser swap :d ! drop ;
+: iy@ ( -- iy ) parser :iy @ ;
+: iy! ( iy -- ) parser swap :iy ! drop ;
+: word@ ( -- word ) parser :word @ ;
+
+\ set or clear a bit of the state
+: e-set ( bit -- ) 1 swap lshift e@ bit-or e! ;
+: e-clear ( bit -- ) 1 swap lshift 255 bit-xor e@ bit-and e! ;
+: e? ( bit -- flag ) e@ swap rshift 1 bit-and ;
+
+\ inside a quotation (7CBB)
+: in-quote? ( -- flag ) quote-level b@ 0 = not ;
+
+\ fetch the next token (7F3D): the previous class kept, d its class, word its 12-bit word
+: fetch-token ( -- class )
+	token-pointer w@ to address
+	address word-position w!
+	d@ previous-class b!
+	address b@ 240 bit-and d!
+	parser address b@ 15 bit-and 256 * address 1+ b@ + :word ! drop
+	address 2 + token-pointer w!
+	d@ ;
+
+\ clear the current frame and the verb of the one after it (7F2E)
+: clear-frame ( -- )
+	0 24 1 do k 0 iy@ k + b! loop
+	0 iy@ 24 - b! 0 iy@ 23 - b! ;
+
+\ a frame step from the current one, skipping ALL EXCEPT exception frames (7F69 down, 7F6F up)
+: frame-step ( step -- frame )
+	| step |
+	iy@ step + to frame
+	begin 6 frame 1+ bit? while frame step + to frame repeat
+	frame ;
+
+\ store the word at an offset of the frame (7FE2)
+: store-word ( offset -- ) iy@ + word@ swap w! ;
+
+\ store the phrase buffer at an offset of the frame (7F08)
+: store-phrase-at ( offset -- ) phrase-buffer swap iy@ + 10 copy-bytes ;
+
+\ store an adjective or preposition in the first empty of two slots (7ED6); 0 when both are full
+: store-in-slots ( address -- flag )
+	| address |
+	address w@ 0 = if word@ address w! 1 exit then
+	address 2 + w@ 0 = if word@ address 2 + w! 1 exit then
+	0 ;
+
+\ give the frame at iy the verb of the frame at ix, and when the state allows, its phrases (7F81)
+: share-verb ( ix -- )
+	| ix |
+	ix 1+ b@ 127 bit-and iy@ 1+ b@ bit-or iy@ 1+ b!
+	ix b@ iy@ b!
+	iy@ 28 + w@ 0 = if exit then
+	7 e? 0= if exit then
+	iy@ 8 + iy@ 18 + 6 copy-bytes
+	ix 4 + iy@ 4 + 10 copy-bytes
+	iy@ 2 + w@ 0 = if ix 2 + iy@ 2 + 2 copy-bytes then ;
+
+\ merge the words typed after a question into the unfinished frame (7D02-7D4B)
+: merge-answer ( -- )
+	first-frame unfinished b@ + to old
+	0xB8A0 to new
+	new 8 + w@ 0 = if 1 else new 8 + w@ old w@ = then if 0xB8A8 else new 18 + w@ 0 = if 0xB8B2 else 0 then then to source
+	source 0 = if exit then
+	0 3 1 do k
+		old k 2 * + w@ 0 = if source k 2 * + w@ old k 2 * + w! then
+	loop ;
+
+\ the end of the line (7CFC-7DA8): merge an answer, share verbs forward and second phrases backward
+: finish-line ( -- )
+	unfinished b@ if merge-answer then
+	iy@ to after-last
+	frame-count b@ to remaining
+	0xB8D0 iy!
+	remaining 1- to remaining
+	-24 frame-step iy!
+	begin remaining 0 > while
+		remaining 1- to remaining
+		iy@ to ix
+		-24 frame-step iy!
+		iy@ 1+ b@ 127 bit-and iy@ b@ bit-or 0 = if ix share-verb then
+	repeat
+	frame-count b@ to remaining
+	after-last iy!
+	remaining 1- to remaining
+	iy@ to ix
+	24 frame-step iy!
+	begin remaining 0 > while
+		remaining 1- to remaining
+		iy@ to ix
+		24 frame-step iy!
+		iy@ 18 + w@ 0 = if
+			iy@ w@ ix w@ = if
+				ix 14 + w@ 0 = not if
+					ix 14 + iy@ 14 + 10 copy-bytes
+					iy@ 2 + w@ 0 = if ix 2 + iy@ 2 + 2 copy-bytes then
+				then
+			then
+		then
+	repeat
+	after-last iy! ;
+
+\ print "what?" in the lower window (7FF9)
+: what ( -- )
+	1 lower-window b!
+	0xAC93 message ;
+
+\ === the game commands ===
+
+\ print the score (81AD): "you have mastered xx.x% of this adventure."
+: print-score ( -- )
+	0 lower-window b!
+	0xB345 message
+	score w@ to points
+	points 100 / truncate to hundreds
+	hundreds if hundreds 48 + print-char then
+	points 100 mod 10 / truncate 48 + print-char
+	46 print-char
+	points 10 mod 48 + print-char
+	0 capital-next b!
+	0xB353 message ;
+
+\ HELP (8158): the hint for Bilbo's room in the lower window, else "you're doing fine."
+: help ( -- )
+	current-actor b@ if exit then
+	bilbo-location b@ 0x8185 table-entry to entry
+	entry found? if entry entry-value else 0xB358 then to hint
+	1 lower-window b!
+	hint message ;
+
+"hobbit.sav" to save-path
+
+\ the parts of memory a saved game holds (8209): the variables, the objects, the timers and characters, the rooms
+[ [ 0xB5DC 28 ] [ 0xC00B 0x614 ] [ 0xC973 0xBF ] [ 0xB97A 0x5D9 ] ] to saved-areas
+
+\ SAVE (8284) to a file instead of tape: Bard's remembered order is tucked in among the variables first
+: save-game ( -- )
+	0xC8D1 0xB5DC 3 copy-bytes
+	[ ] to bytes
+	saved-areas ( area | 0 area 1 @i 1 do k bytes area 0 @i k + b@ add-last! drop loop ) each
+	bytes size 1 matrix byte-vector>string save-path write-file
+	1 lower-window b!
+	0xB234 message ;
+
+\ LOAD (8209) from the file, and Bard's order put back
+: load-game ( -- )
+	save-path read-file string>byte-vector to bytes
+	0 to position
+	0 saved-areas size 1 do n
+		saved-areas n @i to area
+		0 area 1 @i 1 do k bytes position k + @e area 0 @i k + b! loop
+		position area 1 @i + to position
+	loop
+	0xB5DC 0xC8D1 3 copy-bytes ;
+
+\ === the parse ===
+
+\ the next state of the parse after a special word (8009): the label to go on at
+: special-word ( -- label )
+	0x8029 to table
+	-1 to found
+	0 13 1 do k
+		found 0 < if table k 2 * + w@ word@ = if k to found then then
+	loop
+	found 0 < if :start exit then
+	table 26 + found 2 * + w@ to handler
+	handler 0x7C7E = if :phrase exit then
+	handler 0x808A = if all-state b@ 2 = not if 1 all-state b! then :phrase exit then
+	handler 0x8072 = if
+		all-state b@ 1 = not if :syntax exit then
+		2 all-state b!
+		iy@ 1+ b@ 128 bit-or iy@ 1+ b!
+		:phrase exit
+	then
+	handler 0x809A = if
+		it-words phrase-buffer 4 + 6 copy-bytes
+		7 e? if 6 e-clear 4 store-phrase-at else 7 e-clear 14 store-phrase-at then
+		:phrase exit
+	then
+	handler 0x80CD = if quote-level b@ 0 = if :open-quote else :close-quote then exit then
+	handler 0x8158 = if help :restore exit then
+	handler 0x81A7 = if print-score :restore exit then
+	handler 0x8149 = if print-score :quit throw then
+	handler 0x81F2 = if :pause-game :restore exit then
+	handler 0x8209 = if load-game :restore exit then
+	handler 0x8284 = if save-game :restore exit then
+	:restore ;
+
+\ an opening quotation mark (80B5): the parser's registers are saved and it starts again one level deeper
+: open-quote ( -- )
+	quote-saves [ d@ e@ word@ iy@ frame-count b@ ] add-last! drop
+	iy@ 24 - iy!
+	1 quote-level b! ;
+
+\ a closing quotation mark (80CD): the frames built inside it become orders in the orders buffer, and the saved registers come back
+: close-quote ( -- )
+	quote-level b@ 1- quote-level b!
+	quote-saves remove-last! to saved
+	saved 4 @i to count-before
+	frame-count b@ count-before - 255 bit-and to inside
+	0 to stored
+	inside 0 = not if
+		saved 3 @i 24 - to frame
+		0 to done
+		0 inside 1 do k
+			done 0= if
+				orders to slot
+				0 to tries
+				begin tries 8 < if slot b@ 0 = not else 0 then while slot 25 + to slot tries 1+ to tries repeat
+				255 slot b!
+				tries 8 = if
+					1 to done
+				else
+					6 frame 1+ bit? if 0 slot b! else frame slot 1+ 24 copy-bytes then
+					frame 24 - to frame
+					stored 1+ to stored
+				then
+			then
+		loop
+	then
+	0 all-state b!
+	stored order-count b!
+	saved 3 @i iy!
+	saved 4 @i frame-count b!
+	parser saved 2 @i :word ! drop
+	saved 1 @i e!
+	saved 0 @i d! ;
+
+\ parse the command (7C4F): :execute when a command is ready, :abort when the line is given up
+: parse ( -- outcome )
+	first-frame iy!
+	0 quote-level b!
+	:enter to label
+	begin
+		label :enter = if
+			0 all-state b!
+			0 frame-count b!
+			255 e!
+			unfinished b@ if 0xA0 d! :close to label else 0xC0 d! :start to label then
+		then
+		label :start = if
+			0 preposition-count b!
+			e@ 0xC7 bit-or e!
+			all-state b@ 2 = if 1 e-clear then
+			clear-frame
+			:phrase to label
+		then
+		label :phrase = if
+			0 10 1 do k 0 phrase-buffer k + b! loop
+			4 e-set
+			:word to label
+		then
+		label :word = if
+			fetch-token 4 rshift to kind
+			[ :adverb :in-into :direction :verb :go-run :noun :adjective :preposition :article :special :and :then :end ] kind 12 min2 @i to label
+		then
+		label :end = if 0 more-commands b! :then to label then
+		label :then = if
+			1 e? 0= frame-count b@ or if :close to label else
+				previous-class b@ 0xC0 = d@ 0xC0 = and if quote-level b@ 1 = if :execute else :abort then exit then
+				in-quote? if :close to label else what :abort exit then
+			then
+		then
+		label :close = if
+			all-state b@ 1 = if 7 iy@ 1+ bit-set then
+			all-state b@ 2 = d@ 0xA0 = and 0= if frame-count b@ 1+ frame-count b! then
+			-24 frame-step iy!
+			d@ 0xA0 = if :start to label else
+				finish-line
+				more-commands b@ 0 = if :execute exit then
+				in-quote? 0= if :execute exit then
+				:start to label
+			then
+		then
+		label :direction = if 1 e? if :go-verb to label else 0 d! :adverb to label then then
+		label :adverb = if
+			2 e? 0= if :syntax to label else
+				all-state b@ 2 = if 24 frame-step iy! then
+				2 e-clear
+				2 store-word
+				:phrase to label
+			then
+		then
+		label :and = if
+			3 e-clear
+			d@ to saved-class
+			begin fetch-token 0xA0 = while repeat
+			token-pointer w@ 2 - to back
+			back and-pointer w!
+			back token-pointer w!
+			saved-class d!
+			e@ and-state b!
+			iy@ and-frame w!
+			frame-count b@ and-count b!
+			:then to label
+		then
+		label :go-run = if 0 e-clear :go-verb to label then
+		label :go-verb = if 0x30 d! :verb to label then
+		label :verb = if
+			3 e? 0= in-quote? 0= and if
+				and-pointer w@ token-pointer w!
+				0xB0 d!
+				and-state b@ e!
+				and-count b@ frame-count b!
+				and-frame w@ iy!
+				:then to label
+			else
+				0 all-state b!
+				1 e? 0= if :syntax to label else
+					0 e? if 1 e-clear 0 store-word :phrase to label else
+						word@ to verb-word
+						d@ to verb-class
+						token-pointer w@ to rewind
+						begin fetch-token 0 = while repeat
+						0 e-set
+						d@ 0x20 = if
+							1 e-clear 0 store-word
+							parser verb-word :word ! drop
+							2 store-word
+						else
+							rewind token-pointer w!
+							verb-class d!
+							parser verb-word :word ! drop
+							0 e-clear
+							1 e-clear 0 store-word
+						then
+						:phrase to label
+					then
+				then
+			then
+		then
+		label :article = if 4 e-clear :word to label then
+		label :in-into = if
+			1 e? previous-class b@ 0xA0 = and if :go-verb to label else 0x70 d! :preposition to label then
+		then
+		label :preposition = if
+			preposition-count b@ 1+ preposition-count b!
+			preposition-count b@ 3 >= if :syntax-call to label else
+				phrase-buffer store-in-slots drop
+				:preposition-next to label
+			then
+		then
+		label :preposition-next = if
+			fetch-token to kind
+			kind 0x70 = if :preposition to label else
+			kind 0x80 = if
+				4 e? 0= in-quote? 0= and if what :abort exit then
+				4 e-clear
+			else
+				:adjective-or-noun to label
+			then then
+		then
+		label :adjective-or-noun = if
+			d@ 0x60 = if :adjective to label else
+			d@ 0x50 = if :noun to label else
+				word-position w@ token-pointer w!
+				:phrase-done to label
+			then then
+		then
+		label :adjective = if
+			phrase-buffer 6 + store-in-slots 0= in-quote? 0= and if what :abort exit then
+			fetch-token drop
+			:adjective-or-noun to label
+		then
+		label :noun = if word@ phrase-buffer 4 + w! :phrase-done to label then
+		label :phrase-done = if
+			0x50 d!
+			all-state b@ 2 = if
+				phrase-buffer w@ 0 = if
+					6 iy@ 25 + bit? 0= if iy@ 24 - iy! clear-frame then
+					6 e-clear 4 store-phrase-at
+					0x40 iy@ 1+ b!
+					:phrase to label
+				else
+					24 frame-step iy!
+					:store-phrase to label
+				then
+			else
+				:store-phrase to label
+			then
+		then
+		label :store-phrase = if
+			6 e? if 6 e-clear 4 store-phrase-at else
+			7 e? if 7 e-clear 14 store-phrase-at else
+				in-quote? 0= if what :abort exit then
+			then then
+			:phrase to label
+		then
+		label :special = if
+			special-word to label
+			label :restore = if previous-class b@ d! :phrase to label then
+			label :open-quote = if open-quote :enter-quote to label then
+			label :close-quote = if close-quote :phrase to label then
+			label :pause-game = if :phrase to label then
+		then
+		label :enter-quote = if
+			0 all-state b!
+			0 frame-count b!
+			255 e!
+			unfinished b@ if 0xA0 d! :close to label else 0xC0 d! :start to label then
+		then
+		label :syntax-call = if in-quote? if :preposition-next else what :abort exit then to label then
+		label :syntax = if in-quote? if :phrase else what :abort exit then to label then
+	again ;

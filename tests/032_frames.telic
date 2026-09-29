@@ -134,7 +134,7 @@
 { :a 1 } 42 delete-at . cr
 
 \ rename-key! : moves the value to the new key in place, leaves the frame
-{ :a 1 :b 2 } :a :x rename-key! frame>array . cr        \ [ :b 2 :x 1 ]
+{ :a 1 :b 2 } :a :x rename-key! frame>array . cr        \ [ :x 1 :b 2 ]
 { :a 1 } to record record :a :b rename-key! drop record frame>array . cr   \ [ :b 1 ]  same frame mutated
 
 \ rename-key! : an existing new key is overwritten

@@ -1,0 +1,193 @@
+\ The Jupiter Ace simulation: the cassette as a .tap file. Each block is a
+\ two-byte length, its bytes and an XOR checksum byte counted in the length;
+\ a file is a 25-byte header block (the type, 0 for a dictionary and 32 for
+\ bytes, a 10-letter name, the length, the start address, and for a
+\ dictionary FORTH's newest word and CURRENT, CONTEXT, VOCLNK and STKBOT)
+\ followed by a block of its bytes (1934-1AF2). SAVE and BSAVE append to the
+\ tape; LOAD, BLOAD, VERIFY and BVERIFY read it from its start. Loaded after
+\ editing.telic.
+
+"ace-tape.tap" to tape-path
+
+\ the 25 header bytes the words build in the pad (19F3-1A3D): a type, the name from the buffer padded to 10 letters with spaces, then spaces
+: pad-header ( type -- )
+	| type |
+	32 word-to-pad
+	0x270C 0x27FF space-fill
+	type pad b! ;
+
+\ a header in the pad as bytes
+: header-bytes ( -- bytes )
+	[ ] to bytes
+	0 25 1 do k bytes pad k + b@ add-last! drop loop
+	bytes ;
+
+\ memory from an address as bytes
+: memory-bytes ( start n -- bytes )
+	| start n |
+	[ ] to bytes
+	0 n 1 do k bytes start k + b@ add-last! drop loop
+	bytes ;
+
+\ a tape block: its length with the checksum, its bytes, the XOR of the bytes
+: tape-block ( bytes -- bytes' )
+	| bytes |
+	bytes 0 ' bit-xor reduce to checksum
+	bytes size 1+ to length
+	[ length 255 bit-and length 8 rshift ] bytes concat [ checksum ] concat ;
+
+\ append bytes to the tape file
+: append-to-tape ( bytes -- )
+	| bytes |
+	bytes size 1 0-matrix to vector
+	0 bytes size 1 do k vector bytes k @i k !e drop loop
+	vector byte-vector>string tape-path append-file ;
+
+\ write the header in the pad and the bytes it describes to the tape (1A51); ERROR 10 without a name or with no bytes
+: save-file ( -- )
+	0x2702 b@ 0 = if 10 ace-error then
+	0x270C w@ to length
+	length 0 = if 10 ace-error then
+	header-bytes tape-block append-to-tape
+	0x270E w@ length memory-bytes tape-block append-to-tape ;
+
+\ SAVE (1934): the dictionary from 3C51 to HERE, with FORTH's newest word and CURRENT, CONTEXT, VOCLNK and STKBOT
+: ace-save ( -- )
+	0 pad-header
+	here-address 0x3C51 - 0x270C w!
+	0x3C51 0x270E w!
+	0x3C4C w@ 0x2710 w!
+	0 8 1 do k current k + b@ 0x2712 k + b! loop
+	save-file ;
+
+\ BSAVE (1946): n bytes from address m
+: ace-bsave ( -- )
+	pop to length
+	pop to start
+	32 pad-header
+	length 0x270C w!
+	start 0x270E w!
+	save-file ;
+
+\ the tape's blocks, each an array of its bytes without the length and checksum; ERROR 10 for a checksum that does not match
+: tape-blocks ( -- blocks )
+	[ ] to blocks
+	tape-path file-exists? not if blocks exit then
+	tape-path read-file string>byte-vector to tape
+	tape size to n-bytes
+	0 to position
+	begin position 2 + n-bytes <= while
+		tape position @e tape position 1+ @e 256 * + to length
+		position 2 + to first
+		first length + n-bytes > if 10 ace-error then
+		[ ] to block
+		0 length 1- 1 do k block tape first k + @e add-last! drop loop
+		block 0 ' bit-xor reduce tape first length + 1- @e = not if 10 ace-error then
+		blocks block add-last! drop
+		first length + to position
+	repeat
+	blocks ;
+
+\ a little-endian cell from an array of bytes
+: bytes-cell ( bytes index -- cell )
+	| bytes index |
+	bytes index @i bytes index 1+ @i 256 * + ;
+
+\ the header and data blocks of the file the pad's header names, each header met printed as Dict: or Bytes: and its name (1A76); the machine waits for BREAK when the tape has no such file
+: find-on-tape ( -- header data )
+	tape-blocks to blocks
+	0 to index
+	begin index 1+ blocks size < while
+		blocks index @i to header
+		header size 25 = if
+			13 print-char
+			header 0 @i if "Bytes: " else "Dict: " then print-string
+			1 11 1 do k header k @i print-char loop
+			1 to same
+			0 11 1 do k header k @i pad k + b@ = not if 0 to same then loop
+			same if header blocks index 1+ @i exit then
+		then
+		++ index
+	repeat
+	begin ace-yield ace-poll again ;
+
+\ the address limit of what the tape may load and the length it holds (1AD0): ERROR 10 when a nonzero limit is below the file's length
+: check-length ( limit header -- )
+	| limit header |
+	limit 0 = if exit then
+	limit header 11 bytes-cell < if 10 ace-error then ;
+
+\ how far a loaded dictionary lands from 3C51, where it was saved from
+variable load-offset
+
+\ where an address saved in a dictionary on tape is once the dictionary is loaded: addresses from 3C51 on move with it
+: loaded-address ( address -- address' )
+	| address |
+	address 0x3C51 >= if address load-offset + else address then ;
+
+\ LOAD (198C): a dictionary from the tape added at HERE, its addresses moved by where it lands, its first word linked to FORTH's newest word and its newest word made FORTH's newest
+: ace-load ( -- )
+	| ^load-offset |
+	0 pad-header
+	find-on-tape to data to header
+	here-address to landing
+	return-stack-address 52 - landing - header check-length
+	header 11 bytes-cell to length
+	0 length 1 do k data k @i landing k + b! loop
+	landing 0x3C51 - to load-offset
+	newest-length w@ to old-field
+	old-field if landing old-field - old-field w! then
+	landing length + stack-bottom w!
+	stack-bottom w@ 12 + stack-top w!
+	landing here-address ( address | address ' loaded-address map-cell ) walk-words
+	0x3C4C w@ to previous-newest
+	header 15 bytes-cell load-offset + 0x3C4C w!
+	landing name-length-field 2 - previous-newest swap w!
+	0x3C4C w@ 4 - newest-length w!
+	landing to word-start
+	begin word-start 0 = not word-start here-address < and while
+		word-start name-length-field to nlf
+		nlf install-word
+		nlf next-word-start to word-start
+	repeat ;
+
+\ BLOAD (1954): at most n bytes to address m from the tape, at the address they were saved from when m is 0; ERROR 10 when the file is longer than a nonzero n
+: ace-bload ( -- )
+	pop to limit
+	pop to start
+	32 pad-header
+	find-on-tape to data to header
+	limit header check-length
+	start 0 = if header 13 bytes-cell to start then
+	0 data size 1 do k data k @i start k + b! loop ;
+
+\ compare the tape's bytes with memory from an address; ERROR 10 at the first difference
+: compare-memory ( data start -- )
+	| data start |
+	0 data size 1 do k data k @i start k + b@ = not if 10 ace-error then loop ;
+
+\ VERIFY (1969): the dictionary on the tape compared with the one in memory, the system variables saved with it too
+: ace-verify ( -- )
+	0 pad-header
+	find-on-tape to data to header
+	0 8 1 do k header 17 k + @i current k + b@ = not if 10 ace-error then loop
+	here-address 0x3C51 - header check-length
+	data 0x3C51 compare-memory ;
+
+\ BVERIFY (197B): at most n bytes from the tape compared with memory from address m, or from where they were saved when m is 0
+: ace-bverify ( -- )
+	pop to limit
+	pop to start
+	32 pad-header
+	find-on-tape to data to header
+	limit header check-length
+	start 0 = if header 13 bytes-cell to start then
+	data start compare-memory ;
+
+: register-tape-words ( -- )
+	' ace-save "SAVE" primitive
+	' ace-bsave "BSAVE" primitive
+	' ace-load "LOAD" primitive
+	' ace-bload "BLOAD" primitive
+	' ace-verify "VERIFY" primitive
+	' ace-bverify "BVERIFY" primitive ;

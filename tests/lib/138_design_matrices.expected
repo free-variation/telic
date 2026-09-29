@@ -33,7 +33,7 @@ no key :zzz
           1          6
           1          7
 
-[ :intercept :x ] <matrix 3x1>
+[ :x :intercept ] <matrix 3x1>
           1
           1
           1

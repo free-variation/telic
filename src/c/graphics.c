@@ -61,6 +61,7 @@ static int application_drain_events(void) {
 	((void (*)(id, SEL))objc_msgSend)(pool, sel_registerName("drain"));
 	return n_drained;
 }
+
 #else
 static void application_bring_forward(void *native_window) { (void)native_window; }
 static void application_set_foreground(int foreground) { (void)foreground; }
@@ -945,6 +946,7 @@ static void keyboard_collect(Tigr *source) {
 
 static Tigr *window = NULL;
 static pthread_t interpreter_thread;
+static int interpreter_thread_started = 0;
 static int window_needs_front = 0;
 static int window_blitted_width = 0;
 static int window_blitted_height = 0;
@@ -1008,8 +1010,6 @@ static int screen_step(void) {
 		return 0;
 
 	int resized = window->w != window_blitted_width || window->h != window_blitted_height;
-	if (!busy && !resized && !window_needs_front && !application_drain_events())
-		return 0;
 
 	pthread_mutex_lock(&screen.lock);
 	Tigr *source = NULL;
@@ -1114,6 +1114,19 @@ static size_t interpreter_stack_bytes(void) {
 	return (size_t)limit.rlim_cur;
 }
 
+void platform_exit(int status) {
+	if (!interpreter_thread_started || !pthread_equal(pthread_self(), interpreter_thread))
+		exit(status);
+
+	fflush(stdout);
+	pthread_mutex_lock(&screen.lock);
+	screen.interpreter_status = status;
+	screen.interpreter_done = 1;
+	pthread_cond_signal(&screen.wake);
+	pthread_mutex_unlock(&screen.lock);
+	pthread_exit(NULL);
+}
+
 int platform_run_main(int argc, char **argv, MainBody body) {
 	InterpreterArguments arguments = {.argc = argc, .argv = argv, .body = body};
 
@@ -1131,6 +1144,7 @@ int platform_run_main(int argc, char **argv, MainBody body) {
 		pthread_sigmask(SIG_UNBLOCK, &handled, NULL);
 		return body(argc, argv);
 	}
+	interpreter_thread_started = 1;
 
 	while (1) {
 		pthread_mutex_lock(&screen.lock);

@@ -1,0 +1,421 @@
+\ The Jupiter Ace simulation: the ROM's words, each a telic word working on
+\ the data stack in the simulated memory, registered at the ROM word's code
+\ field address. Integers are 16-bit cells, doubles two cells with the high
+\ one on top, floats two cells in the Ace's decimal format. Loaded after
+\ dictionary.telic.
+
+\ the host's tone generator and its keyboard, given by the front end
+defer play-tone
+defer stop-tone
+defer keyboard-row
+( drop 0 ) embodies keyboard-row
+variable held-key
+0 to held-key
+
+\ === stack ===
+
+: ace-dup ( -- ) 1 stack-item push ;
+: ace-drop ( -- ) pop drop ;
+: ace-swap ( -- ) pop pop swap push push ;
+: ace-over ( -- ) 2 stack-item push ;
+: ace-rot ( -- ) pop to third pop to second pop second push third push push ;
+: ace-question-dup ( -- ) 1 stack-item dup 0 = if drop else push then ;
+
+\ PICK (0922): a copy of the nth entry below n; ERROR 7 unless n > 0
+: ace-pick ( -- )
+	pop-signed to place
+	place 1 < if 7 ace-error then
+	place stack-item push ;
+
+\ ROLL (0980): the nth entry below n moved to the top; ERROR 7 unless n > 0
+: ace-roll ( -- )
+	pop-signed to place
+	place 1 < if 7 ace-error then
+	stack-top w@ place 2 * - to address
+	address w@ to moved
+	0 place 1- 1 do k address k 2 * + 2 + w@ address k 2 * + w! loop
+	moved stack-top w@ 2 - w! ;
+
+: ace-to-r ( -- ) pop rpush ;
+: ace-r-from ( -- ) rpop push ;
+: ace-i ( -- ) 1 rpeek push ;
+: ace-i-prime ( -- ) 2 rpeek push ;
+: ace-j ( -- ) 3 rpeek push ;
+: ace-leave ( -- ) rpop drop rpop dup rpush rpush ;
+
+\ === memory ===
+
+: ace-store ( -- ) pop to address pop address w! ;
+: ace-fetch ( -- ) pop w@ push ;
+: ace-byte-store ( -- ) pop to address pop address b! ;
+: ace-byte-fetch ( -- ) pop b@ push ;
+: ace-here ( -- ) here-address push ;
+: ace-allot ( -- ) pop-signed make-room ;
+: ace-comma ( -- ) pop enclose ;
+: ace-byte-comma ( -- ) pop enclose-byte ;
+: ace-pad ( -- ) pad push ;
+: ace-base ( -- ) number-base push ;
+: ace-context ( -- ) context push ;
+: ace-current ( -- ) current push ;
+: ace-decimal ( -- ) 10 number-base b! ;
+
+\ === arithmetic ===
+
+: ace-plus ( -- ) pop pop + push ;
+: ace-minus ( -- ) pop to subtrahend pop subtrahend - push ;
+: ace-times ( -- ) 800 count-cycles pop pop * 65535 bit-and push ;
+: ace-negate ( -- ) pop negate push ;
+: ace-abs ( -- ) pop-signed abs push ;
+: ace-one-plus ( -- ) pop 1+ push ;
+: ace-one-minus ( -- ) pop 1- push ;
+: ace-two-plus ( -- ) pop 2 + push ;
+: ace-two-minus ( -- ) pop 2 - push ;
+: ace-max ( -- ) pop-signed pop-signed max2 push ;
+: ace-min ( -- ) pop-signed pop-signed min2 push ;
+: ace-and ( -- ) pop pop bit-and push ;
+: ace-or ( -- ) pop pop bit-or push ;
+: ace-xor ( -- ) pop pop bit-xor push ;
+
+\ a signed division truncated towards zero, the remainder with the dividend's sign; dividing by 0 answers the dividend and -1, as the ROM's shift-and-subtract loop does
+: divide ( dividend divisor -- remainder quotient )
+	| dividend divisor |
+	1500 count-cycles
+	divisor 0 = if dividend -1 exit then
+	dividend divisor % ;
+
+: ace-divide-mod ( -- ) pop-signed to divisor pop-signed divisor divide swap push push ;
+: ace-divide ( -- ) pop-signed to divisor pop-signed divisor divide nip push ;
+: ace-mod ( -- ) pop-signed to divisor pop-signed divisor divide drop push ;
+: ace-times-divide-mod ( -- ) pop-signed to divisor pop-signed pop-signed * divisor divide swap push push ;
+: ace-times-divide ( -- ) pop-signed to divisor pop-signed pop-signed * divisor divide nip push ;
+: ace-unsigned-times ( -- ) 800 count-cycles pop pop * push-double ;
+
+\ U/MOD (0D11): an unsigned double divided by an unsigned cell, the remainder under the quotient
+: ace-unsigned-divide-mod ( -- )
+	1500 count-cycles
+	pop to divisor
+	pop-double to dividend
+	divisor 0 = if dividend 65535 bit-and push 65535 push exit then
+	dividend divisor % swap push push ;
+
+: ace-d-plus ( -- ) pop-signed-double pop-signed-double + push-double ;
+: ace-d-negate ( -- ) pop-signed-double negate push-double ;
+
+\ === comparisons ===
+
+: ace-equals ( -- ) pop pop = push-flag ;
+: ace-less ( -- ) pop-signed to right pop-signed right < push-flag ;
+: ace-greater ( -- ) pop-signed to right pop-signed right > push-flag ;
+: ace-unsigned-less ( -- ) pop to right pop right < push-flag ;
+: ace-d-less ( -- ) pop-signed-double to right pop-signed-double right < push-flag ;
+: ace-zero-equals ( -- ) pop 0 = push-flag ;
+: ace-zero-less ( -- ) pop-signed 0 < push-flag ;
+: ace-zero-greater ( -- ) pop-signed 0 > push-flag ;
+
+\ === floating point ===
+
+\ a float from the stack as a telic number, and one onto it
+: pop-float ( -- value ) pop to high pop high float-value ;
+: push-float ( value -- ) float-cells to high push high push ;
+
+: ace-f-plus ( -- ) 2500 count-cycles pop-float pop-float + push-float ;
+: ace-f-minus ( -- ) 2500 count-cycles pop-float to subtrahend pop-float subtrahend - push-float ;
+: ace-f-times ( -- ) 6000 count-cycles pop-float pop-float * push-float ;
+: ace-f-divide ( -- )
+	9000 count-cycles
+	pop-float to divisor
+	divisor 0 = if 8 ace-error then
+	pop-float divisor / push-float ;
+: ace-f-negate ( -- )
+	pop to high
+	pop to low
+	low push
+	low high bit-or 0 = if high else high 0x8000 bit-xor then push ;
+: ace-int ( -- ) 1500 count-cycles pop-float truncate cell push ;
+: ace-u-float ( -- ) 1500 count-cycles pop push-float ;
+: ace-f-dot ( -- ) 8000 count-cycles pop to high pop high print-float ;
+
+\ === formatted output in the pad ===
+
+\ <# (098F): output starts at the end of the pad
+: ace-less-sharp ( -- ) 0x27FF hold-pointer w! ;
+
+\ HOLD (0A5C): a character put in front of the output so far
+: hold-char ( char -- )
+	hold-pointer w@ 1- to address
+	address hold-pointer w!
+	address b! ;
+
+: ace-hold ( -- ) pop hold-char ;
+
+\ # (09F9): the unsigned double's last digit in the base held in BASE, held; the quotient left
+: ace-sharp ( -- )
+	1600 count-cycles
+	pop-double to value
+	number-base b@ to radix
+	value radix % to quotient to digit
+	quotient push-double
+	digit 9 > if digit 55 + else digit 48 + then hold-char ;
+
+\ #S (09E3): digits until the double is 0, at least one
+: ace-sharp-s ( -- )
+	begin
+		ace-sharp
+		2 stack-item 1 stack-item bit-or 0 =
+	until ;
+
+: ace-sign ( -- ) pop-signed 0 < if 45 hold-char then ;
+
+\ #> (099E): the double dropped, the output's address and length stacked
+: ace-sharp-greater ( -- )
+	pop drop pop drop
+	hold-pointer w@ push
+	0x27FF hold-pointer w@ - push ;
+
+\ TYPE (0970): characters from memory
+: ace-type ( -- ) pop to n pop n print-memory ;
+
+\ . (09B5): <# DUP ABS 0 #S ROT SIGN #> TYPE SPACE
+: ace-dot ( -- )
+	ace-less-sharp
+	ace-dup ace-abs 0 push
+	ace-sharp-s ace-rot ace-sign
+	ace-sharp-greater ace-type
+	32 print-char ;
+
+\ U. (09D2): 0 <# #S #> TYPE SPACE
+: ace-u-dot ( -- )
+	0 push
+	ace-less-sharp
+	ace-sharp-s
+	ace-sharp-greater ace-type
+	32 print-char ;
+
+: ace-emit ( -- ) pop 255 bit-and print-char ;
+: ace-cr ( -- ) 13 print-char ;
+: ace-space ( -- ) 32 print-char ;
+: ace-spaces ( -- ) pop-signed to n 0 n 1 do k 32 print-char loop ;
+
+\ === the screen ===
+
+: ace-cls ( -- ) clear-screen ;
+
+\ the screen address of a line and column, the column taken modulo 32 (0B28); ERROR 9 inside the input buffer
+: screen-address ( line column -- address )
+	| line column |
+	video-ram line 32 * + column 31 bit-and + 65535 bit-and to address
+	address buffer-start w@ >= address video-ram < or if 9 ace-error then
+	address ;
+
+: ace-at ( -- ) pop to column pop column screen-address screen-position w! ;
+
+\ PLOT (0B4C): pixel x, y of the 64 by 46 grid in mode n modulo 4 (0 unplot, 1 plot, 2 move, 3 change), each character cell holding four pixels as the mosaic characters 16-23 and their inverses
+: ace-plot ( -- )
+	900 count-cycles
+	pop 3 bit-and to mode
+	pop 255 bit-and to y
+	pop 255 bit-and to x
+	x x-coordinate b!
+	y y-coordinate b!
+	22 y 2 / truncate - x 2 / truncate screen-address to address
+	address b@ to char
+	char 0x78 bit-and 0x10 = not if 0x10 to char then
+	char 7 rshift 1 bit-and to inverse
+	[ char 1 rshift 1 bit-and inverse bit-xor
+	  char 1 bit-and inverse bit-xor
+	  inverse
+	  char 2 rshift 1 bit-and inverse bit-xor ] to pixels
+	y 1 bit-and 0 = 2 * x 1 bit-and + to quadrant
+	pixels quadrant @i to pixel
+	mode 0 = if 0 to pixel then
+	mode 1 = if 1 to pixel then
+	mode 3 = if 1 pixel - to pixel then
+	pixels pixel quadrant !i drop
+	pixels 2 @i to bottom-left
+	16
+	pixels 0 @i bottom-left bit-xor 2 * +
+	pixels 1 @i bottom-left bit-xor +
+	pixels 3 @i bottom-left bit-xor 4 * +
+	bottom-left 128 * +
+	address b! ;
+
+\ BEEP (0B9A): a note of period 8m microseconds for n milliseconds; the machine waits for it
+: ace-beep ( -- )
+	pop to milliseconds
+	pop to period
+	period 0 = if exit then
+	125000 period / milliseconds play-tone
+	now milliseconds 1000 / + to finish
+	begin now finish < while ace-yield repeat
+	stop-tone ;
+
+: ace-inkey ( -- ) held-key push ;
+\ IN (0BED): a port read; the keyboard answers at even ports, each 0 bit of the high byte selecting a half-row (FE, FD, FB, F7, EF, DF, BF, 7F) whose held keys read as 0 bits in bits 0 to 4; other ports read 255
+: ace-in ( -- )
+	pop to port
+	port 1 bit-and if 255 push exit then
+	port 8 rshift to rows
+	31 to bits
+	0 8 1 do row
+		rows row rshift 1 bit-and 0 = if bits row keyboard-row bit-not bit-and to bits then
+	loop
+	bits 224 bit-or push ;
+: ace-out ( -- ) pop drop pop drop ;
+: ace-call ( -- ) pop drop ;
+: ace-vis ( -- ) flags b@ 239 bit-and flags b! ;
+: ace-invis ( -- ) flags b@ 16 bit-or flags b! ;
+: ace-nothing ( -- ) ;
+
+\ === the dictionary and the input ===
+
+: ace-execute ( -- ) pop call-cfa ;
+: ace-find ( -- ) find-word push ;
+: ace-word ( -- ) pop word-to-pad pad push ;
+
+\ NUMBER (06AB): a number and the address of its literal compiler (4102 for an integer, 4181 for a float), or 0
+: ace-number ( -- )
+	parse-number to kind to high to low
+	kind 1 = if low push 4102 push exit then
+	kind 2 = if low push high push 4181 push exit then
+	0 push ;
+
+\ CONVERT (078C): digits from address + 1 on accumulated into an unsigned double in the base held in BASE; the double and the address of the first character that is no digit
+: ace-convert ( -- )
+	pop to address
+	pop-double to value
+	begin
+		address 1+ to address
+		address b@ digit-value to digit
+		digit 0 >=
+	while
+		value number-base b@ * digit + 4294967296 mod to value
+	repeat
+	value push-double
+	address push ;
+
+: ace-abort ( -- ) :ace-abort throw ;
+: ace-quit ( -- ) :ace-quit throw ;
+
+\ VLIST (062F): every name in the context vocabulary, a frame apiece
+: ace-vlist ( -- )
+	13 print-char
+	context w@ w@ to nlf
+	begin nlf 0 = not while
+		nlf b@ 63 bit-and if nlf name-start print-marked ace-poll then
+		nlf 2 - w@ to nlf
+	repeat ;
+
+\ every ROM word the simulation runs
+: register-words ( -- )
+	' ace-dup "DUP" primitive
+	' ace-drop "DROP" primitive
+	' ace-swap "SWAP" primitive
+	' ace-over "OVER" primitive
+	' ace-rot "ROT" primitive
+	' ace-question-dup "?DUP" primitive
+	' ace-pick "PICK" primitive
+	' ace-roll "ROLL" primitive
+	' ace-to-r ">R" primitive
+	' ace-r-from "R>" primitive
+	' ace-i "I" primitive
+	' ace-i-prime "I'" primitive
+	' ace-j "J" primitive
+	' ace-leave "LEAVE" primitive
+	' ace-store "!" primitive
+	' ace-fetch "@" primitive
+	' ace-byte-store "C!" primitive
+	' ace-byte-fetch "C@" primitive
+	' ace-here "HERE" primitive
+	' ace-allot "ALLOT" primitive
+	' ace-comma "," primitive
+	' ace-byte-comma "C," primitive
+	' ace-pad "PAD" primitive
+	' ace-base "BASE" primitive
+	' ace-context "CONTEXT" primitive
+	' ace-current "CURRENT" primitive
+	' ace-decimal "DECIMAL" primitive
+	' ace-plus "+" primitive
+	' ace-minus "-" primitive
+	' ace-times "*" primitive
+	' ace-negate "NEGATE" primitive
+	' ace-abs "ABS" primitive
+	' ace-one-plus "1+" primitive
+	' ace-one-minus "1-" primitive
+	' ace-two-plus "2+" primitive
+	' ace-two-minus "2-" primitive
+	' ace-max "MAX" primitive
+	' ace-min "MIN" primitive
+	' ace-and "AND" primitive
+	' ace-or "OR" primitive
+	' ace-xor "XOR" primitive
+	' ace-divide-mod "/MOD" primitive
+	' ace-divide "/" primitive
+	' ace-mod "MOD" primitive
+	' ace-times-divide-mod "*/MOD" primitive
+	' ace-times-divide "*/" primitive
+	' ace-unsigned-times "U*" primitive
+	' ace-unsigned-divide-mod "U/MOD" primitive
+	' ace-d-plus "D+" primitive
+	' ace-d-negate "DNEGATE" primitive
+	' ace-equals "=" primitive
+	' ace-less "<" primitive
+	' ace-greater ">" primitive
+	' ace-unsigned-less "U<" primitive
+	' ace-d-less "D<" primitive
+	' ace-zero-equals "0=" primitive
+	' ace-zero-less "0<" primitive
+	' ace-zero-greater "0>" primitive
+	' ace-f-plus "F+" primitive
+	' ace-f-minus "F-" primitive
+	' ace-f-times "F*" primitive
+	' ace-f-divide "F/" primitive
+	' ace-f-negate "FNEGATE" primitive
+	' ace-int "INT" primitive
+	' ace-u-float "UFLOAT" primitive
+	' ace-f-dot "F." primitive
+	' ace-less-sharp "<#" primitive
+	' ace-hold "HOLD" primitive
+	' ace-sharp "#" primitive
+	' ace-sharp-s "#S" primitive
+	' ace-sign "SIGN" primitive
+	' ace-sharp-greater "#>" primitive
+	' ace-type "TYPE" primitive
+	' ace-dot "." primitive
+	' ace-u-dot "U." primitive
+	' ace-emit "EMIT" primitive
+	' ace-cr "CR" primitive
+	' ace-space "SPACE" primitive
+	' ace-spaces "SPACES" primitive
+	' ace-cls "CLS" primitive
+	' ace-at "AT" primitive
+	' ace-plot "PLOT" primitive
+	' ace-beep "BEEP" primitive
+	' ace-inkey "INKEY" primitive
+	' ace-in "IN" primitive
+	' ace-out "OUT" primitive
+	' ace-call "CALL" primitive
+	' ace-vis "VIS" primitive
+	' ace-invis "INVIS" primitive
+	' ace-nothing "FAST" primitive
+	' ace-nothing "SLOW" primitive
+	' ace-nothing "EXIT" primitive
+	' ace-execute "EXECUTE" primitive
+	' ace-find "FIND" primitive
+	' ace-word "WORD" primitive
+	' ace-number "NUMBER" primitive
+	' ace-convert "CONVERT" primitive
+	' ace-abort "ABORT" primitive
+	' ace-quit "QUIT" primitive
+	' ace-vlist "VLIST" primitive ;
+
+\ the Ace switched on (0000-0108): the character set, the system variables, an empty screen and buffer; RAM up to top
+: cold-start ( top -- )
+	| top |
+	decode-character-set
+	top default-environment
+	clear-screen
+	set-buffer
+	255 error-number b!
+	stack-bottom w@ 12 + stack-top w!
+	clear-return-stack
+	0x3C49 install-word ;

@@ -3024,7 +3024,7 @@ Symbol-keyed sorted maps; binary-search lookup. Storage order is symbol id, whic
 { :a 1 :b 2 } :a :x rename-key! frame>array . cr
 ```
 ```output
-[ :b 2 :x 1 ]
+[ :x 1 :b 2 ]
 ```
 
 ```forth update-at
@@ -4804,11 +4804,11 @@ The substrate for exceptions, coroutines, generators. See `docs/continuations.md
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
 | `reset` | `( -- )` | Push a unique mark on the return stack, delimiting the captured region | 1 | none | O(1) |
-| `shift` | `( -- k )` | Capture the return-stack slice up to the nearest `reset`, push k, and unwind to the `reset`'s caller the way `shift-with` does, so the slice may span nested `execute` calls and combinator bodies. The rest of the shifting word's body belongs to k and runs on `resume`, not at capture | L | `1o` (cont) | O(L) |
+| `shift` | `( -- k )` | Capture the return-stack slice up to the nearest `reset`, push k, and unwind to the `reset`'s caller the way `shift-with` does, so the slice may span nested `execute` calls, combinator bodies and `catch` bodies — a `catch` in the slice catches a `throw` or interpreter error raised after `resume`. The rest of the shifting word's body belongs to k and runs on `resume`, not at capture | L | `1o` (cont) | O(L) |
 | `shift-with` | `( xt -- )` | Capture as `shift`, then run xt in the outer context with k on the stack before unwinding | L + xt | `1o` (cont) | O(L + xt) |
 | `resume` | `( k -- … )` | Pop k and re-enter it (multi-shot — the continuation object survives, so a retained copy can be resumed again); pushes whatever the resumed code yields | L + resumed | none | O(L + resumed) |
-| `throw` | `( exc -- )` | Unwind to the nearest exception prompt, leaving `exc 1` (what `catch` consumes); with no enclosing prompt it is an interpreter error, `uncaught exception: <value>`, the trace captured at the throw site. The prompt search skips locals regions, so local slots are never read as prompts | L | none | O(L) |
-| `catch` | `( xt -- result 0 \| exc 1 )` | exceptions.telic: run xt; `(result 0)` on success, `(exc 1)` on a `throw` **or** an interpreter error (an error frame `{ :message :trace }` becomes the exception value) | — | `1f` + `2s` on a caught interpreter error | O(xt) |
+| `throw` | `( exc -- )` | Unwind to the nearest `catch` or `reset`, leaving `exc 1` (what `catch` consumes); with no enclosing prompt it is an interpreter error, `uncaught exception: <value>`, the trace captured at the throw site. The prompt search skips locals regions, so local slots are never read as prompts | L | none | O(L) |
+| `catch` | `( xt -- result 0 \| exc 1 )` | exceptions.telic: run xt; `(result 0)` on success, `(exc 1)` on a `throw` **or** an interpreter error (an error frame `{ :message :trace }` becomes the exception value, the data stack cut back to its depth below xt). A `shift` inside xt skips this `catch` and captures up to the nearest `reset` | — | `1f` + `2s` on a caught interpreter error | O(xt) |
 | `try-catch` | `( normal-xt err-xt -- … )` | exceptions.telic: run normal-xt; on a `throw` or interpreter error, run err-xt with the exception (the `{ :message :trace }` error frame, for an interpreter error) on the stack | — | `1f` + `2s` on a caught interpreter error | O(normal-xt) |
 | `ensure` | `( body-xt cleanup-xt -- … )` | exceptions.telic: run cleanup-xt (stack-neutral) whether body-xt returns normally or throws/errors, then re-raise on the throw path | — | none | O(body-xt) |
 | `expect` | `( flag -- )` | test.telic: pass silently when flag is truthy; else throw `expectation was false` | — | `1s` on fail | O(1) |

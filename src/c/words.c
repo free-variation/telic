@@ -1557,7 +1557,7 @@ void p_dots(DISPATCH_ARGS) {
 void p_bye(DISPATCH_ARGS) {
 	(void)interp;
 
-	exit(0);
+	platform_exit(0);
 }
 
 void p_halt(DISPATCH_ARGS) {
@@ -1565,7 +1565,7 @@ void p_halt(DISPATCH_ARGS) {
 	Val code_val = chain_sp[-1];
 	REQUIRE_CHAIN_TAG(code_val, T_FLOAT, "halt", "a float exit code");
 
-	exit((int)VAL_NUMBER(code_val));
+	platform_exit((int)VAL_NUMBER(code_val));
 }
 
 void p_tor(DISPATCH_ARGS) {
@@ -1743,7 +1743,7 @@ void p_reset(DISPATCH_ARGS) {
 }
 
 
-int prompt_index(Interpreter *interp, int kind) {
+int prompt_index(Interpreter *interp, int kinds) {
 	int scope_base = interp->local_base;
 	int scope_top = scope_base > 0
 		? scope_base + saved_n_locals(interp->return_stack[scope_base - 1]) : -1;
@@ -1759,7 +1759,7 @@ int prompt_index(Interpreter *interp, int kind) {
 		}
 
 		Val frame = interp->return_stack[i];
-		if (VAL_TAG(frame) == T_MARK && (VAL_DATA(frame) & PROMPT_KIND_MASK) == kind)
+		if (VAL_TAG(frame) == T_MARK && ((1 << (VAL_DATA(frame) & PROMPT_KIND_MASK)) & kinds))
 			return i;
 	}
 
@@ -1767,7 +1767,7 @@ int prompt_index(Interpreter *interp, int kind) {
 }
 
 static int find_prompt(Interpreter *interp, int kind) {
-	int mark_index = prompt_index(interp, kind);
+	int mark_index = prompt_index(interp, 1 << kind);
 	if (mark_index < 0)
 		fail(interp, kind == PROMPT_CHOICE
 				? "no enclosing amb to backtrack to"
@@ -1860,7 +1860,7 @@ void p_throw(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	SYNC_REGISTERS(interp, chain_ip, chain_sp);
 
-	int mark_index = prompt_index(interp, PROMPT_EXCEPTION);
+	int mark_index = prompt_index(interp, (1 << PROMPT_EXCEPTION) | (1 << PROMPT_CATCH));
 	if (mark_index < 0) {
 		char *rendered = NULL;
 		size_t rendered_len = 0;
@@ -1879,45 +1879,63 @@ void p_throw(DISPATCH_ARGS) {
 	interp->unwinding = 1;
 }
 
-void p_execute_catching(DISPATCH_ARGS) {
-	POP_CALLABLE(xt, "(execute-catching)");
-	int base_dsp = interp->dsp;
+void p_catch_prompt(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	int base_depth = (int)(chain_sp - interp->data_stack) - 1;
 
-	push_curried_bindings(interp, xt_val);
+	push_prompt(interp, PROMPT_CATCH);
+	if (interp->error_flag)
+		return;
+	rpush(interp, make_float(base_depth));
 	if (interp->error_flag)
 		return;
 
-	execute_xt(interp, xt);
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
 
+void p_catch_end(DISPATCH_ARGS) {
+	interp->rsp -= 2;
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
+
+int catch_interpreter_error(Interpreter *interp, int floor) {
+	int mark_index = prompt_index(interp, 1 << PROMPT_CATCH);
+	if (mark_index < floor || mark_index + 1 >= interp->rsp)
+		return 0;
+	int base_depth = (int)VAL_NUMBER(interp->return_stack[mark_index + 1]);
+
+	interp->error_flag = 0;
+	int message_handle = object_new_string(interp, interp->error_message,
+			(int)strlen(interp->error_message));
+	gc_root_push(interp, make_string(message_handle));
+	int trace_handle = object_new_string(interp, interp->error_trace,
+			(int)strlen(interp->error_trace));
+	gc_root_push(interp, make_string(trace_handle));
+
+	int error_handle = object_new_frame(interp);
 	if (interp->error_flag) {
-		interp->error_flag = 0;
-		int message_handle = object_new_string(interp, interp->error_message,
-				(int)strlen(interp->error_message));
-		gc_root_push(interp, make_string(message_handle));
-		int trace_handle = object_new_string(interp, interp->error_trace,
-				(int)strlen(interp->error_trace));
-		gc_root_push(interp, make_string(trace_handle));
-
-		NEW_FRAME(error_handle, error_frame);
-		gc_root_push(interp, make_frame(error_handle));
-		frame_put(error_frame, intern_symbol(interp, "message"), make_string(message_handle));
-		frame_put(error_frame, intern_symbol(interp, "trace"), make_string(trace_handle));
 		gc_root_pop(interp);
 		gc_root_pop(interp);
-		gc_root_pop(interp);
-
-		interp->dsp = base_dsp;
-		push(interp, make_frame(error_handle));
-		push(interp, make_float(1));
-
-		int mark_index = find_prompt(interp, PROMPT_EXCEPTION);
-		if (mark_index >= 0) {
-			unwind_to(interp, mark_index);
-			interp->unwinding = 1;
-		}
+		return 0;
 	}
+	Object *error_frame = OBJECT_AT(error_handle);
+	gc_root_push(interp, make_frame(error_handle));
+	frame_put(error_frame, intern_symbol(interp, "message"), make_string(message_handle));
+	frame_put(error_frame, intern_symbol(interp, "trace"), make_string(trace_handle));
+	gc_root_pop(interp);
+	gc_root_pop(interp);
+	gc_root_pop(interp);
 
-	DISPATCH(interp);
+	interp->dsp = MAX(0, MIN(base_depth, interp->dsp));
+	push(interp, make_frame(error_handle));
+	push(interp, make_float(1));
+
+	unwind_to(interp, mark_index);
+	interp->unwinding = 1;
+	interp->running = 1;
+
+	return 1;
 }
 
 void p_resume(DISPATCH_ARGS) {
@@ -1938,6 +1956,13 @@ void p_resume(DISPATCH_ARGS) {
 	int slice_base = interp->rsp;
 	for (int i = 0; i < continuation->continuation.return_len; i++)
 		rpush(interp, continuation->continuation.return_slice[i]);
+
+	int depth_shift = interp->dsp - continuation->continuation.capture_depth;
+	for (int i = slice_base; i + 1 < interp->rsp; i++) {
+		Val frame = interp->return_stack[i];
+		if (VAL_TAG(frame) == T_MARK && (VAL_DATA(frame) & PROMPT_KIND_MASK) == PROMPT_CATCH)
+			interp->return_stack[i + 1] = make_float(VAL_NUMBER(interp->return_stack[i + 1]) + depth_shift);
+	}
 
 	if (continuation->continuation.local_base_offset >= 0)
 		interp->local_base = slice_base + continuation->continuation.local_base_offset;

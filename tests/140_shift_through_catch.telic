@@ -1,0 +1,48 @@
+\ shift ( -- k ) across catch ( xt -- result 0 | exc 1 ): catch pushes a catch
+\ mark that shift skips, so shift captures up to the nearest reset with the catch
+\ inside the continuation; after resume, a throw or an interpreter error in the
+\ catch body is caught there, and the error path cuts the data stack back to its
+\ depth at catch entry, measured from the top of the stack at resume.
+
+\ === throw after resume ===
+: throw-after-resume ( -- ) reset ( "in" . shift "back" . 7 throw ) catch . . "after" . ;
+throw-after-resume "|" . resume cr                  \ in | back 1 7 after
+clear
+
+\ === interpreter error after resume ===
+: error-after-resume ( -- ) reset ( "in" . shift "back" . 1 0 / ) catch . :message @ . ;
+error-after-resume "|" . resume cr                  \ in | back 1 division by zero
+clear
+
+\ === depth restored relative to the stack at resume ===
+: stacked-error ( -- ) reset ( 1 2 shift 3 0 / ) catch . :message @ . ;
+stacked-error to suspended . . "|" . 5 6 7 suspended resume cr   \ 2 1 | 1 division by zero
+depth . . cr                                        \ 1 5
+clear
+
+\ === success after resume ===
+: success-after-resume ( -- ) reset ( shift 42 ) catch . . ;
+success-after-resume resume cr                      \ 0 42
+clear
+
+\ === repeated suspension inside one catch ===
+: counting ( -- ) reset ( 0 3 1 do k k . shift loop 9 throw ) catch . . ;
+: drive-counting ( -- )
+	counting to continuation
+	0 2 1 do k "|" . continuation resume to continuation loop
+	"|" . continuation resume ;
+drive-counting cr                                   \ 0 | 1 | 2 | 1 9
+clear
+
+\ === try-catch inside a generator ===
+: guarded-numbers ( -- ) ( 1 yield 2 yield :stop throw ) ( yield ) try-catch ;
+' guarded-numbers 3 gen-take . cr                   \ [ 1 2 :stop ]
+clear
+
+\ === nested catch, inner one suspended ===
+: nested ( -- ) reset ( ( shift 5 throw ) catch . . 6 throw ) catch . . ;
+nested resume cr                                    \ 1 5 1 6
+clear
+
+\ === errors ===
+( shift ) catch . :message @ . cr                   \ 1 no enclosing reset on the return stack (shift with no reset)

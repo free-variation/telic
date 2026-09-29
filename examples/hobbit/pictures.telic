@@ -1,0 +1,299 @@
+\ The Hobbit: the room pictures. Each picture's vector program (8985-8C2C)
+\ runs exactly at the original 256 by 128 pixels, so every flood fill finds
+\ the same boundaries; the result is then painted anew. Each pixel keeps the
+\ ink it was plotted with instead of its 8 by 8 cell's, the paper cells meet
+\ along a jittered edge, Scale2x doubles it to 512 by 256, and a warmer
+\ palette is shaded down the picture with a two-level dither. Loaded after
+\ game.telic.
+
+0x8C2C constant drawing-colour
+
+32768 1 0-matrix 1 - to ink-map
+768 1 0-matrix to cell-attributes
+1 to complement-inks
+
+\ === the vector program ===
+
+\ rotate a byte left or right by three (RLCA, RRCA three times)
+: rotate-left-3 ( byte -- byte' ) dup 3 lshift swap 5 rshift bit-or 255 bit-and ;
+: rotate-right-3 ( byte -- byte' ) dup 3 rshift swap 5 lshift bit-or 255 bit-and ;
+
+\ the flat index of a pixel, y measured up from the bottom (8BBC)
+: pixel-index ( x y -- index ) 127 swap - 256 * + ;
+
+\ the attribute cell of a pixel
+: cell-index ( x y -- cell ) 127 swap - 3 rshift 32 * swap 3 rshift + ;
+
+\ the pixel is set (8ACC)
+: pixel-set? ( x y -- flag ) pixel-index ink-map swap @e 0 >= ;
+
+\ plot a pixel in the drawing colour (8B93): the cell keeps its paper, and an ink equal to it is complemented
+: plot-pixel ( x y -- )
+	| x y |
+	x y cell-index to cell
+	cell-attributes cell @e 0x38 bit-and to paper-bits
+	drawing-colour b@ rotate-left-3 to ink-bits
+	ink-bits paper-bits = if ink-bits 0x38 bit-xor to ink-bits then
+	ink-bits rotate-right-3 paper-bits bit-or to attribute
+	cell-attributes attribute cell !e drop
+	ink-map attribute 7 bit-and x y pixel-index !e drop ;
+
+\ step x left or right within 0-255 (8B26, 8B1F), and whether it moved
+: step-x ( x left -- x' moved )
+	| x left |
+	left if x 0 = if 0 0 else x 1- 1 then exit then
+	x 255 = if 255 0 else x 1+ 1 then ;
+
+\ step y down or up within 0-127 (8B18, 8B09), and whether it moved
+: step-y ( y down -- y' moved )
+	| y down |
+	down if y 0 = if 0 0 else y 1- 1 then exit then
+	y 127 = if 127 0 else y 1+ 1 then ;
+
+\ draw a line of a length in a direction (8B2F): bit 0 mostly vertical, bit 1 down, bit 2 left; a sideways step every steps pixels; it stops at the edge
+: draw-line ( x y direction steps length -- x' y' )
+	| x y direction steps length |
+	steps to counter
+	length to remaining
+	1 to going
+	direction 1 bit-and to vertical
+	direction 2 bit-and to down
+	direction 4 bit-and to left
+	begin going remaining 0 > and while
+		x y plot-pixel
+		vertical if y down step-y to going to y else x left step-x to going to x then
+		going if
+			counter 1- to counter
+			counter 0 = if
+				vertical if x left step-x to going to x else y down step-y to going to y then
+				steps to counter
+			then
+		then
+		remaining 1- to remaining
+	repeat
+	x y ;
+
+\ flood fill from a point in a colour (8A4F): a scan-line fill leftwards to the boundary, then rightwards, seeding the stretches above and below
+: flood-fill ( x y colour -- )
+	| x y colour |
+	colour drawing-colour b!
+	[ ] to seeds
+	:seek to label
+	begin
+		label :seek = if
+			x y pixel-set? if
+				x y plot-pixel
+				x 0 step-x drop to x
+				:row to label
+			else
+				x 1 step-x to moved to x
+				moved 0= if :row to label then
+			then
+		then
+		label :row = if
+			0 to above
+			0 to below
+			:scan to label
+		then
+		label :scan = if
+			y 127 < if
+				x y 1+ pixel-set? if 0 else above 0= if seeds [ x y 1+ ] add-last! drop then 1 then to above
+			else
+				0 to above
+			then
+			y 0 > if
+				x y 1- pixel-set? if 0 else below 0= if seeds [ x y 1- ] add-last! drop then 1 then to below
+			else
+				0 to below
+			then
+			x y plot-pixel
+			x 0 step-x to moved to x
+			moved if
+				x y pixel-set? if x y plot-pixel :next-seed to label then
+			else
+				:next-seed to label
+			then
+		then
+		label :next-seed = if
+			seeds size 0 = if 0 drawing-colour b! exit then
+			seeds remove-last! to seed
+			seed 0 @i to x
+			seed 1 @i to y
+			:seek to label
+		then
+	again ;
+
+\ paint attribute cells with a paper colour (89F0-8A3F): from an address, runs of cells up, right, down or left, until 0xFF; an ink equal to the paper is complemented
+: paint-runs ( pointer colour -- pointer' )
+	| pointer colour |
+	colour 3 lshift to paper-bits
+	pointer b@ 256 * pointer 1+ b@ + 0x5800 - to cell
+	pointer 2 + to pointer
+	begin
+		pointer b@ to run
+		pointer 1+ to pointer
+		run 255 = not
+	while
+		run 3 bit-and to direction
+		run 2 rshift 63 bit-and 1+ to n
+		0 n 1 do k
+			cell-attributes cell @e 7 bit-and 3 lshift to ink-bits
+			ink-bits paper-bits = if ink-bits 0x38 bit-xor to ink-bits then
+			cell-attributes ink-bits 3 rshift paper-bits bit-or cell !e drop
+			direction 0 = if cell 32 >= if cell 32 - to cell then then
+			direction 1 = if cell 767 < if cell 1+ to cell then then
+			direction 2 = if cell 736 < if cell 32 + to cell then then
+			direction 3 = if cell 0 > if cell 1- to cell then then
+		loop
+	repeat
+	pointer ;
+
+\ run a picture's program (8985): the attribute byte after the border byte colours every cell, the pen starts at (127, 63); 0 ends it, 8 moves, bit 7 draws a line, bit 6 fills, bit 5 paints cells
+: run-picture ( address -- )
+	| address ^ink-map ^cell-attributes |
+	32768 1 0-matrix 1 - to ink-map
+	768 1 0-matrix address 1+ b@ + to cell-attributes
+	address 2 + to pointer
+	127 to x
+	63 to y
+	begin
+		pointer b@ to command
+		command 0 = if exit then
+		pointer 1+ to pointer
+		command 8 = if
+			pointer b@ to x
+			pointer 1+ b@ to y
+			pointer 2 + to pointer
+		else
+			command 128 bit-and if
+				pointer b@ to second
+				pointer 1+ to pointer
+				x y command 7 bit-and command 1 rshift 0x3C bit-and second 6 rshift bit-or 1+ second 63 bit-and 1+ draw-line to y to x
+			else
+				command 64 bit-and if
+					pointer b@ pointer 1+ b@ command 7 bit-and flood-fill
+					pointer 2 + to pointer
+				else
+					command 32 bit-and if pointer command 7 bit-and paint-runs to pointer then
+				then
+			then
+		then
+	again ;
+
+\ === painting ===
+
+\ the Spectrum's eight colours, normal then bright, as warmer tones
+[ 0x2A2019 0x2F4373 0x963A2A 0x71406E 0x42713A 0x4A8790 0xBF9A45 0xC9C0A8
+  0x2A2019 0x4B6FC2 0xCC5640 0xAA5EA6 0x69AE4E 0x78C0C8 0xE8CE72 0xF2ECDC ] to palette
+
+\ a colour scaled by a factor, each channel clamped to a byte
+: shade ( colour factor -- colour' )
+	| colour factor |
+	colour 16 rshift 255 bit-and factor * round 0 max2 255 min2 to red
+	colour 8 rshift 255 bit-and factor * round 0 max2 255 min2 to green
+	colour 255 bit-and factor * round 0 max2 255 min2 to blue
+	red 16 lshift green 8 lshift bit-or blue bit-or ;
+
+\ the shaded colour of every index (0-15 ink, 16-31 paper) at every output row and grain level 0-3: lighter at the top, darker at the bottom; outlines unshaded
+: shade-table ( -- table )
+	32768 1 0-matrix to table
+	0 32 1 do k
+		palette k 16 mod @i to base
+		0 256 1 do row
+			k 16 < if 1.18 0.30 row * 255 / - else 1.16 0.30 row * 255 / - then to factor
+			0 4 1 do level
+				k 16 mod 8 mod 0 = k 16 < and if base else base factor level 1.5 - 0.035 * + shade then to colour
+				table colour k 256 * row + 4 * level + !e drop
+			loop
+		loop
+	loop
+	table ;
+
+shade-table to shades
+
+\ a grain level 0-3 for every output pixel
+: random-grain ( -- matrix )
+	131072 1 0-matrix to grain
+	0 131072 1 do k grain 4 random-int k !e drop loop
+	grain ;
+
+random-grain to grains
+
+\ the shaded colour of an index at an output pixel
+: shaded ( index output-row output -- colour ) grains swap @e swap rot 256 * + 4 * + shades swap @e ;
+
+\ a jitter of -2 to 2 pixels for each pixel, from telic's generator, so the paper cells meet along a ragged edge
+: random-jitter ( -- matrix )
+	32768 1 0-matrix to jitter
+	0 32768 1 do k jitter 5 random-int 2 - k !e drop loop
+	jitter ;
+
+random-jitter to jitter-x
+random-jitter to jitter-y
+
+\ the colour index of every pixel (256 by 128): an ink with its cell's brightness, complemented when it equals the paper, or 16 plus the paper of the cell at the jittered point
+: index-image ( -- image )
+	32768 1 0-matrix to image
+	0 128 1 do row
+		0 256 1 do column
+			row 256 * column + to index
+			ink-map index @e to ink
+			ink 0 >= if
+				cell-attributes row 3 rshift 32 * column 3 rshift + @e to attribute
+				complement-inks attribute 3 rshift 7 bit-and ink = and if ink 7 bit-xor to ink then
+				image ink attribute 64 bit-and complement-inks and if 8 else 0 then + index !e drop
+			else
+				column jitter-x index @e + 0 max2 255 min2 to jittered-column
+				row jitter-y index @e + 0 max2 127 min2 to jittered-row
+				cell-attributes jittered-row 3 rshift 32 * jittered-column 3 rshift + @e to attribute
+				image attribute 3 rshift 7 bit-and attribute 64 bit-and if 8 else 0 then + 16 + index !e drop
+			then
+		loop
+	loop
+	image ;
+
+\ double the index image with Scale2x and shade it into a 256 by 512 bitmap
+: scale-and-shade ( image -- bitmap )
+	| image |
+	256 512 0-matrix to bitmap
+	0 128 1 do row
+		0 256 1 do column
+			row 256 * column + to index
+			image index @e to centre
+			row 0 > if image index 256 - @e else centre then to up
+			row 127 < if image index 256 + @e else centre then to down
+			column 0 > if image index 1- @e else centre then to left
+			column 255 < if image index 1+ @e else centre then to right
+			centre to top-left
+			centre to top-right
+			centre to bottom-left
+			centre to bottom-right
+			left up = left down = not and up right = not and if up to top-left then
+			up right = up left = not and right down = not and if right to top-right then
+			down left = down right = not and left up = not and if left to bottom-left then
+			right down = right up = not and down left = not and if down to bottom-right then
+			row 2 * to output-row
+			column 2 * to output-column
+			output-row 512 * output-column + to output
+			bitmap top-left output-row output shaded output !e drop
+			bitmap top-right output-row output 1+ shaded output 1+ !e drop
+			bitmap bottom-left output-row 1+ output 512 + shaded output 512 + !e drop
+			bitmap bottom-right output-row 1+ output 513 + shaded output 513 + !e drop
+		loop
+	loop
+	bitmap ;
+
+{ } to picture-cache
+
+\ the picture of a room as a 256 by 512 bitmap, or null for a room without one; cached by the picture's address and its two colour bytes
+: room-picture ( room -- bitmap )
+	| room |
+	room 0xCC00 table-entry to entry
+	entry found? 0= if null exit then
+	entry entry-value to address
+	address address b@ address 1+ b@ "{2:x}-{1:x}-{0:x}" format string>symbol to key
+	picture-cache key has? if picture-cache key @ exit then
+	address run-picture
+	index-image scale-and-shade to bitmap
+	picture-cache bitmap key ! drop
+	bitmap ;

@@ -1,0 +1,765 @@
+\ The Hobbit: the objects' own handlers, the character routines and the
+\ timer routines (A174-AA44), the room-entry routines (C693-C6D9), the win
+\ (A8CA) and the end of a turn (9611). Loaded after characters.telic.
+
+0xC209 constant ring
+0xC255 constant rope
+0xC2DD constant barrel
+0xC50B constant boat-tied
+0xC51A constant boat-room
+0xC1AB constant side-door-flags
+0xC277 constant magic-door-flags
+
+\ the exit of the actor's room whose byte at an offset is a value, or the list's terminator (9E79 as its IX leaves it)
+: exit-scan ( value offset -- position )
+	| value offset |
+	actor-exits to position
+	begin
+		position 3 + to position
+		position b@ 255 = if position exit then
+		position offset + b@ value = if position exit then
+	again ;
+
+\ a message if Bilbo is in room 30 or 28, beside the magic door (A9BB)
+: near-magic-door ( address -- )
+	| address |
+	bilbo-location b@ to room
+	room 30 = room 28 = or if address message then ;
+
+\ an even chance (A762)
+: evens? ( -- flag ) 100 random-to 50 < ;
+
+\ === rope, river and water ===
+
+\ DRINK the water (A174)
+: drink-water ( -- ) trial? drop ;
+
+\ TIE TO (A178): only to the rope, turned round when the rope is the target; the rope must hold nothing visible, and the thing tied may be dead but not alive; the rope stays in hand when the thing could be taken
+: tie-to ( -- )
+	current-target b@ 18 = if ( tie-to ) with-swapped exit then
+	current-instrument b@ 18 = not if report-failure exit then
+	target-record w@ to record
+	1 record 7 + bit? if report-failure exit then
+	18 visible-count if 0xAF6F message exit then
+	3 record 7 + bit? 0= if 6 record 7 + bit? if report-failure exit then then
+	trial? if exit then
+	holding-target? to held
+	current-instrument b@ record 1+ b!
+	held if current-actor b@ rope 1+ b! exit then
+	0 really b!
+	take
+	would-work b@ to could-take
+	1 really b!
+	1 would-work b!
+	could-take if current-actor b@ else 255 then rope 1+ b! ;
+
+\ UNTIE (A1E4): the target goes to whoever holds the rope
+: untie ( -- )
+	target-record w@ to record
+	record 1+ b@ 18 = not if 0xAF84 message exit then
+	trial? if exit then
+	rope 1+ b@ record 1+ b! ;
+
+\ SWIM the fast river (A1FD): across it through its exit, the river open for the move; the action and target are kept
+: swim ( -- )
+	current-target b@ 1 exit-scan to exit-address
+	exit-address 2 + b@ 0 = if trial? drop exit then
+	current-action b@ to saved-action
+	current-target b@ to saved-target
+	exit-address b@ current-action b!
+	target-record w@ to river
+	5 river 7 + bit-set
+	255 current-target b!
+	move-actor
+	5 river 7 + bit-clear
+	saved-action current-action b!
+	saved-target current-target b! ;
+
+\ the swimmer or drinker falls asleep and dies (A246), "time passes..." for Bilbo
+: fall-asleep ( address -- )
+	| address |
+	address message
+	current-actor b@ to actor
+	actor 0 = if 0xAC9D message then
+	actor kill ;
+
+\ SWIM the black river (A240) and DRINK the black water (A258)
+: swim-black-river ( -- ) trial? if exit then 0xAFA6 fall-asleep ;
+: drink-black-water ( -- ) trial? if exit then 0xAFEA fall-asleep ;
+
+\ THROW the rope ACROSS the river (A708): into the boat on the far side, or onto the far bank, each by an even chance
+: throw-rope-across ( -- )
+	current-instrument b@ exit-through to exit-address
+	exit-address 0 = if report-failure exit then
+	trial? if exit then
+	0xAE59 message
+	exit-address 2 + b@ to far-bank
+	boat-room b@ far-bank = if
+		evens? if 18 boat-tied b! 0xAE7E message exit then
+		evens? if 0xAE69 else 0xAE75 then message
+		exit
+	then
+	evens? if 0xAE69 message exit then
+	target-record w@ to record
+	far-bank record 16 + b!
+	255 record 1+ b!
+	current-target b@ far-bank actor-record w@ move-with-contents
+	0xAE60 message ;
+
+\ the boat crosses between rooms 66 and 67 with its contents after a message (A776)
+: boat-crosses ( address -- )
+	| address |
+	address message
+	boat-room b@ 66 = if 67 else 66 then to room
+	room boat-room b!
+	255 boat-tied b!
+	41 room actor-record w@ move-with-contents ;
+
+\ PULL the rope (A76A): a boat tied to it comes across
+: pull-rope ( -- )
+	trial? if exit then
+	boat-tied b@ 18 = not if exit then
+	0xAE85 boat-crosses ;
+
+\ the boat crosses by itself when Bilbo really acts on it (A792)
+: boat-lurches ( -- )
+	happening? 0= if exit then
+	current-actor b@ if exit then
+	0xAE97 boat-crosses ;
+
+\ === keys and doors ===
+
+\ "the key does not fit this lock." (A288)
+: wrong-key ( -- ) 0xAF1F message ;
+
+\ LOCK or UNLOCK with the key that fits (A26A); another of the three keys does not fit; anything else cannot do it
+: key-fits ( key -- )
+	| key |
+	current-instrument b@ to used
+	used key = if current-action b@ 37 = if lock-target else unlock-target then exit then
+	used 2 = used 4 = or used 15 = or if wrong-key exit then
+	cannot-do ;
+
+\ the side door (A260), the red door (A264), the heavy rock door (A268)
+: side-door-key ( -- ) 2 key-fits ;
+: red-door-key ( -- ) 15 key-fits ;
+: rock-door-key ( -- ) 4 key-fits ;
+
+\ OPEN the side door when it really happens (A28E)
+: open-side-door ( -- )
+	happening? 0= if exit then
+	target-record w@ open-now ;
+
+\ OPEN the crack, only from room 15 (A298)
+: open-crack ( -- )
+	actor-record w@ 16 + b@ 15 = not if report-failure exit then
+	open-target ;
+
+\ OPEN the goblins' door, only from room 16; timer 3 closes it (A3E7)
+: open-goblins-door ( -- )
+	actor-record w@ 16 + b@ 16 = not if report-failure exit then
+	open-target
+	happening? 0= if exit then
+	0xC988 b@ 0xC989 b! ;
+
+\ timer 3: the goblins' door closes (A400)
+: close-goblins-door ( -- ) 5 0xC23A bit-clear ;
+
+\ OPEN the magic door, only the wood elf (A45D)
+: open-magic-door ( -- )
+	current-actor b@ 64 = not if report-failure exit then
+	open-target ;
+
+\ OPEN and CLOSE the trap door, only from room 32 (A577)
+: work-trap-door ( -- )
+	actor-record w@ 16 + b@ 32 = not if 0xB00D message exit then
+	current-action b@ 12 = if close-target else open-target then ;
+
+\ OPEN and CLOSE the window (A655): Bilbo must be held up
+: work-window ( -- )
+	current-actor b@ 0 = if
+		0xC00C b@ 255 = if 0xB00D message exit then
+		report-failure
+		exit
+	then
+	current-action b@ to action
+	action 12 = if close-target exit then
+	action 16 = if open-target then ;
+
+\ GO THROUGH, STRIKE and LOOK THROUGH the window (A678): Bilbo must be held up
+: use-window ( -- )
+	current-actor b@ 0 = if 0xC00C b@ 255 = if 0xB00D message exit then then
+	current-action b@ to action
+	action 30 = if go-through exit then
+	action 11 = if strike exit then
+	action 24 = if look-through then ;
+
+\ EXAMINE the magic door (A614): an invisible actor starts timer 5, "the magic door warns of elves approaching."
+: examine-magic-door ( -- )
+	trial? if exit then
+	7 actor-record w@ 7 + bit? if 0xAEE6 message exit then
+	0xC996 b@ 0xC997 b!
+	0xB19C message ;
+
+\ the side door closed for real (A996): locked, hidden, timer 9 at 6, "the hole vanishes."
+: side-door-closed ( -- )
+	happening? 0= if exit then
+	6 0xC9B3 b!
+	0 side-door-flags bit-set
+	7 side-door-flags bit-clear
+	0xB196 message ;
+
+\ === the web, the ring and the rest ===
+
+\ the web broken (A2A7): opened, timer 1 started, "some spiders start mending the broken web."
+: web-broken ( -- )
+	target-record w@ to record
+	3 record 7 + bit? 0= if exit then
+	5 record 7 + bit-set
+	0xC97A b@ 0xC97B b!
+	0xAF8B message ;
+
+\ WEAR the ring (A2C0): the wearer invisible and a quarter as strong, the ring hidden in hand, timer 6 at 2-10
+: wear-ring ( -- )
+	trial? if exit then
+	actor-record w@ to wearer
+	7 wearer 7 + bit-clear
+	wearer 5 + b@ 2 rshift wearer 5 + b!
+	7 ring 7 + bit-clear
+	current-actor b@ ring 1+ b!
+	8 random-to 2 + 0xC99E b! ;
+
+\ TAKE OFF the ring (A2EC): both visible again, the strength times 4 in a byte, timer 6 stopped
+: take-off-ring ( -- )
+	actor-record w@ to wearer
+	7 ring 7 + bit? if 0xAF66 message exit then
+	trial? if exit then
+	7 ring 7 + bit-set
+	7 wearer 7 + bit-set
+	wearer 5 + b@ 4 * 255 bit-and wearer 5 + b!
+	0 0xC99E b! ;
+
+\ CAPTURE (A316): a living target on another side goes to room 31 for the wood elf or butler, else 13; Bilbo sees his dungeon
+: capture ( -- )
+	target-record w@ to record
+	record 4 + b@ 0x70 bit-and actor-record w@ 4 + b@ bit-and if report-failure exit then
+	6 record 7 + bit? 0= if report-failure exit then
+	current-actor b@ to captor
+	captor 64 = captor 66 = or if 31 else 13 then to dungeon
+	trial? if exit then
+	dungeon record 16 + b!
+	255 record 1+ b!
+	current-target b@ dungeon actor-record w@ move-with-contents
+	current-target b@ if exit then
+	0 current-actor b!
+	bilbo actor-record w!
+	dungeon describe-room ;
+
+\ a killed goblin comes back (A36A) from its entry at 0xA3C3: alive, back in its character slot, in a new room with a new adjective; "- another goblin ..." compares Bilbo's room with a leftover register, here a random byte
+: goblin-returns ( -- )
+	target-record w@ to record
+	3 record 7 + bit? 0= if exit then
+	3 record 7 + bit-clear
+	0xA3C3 to entry
+	begin entry b@ current-target b@ = not while entry 6 + to entry repeat
+	current-target b@ entry 1+ w@ b!
+	entry 3 + b@ record 16 + b!
+	entry 4 + b@ record 10 + b!
+	entry 5 + b@ record 11 + b!
+	0xAF5A message
+	bilbo-location b@ 256 random-int = not if exit then
+	45 print-char
+	0x005E print-word
+	0x02E6 print-word
+	0xAF0B message ;
+
+\ CLIMB OUT OF (A468): the actor must be in the open target
+: climb-out ( -- )
+	actor-record w@ to actor
+	actor 1+ b@ current-target b@ = not if report-failure exit then
+	current-target b@ object-record to record
+	record open? 0= if 5 record say-state exit then
+	trial? if exit then
+	255 actor 1+ b! ;
+
+\ CLIMB INTO (A486): the size test uses 255 unless the actor's size overflows a byte, so everything fits a container that is open
+: climb-into ( -- )
+	actor-record w@ to actor
+	actor 1+ b@ current-target b@ = if report-failure exit then
+	current-actor b@ contents-size actor 2 + b@ + to total
+	total 256 >= if total 256 - else 255 then to actor-size
+	target-record w@ to record
+	record open? 0= if 5 record say-state exit then
+	record 2 + b@ to capacity
+	capacity 255 = not if capacity actor-size >= if 0xB030 message exit then then
+	trial? if exit then
+	current-target b@ actor 1+ b! ;
+
+\ BURN, only the dragon (A232)
+: burn ( -- )
+	current-actor b@ 60 = not if report-failure exit then
+	trial? if exit then
+	current-target b@ kill ;
+
+\ the barrel thrown through the trap door into room 33 starts timer 0 (A4DB)
+: barrel-thrown ( -- )
+	current-target b@ 19 = not if exit then
+	happening? 0= if exit then
+	barrel 16 + b@ 33 = not if exit then
+	2 0xC974 b! ;
+
+\ timer 0: the barrel floats to the long lake (A4F4); its contents go to room 34 and are tipped out silently, the barrel and wine go back to the cellar; 8DC1 writes through timer 0's entry, the IY of the timer loop
+: barrel-floats ( -- )
+	0 timer-fired b!
+	0xC00C b@ 19 = if 0xB21E message then
+	34 barrel 16 + b!
+	19 34 timer-table move-with-contents
+	32 barrel 16 + b!
+	5 barrel 7 + bit-clear
+	2 barrel 7 + bit-set
+	0 output-on b!
+	19 drop-all
+	1 output-on b!
+	32 0xC307 16 + b!
+	19 0xC307 1+ b! ;
+
+\ JUMP ONTO the barrel (A91B): from a room whose exit down leads to it; the actor rides in it, Bilbo seeing the room twice; a wrong direction prints the message at 0xB1F3, where the original jumps into that text
+: jump-onto-barrel ( -- )
+	target-record w@ to record
+	record 16 + b@ to room
+	room exit-to to exit-address
+	exit-address 0 = if 0xB1F3 message exit then
+	exit-address b@ 10 = not if 0xB1F3 message exit then
+	trial? if exit then
+	current-target b@ actor-record w@ 1+ b!
+	current-target b@ room record move-with-contents
+	current-actor b@ if exit then
+	room describe-room ;
+
+\ Thorin's death shatters the small curious key (A631), written through 0xC09D as the code does
+: key-shatters ( -- )
+	3 0xC2A8 bit? 0= if exit then
+	happening? 0= if exit then
+	3 0xC09D 7 + bit-set
+	2 mark-dead-or-broken
+	bilbo 0xC09D together? 0= if exit then
+	0xAFFB message ;
+
+\ timer 4: sinking into the bog (A69E)
+: sinking ( -- )
+	bilbo-location b@ 29 = if 0 0xC990 b! then
+	0xB045 message
+	0xC990 b@ if exit then
+	bilbo-dies ;
+
+\ EXAMINE the curious map (A6B8): Elrond restores the hidden route and says where it goes
+: read-map ( -- )
+	current-actor b@ 65 = not if examine exit then
+	trial? if exit then
+	hidden-route w@ to route
+	map-read b@ 0 = if route 3 + route 1+ w@ 3 copy-bytes then
+	route 5 + b@ room-record 2 + parameter
+	route b@ room-record 2 + parameter
+	route 3 + b@ direction-word parameter
+	0xB0C2 speak ;
+
+\ Bard takes the player's order into his own program at 0xC8D1 (A79F)
+: bard-remembers ( -- )
+	order-waiting b@ 1 = not if exit then
+	0 order-waiting b!
+	1 obey-order nip 0= if exit then
+	0 would-work b!
+	action-copy b@ 0xC8D2 b!
+	current-target b@ 0xC8D3 b!
+	current-instrument b@ 0xC8D4 b!
+	0x42 0xC8D1 b! ;
+
+\ === character routines ===
+
+\ "thank you" or "what do you expect me to do with this?" (A406)
+: given-something ( -- )
+	trial? if exit then
+	10 random-to 8 >= if 0xAF98 else 0xAF39 then speak ;
+
+\ "what's this?" (A41C)
+: whats-this ( -- ) trial? if exit then 0xAF3D speak ;
+
+\ small talk (A425)
+: small-talk ( -- )
+	trial? if exit then
+	2 random-to to choice
+	choice 0 = if 0xAF44 speak exit then
+	choice 1 = if 0xAF4D speak exit then
+	0xAF51 speak ;
+
+\ "this was thrains key" (A443)
+: thrains-key ( -- ) trial? if exit then 0xAF53 speak ;
+
+\ "hello" to Bilbo in the same room (A44C)
+: greet ( -- )
+	start-room b@ bilbo-room b@ = not if exit then
+	trial? if exit then
+	0xAF51 speak ;
+
+\ the warg howls in Bilbo's room (A4CA)
+: warg-howls ( -- )
+	trial? if exit then
+	bilbo-location b@ 0xC341 b@ = not if exit then
+	0xAF77 sentence ;
+
+\ "where's the thief?" when Bilbo is here but invisible (A539)
+: where-is-thief ( -- )
+	start-room b@ bilbo-room b@ = not if exit then
+	7 bilbo-flags bit? if exit then
+	trial? if exit then
+	0xAFBD speak ;
+
+\ Thorin idles (A550): nothing, "thorin waits.", singing about gold, or "hurry up"
+: thorin-idles ( -- )
+	trial? if exit then
+	8 random-to to choice
+	choice 5 >= if exit then
+	choice 3 >= if 0xAFE6 sentence exit then
+	choice 0 = if 0xAFD7 sentence exit then
+	0xAF4D speak ;
+
+\ the dragon comes to Bilbo in rooms 39, 44 and 41 (A591)
+: dragon-comes ( -- )
+	bilbo-location b@ to room
+	room 39 = room 44 = or room 41 = or 0= if exit then
+	trial? if exit then
+	room 0xC033 b@ = if exit then
+	room 0xC033 b!
+	1 output-on b!
+	0xC02B parameter
+	0xAF09 message ;
+
+\ the dragon speaks to Bilbo in its room (A5BB)
+: dragon-speaks ( -- )
+	bilbo-location b@ start-room b@ = not if exit then
+	trial? if exit then
+	7 bilbo-flags bit? if 0xB04F else 0xB070 then message ;
+
+\ the dragon wakes once the treasure has left room 41 (A5D5): in a lit room, a shape in the distance or death
+: dragon-wakes ( -- )
+	0xC4CC b@ 41 = if exit then
+	trial? if exit then
+	1 output-on b!
+	actor-room-record b@ 128 bit-and 0 = if exit then
+	100 random-to 80 < if 0xB098 message exit then
+	0xB0AC message
+	bilbo-dies ;
+
+\ Gollum asks his riddle when Bilbo is here and visible (A7C6)
+: gollum-asks ( -- )
+	0xC3B0 b@ bilbo-room b@ = not if exit then
+	7 bilbo-flags bit? 0= if exit then
+	trial? if exit then
+	riddle-entry w@ 2 + w@ speak
+	1 gollum-waiting b! ;
+
+\ Gollum waits for the answer (A7EA): the answer word must be in the order given to him, else Bilbo is strangled
+: gollum-waits ( -- )
+	trial? if exit then
+	0 gollum-waiting b!
+	0 obey-order drop to command-frame
+	riddle-entry w@ to answer
+	0 24 1 do k
+		command-frame k + b@ answer b@ = if command-frame k + 1+ b@ answer 1+ b@ = if exit then then
+	loop
+	trial? if exit then
+	1 output-on b!
+	0xB0CD message
+	bilbo-dies ;
+
+\ Gollum mutters (A81A): "pocketses" whenever the random number is not negative, or while he holds the ring
+: gollum-mutters ( -- )
+	0xC3B0 b@ bilbo-room b@ = not if exit then
+	trial? if exit then
+	8 random-in-range 0 >= if 0xB1CB speak exit then
+	ring 1+ b@ 68 = if 0xB1CB else 0xB1D9 then speak ;
+
+\ a character eats Bilbo in its room (A842)
+: eats-bilbo ( -- )
+	start-room b@ bilbo-room b@ = not if exit then
+	trial? if exit then
+	27 current-action b!
+	0 current-target b!
+	255 current-instrument b!
+	report-failure
+	eat-alone
+	bilbo-dies ;
+
+\ dawn in the trolls' clearing (A865): the trolls die and turn to stone, room 5 gets its daylight script and picture colours, "day dawns."
+: dawn ( -- )
+	trial? if exit then
+	71 kill
+	72 kill
+	7 0xC535 bit-clear
+	7 0xC547 bit-clear
+	0xB154 0xB9B4 w!
+	6 0xB9AC bit-clear
+	71 drop-all
+	72 drop-all
+	1 output-on b!
+	0xB1FD message
+	5 0xCC00 table-entry entry-value to picture
+	5 picture b!
+	0x28 picture 1+ b! ;
+
+\ the trolls talk to Bilbo in room 5 (A8B1)
+: trolls-talk ( -- )
+	bilbo-room b@ 5 = not if exit then
+	trial? if exit then
+	current-actor b@ 71 = if 0xB12A else 0xB13E then speak ;
+
+\ Elrond gives Bilbo lunch (A8D9)
+: elrond-gives-lunch ( -- )
+	start-room b@ bilbo-room b@ = not if exit then
+	0xC552 to lunch
+	lunch 16 + b@ 0 = not if lunch 1+ b@ 65 = not if exit then then
+	trial? if exit then
+	start-room b@ lunch 16 + b!
+	65 lunch 1+ b!
+	38 current-target b!
+	0 current-instrument b!
+	29 current-action b!
+	lunch target-record w!
+	bilbo instrument-record w!
+	report-failure
+	give ;
+
+\ === timer routines ===
+
+\ timer 1: the web is mended (A950)
+: web-mended ( -- )
+	0xC0F5 to web
+	3 web 7 + bit-clear
+	5 web 7 + bit-clear
+	web 5 + b@ 2 * 255 bit-and web 5 + b!
+	0x0627 0xC0FF w! ;
+
+\ timer 9 expires: the side door vanishes unless opened (A968)
+: side-door-vanishes ( -- )
+	5 side-door-flags bit? if exit then
+	0xC9B2 b@ 0xC9B3 b!
+	7 side-door-flags bit-clear
+	bilbo-location b@ 42 = not if exit then
+	0xB196 message ;
+
+\ timer 9 tick: the side door appears (A985)
+: side-door-appears ( -- )
+	7 side-door-flags bit-set
+	bilbo-location b@ 42 = not if exit then
+	0xB169 message ;
+
+\ timer 6: the ring comes off whoever holds it (A9D4); the holder's record becomes the actor's
+: ring-comes-off ( -- )
+	ring 1+ b@ to holder
+	holder 255 = if exit then
+	holder object-record to record
+	record actor-record w!
+	7 record 7 + bit? 0= if take-off-ring then ;
+
+\ timer 5 tick: the magic door opens and an elf sweeps past (A9A7)
+: elf-sweeps-past ( -- )
+	5 magic-door-flags bit-set
+	0xAF29 near-magic-door
+	0xB005 near-magic-door
+	ring-comes-off ;
+
+\ timer 5 expires: the magic door closes (A9C9)
+: magic-door-closes ( -- )
+	5 magic-door-flags bit-clear
+	0xAF31 near-magic-door ;
+
+\ DRINK the wine (A9ED): Bilbo is drunk for timer 7
+: drink-wine ( -- )
+	current-actor b@ if exit then
+	1 drunk b!
+	0xC9A4 b@ 0xC9A5 b! ;
+
+\ timer 7: sober again (A9FF)
+: sober ( -- ) 0 drunk b! ;
+
+\ timer 2: smothered in the spiders' web in room 26 (AA04)
+: smothered ( -- )
+	bilbo-location b@ 26 = not if exit then
+	0xAFEF message
+	bilbo-dies ;
+
+\ something drops from above and stings (AA3E)
+: stung ( -- )
+	0xB211 message
+	bilbo-dies ;
+
+\ the eyes tick (AA13): Bilbo may stay or cross to the other forest room, anything else is fatal
+: eyes-stare ( -- )
+	0xB203 message
+	bilbo-location b@ to room
+	room eyes-room b@ = if exit then
+	eyes-room b@ 2 = if 3 else 2 then room = if exit then
+	stung ;
+
+\ the eyes expire (AA2E): still in the forest is fatal
+: eyes-expire ( -- )
+	bilbo-location b@ to room
+	room 2 = room 3 = or 0= if exit then
+	0xB203 message
+	stung ;
+
+\ === room-entry routines ===
+
+\ Beorn's house wakes the butler (C693)
+: wake-butler ( -- )
+	3 0xC326 bit? if exit then
+	66 0xC9D6 b!
+	7 0xC326 bit-set ;
+
+\ the spiders' place starts timer 2 (C6A1), the bog timer 4 (C6A8)
+: spiders-timer ( -- ) 0xC981 b@ 0xC982 b! ;
+: bog-timer ( -- ) 0xC98F b@ 0xC990 b! ;
+
+\ the cellar starts timer 9 at 3 and wakes the dragon and Bard (C6AF)
+: wake-cellar ( -- )
+	3 0xC9B3 b!
+	3 0xC02A bit? 0= if 60 0xC9F2 b! then
+	3 0xC3B9 bit? if exit then
+	70 0xC9EB b! ;
+
+\ the forest starts the eyes timer from the room entered (C6CC)
+: forest-timer ( -- )
+	destination-room b@ eyes-room b!
+	0xC9AB b@ 0xC9AC b! ;
+
+\ the forest river outside a barrel is fatal (C6D9)
+: forest-river ( -- )
+	0xC00C b@ 19 = if exit then
+	describe-arrival
+	0xB15F message
+	bilbo-dies ;
+
+\ === the end of a turn ===
+
+\ the treasure in the chest wins the game (A8CA)
+: win-check ( -- )
+	0xC4BD b@ 37 = not if exit then
+	0xB2CB message
+	:won throw ;
+
+\ a timer's tick routine runs while its count is at or below its threshold (965C)
+: timer-tick ( timer -- )
+	| timer |
+	timer 4 + b@ to threshold
+	threshold 0 = if exit then
+	timer 1+ b@ threshold > if exit then
+	timer 5 + w@ run-routine ;
+
+\ the end of a turn (9611): the win check, the characters' turns, then each running timer counts down; only one may expire in a turn, another reaching 0 waits at 1
+: end-turn ( -- )
+	win-check
+	run-characters
+	0 timer-fired b!
+	1 would-work b!
+	1 really b!
+	timer-table to timer
+	begin timer b@ 255 = not while
+		timer 1+ b@ to remaining
+		remaining 0 = not if
+			remaining 1- to remaining
+			remaining timer 1+ b!
+			remaining 0 = if
+				timer-fired b@ to fired
+				fired timer 1+ b!
+				fired 1 = if
+					timer timer-tick
+				else
+					fired 1+ timer-fired b!
+					timer 2 + w@ run-routine
+				then
+			else
+				timer timer-tick
+			then
+		then
+		timer 7 + to timer
+	repeat
+	1 output-on b! ;
+
+later-words ' end-turn :end-turn ! drop
+
+\ === registration ===
+
+' drink-water 0xA174 define-routine
+' tie-to 0xA178 define-routine
+' untie 0xA1E4 define-routine
+' swim 0xA1FD define-routine
+' burn 0xA232 define-routine
+' swim-black-river 0xA240 define-routine
+' drink-black-water 0xA258 define-routine
+' side-door-key 0xA260 define-routine
+' red-door-key 0xA264 define-routine
+' rock-door-key 0xA268 define-routine
+' wrong-key 0xA288 define-routine
+' open-side-door 0xA28E define-routine
+' open-crack 0xA298 define-routine
+' web-broken 0xA2A7 define-routine
+' wear-ring 0xA2C0 define-routine
+' take-off-ring 0xA2EC define-routine
+' capture 0xA316 define-routine
+' goblin-returns 0xA36A define-routine
+' open-goblins-door 0xA3E7 define-routine
+' close-goblins-door 0xA400 define-routine
+' given-something 0xA406 define-routine
+' whats-this 0xA41C define-routine
+' small-talk 0xA425 define-routine
+' thrains-key 0xA443 define-routine
+' greet 0xA44C define-routine
+' open-magic-door 0xA45D define-routine
+' climb-out 0xA468 define-routine
+' climb-into 0xA486 define-routine
+' warg-howls 0xA4CA define-routine
+' barrel-thrown 0xA4DB define-routine
+' barrel-floats 0xA4F4 define-routine
+' where-is-thief 0xA539 define-routine
+' thorin-idles 0xA550 define-routine
+' work-trap-door 0xA577 define-routine
+' dragon-comes 0xA591 define-routine
+' dragon-speaks 0xA5BB define-routine
+' dragon-wakes 0xA5D5 define-routine
+' examine-magic-door 0xA614 define-routine
+' key-shatters 0xA631 define-routine
+' work-window 0xA655 define-routine
+' use-window 0xA678 define-routine
+' sinking 0xA69E define-routine
+' read-map 0xA6B8 define-routine
+' throw-rope-across 0xA708 define-routine
+' pull-rope 0xA76A define-routine
+' boat-lurches 0xA792 define-routine
+' bard-remembers 0xA79F define-routine
+' gollum-asks 0xA7C6 define-routine
+' gollum-waits 0xA7EA define-routine
+' gollum-mutters 0xA81A define-routine
+' eats-bilbo 0xA842 define-routine
+' dawn 0xA865 define-routine
+' trolls-talk 0xA8B1 define-routine
+' elrond-gives-lunch 0xA8D9 define-routine
+' jump-onto-barrel 0xA91B define-routine
+' web-mended 0xA950 define-routine
+' side-door-vanishes 0xA968 define-routine
+' side-door-appears 0xA985 define-routine
+' side-door-closed 0xA996 define-routine
+' elf-sweeps-past 0xA9A7 define-routine
+' magic-door-closes 0xA9C9 define-routine
+' ring-comes-off 0xA9D4 define-routine
+' drink-wine 0xA9ED define-routine
+' sober 0xA9FF define-routine
+' smothered 0xAA04 define-routine
+' eyes-stare 0xAA13 define-routine
+' stung 0xAA22 define-routine
+' eyes-expire 0xAA2E define-routine
+' wake-butler 0xC693 define-routine
+' spiders-timer 0xC6A1 define-routine
+' bog-timer 0xC6A8 define-routine
+' wake-cellar 0xC6AF define-routine
+' forest-timer 0xC6CC define-routine
+' forest-river 0xC6D9 define-routine

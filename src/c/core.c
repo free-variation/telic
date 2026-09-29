@@ -535,6 +535,7 @@ int object_new_continuation(Interpreter *interp, const Val *frames, int return_l
 	obj->continuation.resume_ip = resume_ip;
 	obj->continuation.local_base_offset = -1;
 	obj->continuation.capture_generation = vocab.forget_generation;
+	obj->continuation.capture_depth = interp->dsp;
 	MALLOC_OR_FAIL_RETURNING_CLEANUP(interp, obj->continuation.return_slice, sizeof(Val) * (size_t)MAX(return_len, 1),
 			{ arena_free_object(obj); arena.objects[slot] = NULL; }, -1);
 	memcpy(obj->continuation.return_slice, frames, sizeof(Val) * (size_t)return_len);
@@ -1508,15 +1509,7 @@ void run_tick_hook(Interpreter *interp) {
 	}
 }
 
-void run_inner(Interpreter *interp, int floor) {
-	if (interp->call_depth >= MAX_CALL_DEPTH) {
-		fail(interp, "call stack too deep (runaway recursion via execute/resume/amb?)");
-		return;
-	}
-	interp->call_depth++;
-	int saved_floor = interp->run_floor;
-	interp->run_floor = floor;
-
+static void run_until_stopped(Interpreter *interp, int floor) {
 	while (interp->running && !interp->error_flag) {
 		if (interp->unwinding) {
 			if (interp->rsp <= floor)
@@ -1562,6 +1555,20 @@ void run_inner(Interpreter *interp, int floor) {
 		cfa_handler handler = (cfa_handler)vocab.dict[interp->ip++];
 		handler(interp, vocab.dict + interp->ip, interp->data_stack + interp->dsp);
 	}
+}
+
+void run_inner(Interpreter *interp, int floor) {
+	if (interp->call_depth >= MAX_CALL_DEPTH) {
+		fail(interp, "call stack too deep (runaway recursion via execute/resume/amb?)");
+		return;
+	}
+	interp->call_depth++;
+	int saved_floor = interp->run_floor;
+	interp->run_floor = floor;
+
+	do
+		run_until_stopped(interp, floor);
+	while (interp->error_flag && catch_interpreter_error(interp, floor));
 
 	interp->run_floor = saved_floor;
 	interp->call_depth--;
@@ -6001,7 +6008,8 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "curry", p_curry, 0);
 	define_primitive(interp, "2curry", p_2curry, 0);
 	define_primitive(interp, "ncurry", p_ncurry, 0);
-	define_primitive(interp, "(execute-catching)", p_execute_catching, 4);
+	define_primitive(interp, "(catch-prompt)", p_catch_prompt, 4);
+	define_primitive(interp, "(catch-end)", p_catch_end, 4);
 	define_primitive(interp, "map", p_map, 0);
 	define_primitive(interp, "each", p_each, 0);
 	define_primitive(interp, "nmap", p_nmap, 0);

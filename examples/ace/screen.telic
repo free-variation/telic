@@ -1,0 +1,241 @@
+\ The Jupiter Ace simulation: the host side. A 256 by 192 window drawn from
+\ the video RAM and the character set each frame, the host keyboard turned
+\ into the Ace's keys, the 50 Hz frame counter, and the beeper on the
+\ synthesizer. The machine runs inside reset and yields to the frame loop
+\ here. Loaded after editing.telic.
+
+\ === the picture ===
+
+0xFFFFFF constant white
+0x000000 constant black
+
+\ the codes the window shows in each of the 768 cells, and the character set bytes the glyphs were made from
+768 null-table to shown-codes
+1024 null-table to shown-character-bytes
+256 null-table to glyphs
+
+\ a character's 8 by 8 glyph from the character set, inverted for codes from 128
+: make-glyph ( code -- bitmap )
+	| code |
+	code 127 bit-and 8 * character-ram + to rows
+	code 128 >= to inverse
+	8 8 0-matrix to glyph
+	0 8 1 do row
+		memory rows row + real-address @e to bits
+		0 8 1 do column
+			bits 7 column - rshift 1 bit-and inverse bit-xor if white else black then to colour
+			glyph colour row 8 * column + !e drop
+		loop
+	loop
+	glyph ;
+
+\ glyphs remade for each character whose bytes in the character set changed; 1 when any did
+: refresh-glyphs ( -- changed )
+	0 to changed
+	0 128 1 do code
+		0 to differs
+		0 8 1 do row
+			code 8 * row + to index
+			memory character-ram index + real-address @e to byte
+			shown-character-bytes index @i byte = not if
+				shown-character-bytes byte index !i drop
+				1 to differs
+			then
+		loop
+		differs if
+			glyphs code make-glyph code !i drop
+			glyphs code 128 + make-glyph code 128 + !i drop
+			1 to changed
+		then
+	loop
+	changed ;
+
+\ draw each cell whose code changed, or every cell when the glyphs changed
+: draw-screen ( -- )
+	refresh-glyphs to redraw-all
+	0 768 1 do cell
+		memory video-ram cell + @e to code
+		redraw-all shown-codes cell @i code = not or if
+			shown-codes code cell !i drop
+			glyphs code @i cell 31 bit-and 8 * cell 5 rshift 8 * draw-bitmap
+		then
+	loop ;
+
+\ === the keyboard ===
+
+variable repeat-key
+null to repeat-key
+variable repeat-time
+
+\ the host keys that are Ace edit keys, with their codes: cursor keys, DELETE, DELETE LINE, ENTER, CAPS LOCK, GRAPHICS, INVERSE VIDEO
+[ [ :left 1 ] [ :right 3 ] [ :up 7 ] [ :down 9 ] [ :backspace 5 ] [ :delete 10 ] [ :return 13 ] [ :f1 2 ] [ :f2 4 ] [ :f3 8 ] ] to edit-keys
+
+\ an Ace key reaches the editor and KEYCOD
+: press-key ( code -- )
+	| code |
+	code key-code b!
+	code editor-key ;
+
+\ edit keys pressed this frame, and the held one repeated after half a second, ten times a second
+: read-edit-keys ( -- )
+	| ^repeat-key ^repeat-time |
+	0 edit-keys size 1 do k
+		edit-keys k @i to pair
+		pair 0 @i key-pressed? if
+			pair 1 @i press-key
+			pair 0 @i to repeat-key
+			now 0.5 + to repeat-time
+		then
+	loop
+	repeat-key null? if exit then
+	repeat-key key-down? not if null to repeat-key exit then
+	now repeat-time < if exit then
+	now 0.1 + to repeat-time
+	edit-keys ( pair | pair 0 @i repeat-key = ) find-first 1 @i press-key ;
+
+\ the host key a typed character comes from, for INKEY while it is held; null for the others
+: key-of-character ( code -- key )
+	| code |
+	code 32 = if :space exit then
+	code 97 >= code 122 <= and if code 1 array codepoints>string string>symbol exit then
+	code 65 >= code 90 <= and if code 32 + 1 array codepoints>string string>symbol exit then
+	code 48 >= code 57 <= and if code 1 array codepoints>string string>symbol exit then
+	null ;
+
+\ the Ace keyboard's half-rows in the order of the port bits (FE, FD, FB, F7, EF, DF, BF, 7F), each key's host key from bit 0 up; :ace-shift and :ace-symbol stand for the two shift keys
+[ [ :ace-shift :ace-symbol :z :x :c ]
+  [ :a :s :d :f :g ]
+  [ :q :w :e :r :t ]
+  [ :1 :2 :3 :4 :5 ]
+  [ :0 :9 :8 :7 :6 ]
+  [ :p :o :i :u :y ]
+  [ :return :l :k :j :h ]
+  [ :space :m :n :b :v ]
+] to keyboard-rows
+
+\ the host keys that press an Ace key besides its own: the cursor keys are shifted 5 to 8 on the Ace, backspace shifted 0
+[ [ :5 :left ] [ :6 :up ] [ :7 :down ] [ :8 :right ] [ :0 :backspace ] ] to shifted-keys
+
+\ whether an Ace key is held: its host key, one of the host keys standing for it, or for SHIFT and SYMBOL SHIFT the host modifiers and the keys that are shifted on the Ace
+: ace-key-held? ( key -- flag )
+	| key |
+	key :ace-shift = if
+		:shift key-down? shifted-keys ( pair | pair 1 @i key-down? ) any? or exit
+	then
+	key :ace-symbol = if :control key-down? :alt key-down? or exit then
+	key key-down? if 1 exit then
+	shifted-keys ( pair | pair 0 @i key = pair 1 @i key-down? and ) any? ;
+
+\ the held keys of a half-row as bits 0 to 4
+: held-row-bits ( row -- bits )
+	| row |
+	keyboard-rows row @i to keys
+	0 to bits
+	0 5 1 do k keys k @i ace-key-held? if bits 1 k lshift bit-or to bits then loop
+	bits ;
+
+' held-row-bits embodies keyboard-row
+
+variable typed-key
+null to typed-key
+variable typed-until
+
+\ the key INKEY reads: an edit key's code while it is held (the cursor keys 1, 7, 9 and 3 of the ROM's shifted keys), else the last typed character while its key is held, a typed symbol for a tenth of a second, 13 while ENTER is held
+: update-held-key ( code -- )
+	| code ^held-key ^typed-key ^typed-until |
+	edit-keys ( pair | pair 0 @i key-down? ) find-first to held-edit-key
+	held-edit-key null? not if held-edit-key 1 @i to held-key exit then
+	code if
+		code to held-key
+		code key-of-character to typed-key
+		now 0.1 + to typed-until
+		exit
+	then
+	:return key-down? if 13 to held-key exit then
+	typed-key null? not if typed-key key-down? if exit then then
+	now typed-until < if exit then
+	0 to held-key ;
+
+\ typed characters into the editor, the edit keys, BREAK on escape
+: read-keys ( -- )
+	| ^break-pressed |
+	:escape key-pressed? if 1 to break-pressed then
+	typed-text string>codepoints to codes
+	0 to last-code
+	codes ( code | code 32 >= code 127 < and if code press-key then ) each
+	codes size 0 > if codes last to last-code then
+	last-code 32 >= last-code 127 < and not if 0 to last-code then
+	read-edit-keys
+	last-code update-held-key ;
+
+\ === the beeper and the clock ===
+
+{ :oscillators [ { :wave :pulse :attack 0.001 :decay 0.01 :sustain 1 :release 0.005 } ] :level 0.15 } :beeper instrument-patch!
+
+variable tone-pitch
+null to tone-pitch
+variable tone-until
+
+\ BEEP's tone: a square wave at the frequency for the milliseconds given
+: start-tone ( hz milliseconds -- )
+	| hz milliseconds ^tone-pitch ^tone-until |
+	tone-pitch null? not if tone-pitch :beeper note-off then
+	hz 440 / log2 12 * 69 + 0 127 clamp to tone-pitch
+	tone-pitch 1 :beeper note-on
+	now milliseconds 1000 / + to tone-until ;
+
+' start-tone embodies play-tone
+
+\ BEEP's tone ended when BEEP's time is up
+: finish-tone ( -- )
+	| ^tone-pitch |
+	tone-pitch null? if exit then
+	tone-pitch :beeper note-off
+	null to tone-pitch ;
+
+' finish-tone embodies stop-tone
+
+\ the tone ended once its time is up, when the machine stopped before BEEP did
+: end-tone ( -- )
+	tone-pitch null? if exit then
+	now tone-until < if exit then
+	finish-tone ;
+
+variable clock-start
+variable frames-counted
+
+\ FRAMES (3C2B), four bytes counted up 50 times a second
+: count-frames ( -- )
+	| ^frames-counted |
+	now clock-start - 50 * truncate to due
+	begin frames-counted due < while
+		++ frames-counted
+		frames w@ 1+ to low
+		low 65536 = if frames 2 + w@ 1+ frames 2 + w! 0 to low then
+		low frames w!
+	repeat ;
+
+\ === the frame loop ===
+
+\ the Ace with top as RAMTOP, from switching on
+: machine ( top -- ) reset cold-start ace-main ;
+
+\ the window's work each frame: the keys, the clock, the tone, the picture
+: frame-duties ( -- ) read-keys count-frames end-tone draw-screen ;
+
+\ run the Ace in the window until it is closed; each frame the machine runs for up to 12 ms
+: run-ace ( top -- )
+	| top ^clock-start ^frames-counted ^yield-deadline |
+	256 192 screen-size
+	3 screen-zoom
+	black paper
+	cls
+	audio-on
+	now to clock-start
+	0 to frames-counted
+	top machine to continuation
+	begin
+		' frame-duties screen-frame
+		now 0.012 + to yield-deadline
+		continuation resume to continuation
+	again ;

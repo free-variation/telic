@@ -130,7 +130,7 @@ error: no key :z
 in delete-at
 error: delete-at: expected a symbol or path (array of symbols); got a float
 in delete-at
-[ :b 2 :x 1 ] 
+[ :x 1 :b 2 ] 
 [ :b 1 ] 
 [ :b 1 ] 
 error: no key :z

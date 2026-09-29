@@ -8,6 +8,7 @@ struct Interpreter;
 typedef int (*MainBody)(int argc, char **argv);
 
 int platform_run_main(int argc, char **argv, MainBody body);
+void platform_exit(int status);
 
 #define unlikely(condition) __builtin_expect(!!(condition), 0)
 

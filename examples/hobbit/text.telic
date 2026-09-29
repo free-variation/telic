@@ -1,0 +1,406 @@
+\ The Hobbit: the text. Characters go to the story window or the lower
+\ window, words come out of the dictionary with their articles and verb
+\ endings, messages are small programs of words and control codes, and the
+\ tokeniser turns a typed line into dictionary tokens. Loaded after
+\ memory.telic; the routine addresses are those of the annotated disassembly.
+
+\ === the windows ===
+
+\ the story window's and the lower window's finished lines, the lines being built, and the room left on them
+{ :story [ ] :story-line "" :story-left 42 :lower [ ] :lower-line "" :lower-left 32 :story-columns 42 :lower-columns 32 } to windows
+
+\ a word run with each message address before it prints, for the sound
+{ :message ( drop ) } to text-hooks
+
+0x7692 constant indent
+0x7693 constant line-started
+0x70D6 constant definite
+
+\ the story window's width in characters
+: story-columns ( -- n ) windows :story-columns @ ;
+
+\ end the story window's line
+: story-newline ( -- )
+	windows :story @ windows :story-line @ add-last! drop
+	windows "" :story-line ! story-columns :story-left ! drop ;
+
+\ end the lower window's line
+: lower-newline ( -- )
+	windows :lower @ windows :lower-line @ add-last! drop
+	windows "" :lower-line ! windows :lower-columns @ :lower-left ! drop ;
+
+\ add a character to the story window's line
+: story-append ( char -- )
+	| char |
+	windows windows :story-line @ char 1 array-of codepoints>string "{1}{0}" format :story-line ! drop
+	windows windows :story-left @ 1- :story-left ! drop ;
+
+\ remove the last character of a window's line
+: rub-out ( line-key left-key -- )
+	| line-key left-key |
+	windows line-key @ to line
+	line size 0 = if exit then
+	windows line 0 line size 1- substring line-key ! drop
+	windows windows left-key @ 1+ left-key ! drop ;
+
+\ a character in the story window (7694): an indent at the start of a line;
+\ letters lower case except the first after a full stop or new line; a
+\ full line wraps
+: story-char ( char -- )
+	| char |
+	line-started b@ 0 = indent b@ 0 > and if
+		0 indent b@ 1 do k 32 story-append loop
+	then
+	char 13 = if
+		1 capital-next b!
+		0 line-started b!
+		story-newline
+		exit
+	then
+	char 8 = if :story-line :story-left rub-out exit then
+	char 65 >= char 90 <= and if char 32 bit-or to char then
+	capital-next b@ 0 = not char 97 >= and char 122 <= and if char 223 bit-and to char 0 capital-next b! then
+	char 46 = if capital-next b@ 1+ capital-next b! then
+	char story-append
+	char line-started b!
+	windows :story-left @ 0 <= if 0 line-started b! story-newline then ;
+
+\ a character in the lower window (75AD): always upper case, 32 to a line
+: lower-char ( char -- )
+	| char |
+	char 13 = if lower-newline exit then
+	char 8 = if :lower-line :lower-left rub-out exit then
+	char 97 >= char 122 <= and if char 95 bit-and to char then
+	windows windows :lower-line @ char 1 array-of codepoints>string "{1}{0}" format :lower-line ! drop
+	windows windows :lower-left @ 1- :lower-left ! drop
+	windows :lower-left @ 0 <= if lower-newline then ;
+
+\ output is on (756B): the command really happens and Bilbo can see it
+: output? ( -- flag ) really b@ output-on b@ and 0 = not ;
+
+\ print a character (7580): to the lower or the story window; after drinking the wine every s is followed by an h
+: print-char ( char -- )
+	| char |
+	output? 0= if exit then
+	lower-window b@ if char lower-char exit then
+	char story-char
+	drunk b@ char 83 = char 115 = or and if 72 story-char then ;
+
+\ print a new line (7578)
+: newline ( -- ) 13 print-char ;
+
+\ === words ===
+
+\ the letters of the dictionary word at an address, and the address after it (the unpacking rule of 74B8)
+: word-letters ( address -- letters )
+	| address |
+	[ ] to letters
+	address to position
+	0 to count
+	begin
+		position b@ 31 bit-and to code
+		code 0 = if letters exit then
+		count 1+ to count
+		letters code 96 + add-last! drop
+		7 position bit? to last
+		position 1+ to position
+		last 0= count 2 = or count 3 = if 7 position 2 - bit? else 0 then or
+	while
+	repeat
+	letters ;
+
+\ print a dictionary word (74B8): the flag nibble decides the verb ending (0x50 never, 0x40 always, 0x10 if the target is not Bilbo, else if the actor is not Bilbo), a space goes before it unless it starts a line, and it wraps whole; nibble 0x70 capitalises it
+: print-word ( reference -- )
+	| reference |
+	reference 4095 bit-and to offset
+	offset 0 = if exit then
+	reference 8 rshift 240 bit-and to flags
+	0x6000 offset + to address
+	address word-letters to letters
+	flags 0x50 = if 0 else flags 0x40 = if 1 else flags 0x10 = if current-target b@ else current-actor b@ then 0 = not then then to ending
+	ending 7 address 1+ bit? and if
+		address 2 + b@ 224 bit-and 3 rshift 0xB60F + to table
+		0 to ended
+		0 4 1 do k
+			table k + b@ to letter
+			letter 0 = if 1 to ended then
+			ended 0= if letters letter add-last! drop then
+		loop
+	then
+	lower-window b@ if 1 else line-started b@ 0 = not then if 32 print-char then
+	lower-window b@ if windows :lower-left @ else windows :story-left @ then letters size < if
+		capital-next b@ to saved
+		newline
+		saved capital-next b!
+	then
+	flags 0x70 = if 1 capital-next b! then
+	letters ( print-char ) each ;
+
+\ print the article for a word (7436): names get none, only a capital letter (YOU not even that); others THE, A, AN or SOME by their flags, always THE when a definite article is wanted
+: print-article ( reference -- )
+	| reference |
+	reference 8 rshift to high
+	high 128 bit-and if
+		reference 4095 bit-and 0x07AC = if exit then
+		1 capital-next b!
+		exit
+	then
+	lower-window b@ definite b@ or if 0xAC29 else 0xAC21 then high 3 rshift 30 bit-and + w@ print-word ;
+
+\ print a word with an article if one is wanted (746F)
+: print-word-with-article ( reference -- )
+	| reference |
+	article-wanted b@ if reference print-article then
+	reference 4095 bit-and print-word ;
+
+\ print the word at an address in a list (74B1)
+: print-listed-word ( address -- ) w@ 4095 bit-and print-word ;
+
+\ print a noun with its adjectives from a word list (9E1F): the noun's article, the adjectives, then the noun; when an article is wanted, just the noun with its article
+: print-phrase ( address -- )
+	| address |
+	article-wanted b@ 0 = if
+		address w@ print-article
+		address 2 + w@ print-word
+		address 4 + w@ print-word
+	then
+	address w@ 0 = not if address w@ print-word-with-article then ;
+
+\ print an object's name from its record (9E10)
+: print-object ( record -- ) 8 + print-phrase ;
+
+\ the address of an object's word list (71D9)
+: object-words ( object -- address ) object-record 8 + ;
+
+\ the address of a room's name words (71CC)
+: room-words ( room -- address ) room-record 2 + ;
+
+\ print the name of object A (747F): SOMEONE for 0xFF
+: print-name ( object -- )
+	| object |
+	object 255 = if 0x0AE3 print-word exit then
+	object object-words print-phrase ;
+
+\ === messages ===
+
+[ ] to message-parameters
+
+\ push a parameter for the next message, as the program pushed them on the stack
+: parameter ( value -- ) message-parameters swap add-last! drop ;
+
+\ the last parameter pushed, taken off
+: take-parameter ( -- value ) message-parameters remove-last! ;
+
+\ end a message (733F/7342): flag bit 6 a new line, else bit 4 a full stop and a new line
+: end-message ( flags -- )
+	| flags |
+	flags 64 bit-and if newline exit then
+	flags 16 bit-and if 46 print-char newline then ;
+
+\ HIS or YOUR for an object (73F3)
+: his-or-your ( object -- reference ) 0 = if 0x0BEA else 0x0990 then ;
+
+\ an object's name, then IS or ARE (7408)
+: name-and-verb ( object article -- )
+	| object article |
+	article article-wanted b!
+	object print-name
+	object 0 = if 0x0065 else 0x039F then print-word ;
+
+\ the target or instrument by its number, as a room's name when the flag says it is a room (73C5)
+: print-target-like ( object room-flag -- )
+	| object room-flag |
+	room-flag b@ if object room-words print-phrase else object object-words print-phrase then ;
+
+\ one control code of a message (728C table), with the message pointer; the new pointer
+: message-code ( code pointer -- pointer' )
+	| code pointer |
+	code 0 = if 0 article-wanted b! take-parameter to words words 0 = not if words print-phrase then pointer exit then
+	code 1 = if take-parameter print-word pointer exit then
+	code 2 = if pointer 1+ b@ dup 128 >= if 256 - then pointer + exit then
+	code 3 = if instrument-noun w@ print-word pointer exit then
+	code 4 = if 1 article-wanted b! take-parameter print-word-with-article pointer exit then
+	code 6 = if 0 article-wanted b! current-actor b@ print-name pointer exit then
+	code 7 = if 1 article-wanted b! current-target b@ target-is-room print-target-like pointer exit then
+	code 8 = if 8 print-char pointer exit then
+	code 9 = if 1 article-wanted b! current-instrument b@ instrument-is-room print-target-like pointer exit then
+	code 12 = if current-actor b@ his-or-your print-word pointer exit then
+	code 13 = if 13 print-char 0 capital-next b! pointer exit then
+	code 14 = if current-target b@ his-or-your print-word pointer exit then
+	code 16 = if current-actor b@ 0 name-and-verb pointer exit then
+	code 17 = if current-target b@ 1 name-and-verb pointer exit then
+	code 19 = if take-parameter 1 name-and-verb pointer exit then
+	pointer ;
+
+\ interpret the message program at an address (72E8): 2-byte word references, one-byte abbreviations, literal characters and control codes; references with flag 2, 3 or 6 and codes 0x14-0x16 end it
+: run-message ( address -- )
+	| address |
+	address to pointer
+	begin
+		pointer b@ to byte
+		byte 128 >= if
+			byte 127 bit-and to high
+			high 256 * pointer 1+ b@ + to reference
+			pointer 1+ to pointer
+			high 240 bit-and to flags
+			flags 0x30 = flags 0x20 = or flags 0x60 = or if reference print-word flags end-message exit then
+			reference print-word
+		else
+			byte 96 >= if
+				0xAC31 byte 96 - 2 * + to entry
+				entry 1+ b@ 0x50 + 255 bit-and 256 * entry b@ + print-word
+			else
+				byte 32 >= if
+					byte print-char
+				else
+					byte 0x14 = if 0x60 end-message exit then
+					byte 0x15 = if 0x30 end-message exit then
+					byte 0x16 = if exit then
+					byte 11 = if
+						pointer 1+ to pointer
+						pointer b@ dup 128 >= if 256 - then pointer + run-message
+					else
+						byte pointer message-code to pointer
+					then
+				then
+			then
+		then
+		pointer 1+ to pointer
+	again ;
+
+\ print a message (72D4): printing during a trial records that the action would not work
+: message ( address -- )
+	really b@ 0 = if 0 would-work b! then
+	dup text-hooks :message @ execute
+	run-message ;
+
+\ print a message, only trying commands inside a quotation (72CA)
+: quoted-message ( address -- )
+	quote-level b@ if 0 really b! then
+	message ;
+
+\ print "I cannot do that." (72C5)
+: cannot-do ( -- ) 0xAEB2 message ;
+
+\ print a message and end the sentence (9752)
+: sentence ( address -- ) message 46 print-char newline ;
+
+\ a character says a message (A113): <actor> says "<message>".
+: speak ( address -- )
+	| address |
+	0xAEFB message
+	1 capital-next b!
+	address message
+	0xAF01 message ;
+
+\ === the tokeniser ===
+
+0x7093 constant token-buffer
+
+\ the letters of a dictionary entry, its byte length and its synonym target, by the tokeniser's rule (6F7F): bit 7 ends the word except in the first two bytes, or the third after a second byte with bit 7
+: entry-letters ( address -- letters next )
+	| address |
+	[ ] to letters
+	address to position
+	0 to bytes
+	begin
+		position b@ 31 bit-and to code
+		code 0 = not if letters code add-last! drop then
+		position 1+ to position
+		bytes 1+ to bytes
+		7 position 1- bit? 0= bytes 2 = or bytes 3 = if 7 position 2 - bit? else 0 then or
+	while
+	repeat
+	6 position 1- bit? if position 2 + to position then
+	letters position ;
+
+\ the first letters of two lists agree over the shorter length (6FB1)
+: letters-agree? ( typed dictionary -- flag )
+	| typed dictionary |
+	typed size dictionary size min2 to length
+	0 length 1 do k
+		typed k @i dictionary k @i = not if 0 exit then
+	loop
+	1 ;
+
+\ the class and token of the dictionary word at an address (6EE2): a synonym stands for its word; the class from bits 5 and 6 of the first two bytes
+: accept-word ( address -- class token )
+	| address |
+	address to position
+	0 to count
+	begin
+		position 1+ to position
+		count 1+ to count
+		7 position 1- bit? 0= count 2 = or count 3 = if 7 position 2 - bit? else 0 then or
+	while
+	repeat
+	6 position 1- bit? if position w@ 0x6000 + to address then
+	address b@ 1 lshift address b@ 7 rshift bit-or 192 bit-and address 1+ b@ 1 rshift address 1+ b@ 7 lshift bit-or 48 bit-and + to class
+	class address 0x6000 - 4095 bit-and class 8 lshift bit-or ;
+
+\ look a typed word up in the dictionary (6E8E): an abbreviation matches the first word it begins; extra letters after a word of four or more letters are ignored unless the next word fits better; the class and token, or 0xD0 for an unknown word
+: look-up ( typed -- class token )
+	| typed |
+	typed size 0 = if 0xD0 0 exit then
+	typed 0 @i to letter
+	letter 2 * 0x6000 + w@ 0x6000 + to candidate
+	begin
+		candidate b@ 31 bit-and letter = not if 0xD0 0 exit then
+		candidate entry-letters to following to letters
+		typed letters letters-agree? if
+			letters size typed size >= if candidate accept-word exit then
+			letters size 4 >= if
+				following b@ 31 bit-and letter = not if candidate accept-word exit then
+				following entry-letters drop to peeked
+				typed peeked letters-agree? 0= if candidate accept-word exit then
+			then
+		then
+		following to candidate
+	again ;
+
+\ tokenise a typed line (6D19): tokens stored high byte first in the token
+\ buffer; a closing quote gets a full stop before it; the class 0xD0 and the
+\ unknown word, or 0 and an empty string when the line is complete
+: tokenise ( line -- class word )
+	| line |
+	line string>codepoints to codes
+	0 to position
+	token-buffer to slot
+	0 64 1 do k 0 token-buffer k + b! loop
+	0 to previous
+	begin
+		begin position codes size < if codes position @i 32 = else 0 then while position 1+ to position repeat
+		position codes size >= if
+			0xC0 slot b! 0 slot 1+ b!
+			0 "" exit
+		then
+		codes position @i to code
+		0 to token
+		code 46 = if 0xB0 to class position 1+ to position else
+		code 44 = if 0xA0 to class position 1+ to position else
+		code 34 = if 0x90 to class position 1+ to position else
+			[ ] to typed
+			position to start
+			begin position codes size < if codes position @i 64 >= else 0 then while
+				typed codes position @i 31 bit-and add-last! drop
+				position 1+ to position
+			repeat
+			position start = if position 1+ to position then
+			typed look-up to token to class
+			class 0xD0 = if
+				start to finish
+				begin finish codes size < if codes finish @i dup 32 = swap 34 = or not else 0 then while finish 1+ to finish repeat
+				0xD0 line start finish substring exit
+			then
+		then then then
+		class 0x90 = token 4095 bit-and 0 = and if
+			quote-level b@ 0 = if 1 quote-level b! else
+				quote-level b@ 1- quote-level b!
+				previous 240 bit-and dup 0xB0 = swap 0xA0 = or not if 0xB0 slot b! 0 slot 1+ b! slot 2 + to slot then
+			then
+		then
+		class token 8 rshift 15 bit-and bit-or slot b!
+		token 255 bit-and slot 1+ b!
+		slot b@ to previous
+		slot 2 + to slot
+	again ;

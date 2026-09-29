@@ -165,7 +165,7 @@ static void unify_outcome(Interpreter *interp, Val left, Val right, int unified)
 
 	if (unified) {
 		push(interp, deref(interp, left));
-	} else if (prompt_index(interp, PROMPT_CHOICE) >= 0) {
+	} else if (prompt_index(interp, 1 << PROMPT_CHOICE) >= 0) {
 		backtrack(interp);
 	} else {
 		char *lbuf = NULL, *rbuf = NULL;

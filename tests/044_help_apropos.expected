@@ -48,6 +48,7 @@ mean             ( mat -- f )             matrix.telic: the arithmetic mean of t
 ranks            ( v -- v' )              statistics.telic: 0-based midranks as nx1 — tied values share the mean of their sorted positions, NaNs rank last in index order
 row-means        ( mat -- mat' )          matrix.telic: r×1 of per-row means
 se               ( mat -- f )             statistics.telic: standard error of the mean (standard deviation ÷ √n)
+sprites-collide? ( a b -- flag )          graphics.telic: 1 when some screen pixel is solid in both sprites as drawn, solid meaning visible with transparency below 128; ignores :hitbox and :opacity. Stops at the first shared solid pixel
 summary          ( v/dataset -- fr )      statistics.telic: a vector answers { :min :q1 :median :mean :q3 :max } over its finite elements — a dimensioned vector in its unit, an instant vector (unit exactly s) with each statistic rendered as an ISO time string — plus :missing with the NaN count when any; an all-missing vector answers { :missing n }, an empty one { }. A dataset answers that frame per numeric column and { :distinct } (distinct non-missing cells, plus :missing) per text column, keyed by column name; any other column value errors naming the column
 : 2dup ( a b -- a b a b ) over over ;
 map ( arr/set/dataset xt -- arr )

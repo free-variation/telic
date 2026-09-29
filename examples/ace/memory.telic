@@ -1,0 +1,204 @@
+\ The Jupiter Ace simulation: the memory. A 64K byte image with the Ace's
+\ map - the ROM at 0000-1FFF, the video RAM at 2400 (also at 2000), the
+\ pad at 2701, the character set at 2C00 (also at 2800), the system
+\ variables at 3C00 and the dictionary, data stack and return stack above
+\ them - with the character set and the default environment copied from
+\ the ROM as the ROM's start-up routine does. The data stack lives in this
+\ memory, so programs that read it through SPARE work.
+
+0x2400 constant video-ram
+0x26E0 constant bottom-line
+0x2700 constant after-screen
+0x2701 constant pad
+0x2C00 constant character-ram
+
+0x3C18 constant ram-top
+0x3C1A constant hold-pointer
+0x3C1C constant screen-position
+0x3C1E constant line-start
+0x3C20 constant cursor-position
+0x3C22 constant line-end
+0x3C24 constant buffer-start
+0x3C26 constant key-code
+0x3C28 constant key-state
+0x3C2B constant frames
+0x3C2F constant x-coordinate
+0x3C30 constant y-coordinate
+0x3C31 constant current
+0x3C33 constant context
+0x3C35 constant vocabulary-link
+0x3C37 constant stack-bottom
+0x3C39 constant newest-length
+0x3C3B constant stack-top
+0x3C3D constant error-number
+0x3C3E constant flags
+0x3C3F constant number-base
+
+65536 1 0-matrix to memory
+[ ] to return-stack
+
+\ === the Ace's clock ===
+
+\ the Z80 runs 3.25 million cycles a second; a word of the Ace's Forth takes about 250 of them: NEXT (04B9) about 90, slow mode's checks (04C8) about 100, a simple word's own code the rest. Words that do more count more, from their ROM or machine code loops
+3250000 constant cycles-per-second
+250 constant cycles-per-word
+variable cycles-counted
+0 to cycles-counted
+
+\ the simulated Ace's speed as a multiple of a real one's
+variable speed-factor
+1 to speed-factor
+
+\ cycles spent on the Ace's clock
+: count-cycles ( n -- )
+	| n ^cycles-counted |
+	cycles-counted n + to cycles-counted ;
+
+\ a word's cycles
+: count-word ( -- ) cycles-per-word count-cycles ;
+
+\ === bytes and cells ===
+
+\ the address that holds a byte: 2000-23FF is 2400-27FF, 2800-2BFF is 2C00-2FFF, 3000-3BFF repeats 3C00-3FFF
+: real-address ( address -- address' )
+	| address |
+	address 65535 bit-and to address
+	address 0x2000 >= address 0x2400 < and if address 0x400 + exit then
+	address 0x2800 >= address 0x2C00 < and if address 0x400 + exit then
+	address 0x3000 >= address 0x3C00 < and if address 0x3FF bit-and 0x3C00 + exit then
+	address ;
+
+\ a byte of memory
+: b@ ( address -- byte ) real-address memory swap @e ;
+
+\ store a byte; the ROM ignores it
+: b! ( byte address -- )
+	| byte address |
+	address real-address to address
+	address 0x2000 < if exit then
+	memory byte 255 bit-and address !e drop ;
+
+\ a 16-bit cell, low byte first
+: w@ ( address -- cell ) dup b@ swap 1+ b@ 256 * + ;
+
+\ store a 16-bit cell, low byte first
+: w! ( cell address -- )
+	| cell address |
+	cell 65535 bit-and to cell
+	cell 255 bit-and address b!
+	cell 8 rshift address 1+ b! ;
+
+\ a cell as a signed number
+: signed ( cell -- n ) dup 32768 >= if 65536 - then ;
+
+\ a number as a cell
+: cell ( n -- cell ) truncate 65535 bit-and ;
+
+\ === errors ===
+
+\ ERROR n (RST 20): the number goes to ERR_NO and the running line stops
+: ace-error ( n -- )
+	error-number b!
+	:ace-abort throw ;
+
+\ === the data stack, in memory from STKBOT + 12 to SPARE ===
+
+\ push a cell; ERROR 1 when it would meet the return stack
+: push ( n -- )
+	| n |
+	stack-top w@ to top
+	top 2 + ram-top w@ return-stack size 2 * - 16 - > if 1 ace-error then
+	n cell top w!
+	top 2 + stack-top w! ;
+
+\ pop a cell; like the ROM's RST 18 it may reach into the 12 bytes below the stack, the check for underflow coming after the word (04C8)
+: pop ( -- cell )
+	stack-top w@ 2 - to top
+	top stack-top w!
+	top w@ ;
+
+\ whether the stack has gone below its bottom
+: stack-underflowed? ( -- flag )
+	memory stack-top @e memory stack-top 1+ @e 256 * +
+	memory stack-bottom @e memory stack-bottom 1+ @e 256 * + 12 + < ;
+
+\ pop a signed number
+: pop-signed ( -- n ) pop signed ;
+
+\ the cell at a place in the stack, 1 the top, without popping
+: stack-item ( place -- cell ) stack-top w@ swap 2 * - w@ ;
+
+\ the number of cells on the stack
+: stack-depth ( -- n ) stack-top w@ stack-bottom w@ 12 + - 2 / truncate ;
+
+\ push a flag as the Ace does, 1 or 0
+: push-flag ( flag -- ) if 1 else 0 then push ;
+
+\ pop a flag
+: pop-flag ( -- flag ) pop 0 = not ;
+
+\ push and pop double length numbers, the high cell on top
+: push-double ( d -- )
+	| d |
+	d 4294967296 mod to d
+	d 0 < if d 4294967296 + to d then
+	d 65536 mod push
+	d 65536 / truncate push ;
+: pop-double ( -- ud ) pop 65536 * pop + ;
+: pop-signed-double ( -- d ) pop-double dup 2147483648 >= if 4294967296 - then ;
+
+\ === the return stack ===
+
+: rpush ( n -- ) cell return-stack swap add-last! drop ;
+: rpop ( -- cell )
+	return-stack size 0 = if 2 ace-error then
+	return-stack remove-last! ;
+: rpeek ( place -- cell )
+	| place |
+	return-stack size place < if 0 exit then
+	return-stack return-stack size place - @i ;
+
+\ === the ROM ===
+
+\ load the 8K ROM image
+: load-rom ( path -- )
+	read-file string>byte-vector to bytes
+	0 8192 1 do k memory bytes k @e k !e drop loop ;
+
+\ the character set (0052-008F): the mosaics for codes 0-31, then the shapes packed at the ROM's end copied downwards, the blank rows put back
+: decode-character-set ( -- )
+	0 256 1 do k
+		k 7 bit-and to row
+		k 3 rshift 7 bit-and to shape
+		row 4 < if shape 2 bit-and if 0xF0 else 0 then shape 1 bit-and if 0x0F else 0 then bit-or else shape 4 bit-and if 0x0F else 0 then then
+		character-ram k + b!
+	loop
+	0 8 1 do k 0x1FF4 k + b@ 0x2FF8 k + b! loop
+	0x2FF7 to destination
+	0x1FF3 to source
+	95 0 -1 do counter
+		7 to n
+		counter 32 bit-and if 0 destination b! destination 1- to destination 6 to n then
+		0 n 1 do k source b@ destination b! source 1- to source destination 1- to destination loop
+		0 destination b!
+		destination 1- to destination
+	loop ;
+
+\ the system variables from the ROM's default environment (003B, 010D): 45 bytes from L_HALF, ending with the header of FORTH
+: default-environment ( top -- )
+	| top |
+	0 45 1 do k 0x010D k + b@ 0x3C24 k + b! loop
+	top ram-top w!
+	video-ram screen-position w!
+	0 after-screen b! ;
+
+\ fill memory with spaces from a start address up to an end (07FA)
+: space-fill ( start end -- )
+	| start end |
+	start to position
+	begin position end < while 32 position b! position 1+ to position repeat ;
+
+\ clear the screen (0A24): the upper screen blank, printing from the top left
+: clear-screen ( -- )
+	video-ram buffer-start w@ space-fill
+	video-ram screen-position w! ;

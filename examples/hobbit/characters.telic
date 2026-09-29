@@ -1,0 +1,209 @@
+\ The Hobbit: the random features of a new game (970B), the characters'
+\ turns and their behaviour programs (976C-9A71). Loaded after actions.telic.
+
+0x9769 constant failures
+0x976B constant target-room-before
+0xA6C5 constant hidden-route
+
+\ the action really happens and would work (975D): both bytes share a set bit
+: happening? ( -- flag ) really b@ would-work b@ bit-and 0 = not ;
+
+\ the random features of a new game (970B): one of the five routes at 0xC6FD closed, its entry kept at 0xA6C5 for Elrond, and one of Gollum's four riddles
+: choose-random-features ( -- )
+	0 current-actor b!
+	0 map-read b!
+	0 gollum-waiting b!
+	bilbo actor-record w!
+	4 random-to 1+ 6 * 0xC6F7 + to route
+	route hidden-route w!
+	route 1+ w@ 3 clear-bytes
+	3 random-to 4 * 0xC6EB + riddle-entry w! ;
+
+\ === a character's action, as Bilbo sees it ===
+
+\ report a character's action (9929-998B): none for a room target, nor for GO THROUGH by a character that started away from Bilbo; a door seen from Bilbo's side of it is opened by "someone"
+: report-for-bilbo ( -- )
+	target-is-room b@ 1 = if exit then
+	current-action b@ 30 = if start-room b@ bilbo-location b@ = not if exit then then
+	current-target b@ 255 = if report-action exit then
+	current-target b@ object-room to room
+	room target-room-before b!
+	room 255 = not if report-action exit then
+	bilbo-room b@ start-room b@ = if report-action exit then
+	current-target b@ object-record to door-record
+	0 to bilbo-side
+	0 door-record b@ 1 do k door-record 16 + k + b@ bilbo-room b@ = if 1 to bilbo-side then loop
+	bilbo-side 0= if report-action exit then
+	current-actor b@ to actor
+	255 current-actor b!
+	1 output-on b!
+	report-action
+	0 output-on b!
+	actor current-actor b! ;
+
+\ a character does the action (9929-99AF): reported, carried out, and "X enters." or "X appears." when the actor or target has come into Bilbo's room
+: perform-for-character ( -- )
+	report-for-bilbo
+	carry-out
+	current-actor b@ start-room b@ 0xAF09 announce-arrival
+	target-is-room b@ 1 = if exit then
+	current-target b@ target-room-before b@ 0xAF0E announce-arrival ;
+
+\ a character tries the action (9921): 1 when it would work and was done
+: character-tries ( -- flag )
+	character-could-act? 0= if 0 exit then
+	perform-for-character
+	1 ;
+
+\ === behaviour programs ===
+
+\ move a character's program position past an instruction of a length, and past its jump address when bit 4 says one follows (9873)
+: advance-program ( instruction length entry -- )
+	| instruction length entry |
+	instruction length + to position
+	4 instruction bit? if position 2 + to position then
+	position entry 2 + w! ;
+
+\ make entry n of the character's reaction table its program, n no more than byte 1 of its entry (99C3)
+: switch-behaviour ( index entry -- )
+	| index entry |
+	entry 1+ b@ index < if entry 1+ b@ to index then
+	entry 4 + w@ index 3 * + 1+ w@ entry 2 + w! ;
+
+\ a random behaviour (99B4): up to the smaller of the instruction's byte 1 and the entry's byte 1
+: random-behaviour ( instruction entry -- )
+	| instruction entry |
+	instruction 1+ b@ to range
+	range entry 1+ b@ < 0= if entry 1+ b@ to range then
+	range random-to entry switch-behaviour ;
+
+\ run an action instruction of type 0-3 (9883): the action, target and instrument that follow, or with bit 0 a special routine tried first; :done, or :failed
+: action-instruction ( instruction entry -- outcome )
+	| instruction entry |
+	instruction 4 entry advance-program
+	0 instruction bit? if
+		instruction 1+ w@ to special
+		0 really b!
+		0 would-work b!
+		special run-routine
+		would-work b@ 1 = not if :failed exit then
+		1 really b!
+		special run-routine
+	else
+		instruction 1+ b@ current-action b!
+		instruction 2 + b@ current-target b!
+		instruction 3 + b@ current-instrument b!
+		character-tries 0= if :failed exit then
+	then
+	5 instruction bit? if 0 instruction b! then
+	:done ;
+
+\ run an action instruction of type 4 (98CF): an action without objects; 0xFF waits, or jumps with bit 4; :done, or :failed
+: plain-instruction ( instruction entry -- outcome )
+	| instruction entry |
+	instruction 2 entry advance-program
+	instruction 1+ b@ to action
+	action 255 = if
+		4 instruction bit? if instruction 2 + w@ entry 2 + w! then
+		:done exit
+	then
+	action current-action b!
+	255 current-target b!
+	255 current-instrument b!
+	character-tries if :done else :failed then ;
+
+\ run a character's program for its turn (97CB-9905): a waiting order is obeyed at an action instruction without bit 6; six failures end the turn, and a failure with bit 4 jumps to the address after the instruction
+: character-program ( entry -- )
+	| entry |
+	order-for-actor? if 1 else 0 then order-waiting b!
+	entry 2 + w@ to instruction
+	begin
+		failures b@ 6 = if exit then
+		instruction b@ 15 bit-and to kind
+		kind 5 < if
+			order-waiting b@ 1 = if
+				6 instruction bit? 0= if
+					0 order-waiting b!
+					1 obey-order nip if
+						1 really b!
+						1 would-work b!
+						perform-for-character
+						exit
+					then
+				then
+			then
+			kind 4 = if 2 to length instruction entry plain-instruction else 4 to length instruction entry action-instruction then to outcome
+			outcome :done = if exit then
+			failures b@ 1+ failures b!
+			4 instruction bit? if
+				instruction length + w@ to instruction
+				instruction entry 2 + w!
+			else
+				entry 2 + w@ to instruction
+			then
+		else
+			kind 14 = if
+				instruction 1+ w@ entry 2 + w!
+			else
+				kind 12 = if
+					entry b@ instruction 1+ b@ react
+				else
+					kind 15 = if
+						instruction entry random-behaviour
+					else
+						0 entry switch-behaviour
+						exit
+					then
+				then
+			then
+			entry 2 + w@ to instruction
+		then
+	again ;
+
+\ a character held by something (9A71): a dead or living holder lets it act as usual; a closed container keeps it in; from an open one it tries CLIMB OUT OF
+: character-held ( entry -- )
+	| entry |
+	255 current-instrument b!
+	actor-record w@ 1+ b@ to holder
+	holder current-target b!
+	holder object-record to record
+	3 record 7 + bit? if entry character-program exit then
+	6 record 7 + bit? if entry character-program exit then
+	5 record 7 + bit? 0= if exit then
+	55 current-action b!
+	character-tries drop ;
+
+\ one character's turn (9773-97C8): it becomes the actor; its actions print only if Bilbo can see it, and once per turn in the dark "you hear a noise."
+: character-turn ( entry -- )
+	| entry |
+	0 failures b!
+	entry b@ to character
+	character current-actor b!
+	character object-room to room
+	character object-record actor-record w!
+	room start-room b!
+	0 output-on b!
+	bilbo actor-record w@ together? if
+		bilbo-in-dark b@ 2 = not if
+			1 output-on b!
+			bilbo-in-dark b@ 1 = if
+				2 bilbo-in-dark b!
+				0xAF19 message
+				0 output-on b!
+			then
+		then
+	then
+	actor-record w@ 1+ b@ 255 = not if entry character-held exit then
+	entry character-program ;
+
+\ let every living character in the table at 0xC9BA take its turn (976C); the player is the actor again afterwards
+: run-characters ( -- )
+	note-bilbo-room
+	character-table to entry
+	begin entry b@ 255 = not while
+		entry b@ if entry character-turn then
+		entry 7 + to entry
+	repeat
+	0 current-actor b!
+	1 output-on b!
+	bilbo actor-record w! ;

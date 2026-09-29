@@ -1,0 +1,59 @@
+\ The Hobbit (Melbourne House, 1982), from the ZX Spectrum tape.
+\
+\   ./telic examples/hobbit.telic [path to the .tzx]
+\
+\ The game's own data - the dictionary, the messages, the rooms, the
+\ objects, the characters' behaviour programs, the timers and the vector
+\ pictures - is read from the tape at startup (by default "The Hobbit
+\ (Sinclair).tzx" in the current directory) into a 64K memory image at the
+\ original addresses; the program that runs it is rewritten in telic, one
+\ word for each routine of the annotated disassembly (basf-c60/thehobbitv1.0),
+\ its address in the word's comment. Gandalf, Thorin, the trolls, the
+\ goblins, Gollum, the dragon and the rest act on their own each turn.
+\
+\ Type commands as on the tape: TAKE THE SWORD, OPEN THE DOOR, SAY TO THORIN
+\ "GO EAST", N, E, LOOK, INVENTORY, HELP, SCORE, SAVE, LOAD, QUIT. GRAMMAR
+\ shows every action pattern and every dictionary word by class. The arrows
+\ on an empty line move north, south, west and east; @ repeats the last line;
+\ escape leaves. The pictures are the tape's own drawn afresh; the sound is
+\ new.
+\
+\ The memory, the text, the parser and the execution are in
+\ examples/hobbit/memory.telic ... execute.telic; the actions, the
+\ characters and the special events in actions.telic, characters.telic and
+\ specials.telic; the start and main loop in game.telic; the pictures in
+\ pictures.telic; the window and the sound in screen.telic.
+
+"hobbit/memory.telic" load
+"hobbit/text.telic" load
+"hobbit/parser.telic" load
+"hobbit/utilities.telic" load
+"hobbit/execute.telic" load
+"hobbit/actions.telic" load
+"hobbit/characters.telic" load
+"hobbit/specials.telic" load
+"hobbit/game.telic" load
+"hobbit/pictures.telic" load
+"hobbit/new-pictures.telic" load
+"hobbit/screen.telic" load
+
+\ the tape's path: the first argument, else the tape in the current directory
+: tape-path ( -- path )
+	args to arguments
+	arguments size 0 > if arguments 0 @i exit then
+	"data/hobbit.tzx" ;
+
+\ run the game until escape or QUIT
+: play ( -- )
+	tape-path to path
+	path file-exists? 0= if path "no tape at {0}" format . cr exit then
+	path new-game
+	follow-bilbo
+	audio-on
+	settle-effects
+	screen now :idle-since ! drop
+	begin screen :running @ while ' frame screen-frame repeat
+	silence-audio
+	audio-off ;
+
+play

@@ -480,12 +480,16 @@
 	10 spend
 	:torpedo-launch cue ;
 
-\ the depth window in which our torpedo must be to hit an object, by the object's distance
+\ note every player's depth before the loop turns and moves it
+: record-depths ( -- ) 0 5 1 do k k player to p p p :z @ :last-z ! drop loop ;
+
+\ our torpedo reaches an object's depth: within 128 km of it now, or on the other side of it from where it was before this loop's step; the cartridge's wider windows (HITMINZTAB, HITMAXZTAB) let a torpedo hit up to 1.5 km short
 : hit-window? ( torpedo target -- flag )
 	| torpedo target |
-	target :z @ abs 256 / truncate 15 min2 2 / truncate to band
-	torpedo :z @ abs 256 / truncate to torpedo-depth
-	torpedo-depth [ 0 0 0 2 4 6 8 12 ] band @i >= torpedo-depth [ 12 12 12 12 14 14 14 32 ] band @i < and ;
+	torpedo :z @ target :z @ - to gap
+	torpedo :last-z @ target :last-z @ - to last-gap
+	gap abs 128 <= if 1 exit then
+	gap 0 < last-gap 0 < = not ;
 
 \ two players' images overlap on the screen, a starbase twice as wide
 : images-meet? ( torpedo target -- flag )
@@ -927,6 +931,7 @@
 \ one game loop, 1/60 s
 : tick ( -- )
 	:count game@ 1+ 256 mod :count game!
+	record-depths
 	stick to stick-y to stick-x
 	stick-x stick-y rotate-all
 	move-all

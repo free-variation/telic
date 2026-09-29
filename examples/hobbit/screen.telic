@@ -1,0 +1,419 @@
+\ The Hobbit: the window. The room's picture sits at the top, the story
+\ window's lines below it and the lower window's replies and the typed line
+\ at the bottom. The line editor keeps the original's keys: letters, space,
+\ quote, full stop and comma; an arrow on an empty line moves; @ repeats the
+\ last line; a player idle for about 22 seconds types WAIT, as the tape's
+\ 3000 key polls do. The sound is new: cues for what Bilbo sees, chosen by
+\ the messages printed, and a short motif for each room entered. Loaded
+\ after pictures.telic.
+
+640 480 screen-size
+2 screen-zoom
+
+85 windows swap :story-columns ! drop
+85 windows swap :lower-columns ! drop
+
+64 constant picture-x
+8 constant picture-y
+16 constant story-rows
+22 constant idle-seconds
+
+0x1B1612 constant background-colour
+0x5A4A36 constant frame-colour
+0xE8DFC8 constant story-colour
+0xE8C070 constant lower-colour
+
+{ :grammar null :page 0 :room null :dark 0 :dim 0 :typed "" :last-line "" :idle-since 0 :ended null :running 1 :bilbo-room 0 :events [ ] } to screen
+
+\ note the room whose picture describes it (8965), dark when Bilbo cannot see; whether it has one
+: note-picture ( room -- drawn )
+	| room |
+	room has-picture? to drawn
+	drawn 0= if screen 1 :dim ! drop 0 exit then
+	screen room :room ! too-dark? if 1 else 0 then :dark ! 0 :dim ! drop
+	1 ;
+
+later-words ' note-picture :picture ! drop
+
+256 512 0-matrix 0x80000000 + to dimmer
+
+\ === the sound ===
+
+{ :oscillators [ { :wave :triangle :attack 0.04 :decay 0.4 :sustain 0.5 :release 0.8 } ] :cutoff 2500 :level 0.2 } :flute instrument-patch!
+{ :oscillators [ { :wave :saw :attack 0.6 :decay 1 :sustain 0.7 :release 1.5 } ] :cutoff 900 :resonance 0.3 :level 0.07 } :pad instrument-patch!
+{ :oscillators [ { :wave :brown :attack 0.001 :decay 0.25 :sustain 0 :release 0.2 } ] :cutoff 500 :level 0.6 } :thud instrument-patch!
+{ :oscillators [ { :wave :pink :attack 0.002 :decay 0.06 :sustain 0 :release 0.05 } ] :cutoff 900 :level 0.3 } :footstep instrument-patch!
+{ :oscillators [ { :wave :sine :attack 0.002 :decay 1.2 :sustain 0 :release 1 } ] :level 0.22 } :bell instrument-patch!
+{ :oscillators [ { :wave :white :attack 0.4 :decay 0.6 :sustain 0 :release 0.5 } ] :cutoff 700 :resonance 0.6 :level 0.25 } :hush instrument-patch!
+
+\ run a word after delay seconds
+: later ( word delay -- )
+	| word delay |
+	screen :events @ [ now delay + word ] add-last! drop ;
+
+\ run every word whose time has come
+: run-due-events ( -- )
+	now to moment
+	screen :events @ to events
+	screen events ( 0 @i moment > ) filter :events ! drop
+	events ( 0 @i moment <= ) filter ( 1 @i execute ) each ;
+
+\ play a note for length seconds after delay seconds
+: sound ( pitch velocity instrument length delay -- )
+	| pitch velocity instrument length delay |
+	pitch velocity instrument ( note-on ) curry curry curry delay later
+	pitch instrument ( note-off ) curry curry delay length + later ;
+
+\ play notes in turn, a beat apart
+: phrase ( pitches instrument beat length -- )
+	| pitches instrument beat length |
+	0 pitches size 1 do k pitches k @i 0.8 instrument length k beat * sound loop ;
+
+\ footsteps
+: footsteps ( -- ) 0 4 1 do k 40 0.8 :footstep 0.05 k 0.28 * sound loop ;
+
+\ the motif of a room: four notes of a pentatonic scale chosen by the room number, over a held fifth
+: room-motif ( room -- )
+	| room |
+	[ 0 2 4 7 9 12 14 16 ] to scale
+	[ ] to pitches
+	0 4 1 do k pitches 62 scale room 3 * k 5 * + k k * + 8 mod @i + add-last! drop loop
+	pitches :flute 0.35 0.5 phrase
+	50 0.6 :pad 2.4 0 sound
+	57 0.6 :pad 2.4 0 sound ;
+
+\ the wound messages at 0x9190 and the one past its end
+: wound-message? ( address -- flag )
+	| address |
+	0 17 1 do k wound-messages k 2 * + w@ address = if 1 exit then loop
+	0 ;
+
+\ a cue for a message Bilbo sees
+: message-cue ( address -- )
+	| address |
+	output? 0= if exit then
+	address 0xAEE3 = if [ 57 53 50 45 ] :bell 0.4 1.2 phrase exit then
+	address 0xB2CB = if [ 62 66 69 74 78 81 ] :flute 0.18 0.8 phrase exit then
+	address 0xB1FD = if [ 55 59 62 67 ] :bell 0.3 1.5 phrase exit then
+	address 0xAF09 = if footsteps exit then
+	address 0xAD2D = if 30 1 :thud 0.4 0 sound exit then
+	address 0xAE43 = if 38 0.6 :thud 0.2 0 sound exit then
+	address wound-message? if 34 0.9 :thud 0.3 0 sound exit then
+	address 0xAF19 = if 60 0.6 :hush 0.8 0 sound exit then
+	address 0xAF29 = address 0xB169 = or if [ 76 79 83 88 ] :bell 0.12 1 phrase exit then
+	address 0xB19C = if [ 71 70 ] :bell 0.3 1 phrase exit then
+	address 0xAF5A = if [ 50 45 ] :flute 0.2 0.4 phrase exit then
+	riddle-entry w@ 2 + w@ address = if [ 64 63 58 57 ] :flute 0.45 0.9 phrase then ;
+
+text-hooks ' message-cue :message ! drop
+
+\ the effects under the whole game
+: settle-effects ( -- )
+	0.25 :wet :reverb effect! 0.7 :decay :reverb effect! 0.8 :size :reverb effect!
+	0 :wet :delay effect! 0.08 :wet :chorus effect!
+	0.9 :level :master effect! ;
+
+\ === the grammar page ===
+
+\ a word's letters in capitals
+: capitals ( letters -- string ) ( 32 - ) map codepoints>string ;
+
+\ the word at a dictionary reference, in capitals, empty for 0
+: reference-word ( reference -- string )
+	| reference |
+	reference 4095 bit-and to offset
+	offset 0 = if "" exit then
+	0x6000 offset + word-letters capitals ;
+
+\ an action's pattern as the report prints it (7122): the verb, its particle, the target, the preposition and the instrument, "x" for an object
+: action-pattern ( action -- string )
+	| action |
+	action action-entry to entry
+	entry action-flag-bytes to flags
+	[ ] to words
+	words entry 6 + w@ reference-word add-last! drop
+	words entry w@ reference-word add-last! drop
+	entry 2 + to position
+	flags 8 bit-and if
+		flags 32 bit-and if words position w@ reference-word add-last! drop position 2 + to position then
+		action-flags-2 b@ 128 bit-and if words position w@ reference-word add-last! drop position 2 + to position then
+		words "x" add-last! drop
+	then
+	flags 4 bit-and if
+		flags 32 bit-and 0= if words position w@ reference-word add-last! drop position 2 + to position then
+		action-flags-2 b@ 128 bit-and 0= if words position w@ reference-word add-last! drop position 2 + to position then
+		words "y" add-last! drop
+	then
+	words ( size 0 > ) filter " " join ;
+
+\ the class of the dictionary entry at an address (6F12)
+: entry-class ( address -- class )
+	| address |
+	address b@ 1 lshift address b@ 7 rshift bit-or 192 bit-and address 1+ b@ 1 rshift address 1+ b@ 7 lshift bit-or 48 bit-and + ;
+
+\ a dictionary entry (6F7F): its letters in capitals, the address after it, and the offset of the word it stands for when bit 6 of its last letter marks a synonym, else 0
+: entry-parts ( address -- spelling next target )
+	| address |
+	address to position
+	0 to bytes
+	begin
+		position 1+ to position
+		bytes 1+ to bytes
+		7 position 1- bit? 0= bytes 2 = or bytes 3 = if 7 position 2 - bit? else 0 then or
+	while
+	repeat
+	address entry-letters drop ( 64 + ) map codepoints>string to spelling
+	6 position 1- bit? if spelling position 2 + position w@ exit then
+	spelling position 0 ;
+
+\ every word of the main dictionary (6040-67AF) by class; a synonym as WORD=THE WORD IT STANDS FOR
+: dictionary-classes ( -- classes )
+	[ ] to classes
+	0 12 1 do k classes [ ] add-last! drop loop
+	0x6040 to position
+	begin position 0x67B0 < while
+		position to start
+		position entry-parts to target to position to spelling
+		target if target 4095 bit-and 0x6000 + word-letters capitals spelling "{0}={1}" format to spelling then
+		start entry-class 4 rshift to class
+		class 12 < if classes class @i spelling add-last! drop then
+	repeat
+	classes ;
+
+\ add the words, after a heading, to lines of at most a width
+: add-word-lines ( lines heading words width -- )
+	| lines heading words width |
+	lines heading add-last! drop
+	"  " to text
+	0 words size 1 do k
+		words k @i to word
+		text size word size + 1+ width > if lines text add-last! drop "  " to text then
+		text word "{1}{0} " format to text
+	loop
+	lines text add-last! drop
+	lines "" add-last! drop ;
+
+\ pad a string with spaces to a width
+: pad-to ( string width -- string' )
+	| string width |
+	string to padded
+	begin padded size width < while padded " " "{1}{0}" format to padded repeat
+	padded ;
+
+[ "ADVERBS" "IN, INTO" "DIRECTIONS" "VERBS" "MOVEMENT VERBS" "NOUNS" "ADJECTIVES" "PREPOSITIONS" "ARTICLES AND FILLERS" "SPECIAL WORDS" "AND" "THEN" ] to class-names
+
+\ the grammar: how commands are put together, the 59 actions in two columns, and every word by class
+: grammar-lines ( -- lines )
+	[ 34 ] codepoints>string to quote
+	[ "THE GRAMMAR" ""
+	  "  A COMMAND IS A VERB AND ITS OBJECTS: TAKE THE SWORD, UNLOCK THE DOOR WITH THE KEY, GO EAST, E."
+	  "  OBJECTS TAKE ADJECTIVES: THE SHORT STRONG SWORD. TAKE ALL EXCEPT THE SWORD. IT MEANS THE LAST."
+	  "  AND, THEN, COMMAS AND FULL STOPS JOIN COMMANDS, ONE TURN EACH. AN ADVERB MAY GO ANYWHERE." ] to lines
+	lines quote quote "  ORDERS: SAY TO THORIN {1}GO EAST{0}. GRAMMAR SHOWS THIS PAGE." format add-last! drop
+	lines "" add-last! drop
+	lines "ACTIONS  (X THE OBJECT, Y THE SECOND OBJECT)" add-last! drop
+	0 30 1 do k
+		k 1+ action-pattern 50 pad-to to left-pattern
+		k 31 + 59 <= if k 31 + action-pattern else "" then to right-pattern
+		lines right-pattern left-pattern "  {0}{1}" format add-last! drop
+	loop
+	lines "" add-last! drop
+	dictionary-classes to classes
+	0 10 1 do k
+		classes k @i size if lines class-names k @i "{0}:" format classes k @i sort 100 add-word-lines then
+	loop
+	lines ;
+
+\ the grammar's sections: the runs of lines each ended by a blank line
+: grammar-sections ( lines -- sections )
+	| lines |
+	[ ] to sections
+	[ ] to section
+	0 lines size 1 do k
+		section lines k @i add-last! drop
+		lines k @i size 0 = if sections section add-last! drop [ ] to section then
+	loop
+	section size if sections section add-last! drop then
+	sections ;
+
+\ show the grammar in pages of at most 45 lines, breaking only between sections unless one is longer than a page
+: show-grammar ( -- )
+	grammar-lines grammar-sections to sections
+	[ ] to pages
+	[ ] to page
+	0 sections size 1 do k
+		sections k @i to section
+		page size section size + 45 > page size 0 > and if pages page add-last! drop [ ] to page then
+		0 section size 1 do j
+			page size 45 = if pages page add-last! drop [ ] to page then
+			page section j @i add-last! drop
+		loop
+	loop
+	page size if pages page add-last! drop then
+	screen pages :grammar ! 0 :page ! drop ;
+
+\ turn the grammar page by a step, within the pages
+: turn-page ( step -- )
+	| step |
+	screen :page @ step + 0 max2 screen :grammar @ size 1- min2 to page-number
+	screen page-number :page ! drop ;
+
+\ === running lines ===
+
+\ remember where Bilbo is, and give a new room its footsteps and motif
+: follow-bilbo ( -- )
+	bilbo-location b@ to room
+	room screen :bilbo-room @ = if exit then
+	screen room :bilbo-room ! drop
+	footsteps
+	room room-motif ;
+
+\ run a typed line as the tape does: echoed in the lower window, then played; a death or win waits for a key
+: submit ( line -- )
+	| line |
+	1 lower-window b!
+	1 really b!
+	1 output-on b!
+	line "> {0}" format string>codepoints ( print-char ) each
+	newline
+	screen line :last-line ! "" :typed ! now :idle-since ! drop
+	line string>codepoints ( 32 bit-or ) map codepoints>string "grammar" = if show-grammar exit then
+	line run-line to outcome
+	outcome :quit = if screen 0 :running ! drop exit then
+	outcome :played = not if
+		1 lower-window b!
+		"press a key" string>codepoints ( print-char ) each
+		newline
+		screen outcome :ended ! drop
+		exit
+	then
+	follow-bilbo ;
+
+\ the characters the line editor accepts (6DCD): letters, space, quote, full stop, comma
+: accepted? ( code -- flag )
+	| code |
+	code 64 >= code 127 < and code 32 = or code 34 = or code 46 = or code 44 = or ;
+
+\ read the keys for the line being typed
+: read-keys ( -- )
+	screen :grammar @ null? not if
+		typed-text drop
+		:escape key-pressed? if screen null :grammar ! drop exit then
+		:backspace key-pressed? :left key-pressed? or :page-up key-pressed? or if -1 turn-page exit then
+		:right key-pressed? :page-down key-pressed? or if 1 turn-page exit then
+		:return key-pressed? :space key-pressed? or if
+			screen :page @ 1+ screen :grammar @ size >= if screen null :grammar ! drop else 1 turn-page then
+		then
+		exit
+	then
+	:escape key-pressed? if screen 0 :running ! drop exit then
+	typed-text string>codepoints to codes
+	screen :ended @ if
+		codes size 0 > :return key-pressed? or if
+			screen null :ended ! drop
+			clear-windows
+			restart
+			follow-bilbo
+		then
+		exit
+	then
+	screen :typed @ to line
+	line size 0 = if
+		:up key-pressed? if "n" submit exit then
+		:down key-pressed? if "s" submit exit then
+		:left key-pressed? if "w" submit exit then
+		:right key-pressed? if "e" submit exit then
+		codes size 0 > if codes 0 @i 64 = if screen :last-line @ submit exit then then
+	then
+	codes size 0 > if screen now :idle-since ! drop then
+	0 codes size 1 do k
+		codes k @i to code
+		code accepted? line size 80 < and if line code 1 array-of codepoints>string "{1}{0}" format to line then
+	loop
+	:backspace key-pressed? if line size 0 > if line 0 line size 1- substring to line then then
+	screen line :typed ! drop
+	:return key-pressed? if line size 0 > if line submit exit then then
+	line size 0 = now screen :idle-since @ - idle-seconds > and if "wait" submit then ;
+
+\ === drawing ===
+
+\ the room's picture, black in the dark, or the last one dimmed where a room has none
+: draw-picture ( -- )
+	frame-colour ink
+	picture-x 2 - picture-y 2 - 516 260 fill-rect
+	0 ink
+	picture-x picture-y 512 256 fill-rect
+	screen :room @ to room
+	room null? if exit then
+	screen :dark @ if exit then
+	room room-picture to bitmap
+	bitmap picture-x picture-y draw-bitmap
+	screen :dim @ if dimmer picture-x picture-y draw-bitmap then ;
+
+\ the last lines of a window with its line being built
+: last-lines ( lines current n -- lines' )
+	| lines current n |
+	lines copy to all
+	current size 0 > if all current add-last! drop then
+	[ ] to kept
+	all size n - 0 max2 all size 1 do k kept all k @i add-last! drop loop
+	kept ;
+
+{ } to line-images
+
+\ a line of text in the tape's 6 by 8 font at 0x7815 (77BC) as a bitmap in a colour, cached
+: text-image ( line colour -- bitmap )
+	| line colour ^line-images |
+	colour line "{0}|{1}" format string>symbol to key
+	line-images key has? if line-images key @ exit then
+	line-images size 400 > if { } to line-images then
+	line string>codepoints to codes
+	codes size 6 * 1 max2 to width
+	8 width blank-bitmap to bitmap
+	0 codes size 1 do k
+		codes k @i to code
+		code 32 < code 127 > or if 32 to code then
+		0 8 1 do row
+			0x7715 code 8 * + row + b@ to pattern
+			0 6 1 do column
+				pattern 128 column rshift bit-and if bitmap colour row width * k 6 * + column + !e drop then
+			loop
+		loop
+	loop
+	line-images bitmap key ! drop
+	bitmap ;
+
+\ draw a line of text at a point
+: draw-line-text ( line colour x y -- )
+	| line colour x y |
+	line size 0 = if exit then
+	line colour text-image x y draw-bitmap ;
+
+\ draw the story window's lines and the lower window with the typed line
+: draw-text ( -- )
+	windows :story @ windows :story-line @ story-rows last-lines to lines
+	0 lines size 1 do k lines k @i story-colour picture-x 272 k 10 * + draw-line-text loop
+	windows :lower @ windows :lower-line @ 2 last-lines to lines
+	0 lines size 1 do k lines k @i lower-colour picture-x 440 k 10 * + draw-line-text loop
+	screen :ended @ if exit then
+	screen :typed @ "> {0}" format to prompt
+	prompt lower-colour picture-x 462 draw-line-text
+	lower-colour ink
+	picture-x prompt size 6 * + 462 5 7 fill-rect ;
+
+\ the grammar page in place of the picture and the story, and how to turn it
+: draw-grammar ( -- )
+	screen :grammar @ to pages
+	pages screen :page @ @i to page
+	0 page size 1 do k page k @i story-colour 20 4 k 10 * + draw-line-text loop
+	pages size screen :page @ 1+ "PAGE {0} OF {1}    SPACE, RETURN, RIGHT: NEXT    BACKSPACE, LEFT: PREVIOUS    ESCAPE: BACK TO THE GAME" format lower-colour 20 466 draw-line-text ;
+
+\ one frame
+: frame ( -- )
+	run-due-events
+	read-keys
+	background-colour paper
+	cls
+	screen :grammar @ null? not if draw-grammar exit then
+	draw-picture
+	draw-text ;

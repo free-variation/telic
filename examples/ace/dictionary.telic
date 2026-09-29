@@ -1,0 +1,652 @@
+\ The Jupiter Ace simulation: the dictionary and the compiler. Headers live
+\ in the simulated RAM in the Ace's own format, FIND walks them there, and
+\ the compiling words enclose the bytes the Ace's compiler encloses. When a
+\ word is finished its compiled cells are translated into a telic word,
+\ which is what runs. Loaded after float.telic.
+
+\ an array of n nulls
+: null-table ( n -- slots )
+	| n |
+	[ ] to slots
+	0 n 1 do k slots null add-last! drop loop
+	slots ;
+
+\ what runs for each code field address; the action of each DOES> and RUNS> by its address; each RUNS> action's operand length
+65536 null-table to implementations
+65536 null-table to actions
+65536 null-table to operand-sizes
+
+\ run the word whose code field is at an address, and give ERROR 2 when it left the stack below its bottom, as the ROM's slow mode checks after each word (04C8); an address holding no word does nothing
+: call-cfa ( cfa -- )
+	count-word
+	implementations swap @i dup null? if drop exit then execute
+	stack-underflowed? if 2 ace-error then ;
+
+\ === the end of the dictionary ===
+
+\ HERE: the dictionary ends where the data stack's area starts
+: here-address ( -- address ) stack-bottom w@ ;
+
+\ where the return stack has reached, for the memory checks
+: return-stack-address ( -- address ) ram-top w@ return-stack size 2 * - ;
+
+\ make room for n bytes at the end of the dictionary, moving the data stack by n (0F9E); ERROR 1 when it would meet the return stack
+: make-room ( n -- )
+	| n |
+	stack-top w@ n + 40 + return-stack-address >= if 1 ace-error then
+	stack-bottom w@ to old-bottom
+	stack-top w@ to old-top
+	old-top old-bottom - to n-moved
+	n 0 > if
+		0 n-moved 1 do k old-top 1- k - to source source b@ source n + b! loop
+	else
+		0 n-moved 1 do k old-bottom k + to source source b@ source n + b! loop
+	then
+	old-bottom n + stack-bottom w!
+	old-top n + stack-top w! ;
+
+\ enclose a cell in the dictionary (, 0F50)
+: enclose ( cell -- ) 2 make-room here-address 2 - w! ;
+
+\ enclose a byte in the dictionary (C, 0F61)
+: enclose-byte ( byte -- ) 1 make-room here-address 1- b! ;
+
+\ === names ===
+
+\ WORD (05AD): the text up to a delimiter taken out of the buffer into the pad, its length at the pad and the text from pad + 1
+: word-to-pad ( delimiter -- )
+	| delimiter |
+	0x2702 0x27FF space-fill
+	delimiter get-word to found to length to start
+	length to stored-length
+	length 253 > if 254 to stored-length 253 to length then
+	stored-length pad b!
+	0 length 1+ 1 do k start k + b@ 0x2702 k + b! loop
+	found if start length consume-word then ;
+
+\ the address of a header's first letter from its name length field; RAM headers also carry a length field (15E8)
+: name-start ( nlf -- address )
+	| nlf |
+	nlf b@ 63 bit-and to n
+	nlf 0x3C00 >= if n 2 + to n then
+	nlf 2 - n - ;
+
+\ where a RAM word ends: after the bytes its length field counts, or at HERE for the newest word, whose length field is still 0
+: word-end ( nlf -- address )
+	| nlf |
+	nlf 4 - to field
+	field w@ to length
+	length 0 = if here-address exit then
+	field length + ;
+
+\ lay down a header for the next word in the buffer (0ED2-0F2C): the name in capitals with its last letter inverted, a length field, a link to the newest word of the current vocabulary, the name length and a code field; ERROR 12 over an incomplete definition, ERROR 6 for a name of 0 or more than 63 letters
+: create-header ( code-field -- )
+	| code-field |
+	32 word-to-pad
+	flags b@ 4 bit-and if 12 ace-error then
+	here-address newest-length w@ - newest-length w@ w!
+	0 newest-length w!
+	pad b@ to name-length
+	name-length 1- 255 bit-and 63 >= if 6 ace-error then
+	stack-top w@ name-length + 37 + return-stack-address >= if 1 ace-error then
+	name-length make-room
+	here-address name-length - to start
+	0 name-length 1 do k 0x2702 k + b@ capital start k + b! loop
+	here-address newest-length w!
+	here-address 1- to last-letter
+	last-letter b@ 128 bit-or last-letter b!
+	0 enclose
+	current w@ to vocabulary
+	vocabulary w@ enclose
+	here-address vocabulary w!
+	name-length enclose-byte
+	code-field enclose
+	implementations null here-address 2 - !i drop ;
+
+\ the name length field of the newest word in the current vocabulary
+: newest-word ( -- nlf ) current w@ w@ ;
+
+\ FIND (063F): the code field address of the first word in the buffer, looked up from the context vocabulary with letters compared in capitals, the word taken out of the buffer; 0 when it is not there
+: find-word ( -- cfa )
+	32 get-word to found to length to start
+	found 0 = if 0 exit then
+	context w@ w@ to nlf
+	begin nlf 0 = not while
+		nlf b@ 63 bit-and to n
+		n 0 = not n length = and if
+			nlf name-start to name
+			1 to same
+			0 length 1 do k
+				start k + b@ capital name k + b@ 127 bit-and = not if 0 to same leave then
+			loop
+			same if start length consume-word nlf 1+ exit then
+		then
+		nlf 2 - w@ to nlf
+	repeat
+	0 ;
+
+\ === numbers ===
+
+\ a character's value as a digit in the base held in BASE, or -1 (07BA)
+: digit-value ( char -- value )
+	capital 48 - to digit
+	digit 0 < if -1 exit then
+	digit 10 >= if
+		digit 17 - to digit
+		digit 0 < if -1 exit then
+		digit 10 + to digit
+	then
+	digit number-base b@ >= if -1 exit then
+	digit ;
+
+\ an integer in the base held in BASE from a word's characters, a minus sign allowed first, as a cell (074C); null when a character is no digit
+: integer-value ( codes -- value )
+	| codes |
+	0 to first-digit
+	0 to negative
+	codes size 0 > if codes 0 @i 45 = if 1 to negative 1 to first-digit then then
+	0 to accumulator
+	first-digit codes size 1 do k
+		codes k @i digit-value to digit
+		digit 0 < if null exit then
+		accumulator number-base b@ * digit + 4294967296 mod to accumulator
+	loop
+	accumulator 65535 bit-and to value
+	negative if value negate 65535 bit-and to value then
+	value ;
+
+\ a float from a word's characters (06BC): a minus sign allowed, decimal digits with a point, then E and an exponent allowed; six significant digits are kept; found is 0 when the word is no float or its exponent is out of range
+: float-number ( codes -- low high found )
+	| codes |
+	0 to index
+	0 to negative
+	codes size 0 > if codes 0 @i 45 = if 1 to negative 1 to index then then
+	[ ] to digits
+	-1 to point
+	begin index codes size < while
+		codes index @i to char
+		char 46 = if
+			point 0 >= if 0 0 0 exit then
+			digits size to point
+		else
+			char 48 < char 57 > or if leave then
+			digits char 48 - add-last! drop
+		then
+		++ index
+	repeat
+	point 0 < if 0 0 0 exit then
+	0 to exponent-adjustment
+	index codes size < if
+		codes index @i capital 69 = not if 0 0 0 exit then
+		codes index 1+ skip integer-value to exponent-part
+		exponent-part null? if 0 0 0 exit then
+		exponent-part 255 bit-and to exponent-adjustment
+	then
+	begin digits size 0 > if digits 0 @i 0 = else 0 then while
+		digits 1 skip to digits
+		-- point
+	repeat
+	digits size 0 = if 0 0 1 exit then
+	begin digits size 6 < while digits 0 add-last! drop repeat
+	digits 6 take 0 ( swap 10 * + ) reduce to mantissa
+	point 64 + exponent-adjustment + 255 bit-and to exponent-byte
+	exponent-byte 1 < exponent-byte 127 > or if 0 0 0 exit then
+	negative mantissa exponent-byte 64 - pack-float 1 ;
+
+\ NUMBER (06AB): the first word in the buffer as an integer (kind 1) or a float (kind 2) with its cells, taken out of the buffer; kind 0 when it is no number
+: parse-number ( -- low high kind )
+	32 get-word to found to length to start
+	found 0 = if 0 0 0 exit then
+	[ ] to codes
+	0 length 1 do k codes start k + b@ add-last! drop loop
+	codes integer-value to value
+	value null? not if start length consume-word value 0 1 exit then
+	codes float-number to kind to high to low
+	kind if start length consume-word low high 2 exit then
+	0 0 0 ;
+
+\ === translation into telic ===
+
+\ print a string compiled by ." (1398): its length, then its characters
+: print-embedded ( address -- ) dup 2 + swap w@ print-memory ;
+
+\ a compiled literal at run time (1013), and a compiled IF, WHILE or UNTIL taking its flag (128F), on the Ace's clock
+: counted-push ( n -- ) count-word push ;
+: counted-flag ( -- flag ) count-word pop-flag ;
+
+\ DO at run time (1325): the limit and the counter onto the return stack
+: do-setup ( -- ) count-word pop to initial pop rpush initial rpush ;
+
+\ LOOP and +LOOP at run time (133F): the counter advanced by n; 1 when the loop is over, its limit and counter gone from the return stack, when the counter reaches the limit (n >= 0), passes below it (n < 0) or overflows
+: loop-step ( n -- finished )
+	| n |
+	count-word
+	rpop signed to counter
+	rpop signed to limit
+	counter n + to advanced
+	advanced -32768 < advanced 32767 > or if 1 exit then
+	n 0 >= if advanced limit < else advanced limit > then
+	if limit rpush advanced rpush 0 else 1 then ;
+
+\ a word made by COMPILER, at run time: its operand field's address stacked, then its RUNS> action
+: run-compiled ( operand-address action-address -- )
+	| operand-address action-address |
+	operand-address push
+	actions action-address @i execute ;
+
+\ the telic source for compiled cells from start, up to the cell that ends a thread (04B6 at the end of a definition, 10E8 for DOES>, 1140 for RUNS>) or the address end
+: thread-source ( start end -- source )
+	| start end |
+	[ ] to parts
+	start to position
+	begin position end < while
+		position w@ to code
+		position 2 + to position
+		code case
+			0x04B6 of end to position endof
+			0x10E8 of end to position endof
+			0x1140 of end to position endof
+			0x1011 of parts position w@ "{0} counted-push" format add-last! drop position 2 + to position endof
+			0x1064 of parts position w@ position 2 + w@ "{1} counted-push {0} push" format add-last! drop position 4 + to position endof
+			0x104B of parts position b@ "{0} counted-push" format add-last! drop position 1+ to position endof
+			0x1283 of parts "counted-flag if" add-last! drop position 2 + to position endof
+			0x1288 of parts "counted-flag while" add-last! drop position 2 + to position endof
+			0x128D of parts "counted-flag until" add-last! drop position 2 + to position endof
+			0x1271 of parts "else" add-last! drop position 2 + to position endof
+			0x1276 of parts "repeat" add-last! drop position 2 + to position endof
+			0x12A4 of parts "then" add-last! drop endof
+			0x129F of parts "begin ace-poll" add-last! drop endof
+			0x1323 of parts "do-setup begin ace-poll" add-last! drop endof
+			0x1332 of parts "1 loop-step until" add-last! drop position 2 + to position endof
+			0x133C of parts "pop-signed loop-step until" add-last! drop position 2 + to position endof
+			0x1396 of parts position "{0} print-embedded" format add-last! drop position w@ 2 + position + to position endof
+			0x1379 of position w@ 2 + position + to position endof
+			0x13F0 of parts "exit" add-last! drop endof
+			drop
+			operand-sizes code @i to operand-size
+			operand-size null? if
+				parts code "{0} call-cfa" format add-last! drop
+			else
+				parts position code "{1} {0} run-compiled" format add-last! drop
+				operand-size 255 = if position w@ 2 + to operand-size then
+				position operand-size + to position
+			then
+		endcase
+	repeat
+	parts " " join ;
+
+\ a telic word for the thread from start, named by its address
+: thread-word ( start end -- xt )
+	| start end |
+	start end thread-source to source
+	source start ": ace-thread-{0} ( -- ) {1} ; ' ace-thread-{0}" format evaluate ;
+
+\ a word made by a word made by DEFINER, at run time: its parameter field's address stacked, then the DOES> action
+: run-child ( pfa child-code -- )
+	| pfa child-code |
+	pfa push
+	actions child-code @i dup null? if drop exit then execute ;
+
+\ make a word whose code field is DOES> code run that code's action
+: install-child ( nlf -- )
+	| nlf |
+	nlf 1+ to cfa
+	implementations cfa 2 + cfa w@ ' run-child 2curry cfa !i drop ;
+
+\ a word made by DEFINER, at run time: a new word's header, with the DOES> code as its code field, then the defining routine
+: run-definer ( child-code defining -- )
+	| child-code defining |
+	child-code create-header
+	newest-word install-child
+	defining execute ;
+
+\ a word made by COMPILER, while a definition is compiled (1108): its action's address enclosed, then its compiling routine; ERROR 4 outside a definition
+: run-compiler ( pfa compiling-routine -- )
+	| pfa compiling-routine |
+	flags b@ 64 bit-and 0 = if 4 ace-error then
+	pfa w@ enclose
+	compiling-routine execute ;
+
+\ stack the cell held at an address (0FF5, the action of CONSTANT)
+: push-contents ( address -- ) w@ push ;
+
+\ make a vocabulary the context vocabulary (11B5)
+: set-context ( pfa -- ) context w! ;
+
+\ make a word runnable from its header by its code field: colon definitions, DEFINER and COMPILER words are translated into telic words, the others run from their parameter fields
+: install-word ( nlf -- )
+	| nlf |
+	nlf 1+ to cfa
+	cfa 2 + to pfa
+	cfa w@ to code-field
+	code-field case
+		0x0EC3 of implementations pfa nlf word-end thread-word cfa !i drop endof
+		0x0FEC of implementations pfa ' push curry cfa !i drop endof
+		0x0FF0 of implementations pfa ' push curry cfa !i drop endof
+		0x0FF5 of implementations pfa ' push-contents curry cfa !i drop endof
+		0x11B5 of implementations pfa ' set-context curry cfa !i drop endof
+		0x1085 of
+			pfa w@ to child-code
+			pfa 2 + nlf word-end thread-word to defining
+			actions child-code 3 + nlf word-end thread-word child-code !i drop
+			implementations child-code defining ' run-definer 2curry cfa !i drop
+		endof
+		0x1108 of
+			pfa w@ to action
+			pfa 2 + nlf word-end thread-word to compiling-routine
+			actions action 2 + nlf word-end thread-word action !i drop
+			operand-sizes action 3 - b@ action !i drop
+			implementations pfa compiling-routine ' run-compiler 2curry cfa !i drop
+		endof
+		drop
+		code-field b@ 0xCD = code-field 1+ w@ 0x0FF0 = and if nlf install-child then
+	endcase ;
+
+\ the create and enclose routine of the defining words (1085): a header with the given code field, made runnable unless a definition's body is still to come
+: define-with ( code-field -- )
+	| code-field |
+	code-field create-header
+	code-field 0x0EC3 = code-field 0x1085 = or code-field 0x1108 = or if exit then
+	newest-word install-word ;
+
+\ === yielding and waiting ===
+
+variable poll-countdown
+256 to poll-countdown
+variable yield-deadline
+0 to yield-deadline
+variable break-pressed
+0 to break-pressed
+
+\ suspend the machine so that the host can show the screen and take keys
+: ace-yield ( -- ) shift ;
+
+\ the host time the Ace's clock started from
+variable clock-base
+0 to clock-base
+
+\ the seconds the Ace would have taken over the words run so far, less the seconds that passed: positive while the simulation is ahead of a real Ace
+: seconds-ahead ( -- seconds ) cycles-counted cycles-per-second speed-factor * / clock-base + now - ;
+
+\ keep to the Ace's speed: frames go by while the machine is ahead of a real Ace; time lost waiting, for a key or a BEEP, is forgiven rather than run off at full speed
+: keep-pace ( -- )
+	| ^clock-base |
+	seconds-ahead to ahead
+	ahead -0.05 < if now cycles-counted cycles-per-second speed-factor * / - to clock-base exit then
+	begin seconds-ahead 0 > while ace-yield repeat ;
+
+\ at each loop's back edge: every 256 passes the machine keeps to the Ace's speed and yields once its share of the frame is used; BREAK gives ERROR 3
+: ace-poll ( -- )
+	| ^poll-countdown ^break-pressed |
+	-- poll-countdown
+	poll-countdown 0 > if exit then
+	256 to poll-countdown
+	keep-pace
+	now yield-deadline >= if ace-yield then
+	break-pressed if 0 to break-pressed 3 ace-error then ;
+
+\ wait for ENTER while the editor takes keys (0594)
+: wait-for-enter ( -- )
+	key-state b@ 1 bit-or 223 bit-and key-state b!
+	begin ace-yield key-state b@ 32 bit-and until
+	delete-cursor ;
+
+\ RETYPE (057A): the buffer offered for editing with the [?] cursor at its start
+: retype ( -- )
+	buffer-start w@ set-line
+	insert-cursor
+	0xBF cursor-position w@ b!
+	wait-for-enter ;
+
+\ QUERY (058E): an empty buffer, filled until ENTER
+: ace-query ( -- ) set-buffer insert-cursor wait-for-enter ;
+
+\ === compiling ===
+
+\ whether FLAGS shows compile mode
+: compiling? ( -- flag ) flags b@ 64 bit-and 0 = not ;
+
+\ compile mode and an incomplete definition (0EB8)
+: start-definition ( -- ) flags b@ 68 bit-or flags b! ;
+
+\ the check of the compiling words (1108): ERROR 4 outside a definition
+: compile-only ( -- ) compiling? not if 4 ace-error then ;
+
+\ check-for (12DA): the marker a structure left on the stack; ERROR 5 when it is not there
+: check-for ( marker -- ) pop = not if 5 ace-error then ;
+
+\ fill in a forward jump's offset (1225)
+: resolve-forward ( address -- )
+	| address |
+	here-address address - 1- address w! ;
+
+\ enclose a backward jump's offset (1237)
+: enclose-backward ( address -- ) here-address - 1- enclose ;
+
+\ enclose the offset from a runtime address back to its word's name, for LIST, and make that word's reserved cell point here (10CD)
+: link-back ( reserved -- )
+	| reserved |
+	reserved 2 - 1- name-start here-address - 1- enclose
+	here-address reserved w! ;
+
+\ the text after ( or ." enclosed with its length, up to a delimiter taken from the buffer (13A1); without the delimiter on the line the buffer is offered for retyping
+: enclose-text ( delimiter -- )
+	| delimiter |
+	here-address to length-address
+	2 make-room
+	begin
+		delimiter get-word drop to length to start
+		start length + b@ delimiter = not
+	while
+		retype
+	repeat
+	length make-room
+	0 length 1 do k start k + b@ here-address length - k + b! loop
+	length length-address w!
+	start length consume-word ;
+
+: ace-colon ( -- ) 0x0EC3 define-with 10 push start-definition ;
+: ace-semicolon ( -- )
+	compile-only
+	0x04B6 enclose
+	10 check-for
+	flags b@ 187 bit-and flags b!
+	newest-word install-word ;
+: ace-create ( -- ) 0x0FEC define-with ;
+: ace-variable ( -- ) 0x0FF0 define-with pop enclose ;
+: ace-constant ( -- ) 0x0FF5 define-with pop enclose ;
+: ace-definer ( -- ) 0x1085 define-with here-address push 12 push 2 make-room start-definition ;
+: ace-immediate ( -- ) newest-word to nlf nlf b@ 64 bit-or nlf b! ;
+: ace-compiler ( -- ) 0x1108 define-with ace-immediate here-address push 11 push 2 make-room start-definition ;
+: ace-vocabulary ( -- )
+	0x11B5 define-with
+	current w@ 2 + enclose
+	0 enclose-byte
+	here-address to link-address
+	vocabulary-link w@ enclose
+	link-address vocabulary-link w! ;
+: ace-definitions ( -- ) context w@ current w! ;
+: ace-does ( -- )
+	compile-only
+	0x10E8 enclose
+	12 check-for
+	pop link-back
+	0xCD enclose-byte
+	0x0FF0 enclose
+	10 push ;
+: ace-runs ( -- )
+	compile-only
+	0x1140 enclose
+	11 check-for
+	pop to reserved
+	pop 255 bit-and enclose-byte
+	reserved link-back
+	0x1142 enclose
+	10 push ;
+: ace-if ( -- ) compile-only 0x1283 enclose here-address push 2 push 2 make-room ;
+: ace-else ( -- ) compile-only 0x1271 enclose 2 check-for 2 make-room pop resolve-forward here-address 2 - push 2 push ;
+: ace-then ( -- ) compile-only 0x12A4 enclose 2 check-for pop resolve-forward ;
+: ace-begin ( -- ) compile-only 0x129F enclose here-address push 1 push ;
+: ace-until ( -- ) compile-only 0x128D enclose 1 check-for pop enclose-backward ;
+: ace-while ( -- ) compile-only 0x1288 enclose 1 check-for here-address push 4 push 2 make-room ;
+: ace-repeat ( -- )
+	compile-only
+	0x1276 enclose
+	4 check-for
+	pop to while-address
+	pop enclose-backward
+	while-address resolve-forward ;
+: ace-do ( -- ) compile-only 0x1323 enclose here-address push 3 push ;
+: ace-loop ( -- ) compile-only 0x1332 enclose 3 check-for pop enclose-backward ;
+: ace-plus-loop ( -- ) compile-only 0x133C enclose 3 check-for pop enclose-backward ;
+: ace-literal ( -- ) compile-only 0x1011 enclose pop enclose ;
+: ace-comment ( -- ) compile-only 0x1379 enclose 41 enclose-text ;
+: ace-dot-quote ( -- ) compile-only 0x1396 enclose 34 enclose-text ;
+: ace-left-bracket ( -- ) flags b@ 191 bit-and flags b! ;
+: ace-right-bracket ( -- ) flags b@ 64 bit-or flags b! ;
+: ace-ascii ( -- )
+	32 word-to-pad
+	0x2702 b@ to char
+	compiling? if 0x104B enclose char enclose-byte else char push then ;
+
+\ a word's code field address found in RAM (1620); ERROR 13 when it is not there or is in the ROM
+: find-ram-word ( -- cfa )
+	find-word to cfa
+	cfa 0x3C51 < if 13 ace-error then
+	cfa ;
+
+\ FORGET (163A): the word and all after it go as an incomplete definition does, on the way back to the keyboard; ERROR 11 unless the current vocabulary is the context vocabulary
+: ace-forget ( -- )
+	current w@ context w@ = not if 11 ace-error then
+	find-ram-word 5 - newest-length w!
+	flags b@ 4 bit-or flags b!
+	255 ace-error ;
+
+\ === the outer interpreter ===
+
+\ LINE (0506): each word of the buffer executed, or enclosed when compiling and not immediate; each number stacked, or enclosed as a literal when compiling; text that is neither offered for retyping
+: interpret-line ( -- )
+	begin
+		ace-poll
+		find-word to cfa
+		cfa if
+			compiling? cfa 1- b@ 64 bit-and 0 = and if cfa enclose else cfa call-cfa then
+		else
+			parse-number to kind to high to low
+			kind 1 = if compiling? if 0x1011 enclose low enclose else low push then then
+			kind 2 = if compiling? if 0x1064 enclose low enclose high enclose else low push high push then then
+			kind 0 = if
+				32 get-word drop nip 0 = if exit then
+				retype
+			then
+		then
+	again ;
+
+\ the OK after a line (0538), unless compiling or INVIS
+: print-ok ( -- )
+	flags b@ 80 bit-and if exit then
+	" OK  " print-string
+	13 print-char ;
+
+\ empty the return stack
+: clear-return-stack ( -- ) begin return-stack size 0 > while return-stack remove-last! drop repeat ;
+
+\ ABORT (00AD): an empty data stack, an incomplete definition taken out of the dictionary, ERROR and the number unless ERR_NO holds 255
+: abort-machine ( -- )
+	stack-bottom w@ stack-top w!
+	flags b@ to state
+	state 179 bit-and flags b!
+	state 4 bit-and if
+		newest-length w@ 5 + to cfa
+		cfa 3 - w@ current w@ w!
+		cfa 1- name-start stack-bottom w!
+	then
+	error-number b@ 128 bit-and 0 = if
+		"ERROR " print-string
+		error-number b@ print-signed
+		13 print-char
+		255 error-number b!
+	then
+	stack-bottom w@ 12 + stack-top w!
+	clear-return-stack ;
+
+\ the main loop (04F2): QUERY, LINE and OK for ever; an ERROR or ABORT goes through abort-machine, QUIT empties the return stack
+: ace-main ( -- )
+	begin
+		depth to base-depth
+		( ace-query interpret-line print-ok ) catch
+		if
+			to exception
+			begin depth base-depth > while drop repeat
+			exception :ace-quit = if
+				clear-return-stack
+			else
+				exception :ace-abort = not if exception . cr then
+				abort-machine
+			then
+		then
+	again ;
+
+\ the ROM's words, name to code field address, walked down the links from UFLOAT (name length at 1D58)
+: rom-words ( -- words-by-name )
+	{ } to words-by-name
+	0x1D58 to nlf
+	begin nlf 0 = not while
+		nlf b@ 63 bit-and to n
+		n if
+			nlf name-start to start
+			[ ] to codes
+			0 n 1 do k codes start k + b@ 127 bit-and add-last! drop loop
+			words-by-name nlf 1+ codes codepoints>string string>symbol ! drop
+		then
+		nlf 2 - w@ to nlf
+	repeat
+	words-by-name ;
+
+{ } to rom-cfas
+
+\ index the ROM's words by name, once the ROM is in memory
+: index-rom ( -- )
+	| ^rom-cfas |
+	rom-words to rom-cfas ;
+
+\ make a telic word run for a ROM word, by its name
+: primitive ( xt name -- )
+	| xt name |
+	rom-cfas name string>symbol @ to cfa
+	implementations xt cfa !i drop ;
+
+\ the compiling and defining words
+: register-compiler-words ( -- )
+	' ace-colon ":" primitive
+	' ace-semicolon ";" primitive
+	' ace-create "CREATE" primitive
+	' ace-variable "VARIABLE" primitive
+	' ace-constant "CONSTANT" primitive
+	' ace-definer "DEFINER" primitive
+	' ace-compiler "COMPILER" primitive
+	' ace-immediate "IMMEDIATE" primitive
+	' ace-vocabulary "VOCABULARY" primitive
+	' ace-definitions "DEFINITIONS" primitive
+	' ace-does "DOES>" primitive
+	' ace-runs "RUNS>" primitive
+	' ace-if "IF" primitive
+	' ace-else "ELSE" primitive
+	' ace-then "THEN" primitive
+	' ace-begin "BEGIN" primitive
+	' ace-until "UNTIL" primitive
+	' ace-while "WHILE" primitive
+	' ace-repeat "REPEAT" primitive
+	' ace-do "DO" primitive
+	' ace-loop "LOOP" primitive
+	' ace-plus-loop "+LOOP" primitive
+	' ace-literal "LITERAL" primitive
+	' ace-comment "(" primitive
+	' ace-dot-quote ".""" primitive
+	' ace-left-bracket "[" primitive
+	' ace-right-bracket "]" primitive
+	' ace-ascii "ASCII" primitive
+	' ace-forget "FORGET" primitive
+	' interpret-line "LINE" primitive
+	' ace-query "QUERY" primitive
+	' retype "RETYPE" primitive ;

@@ -20,6 +20,6 @@
 
 \ with-intercept ( X/design -- X'/design ): ones column, prepended or keyed
 [ 5 6 7 ] 3 1 matrix with-intercept . cr   \ [[1 5][1 6][1 7]]
-{ :x [ 5 6 7 ] vector } with-intercept dup keys . :intercept @ . cr   \ [ :intercept :x ] then 3x1 ones
+{ :x [ 5 6 7 ] vector } with-intercept dup keys . :intercept @ . cr   \ [ :x :intercept ] then 3x1 ones
 { } ' with-intercept catch . . cr      \ 1 then the empty-design message
 

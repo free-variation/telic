@@ -1,0 +1,585 @@
+\ The Hobbit: command execution (8351-8907), whether an action could apply
+\ (9436) and carrying it out (946F), with the table from routine addresses
+\ found in the data to the words that replace them. Loaded after
+\ utilities.telic.
+
+0x832E constant target-flags
+0x832F constant instrument-flags
+0x8330 constant candidate-count
+0x8331 constant working-target-count
+0x8332 constant working-instrument-count
+0x8333 constant target-words
+0x8339 constant instrument-words
+0x833F constant target-search
+0x8341 constant instrument-search
+0x8343 constant all-command
+0x8344 constant single-wanted
+0x8345 constant target-offset
+0x8346 constant instrument-offset
+0x8347 constant working-target
+0x8348 constant working-instrument
+0x8349 constant action-words
+0x834B constant first-preposition
+0x834D constant second-preposition
+0x834F constant matched-entry
+
+later-words null :end-turn ! drop
+
+\ === routines by address ===
+
+{ } to routines
+
+\ the key of a routine address
+: routine-key ( address -- key ) "{0:x}" format string>symbol ;
+
+\ the word that replaces the routine at an address
+: define-routine ( xt address -- )
+	| xt address |
+	routines xt address routine-key ! drop ;
+
+\ call the routine at an address, none for 0 (9AC7)
+: run-routine ( address -- )
+	| address |
+	address 0 = if exit then
+	address routine-key to key
+	routines key has? 0= if address "no routine for 0x{0:x}" format throw then
+	routines key @ execute ;
+
+\ run the handler of a list entry and those of the entries for action 0 straight after it (94E6)
+: run-handlers ( entry -- )
+	| entry |
+	begin
+		entry entry-value run-routine
+		entry 3 + to entry
+		entry b@ 0 =
+	while
+	repeat ;
+
+\ clear bytes (70D9)
+: clear-bytes ( address n -- )
+	| address n |
+	0 n 1 do k 0 address k + b! loop ;
+
+\ === could the action apply, and doing it ===
+
+\ note whether the action could apply to the target at all (9436): it makes sense, and there is a default handler, the instrument's handlers are used, or the target has its own
+: could-apply ( -- )
+	sensible? 0= if 0 would-work b! exit then
+	current-action b@ 0xC61F table-entry found? if 1 would-work b! exit then
+	instrument-action? if 1 would-work b! exit then
+	current-action b@ current-target b@ object-record object-handler found? if 1 else 0 then would-work b! ;
+
+\ the default handlers for the action (952C), or "I cannot do that."; 1 when the reactions follow
+: run-default ( -- reactions )
+	current-action b@ 0xC61F table-entry to entry
+	entry found? if entry run-handlers 1 exit then
+	cannot-do
+	0 ;
+
+\ the handlers of the target, or of the instrument for the actions listed at 0xA13B, else the defaults (9499-94F9); each object must be within reach; 1 when the reactions follow
+: run-object-handlers ( -- reactions )
+	target-is-room b@ 1 = if run-default exit then
+	current-target b@ 255 = if run-default exit then
+	current-target b@ object-record target-record w!
+	current-target b@ out-of-reach? if 1 exit then
+	target-record w@ to record
+	current-instrument b@ 255 = not if
+		instrument-is-room b@ 1 = if run-default exit then
+		current-instrument b@ object-record instrument-record w!
+		current-instrument b@ out-of-reach? if 1 exit then
+		instrument-action? if instrument-record w@ to record then
+	then
+	current-action b@ record object-handler to entry
+	entry found? 0= if run-default exit then
+	entry run-handlers
+	1 ;
+
+\ carry out the action (946F): it must make sense; in the dark it needs the target and instrument held and an action that does not need light, else "I see nothing."; afterwards, when it really happened, "it is dark." for the player in the dark, and the target and instrument react
+: carry-out ( -- )
+	sensible? 0= if cannot-do exit then
+	1 to by-touch
+	too-dark? if
+		needs-light b@ if 0 else holding-target? if current-instrument b@ held-by-actor? else 0 then then to by-touch
+	then
+	by-touch if run-object-handlers else 0xAEB7 message 1 then to reactions
+	reactions 0= if exit then
+	really b@ 1 = not if exit then
+	current-actor b@ 0 = if too-dark? if dark-message message then then
+	current-target b@ target-record w@ current-action b@ involve
+	current-instrument b@ instrument-record w@ current-action b@ involve ;
+
+\ a trial of the action (84DE): whether it would work
+: try-action ( -- flag ) carry-out would-work b@ 0 = not ;
+
+\ === the action's flags and the searches ===
+
+\ the action's flags as variables (8569): 0xB601 needs light, 0xB5FF reach does not matter, 0xB5EF the target is a room, 0xB5F0 the instrument is a room
+: decode-action-flags ( -- )
+	action-flags-2 b@ 64 bit-and needs-light b!
+	action-flags b@ to flags
+	flags 1 bit-and reach-free b!
+	flags 128 bit-and if 1 else 0 then target-is-room b!
+	flags 64 bit-and if 1 else 0 then instrument-is-room b! ;
+
+\ where an object search starts (84BD): the index, or one entry before it when the low two bits ask for characters only or objects only
+: choose-table ( bits -- position ) 3 bit-and if 0xBF50 else 0xBF53 then ;
+
+\ start the search for targets (8497): objects by bits 2-3 of 0xB60E, or the actor's room's exits for a room
+: start-target-search ( -- )
+	action-flags-2 b@ 2 rshift choose-table to position
+	target-is-room b@ if actor-exits to position then
+	position target-search w! ;
+
+\ start the search for targets unless an ALL command is under way (8492)
+: continue-target-search ( -- ) all-running b@ if exit then start-target-search ;
+
+\ start the search for instruments (84AB)
+: start-instrument-search ( -- )
+	action-flags-2 b@ choose-table to position
+	instrument-is-room b@ if actor-exits to position then
+	position instrument-search w! ;
+
+\ the action needs an instrument (84C9): its flag bit 2, unless no instrument was named and flag bit 1 lets it go without
+: instrument-needed? ( -- flag )
+	action-flags b@ to flags
+	flags 4 bit-and 0 = if 0 exit then
+	0 instrument-flags bit? if 1 exit then
+	flags 2 bit-and 0 = ;
+
+\ search objects or rooms for the next fit to a word list (86BA)
+: search-with ( words position rooms -- candidate position )
+	| words position rooms |
+	rooms if words position next-room else words position next-object then ;
+
+\ the next target that fits the target's words and to which the action could apply (86BC, 86ED), or 0xFF
+: next-target ( -- candidate )
+	target-search w@ to position
+	target-is-room b@ 1 = to rooms
+	rooms 0= if action-flags-2 b@ 2 rshift 3 bit-and search-filter b! then
+	begin
+		target-words position rooms search-with to position to candidate
+		candidate 255 = if position target-search w! 255 exit then
+		candidate current-target b!
+		1 target-flags bit-set
+		could-apply
+		would-work b@ if position target-search w! candidate exit then
+	again ;
+
+\ the next instrument that fits the instrument's words and with which the action would work (8708, 8745), or 0xFF; reach matters during the search
+: next-instrument ( -- candidate )
+	0 reach-free b!
+	instrument-search w@ to position
+	instrument-is-room b@ 1 = to rooms
+	rooms 0= if action-flags-2 b@ 3 bit-and search-filter b! then
+	255 to answer
+	begin
+		instrument-words position rooms search-with to position to candidate
+		candidate 255 = if 0 else
+			candidate current-instrument b!
+			1 instrument-flags bit-set
+			try-action if candidate to answer 0 else 1 then
+		then
+	while
+	repeat
+	position instrument-search w!
+	action-flags b@ 1 bit-and reach-free b!
+	answer ;
+
+\ search for a target and instrument with which the action would work (8405), counting the candidates at 0x8330-0x8332; 1 when exactly one combination was settled, or the first when only one is wanted
+: search-objects ( -- settled )
+	:target to label
+	begin
+		label :target = if
+			next-target 255 = if
+				working-target-count b@ 1 = not if 0 exit then
+				working-target b@ current-target b!
+				start-instrument-search
+				instrument-needed? if :instrument to label else 1 exit then
+			else
+				candidate-count b@ 1+ candidate-count b!
+				instrument-needed? if
+					start-instrument-search
+					next-instrument 255 = not to works
+				else
+					try-action to works
+				then
+				works if
+					single-wanted b@ 1 = if 1 exit then
+					current-target b@ working-target b!
+					working-target-count b@ 1+ working-target-count b!
+				then
+			then
+		then
+		label :instrument = if
+			next-instrument to candidate
+			candidate 255 = if
+				working-instrument-count b@ 1 = not if 0 exit then
+				working-instrument b@ current-instrument b!
+				1 exit
+			then
+			candidate working-instrument b!
+			working-instrument-count b@ 1+ working-instrument-count b!
+		then
+	again ;
+
+\ the target is one of the objects the exception frames after an ALL frame name (8464)
+: excluded? ( command-frame -- flag )
+	| command-frame |
+	command-frame to exception-frame
+	begin
+		exception-frame 24 - to exception-frame
+		6 exception-frame 1+ bit? 0= if 0 exit then
+		0xBF50 to position
+		begin
+			exception-frame 8 + position next-object to position to candidate
+			candidate 255 = not
+		while
+			candidate current-target b@ = if 1 exit then
+		repeat
+	again ;
+
+\ === replies ===
+
+\ replies go to the lower window, really printed (875C)
+: prepare-reply ( -- )
+	1 really b!
+	1 lower-window b! ;
+
+\ take off any parameters a message left unused
+: drop-parameters ( -- ) begin message-parameters size 0 > while take-parameter drop repeat ;
+
+\ print a reply (8781); the parameters pushed for it are used up
+: reply ( address -- )
+	prepare-reply
+	quoted-message
+	drop-parameters ;
+
+\ leave the command unfinished (8765): its frame is kept at 0xB8B8 and the next line typed completes it
+: leave-unfinished ( offset command-frame -- )
+	| offset command-frame |
+	offset unfinished b!
+	command-frame first-frame 24 copy-bytes ;
+
+\ push the action's particle and preposition for a question (8869, 8865): for the target when bit 7 of byte 7 and bit 5 of the preposition's high byte are set, for the instrument when they are clear, else 0
+: push-action-words ( instrument-version -- )
+	| instrument-version |
+	matched-entry w@ to entry
+	7 entry 7 + bit? instrument-version = if 0 else entry 4 + w@ then parameter
+	entry 2 + w@ to preposition
+	preposition 13 rshift 1 bit-and instrument-version = if 0 else preposition then parameter ;
+
+\ "I do not know the verb ..." (8895)
+: unknown-verb ( -- )
+	second-preposition w@ parameter
+	first-preposition w@ parameter
+	action-words w@ parameter
+	0xACA4 reply ;
+
+\ carry the action out anyway, so its handler explains the failure (87E6)
+: do-anyway ( -- outcome )
+	prepare-reply
+	carry-out
+	:continue-extra ;
+
+\ search further for a noun that fitted nothing (87EF): the rooms leading off, then every object anywhere; a find is reported as failing, otherwise "I do not see the X here."
+: search-properly ( words destination room-flag -- outcome )
+	| words destination room-flag |
+	1 room-flag b!
+	words actor-exits next-room drop to candidate
+	candidate 255 = if
+		2 search-filter b!
+		0 room-flag b!
+		words 0xBF50 next-object drop to candidate
+	then
+	candidate 255 = if
+		prepare-reply
+		words parameter
+		0xACC7 quoted-message
+		:abort exit
+	then
+	candidate destination b!
+	really-report
+	:abort ;
+
+\ no noun for the target (8821): "I see nothing to ...", or "... what?" leaving the command unfinished
+: ask-for-target ( command-frame -- outcome )
+	| command-frame |
+	0 push-action-words
+	action-words w@ parameter
+	working-target-count b@ 0 = if 0xACD5 reply :abort exit then
+	target-offset b@ command-frame leave-unfinished
+	0xACB8 reply
+	:abort ;
+
+\ no noun for the instrument (883E): "I see nothing to ... the X with", or "... the X with what?" leaving the command unfinished
+: ask-for-instrument ( command-frame -- outcome )
+	| command-frame |
+	1 push-action-words
+	current-target b@ object-words parameter
+	0 push-action-words
+	action-words w@ parameter
+	working-instrument-count b@ 0 = if 0xACDB reply :abort exit then
+	instrument-offset b@ command-frame leave-unfinished
+	0xACB4 reply
+	:abort ;
+
+\ "which X?" for the target (8774), leaving the command unfinished
+: ask-which-target ( command-frame -- outcome )
+	| command-frame |
+	target-words w@ parameter
+	target-offset b@ command-frame leave-unfinished
+	0xACC0 reply
+	:abort ;
+
+\ the instrument could not be settled (8789); several fitting instruments push the address 0x8339 itself as the word and keep its first byte as the offset, as 87A5-87AB do
+: explain-instrument ( command-frame -- outcome )
+	| command-frame |
+	0 instrument-flags bit? 0= if command-frame ask-for-instrument exit then
+	1 instrument-flags bit? 0= if instrument-words current-instrument instrument-is-room search-properly exit then
+	working-instrument-count b@ 0 = if do-anyway exit then
+	instrument-words parameter
+	instrument-words b@ command-frame leave-unfinished
+	0xACC0 reply
+	:abort ;
+
+\ the objects could not be settled (87AD): nothing is said inside a quotation, ALL moves on, else a question, a wider search or the action done anyway
+: explain ( command-frame -- outcome )
+	| command-frame |
+	quote-level b@ 1 = if :abort exit then
+	all-running b@ if :next-frame exit then
+	working-target-count b@ 1 = if command-frame explain-instrument exit then
+	0 target-flags bit? 0= if command-frame ask-for-target exit then
+	1 target-flags bit? 0= if target-words current-target target-is-room search-properly exit then
+	candidate-count b@ 0 = if do-anyway exit then
+	candidate-count b@ 1 = not if command-frame ask-which-target exit then
+	instrument-needed? if command-frame explain-instrument exit then
+	do-anyway ;
+
+\ === matching a command to an action ===
+
+\ the six bytes of words at an address are not all zero
+: words-given? ( address -- flag )
+	| address |
+	address w@ address 2 + w@ bit-or address 4 + w@ bit-or 0 = not ;
+
+\ decide which noun phrase is the target and which the instrument (8614): bit 5 of the action's flags, flipped when no preposition was collected (from 0xB60E) or when it belongs to the second phrase; the target's words also become IT
+: assign-phrases ( code entry command-frame -- )
+	| code entry command-frame |
+	code if
+		first-preposition w@ to swapped
+		second-preposition w@ first-preposition w!
+		swapped second-preposition w!
+	then
+	entry action-flag-bytes drop
+	first-preposition w@ to preposition
+	preposition 0 = if
+		action-flags-2 b@ 0x20 bit-xor
+	else
+		preposition command-frame 14 + w@ = preposition command-frame 16 + w@ = or if action-flags b@ 0x20 bit-xor else action-flags b@ then
+	then
+	0x20 bit-and if 8 18 else 18 8 then to instrument-at to target-at
+	target-at target-offset b!
+	instrument-at instrument-offset b!
+	command-frame target-at + target-words 6 copy-bytes
+	target-words words-given? if 0 target-flags bit-set then
+	target-words it-words 6 copy-bytes
+	command-frame instrument-at + instrument-words 6 copy-bytes
+	instrument-words words-given? if 0 instrument-flags bit-set then ;
+
+\ find the action table entry for a frame's verb and up to two prepositions (858F): :found with the entry at 0x834F; :none after "I do not know the verb"; for a verb with no actions "you <verb>. time passes...", then :none inside a quotation, else :turn
+: find-action ( command-frame -- outcome )
+	| command-frame |
+	command-frame w@ to verb
+	verb 8 rshift 128 bit-and all-command b!
+	verb 0x7FFF bit-and action-words w!
+	first-preposition 4 clear-bytes
+	first-preposition to slot
+	2 to wanted
+	[ 4 14 6 16 ] to offsets
+	0 4 1 do k
+		wanted 0 > if
+			command-frame offsets k @i + w@ to preposition
+			preposition slot w!
+			preposition 0 = not if
+				wanted 1- to wanted
+				slot 2 + to slot
+			then
+		then
+	loop
+	0 verb-matched b!
+	0xAA47 to entry
+	begin
+		action-words entry words-match to code
+		code 0 >= if
+			entry matched-entry w!
+			code entry command-frame assign-phrases
+			:found exit
+		then
+		entry 8 + to entry
+		entry w@ 0 = if
+			verb-matched b@ if unknown-verb :none exit then
+			action-words w@ parameter
+			0 lower-window b!
+			0 all-running b!
+			1 really b!
+			0xAC97 quoted-message
+			drop-parameters
+			quote-level b@ 1 = if :none exit then
+			:turn exit
+		then
+	again ;
+
+\ clear the work area (839A)
+: clear-work-area ( -- )
+	0 lower-window b!
+	target-flags 17 clear-bytes ;
+
+\ find the action and objects for a command frame (83A7): :found, :abort, :turn, or from explain :next-frame and :continue-extra
+: find-command ( command-frame -- outcome )
+	| command-frame |
+	255 current-instrument b!
+	255 current-target b!
+	clear-work-area
+	command-frame find-action to outcome
+	outcome :turn = if :turn exit then
+	outcome :found = not if :abort exit then
+	matched-entry w@ 0xAA47 - 8 / 1+ to action
+	action current-action b!
+	action action-copy b!
+	decode-action-flags
+	continue-target-search
+	0 really b!
+	action-flags b@ 12 bit-and 0 = if :found exit then
+	all-command b@ all-running b!
+	all-command b@ 128 bit-and if 1 else 0 then single-wanted b!
+	begin
+		search-objects 0= if command-frame explain exit then
+		all-running b@ 0 = if :found exit then
+		command-frame excluded? 0= if :found exit then
+	again ;
+
+\ execute the command frames of a line and run a turn for each (8351): frames go downwards from 0xB8B8, ALL repeats a frame, exception frames are skipped; an unfinished command resumes at the frame count; a failure explained by doing the action leaves 0xB5F6 clear at the end, as its extra return address does
+: execute-line ( -- )
+	0 all-running b!
+	first-frame to command-frame
+	0 to extra-return
+	unfinished b@ to waiting
+	0 unfinished b!
+	waiting if :next-frame else :find then to label
+	begin
+		label :find = if
+			command-frame find-command to outcome
+			outcome :found = if
+				try-action if
+					1 really b!
+					report-action
+					carry-out
+					:turn to label
+				else
+					prepare-reply
+					carry-out
+					:continue to label
+				then
+			else
+				outcome :abort = if 0 more-commands b! exit then
+				outcome :continue-extra = if 1 to extra-return :continue to label else outcome to label then
+			then
+		then
+		label :turn = if
+			later-words :end-turn @ execute
+			:continue to label
+		then
+		label :continue = if all-running b@ if :find else :next-frame then to label then
+		label :next-frame = if
+			frame-count b@ 1- 255 bit-and to remaining
+			remaining frame-count b!
+			remaining 0 = if
+				extra-return if 0 more-commands b! then
+				exit
+			then
+			begin
+				command-frame 24 - to command-frame
+				6 command-frame 1+ bit?
+			while
+			repeat
+			:find to label
+		then
+	again ;
+
+\ === orders and characters ===
+
+\ the order slot addressed to the current actor (88EC): the slot and 1, or the address past the eighth slot and 0
+: order-slot ( -- slot flag )
+	current-actor b@ to actor
+	0 8 1 do k
+		orders k 25 * + to slot
+		slot b@ actor = if slot 1 exit then
+	loop
+	orders 200 + 0 ;
+
+\ the current actor has an order waiting (88FD)
+: order-for-actor? ( -- flag ) order-slot nip ;
+
+\ give the first n waiting orders to the target character and throw away the rest (88A7)
+: hand-orders ( wanted -- )
+	| wanted |
+	order-count b@ to waiting-orders
+	waiting-orders wanted < if waiting-orders to wanted then
+	waiting-orders wanted - to leftover
+	0xB60F to slot
+	wanted 0 > if
+		0 wanted 1 do k
+			begin slot 25 + to slot slot b@ 255 = not while repeat
+			current-target b@ slot b!
+		loop
+	then
+	leftover 0 > if
+		0 leftover 1 do k
+			begin slot 25 + to slot slot b@ 255 = not while repeat
+			0 slot b!
+		loop
+	then ;
+
+\ obey an order (8907): the actor's order slot is freed and its frame returned; with 0 that is all (1); otherwise the frame is matched as if typed inside a quotation, 1 when the actor can carry it out, else the actor's orders are cancelled (0)
+: obey-order ( obey -- command-frame flag )
+	| obey |
+	order-slot drop to slot
+	0 slot b!
+	slot 1+ to command-frame
+	obey 0 = if command-frame 1 exit then
+	1 quote-level b!
+	all-running b@ to saved-all
+	command-frame find-command to outcome
+	0 quote-level b!
+	saved-all all-running b!
+	outcome :found = if try-action if command-frame 1 exit then then
+	current-actor b@ cancel-orders
+	command-frame 0 ;
+
+\ copy the words of an object, or of a room, to an address (8554); nothing for 0xFF
+: copy-words ( object room-flag destination -- )
+	| object room-flag destination |
+	object 255 = if exit then
+	room-flag if object room-words else object object-words then destination 6 copy-bytes ;
+
+\ the action in 0xB5D8 would work for a character with the target and instrument chosen (84E6): their words are searched as if typed, one match wanted; the player's target search position is kept
+: character-could-act? ( -- flag )
+	target-search w@ to saved-search
+	current-action b@ action-entry to entry
+	clear-work-area
+	entry action-flag-bytes drop
+	decode-action-flags
+	current-target b@ target-is-room b@ target-words copy-words
+	current-instrument b@ instrument-is-room b@ instrument-words copy-words
+	start-target-search
+	0 really b!
+	action-flags b@ 12 bit-and 0 = if
+		carry-out
+		would-work b@ 0 = not to works
+	else
+		1 single-wanted b!
+		search-objects to works
+	then
+	1 really b!
+	saved-search target-search w!
+	works ;

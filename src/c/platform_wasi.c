@@ -117,6 +117,10 @@ int platform_run_main(int argc, char **argv, MainBody body) {
 	return body(argc, argv);
 }
 
+void platform_exit(int status) {
+	exit(status);
+}
+
 #define NO_WINDOW_SYSTEM(c_name, word_name) \
 	void c_name(DISPATCH_ARGS) { \
 		(void)chain_ip; \

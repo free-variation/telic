@@ -1,0 +1,9 @@
+in | back 1 7 after 
+in | back 1 division by zero 
+2 1 | 1 division by zero 
+1 5 
+0 42 
+0 | 1 | 2 | 1 9 
+[ 1 2 :stop ] 
+1 5 1 6 
+1 no enclosing reset on the return stack 

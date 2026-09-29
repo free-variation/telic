@@ -11,7 +11,7 @@ error: unknown word: loopy (did you mean loop?)
 1 
 {
   :message /tmp/w124_bad.telic:1: : expected a stack effect after the name, as in : name ( a b -- c )
-  :trace in :
+  :trace in : ← catch
 }
 
 error: unknown word: broken

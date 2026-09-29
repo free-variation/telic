@@ -181,7 +181,7 @@ The return stack therefore directly reflects the call chain. If word A calls wor
 
 ### Nested run_inner invocations
 
-There's one more subtlety. When a primitive like `resume`, `catch`'s `(execute-catching)`, or a combinator such as `map` needs to run a colon-defined word *during its own execution*, it doesn't just modify `ip` and return — it calls `run_inner` again, recursively, from the C side. So the C call stack may have several `run_inner` frames active at once, each running its own inner loop. (`execute` on a colon body is the exception: it pushes an ordinary return frame and jumps into the body, so the caller's continuation stays on the return stack where `shift` can capture it.)
+There's one more subtlety. When a primitive like `resume` or a combinator such as `map` needs to run a colon-defined word *during its own execution*, it doesn't just modify `ip` and return — it calls `run_inner` again, recursively, from the C side. So the C call stack may have several `run_inner` frames active at once, each running its own inner loop. (`execute` on a colon body is the exception: it pushes an ordinary return frame and jumps into the body, so the caller's continuation stays on the return stack where `shift` can capture it.)
 
 This nesting matters for continuations. When `shift` fires, it might need to signal "unwind this whole region" across several `run_inner` levels, all the way back to wherever the matching `reset` was executed. We'll see in Part 9 how this works.
 
@@ -203,7 +203,7 @@ Each of the four primitives we'll meet (`reset`, `shift`, `shift-with`, `resume`
 
 `reset` is the simplest of the four continuation primitives. It does just one thing: push a MARK value onto the return stack and dispatch on. The mark then sits there, mixed in with the regular saved-ip frames from the call chain.
 
-A mark carries two things packed into its payload: a monotonic *id* (a fresh one per `reset`) and a one-bit *prompt kind*. There are two kinds — an *exception* prompt, which `reset`/`shift`/`shift-with` use, and a *choice* prompt, which the backtracking primitives `amb`/`fail` use (Part 14). Encoding the kind in the mark lets `shift` scan past choice marks to the nearest exception prompt, and `fail` scan past exception marks to the nearest choice prompt, so the two control mechanisms nest without colliding.
+A mark carries two things packed into its payload: a monotonic *id* (a fresh one per mark) and a two-bit *prompt kind*. There are three kinds — an *exception* prompt, which `reset` pushes and `shift`/`shift-with` target; a *catch* prompt, which `catch` pushes (Part 10); and a *choice* prompt, which the backtracking primitives `amb`/`fail` use (Part 14). Encoding the kind in the mark lets `shift` scan past catch and choice marks to the nearest exception prompt, `throw` stop at the nearest exception or catch prompt, and `fail` scan past both to the nearest choice prompt, so the three control mechanisms nest without colliding.
 
 Why is it harmless to leave a marker on the return stack? Because EXIT is taught to skip MARK frames. When EXIT pops a frame and sees that it's a MARK, it discards the mark and pops the next frame instead — the real saved-ip that EXIT needs to jump back to. The mark is invisible to normal control flow; it's just a tag that says "this is a reset boundary."
 
@@ -217,12 +217,12 @@ The id is also useful for debugging: when you print the return stack, each MARK 
 
 ### Visualizing the return stack after `reset`
 
-Suppose `reset` was called from inside a word `catch` (we'll define `catch` properly later; for now treat it as a colon definition that contains `reset` in its body). The return stack just before `reset` runs might look like:
+Suppose `reset` was called from inside a colon word `guard` whose body contains `reset`. The return stack just before `reset` runs might look like:
 
 ```
 [ ... outer frames ... ]
-[ R_catch_tramp           ]   <-- saved ip: "where to return when catch's body finishes"
-                                   (pushed by docol when catch was called)
+[ R_guard_tramp           ]   <-- saved ip: "where to return when guard's body finishes"
+                                   (pushed by docol when guard was called)
                           ^ rsp
 ```
 
@@ -230,14 +230,14 @@ After `reset` pushes the mark:
 
 ```
 [ ... outer frames ... ]
-[ R_catch_tramp           ]
+[ R_guard_tramp           ]
 [ MARK id=N               ]
                           ^ rsp
 ```
 
 The mark has its own unique id (let's say N). It carries no instruction pointer — it's purely a sentinel.
 
-If nothing more happens — `catch`'s body finishes, the inner interpreter reaches EXIT — then EXIT pops the mark (skip), pops `R_catch_tramp`, jumps to where catch was called from. The mark contributed nothing.
+If nothing more happens — `guard`'s body finishes, the inner interpreter reaches EXIT — then EXIT pops the mark (skip), pops `R_guard_tramp`, jumps to where guard was called from. The mark contributed nothing.
 
 But if `shift` or `shift-with` runs inside the reset region, the mark becomes the *target* of the operation.
 
@@ -248,10 +248,10 @@ There is no syntactic bracket here. `reset` doesn't take a body. It's just a sen
 In practice the region tends to be "the rest of the word that contained `reset`, plus everything that word's body calls." For example:
 
 ```forth
-: catch ( xt -- ... )   reset (execute-catching) 0 ;
+: guard ( xt -- ... )   reset execute 0 ;
 ```
 
-The reset region is `(execute-catching) 0` plus everything it invokes transitively. When EXIT for `catch`'s body eventually runs, it pops the mark on the way out and the region ends.
+The reset region is `execute 0` plus everything it invokes transitively. When EXIT for `guard`'s body eventually runs, it pops the mark on the way out and the region ends.
 
 This is a different design from Scheme's `prompt`, which takes a body expression as an argument. The sentinel-push design is simpler to implement (one line) and integrates naturally with Forth's call/return mechanism, but it requires the unwinding logic to be slightly cleverer about figuring out where "after the reset region" is. We'll see how that works in Part 9.
 
@@ -527,7 +527,7 @@ When `reset` runs in a colon definition's body, the colon definition's own docol
 
 By popping it and setting `ip` from it, we land at the right place in the caller's code. Normal dispatch then resumes from there.
 
-In the exception case, this is exactly what we want: catch's body is `reset (execute-catching) 0`. When `shift-with` fires inside the user xt, the unwind hits the matching mark; the docol frame just below it tells us where execution should resume — *outside* catch's body, back in the calling word. The `0` cell that lives in catch's body never runs.
+In the exception case, this is exactly what we want: catch's body is `(catch-prompt) execute (catch-end) 0`, and `(catch-prompt)` pushes a catch mark. When `throw` fires inside the user xt, the unwind hits that mark; the docol frame just below it tells us where execution should resume — *outside* catch's body, back in the calling word. The `(catch-end) 0` cells that live in catch's body never run.
 
 This is the whole reason the unwinding works correctly: the docol frame just below the mark contains exactly the information about "where to continue in the caller's code after the reset region completes."
 
@@ -554,7 +554,7 @@ C stack (most recent on top):
   run_inner          <-- running the ( middle ) quotation's body
   execute_cfa(quotation)
   p_execute          <-- the `execute` word inside catch's body
-  run_inner          <-- running catch's body (this is the one with reset!)
+  run_inner          <-- running catch's body (this is the one with the catch mark)
   execute_cfa(catch)
   REPL or outer caller
 ```
@@ -563,7 +563,9 @@ And the return stack (drawn bottom-to-top):
 
 ```
 [ R_caller_of_catch    ]   <-- pushed when catch was invoked
-[ MARK id=N            ]   <-- pushed by reset in catch's body
+[ MARK id=N kind=catch ]   <-- pushed by (catch-prompt) in catch's body
+[ depth                ]   <-- the data-stack depth at catch entry, also
+                              pushed by (catch-prompt)
 [ R_quotation          ]   <-- pushed when execute invoked the quotation
 [ R_middle             ]   <-- pushed when quotation called middle
 [ R_deep               ]   <-- pushed when middle called deep
@@ -593,7 +595,7 @@ With all that machinery, exceptions are two one-liners and a primitive:
 ```forth
 \ throw is a C primitive: unwind to the nearest exception prompt leaving exc 1;
 \ with no enclosing prompt it is the interpreter error "uncaught exception: <value>"
-: catch ( xt -- result 0 | exc 1 )       reset (execute-catching) 0 ;
+: catch ( xt -- result 0 | exc 1 )       (catch-prompt) execute (catch-end) 0 ;
 : try-catch ( normal-xt error-xt -- ... )
     >side                                \ stash error-xt
     catch
@@ -602,42 +604,54 @@ With all that machinery, exceptions are two one-liners and a primitive:
     then ;
 ```
 
-`throw` behaves like `( drop 1 ) shift-with` on the caught path, except that it pushes the `1` directly instead of capturing a continuation only for the handler to drop it. `(execute-catching)` is `execute` plus a check covered in *Catching interpreter errors* below. On the `throw` and success paths it behaves exactly like `execute`, so the two traces that follow read the same with either.
+`throw` behaves like `( drop 1 ) shift-with` on the caught path, except that it pushes the `1` directly instead of capturing a continuation only for the handler to drop it, and it stops at the nearest catch mark as well as at the nearest `reset` mark. `(catch-prompt)` pushes a catch mark and, above it, the data-stack depth below the xt; `(catch-end)` pops both.
 
 Let's trace `( 42 throw ) catch`:
 
 1. The quotation `( 42 throw )` is pushed onto the data stack as an xt.
-2. `catch` is called. Its body is `reset (execute-catching) 0`.
-3. `reset` pushes a MARK (id=N) onto the return stack.
-4. `(execute-catching)` pops the xt and invokes it.
+2. `catch` is called. Its body is `(catch-prompt) execute (catch-end) 0`.
+3. `(catch-prompt)` pushes a catch MARK (id=N) and the depth cell onto the return stack.
+4. `execute` pops the xt and invokes it with an ordinary return frame.
 5. The xt runs: `42` pushes 42 onto the data stack; `throw` runs.
-6. `throw` finds the nearest exception MARK on the return stack (skipping locals regions, so a local slot is never read as a mark).
+6. `throw` finds the nearest exception or catch MARK on the return stack (skipping locals regions, so a local slot is never read as a mark).
 7. It unwinds the return stack to just above the MARK, keeping the MARK in place, and pushes `1`, leaving `[42, 1]`.
 8. `throw` sets `unwinding = 1`.
 9. The unwinding cascade begins. Inner-loop levels break and propagate up until reaching the level that owns the MARK.
 10. That level pops the MARK (clearing `unwinding`), pops the docol frame for `catch`, and sets `ip` to wherever catch was called from in the calling word.
-11. The `0` after `(execute-catching)` in catch's body is bypassed (catch's body never runs again).
+11. The `(catch-end) 0` after `execute` in catch's body is bypassed (catch's body never runs again).
 12. Execution continues past catch in the calling word, with `[42, 1]` on the data stack.
 
 Now trace `( 42 ) catch` (success path):
 
 1. The xt is pushed.
-2. catch body: `reset (execute-catching) 0`.
-3. `reset` pushes a MARK.
-4. `(execute-catching)` runs the xt. The xt pushes 42 and returns.
-5. The xt's EXIT pops its own docol frame and returns to catch's body, which continues with `0`. The `0` is pushed.
-6. Catch's body's EXIT runs. It pops the MARK (skip), pops catch's own docol frame, returns to the caller.
+2. catch body: `(catch-prompt) execute (catch-end) 0`.
+3. `(catch-prompt)` pushes the catch MARK and the depth cell.
+4. `execute` runs the xt. The xt pushes 42 and returns.
+5. The xt's EXIT pops its own docol frame and returns to catch's body, which continues with `(catch-end)`, popping the depth cell and the MARK, then `0`. The `0` is pushed.
+6. Catch's body's EXIT pops catch's own docol frame and returns to the caller.
 7. Data stack: `[42, 0]`.
 
 So catch returns `(result, 0)` on success or `(exc, 1)` on throw. The flag distinguishes the two cases — and the unwinding mechanism ensures the `0` only runs on success.
 
 ### Catching interpreter errors
 
-A `throw` is not the only thing that can interrupt the wrapped xt. An *interpreter* error — a stack underflow, a type mismatch, a division by zero, an out-of-bounds index — sets the interpreter's error flag, which short-circuits dispatch and stops the run. Because it stops the run, the `0` in `reset (execute-catching) 0` could never execute after such an error; a plain `reset execute 0` would let the error sail past `catch` straight to the REPL.
+A `throw` is not the only thing that can interrupt the wrapped xt. An *interpreter* error — a stack underflow, a type mismatch, a division by zero, an out-of-bounds index — sets the interpreter's error flag, which short-circuits dispatch and stops the run.
 
-`(execute-catching)` closes that gap. It runs the xt exactly as `execute` would, then — *only* if the run ended with the error flag set — converts the error into the same unwind a `throw` produces: it clears the flag, discards whatever partial values the failed xt left, leaves the error message as the exception value alongside the `1` failure flag, and unwinds to `catch`'s `reset`, bypassing the `0`. So `catch` returns `(message, 1)` and `try-catch` runs its handler with the message — for interpreter errors and user `throw`s alike. (A `throw` or interpreter error with no enclosing `catch` still surfaces at the REPL; the conversion only fires when there's an exception prompt to unwind to.)
+`run_inner` closes that gap. When its dispatch loop stops with the error flag set, it looks for the nearest catch mark at or above its own entry depth. If there is one, it converts the error into the same unwind a `throw` produces: it clears the flag, restores the data stack to the depth recorded in the cell above the mark, pushes the error frame `{ :message :trace }` as the exception value and the `1` failure flag, and unwinds to the mark, bypassing `(catch-end) 0`. So `catch` returns `(error-frame, 1)` and `try-catch` runs its handler with the frame — for interpreter errors and user `throw`s alike. When the catch mark lies below the level's entry depth, the level returns with the flag still set, and the enclosing level that owns the mark converts it. (A `throw` or interpreter error with no enclosing `catch` still surfaces at the REPL.)
 
-The asymmetry with a `throw` is deliberate. A user `throw` leaves the data stack as the thrower arranged it; an interpreter error leaves half-consumed operands, so `(execute-catching)` first restores the stack to its depth at `catch`-entry before pushing `(message, 1)`. And the check costs nothing on the hot path: it runs once per `catch`, after the xt returns — never per operation — so the dispatch loop is untouched.
+The asymmetry with a `throw` is deliberate. A user `throw` leaves the data stack as the thrower arranged it; an interpreter error leaves half-consumed operands, so the conversion first restores the stack to its depth at `catch`-entry before pushing `(error-frame, 1)`. And the check costs nothing on the hot path: it runs once each time a `run_inner` loop stops with the error flag set — never per operation — so the dispatch loop is untouched.
+
+### `shift` across a `catch`
+
+Because the catch mark is a different kind from the `reset` mark, `shift` passes it and captures it into the continuation together with the depth cell. `resume` splices both back; it adds to the depth cell the difference between the data-stack depth at the `resume` and the depth at the capture, so the depth stays the same distance below the top of the stack. After the `resume`, a `throw` or an interpreter error inside the `catch` body is caught by that `catch`:
+
+```forth shift-through-catch
+: guarded ( -- ) reset ( "in" . shift "back" . 1 0 / ) catch . :message @ . "after" . cr ;
+guarded "|" . resume
+```
+```output
+in | back 1 division by zero after
+```
 
 ### `try-catch`'s side stack
 
@@ -661,13 +675,13 @@ After `catch`, the data stack has whatever the user xt left, plus the flag. If w
 
 Either way, the wrapper would have to compute the arity (via `depth` tracking and `roll`) just to clean up the data stack. The side stack avoids the problem entirely: `>side` stashes error-xt where nothing else can touch it. We retrieve it only when needed.
 
-The return stack would have been worse: `>r` would put error-xt onto the return stack, but the unwinding logic in `run_inner` pops frames in unwinding mode, and a `T_XT` value would either be discarded (if `shift-with` truncated past it) or misinterpreted (if EXIT popped it expecting a saved-ip). The return stack is only safe for T_ADDR (saved IPs) and T_MARK frames.
+The return stack would have been worse: `>r` would put error-xt onto the return stack, but the unwinding logic in `run_inner` pops frames in unwinding mode, and a `T_XT` value would either be discarded (if `shift-with` truncated past it) or misinterpreted (if EXIT popped it expecting a saved-ip). The return stack is only safe for T_ADDR (saved IPs), T_MARK frames, and the depth cell `(catch-prompt)` pushes above a catch mark, which `(catch-end)` or the unwind removes before any EXIT reaches it.
 
 The side stack is exactly what's needed: a place to put values that nothing else in the system cares about.
 
 ### Nested try-catch
 
-Nesting works because each `reset` allocates a fresh mark id and the unwind targets the *innermost* mark by id. A throw deep inside two nested try-catches is always caught by the inner one.
+Nesting works because each `catch` pushes a mark with a fresh id and the unwind targets the *innermost* mark by id. A throw deep inside two nested try-catches is always caught by the inner one.
 
 ```forth nested-try-catch
 : outer-h ( exc -- ) "outer handler: {0}" format print cr ;
@@ -682,7 +696,7 @@ inner handler: 1
 outer handler: 2
 ```
 
-The `1 throw` inside the inner try-catch unwinds to the inner reset; control resumes after the inner try-catch in the surrounding xt, which then runs `2 throw`, which unwinds to the outer reset. Each throw finds the topmost (innermost) mark.
+The `1 throw` inside the inner try-catch unwinds to the inner catch mark; control resumes after the inner try-catch in the surrounding xt, which then runs `2 throw`, which unwinds to the outer catch mark. Each throw finds the topmost (innermost) mark.
 
 ### Re-throwing
 
@@ -694,7 +708,7 @@ To re-throw from a handler, the handler just calls `throw` again:
     throw ;                         \ rethrow larger ones
 ```
 
-This works because `throw` is itself a colon definition that calls `shift-with`. When called from inside a handler, `shift-with` again scans the return stack for the nearest mark — which is now the *outer* try-catch's mark (the inner one was consumed by the unwind). The unwind cascades up to the outer reset, just as if the throw had originated at the inner handler's location.
+This works because `throw`, called from inside a handler, again scans the return stack for the nearest exception or catch mark — which is now the *outer* try-catch's mark (the inner one was consumed by the unwind). The unwind cascades up to the outer mark, just as if the throw had originated at the inner handler's location.
 
 ### Cleanup and "finally"
 
@@ -956,7 +970,7 @@ Generators are a special case of coroutines: one-way, producer-only. A generator
 
 This generator has two pieces of state on the data stack: the limit `n` and the current `i`. Each iteration checks `i <= n`, yields `i*i`, and increments. When `i > n`, it exits without yielding — and the driver sees the data stack in a different state than usual, which it can detect.
 
-(Wrapping the producer itself in `try-catch` does *not* work: `yield` targets the nearest exception prompt, which would be the catch's own — the first yield would terminate the catch instead of reaching the driver. Termination signals belong at the resume site, per Part 11's exception-based protocol.)
+(A producer may wrap its body in `try-catch`: `yield` targets the nearest `reset` mark, so each yield passes the catch mark and reaches the driver, and a `throw` after a later resume reaches the handler. An interpreter error there restores the data stack to its depth at `catch` entry, which discards the values a driver such as `gen-take` has gathered on the stack since.)
 
 The packaged drivers ship in generators.telic: `start-generator` runs a producer to its first yield, `gen-take` collects the first n values, and `gen-each` consumes until the producer falls off. They suit a producer that keeps its loop state in locals and leaves yield's return value alone — the driver's accumulated values ride the shared data stack, so a producer like `squares-gen` above, which carries `n` and `i` on that stack, must be hand-driven instead:
 

@@ -1,0 +1,181 @@
+\ The Hobbit: the Spectrum's memory, loaded from the game's tape, and the
+\ table routines everything else uses. Every table and game variable stays
+\ at its original address and in its original format, so each telic word
+\ stands for one routine of the 1982 program; the hex address in its
+\ comment is that routine's, as documented in the annotated disassembly of
+\ v1.0 by basf-c60 (https://github.com/basf-c60/thehobbitv1.0).
+\ The Hobbit (1982) is by Veronika Megler and Philip Mitchell, published by
+\ Melbourne House.
+
+\ === the memory ===
+
+\ the main block of a TZX tape as [ tape start length ]: its last standard-speed data block, without the flag and checksum bytes
+: tape-main-block ( path -- found )
+	| path |
+	path read-file string>byte-vector to tape
+	tape dim drop to size-of-tape
+	10 to position
+	-1 to start
+	0 to length
+	begin position size-of-tape < while
+		tape position @e to kind
+		kind 16 = if
+			tape position 3 + @e tape position 4 + @e 256 * + to length
+			position 5 + to start
+			start length + to position
+		else
+			kind 48 = if position 2 + tape position 1+ @e + to position else "expected a TZX of standard-speed blocks" throw then
+		then
+	repeat
+	start 0 < if "no data block in the tape" throw then
+	[ tape start 1+ length 2 - ] ;
+
+65536 1 0-matrix to mem
+
+\ a byte of memory
+: b@ ( address -- byte ) mem swap @e ;
+
+\ store a byte of memory
+: b! ( byte address -- )
+	| byte address |
+	mem byte 255 bit-and address !e drop ;
+
+\ a 16-bit little-endian word of memory
+: w@ ( address -- word ) dup b@ swap 1+ b@ 256 * + ;
+
+\ store a 16-bit little-endian word
+: w! ( word address -- )
+	| word address |
+	word 255 bit-and address b!
+	word 8 rshift 255 bit-and address 1+ b! ;
+
+\ test bit n of a byte of memory
+: bit? ( n address -- flag ) b@ swap rshift 1 bit-and ;
+
+\ set bit n of a byte of memory
+: bit-set ( n address -- )
+	| n address |
+	address b@ 1 n lshift bit-or address b! ;
+
+\ clear bit n of a byte of memory
+: bit-clear ( n address -- )
+	| n address |
+	address b@ 1 n lshift 255 bit-xor bit-and address b! ;
+
+\ copy count bytes, lowest address first as LDIR does
+: copy-bytes ( source destination count -- )
+	| source destination count |
+	0 count 1 do k source k + b@ destination k + b! loop ;
+
+\ load the tape's main block at 0x6000, and fill the rest of memory, which the random numbers read, with random bytes
+: load-tape ( path -- )
+	tape-main-block to found
+	found 0 @i to tape
+	found 1 @i to first
+	found 2 @i to length
+	0 65536 1 do k mem 256 random-int k !e drop loop
+	0 length 1 do k mem tape first k + @e 24576 k + !e drop loop ;
+
+\ === the game variables ===
+
+0xB5D7 constant action-copy
+0xB5D8 constant current-action
+0xB5D9 constant current-target
+0xB5DA constant current-instrument
+0xB5DB constant current-actor
+0xB5DF constant riddle-entry
+0xB5E1 constant timer-fired
+0xB5E2 constant map-read
+0xB5E4 constant eyes-room
+0xB5E5 constant order-waiting
+0xB5E6 constant bilbo-room
+0xB5E7 constant start-room
+0xB5E8 constant score
+0xB5EA constant gollum-waiting
+0xB5EB constant really
+0xB5EC constant would-work
+0xB5ED constant instrument-noun
+0xB5EF constant target-is-room
+0xB5F0 constant instrument-is-room
+0xB5F1 constant drunk
+0xB5F2 constant lower-window
+0xB5F3 constant output-on
+0xB5F4 constant article-wanted
+0xB5F5 constant capital-next
+0xB5F6 constant more-commands
+0xB5F7 constant frame-count
+0xB5F8 constant target-record
+0xB5FA constant instrument-record
+0xB5FC constant actor-record
+0xB5FE constant random-seed
+0xB5FF constant reach-free
+0xB600 constant search-filter
+0xB601 constant needs-light
+0xB602 constant random-counter
+0xB609 constant all-state
+0xB60A constant unfinished
+0xB60B constant quote-level
+0xB60C constant all-running
+0xB60D constant action-flags
+0xB60E constant action-flags-2
+0xB627 constant order-count
+0xB628 constant orders
+0xB8B8 constant first-frame
+0xC00B constant bilbo
+0xC01B constant bilbo-location
+0xC973 constant timer-table
+0xC9BA constant character-table
+
+\ === tables of 3-byte entries ===
+
+\ search a table of 3-byte entries for a key (9D12): the entry, or the 0xFF terminator
+: table-entry ( key table -- entry )
+	| key table |
+	table to entry
+	begin entry b@ dup key = swap 255 = or not while entry 3 + to entry repeat
+	entry ;
+
+\ the entry is a match, not the terminator
+: found? ( entry -- flag ) b@ 255 = not ;
+
+\ the 16-bit value an entry holds
+: entry-value ( entry -- value ) 1+ w@ ;
+
+\ the address of room A's record (9B0C), or 0 for 80 and above
+: room-record ( room -- address )
+	| room |
+	room 80 >= if 0 exit then
+	room 2 * 0xB8D0 + w@ ;
+
+\ the address of object A's record (9B25)
+: object-record ( object -- address ) 0xBF53 table-entry entry-value ;
+
+\ the object numbers in the object index, in order
+: object-numbers ( -- numbers )
+	[ ] to numbers
+	0xBF53 to entry
+	begin entry b@ 255 = not while numbers entry b@ add-last! drop entry 3 + to entry repeat
+	numbers ;
+
+\ === random numbers ===
+
+\ a random number from -range to +range (9BFD): a byte mixed from the seed
+\ and memory at a moving counter, never the same as the last, halved until it
+\ is at most twice the range
+: random-in-range ( range -- n )
+	| range |
+	range 2 * 255 min2 to limit
+	begin
+		random-counter 1+ b@ 1+ 256 mod random-counter 1+ b!
+		random-counter 1+ b@ 0 = if random-counter b@ 1+ random-counter b! then
+		random-counter w@ to address
+		random-seed b@ address b@ + 256 mod address 1+ 65535 bit-and b@ bit-xor to byte
+		byte random-seed b@ =
+	while
+	repeat
+	byte random-seed b!
+	begin byte limit > while byte 1 rshift to byte repeat
+	byte range - ;
+
+\ a random number from 0 to range (9BF4): the size of one from -range to +range
+: random-to ( range -- n ) random-in-range abs ;

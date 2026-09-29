@@ -1,0 +1,85 @@
+\ The Hobbit: the backups of the changing tables (6C00), the start and
+\ restart (6C27) and the main loop for one typed line (6D0A-6DC0). Death and
+\ the win throw :dead and :won, QUIT throws :quit. Loaded after specials.telic.
+
+0xF400 constant object-backup
+0x5F00 constant variable-backup
+
+\ back up the object, room, variable and timer tables (6C00)
+: back-up-tables ( -- )
+	0xC00B object-backup 0x614 copy-bytes
+	0xB97A object-backup 0x614 + 0x5D9 copy-bytes
+	0xB5DC variable-backup 28 copy-bytes
+	timer-table variable-backup 28 + 0xBF copy-bytes ;
+
+\ empty both windows
+: clear-windows ( -- )
+	windows [ ] :story ! "" :story-line ! story-columns :story-left !
+	[ ] :lower ! "" :lower-line ! windows :lower-columns @ :lower-left ! drop ;
+
+\ start or restart a game (6C27): room 5 drawn dark, the tables restored, the orders cleared, a new seed, the score 0; a fresh start makes the random choices and types LOOK
+: start-game ( -- )
+	5 0xCC00 table-entry entry-value to picture
+	0 picture b!
+	0 picture 1+ b!
+	object-backup 0xC00B 0x614 copy-bytes
+	object-backup 0x614 + 0xB97A 0x5D9 copy-bytes
+	variable-backup 0xB5DC 28 copy-bytes
+	variable-backup 28 + timer-table 0xBF copy-bytes
+	orders 200 clear-bytes
+	256 random-int random-seed b!
+	0 indent b!
+	0 line-started b!
+	0 unfinished b!
+	0 drunk b!
+	1 output-on b!
+	1 really b!
+	1 capital-next b!
+	0 score w!
+	clear-windows
+	frame-count b@ 255 = not if exit then
+	choose-random-features ;
+
+\ "I do not know the word "..."." (6D99): the word quoted back in the lower window
+: unknown-word ( word -- )
+	| word |
+	1 lower-window b!
+	0xAC87 message
+	word string>codepoints ( print-char ) each
+	34 print-char
+	newline ;
+
+\ one typed line (6D19-6D96): tokenised, then parsed and executed command by command while 0xB5F6 says more follow; an unclosed quotation is refused with "what?"
+: play-line ( line -- )
+	| line |
+	1 more-commands b!
+	line tokenise to word to class
+	class 0xD0 = if word unknown-word exit then
+	quote-level b@ if
+		0 quote-level b!
+		what
+		exit
+	then
+	token-buffer token-pointer w!
+	begin
+		parse :execute = 0= if exit then
+		execute-line
+		more-commands b@
+	while
+	repeat ;
+
+\ run a line: the outcome :played, or :dead, :won or :quit, after which the game waits for a key (9049) and restarts
+: run-line ( line -- outcome )
+	| line |
+	line ( play-line :played ) curry catch if exit then ;
+
+\ restart after a death or a win (9049, 6C27), with LOOK
+: restart ( -- )
+	start-game
+	"look" run-line drop ;
+
+\ load the tape, back up the tables and start the game with LOOK
+: new-game ( path -- )
+	load-tape
+	back-up-tables
+	restart ;

@@ -1,0 +1,283 @@
+\ The Jupiter Ace simulation: LIST and EDIT, which decompile a word from its
+\ compiled cells as the ROM does (1672-1810), and REDEFINE. Loaded after
+\ words.telic.
+
+\ the indentation of the lines being listed, and the indentation of the line an item is waiting to start (-1 when it is on a line already)
+variable list-indent
+variable list-pending
+
+\ print the name of the word a compiled cell refers to (17E4): a code field address names its own word; a runtime routine, marked by bit 7 of the byte before it, names its word through the offset in the two bytes before that
+: print-cell-name ( code -- )
+	| code |
+	code 1- b@ 128 bit-and if
+		code 1- code 2 - w@ + 65535 bit-and print-marked
+	else
+		code 1- name-start print-marked
+	then ;
+
+\ the length of a runtime routine's operand (15A2): the byte three before it, 255 meaning a length cell at the operand's start
+: operand-length ( position code -- n )
+	| position code |
+	code 3 - b@ to n
+	n 255 = if position w@ 2 + exit then
+	n ;
+
+\ INDENT (17C1): the pending line started, a carriage return and its indentation
+: start-pending-line ( -- )
+	| ^list-pending |
+	list-pending 0 < if exit then
+	13 print-char
+	0 list-pending 1 do k 32 print-char loop
+	-1 to list-pending ;
+
+\ one listed line (1708): up to five items, an item of a structure on a line of its own, the indentation growing inside IF, BEGIN and DO; finished at the end of the definition
+: list-line ( position -- position' finished )
+	| position ^list-indent ^list-pending |
+	list-indent to list-pending
+	5 to items
+	0 to finished
+	begin
+		position w@ to code
+		position 2 + to position
+		[ 0x1283 0x129F 0x1323 ] code position-of 0 >= if
+			list-indent to list-pending
+			++ list-indent
+			1 to items
+		then
+		[ 0x1271 0x1288 0x10E8 0x1140 ] code position-of 0 >= if
+			list-indent 1- to list-pending
+			1 to items
+		then
+		[ 0x12A4 0x128D 0x1276 0x1332 0x133C ] code position-of 0 >= if
+			-- list-indent
+			list-indent to list-pending
+			1 to items
+		then
+		code case
+			0x1011 of
+				start-pending-line
+				position w@ signed print-signed
+				position 2 + to position
+			endof
+			0x1064 of
+				start-pending-line
+				position w@ position 2 + w@ print-float
+				position 4 + to position
+			endof
+			0x104B of
+				start-pending-line
+				code print-cell-name
+				position b@ print-char
+				32 print-char
+				position 1+ to position
+			endof
+			0x1379 of
+				start-pending-line
+				code print-cell-name
+				position w@ to n
+				position 2 + n print-memory
+				41 print-char
+				position n + 2 + to position
+				1 to items
+			endof
+			0x1396 of
+				start-pending-line
+				code print-cell-name
+				position w@ to n
+				position 2 + n print-memory
+				34 print-char
+				position n + 2 + to position
+				1 to items
+			endof
+			0x04B6 of
+				13 print-char
+				59 print-char
+				13 print-char
+				32 print-char
+				1 to finished
+				1 to items
+			endof
+			drop
+			start-pending-line
+			code print-cell-name
+			code 1- b@ 128 bit-and if position code operand-length position + to position then
+		endcase
+		-- items
+		items 0 =
+	until
+	position finished ;
+
+\ LIST (1672) and EDIT (1660): a word defined by :, DEFINER or COMPILER decompiled onto the screen 17 lines at a time, waiting for a key between pages; EDIT lists into the input buffer instead and interprets each page after it is edited. ERROR 14 for any other word
+: list-word ( editing -- )
+	| editing ^list-indent |
+	find-ram-word to cfa
+	editing if flags b@ 8 bit-or flags b! then
+	13 print-char
+	editing if set-buffer then
+	cfa w@ to code-field
+	code-field 0x0EC3 = if
+		cfa 2 + to start
+	else
+		code-field 0x1108 = if
+			cfa 2 + w@ 3 - b@ to n
+			n 127 > if n 256 - to n then
+			n print-signed
+			cfa 4 + to start
+		else
+			code-field 0x1085 = if cfa 4 + to start else 14 ace-error then
+		then
+	then
+	code-field print-cell-name
+	cfa print-cell-name
+	1 to list-indent
+	start to position
+	begin
+		16 to lines-left
+		begin
+			position list-line to finished to position
+			-- lines-left
+			finished lines-left 0 < or
+		until
+		editing if
+			flags b@ 247 bit-and flags b!
+			retype
+			interpret-line
+			finished if exit then
+			flags b@ 8 bit-or flags b!
+			set-buffer
+		else
+			finished if exit then
+			0 key-code b!
+			begin ace-yield ace-poll key-code b@ until
+		then
+	again ;
+
+: ace-list ( -- ) 0 list-word ;
+: ace-edit ( -- ) 1 list-word ;
+
+\ === moving words ===
+
+\ the address of the next word's header after the word whose name length field is given: its length field counts its bytes; 0 for the newest word
+: next-word-start ( nlf -- address )
+	| nlf |
+	nlf 4 - to field
+	field w@ to length
+	length 0 = if 0 exit then
+	field length + ;
+
+\ the name length field of the RAM word whose name starts at an address: after the name's last letter come the length field and the link
+: name-length-field ( start -- nlf )
+	| start |
+	start to position
+	begin position b@ 128 bit-and 0 = while ++ position repeat
+	position 5 + ;
+
+\ the cells of a compiled thread from start up to its end (04B6) each passed to an xt, operands skipped (1548)
+: walk-thread ( start end xt -- )
+	| start end xt |
+	start to position
+	begin position end < while
+		position xt execute
+		position w@ to code
+		position 2 + to position
+		code 0x04B6 = if exit then
+		code 1- b@ 128 bit-and if position code operand-length position + to position then
+	repeat ;
+
+\ every cell of the RAM words from a header on that holds an address - links, code fields, compiled threads, the first cells of DEFINER and COMPILER words, vocabulary pointers - passed to an xt, up to end (1504)
+: walk-words ( start end xt -- )
+	| start end xt |
+	start to word-start
+	begin word-start 0 = not word-start end < and while
+		word-start name-length-field to nlf
+		nlf 2 - xt execute
+		nlf 1+ xt execute
+		nlf 1+ to cfa
+		cfa 2 + to pfa
+		nlf word-end to finish
+		cfa w@ case
+			0x0EC3 of pfa finish xt walk-thread endof
+			0x1085 of pfa xt execute pfa 2 + finish xt walk-thread endof
+			0x1108 of pfa xt execute pfa 2 + finish xt walk-thread endof
+			0x11B5 of pfa xt execute pfa 3 + xt execute endof
+			drop
+		endcase
+		nlf next-word-start to word-start
+	repeat ;
+
+\ the cell at an address passed through a mapping of addresses
+: map-cell ( address mapping -- )
+	| address mapping |
+	address w@ mapping execute address w! ;
+
+\ every RAM word made runnable again from its header, after the dictionary moved
+: install-all-words ( -- )
+	0x3C49 install-word
+	0x3C51 to word-start
+	begin word-start 0 = not word-start here-address < and while
+		word-start name-length-field to nlf
+		nlf install-word
+		nlf next-word-start to word-start
+	repeat ;
+
+\ === REDEFINE ===
+
+\ the addresses REDEFINE moves: the old word's code field and end, the new word's name, code field and end, and the shift of the words between
+variable old-cfa
+variable old-end
+variable new-name
+variable new-cfa
+variable new-end
+
+\ where an address from before REDEFINE is afterwards: the new word's header and body take the old body's place, the words between move by the difference, references into the old body go to the new body's first cell
+: redefined-address ( address -- address' )
+	| address |
+	address old-cfa <= if address exit then
+	address old-end < if old-cfa exit then
+	address new-name < if address new-end new-cfa - old-end old-cfa - - + exit then
+	address new-end < if address new-cfa - old-cfa + exit then
+	address new-cfa - new-name + old-cfa + old-end - ;
+
+\ REDEFINE (13FF): the word named takes the newest word's code and parameter field in place of its own, the newest word's header goes, and the addresses in every RAM word are moved to match; ERROR 11 when the newest word is incomplete, the name is not a RAM word, or a COMPILER or DEFINER word would be replaced by one of another kind
+: ace-redefine ( -- )
+	| ^old-cfa ^old-end ^new-name ^new-cfa ^new-end |
+	flags b@ 4 bit-and if 12 ace-error then
+	newest-word to new-nlf
+	new-nlf 1+ to new-cfa
+	new-nlf name-start to new-name
+	here-address to new-end
+	new-nlf 2 - w@ to previous-nlf
+	previous-nlf current w@ w!
+	find-word to found-cfa
+	found-cfa 0x3C51 < found-cfa new-cfa = or if new-nlf current w@ w! 11 ace-error then
+	found-cfa to old-cfa
+	old-cfa 1- to old-nlf
+	old-nlf word-end to old-end
+	old-cfa w@ to old-code
+	new-cfa w@ to new-code
+	old-code 0x1085 = old-code 0x1108 = or old-code new-code = not and if new-nlf current w@ w! 11 ace-error then
+	[ ] to moved
+	0 new-end new-cfa - 1 do k moved new-cfa k + b@ add-last! drop loop
+	0 new-name old-end - 1 do k moved old-end k + b@ add-last! drop loop
+	stack-top w@ to old-top
+	[ ] to stack-bytes
+	0 old-top new-end - 1 do k stack-bytes new-end k + b@ add-last! drop loop
+	0 moved size 1 do k moved k @i old-cfa k + b! loop
+	old-cfa moved size + to finish
+	0 stack-bytes size 1 do k stack-bytes k @i finish k + b! loop
+	finish stack-bottom w!
+	finish stack-bytes size + stack-top w!
+	old-nlf b@ 191 bit-and new-nlf b@ 64 bit-and bit-or old-nlf b!
+	old-nlf 4 - to old-field
+	old-field w@ if old-field w@ new-end new-cfa - old-end old-cfa - - + old-field w! then
+	0x3C40 finish ( address | address ' redefined-address map-cell ) walk-words
+	current ' redefined-address map-cell
+	context ' redefined-address map-cell
+	vocabulary-link ' redefined-address map-cell
+	previous-nlf redefined-address 4 - newest-length w!
+	install-all-words ;
+
+: register-editing-words ( -- )
+	' ace-list "LIST" primitive
+	' ace-edit "EDIT" primitive
+	' ace-redefine "REDEFINE" primitive ;

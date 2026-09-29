@@ -1,0 +1,608 @@
+\ The Hobbit: the object and room routines (9A9F-A13A), the report of an
+\ action (7122), word-list matching (71EA), room descriptions (958E-9606),
+\ darkness (954D), reach (9686), death (903C, 96DD) and the characters'
+\ reactions (953F, 99E0, 99FB). Loaded after parser.telic.
+
+0x8D17 constant destination-room
+0x9B37 constant bilbo-not-moved
+0x976A constant bilbo-in-dark
+0xC1F4 constant sword
+0xC012 constant bilbo-flags
+0xAD12 constant dark-message
+
+\ words defined in later files, called through these: :enter-room ( iy-record room -- ) is 8DC1, :picture ( room -- drawn ) is 8965
+{ :enter-room null :picture null } to later-words
+
+\ === the action table ===
+
+\ the address of action A's 8-byte entry (70DF)
+: action-entry ( action -- address ) 8 * 0xAA3F + ;
+
+\ gather the flag nibbles of an action entry into 0xB60E and 0xB60D (70EA); the main flags
+: action-flag-bytes ( entry -- flags )
+	| entry |
+	entry 7 + b@ 240 bit-and entry 5 + b@ 4 rshift + action-flags-2 b!
+	entry 3 + b@ 240 bit-and entry 1+ b@ 4 rshift + action-flags b!
+	action-flags b@ ;
+
+\ === word lists ===
+
+\ the word at the first address agrees with the one at the second (7225): the low 12 bits match, or the first is empty
+: word-agrees? ( first-address second-address -- flag )
+	| first-address second-address |
+	first-address w@ to reference
+	reference 0 = if 1 exit then
+	reference 4095 bit-and second-address w@ 4095 bit-and = ;
+
+\ match a word list against another (71EA): the first words must agree, the other two in order or crossed over; -1 for no match, 0 in order, 1 crossed; 0xB5D0 notes that the first words agreed
+: words-match ( first-list second-list -- code )
+	| first-list second-list |
+	first-list second-list word-agrees? 0= if -1 exit then
+	1 verb-matched b!
+	first-list 2 + second-list 2 + word-agrees? if
+		first-list 4 + second-list 4 + word-agrees? if 0 exit then
+	then
+	first-list 2 + second-list 4 + word-agrees? 0= if -1 exit then
+	first-list 4 + second-list 2 + word-agrees? if 1 else -1 then ;
+
+\ === objects and rooms ===
+
+\ the object's entry for an action in its own list of handlers (9ADC), or the list's terminator
+: object-handler ( action record -- entry )
+	| action record |
+	action record record b@ 16 + + table-entry ;
+
+\ an object's room (9ECB): 0xFF for 0xFF, and for a door or anything else in more than one place
+: object-room ( object -- room )
+	| object |
+	object 255 = if 255 exit then
+	object object-record to record
+	record b@ 1 = not if 255 exit then
+	record 16 + b@ ;
+
+\ the room record the actor is in (9C8C)
+: actor-room-record ( -- record ) actor-record w@ 16 + b@ room-record ;
+
+\ object A is held by the holder, directly or inside what it holds (9BDF)
+: inside? ( object holder -- flag )
+	| object holder |
+	object object-record 1+ b@ to held-by
+	held-by 255 = if 0 exit then
+	held-by holder = if 1 exit then
+	held-by holder inside? ;
+
+\ the actor holds object A, directly or inside something held; 0xFF counts as held (9BD0)
+: held-by-actor? ( object -- flag )
+	| object |
+	object 255 = if 1 exit then
+	object current-actor b@ inside? ;
+
+\ the actor holds the target (9BCD)
+: holding-target? ( -- flag ) current-target b@ held-by-actor? ;
+
+\ where the object at a record ultimately is (9DC8): 0xFF loose, seen through open or dead holders; 0 shut in, or held by a living character
+: outer-holder ( record -- code )
+	| record |
+	record 1+ b@ to held-by
+	held-by 255 = if 255 exit then
+	held-by object-record to holder
+	holder 7 + b@ 0x28 bit-and 0 = if 0 exit then
+	holder outer-holder ;
+
+\ the object at the second record is visible and in the same place as the first (9D92); two things both shut in count as together
+: together? ( looker looked -- flag )
+	| looker looked |
+	7 looked 7 + bit? 0 = if 0 exit then
+	looker 16 + b@ to room
+	looked outer-holder to looked-where
+	looker outer-holder to looker-where
+	looker-where looked-where = not if 0 exit then
+	looker-where 255 = not if 1 exit then
+	0 looked b@ 1 do k looked 16 + k + b@ room = if 1 exit then loop
+	0 ;
+
+\ the object at a record is near the actor (9D86)
+: near-actor? ( record -- flag ) actor-record w@ swap together? ;
+
+\ the next object in the index after a position whose words fit a word list (9D2E): the filter in 0xB600 (0 not a character, 1 a character, 2 anything), and near the actor unless 0xB5FF says reach does not matter; the object or 0xFF, and the position reached
+: next-object ( words position -- object position )
+	| words position |
+	search-filter b@ to filter
+	begin
+		position 3 + to position
+		position b@ 255 = if 255 position exit then
+		position entry-value to record
+		filter 2 = if 1 else record 7 + b@ 0x48 bit-and 0x40 = if 1 else 0 then filter = then
+		if
+			words record 8 + words-match 0 >= if
+				reach-free b@ if position b@ position exit then
+				record near-actor? if position b@ position exit then
+			then
+		then
+	again ;
+
+\ the address seven bytes into the actor's room record, from which exits step by 3 (9DDE)
+: actor-exits ( -- position ) actor-room-record 7 + ;
+
+\ the next exit after a position in the actor's room whose destination's name fits a word list (9DE9): the room or 0xFF, and the position reached
+: next-room ( words position -- room position )
+	| words position |
+	begin
+		position 3 + to position
+		position b@ 255 = if 255 position exit then
+		words position 2 + b@ room-record 2 + words-match 0 >= if position 2 + b@ position exit then
+	again ;
+
+\ the exit of the actor's room in a direction that has a destination (9E51), or 0
+: exit-towards ( direction -- exit )
+	| direction |
+	actor-exits to position
+	begin
+		position 3 + to position
+		position b@ 255 = if 0 exit then
+		position 2 + b@ 0 = not position b@ direction = and if position exit then
+	again ;
+
+\ the exit of the actor's room whose byte at an offset is a value (9E79), or 0
+: exit-by ( value offset -- exit )
+	| value offset |
+	actor-exits to position
+	begin
+		position 3 + to position
+		position b@ 255 = if 0 exit then
+		position offset + b@ value = if position exit then
+	again ;
+
+\ the exit through a door (9E71), through the target (9E6E), and to a room (9E76)
+: exit-through ( door -- exit ) 1 exit-by ;
+: exit-through-target ( -- exit ) current-target b@ exit-through ;
+: exit-to ( room -- exit ) 2 exit-by ;
+
+\ the space left in a room (9B96): its capacity less the sizes of the single-place objects in it, 0 once overfull
+: room-space ( room -- space )
+	| room |
+	room room-record 1+ b@ to space
+	object-numbers to numbers
+	0 numbers size 1 do k
+		numbers k @i object-record to record
+		record b@ 1 = record 16 + b@ room = and if
+			space 0 >= if space record 2 + b@ - to space then
+		then
+	loop
+	space 0 < if 0 else space then ;
+
+\ a byte addition with the signed overflow test of JP PE (9C6E): the sum, or -1 on overflow
+: add-without-overflow ( total amount -- sum )
+	| total amount |
+	total amount + 255 bit-and to sum
+	total 128 < amount 128 < = sum 128 < total 128 < = not and if -1 exit then
+	sum ;
+
+\ add to a running total the sizes, or the weights with their contents, of what object A holds (9C55); the index is searched from its second entry, so object 0 is never counted
+: add-contents ( object sizes total -- total )
+	| object sizes total |
+	object-numbers to numbers
+	1 numbers size 1 do k
+		numbers k @i to candidate
+		candidate object-record to record
+		record 1+ b@ object = if
+			total record sizes if 2 else 3 then + b@ add-without-overflow to sum
+			sum 0 < if 255 exit then
+			sum to total
+			sizes 0= if candidate sizes total add-contents to total then
+		then
+	loop
+	total ;
+
+\ the total weight (9C42) and size (9C3D) of what object A holds
+: contents-weight ( object -- weight ) 0 0 add-contents ;
+: contents-size ( object -- size ) 1 0 add-contents ;
+
+\ the number of visible objects held directly by object A (9CEC)
+: visible-count ( object -- n )
+	| object |
+	0 to n
+	object-numbers to numbers
+	0 numbers size 1 do k
+		numbers k @i object-record to record
+		record 1+ b@ object = if 7 record 7 + bit? if n 1+ to n then then
+	loop
+	n ;
+
+\ === darkness and reach ===
+
+\ Bilbo cannot see (954D): characters always can; he can when loose in a lit room, or by the glowing sword near him
+: too-dark? ( -- flag )
+	current-actor b@ if 0 exit then
+	bilbo outer-holder 255 = if actor-room-record b@ 128 bit-and if 0 exit then then
+	sword near-actor? 0= if 1 exit then
+	0xC1FB b@ 0xF7 bit-xor 0x1C bit-and 0 = not ;
+
+\ note Bilbo's room and whether it is dark there (9A5D)
+: note-bilbo-room ( -- )
+	0 object-room bilbo-room b!
+	too-dark? if 1 else 0 then bilbo-in-dark b! ;
+
+\ === moving objects ===
+
+\ move what object A holds, and what that holds, to room B (9B6C); Bilbo among them clears 0x9B37
+: move-contents ( object room -- )
+	| object room |
+	object-numbers to numbers
+	0 numbers size 1 do k
+		numbers k @i to candidate
+		candidate object-record to record
+		record 1+ b@ object = if
+			room record 16 + b!
+			candidate 0 = if 0 bilbo-not-moved b! then
+			candidate room move-contents
+		then
+	loop ;
+
+\ move what object A holds to room B (9B38); when Bilbo is among it he enters the room and sees it, 8DC1 writing the room into the record the caller had in IY
+: move-with-contents ( object room iy-record -- )
+	| object room iy-record |
+	1 bilbo-not-moved b!
+	object room move-contents
+	bilbo-not-moved b@ if exit then
+	current-actor b@ to saved-actor
+	actor-record w@ to saved-record
+	bilbo actor-record w!
+	0 current-actor b!
+	room destination-room b!
+	iy-record room later-words :enter-room @ execute
+	note-bilbo-room
+	saved-record actor-record w!
+	saved-actor current-actor b!
+	0 bilbo-not-moved b! ;
+
+\ everything object A holds passes to A's holder; things that evaporate vanish with "X evaporates." (9CA8)
+: drop-all ( object -- )
+	| object |
+	object object-record 1+ b@ to heir
+	object-numbers to numbers
+	0 numbers size 1 do k
+		numbers k @i object-record to record
+		record 1+ b@ object = if
+			1 record 7 + bit? if
+				0 record 16 + b!
+				255 record 1+ b!
+				7 record 7 + bit-clear
+				record print-object
+				0xB035 message
+			else
+				heir record 1+ b!
+			then
+		then
+	loop ;
+
+\ the player may not use object A because a living character holds it while Bilbo is visible (9686): "gandalf is carrying the curious map."
+: out-of-reach? ( object -- flag )
+	| object |
+	object 255 = if 0 exit then
+	current-actor b@ if 0 exit then
+	object object-record to record
+	record 1+ b@ 255 = if 0 exit then
+	object held-by-actor? if 0 exit then
+	record 1+ b@ object-record to holder
+	6 holder 7 + bit? 0= if 0 exit then
+	7 bilbo-flags bit? 0= if 0 exit then
+	record 8 + w@ parameter
+	holder 8 + w@ parameter
+	0xAED6 message
+	1 ;
+
+\ the objects of the action make sense together (9A9F): no target, or a target that is not the actor nor the instrument, and an instrument that is not the actor
+: sensible? ( -- flag )
+	current-target b@ 255 = if 1 exit then
+	target-is-room b@ 0= if
+		current-target b@ current-actor b@ = if 0 exit then
+		current-instrument b@ current-target b@ = if 0 exit then
+	then
+	instrument-is-room b@ if 1 exit then
+	current-instrument b@ current-actor b@ = not ;
+
+\ the current action is one whose instrument's handlers are used (A100): the five actions at 0xA13B
+: instrument-action? ( -- flag )
+	current-action b@ to action
+	0 5 1 do k 0xA13B k + b@ action = if 1 exit then loop
+	0 ;
+
+\ run a word with the target and instrument swapped, numbers and records (9E93)
+: with-swapped ( xt -- )
+	| xt |
+	target-record w@ to target-address
+	instrument-record w@ to instrument-address
+	current-target b@ to target
+	current-instrument b@ to instrument
+	instrument-address target-record w!
+	target-address instrument-record w!
+	instrument current-target b!
+	target current-instrument b!
+	xt execute
+	target current-target b!
+	instrument current-instrument b!
+	target-address target-record w!
+	instrument-address instrument-record w! ;
+
+\ === reports ===
+
+\ report the action (7122): "you take the sword.", "you cannot open the door.", "you go somewhere." in the dark; a trial's report goes to the lower window
+: report-action ( -- )
+	1 definite b!
+	0 article-wanted b!
+	would-work b@ to works
+	works 0 = if 1 else 0 then lower-window b!
+	current-action b@ action-entry to entry
+	works 0 = not if current-actor b@ 0 = if newline then then
+	entry action-flag-bytes to flags
+	flags 16 bit-and if 0 definite b! exit then
+	current-actor b@ print-name
+	works 0 = if 0x00EE print-word then
+	entry 6 + print-listed-word
+	too-dark? if current-action b@ 11 < else 0 then if 0x0AEA print-word else entry print-listed-word then
+	entry 2 + to position
+	flags 8 bit-and if
+		flags 32 bit-and if position print-listed-word position 2 + to position then
+		action-flags-2 b@ 128 bit-and if position print-listed-word position 2 + to position then
+		current-target b@ target-is-room print-target-like
+	then
+	current-instrument b@ 255 = not if flags 4 bit-and 0 = not else 0 then if
+		flags 32 bit-and 0 = if position print-listed-word position 2 + to position then
+		action-flags-2 b@ 128 bit-and 0 = if position print-listed-word position 2 + to position then
+		current-instrument b@ instrument-is-room print-target-like
+	then
+	46 print-char
+	newline
+	0 definite b! ;
+
+\ mark the command as really happening and report it outside a quotation (7111)
+: really-report ( -- )
+	0 would-work b!
+	1 really b!
+	quote-level b@ 0 = if report-action then ;
+
+\ report failure (9EBF): reported as "you cannot ..." when really happening; in a trial, noted as not working
+: report-failure ( -- )
+	really b@ 1 = if report-action exit then
+	0 would-work b! ;
+
+\ a trial stops here (9C99): in a trial the action is noted as working and the flag says to stop; when really happening the handler carries on
+: trial? ( -- flag )
+	really b@ 1 = if 0 exit then
+	really b@ 1+ would-work b!
+	1 ;
+
+\ "the X is Y." (A0A2) for an object's words: the flag word by the state's low bits, from 0xA164 when bit 7 is set, else 0xA154
+: say-state-of ( state words -- )
+	| state words |
+	state 128 bit-and if 0xA164 else 0xA154 then state 127 bit-and 2 * + w@ parameter
+	words parameter
+	0xAEAE message ;
+
+\ "the X is Y." for the object at a record (A09C for the target, A094 for the instrument)
+: say-state ( state record -- ) 8 + w@ say-state-of ;
+
+\ the object at a record is open (bit 5)
+: open? ( record -- flag ) 5 swap 7 + bit? 0 = not ;
+
+\ the target is locked, or else open (A129): the state for say-state (0x80 locked, 0x85 open) and whether either holds
+: locked-or-open ( -- state flag )
+	target-record w@ to record
+	0 record 7 + bit? if 0x80 1 exit then
+	0x85 record open? ;
+
+\ the object at a record is alive and not dead (A0F8)
+: alive? ( record -- flag ) 7 + b@ 0x48 bit-and 0x40 = ;
+
+\ object A's adjectives become DEAD for a living thing, BROKEN for anything else (A0BC)
+: mark-dead-or-broken ( object -- )
+	| object |
+	object object-record to record
+	0 record 12 + w!
+	6 record 7 + bit? if 0x0192 else 0x00CD then record 10 + w! ;
+
+\ === listing what is seen ===
+
+\ the heading for what object A holds (9F89): "X is carrying", "in the chest there is"; a new line and 1 when it is shut or holds nothing visible
+: contents-heading ( object -- nothing )
+	| object |
+	object object-record to record
+	record 7 + b@ 0x28 bit-and 0 = if newline 1 exit then
+	object visible-count to n
+	n 0 = if newline 1 exit then
+	6 record 7 + bit? if
+		object parameter
+		0xACEC message
+		0 exit
+	then
+	n 1 = if 0x039F else 0x0065 then parameter
+	record 8 + w@ 4095 bit-and parameter
+	record 4 + b@ 2 lshift 0x3C bit-and 0xAEBD + message
+	0 ;
+
+0 to listed
+
+\ list the visible single-place objects held by A in room B at an indent, each followed by its contents two further in (9F10); the actor's own things are left out of the outermost listing
+: list-objects ( holder room depth -- )
+	| holder room depth ^listed |
+	indent b@ to saved-indent
+	depth indent b!
+	object-numbers to numbers
+	0 numbers size 1 do k
+		numbers k @i to candidate
+		candidate object-record to record
+		record 1+ b@ holder = if
+			record b@ 1 = record 16 + b@ room = and if
+				candidate current-actor b@ = depth 4 = and 0= if
+					record near-actor? if
+						listed 1+ to listed
+						0 capital-next b!
+						0 article-wanted b!
+						record print-object
+						candidate current-actor b@ = if
+							newline
+						else
+							46 print-char
+							candidate contents-heading 0= if candidate room depth 2 + list-objects then
+						then
+					then
+				then
+			then
+		then
+	loop
+	saved-indent indent b! ;
+
+\ list the objects held by A in room B, or "nothing" (9EF8)
+: list-held ( holder room -- )
+	| holder room ^listed |
+	0 to listed
+	holder room 4 list-objects
+	listed 0 = if 0xB22D message then ;
+
+\ "you see :" and what lies loose in the actor's room (9EDD)
+: list-room ( -- )
+	0xAEF5 message
+	255 actor-record w@ 16 + b@ list-held ;
+
+\ the word for a direction (9FEA)
+: direction-word ( direction -- word ) 127 bit-and 2 * 0xA13E + w@ ;
+
+\ the visible doors of room A (9FF8): "to the east there is the round green door", "above ..."; the first exit is looked at before the end is tested
+: describe-doors ( room -- )
+	| room |
+	room room-record 10 + to exit-address
+	begin
+		exit-address 1+ b@ to door
+		door 0 = not if
+			door object-record to record
+			7 record 7 + bit? if
+				exit-address b@ to direction
+				direction 9 < if
+					0xAD0A message
+					direction direction-word print-word
+				else
+					direction 9 = if 0x07B9 else 0x082F then print-word
+				then
+				record 8 + parameter
+				0xAF05 message
+			then
+		then
+		exit-address 3 + to exit-address
+		exit-address b@ 255 = not
+	while
+	repeat ;
+
+\ "visible exits are :" and the directions of room A's exits without a door (A068)
+: describe-exits ( room -- )
+	| room |
+	[ ] to directions
+	room room-record 10 + to exit-address
+	begin exit-address b@ 255 = not while
+		exit-address 1+ b@ 0 = if exit-address b@ 0 = not if directions exit-address b@ add-last! drop then then
+		exit-address 3 + to exit-address
+	repeat
+	directions size 0 = if exit then
+	0xAF12 message
+	directions ( direction-word print-word ) each
+	newline ;
+
+\ room A's description script, or else its name (95E4)
+: room-name-or-script ( room -- )
+	| room |
+	room room-record to record
+	record 8 + w@ to script
+	script if script message else record 2 + print-phrase then ;
+
+\ describe room A under a heading message (95B9): its name or script, its picture, its doors, exits and what is there
+: describe-under ( room heading -- )
+	| room heading |
+	heading message
+	room room-name-or-script
+	room later-words :picture @ execute drop
+	newline
+	room describe-doors
+	room describe-exits
+	list-room ;
+
+\ describe room A in full (958E): "you are <outside/inside/in/on/at> ...", the preposition written into the message at 0xAEEF high byte first
+: describe-room ( room -- )
+	| room |
+	room room-record b@ 14 bit-and 0xB970 + w@ to preposition
+	preposition 8 rshift 0xAEEF b!
+	preposition 255 bit-and 0xAEF0 b!
+	room 0xAEEE describe-under ;
+
+\ describe what can be seen of room A (9589): "you see ..."
+: describe-seen ( room -- ) 0xAEF2 describe-under ;
+
+\ describe room A briefly (9606): its name, its doors, its exits and what is there
+: describe-briefly ( room -- )
+	| room |
+	room room-record 2 + print-phrase
+	newline
+	room describe-doors
+	room describe-exits
+	list-room ;
+
+\ === characters and death ===
+
+\ the character table entry of character A (99E0), or the table's terminator
+: character-entry ( object -- entry )
+	| object |
+	character-table to entry
+	begin entry b@ dup object = swap 255 = or not while entry 7 + to entry repeat
+	entry ;
+
+\ character A switches its program to its reaction to action B, if it has one (99FB)
+: react ( object action -- )
+	| object action |
+	object character-entry to entry
+	entry b@ 255 = if exit then
+	action entry 4 + w@ table-entry to reaction
+	reaction found? if reaction entry-value entry 2 + w! then ;
+
+\ a living character, not dead, reacts to action B done to it (953F)
+: involve ( object record action -- )
+	| object record action |
+	6 record 7 + bit? 0= if exit then
+	3 record 7 + bit? if exit then
+	object action react ;
+
+\ announce object A arriving where Bilbo is (9A28) with a message naming it, when it was elsewhere in the previous room given, Bilbo is not in the dark (value 2) and 0x9B37 is set
+: announce-arrival ( object previous-room message -- )
+	| object previous-room message |
+	object 255 = if exit then
+	object 0 = if exit then
+	bilbo-in-dark b@ 2 = if exit then
+	object object-room to room
+	room previous-room = if exit then
+	bilbo-room b@ room = not if exit then
+	bilbo-not-moved b@ 0 = if exit then
+	1 output-on b!
+	object object-words parameter
+	message message ;
+
+\ cancel every order waiting for character A (894D)
+: cancel-orders ( object -- )
+	| object |
+	0 8 1 do k orders k 25 * + to slot slot b@ object = if 0 slot b! then loop ;
+
+\ Bilbo is dead (903C): "you are dead.", the score, and the game starts again
+: bilbo-dies ( -- )
+	0 current-actor b!
+	0xAEE3 message
+	print-score
+	:dead throw ;
+
+\ kill character A (96DD): Bilbo's death ends the game; anyone else is dead, drops everything, leaves the character table, is called dead and loses its orders
+: kill ( object -- )
+	| object |
+	object 0 = if bilbo-dies then
+	object object-record to record
+	3 record 7 + bit-set
+	object drop-all
+	object character-entry to entry
+	entry b@ 255 = not if 0 entry b! then
+	object mark-dead-or-broken
+	object cancel-orders ;

@@ -1,6 +1,6 @@
 \ Exceptions (throw is a C primitive: unwind to the nearest exception prompt
 \ leaving exc 1, or an "uncaught exception" interpreter error when none encloses)
-: catch ( xt -- result 0 | exc 1 ) reset (execute-catching) 0 ;
+: catch ( xt -- result 0 | exc 1 ) (catch-prompt) execute (catch-end) 0 ;
 
 : try-catch ( normal-xt error-xt -- ... )
 	>side \ stash error-xt on the side stack

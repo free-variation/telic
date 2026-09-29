@@ -1,0 +1,599 @@
+\ The Hobbit: pictures for the 57 rooms the tape leaves without one. Each
+\ scene is drawn into the same 256 by 128 ink and cell buffers the tape's
+\ vector programs use - polygons filled back to front, then outlined in
+\ the dark ink - so it is painted by the same shading and doubling. Rooms
+\ that share a name vary by a seed from the room number; the passages are
+\ built from their exits. Loaded after pictures.telic.
+
+\ === drawing ===
+
+\ start a scene with every cell's paper colour and no ink
+: clear-scene ( paper -- )
+	| paper ^ink-map ^cell-attributes |
+	32768 1 0-matrix 1 - to ink-map
+	768 1 0-matrix paper 3 lshift + to cell-attributes ;
+
+\ make the cells of character rows first to last bright
+: bright-rows ( first last -- )
+	| first last |
+	first 32 * to start
+	last 1+ 32 * 768 min2 to finish
+	0 finish start - 1 do k cell-attributes cell-attributes start k + @e 64 bit-or start k + !e drop loop ;
+
+\ a uniform random number in [0, n)
+: rand ( n -- r ) random * ;
+
+\ set a pixel, x 0-255 across and row 0-127 down
+: put ( x row colour -- )
+	| x row colour |
+	x round to column
+	row round to line-row
+	column 0 < column 255 > or line-row 0 < or line-row 127 > or if exit then
+	ink-map colour line-row 256 * column + !e drop ;
+
+\ a straight line
+: stroke ( x0 r0 x1 r1 colour -- )
+	| x0 r0 x1 r1 colour |
+	x1 x0 - abs r1 r0 - abs max2 1 max2 round to n
+	0 n 1+ 1 do k x1 x0 - k * n / x0 + r1 r0 - k * n / r0 + colour put loop ;
+
+\ the outline of a closed polygon given as x row x row ...
+: outline ( points colour -- )
+	| points colour |
+	points size 2 / to n-points
+	0 n-points 1 do k
+		k 1+ n-points mod to j
+		points k 2 * @i points k 2 * 1+ @i points j 2 * @i points j 2 * 1+ @i colour stroke
+	loop ;
+
+\ the open line through points
+: polyline ( points colour -- )
+	| points colour |
+	0 points size 2 / 1- 1 do k
+		points k 2 * @i points k 2 * 1+ @i points k 2 * 2 + @i points k 2 * 3 + @i colour stroke
+	loop ;
+
+\ fill a polygon by scan lines, even-odd
+: polygon ( points colour -- )
+	| points colour |
+	points size 2 / to n-points
+	128 to top
+	0 to bottom
+	0 n-points 1 do k points k 2 * 1+ @i to r r top min2 to top r bottom max2 to bottom loop
+	top truncate 0 max2 to top
+	bottom truncate 1+ 128 min2 to bottom
+	0 bottom top - 1 do m
+		top m + to row
+		row 0.5 + to y
+		[ ] to crossings
+		0 n-points 1 do k
+			points k 2 * @i to xa
+			points k 2 * 1+ @i to ra
+			k 1+ n-points mod to j
+			points j 2 * @i to xb
+			points j 2 * 1+ @i to rb
+			ra y <= rb y > and rb y <= ra y > and or if crossings xb xa - y ra - * rb ra - / xa + add-last! drop then
+		loop
+		crossings sort to crossings
+		0 crossings size 2 / truncate 1 do p
+			crossings p 2 * @i round 0 max2 to start-x
+			crossings p 2 * 1+ @i round 1- 255 min2 to stop-x
+			start-x stop-x <= if 0 stop-x start-x - 1+ 1 do q ink-map colour row 256 * start-x + q + !e drop loop then
+		loop
+	loop ;
+
+\ a filled polygon outlined in the dark ink
+: shape ( points colour -- )
+	| points colour |
+	points colour polygon
+	points 0 outline ;
+
+\ add a point to a list of points
+: add-point ( points x row -- ) | points x row | points x add-last! row add-last! drop ;
+
+\ a rectangle's points
+: box ( x row width height -- points )
+	| x row width height |
+	[ x row x width + row x width + row height + x row height + ] ;
+
+\ the points of an ellipse, wobbling by a fraction
+: blob ( cx cr rx ry wobble -- points )
+	| cx cr rx ry wobble |
+	[ ] to points
+	0 20 1 do k
+		k 20 / 2 * PI * to angle
+		1 wobble rand + wobble 2 / - to scale
+		points angle cos rx * scale * cx + add-last! drop
+		points angle sin ry * scale * cr + add-last! drop
+	loop
+	points ;
+
+\ an arch: straight sides from the bottom row and a half ellipse on top
+: arch ( cx bottom width height -- points )
+	| cx bottom width height |
+	width 2 / to half
+	bottom height - half + to centre
+	[ cx half - bottom ] to points
+	0 11 1 do k
+		k 10 / PI * to angle
+		points cx angle cos half * - add-last! drop
+		points centre angle sin half * - add-last! drop
+	loop
+	points cx half + bottom add-point
+	points ;
+
+\ the ground from a row down to the bottom
+: ground ( row colour -- ) | row colour | 0 row 256 128 row - box colour polygon ;
+
+\ a ridge across the width at a base row, rising by up to amplitude, filled below
+: hills ( base amplitude segments colour -- )
+	| base amplitude segments colour |
+	[ ] to ridge
+	0 segments 1+ 1 do k ridge k 255 * segments / base amplitude rand - add-point loop
+	ridge copy to points
+	points 255 128 add-point
+	points 0 128 add-point
+	points colour polygon
+	ridge 0 polyline ;
+
+\ a range of peaks along a base row, with snow on the higher ones
+: mountains ( base height count colour -- )
+	| base height count colour |
+	[ -10 base ] to points
+	[ ] to tops
+	0 count 1 do k
+		k 0.5 + 266 * count / 10 - 20 rand + 10 - to peak-x
+		height 0.5 * height 0.5 * rand + to peak-height
+		points peak-x base peak-height - add-point
+		tops [ peak-x base peak-height - peak-height ] add-last! drop
+		points k 1+ 266 * count / 10 - base peak-height 0.35 * - 8 rand + add-point
+	loop
+	points 266 base add-point
+	points 266 128 add-point
+	points -10 128 add-point
+	points colour shape
+	tops ( top | top 2 @i 20 > if [ top 0 @i top 1 @i top 0 @i 6 + top 1 @i 7 + top 0 @i 2 + top 1 @i 5 + top 0 @i 3 - top 1 @i 8 + top 0 @i 7 - top 1 @i 7 + ] 7 shape then ) each ;
+
+\ a deciduous tree standing at a row
+: tree ( x row height -- )
+	| x row height |
+	height 0.08 * 1.5 max2 to half
+	[ x half - row x half 0.6 * - row height 0.5 * - x half 0.6 * + row height 0.5 * - x half + row ] 2 shape
+	x row height 0.65 * - height 0.32 * height 0.26 * 0.3 blob 4 shape
+	x height 0.1 * - row height 0.72 * - height 0.14 * height 0.12 * 0.3 blob 4 polygon ;
+
+\ a fir tree standing at a row
+: fir ( x row height -- )
+	| x row height |
+	x 1 - row height 0.12 * - 2 height 0.12 * box 2 polygon
+	0 3 1 do k
+		row height 0.12 * - height 0.28 * k * - to layer-bottom
+		height 0.22 * 1 k 0.25 * - * to half
+		[ x half - layer-bottom x layer-bottom height 0.42 * - x half + layer-bottom ] 4 shape
+	loop ;
+
+\ a tall trunk from the top of the picture to a row, with roots
+: trunk ( x row width colour -- )
+	| x row width colour |
+	[ x width 0.4 * - -2 x width 0.4 * + -2 x width 0.5 * + row 6 - x width + 4 + row x width - 4 - row x width 0.5 * - row 6 - ] colour shape ;
+
+\ a boulder
+: rock ( x row size colour -- ) | x row size colour | x row size 0.5 * - size size 0.55 * 0.35 blob colour shape ;
+
+\ a band of mist across the picture
+: mist ( row thickness -- )
+	| row thickness |
+	[ ] to points
+	0 9 1 do k points k 32 * add-last! drop points row 3 rand - add-last! drop loop
+	8 -1 -1 do k points k 32 * add-last! drop points row thickness + 3 rand + add-last! drop loop
+	points 7 polygon ;
+
+\ water from a row down, with ripples in a lighter ink
+: water ( row colour ripple -- )
+	| row colour ripple |
+	row colour ground
+	0 row 255 row 0 stroke
+	0 12 1 do k
+		256 rand to wave-x
+		row 128 row - rand + 2 + to wave-row
+		wave-x wave-row wave-x 10 rand + 4 + wave-row ripple stroke
+	loop ;
+
+\ a bird in flight, a small V
+: bird ( x row -- ) | x row | [ x 4 - row 2 - x row x 4 + row 2 - ] 0 polyline ;
+
+\ a road from the bottom narrowing to a point on the horizon
+: road ( horizon-x horizon-row left right colour -- )
+	| horizon-x horizon-row left right colour |
+	[ left 128 horizon-x 2 - horizon-row horizon-x 2 + horizon-row right 128 ] colour shape ;
+
+\ === scenes ===
+
+\ the forest road: a road into the trees under a dark canopy
+: forest-road ( room -- )
+	drop
+	5 clear-scene
+	0 1 bright-rows
+	58 4 ground
+	58 10 8 4 hills
+	0 8 1 do k k 32 * 12 rand + 58 30 rand + 8 5 rand + 3 trunk loop
+	[ 0 0 255 0 255 18 200 26 150 20 100 28 50 18 0 26 ] 4 shape
+	100 50 rand + 60 20 60 rand + 190 60 rand + 6 road ;
+
+\ the forest: black trunks, and pale eyes in the dark between them
+: dark-forest ( room -- )
+	drop
+	0 clear-scene
+	110 3 ground
+	0 7 1 do k k 38 * 10 rand + 112 12 rand + 10 6 rand + 3 trunk loop
+	0 2 1 do k
+		60 140 rand + to eye-x
+		40 40 rand + to eye-row
+		eye-x eye-row 4 3 0.1 blob 7 shape eye-x 1 + eye-row 1 3 0.1 blob 0 polygon
+		eye-x 12 + eye-row 4 3 0.1 blob 7 shape eye-x 13 + eye-row 1 3 0.1 blob 0 polygon
+	loop ;
+
+\ Rivendell: a white house in a green valley under the mountains
+: rivendell ( room -- )
+	drop
+	5 clear-scene
+	0 5 bright-rows
+	70 50 6 3 mountains
+	[ 180 40 184 40 186 100 176 100 ] 5 shape
+	80 20 4 4 hills
+	[ 60 96 60 70 90 70 90 96 ] 7 shape
+	[ 54 72 75 50 96 72 ] 2 shape
+	[ 90 96 90 62 140 62 140 96 ] 7 shape
+	[ 84 64 115 42 146 64 ] 2 shape
+	0 4 1 do k 97 k 11 * + 88 6 16 arch 1 shape loop
+	40 100 30 tree
+	200 104 36 tree
+	160 110 24 tree ;
+
+\ a mountain path: a ledge along a cliff face above the clouds
+: mountain-path ( room -- )
+	| room |
+	room 2 mod to mirror
+	5 clear-scene
+	0 7 bright-rows
+	70 50 5 1 mountains
+	74 8 mist
+	mirror if [ 256 0 256 128 150 128 160 96 140 64 170 32 150 0 ] else [ 0 0 0 128 106 128 96 96 116 64 86 32 106 0 ] then 2 shape
+	mirror if [ 150 128 160 96 0 104 0 128 ] else [ 106 128 96 96 256 104 256 128 ] then 6 shape
+	0 4 1 do k mirror if 20 110 rand + else 120 110 rand + then 106 16 rand + 4 6 rand + 3 rock loop ;
+
+\ a large dry cave, a crack in its back wall
+: dry-cave ( room -- )
+	drop
+	0 clear-scene
+	128 124 220 120 arch 2 shape
+	128 122 170 92 arch 3 shape
+	[ 60 128 90 96 166 96 196 128 ] 6 shape
+	[ 126 40 131 40 134 96 122 96 ] 0 shape
+	0 5 1 do k 40 180 rand + 110 16 rand + 5 6 rand + 2 rock loop ;
+
+\ the directions of a room's exits
+: exit-directions ( room -- directions )
+	| room |
+	[ ] to directions
+	room room-record 10 + to position
+	begin position b@ 255 = not while
+		position 2 + b@ if directions position b@ add-last! drop then
+		position 3 + to position
+	repeat
+	directions ;
+
+\ a passage in the rock, with openings where its exits lead: ahead, to either side, up and down
+: passage ( room -- )
+	| room |
+	room exit-directions to directions
+	0 clear-scene
+	96 20 rand + to back-x
+	38 8 rand + to back-top
+	back-x 60 + to back-right
+	back-top 42 + to back-bottom
+	[ 0 0 255 0 back-right back-top back-x back-top ] 3 shape
+	[ 0 0 back-x back-top back-x back-bottom 0 128 ] 2 shape
+	[ 255 0 back-right back-top back-right back-bottom 255 128 ] 2 shape
+	[ 0 128 back-x back-bottom back-right back-bottom 255 128 ] 6 shape
+	directions ( direction | direction 1 = direction 5 = or direction 6 = or ) any? to ahead
+	[ back-x back-top back-right back-top back-right back-bottom back-x back-bottom ] ahead if 0 else 3 then shape
+	directions ( direction | direction 4 = direction 8 = or ) any? if [ 22 44 64 56 64 96 22 112 ] 0 shape then
+	directions ( direction | direction 3 = direction 7 = or ) any? if [ 233 44 191 56 191 96 233 112 ] 0 shape then
+	directions ( 9 = ) any? if back-x 30 + 16 26 7 0.2 blob 0 shape then
+	directions ( 10 = ) any? if back-x 30 + 110 36 9 0.2 blob 0 shape then
+	0 8 1 do k 256 rand to spike-x [ spike-x 4 - 0 spike-x 4 + 0 spike-x 12 rand 6 + ] 3 shape loop
+	0 6 1 do k 30 196 rand + to crack-x 20 60 rand + to crack-row crack-x crack-row crack-x 6 rand + 3 - crack-row 10 + 0 stroke loop ;
+
+\ the brink of the underground lake: black water under a cavern roof, an island of rock
+: underground-lake ( room -- )
+	drop
+	0 clear-scene
+	[ 0 0 255 0 255 30 200 44 150 36 100 46 50 34 0 44 ] 3 shape
+	84 1 5 water
+	[ 0 128 0 100 60 96 90 128 ] 6 shape
+	170 88 40 10 0.3 blob 3 shape
+	0 7 1 do k 256 rand to spike-x [ spike-x 5 - 40 spike-x 5 + 40 spike-x 58 ] 3 shape loop ;
+
+\ the goblins' gate from outside: a black arch in the mountain side
+: goblin-gate-outside ( room -- )
+	drop
+	1 clear-scene
+	[ -10 128 40 30 110 10 180 26 266 20 266 128 ] 3 shape
+	128 112 60 58 arch 0 shape
+	128 112 70 66 arch 0 outline
+	[ 70 128 98 112 158 112 186 128 ] 6 shape
+	0 5 1 do k 30 200 rand + 116 10 rand + 5 5 rand + 2 rock loop ;
+
+\ the goblins' gate from within: torches beside a great barred gate
+: goblin-gate-inside ( room -- )
+	drop
+	0 clear-scene
+	128 118 150 100 arch 2 shape
+	0 9 1 do k 69 k 14 * + to bar-x bar-x 28 bar-x 118 0 stroke bar-x 1+ 28 bar-x 1+ 118 0 stroke loop
+	[ 40 60 46 60 46 76 40 76 ] 2 shape
+	43 54 4 7 0.4 blob 6 polygon
+	[ 210 60 216 60 216 76 210 76 ] 2 shape
+	213 54 4 7 0.4 blob 6 polygon
+	118 6 ground ;
+
+\ open land under the sky, mountains far off, rocks and birds
+: open-land ( room -- )
+	drop
+	5 clear-scene
+	0 5 bright-rows
+	70 30 7 3 mountains
+	80 12 6 4 hills
+	0 6 1 do k 256 rand 90 36 rand + 4 8 rand + 7 rock loop
+	0 4 1 do k 60 140 rand + 10 20 rand + bird loop ;
+
+\ Beorn's house: a timber hall among flowers and oaks
+: beorn-house ( room -- )
+	drop
+	5 clear-scene
+	0 4 bright-rows
+	84 8 5 4 hills
+	[ 70 100 70 64 186 64 186 100 ] 2 shape
+	[ 60 66 128 30 196 66 ] 6 shape
+	[ 118 100 118 76 138 76 138 100 ] 0 shape
+	0 7 1 do k 76 k 17 * + 64 76 k 17 * + 100 0 stroke loop
+	30 110 50 tree
+	224 112 44 tree
+	0 24 1 do k 256 rand 102 24 rand + 1.5 1.5 0.2 blob k 2 mod if 2 else 6 then polygon loop ;
+
+\ the forest river: water running between wooded banks
+: forest-river ( room -- )
+	drop
+	5 clear-scene
+	0 1 bright-rows
+	50 4 ground
+	[ 110 50 140 50 220 128 20 128 ] 1 shape
+	0 6 1 do k 60 k 22 * + to wave-x 70 k 9 * + to wave-row wave-x wave-row wave-x 12 + wave-row 5 stroke loop
+	0 6 1 do k k 42 * 20 rand + 54 20 rand + 30 20 rand + tree loop ;
+
+\ the forest river below the elvenking's halls: a portcullis in the cliff, barrels on the water
+: river-gate ( room -- )
+	drop
+	3 clear-scene
+	[ 0 0 255 0 255 70 0 70 ] 3 shape
+	128 70 70 56 arch 0 shape
+	0 7 1 do k 98 k 10 * + to bar-x bar-x 20 bar-x 70 6 stroke loop
+	0 4 1 do k 98 20 k 12 * + 158 20 k 12 * + 6 stroke loop
+	70 1 5 water
+	70 98 10 7 0.1 blob 6 shape
+	180 108 10 7 0.1 blob 6 shape ;
+
+\ a forest of tangled trees: twisted trunks hung with webs
+: tangled-forest ( room -- )
+	drop
+	0 clear-scene
+	112 4 ground
+	0 6 1 do k k 46 * 16 rand + 114 8 rand + 14 6 rand + 3 trunk loop
+	0 3 1 do k
+		40 170 rand + to web-x
+		30 40 rand + to web-row
+		0 8 1 do spoke spoke 8 / 2 * PI * to angle web-x web-row web-x angle cos 18 * + web-row angle sin 18 * + 7 stroke loop
+		web-x web-row 9 9 0 blob 7 outline
+	loop ;
+
+\ the deep bog: murky pools, reeds and a dead tree
+: bog ( room -- )
+	drop
+	3 clear-scene
+	70 4 ground
+	0 5 1 do k 256 rand 80 44 rand + 26 5 0.3 blob 1 shape loop
+	0 30 1 do k 256 rand to reed-x 80 44 rand + to reed-row reed-x reed-row reed-x 2 rand + 1 - reed-row 10 - 0 stroke loop
+	[ 200 72 204 72 206 20 202 20 ] 2 shape
+	204 36 186 28 0 stroke 204 30 222 20 0 stroke ;
+
+\ the elvenking's great halls: pillars like trees, lamps and a throne
+: elvenking-halls ( room -- )
+	drop
+	0 clear-scene
+	96 6 ground
+	0 6 1 do k 14 k 46 * + 96 12 7 trunk loop
+	[ 118 96 118 60 138 60 138 96 ] 2 shape
+	[ 112 62 128 46 144 62 ] 6 shape
+	0 5 1 do k 36 k 46 * + 40 3 4 0.2 blob 6 polygon loop ;
+
+\ the long lake: wide water, the lake town on its piles, the mountain far away
+: long-lake ( room -- )
+	drop
+	5 clear-scene
+	0 7 bright-rows
+	[ 150 70 190 30 230 70 ] 3 shape
+	[ 180 40 190 30 200 40 194 44 186 42 ] 7 shape
+	70 1 7 water
+	0 6 1 do k 30 k 12 * + to hut-x hut-x 78 10 10 box 2 shape [ hut-x 1 - 78 hut-x 5 + 72 hut-x 11 + 78 ] 6 shape hut-x 2 + 88 hut-x 2 + 96 0 stroke loop ;
+
+\ a strong river: white water racing over rocks
+: rapids ( room -- )
+	drop
+	5 clear-scene
+	0 2 bright-rows
+	40 16 5 4 hills
+	50 1 7 water
+	0 20 1 do k 256 rand to foam-x 54 70 rand + to foam-row foam-x foam-row foam-x 16 rand + 6 + foam-row 2 rand + 7 stroke loop
+	0 5 1 do k 256 rand 60 60 rand + 10 8 rand + 3 rock loop ;
+
+\ the west side of Ravenhill: a hillside with a ruined watch post and ravens
+: ravenhill ( room -- )
+	drop
+	5 clear-scene
+	0 4 bright-rows
+	[ 0 128 0 70 120 40 200 60 255 90 255 128 ] 4 shape
+	[ 110 44 110 20 140 20 140 48 ] 7 shape
+	0 3 1 do k 114 k 9 * + 20 6 6 box 0 polygon loop
+	0 5 1 do k 30 160 rand + 10 18 rand + bird loop ;
+
+\ a little steep bay: still water under an overhanging cliff
+: steep-bay ( room -- )
+	drop
+	5 clear-scene
+	0 3 bright-rows
+	[ 0 0 150 0 170 20 110 34 90 60 70 128 0 128 ] 3 shape
+	80 1 7 water
+	[ 0 128 0 80 90 80 70 128 ] 3 shape ;
+
+\ the lonely mountain filling the sky, smoke above it
+: lonely-mountain ( room -- )
+	drop
+	5 clear-scene
+	0 7 bright-rows
+	[ -10 128 60 50 128 10 196 50 266 128 ] 3 shape
+	[ 110 22 128 10 146 22 138 26 118 26 ] 7 shape
+	0 5 1 do k 128 k 6 * + 6 k 3 * - 8 k 2 * + 4 0.3 blob 7 polygon loop
+	100 4 ground ;
+
+\ the waterfall: water falling from a cliff into a pool, trees beside
+: waterfall ( room -- )
+	drop
+	5 clear-scene
+	0 2 bright-rows
+	[ 0 128 0 20 256 20 256 128 ] 3 shape
+	[ 110 20 146 20 150 96 106 96 ] 5 shape
+	0 10 1 do k 112 k 4 * + 22 112 k 4 * + 94 7 stroke loop
+	90 1 7 water
+	30 100 40 fir
+	220 104 44 fir ;
+
+\ the empty place: a scorched waste under a sullen sky
+: empty-place ( room -- )
+	drop
+	3 clear-scene
+	70 6 ground
+	70 8 6 6 hills
+	0 5 1 do k 256 rand to stump-x 90 30 rand + to stump-row [ stump-x 2 - stump-row stump-x 2 + stump-row stump-x 1 + stump-row 14 - stump-x 1 - stump-row 12 - ] 0 shape loop
+	0 4 1 do k 256 rand 100 24 rand + 3 5 rand + 7 rock loop ;
+
+\ the mountains: peak behind peak
+: mountain-range ( room -- )
+	drop
+	5 clear-scene
+	0 5 bright-rows
+	60 50 4 3 mountains
+	90 50 5 1 mountains
+	110 10 6 4 hills ;
+
+\ the green forest: sunlit trees in rows
+: green-forest ( room -- )
+	drop
+	5 clear-scene
+	0 15 bright-rows
+	70 4 ground
+	0 7 1 do k k 40 * 16 rand + 76 20 rand + 40 20 rand + tree loop
+	0 6 1 do k k 46 * 30 rand + 112 16 rand + 30 16 rand + tree loop ;
+
+\ a bank of the black river: dark water, the far bank's trees
+: black-river ( room -- )
+	| room |
+	5 clear-scene
+	0 2 bright-rows
+	50 4 ground
+	60 1 0 water
+	0 7 1 do k k 40 * 16 rand + 56 12 rand + 26 12 rand + tree loop
+	room 66 = if [ 0 128 0 100 256 116 256 128 ] else [ 0 128 0 116 256 100 256 128 ] then 4 shape ;
+
+\ a steep path winding down a slope between firs
+: steep-path ( room -- )
+	drop
+	5 clear-scene
+	0 3 bright-rows
+	60 30 5 3 mountains
+	[ 0 128 0 50 256 30 256 128 ] 4 shape
+	[ 150 40 170 40 90 70 120 70 40 128 90 128 150 70 110 70 ] 6 shape
+	0 6 1 do k 256 rand 60 60 rand + 20 16 rand + fir loop ;
+
+\ a deep misty valley: hills layer on layer with mist between
+: misty-valley ( room -- )
+	drop
+	5 clear-scene
+	0 5 bright-rows
+	50 20 6 3 hills
+	52 6 mist
+	76 20 6 4 hills
+	80 6 mist
+	104 14 6 4 hills
+	0 4 1 do k 256 rand 118 8 rand + 20 12 rand + fir loop ;
+
+{ } to scenes
+
+\ the scene word of a room
+: scene-key ( room -- key ) "{0}" format string>symbol ;
+
+\ give rooms a scene word
+: scene ( xt rooms -- )
+	| xt rooms |
+	0 rooms size 1 do k scenes xt rooms k @i scene-key ! drop loop ;
+
+' forest-road [ 2 46 ] scene
+' dark-forest [ 3 ] scene
+' rivendell [ 9 ] scene
+' mountain-path [ 10 12 68 69 70 71 72 73 74 ] scene
+' dry-cave [ 14 ] scene
+' passage [ 15 18 52 53 54 55 56 57 58 59 60 61 62 63 64 65 ] scene
+' underground-lake [ 17 ] scene
+' goblin-gate-inside [ 19 ] scene
+' goblin-gate-outside [ 20 ] scene
+' open-land [ 21 ] scene
+' beorn-house [ 22 ] scene
+' forest-river [ 23 ] scene
+' tangled-forest [ 27 ] scene
+' bog [ 29 ] scene
+' elvenking-halls [ 30 ] scene
+' river-gate [ 33 ] scene
+' long-lake [ 34 ] scene
+' rapids [ 36 ] scene
+' ravenhill [ 40 ] scene
+' steep-bay [ 42 ] scene
+' lonely-mountain [ 44 ] scene
+' waterfall [ 45 ] scene
+' empty-place [ 47 51 ] scene
+' mountain-range [ 48 ] scene
+' green-forest [ 50 ] scene
+' black-river [ 66 67 ] scene
+' steep-path [ 75 76 77 ] scene
+' misty-valley [ 78 79 ] scene
+
+\ the room has a picture, the tape's or a new one
+: has-picture? ( room -- flag )
+	| room |
+	room 0xCC00 table-entry found? if 1 exit then
+	scenes room scene-key has? ;
+
+' room-picture to tape-picture
+
+\ the picture of a room: the tape's, else its new scene drawn with the room's seed, cached; null for none
+: room-picture ( room -- bitmap )
+	| room ^complement-inks |
+	room 0xCC00 table-entry found? if room tape-picture execute exit then
+	room scene-key to key
+	scenes key has? 0= if null exit then
+	picture-cache key has? if picture-cache key @ exit then
+	room 7919 * 101 + seed
+	room scenes key @ execute
+	0 to complement-inks
+	index-image scale-and-shade to bitmap
+	1 to complement-inks
+	picture-cache bitmap key ! drop
+	bitmap ;
