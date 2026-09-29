@@ -1,0 +1,296 @@
+\ Star Raiders: the game state, the title line's phrases, the subsystems, the
+\ Galactic Chart, the Zylon fleet's hunt for the starbases, hyperwarp energy
+\ and the rank. Loaded by examples/star-raiders.telic before flight.telic and
+\ screen.telic.
+\
+\ The rules and every number are transcribed from Lorenz Wiest's reverse
+\ engineered and documented source of the Atari 800 cartridge
+\ (https://github.com/lwiest/StarRaiders, StarRaiders.source.asm.txt).
+\ STAR RAIDERS was created by Douglas Neubauer and published by Atari in
+\ 1979. One game loop is 1/60 s, as on an NTSC machine. A sector is numbered
+\ row * 16 + column, the chart 16 columns by 8 rows; a chart value is 0 for
+\ an empty sector, 1 to 4 for that many Zylon ships, -1 for a starbase.
+
+{ :cues [ ] :titles [ ] } to game
+
+\ set one key of the game state
+: game! ( value key -- )
+	| value key |
+	game value key ! drop ;
+
+\ the game state's value at key
+: game@ ( key -- value ) game swap @ ;
+
+\ the whole number below x
+: floor-of ( x -- n ) dup truncate dup rot > if 1- then ;
+
+\ -1, 0 or 1 by the sign of x
+: sign-of ( x -- s ) dup 0 > swap 0 < - ;
+
+\ x with its sign chosen at random
+: random-sign ( x -- x' ) 2 random-int 0= if negate then ;
+
+\ ask the sound for an effect or a beeper pattern after a delay in seconds; screen.telic plays the cues each frame
+: cue-after ( sound seconds -- )
+	| sound seconds |
+	:cues game@ [ sound seconds ] add-last! drop ;
+
+\ ask the sound for an effect or a beeper pattern now
+: cue ( sound -- ) 0 cue-after ;
+
+\ === the title line ===
+
+\ show a phrase: its segments one after another, 60 game loops each
+: say ( segments -- ) ( text | { } text :text ! 60 :life ! ) map :titles game! ;
+
+\ show a phrase whose last segment stays 254 game loops
+: announce ( segments -- )
+	say
+	:titles game@ last 254 :life ! drop ;
+
+\ the title line's text now, or null
+: title-text ( -- text )
+	:titles game@ to queue
+	queue size 0 = if null exit then
+	queue first :text @ ;
+
+\ count the shown segment down and go on to the next
+: advance-title ( -- )
+	:titles game@ to queue
+	queue size 0 = if exit then
+	queue first to segment
+	segment segment :life @ 1- :life ! drop
+	segment :life @ 0 > if exit then
+	queue ( :life @ 0 > ) filter :titles game! ;
+
+\ === the subsystems ===
+
+[ :photons :engines :shields :computer :scan :radio ] to subsystem-names
+
+\ a subsystem's state: :ok, :damaged or :destroyed
+: subsystem@ ( name -- state ) :subsystems game@ swap @ ;
+
+\ set a subsystem's state
+: subsystem! ( state name -- )
+	| state name |
+	:subsystems game@ state name ! drop ;
+
+\ every subsystem working
+: repaired ( -- subsystems ) { :photons :ok :engines :ok :shields :ok :computer :ok :scan :ok :radio :ok } ;
+
+\ === the Galactic Chart ===
+
+-1 constant starbase-mark
+
+\ the sector at a column 0-15 and row 0-7
+: sector-at ( column row -- sector ) 16 * + ;
+
+\ a sector's column
+: sector-column ( sector -- column ) 16 mod ;
+
+\ a sector's row
+: sector-row ( sector -- row ) 16 / truncate ;
+
+\ the chart value of a sector
+: chart@ ( sector -- value ) :chart game@ swap @i ;
+
+\ set the chart value of a sector
+: chart! ( value sector -- )
+	| value sector |
+	:chart game@ value sector !i drop ;
+
+\ a starbase stands in the sector
+: starbase? ( sector -- flag ) chart@ starbase-mark = ;
+
+\ the Zylon ships in a sector, 0 for a starbase
+: zylons-at ( sector -- n ) chart@ 0 max2 ;
+
+\ the sector a compass step from sector leads to, or -1 off the chart: 0 north, 1 northwest, 2 west, 3 southwest, 4 south, 5 southeast, 6 east, 7 northeast, 8 the sector itself
+: step-sector ( sector direction -- sector' )
+	| sector direction |
+	[ 0 -1 -1 -1 0 1 1 1 0 ] direction @i sector sector-column + to column
+	[ -1 -1 0 1 1 1 0 -1 0 ] direction @i sector sector-row + to row
+	column 0 < column 15 > or row 0 < or row 7 > or if -1 exit then
+	column row sector-at ;
+
+\ a sector where a starbase may stand: off the border, its four neighbours empty
+: starbase-site? ( chart sector -- flag )
+	| chart sector |
+	sector sector-column to column
+	sector sector-row to row
+	column 1 < column 14 > or row 1 < or row 6 > or if 0 exit then
+	[ -16 -1 1 16 ] ( sector + chart swap @i 0 = ) all? ;
+
+\ the galaxy a mission starts with: mission + 3 sectors each of 2, 3 and 4
+\ Zylon ships, then as many starbases; the starting sector, row 4 column 8,
+\ is kept empty
+: fresh-chart ( mission -- chart )
+	| mission |
+	0 128 array-of to chart
+	8 4 sector-at to start
+	chart 9 start !i drop
+	[ 2 3 4 starbase-mark ] to kinds
+	0 4 1 do k
+		kinds k @i to kind
+		0 mission 3 + 1 do n
+			begin
+				128 random-int to sector
+				chart sector @i 0 = kind starbase-mark = if chart sector starbase-site? and then
+				not
+			while
+			repeat
+			chart kind sector !i drop
+		loop
+	loop
+	chart 0 start !i ;
+
+\ a starbase sector with Zylon ships north, east, south and west of it
+: surrounded? ( sector -- flag )
+	| sector |
+	[ 0 2 4 6 ] ( sector swap step-sector dup 0 < if drop 0 else zylons-at 0 > then ) all? ;
+
+\ any Zylon ship left in the galaxy
+: zylons-left? ( -- flag ) :chart game@ ( 0 > ) any? ;
+
+\ === the Zylon fleet's hunt ===
+
+\ the block distance between two sectors
+: sector-distance ( a b -- d )
+	| a b |
+	a sector-column b sector-column - abs a sector-row b sector-row - abs + ;
+
+\ a starbase for the Zylon units to hunt: a random sector among 128 draws, else the last starbase in the chart, else -1
+: pick-hunted ( -- sector )
+	0 128 1 do k
+		128 random-int to sector
+		sector starbase? if sector exit then
+	loop
+	127 -1 -1 do k
+		k starbase? if k exit then
+	loop
+	-1 ;
+
+\ move one Zylon unit a step closer to the hunted starbase: the first of the
+\ eight compass steps, northeast round to north, that shortens the distance
+\ into an empty sector other than our starship's; failing that, the first
+\ that keeps the distance
+: move-unit ( sector hunted moved -- )
+	| sector hunted moved |
+	sector hunted sector-distance to current
+	0 2 1 do pass
+		7 -1 -1 do direction
+			sector direction step-sector to target
+			target 0 >= if
+				target hunted sector-distance current pass + < target chart@ 0 = and target :sector game@ = not and if
+					sector chart@ target chart!
+					0 sector chart!
+					moved 1 target !i drop
+					exit
+				then
+			then
+		loop
+	loop ;
+
+\ every Zylon unit the dice let move steps toward the hunted starbase: a
+\ fleet of 4 moves at 32 in 256, of 3 at 192, smaller ones always, and a unit
+\ in our starship's sector stays
+: move-units ( hunted -- )
+	| hunted |
+	0 128 array-of to moved
+	0 128 1 do sector
+		sector chart@ to value
+		value 0 > moved sector @i 0= and sector :sector game@ = not and if
+			256 random-int [ 0 255 255 192 32 ] value @i < if sector hunted moved move-unit then
+		then
+	loop ;
+
+\ destroy every surrounded starbase: its sector becomes a 2-Zylon sector and the score loses 18
+: destroy-surrounded ( -- )
+	0 to destroyed
+	0 128 1 do sector
+		sector starbase? if
+			sector surrounded? if
+				2 sector chart!
+				:score game@ 18 - :score game!
+				1 to destroyed
+			then
+		then
+	loop
+	destroyed :radio subsystem@ :destroyed = not and if
+		[ "STARBASE DESTROYED" ] announce
+		:starbase-message cue
+	then ;
+
+\ the hunted starbase: kept while it stands and the hunt timer runs, chosen again every 8 moves
+: update-hunted ( -- )
+	:hunt-timer game@ 1- :hunt-timer game!
+	:hunted game@ to hunted
+	hunted 0 < if 1 else hunted starbase? not then :hunt-timer game@ 0 < or if
+		7 :hunt-timer game!
+		pick-hunted :hunted game!
+	then ;
+
+\ the Zylon units' move, every 50 stardate ticks: the score loses 1, then the
+\ surrounded starbases fall, the units close in on the hunted starbase, and a
+\ newly surrounded starbase buys 100 ticks and a message
+: zylon-move ( -- )
+	:score game@ 1- :score game!
+	:demo game@ if exit then
+	destroy-surrounded
+	update-hunted
+	:hunted game@ to hunted
+	hunted 0 < if exit then
+	hunted move-units
+	:radio subsystem@ :destroyed = if exit then
+	0 128 1 do sector
+		sector starbase? if
+			sector surrounded? if
+				99 :unit-timer game!
+				[ "STARBASE SURROUNDED" ] announce
+				:starbase-message cue
+				exit
+			then
+		then
+	loop ;
+
+\ the stardate clock: one tick every 41 game loops, 0.01 on the stardate, and the Zylon move every 50 ticks
+: clock ( -- )
+	:clock-timer game@ 1- :clock-timer game!
+	:clock-timer game@ 0 >= if exit then
+	40 :clock-timer game!
+	:stardate game@ 1+ :stardate game!
+	:unit-timer game@ 1- :unit-timer game!
+	:unit-timer game@ 0 >= if exit then
+	49 :unit-timer game!
+	zylon-move ;
+
+\ === hyperwarp energy ===
+
+[ 10 13 16 20 23 50 70 80 90 120 125 130 135 140 155 170 184 200 208 216 223 232 241 250 ] to warp-energy-table
+
+\ the arrival sector of the arrival hyperwarp marker: marker columns 0-127 are 8 to a sector column, rows 0-127 are 16 to a sector row
+: arrival-sector ( -- sector ) :arrival-column game@ 8 / truncate :arrival-row game@ 16 / truncate sector-at ;
+
+\ the hyperwarp energy in tens of units from the departure to the arrival marker, by the block distance of half the rows plus the columns
+: warp-energy ( -- tens )
+	:arrival-row game@ :departure-row game@ - abs 2 / truncate :arrival-column game@ :departure-column game@ - abs + to distance
+	warp-energy-table distance 8 / truncate 23 min2 @i distance 4 mod + ;
+
+\ === the rank ===
+
+[ "GALACTIC COOK" "GARBAGE SCOW CAPTAIN" "GARBAGE SCOW CAPTAIN" "ROOKIE" "ROOKIE" "NOVICE" "NOVICE" "ENSIGN" "ENSIGN" "PILOT" "PILOT" "ACE" "LIEUTENANT" "WARRIOR" "CAPTAIN" "COMMANDER" "COMMANDER" "STAR COMMANDER" "STAR COMMANDER" ] to rank-names
+
+\ the mission bonus by how the mission ended, then by mission level
+{ :complete [ 80 76 60 111 ] :aborted [ 60 60 50 100 ] :destroyed [ 40 50 40 90 ] } to mission-bonus
+
+\ the rank and class for a total score: the rank from bits 8-4, at most 18;
+\ the class from bits 3-0 for ranks 0 and 11-14, else from bits 4-1 with bit 3 flipped
+: rank-of ( total -- name class )
+	| total |
+	total 0 < if rank-names 0 @i 5 exit then
+	total truncate to total
+	total 4 rshift to rank
+	total 255 bit-and to low
+	rank 18 > if 18 to rank 15 to low then
+	rank 0 = rank 11 >= rank 14 <= and or if low 15 bit-and else low 1 rshift 8 bit-xor 15 bit-and then to index
+	rank-names rank @i [ 5 5 5 4 4 4 4 3 3 3 2 2 2 1 1 1 ] index @i ;

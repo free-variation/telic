@@ -1,0 +1,533 @@
+\ Star Raiders: the picture and the sound. The cartridge's playfield of 160
+\ by 100 pixels shows here 4 times as large, 640 by 400, with the Control
+\ Panel Display below it on a 640 by 480 screen; the Atari's player pixels
+\ are 4 of ours across and 2 down. The palette follows the Atari's hues and
+\ luminances, and the playfield colors are the cartridge's. The sprites, the
+\ font and the sound patches are this program's own. Loaded by
+\ examples/star-raiders.telic after universe.telic and flight.telic.
+
+640 480 screen-size 2 screen-zoom :black paper
+
+\ === the palette ===
+
+[ [ 0.5 0.5 0.5 ] [ 0.6 0.45 0.1 ] [ 0.7 0.35 0.1 ] [ 0.75 0.25 0.12 ] [ 0.78 0.3 0.22 ] [ 0.62 0.18 0.62 ] [ 0.42 0.22 0.75 ] [ 0.25 0.28 0.8 ]
+  [ 0.18 0.38 0.8 ] [ 0.12 0.5 0.75 ] [ 0.08 0.58 0.58 ] [ 0.08 0.6 0.38 ] [ 0.12 0.62 0.12 ] [ 0.35 0.6 0.08 ] [ 0.55 0.52 0.08 ] [ 0.68 0.42 0.1 ] ] to hue-colors
+
+\ one channel of an Atari color, 0-255, from the hue's share and the light
+: channel ( share light -- level ) dup 1.2 * 0.15 + rot * swap dup * 0.5 * + 0 1 clamp 255 * truncate ;
+
+\ an Atari color from a hue 0-15 and a luminance 0-15, as a packed 0xRRGGBB
+: atari ( hue luminance -- packed )
+	| hue luminance |
+	hue-colors hue @i to shares
+	luminance 0 15 clamp 15 / to light
+	shares 0 @i light channel 65536 * shares 1 @i light channel 256 * + shares 2 @i light channel + ;
+
+\ the playfield colors: 1 green, 2 light green, 3 very light green, all of hue 10; color 3 turns bright orange in a red alert
+: playfield-color ( register -- packed )
+	| register |
+	register 3 = :red-alert game@ 0 > and if 4 15 atari exit then
+	10 [ 0 6 10 15 ] register @i atari ;
+
+\ the Control Panel's colors: light mint, medium pink, light orange
+: panel-color ( register -- packed ) [ [ 11 8 ] [ 5 10 ] [ 15 12 ] ] swap @i dup 0 @i swap 1 @i atari ;
+
+\ === the font ===
+
+\ 5 by 7 glyphs; @ is theta, # is phi, ~ the infinity sign
+{ :A [ ".###." "#...#" "#...#" "#####" "#...#" "#...#" "#...#" ] :B [ "####." "#...#" "#...#" "####." "#...#" "#...#" "####." ]
+  :C [ ".###." "#...#" "#...." "#...." "#...." "#...#" ".###." ] :D [ "####." "#...#" "#...#" "#...#" "#...#" "#...#" "####." ]
+  :E [ "#####" "#...." "#...." "####." "#...." "#...." "#####" ] :F [ "#####" "#...." "#...." "####." "#...." "#...." "#...." ]
+  :G [ ".###." "#...#" "#...." "#.###" "#...#" "#...#" ".####" ] :H [ "#...#" "#...#" "#...#" "#####" "#...#" "#...#" "#...#" ]
+  :I [ ".###." "..#.." "..#.." "..#.." "..#.." "..#.." ".###." ] :J [ "..###" "...#." "...#." "...#." "...#." "#..#." ".##.." ]
+  :K [ "#...#" "#..#." "#.#.." "##..." "#.#.." "#..#." "#...#" ] :L [ "#...." "#...." "#...." "#...." "#...." "#...." "#####" ]
+  :M [ "#...#" "##.##" "#.#.#" "#.#.#" "#...#" "#...#" "#...#" ] :N [ "#...#" "#...#" "##..#" "#.#.#" "#..##" "#...#" "#...#" ]
+  :O [ ".###." "#...#" "#...#" "#...#" "#...#" "#...#" ".###." ] :P [ "####." "#...#" "#...#" "####." "#...." "#...." "#...." ]
+  :Q [ ".###." "#...#" "#...#" "#...#" "#.#.#" "#..#." ".##.#" ] :R [ "####." "#...#" "#...#" "####." "#.#.." "#..#." "#...#" ]
+  :S [ ".####" "#...." "#...." ".###." "....#" "....#" "####." ] :T [ "#####" "..#.." "..#.." "..#.." "..#.." "..#.." "..#.." ]
+  :U [ "#...#" "#...#" "#...#" "#...#" "#...#" "#...#" ".###." ] :V [ "#...#" "#...#" "#...#" "#...#" "#...#" ".#.#." "..#.." ]
+  :W [ "#...#" "#...#" "#...#" "#.#.#" "#.#.#" "#.#.#" ".#.#." ] :X [ "#...#" "#...#" ".#.#." "..#.." ".#.#." "#...#" "#...#" ]
+  :Y [ "#...#" "#...#" ".#.#." "..#.." "..#.." "..#.." "..#.." ] :Z [ "#####" "....#" "...#." "..#.." ".#..." "#...." "#####" ]
+  :0 [ ".###." "#...#" "#..##" "#.#.#" "##..#" "#...#" ".###." ] :1 [ "..#.." ".##.." "..#.." "..#.." "..#.." "..#.." ".###." ]
+  :2 [ ".###." "#...#" "....#" "...#." "..#.." ".#..." "#####" ] :3 [ "#####" "...#." "..#.." "...#." "....#" "#...#" ".###." ]
+  :4 [ "...#." "..##." ".#.#." "#..#." "#####" "...#." "...#." ] :5 [ "#####" "#...." "####." "....#" "....#" "#...#" ".###." ]
+  :6 [ "..##." ".#..." "#...." "####." "#...#" "#...#" ".###." ] :7 [ "#####" "....#" "...#." "..#.." ".#..." ".#..." ".#..." ]
+  :8 [ ".###." "#...#" "#...#" ".###." "#...#" "#...#" ".###." ] :9 [ ".###." "#...#" "#...#" ".####" "....#" "...#." ".##.." ] } to letter-glyphs
+
+[ [ ":" [ "....." "..#.." "..#.." "....." "..#.." "..#.." "....." ] ] [ "-" [ "....." "....." "....." "#####" "....." "....." "....." ] ]
+  [ "+" [ "....." "..#.." "..#.." "#####" "..#.." "..#.." "....." ] ] [ "." [ "....." "....." "....." "....." "....." ".##.." ".##.." ] ]
+  [ "?" [ ".###." "#...#" "....#" "...#." "..#.." "....." "..#.." ] ] [ "!" [ "..#.." "..#.." "..#.." "..#.." "..#.." "....." "..#.." ] ]
+  [ "," [ "....." "....." "....." "....." ".##.." "..#.." ".#..." ] ] [ "/" [ "....#" "...#." "...#." "..#.." ".#..." ".#..." "#...." ] ]
+  [ "@" [ ".###." "#...#" "#...#" "#####" "#...#" "#...#" ".###." ] ] [ "#" [ "..#.." ".###." "#.#.#" "#.#.#" "#.#.#" ".###." "..#.." ] ]
+  [ "~" [ "....." "....." ".#.#." "#.#.#" ".#.#." "....." "....." ] ] ] to sign-glyphs
+
+\ a glyph's lit pixels as horizontal runs [ column row length ]
+: glyph-runs ( rows -- runs )
+	| rows |
+	[ ] to runs
+	0 7 1 do row
+		rows row @i string>chars to cells
+		-1 to start
+		0 6 1 do column
+			column 5 < if cells column @i "#" = else 0 then to lit
+			lit start 0 < and if column to start then
+			lit 0= start 0 >= and if runs [ start row column start - ] add-last! drop -1 to start then
+		loop
+	loop
+	runs ;
+
+{ } to font
+letter-glyphs keys ( letter | font letter-glyphs letter @ glyph-runs letter ! drop ) each
+sign-glyphs ( entry | font entry 1 @i glyph-runs entry 0 @i string>symbol ! drop ) each
+
+\ draw text with its top-left corner at x y, each glyph pixel scale by scale, 6 glyph pixels to a character
+: draw-text ( text x y scale color -- )
+	| text x y scale color |
+	color ink
+	text string>chars to characters
+	0 characters size 1 do k
+		font characters k @i string>symbol null @or to runs
+		runs null? not if
+			x k 6 * scale * + to left
+			0 runs size 1 do r
+				runs r @i to stroke
+				stroke 0 @i scale * left + stroke 1 @i scale * y + stroke 2 @i scale * scale fill-rect
+			loop
+		then
+	loop ;
+
+\ the width text takes at a scale
+: text-width ( text scale -- pixels ) swap size 6 * 1- * ;
+
+\ draw text centred on x
+: draw-centred ( text x y scale color -- )
+	| text x y scale color |
+	text x text scale text-width 2 / - y scale color draw-text ;
+
+\ === the sprites ===
+
+\ the whole number at or above x
+: ceiling-of ( x -- n ) negate floor-of negate ;
+
+\ the sprite masters: # the base luminance, + two brighter, - four darker; each character is one master pixel
+{ "#" string>symbol 8 "+" string>symbol 10 "-" string>symbol 4 } to shade-palette
+
+\ a master from its rows of shade characters
+: master ( rows -- matrix ) shade-palette art>bitmap ;
+
+{ :fighter [
+    "##............##" "#+............+#" "#+............+#" "#+....-##-....+#" "#+...-####-...+#" "#+..-##++##-..+#" "#++++##++##++++#"
+    "#++++##++##++++#" "#+..-##++##-..+#" "#+...-####-...+#" "#+....-##-....+#" "#+............+#" "#+............+#" "##............##" ] master
+  :cruiser [
+    ".......++......." "......+##+......" ".....+####+....." "....+##--##+...." "...+##-..-##+..." "..+##-....-##+.."
+    ".+##-......-##+." "+##-........-##+" "##-..........-##" "#-............-#" "#..............#" ] master
+  :basestar [
+    "......-##-......" "....-######-...." "...-###++###-..." "..-###++++###-.." ".-##########-##." "-##############-" "################"
+    "................" "................" "################" "-##############-" ".-############-." "..-###++++###-.." "....-######-...." ] master
+  :starbase-center [
+    "..............++++.............." "............+######+............" "##.........+########+.........##" "####......-##########-......####"
+    "######...-############-...######" "#-#-#-##################-#-#-#-#" "######...-############-...######" "####......-##########-......####"
+    "##.........+########+.........##" "............+######+............" "..............####.............." ] master
+  :transfer [
+    "..++++.." "..####.." "..#--#.." "..####.." ".######." ".#+##+#." ".######." "########" ".#....#." ".#....#." ".#....#." "##....##" ] master
+  :meteor [
+    "....-###-....." "..-#######-..." ".-##+####-##-." "-###++###-###-" "####+###--####" "###########-##"
+    "-##-######+##-" "-#####-#####-." ".-##########-." "..-###-####-.." "...-######-..." ".....-##-....." ] master
+  :torpedo [
+    "....####...." "..##-++-##.." ".#--#++#--#." ".#-##++##-#." "#-##-++-##-#" "#++++##++++#"
+    "#++++##++++#" "#-##-++-##-#" ".#-##++##-#." ".#--#++#--#." "..##-++-##.." "....####...." ] master
+  :torpedo-turned [
+    "....####...." "..##+--+##.." ".#++#--#++#." ".#+##--##+#." "#+##+--+##+#" "#----##----#"
+    "#----##----#" "#+##+--+##+#" ".#+##--##+#." ".#++#--#++#." "..##+--+##.." "....####...." ] master
+  :marker [
+    "..+.+.." "..+.+.." "..+.+.." "..+.+.." "+++.+++" "......." "......." "+++.+++" "..+.+.." "..+.+.." "..+.+.." "..+.+.." ] master } to masters
+
+\ the hue each kind of player shows in: gray Zylons and transfer vessel, orange starbase, purple torpedoes, green-blue meteor, sky blue marker
+{ :fighter 0 :cruiser 0 :basestar 0 :starbase-center 2 :transfer 0 :meteor 10 :torpedo 5 :marker 9 } to kind-hues
+
+\ the luminance of a player by its range, 512 km to a step: 14 near, 4 far
+: range-luminance ( z -- luminance ) abs 512 / truncate 15 min2 [ 14 14 14 12 12 12 10 10 10 8 8 8 6 6 4 4 ] swap @i ;
+
+\ a master drawn width pixels wide in a hue: each pixel samples the master
+\ pixels it covers, and shows where a third of them or more are lit, at the
+\ luminance plus their average shade
+: shaded-image ( matrix hue luminance width -- bitmap )
+	| matrix hue luminance width |
+	matrix dim to columns to rows
+	width rows * columns / round 1 max2 to height
+	height width blank-bitmap to image
+	columns width / ceiling-of 1 3 clamp to samples
+	0 height 1 do ty
+		0 width 1 do tx
+			0 to hits
+			0 to shades
+			0 samples 1 do sy
+				0 samples 1 do sx
+					ty sy 0.5 + samples / + rows * height / truncate rows 1- min2 to my
+					tx sx 0.5 + samples / + columns * width / truncate columns 1- min2 to mx
+					matrix my mx @i,j to shade
+					shade null? not if hits 1+ to hits shades shade + to shades then
+				loop
+			loop
+			hits samples samples * / 0.34 >= if
+				image hue luminance shades hits / + 8 - atari ty tx !i,j drop
+			then
+		loop
+	loop
+	image ;
+
+{ } to image-cache
+
+\ a kind's image at a width, hue and luminance, made once and kept
+: player-image ( kind hue luminance width -- bitmap )
+	| kind hue luminance width |
+	kind hue luminance width "{3}/{2}/{1}/{0}" format string>symbol to key
+	image-cache key null @or to image
+	image null? not if image exit then
+	masters kind @ hue luminance width shaded-image to image
+	image-cache image key ! drop
+	image ;
+
+\ === the sound ===
+
+\ engines: white noise through a ladder whose cutoff and level follow the velocity
+{ :oscillators [ { :wave :white :attack 0.3 :sustain 1 :release 0.4 } ] :cutoff 200 :resonance 0.4 :level 0.05 } :engines instrument-patch!
+
+\ photon torpedo: a noise burst and a pulse chirping at 30 Hz, through a ladder closing fast
+{ :oscillators [ { :wave :white :attack 0.002 :decay 0.1 :sustain 0 :release 0.05 } { :wave :pulse :width 0.3 :level 0.5 :attack 0.002 :decay 0.12 :sustain 0 :release 0.05 } ]
+  :carriers [ 0 1 ] :cutoff 1500 :resonance 1.2 :filter-envelope { :attack 0.001 :decay 0.15 :sustain 0 :release 0.05 :amount 2 }
+  :lfo { :shape :square :rate 30 :pitch-depth 12 } :level 0.35 } :torpedo instrument-patch!
+
+\ Zylon explosion: white noise, its ladder falling from bright to dull over half a second
+{ :oscillators [ { :wave :white :attack 0.001 :decay 0.7 :sustain 0 :release 0.4 } ] :cutoff 500 :resonance 0.8
+  :filter-envelope { :attack 0.001 :decay 0.5 :sustain 0 :release 0.3 :amount 3 } :level 0.6 } :explosion instrument-patch!
+
+\ shield explosion: brown and white noise, longer and deeper
+{ :oscillators [ { :wave :brown :attack 0.001 :decay 1.2 :sustain 0 :release 0.6 } { :wave :white :level 0.4 :attack 0.001 :decay 0.3 :sustain 0 :release 0.2 } ]
+  :carriers [ 0 1 ] :cutoff 1000 :filter-envelope { :attack 0.001 :decay 0.8 :sustain 0 :release 0.4 :amount 2 } :level 0.7 } :shield-blast instrument-patch!
+
+\ starship explosion: noise through a resonant ladder whose cutoff jumps at random 30 times a second
+{ :oscillators [ { :wave :white :attack 0.001 :decay 1.2 :sustain 0.2 :release 0.5 } ] :cutoff 700 :resonance 2
+  :lfo { :shape :sample-and-hold :rate 30 :cutoff-depth 3 } :level 0.7 } :ship-blast instrument-patch!
+
+\ the beeper: a square wave
+{ :oscillators [ { :wave :pulse :width 0.5 :attack 0.001 :sustain 1 :release 0.01 } ] :cutoff 6000 :level 0.16 } :beeper instrument-patch!
+
+{ :events [ ] :priority 0 :until 0 :generation 0 } to audio
+
+\ run a word after delay seconds
+: later ( word delay -- )
+	| word delay |
+	audio :events @ [ now delay + word ] add-last! drop ;
+
+\ run every word whose time has come
+: run-due-events ( -- )
+	now to moment
+	audio :events @ to events
+	audio events ( 0 @i moment > ) filter :events ! drop
+	events ( 0 @i moment <= ) filter ( 1 @i execute ) each ;
+
+\ play a note for length seconds
+: sound ( pitch velocity instrument length -- )
+	| pitch velocity instrument length |
+	pitch velocity instrument note-on
+	( pitch instrument note-off ) length later ;
+
+\ a POKEY audio frequency divider as a pitch: 63921 / (2 (divider + 1)) Hz
+: pokey-pitch ( divider -- pitch ) 1+ 2 * 63921 swap / 440 / log2 12 * 69 + ;
+
+\ the beeper patterns: priority, the dividers played in turn, tone and pause in ticks, and repeats
+{ :hyperwarp-transit [ 2 [ 24 ] 4 3 13 ] :red-alert [ 3 [ 64 96 ] 17 0 8 ] :acknowledge [ 4 [ 16 16 16 ] 3 3 1 ]
+  :damage-report [ 5 [ 64 32 ] 33 0 3 ] :starbase-message [ 6 [ 72 64 81 ] 33 9 1 ] } to beeper-patterns
+
+\ play a beeper pattern unless one of higher priority is playing; it cuts off a lower one
+: beep ( name -- )
+	| name |
+	beeper-patterns name @ to pattern
+	pattern 0 @i to priority
+	now audio :until @ < priority audio :priority @ < and if exit then
+	audio :generation @ 1+ to generation
+	audio generation :generation ! priority :priority ! drop
+	pattern 1 @i to dividers
+	pattern 2 @i 60 / to tone
+	pattern 3 @i 60 / to pause
+	0 to moment
+	0 pattern 4 @i 1 do lap
+		0 dividers size 1 do k
+			dividers k @i pokey-pitch ( pitch | audio :generation @ generation = if pitch 1 :beeper tone 0.9 * sound then ) curry moment later
+			moment tone + pause + to moment
+		loop
+	loop
+	audio now moment + :until ! drop ;
+
+\ play one cue from the game
+: play-cue ( name -- )
+	| name |
+	beeper-patterns name has? if name beep exit then
+	name :torpedo-launch = if :c4 1 :torpedo 0.15 sound exit then
+	name :zylon-explosion = if :c3 1 :explosion 0.8 sound exit then
+	name :shield-explosion = if :c3 1 :shield-blast 1.2 sound exit then
+	name :starship-explosion = if :c3 1 :ship-blast 1.1 sound exit then ;
+
+\ play the cues the game loops asked for
+: play-cues ( -- )
+	:cues game@ ( cue | cue 0 @i ' play-cue curry cue 1 @i later ) each
+	[ ] :cues game! ;
+
+\ the engines' noise follows the velocity
+: update-engine-sound ( -- )
+	:velocity game@ 255 / to speed
+	0.12 speed 0.5 * + :level :engines instrument!
+	400 speed 3000 * + :cutoff :engines instrument! ;
+
+\ the effects under the whole game
+: settle-effects ( -- )
+	0.18 :wet :reverb effect! 0.6 :decay :reverb effect! 0.8 :size :reverb effect!
+	0 :wet :delay effect! 0.05 :wet :chorus effect!
+	0.9 :level :master effect! ;
+
+\ === the views ===
+
+\ the background: dark green-blue with the shields up, black without, flashing dark orange in a red alert, bright on a hit
+: background-color ( -- packed )
+	:hit game@ :shields = if 10 4 atari exit then
+	:hit game@ :destroyed = if 4 12 atari exit then
+	:red-alert game@ to alert
+	alert 0 > alert 32 bit-and 0 = not and if 3 2 atari exit then
+	:shields-up game@ if 10 0 atari exit then
+	0 ;
+
+\ the color of a star or fragment by its range, flickering between two registers at middle ranges
+: star-color ( object -- packed )
+	| star |
+	star :z @ abs 256 / truncate 15 min2 1 rshift 4 * :count game@ 3 bit-and + to index
+	[ 3 3 3 3 2 3 2 3 2 2 2 3 2 2 2 2 2 2 2 1 1 2 1 2 1 1 1 2 1 1 1 1 ] index @i playfield-color ;
+
+\ the stars and explosion fragments, a 3-pixel square near, 2 far
+: draw-stars ( -- )
+	:warp game@ :hyperspace = if exit then
+	0 :object-count game@ 1 do k
+		k object to star
+		star :shown @ if
+			star star-color ink
+			star :z @ abs 1024 < if 3 else 2 then to side
+			star :sx @ truncate star :sy @ truncate side side fill-rect
+		then
+	loop ;
+
+\ a line from the cartridge's line table: its start in playfield pixels, rightward or downward, its length
+: table-line ( column row down length -- )
+	| column row down length |
+	down if column 4 * 1+ row 4 * 2 length 4 * fill-rect else column 4 * row 4 * 1+ length 4 * 2 fill-rect then ;
+
+\ the crosshairs, drawn while the attack computer is on: in the front view a cross, in the aft view its two horizontal bars
+: draw-crosshairs ( -- )
+	:computer-on game@ 0= :computer subsystem@ :destroyed = or if exit then
+	1 playfield-color ink
+	:view game@ :front = if 80 40 1 7 table-line 80 54 1 7 table-line then
+	62 50 0 15 table-line 84 50 0 15 table-line ;
+
+\ the attack computer display in the front view: its frame, the blip of the tracked object grown a row a loop, and the lock-on markers
+: draw-attack-computer ( -- )
+	:view game@ :front = not :computer-on game@ 0= or :computer subsystem@ :destroyed = or if exit then
+	1 playfield-color ink
+	[ [ 119 70 0 30 ] [ 119 86 0 30 ] [ 119 70 1 17 ] [ 148 70 1 17 ] [ 120 78 0 6 ] [ 126 75 0 15 ] [ 126 81 0 15 ]
+	  [ 141 78 0 7 ] [ 133 71 1 4 ] [ 126 76 1 5 ] [ 140 76 1 5 ] [ 133 82 1 4 ] ] ( stroke | stroke 0 @i stroke 1 @i stroke 2 @i stroke 3 @i table-line ) each
+	2 playfield-color ink
+	:lock-level game@ to level
+	level 1 >= if 120 76 0 4 table-line 144 76 0 4 table-line then
+	level 2 >= if 120 80 0 4 table-line 144 80 0 4 table-line then
+	level 3 >= if 128 84 0 2 table-line 128 85 0 2 table-line 136 84 0 2 table-line 136 85 0 2 table-line then
+	:blip-shown game@ 0= if exit then
+	131 :blip-column game@ + to left
+	77 :blip-row game@ + to top
+	[ [ 0 5 ] [ 0 2 3 5 ] [ 0 1 2 3 4 5 ] [ 0 2 3 5 ] [ 0 5 ] ] to blip
+	:blip-cycle game@ 1+ 5 min2 to grown
+	3 playfield-color ink
+	0 grown 1 do row
+		blip row @i ( column | left column + 4 * top row + 4 * 4 4 fill-rect ) each
+	loop ;
+
+\ the luminance and hue of a player now: the starbase pulses, a basestar changes color every frame
+: player-look ( player -- hue luminance )
+	| p |
+	p :kind @ to kind
+	kind :marker = if 9 15 exit then
+	kind-hues kind @ to hue
+	kind :basestar = if 16 random-int to hue then
+	p :z @ range-luminance to luminance
+	kind :starbase-center = if luminance :count game@ 16 / truncate 4 mod 2 * + 2 - to luminance then
+	hue luminance ;
+
+\ one player in the front or aft view, its image centred on its projection
+: draw-player ( player -- )
+	| p |
+	p :kind @ to kind
+	p :shown @ 0= p alive? 0= or if exit then
+	kind :starbase-right = kind :starbase-left = or kind :none = or if exit then
+	kind :torpedo = if now 12 * truncate 2 mod if :torpedo-turned to kind then then
+	p player-look to luminance to hue
+	p :size @ 2 / round 2 * 2 max2 to width
+	kind :starbase-center = if width 2 * to width then
+	kind :marker = if 28 to width then
+	kind hue luminance width player-image to image
+	image dim to image-width to image-height
+	image p :sx @ image-width 2 / - truncate p :sy @ image-height 2 / - truncate draw-bitmap ;
+
+\ the players, the farthest first
+: draw-players ( -- )
+	:players game@ ( :z @ abs ) sort-by reverse ( draw-player ) each ;
+
+\ the front or aft view
+: draw-flight-view ( -- )
+	draw-stars
+	draw-crosshairs
+	draw-attack-computer
+	:warp game@ :hyperspace = if exit then
+	draw-players ;
+
+\ our starship on the long-range scan: a small arrow at the centre
+: draw-own-ship ( -- )
+	1 playfield-color ink
+	[ [ 78 53 2 ] [ 79 52 2 ] [ 80 50 5 ] [ 81 52 2 ] [ 82 53 2 ] ] ( stroke | stroke 0 @i stroke 1 @i 1 stroke 2 @i table-line ) each ;
+
+\ the long-range scan: our starship, the stars, and each player as a blip; nothing but our starship once the scan is destroyed
+: draw-scan ( -- )
+	draw-own-ship
+	:scan subsystem@ :destroyed = if exit then
+	draw-stars
+	0 5 1 do k
+		k player to p
+		p :shown @ p alive? and p :kind @ :none = not and if
+			p :kind @ :marker = if 9 15 atari else kind-hues p :kind @ 0 @or 6 atari then ink
+			p :sx @ truncate 1- p :sy @ truncate 1- 4 4 fill-rect
+		then
+	loop ;
+
+\ the Galactic Chart: 16 by 8 sectors of 34 by 30 pixels from 48 36
+48 constant chart-left
+36 constant chart-top
+
+\ the symbol of a sector's contents at its cell: a starbase, or 1-2, 3 or 4 Zylon ships
+: draw-sector ( value column row -- )
+	| value column row |
+	chart-left column 34 * + 17 + to cx
+	chart-top row 30 * + 15 + to cy
+	value starbase-mark = if
+		15 10 atari ink
+		cx 7 - cy 1- 15 3 fill-rect cx 1- cy 7 - 3 15 fill-rect
+		cx 4 - cy 4 - 3 3 fill-rect cx 2 + cy 4 - 3 3 fill-rect cx 4 - cy 2 + 3 3 fill-rect cx 2 + cy 2 + 3 3 fill-rect
+		exit
+	then
+	value 0 <= if exit then
+	5 10 atari ink
+	value 2 <= if
+		cx 7 - cy 6 - 3 13 fill-rect cx 5 + cy 6 - 3 13 fill-rect cx 4 - cy 1- 9 3 fill-rect cx 2 - cy 3 - 5 7 fill-rect
+		exit
+	then
+	value 3 = if
+		0 3 1 do k cx 10 - cy 7 - k 6 * + 21 3 fill-rect loop
+		exit
+	then
+	0 2 1 do down 0 2 1 do across cx 10 - across 12 * + cy 6 - down 9 * + 8 3 fill-rect loop loop ;
+
+\ the Galactic Chart view: the frame, the sectors as the subspace radio last reported them, and the departure and arrival markers flashing
+: draw-chart ( -- )
+	1 playfield-color ink
+	chart-left 2 - chart-top 2 - 16 34 * 4 + 2 fill-rect
+	chart-left 2 - chart-top 8 30 * + 16 34 * 4 + 2 fill-rect
+	chart-left 2 - chart-top 2 - 2 8 30 * 4 + fill-rect
+	chart-left 16 34 * + chart-top 2 - 2 8 30 * 4 + fill-rect
+	10 2 atari ink
+	1 16 1 do column chart-left column 34 * + chart-top 1 8 30 * fill-rect loop
+	1 8 1 do row chart-left chart-top row 30 * + 16 34 * 1 fill-rect loop
+	:shown-chart game@ to chart
+	0 128 1 do sector chart sector @i sector sector-column sector sector-row draw-sector loop
+	16 random-int 14 atari ink
+	chart-left :departure-column game@ 34 * 8 / + 2 - chart-top :departure-row game@ 30 * 16 / + 2 - 5 5 fill-rect
+	16 random-int 14 atari ink
+	chart-left :arrival-column game@ 34 * 8 / + 2 - chart-top :arrival-row game@ 30 * 16 / + 2 - 5 5 fill-rect ;
+
+\ the letter of a subsystem in the color of its state: green working, yellow damaged, pink destroyed
+: status-color ( name -- packed )
+	subsystem@ to state
+	state :ok = if 12 12 atari exit then
+	state :damaged = if 14 14 atari exit then
+	4 10 atari ;
+
+\ the Galactic Chart Panel Display: the hyperwarp energy to the arrival
+\ marker, the Zylon ships in the arrival sector, the subsystems, the stardate
+: draw-chart-panel ( -- )
+	0 panel-color to first-color
+	1 panel-color to second-color
+	warp-energy 10 * "WARP ENERGY:{0:4}" format 140 296 3 first-color draw-text
+	arrival-sector to sector
+	:radio subsystem@ :destroyed = if "?" else sector zylons-at "{0}" format then "TARGETS:{0}" format 140 328 3 second-color draw-text
+	"DC:" 140 18 11 * + 328 3 second-color draw-text
+	0 6 1 do k
+		"PESCLR" string>chars k @i 140 18 14 k + * + 328 3 subsystem-names k @i status-color draw-text
+	loop
+	:stardate game@ to date
+	date 100 mod date 100 / truncate 100 mod "STAR DATE:{0:02}.{1:02}" format 140 360 3 first-color draw-text ;
+
+\ === the title line and the panels ===
+
+\ the title line: the phrase segment showing now
+: draw-title-line ( -- )
+	title-text to text
+	text null? if exit then
+	text 320 12 3 10 10 atari draw-centred ;
+
+\ a signed two-digit reading of a coordinate, 100 to 65536 km
+: reading ( coordinate -- text )
+	| coordinate |
+	coordinate 0 < if "-" else "+" then coordinate abs 256 / truncate 255 min2 100 * 256 / truncate "{1}{0:02}" format ;
+
+\ the Control Panel Display: velocity, kills, energy and the tracked slot;
+\ the tracked object's theta, phi and range while the attack computer works
+: draw-panel ( -- )
+	:panel-hidden game@ if exit then
+	:shields subsystem@ :destroyed = if 2 6 atari else 8 0 atari then to paper-color
+	:energy game@ 1000 < :count game@ 128 >= and if 4 4 atari to paper-color then
+	paper-color ink
+	0 400 640 80 fill-rect
+	:velocity game@ to velocity
+	velocity 255 >= if "~ " else velocity 100 * 256 / truncate "{0:02}" format then "V:{0}" format 140 410 3 0 panel-color draw-text
+	:kills game@ "K:{0:02}" format 140 18 5 * + 410 3 1 panel-color draw-text
+	:energy game@ truncate "E:{0:04}" format 140 18 10 * + 410 3 2 panel-color draw-text
+	:track game@ "T:{0}" format 140 18 17 * + 410 3 0 panel-color draw-text
+	:computer subsystem@ :ok = if
+		:track game@ player to tracked
+		[ tracked :x @ reading tracked :y @ reading tracked :z @ abs 65535 min2 1000 * 65536 / truncate "+{0:03}" format ] :readings game!
+	then
+	:readings game@ to readings
+	readings null? if [ "+00" "+00" "+000" ] to readings then
+	readings 0 @i "@:{0}" format 140 18 1 * + 444 3 0 panel-color draw-text
+	readings 1 @i "#:{0}" format 140 18 7 * + 444 3 1 panel-color draw-text
+	readings 2 @i "R:{0}" format 140 18 13 * + 444 3 2 panel-color draw-text ;
+
+\ the attract screen's lines under the demonstration
+: draw-attract ( -- )
+	:demo game@ 0= :titles game@ size 0 > :rank game@ null? not and or if exit then
+	"STAR RAIDERS" 320 110 5 10 15 atari draw-centred
+	[ "NOVICE" "PILOT" "WARRIOR" "COMMANDER" ] :mission game@ @i "{0} MISSION" format 320 170 3 15 12 atari draw-centred
+	now 1.5 * truncate 2 mod 0= if "PRESS RETURN" 320 214 3 11 12 atari draw-centred then
+	"TAB CHANGES THE MISSION" 320 250 2 0 10 atari draw-centred
+	"ARROWS STEER   SPACE FIRES   0-9 SPEED" 320 280 2 0 8 atari draw-centred
+	"F A L G VIEWS   S SHIELDS   C COMPUTER" 320 300 2 0 8 atari draw-centred
+	"T TRACKING   H HYPERWARP   M TARGET   P PAUSE" 320 320 2 0 8 atari draw-centred
+	"BACKSPACE ABORTS   ESCAPE QUITS" 320 340 2 0 8 atari draw-centred ;
+
+\ one screen frame of the picture
+: draw ( -- )
+	background-color paper
+	cls
+	:view game@ to view
+	view :front = view :aft = or if draw-flight-view then
+	view :scan = if draw-scan then
+	view :chart = if draw-chart draw-chart-panel then
+	draw-title-line
+	draw-attract
+	:paused game@ if "PAUSED" 320 190 4 15 14 atari draw-centred then
+	:black paper
+	draw-panel ;

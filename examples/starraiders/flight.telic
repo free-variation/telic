@@ -1,0 +1,960 @@
+\ Star Raiders: the space objects and one game loop of flight: rotation and
+\ motion, the perspective projection, the Zylon ships' steering and fire,
+\ our photon torpedoes, hits, damage, docking, hyperwarp, energy and the keys.
+\ Loaded by examples/star-raiders.telic after universe.telic; the rules
+\ follow Lorenz Wiest's documented source of the cartridge, cited there.
+\
+\ Our starship sits at the origin: x to the right, y up, z ahead, in the
+\ cartridge's arbitrary kilometres, and every velocity is in kilometres per
+\ game loop. Player slots 0 and 1 hold the Zylon ships or the starbase's
+\ wings, slot 2 the Zylon photon torpedo, a meteor or the starbase, slots 3
+\ and 4 our photon torpedoes, the hyperwarp target marker in 3 and the
+\ transfer vessel in 4. Objects 0-11 are stars, 12-43 explosion fragments or
+\ hyperwarp star trails. The joystick is the arrow keys: right and up are
+\ +1, and up lifts the nose.
+
+320 constant center-x
+200 constant center-y
+
+\ === the space objects ===
+
+\ an empty player slot
+: empty-player ( -- player ) { :kind :none :life 0 :x 0 :y 0 :z 0 :vx 0 :vy 0 :vz 0 :sx 0 :sy 0 :size 0 :shown 0 :pattern 0 :milestone-timer 1 :back-attack 0 :indices [ 7 7 7 ] :milestones [ 7 7 7 ] :timers [ 0 0 ] } ;
+
+\ a player slot by number
+: player ( slot -- player ) :players game@ swap @i ;
+
+\ a star or fragment by number
+: object ( index -- object ) :objects game@ swap @i ;
+
+\ a player slot holds something with lifetime left
+: alive? ( player -- flag ) :life @ 0 > ;
+
+\ the high byte of a coordinate, as the cartridge's signed 17-bit numbers hold it: 0-255
+: high-byte ( coordinate -- byte ) 256 / floor-of 256 mod ;
+
+\ copy the position of one space object to another
+: copy-position ( source destination -- )
+	| source destination |
+	destination source :x @ :x ! source :y @ :y ! source :z @ :z ! drop ;
+
+\ a new star for the view: ahead within 4095 km across at 3840-4095 km in
+\ the front view, astern in the aft view, anywhere within 65535 km on the
+\ long-range scan
+: place-star ( star -- )
+	| star |
+	:view game@ to view
+	star 0 :vx ! 0 :vy ! 0 :vz ! drop
+	view :scan = if
+		star 65536 random-int random-sign :x ! 4096 random-int random-sign :y ! 65536 random-int random-sign :z ! drop
+		exit
+	then
+	16 random-int to rows
+	16 random-int to columns
+	view :aft = if
+		star columns 256 * random-sign :x ! rows 256 * random-sign :y ! rows columns max2 256 * 128 + negate :z ! drop
+		exit
+	then
+	star columns 256 * 256 random-int + random-sign :x ! rows 256 * 256 random-int + random-sign :y ! 3840 256 random-int + :z ! drop ;
+
+\ a fresh field of 12 stars for the view
+: place-stars ( -- ) 0 12 1 do k k object place-star loop ;
+
+\ the objects of a game: five empty player slots, 12 stars and 32 fragments
+: fresh-space ( -- )
+	[ ] to players
+	0 5 1 do k players empty-player add-last! drop loop
+	players :players game!
+	[ ] to objects
+	0 44 1 do k objects { :x 0 :y 0 :z 0 :vx 0 :vy 0 :vz 0 :sx 0 :sy 0 :shown 0 } add-last! drop loop
+	objects :objects game!
+	12 :object-count game!
+	place-stars ;
+
+\ a random velocity of -7 to 7 km per loop
+: fragment-velocity ( -- v ) 8 random-int random-sign ;
+
+\ an explosion at a player: 32 fragments at its position flying apart for 128 game loops
+: explode ( source -- )
+	| source |
+	128 :explosion-life game!
+	44 :object-count game!
+	12 44 1 do k
+		k object to fragment
+		source fragment copy-position
+		fragment fragment-velocity :vx ! fragment-velocity :vy ! fragment-velocity :vz ! drop
+	loop ;
+
+\ === the perspective projection ===
+
+\ where a point falls in the front or aft view, 40.5 of the cartridge's
+\ pixels (162 of ours) across per unit of x/z, 80 of them each side and 50 up
+\ and down: its screen x and y and 1, or 0 0 0 off the screen or behind
+: project ( x y z -- sx sy flag )
+	| x y z |
+	:view game@ :aft = if z negate to z then
+	z 0 <= if 0 0 0 exit then
+	x z / 40.5 * to across
+	y z / 40.5 * to up
+	across abs 80 >= up abs 50 >= or if 0 0 0 exit then
+	center-x across 4 * + center-y up 4 * - 1 ;
+
+\ where a point falls on the long-range scan, x across and z up, 81 of the
+\ cartridge's pixels to 65536 km: its screen x and y and 1, or 0 0 0 off the
+\ scan; a damaged scan mirrors depth at random
+: scan-project ( x z -- sx sy flag )
+	| x z |
+	x abs 81 * 65536 / to across
+	z abs 81 * 65536 / to up
+	:scan subsystem@ :damaged = 2 random-int 0= and if z negate to z then
+	across 80 >= up 50 >= or if 0 0 0 exit then
+	center-x x sign-of across * 4 * + center-y z sign-of up * 4 * - 1 ;
+
+\ a player's apparent width in pixels: as the cartridge's shapes, 8 player
+\ pixels (32 of ours) at 1024 km, one fewer every 1024 km beyond, down to 4
+\ of ours; nearer than 1024 km growing as the distance shrinks, up to 64
+: apparent-size ( z -- pixels )
+	abs to distance
+	distance 1024 < if 32768 distance 512 max2 / exit then
+	32 distance 1024 - 256 / - 4 max2 ;
+
+\ the height of each kind's image for its width
+{ :fighter 0.875 :cruiser 0.69 :basestar 0.875 :starbase-center 0.34 :transfer 1.5 :meteor 0.86 :torpedo 1 :marker 1.7 } to kind-aspects
+
+\ project one player into the current view; in the front and aft views one 8192 km away or more is not shown
+: project-player ( player -- )
+	| player |
+	:view game@ :scan = if
+		player :x @ player :z @ scan-project to shown to sy to sx
+		4 to width
+	else
+		player :x @ player :y @ player :z @ project to shown to sy to sx
+		player :z @ abs 8192 >= if 0 to shown then
+		player :z @ apparent-size to width
+	then
+	player sx :sx ! sy :sy ! shown :shown ! width :size ! drop ;
+
+\ where a star or fragment falls in the view
+: project-object ( object -- sx sy flag )
+	| object |
+	:view game@ :scan = if object :x @ object :z @ scan-project exit then
+	object :x @ object :y @ object :z @ project ;
+
+\ project the stars and fragments: a star off the view, or more than 4096
+\ km astern in the aft view, is replaced; a fragment off the view is hidden
+: project-objects ( -- )
+	0 :object-count game@ 1 do k
+		k object to star
+		star project-object to shown to sy to sx
+		:view game@ :aft = star :z @ -4096 < and if 0 to shown then
+		shown 0= k 12 < and if
+			star place-star
+			star project-object to shown to sy to sx
+		then
+		star sx :sx ! sy :sy ! shown :shown ! drop
+	loop ;
+
+\ project everything, except in the Galactic Chart view
+: project-all ( -- )
+	:view game@ :chart = if exit then
+	:players game@ ( project-player ) each
+	project-objects ;
+
+\ === rotation and motion ===
+
+\ turn one space object by the joystick, 1/64 of its depth per loop, each
+\ new coordinate feeding the next (Minsky's rotation)
+: turn ( object stick-x stick-y -- )
+	| object stick-x stick-y |
+	stick-x 0 = not if
+		object object :x @ stick-x object :z @ * 64 / - :x ! drop
+		object object :z @ stick-x object :x @ * 64 / + :z ! drop
+	then
+	stick-y 0 = not if
+		object object :y @ stick-y object :z @ * 64 / - :y ! drop
+		object object :z @ stick-y object :y @ * 64 / + :z ! drop
+	then ;
+
+\ turn every space object in use, except in the Galactic Chart view
+: rotate-all ( stick-x stick-y -- )
+	| stick-x stick-y |
+	:view game@ :chart = if exit then
+	stick-x 0 = stick-y 0 = and if exit then
+	0 5 1 do k k player stick-x stick-y turn loop
+	0 :object-count game@ 1 do k k object stick-x stick-y turn loop ;
+
+\ our starship's displacement per loop: its velocity, plus 256 once the hyperwarp star trails run
+: displacement ( -- km ) :velocity game@ :warp-boost game@ 256 * + ;
+
+\ move everything toward our starship by its displacement, the photon
+\ torpedoes excepted, then by each object's own velocity, the stars
+\ excepted; players stay within -65536..65535 km
+: move-all ( -- )
+	displacement to step
+	0 5 1 do k
+		k player to p
+		p :kind @ :torpedo = not if p p :z @ step - :z ! drop then
+		p p :x @ p :vx @ + -65536 65535 clamp :x ! drop
+		p p :y @ p :vy @ + -65536 65535 clamp :y ! drop
+		p p :z @ p :vz @ + -65536 65535 clamp :z ! drop
+	loop
+	0 :object-count game@ 1 do k
+		k object to o
+		o o :z @ step - :z ! drop
+		k 12 >= if
+			o o :x @ o :vx @ + :x ! drop
+			o o :y @ o :vy @ + :y ! drop
+			o o :z @ o :vz @ + :z ! drop
+		then
+	loop ;
+
+\ show the view and a fresh star field for it
+: set-view ( view -- )
+	:view game!
+	place-stars ;
+
+\ === energy and the end of a mission ===
+
+\ end the mission: the ship shuts down, and the title line tells the total of score and mission bonus as a rank and class
+: end-mission ( opening ending closing -- )
+	| opening ending closing |
+	:demo game@ if exit then
+	1 :demo game!
+	0 :new-velocity game!
+	0 :shields-on game!
+	0 :shields-up game!
+	0 :engine-drain game!
+	:none :warp game!
+	0 :warp-boost game!
+	0 :red-alert game!
+	mission-bonus ending @ :mission game@ @i :score game@ + rank-of to class to name
+	opening [ name class "CLASS {0}" format ] concat closing concat say
+	:titles game@ last 254 :life ! drop
+	name :rank game!
+	class :class game! ;
+
+\ spend energy: every 100-unit boundary crossed costs a point of score, and running dry ends the mission
+: spend ( units -- )
+	| units |
+	:demo game@ if exit then
+	:energy game@ to before
+	before units - 0 max2 to after
+	after :energy game!
+	:score game@ before 100 / floor-of after 100 / floor-of - - :score game!
+	after 0 > if exit then
+	:front set-view
+	[ " " "STAR FLEET TO" "STAR CRUISER 7" "MISSION ABORTED" "ZERO ENERGY" "NEW RANK IS" ] :aborted [ "REPORT TO BASE" "FOR TRAINING" ] end-mission ;
+
+\ the drain of one loop in 1/256 units: shields 8, attack computer 2, life support 1, and the engines by speed
+: drain ( -- )
+	:energy-count game@ :shields-on game@ 8 * + :computer-on game@ 2 * + 1 + :engine-drain game@ + to tally
+	tally 256 >= if 1 spend tally 256 - to tally then
+	tally :energy-count game! ;
+
+\ === the subsystems in battle ===
+
+\ the shields as they stand, rechecked every 8 loops: up when on and working, and in 200 of 256 checks when damaged
+: check-shields ( -- )
+	:count game@ 8 mod 0 = not if exit then
+	:shields subsystem@ to state
+	:shields-on game@ state :destroyed = not and if state :ok = 256 random-int 200 < or else 0 then :shields-up game! ;
+
+\ a hit may damage or destroy a subsystem: by the mission's chance, one of
+\ six picked with 6 in 8, a destroyed one picked again; a torpedo with 30 or
+\ more loops to live destroys, but never both the attack computer and the
+\ long-range scan
+: damage ( -- )
+	:demo game@ if exit then
+	[ 0 80 180 254 ] :mission game@ @i to chance
+	begin
+		256 random-int to dice
+		dice chance >= if exit then
+		dice 7 bit-and to choice
+		choice 6 >= if exit then
+		subsystem-names choice @i to name
+		name subsystem@ :destroyed =
+	while
+	repeat
+	2 player :life @ 30 >= to strong
+	name :computer = :scan subsystem@ :destroyed = and if 0 to strong then
+	name :scan = :computer subsystem@ :destroyed = and if 0 to strong then
+	strong if :destroyed else :damaged then name subsystem!
+	[ "PHOTONS" "ENGINES" "SHIELDS" "COMPUTER" "SECTOR SCAN" "SUB-SPACE RADIO" ] choice @i to label
+	[ "DAMAGE CONTROL" label strong if "{0} DESTROYED" else "{0} DAMAGED" then format ] say
+	:computer subsystem@ :destroyed = if 0 :computer-on game! then
+	:damage-report cue ;
+
+\ === the Zylon ships ===
+
+[ 62 30 16 8 4 2 1 0 0 -1 -2 -4 -8 -16 -30 -62 ] to zylon-velocities
+
+\ a new Zylon ship in a slot: a basestar, cruiser or fighter with its flight
+\ pattern (always attack on a NOVICE mission), at least 28928 km ahead,
+\ within the sector's vicinity across
+: create-zylon ( ship -- )
+	| ship |
+	8 random-int to choice
+	ship [ :basestar :fighter :fighter :fighter :cruiser :cruiser :cruiser :fighter ] choice @i :kind ! 255 :life ! drop
+	ship :mission game@ 0 = if 0 else [ 4 4 0 0 0 1 0 0 ] choice @i then :pattern ! drop
+	ship 1 :milestone-timer ! 0 :back-attack ! 0 :vx ! 0 :vy ! 0 :vz ! drop
+	256 random-int :vicinity game@ bit-and to high
+	high 19 + 256 mod to across
+	ship high 256 * 256 random-int + random-sign :y ! drop
+	ship across 256 * 256 random-int + random-sign :x ! drop
+	ship across 113 bit-or 256 * 256 random-int + :z ! drop ;
+
+\ a meteor in slot 2, in 4 of 256 tries while the slot is free: placed like a star, drifting 8 km per loop toward us
+: try-meteor ( -- )
+	2 player to slot
+	slot :kind @ :none = not slot alive? and if exit then
+	256 random-int 4 >= if exit then
+	slot :meteor :kind ! 60 :life ! drop
+	slot place-star
+	slot 0 :vx ! 0 :vy ! -8 :vz ! drop ;
+
+\ the Zylon ships follow our turn: each of their x and y velocity indices
+\ steps with the joystick when its timer runs out, reversed in the aft view,
+\ and the timer restarts at twice the index's distance from the table's end
+: follow-turn ( stick-x stick-y -- )
+	| stick-x stick-y |
+	:view game@ :aft = if -1 else 1 then to facing
+	0 2 1 do k
+		k player to ship
+		ship :timers @ to timers
+		ship :indices @ to indices
+		0 2 1 do axis
+			timers timers axis @i 1- axis !i drop
+			timers axis @i 0 < if
+				axis 0 = if stick-x else stick-y then facing * indices axis 1+ @i + 0 15 clamp to index
+				indices index axis 1+ !i drop
+				timers index 8 < if index else 15 index - then 2 * axis !i drop
+			then
+		loop
+	loop ;
+
+\ the Zylon photon torpedo homes toward us across, at the mission's speed
+: home-zylon-torpedo ( -- )
+	2 player to torpedo
+	torpedo :kind @ :torpedo = not if exit then
+	[ 1 4 8 20 ] :mission game@ @i to speed
+	torpedo torpedo :y @ 0 >= if speed negate else speed then :vy ! drop
+	torpedo torpedo :x @ 0 >= if speed negate else speed then :vx ! drop ;
+
+\ the homing velocity of our torpedoes for a screen difference in the cartridge's player pixels
+: homing-velocity ( difference -- velocity )
+	| difference |
+	[ 0 8 16 24 40 48 56 64 ] difference abs truncate 7 min2 @i difference 0 > if negate then ;
+
+\ our torpedoes fired in lock-on steer toward their target on the screen, upward only
+: home-torpedoes ( -- )
+	:homing game@ 0= if exit then
+	:homing-target game@ player to target
+	target :sy @ 3 player :sy @ - 2 / to rows
+	rows 0 >= if 0 else rows homing-velocity then to climb
+	3 5 1 do k
+		k player to torpedo
+		torpedo climb :vy ! drop
+		torpedo torpedo :sx @ target :sx @ - 4 / homing-velocity :vx ! drop
+	loop ;
+
+\ a new milestone for each axis: the flight pattern's index or its mirror, by a coin
+: new-milestones ( ship -- )
+	| ship |
+	ship :pattern @ to pattern
+	ship :milestones @ to milestones
+	0 3 1 do axis
+		milestones 2 random-int if pattern else 15 pattern - then axis !i drop
+	loop ;
+
+\ the attack pattern's milestones: toward our starship across, and in depth
+\ out to 2560 km ahead and back, or from behind out to 2816 km astern and back
+: attack-milestones ( ship -- )
+	| ship |
+	ship :milestones @ to milestones
+	ship :z @ high-byte to z-byte
+	ship :back-attack @ if z-byte 245 >= if 15 else 0 then else z-byte 10 < if 0 else 15 then then to depth-index
+	milestones depth-index 0 !i drop
+	milestones ship :x @ 0 >= if 15 else 0 then 1 !i drop
+	milestones ship :y @ 0 >= if 15 else 0 then 2 !i drop ;
+
+\ launch the Zylon photon torpedo from a ship: once slot 2's torpedo is spent
+\ and its delay over, with the ship within -512..767 km vertically and
+\ closer than 8192 km, ahead, or astern except on a NOVICE mission
+: zylon-fire ( slot -- )
+	| slot |
+	slot player to ship
+	2 player to torpedo
+	torpedo :kind @ :torpedo = if
+		torpedo alive? if exit then
+		:torpedo-delay game@ 0 > if :torpedo-delay game@ 1- :torpedo-delay game! exit then
+	then
+	ship :y @ 256 / floor-of 2 + to height
+	height 0 < height 4 > or if exit then
+	ship :z @ to ahead
+	ahead 0 >= if -80 else :mission game@ 0 = if exit then 80 then to speed
+	ahead abs 8192 >= if exit then
+	torpedo :torpedo :kind ! 62 :life ! 0 :vx ! 0 :vy ! speed :vz ! drop
+	ship torpedo copy-position
+	slot :attacker game! ;
+
+\ steer the Zylon ship under control: create it when its slot is empty and
+\ the sector has ships to spare, switch it to attack when it shows within
+\ 8192 km ahead, draw new milestones every 120 turns, step each velocity
+\ index toward its milestone, and fire
+: steer-zylon ( slot -- )
+	| slot |
+	slot player to ship
+	ship alive? 0= if
+		0 player alive? 1 player alive? or :sector game@ zylons-at >= if try-meteor exit then
+		ship create-zylon
+	then
+	ship :z @ to ahead
+	ahead 0 >= ahead 8192 < and ship :shown @ and :view game@ :scan = not and if ship 0 :pattern ! drop then
+	ship ship :milestone-timer @ 1- :milestone-timer ! drop
+	ship :milestone-timer @ 0 < if
+		ship 120 :milestone-timer ! drop
+		ship :mission game@ 2 >= 256 random-int 48 < and :back-attack ! drop
+		ship new-milestones
+	then
+	ship :pattern @ 0 = if ship attack-milestones then
+	ship :indices @ to indices
+	ship :milestones @ to milestones
+	0 3 1 do axis
+		indices axis @i to index
+		milestones axis @i to goal
+		index goal < if index 1+ to index then
+		index goal > if index 1- to index then
+		indices index axis !i drop
+	loop
+	ship zylon-velocities indices 0 @i @i :vz ! drop
+	ship zylon-velocities indices 1 @i @i :vx ! drop
+	ship zylon-velocities indices 2 @i @i :vy ! drop
+	slot zylon-fire ;
+
+\ the torpedoes and Zylon ships of one loop, outside starbase sectors and
+\ hyperwarp: homing, following our turn, then every fourth loop the other
+\ Zylon ship's steering, and a chance of a meteor in the others
+: maneuver ( stick-x stick-y -- )
+	| stick-x stick-y |
+	:warp game@ :none = not :starbase-sector game@ or if exit then
+	home-torpedoes
+	stick-x stick-y follow-turn
+	home-zylon-torpedo
+	:count game@ 4 mod 0 = not if try-meteor exit then
+	:controlled game@ 1 bit-xor dup :controlled game! steer-zylon ;
+
+\ a meteor more than 1024 km behind us, or lost beyond the sector, is gone
+: retire-meteor ( -- )
+	2 player to meteor
+	meteor :kind @ :meteor = not if exit then
+	meteor :z @ -1024 < meteor :z @ 65535 >= or if meteor 0 :life ! :none :kind ! drop then ;
+
+\ === our photon torpedoes ===
+
+\ the trigger: a new press fires once that barrel's last torpedo is 23
+\ loops old, and in full lock-on sets both torpedoes homing and fires the
+\ other barrel on the next loop; damaged photons fire from one barrel,
+\ destroyed ones not at all
+: trigger ( pressed -- )
+	| pressed |
+	:old-trigger game@ to old
+	pressed if 0 else 1 then :old-trigger game!
+	pressed 0= if exit then
+	:warp game@ :none = not if exit then
+	:barrel game@ to barrel
+	old 1 = if
+		barrel 3 + player :life @ 232 >= if exit then
+		:track game@ :homing-target game!
+		:in-lock-on game@ :homing game!
+		:in-lock-on game@ if 0 else 12 then :lock-on-life game!
+		:in-lock-on game@ if 2 else 0 then :old-trigger game!
+	else
+		old 2 < if exit then
+	then
+	:photons subsystem@ to state
+	state :destroyed = if exit then
+	state :ok = if barrel 1 bit-xor :barrel game! then
+	barrel 3 + player to torpedo
+	torpedo :torpedo :kind ! 255 :life ! barrel 1 = if 256 else -256 then :x ! -256 :y ! 1 :z ! drop
+	torpedo 0 :vx ! 0 :vy ! :view game@ :aft = if -102 else 102 then :vz ! drop
+	10 spend
+	:torpedo-launch cue ;
+
+\ the depth window in which our torpedo must be to hit an object, by the object's distance
+: hit-window? ( torpedo target -- flag )
+	| torpedo target |
+	target :z @ abs 256 / truncate 15 min2 2 / truncate to band
+	torpedo :z @ abs 256 / truncate to torpedo-depth
+	torpedo-depth [ 0 0 0 2 4 6 8 12 ] band @i >= torpedo-depth [ 12 12 12 12 14 14 14 32 ] band @i < and ;
+
+\ two players' images overlap on the screen, a starbase twice as wide
+: images-meet? ( torpedo target -- flag )
+	| torpedo target |
+	target :kind @ to kind
+	target :size @ kind :starbase-center = if 2 else 1 then * to width
+	width kind-aspects kind 1 @or * to height
+	torpedo :sx @ target :sx @ - abs width torpedo :size @ + 2 / <
+	torpedo :sy @ target :sy @ - abs height torpedo :size @ + 2 / < and ;
+
+\ the player a torpedo's image meets, Zylon ship 1 first, then slot 2, then Zylon ship 0, or -1
+: struck-slot ( torpedo -- slot )
+	| torpedo |
+	[ 1 2 0 ] to order
+	0 3 1 do k
+		order k @i to slot
+		slot player to target
+		target alive? target :shown @ and if
+			torpedo target images-meet? if slot exit then
+		then
+	loop
+	-1 ;
+
+\ a torpedo strikes: the explosion is heard after the torpedo's age; a
+\ basestar survives a torpedo 15 loops old or older; a Zylon ship scores 6
+\ and a kill, a starbase costs 3; the last Zylon ship completes the mission
+: strike ( torpedo target -- )
+	| torpedo target |
+	255 torpedo :life @ - to age
+	0 :lock-on-life game!
+	torpedo 0 :life ! drop
+	:zylon-explosion age 60 / cue-after
+	age 15 >= target :kind @ :basestar = and if target explode exit then
+	target 0 :life ! drop
+	target :kind @ to kind
+	kind :torpedo = kind :meteor = or if target explode exit then
+	0 :homing game!
+	:sector game@ to sector
+	sector starbase? if
+		0 sector chart!
+		:score game@ 3 - :score game!
+		exit
+	then
+	sector chart@ 1- sector chart!
+	:score game@ 6 + :score game!
+	:kills game@ 1+ 100 mod :kills game!
+	target explode
+	zylons-left? if exit then
+	[ " " "STAR FLEET TO" "STAR CRUISER 7" "MISSION COMPLETE" "NEW RANK IS" ] :complete [ "CONGRATULATIONS" ] end-mission ;
+
+\ check our torpedoes against the players they meet in the front or aft view
+: collide ( -- )
+	:view game@ to view
+	view :front = view :aft = or 0= if exit then
+	3 5 1 do k
+		k player to torpedo
+		torpedo :kind @ :torpedo = torpedo alive? and torpedo :shown @ and if
+			torpedo struck-slot to slot
+			slot 0 >= if
+				slot player to target
+				torpedo target hit-window? if torpedo target strike exit then
+			then
+		then
+	loop ;
+
+\ === hits on our starship ===
+
+\ slot 2 within 256 km of our starship on every axis hits it outside a
+\ starbase sector: damage, 100 units of energy, and with the shields down
+\ the end of the mission
+: check-hit ( -- )
+	:starbase-sector game@ if exit then
+	2 player to shot
+	shot alive? 0= if exit then
+	shot :x @ -256 < shot :x @ 256 >= or if exit then
+	shot :y @ -256 < shot :y @ 256 >= or if exit then
+	shot :z @ -256 < shot :z @ 256 >= or if exit then
+	damage
+	shot explode
+	:shields-up game@ if
+		:shields :hit game!
+	else
+		:front set-view
+		[ " " "STAR FLEET TO" "ALL UNITS" "STAR CRUISER 7" "DESTROYED" "BY ZYLON FIRE" "POSTHUMOUS RANK IS" ] :destroyed [ ] end-mission
+		1 :panel-hidden game!
+		:starship-explosion cue
+		:destroyed :hit game!
+	then
+	shot 0 :life ! drop
+	2 :torpedo-delay game!
+	100 spend
+	:shield-explosion cue ;
+
+\ === the attack computer and the tracking computer ===
+
+\ the attack computer's cycle of 11 loops: the blip grows a row a loop for
+\ five, waits five, then moves to the tracked object's place, 256 km to a
+\ pixel, within 11 across and 6 up or 4 down; the markers show lock-on
+\ across within 512 km, then up and down, then ahead within 3072 km
+: update-attack-computer ( -- )
+	:blip-cycle game@ 1+ :blip-cycle game!
+	:blip-cycle game@ 10 < if exit then
+	0 :blip-cycle game!
+	:track game@ player to tracked
+	tracked alive? 0= if 0 :blip-shown game! 0 :lock-level game! 0 :in-lock-on game! exit then
+	1 :blip-shown game!
+	tracked :x @ 256 / floor-of -11 11 clamp :blip-column game!
+	tracked :y @ 256 / floor-of negate 1- -6 4 clamp :blip-row game!
+	0 :in-lock-on game!
+	0 :lock-level game!
+	:lock-on-life game@ 0 > if
+		:lock-on-life game@ 1- :lock-on-life game!
+		:lock-on-life game@ 0 > if exit then
+	then
+	:blip-column game@ -2 < :blip-column game@ 1 > or if exit then
+	1 :lock-level game!
+	:blip-row game@ -2 < :blip-row game@ 1 > or if exit then
+	2 :lock-level game!
+	tracked :z @ high-byte 12 >= if exit then
+	3 :lock-level game!
+	1 :in-lock-on game! ;
+
+\ the tracked object: the ship that fired the last Zylon torpedo, else the
+\ one chosen, or the other Zylon ship when it is gone; the tracking computer
+\ turns the view toward it
+: update-tracking ( -- )
+	:computer subsystem@ :destroyed = :computer-on game@ 0= or if exit then
+	:view game@ :front = if update-attack-computer then
+	:track game@ to index
+	:attacker game@ 0 >= if :attacker game@ to index -1 :attacker game! then
+	index player alive? 0= if
+		index 1 bit-xor player alive? if index 1 bit-xor to index else :track game@ to index then
+	then
+	index :track game!
+	:tracking-on game@ 0= index player alive? 0= or if exit then
+	:view game@ to view
+	view :front = view :aft = or 0= if exit then
+	index player :z @ 0 >= if :front else :aft then to wanted
+	wanted view = not if wanted set-view then ;
+
+\ === docking ===
+
+\ the starbase is placed on the crosshairs: ahead within 32-511 km, level
+\ within 0-255 km and on the screen within 8 of the cartridge's pixels
+\ across and 0-8 up, and our starship at rest
+: in-dock? ( -- flag )
+	2 player to station
+	station :z @ to ahead
+	ahead 0 <= ahead 512 >= or if 0 exit then
+	station :y @ 0 < station :y @ 256 >= or if 0 exit then
+	station :x @ ahead / 40.5 * abs 8 > if 0 exit then
+	station :y @ ahead / 40.5 * 8 > if 0 exit then
+	:velocity game@ 0 = :new-velocity game@ 0 = and ;
+
+\ the transfer vessel sets out from behind the starbase toward our starship
+: launch-transfer ( -- )
+	4 player :transfer :kind ! 129 :life ! 256 random-int :x ! 256 256 random-int + :y ! 4096 256 random-int + :z ! 1 :vx ! -1 :vy ! -7 :vz ! drop
+	:returning :dock-state game! ;
+
+\ the transfer vessel has passed behind us: everything is repaired, the energy is 9999, and it returns
+: transfer-complete ( -- )
+	:acknowledge cue
+	[ "TRANSFER COMPLETE" ] say
+	repaired :subsystems game!
+	9999 :energy game!
+	4 player -1 :vx ! 1 :vy ! 7 :vz ! drop
+	:complete :dock-state game! ;
+
+\ the starbase in its sector: slots 0-2 hold it while it stands, else it
+\ explodes; it keeps 32 km away; placed on the crosshairs at rest it
+\ establishes orbit, then sends the transfer vessel, and leaving the
+\ position aborts
+: dock ( -- )
+	:starbase-sector game@ 0= if exit then
+	:sector game@ starbase? if 255 else 0 then to life
+	[ :starbase-right :starbase-left :starbase-center ] to kinds
+	0 3 1 do k k player kinds k @i :kind ! life :life ! drop loop
+	2 player to station
+	life 0 = if
+		0 :starbase-sector game!
+		station explode
+		:shield-explosion cue
+		exit
+	then
+	station :z @ 0 >= station :z @ 32 < and if station station :z @ 1+ :z ! drop then
+	:dock-state game@ to state
+	in-dock? 0= if
+		state :orbit = state :returning = or if [ "DOCKING ABORTED" ] say then
+		:undocked :dock-state game!
+		exit
+	then
+	state :undocked = if [ "ORBIT ESTABLISHED" "STANDBY" ] say :orbit :dock-state game! exit then
+	state :orbit = if :titles game@ size 0 = if launch-transfer then exit then
+	state :returning = if 4 player :z @ 0 < if transfer-complete then then ;
+
+\ === hyperwarp ===
+
+\ the players and objects after a hyperwarp or its abort: 12 stars, nothing else
+: clean-up-warp ( -- )
+	12 :object-count game!
+	0 :warp-boost game!
+	0 :explosion-life game!
+	:none :hit game!
+	0 5 1 do k k player 0 :life ! drop loop
+	3 player :none :kind ! drop
+	0 :engine-drain game!
+	:undocked :dock-state game!
+	0 :track game! ;
+
+\ the hyperwarp's end: the engines stop
+: end-warp ( -- )
+	0 :new-velocity game!
+	:none :warp game!
+	clean-up-warp ;
+
+\ abort the hyperwarp for 100 units of energy
+: abort-hyperwarp ( -- )
+	100 spend
+	[ "HYPERWARP ABORTED" ] say
+	end-warp ;
+
+\ engage the hyperwarp: full speed, the engines at speed 7's drain, the
+\ target marker 256 km above the crosshairs, and on missions above NOVICE a
+\ veer that grows with the hyperwarp energy
+: engage-hyperwarp ( -- )
+	:warp game@ :none = not if exit then
+	:engaged :warp game!
+	255 :new-velocity game!
+	30 :engine-drain game!
+	43 :trail-index game!
+	0 :trail-delay game!
+	3 player 0 :x ! 256 :y ! 8000 :z ! 0 :vx ! 0 :vy ! 0 :vz ! drop
+	125 :marker-column game!
+	119 :marker-row game!
+	:arrival-column game@ :warp-column game!
+	:arrival-row game@ :warp-row game!
+	:mission game@ 0 = if 0 else [ 31 63 95 127 ] warp-energy 6 rshift 3 min2 @i then :veer game!
+	[ "HYPERWARP ENGAGED" ] say ;
+
+\ a star trail every 4 loops once past half hyperwarp speed: 6 stars in a
+\ row ahead, 80 km apart from 4688 km, at one of four places across
+: star-trail ( -- )
+	:trail-delay game@ 1- :trail-delay game!
+	:trail-delay game@ 0 >= if exit then
+	1 :warp-boost game!
+	44 :object-count game!
+	3 :trail-delay game!
+	4 random-int to choice
+	[ 4 4 3 2 ] choice @i 256 * 256 random-int + random-sign to across
+	[ 2 3 4 4 ] choice @i 256 * 256 random-int + random-sign to up
+	:trail-index game@ to index
+	0 6 1 do k
+		index object across :x ! up :y ! 4608 k 1+ 80 * + :z ! 0 :vx ! 0 :vy ! 0 :vz ! drop
+		index 1- to index
+		index 12 < if 43 to index then
+	loop
+	index :trail-index game! ;
+
+\ the target marker's place in the cartridge's player pixels, centred at
+\ column 125 and row 119, from where it shows in the view
+: locate-marker ( -- )
+	3 player to marker
+	:view game@ to view
+	view :chart = if exit then
+	marker :shown @ 0= if 251 :marker-row game! exit then
+	marker :sx @ center-x - 4 / floor-of 125 + :marker-column game!
+	marker :sy @ center-y - 2 / floor-of 122 + :marker-row game! ;
+
+\ arrive: the arrival sector becomes ours, the marker's row within it sets
+\ how near its objects lie, and a starbase waits ahead or the red alert sounds
+: arrive ( -- )
+	[ "HYPERWARP COMPLETE" ] say
+	end-warp
+	:arrival-column game@ :departure-column game!
+	:arrival-row game@ :departure-row game!
+	[ 255 255 63 15 63 127 255 255 ] :arrival-row game@ 1 rshift 7 bit-and @i :vicinity game!
+	arrival-sector :sector game!
+	0 :starbase-sector game!
+	:sector game@ to sector
+	sector starbase? if
+		1 :starbase-sector game!
+		:vicinity game@ to mask
+		2 player 256 random-int mask bit-and 256 * 256 random-int + random-sign :x ! 256 random-int mask bit-and 256 * 256 random-int + random-sign :y ! 256 random-int mask bit-and 113 bit-or 256 * 256 random-int + :z ! 0 :vx ! 0 :vy ! 0 :vz ! drop
+		exit
+	then
+	sector zylons-at 0 > if
+		255 :red-alert game!
+		:red-alert cue
+		[ "RED ALERT" ] announce
+	then ;
+
+\ hyperspace: on entry the stars vanish and the energy is reckoned from the
+\ departure to the arrival marker; then it is spent 10 units a loop
+: in-hyperspace ( -- )
+	:warp game@ :hyperspace = not if
+		:hyperspace :warp game!
+		:hyperwarp-transit cue
+		warp-energy :warp-left game!
+		[ "HYPERSPACE" ] announce
+		clean-up-warp
+		exit
+	then
+	:warp-left game@ 1- :warp-left game!
+	:warp-left game@ 0 > if 10 spend exit then
+	arrive ;
+
+\ the hyperwarp of one loop: accelerating, the star trails from 128 km per
+\ loop, the marker's drift moving the arrival marker, hyperspace from 254
+: hyperwarp ( -- )
+	:warp game@ :none = if exit then
+	:velocity game@ 254 >= if in-hyperspace exit then
+	:velocity game@ 128 >= if star-trail then
+	3 :track game!
+	3 player :marker :kind ! 144 :life ! 7936 3 player :z @ 256 mod + :z ! drop
+	locate-marker
+	:warp-row game@ :marker-row game@ + 119 - 128 mod :arrival-row game!
+	:warp-column game@ :marker-column game@ + 125 - 128 mod :arrival-column game!
+	:mission game@ 0 = if 3 player 0 :vx ! 0 :vy ! drop exit then
+	:view game@ :front = not if 256 random-int :marker-column game! 256 random-int :marker-row game! then
+	256 random-int 16 >= if exit then
+	:veer game@ to veer
+	3 player 256 random-int 16 bit-or veer bit-and random-sign :vx ! 256 random-int 16 bit-or veer bit-and random-sign :vy ! drop ;
+
+\ the arrival marker on the Galactic Chart follows the joystick every other loop
+: select-warp ( stick-x stick-y -- )
+	| stick-x stick-y |
+	:view game@ :chart = not :warp game@ :none = not or if exit then
+	:radio subsystem@ :ok = if :chart game@ copy :shown-chart game! then
+	:count game@ 2 mod if exit then
+	:arrival-column game@ stick-x + 128 mod :arrival-column game!
+	:arrival-row game@ stick-y - 128 mod :arrival-row game! ;
+
+\ === the engines ===
+
+\ the velocity steps 1 km per loop toward the one set; damaged engines falter at random below it
+: update-engines ( -- )
+	:velocity game@ to velocity
+	:new-velocity game@ to wanted
+	velocity wanted < if velocity 1+ :velocity game! then
+	velocity wanted > if velocity 1- :velocity game! then
+	:warp game@ :none = :engines subsystem@ :ok = not and if wanted truncate 256 random-int bit-and :velocity game! then ;
+
+\ a speed key: the speeds 0-9 of 0 to 112 km per loop and their drain, at most speed 5 with damaged engines; during a hyperwarp it aborts it
+: set-speed ( key -- )
+	| key |
+	:warp game@ :none = not if abort-hyperwarp exit then
+	:engines subsystem@ :ok = not if key 5 min2 to key then
+	[ 0 4 6 8 10 12 14 30 45 60 ] key @i :engine-drain game!
+	[ 0 1 2 4 8 16 32 64 96 112 ] key @i :new-velocity game! ;
+
+\ === the keys ===
+
+\ toggle the shields, the attack computer or the tracking computer, with its message and the acknowledge beep
+: toggle ( key on-text off-text -- )
+	| key on-text off-text |
+	key game@ 0= dup key game!
+	if on-text else off-text then 1 array-of say
+	:acknowledge cue ;
+
+\ the keys of the cartridge, read once a screen frame: 0-9 speeds, F A G L
+\ views, S shields, C attack computer, T tracking, H hyperwarp, M the other
+\ Zylon ship, P pause, backspace aborts the mission
+: read-keys ( -- )
+	0 10 1 do k
+		[ :0 :1 :2 :3 :4 :5 :6 :7 :8 :9 ] k @i key-pressed? if k set-speed then
+	loop
+	:f key-pressed? if :front set-view then
+	:a key-pressed? if :aft set-view then
+	:l key-pressed? if :scan set-view then
+	:g key-pressed? if :chart set-view then
+	:s key-pressed? if :shields-on "SHIELDS ON" "SHIELDS OFF" toggle then
+	:c key-pressed? if :computer-on "ATTACK COMPUTER ON" "ATTACK COMPUTER OFF" toggle then
+	:t key-pressed? if :tracking-on "COMPUTER TRACKING ON" "TRACKING OFF" toggle then
+	:h key-pressed? if engage-hyperwarp then
+	:m key-pressed? if :track game@ 1 bit-xor 1 bit-and :track game! then
+	:backspace key-pressed? if
+		[ " " "STAR FLEET TO" "STAR CRUISER 7" "MISSION ABORTED" "NEW RANK IS" ] :aborted [ "CONGRATULATIONS" ] end-mission
+	then ;
+
+\ the joystick: the arrow keys, right and up +1
+: stick ( -- stick-x stick-y )
+	:demo game@ if 0 0 exit then
+	:right key-down? :left key-down? - :up key-down? :down key-down? - ;
+
+\ === a game ===
+
+\ a new mission, or the demonstration: a fresh galaxy with our starship in
+\ row 4 column 8 at speed 6, 9999 units of energy, shields and computers off
+: new-game ( mission demo -- )
+	| mission demo ^game |
+	{ :cues [ ] :titles [ ] :running :running game@ } to game
+	mission :mission game!
+	demo :demo game!
+	mission fresh-chart :chart game!
+	:chart game@ copy :shown-chart game!
+	8 4 sector-at :sector game!
+	67 :departure-column game! 67 :arrival-column game!
+	71 :departure-row game! 71 :arrival-row game!
+	repaired :subsystems game!
+	9999 :energy game! 0 :energy-count game!
+	0 :score game! 0 :kills game!
+	0 :shields-on game! 0 :shields-up game! 0 :computer-on game! 0 :tracking-on game!
+	0 :velocity game! 32 :new-velocity game! 14 :engine-drain game! 0 :warp-boost game!
+	:front :view game!
+	:none :warp game! 0 :warp-left game! 0 :trail-delay game! 43 :trail-index game! 0 :veer game!
+	0 :warp-column game! 0 :warp-row game! 125 :marker-column game! 119 :marker-row game!
+	0 :starbase-sector game! 255 :vicinity game!
+	99 :unit-timer game! 0 :clock-timer game! 0 :hunt-timer game! -1 :hunted game! 0 :stardate game!
+	:undocked :dock-state game!
+	0 :red-alert game! :none :hit game! 0 :explosion-life game!
+	0 :count game! 0 :controlled game! 0 :torpedo-delay game! -1 :attacker game!
+	0 :track game! 0 :homing game! 0 :homing-target game! 0 :lock-on-life game! 0 :in-lock-on game! 0 :lock-level game!
+	0 :blip-cycle game! 0 :blip-column game! 0 :blip-row game! 0 :blip-shown game!
+	0 :barrel game! 1 :old-trigger game!
+	0 :paused game! 0 :panel-hidden game! 0 :accumulated game!
+	null :rank game! null :class game!
+	fresh-space
+	demo if exit then
+	[ "NOVICE MISSION" "PILOT MISSION" "WARRIOR MISSION" "COMMANDER MISSION" ] mission @i 1 array-of say ;
+
+\ the end of a game loop: torpedo lifetimes, the explosion dying away, the
+\ hit's flash ending, the shields' state, and the stardate clock
+: end-loop ( -- )
+	2 5 1 do k
+		k player to p
+		p :kind @ :torpedo = p alive? and if p p :life @ 1- :life ! drop then
+	loop
+	:explosion-life game@ to life
+	life 0 > if
+		life 1- to life
+		life :explosion-life game!
+		life 0 = if 12 :object-count game! then
+		life 112 < if :none :hit game! then
+		life 24 < life 0 > and if :object-count game@ 1- 12 max2 :object-count game! then
+	then
+	check-shields
+	clock ;
+
+\ one game loop, 1/60 s
+: tick ( -- )
+	:count game@ 1+ 256 mod :count game!
+	stick to stick-y to stick-x
+	stick-x stick-y rotate-all
+	move-all
+	project-all
+	stick-x stick-y select-warp
+	:red-alert game@ 0 > if :red-alert game@ 1- :red-alert game! then
+	:demo game@ 0= if
+		collide
+		:space key-down? trigger
+	then
+	update-tracking
+	dock
+	stick-x stick-y maneuver
+	retire-meteor
+	check-hit
+	update-engines
+	drain
+	hyperwarp
+	advance-title
+	end-loop ;
+
+\ advance the game by elapsed seconds in whole game loops, at most 4 a screen frame
+: run-loops ( elapsed -- )
+	:accumulated game@ + :accumulated game!
+	0 to steps
+	begin :accumulated game@ 1 60 / >= steps 4 < and while
+		tick
+		:accumulated game@ 1 60 / - :accumulated game!
+		steps 1+ to steps
+	repeat
+	:accumulated game@ 1 60 / min2 :accumulated game! ;

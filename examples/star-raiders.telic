@@ -1,0 +1,70 @@
+\ Star Raiders on telic's drawing words, keyboard and synthesizer.
+\
+\   ./telic examples/star-raiders.telic
+\
+\ The Zylons hold the galaxy's 16 by 8 sectors and close in on the
+\ starbases; a starbase with Zylon ships north, east, south and west of it
+\ falls a minute later. Hyperwarp from sector to sector on the Galactic
+\ Chart, keeping the target marker on the crosshairs as it veers, fight the
+\ fighters, cruisers and basestars you find there, and dock at a starbase to
+\ refuel and repair. The mission ends when the last Zylon ship is destroyed,
+\ the energy runs out, or the ship is destroyed with its shields down, and
+\ the score gives a rank from Galactic Cook to Star Commander.
+\
+\ Keys: the arrows steer (up lifts the nose), space fires, 0-9 set the
+\ speed, F front view, A aft view, L long-range scan, G Galactic Chart,
+\ S shields, C attack computer, T tracking computer, H hyperwarp, M the other
+\ Zylon ship, P pause, backspace aborts the mission, escape quits. On the
+\ title screen return starts the mission and tab changes it.
+\
+\ The rules and numbers, and their source, are in
+\ examples/starraiders/universe.telic; the flight in flight.telic; the
+\ picture and the sound in screen.telic.
+
+"starraiders/universe.telic" load
+"starraiders/flight.telic" load
+"starraiders/screen.telic" load
+
+\ the keys outside the cockpit: in the demonstration return starts the
+\ mission and tab changes it; in a mission P pauses and the cockpit keys act
+: read-control-keys ( -- )
+	:demo game@ if
+		:return key-pressed? if :mission game@ 0 new-game exit then
+		:tab key-pressed? if
+			:mission game@ 1+ 4 mod 1 new-game
+			[ "NOVICE MISSION" "PILOT MISSION" "WARRIOR MISSION" "COMMANDER MISSION" ] :mission game@ @i 1 array-of say
+		then
+		exit
+	then
+	:p key-pressed? if :paused game@ 0= :paused game! then
+	:paused game@ 0= if read-keys then ;
+
+\ one screen frame: the keys, the game loops due, the sound, the picture
+: frame ( elapsed -- )
+	| elapsed |
+	:escape key-pressed? if 0 :running game! exit then
+	run-due-events
+	read-control-keys
+	:paused game@ 0= if elapsed run-loops then
+	play-cues
+	update-engine-sound
+	draw ;
+
+\ run the game until escape, each frame advanced by the measured time since the last, at most 1/20 s
+: play ( -- )
+	audio-on
+	settle-effects
+	1 :running game!
+	0 1 new-game
+	:c3 1 :engines note-on
+	now to last
+	begin :running game@ while
+		now to moment
+		moment last - 0.05 min2 to elapsed
+		moment to last
+		elapsed ' frame screen-frame
+	repeat
+	silence-audio
+	audio-off ;
+
+play
