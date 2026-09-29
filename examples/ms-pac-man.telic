@@ -1,0 +1,25 @@
+\ Ms. Pac-Man on telic's bitmaps, keyboard and synthesizer.
+\
+\   ./telic examples/ms-pac-man.telic
+\   ./telic examples/ms-pac-man.telic --level 6
+\
+\ Keys: the arrows steer, p pauses, return starts, escape quits. A direction
+\ pressed before a turn is taken at the turn, cutting the corner.
+\
+\ The arcade's four mazes, each in its own colors, change with the acts:
+\ levels 1-2, 3-5, then four levels each, the last two mazes alternating.
+\ The fruit enters through a tunnel, hops along its fixed route to the ghost
+\ house, laps it, and leaves by another tunnel; eat it on the way for 100 to
+\ 5000 points. Blinky chases, Pinky ambushes four tiles ahead, Inky aims
+\ past Blinky, Sue chases from afar and retreats up close; while scattering,
+\ Blinky and Pinky head for a corner chosen at random. An energizer turns
+\ them blue for a time that shortens with the level, and eaten ghosts score
+\ 200, 400, 800, 1600. Three lives, an extra one at 10,000.
+\
+\ The rules, the sources the mazes and routes were transcribed from, and the
+\ sound are described in examples/mspacman/game.telic. The sprites, the
+\ maze drawing and the music are this program's own.
+
+"mspacman/game.telic" load
+
+play

@@ -1,0 +1,583 @@
+\ Ms. Pac-Man in 3D, seen through her eyes, drawn by a GPU shader from the
+\ same game.
+\
+\   ./telic examples/ms-pac-man-3d.telic
+\   ./telic examples/ms-pac-man-3d.telic --level 6
+\   ./telic examples/ms-pac-man-3d.telic --speed 0.8
+\
+\ Play runs at 0.6 of the arcade's speed unless --speed gives another
+\ fraction in (0, 2]: in the arcade's time she crosses seven tiles a second,
+\ which through her eyes is a blur. The ghosts slow by the same fraction,
+\ so the game plays as the arcade's does, only slower.
+\
+\ The game is examples/mspacman/game.telic unchanged: the rules, the keys,
+\ the sound. You walk the maze as Ms. Pac-Man: the walls stand ten units high
+\ in the maze's colors, the dots and energizers float above the floor, the
+\ ghosts and the fruit stand in the corridors facing you, and the camera
+\ turns smoothly through each corner she takes. The arrow keys steer
+\ relative to her heading: left and right ask for a quarter turn at each
+\ press, taken at the next opening; up holds the heading and drops a pending
+\ turn; down turns her around. A map in the top right corner shows the whole maze, the ghosts and her,
+\ since the corridors hide everything behind.
+\
+\ The shader's only inputs are the canvas, as a texture, and four numbers
+\ from screen-effect, so telic writes the game into the canvas each frame:
+\   rows 0-255      the score line, the banners and the lives, laid over the picture
+\   rows 256-286    the tile map, one pixel per tile in columns 0-27: red a
+\                   wall, blue the door, green 128 a dot, green 255 an energizer
+\   rows 256-269    from column 28, the ghost bodies: four ghosts in two
+\                   skirts, then the frightened and flashing bodies
+\   rows 270-283    from column 28, the eyes looking up, left, down and right,
+\                   then the fruit
+\   row 287         the state, one pixel per number: the mode, the maze colors,
+\                   her position and heading, each ghost's position, body and
+\                   eyes, the fruit's position
+\ The shader walks each ray through the tile grid until it meets a wall or a
+\ dot, and draws the ghosts and the fruit as their pixels extruded into
+\ cubes, turned toward the camera.
+\
+\ A GLSL error makes Tigr exit the process; this shader compiles under
+\ glslc --target-env=opengl with Tigr's #version 330 core prelude.
+
+"mspacman/game.telic" load
+
+"
+const int STATE_ROW = 287;
+const int MAP_TOP = 256;
+const float WALL_HEIGHT = 10.0;
+const float GHOST_SCALE = 0.5;
+const vec3 CRYSTAL_COLOR = vec3(0.251, 0.878, 0.816);
+
+int zoom;
+
+vec3 canvas_color(int x, int y) {
+	return texelFetch(image, ivec2(x, y) * zoom, 0).rgb;
+}
+
+ivec3 state_cell(int k) {
+	return ivec3(canvas_color(k, STATE_ROW) * 255.0 + 0.5);
+}
+
+float fixed_value(int k, float offset) {
+	ivec3 c = state_cell(k);
+	return float(c.r) - offset + float(c.g) / 255.0;
+}
+
+bool visible(vec3 c) {
+	return max(c.r, max(c.g, c.b)) > 0.02;
+}
+
+ivec3 tile_at(int tx, int ty) {
+	if (ty < 0 || ty > 30)
+		return ivec3(255, 0, 0);
+	if (tx < 0 || tx > 27) {
+		ivec3 edge = ivec3(canvas_color(tx < 0 ? 0 : 27, MAP_TOP + ty) * 255.0 + 0.5);
+		return edge.r > 128 ? ivec3(255, 0, 0) : ivec3(0);
+	}
+	return ivec3(canvas_color(tx, MAP_TOP + ty) * 255.0 + 0.5);
+}
+
+struct Hit {
+	float t;
+	vec3 normal;
+	vec3 color;
+	float glow;
+};
+
+float sphere_hit(vec3 origin, vec3 ray, vec3 center, float radius) {
+	vec3 offset = origin - center;
+	float b = dot(offset, ray);
+	float c = dot(offset, offset) - radius * radius;
+	float h = b * b - c;
+	if (h < 0.0)
+		return -1.0;
+	return -b - sqrt(h);
+}
+
+void trace_maze(vec3 origin, vec3 ray, vec3 wall_fill, vec3 wall_line, vec3 dot_color, inout Hit hit) {
+	vec2 direction = ray.xz;
+	direction = vec2(abs(direction.x) < 1e-6 ? 1e-6 : direction.x, abs(direction.y) < 1e-6 ? 1e-6 : direction.y);
+	ivec2 tile = ivec2(floor(origin.xz / 8.0));
+	vec2 advance = sign(direction);
+	vec2 stride = abs(8.0 / direction);
+	vec2 boundary = ((vec2(tile) + step(0.0, direction)) * 8.0 - origin.xz) / direction;
+	float t = 0.0;
+	for (int i = 0; i < 72; i++) {
+		float leave = min(boundary.x, boundary.y);
+		ivec3 info = tile_at(tile.x, tile.y);
+		if (info.g > 64 && info.g <= 192) {
+			vec3 center = vec3(float(tile.x) * 8.0 + 4.0, 2.2, float(tile.y) * 8.0 + 4.0);
+			float s = sphere_hit(origin, ray, center, 0.7);
+			if (s > 0.0 && s < hit.t) {
+				hit = Hit(s, normalize(origin + ray * s - center), dot_color, 0.5);
+				return;
+			}
+		}
+		vec3 normal;
+		t = leave;
+		if (boundary.x < boundary.y) {
+			tile.x += int(advance.x);
+			boundary.x += stride.x;
+			normal = vec3(-advance.x, 0.0, 0.0);
+		} else {
+			tile.y += int(advance.y);
+			boundary.y += stride.y;
+			normal = vec3(0.0, 0.0, -advance.y);
+		}
+		if (t > hit.t)
+			return;
+		info = tile_at(tile.x, tile.y);
+		float height = origin.y + ray.y * t;
+		if (info.r > 128) {
+			if (height >= 0.0 && height <= WALL_HEIGHT) {
+				vec3 point = origin + ray * t;
+				ivec2 front = ivec2(int(normal.x), int(normal.z));
+				ivec2 along = ivec2(abs(front.y), abs(front.x));
+				float u = along.x != 0 ? point.x - float(tile.x) * 8.0 : point.z - float(tile.y) * 8.0;
+				float edge = min(height, WALL_HEIGHT - height);
+				ivec2 before = tile - along;
+				ivec2 after = tile + along;
+				bool continues_before = tile_at(before.x, before.y).r > 128 && tile_at(before.x + front.x, before.y + front.y).r <= 128;
+				bool continues_after = tile_at(after.x, after.y).r > 128 && tile_at(after.x + front.x, after.y + front.y).r <= 128;
+				if (!continues_before)
+					edge = min(edge, u);
+				if (!continues_after)
+					edge = min(edge, 8.0 - u);
+				vec3 face = edge < 0.6 ? wall_line : (edge > 1.2 && edge < 1.9 ? wall_fill : vec3(0.02, 0.02, 0.03));
+				hit = Hit(t, normal, face, -1.0);
+				return;
+			}
+		} else if (info.b > 128) {
+			if (height >= 4.0 && height <= 5.5) {
+				hit = Hit(t, normal, vec3(1.0, 0.72, 0.87), 0.3);
+				return;
+			}
+		}
+	}
+}
+
+void trace_billboard(vec3 origin, vec3 ray, vec2 center, float base, ivec2 size, ivec2 body_art, ivec2 eyes_art, float glow, inout Hit hit) {
+	vec2 to_camera = normalize(origin.xz - center);
+	vec3 back = vec3(to_camera.x, 0.0, to_camera.y);
+	vec3 right = vec3(-to_camera.y, 0.0, to_camera.x);
+	vec3 up = vec3(0.0, 1.0, 0.0);
+	vec3 offset = origin - vec3(center.x, base, center.y);
+	vec3 local_origin = vec3(dot(offset, right), dot(offset, up), dot(offset, back)) / GHOST_SCALE;
+	vec3 local_ray = vec3(dot(ray, right), dot(ray, up), dot(ray, back)) / GHOST_SCALE;
+
+	vec3 low = vec3(-0.5 * float(size.x), 0.0, -1.5);
+	vec3 high = vec3(0.5 * float(size.x), float(size.y), 1.5);
+	vec3 inverse = 1.0 / local_ray;
+	vec3 t0 = (low - local_origin) * inverse;
+	vec3 t1 = (high - local_origin) * inverse;
+	vec3 near = min(t0, t1);
+	vec3 far = max(t0, t1);
+	float enter = max(max(near.x, near.y), near.z);
+	float leave = min(min(far.x, far.y), far.z);
+	if (enter > leave || leave < 0.0 || enter > hit.t)
+		return;
+
+	vec3 normal = enter == near.x ? vec3(-sign(local_ray.x), 0.0, 0.0)
+		: (enter == near.y ? vec3(0.0, -sign(local_ray.y), 0.0) : vec3(0.0, 0.0, -sign(local_ray.z)));
+	float t = max(enter, 0.0);
+	vec3 point = local_origin + local_ray * t;
+	vec2 local = vec2(point.x - low.x, high.y - point.y);
+	vec2 direction = vec2(local_ray.x, -local_ray.y);
+	direction = vec2(abs(direction.x) < 1e-6 ? 1e-6 : direction.x, abs(direction.y) < 1e-6 ? 1e-6 : direction.y);
+	ivec2 cell = clamp(ivec2(floor(local)), ivec2(0), size - 1);
+	vec2 stride = abs(1.0 / direction);
+	vec2 boundary = t + (vec2(cell) + step(0.0, direction) - local) / direction;
+	ivec2 advance = ivec2(sign(direction));
+	for (int i = 0; i < 40; i++) {
+		vec3 texel = vec3(0.0);
+		if (eyes_art.x >= 0)
+			texel = canvas_color(eyes_art.x + cell.x, eyes_art.y + cell.y);
+		if (!visible(texel) && body_art.x >= 0)
+			texel = canvas_color(body_art.x + cell.x, body_art.y + cell.y);
+		if (visible(texel)) {
+			hit = Hit(t, normal.x * right + normal.y * up + normal.z * back, texel, glow);
+			return;
+		}
+		if (boundary.x < boundary.y) {
+			t = boundary.x;
+			boundary.x += stride.x;
+			cell.x += advance.x;
+			normal = vec3(-sign(local_ray.x), 0.0, 0.0);
+		} else {
+			t = boundary.y;
+			boundary.y += stride.y;
+			cell.y += advance.y;
+			normal = vec3(0.0, -sign(local_ray.y), 0.0);
+		}
+		if (t > leave || t > hit.t || cell.x < 0 || cell.y < 0 || cell.x >= size.x || cell.y >= size.y)
+			return;
+	}
+}
+
+vec3 crystal_center(int k, float time) {
+	ivec3 place = state_cell(24 + k);
+	return vec3(float(place.r) * 8.0 + 4.0, 3.6 + 0.35 * sin(time * 2.1 + float(k)), float(place.g) * 8.0 + 4.0);
+}
+
+void trace_crystal(vec3 origin, vec3 ray, vec3 center, float time, vec3 color, inout Hit hit) {
+	float angle = time * 1.7;
+	float c = cos(angle);
+	float s = sin(angle);
+	vec3 offset = origin - center;
+	vec3 local_origin = vec3(c * offset.x + s * offset.z, offset.y, -s * offset.x + c * offset.z);
+	vec3 local_ray = vec3(c * ray.x + s * ray.z, ray.y, -s * ray.x + c * ray.z);
+	float enter = -1e9;
+	float leave = 1e9;
+	vec3 enter_normal = vec3(0.0);
+	for (int i = 0; i < 8; i++) {
+		vec3 face = vec3((i & 1) == 0 ? 1.0 : -1.0, (i & 2) == 0 ? 1.0 : -1.0, (i & 4) == 0 ? 1.0 : -1.0) * vec3(1.0 / 1.6, 1.0 / 2.6, 1.0 / 1.6);
+		float along = dot(face, local_ray);
+		float distance = 1.0 - dot(face, local_origin);
+		if (abs(along) < 1e-7) {
+			if (distance < 0.0)
+				return;
+			continue;
+		}
+		float t = distance / along;
+		if (along < 0.0) {
+			if (t > enter) {
+				enter = t;
+				enter_normal = face;
+			}
+		} else {
+			leave = min(leave, t);
+		}
+	}
+	if (enter > leave || enter < 0.0 || enter > hit.t)
+		return;
+	vec3 n = normalize(enter_normal);
+	vec3 world_normal = vec3(c * n.x - s * n.z, n.y, s * n.x + c * n.z);
+	float facet = 0.75 + 0.25 * sin(dot(enter_normal, vec3(3.1, 5.7, 1.3)) * 4.0);
+	float glint = pow(max(dot(reflect(ray, world_normal), normalize(vec3(0.3, 0.9, -0.3))), 0.0), 24.0);
+	hit = Hit(enter, world_normal, color * facet + vec3(glint), 0.6);
+}
+
+vec3 minimap(vec2 uv, vec3 wall_line, vec3 dot_color) {
+	vec2 corner = vec2(0.62, 0.035);
+	vec2 extent = vec2(0.36, 0.33);
+	vec2 local = (uv - corner) / extent;
+	vec2 position = local * vec2(224.0, 248.0);
+	ivec2 tile = ivec2(floor(position / 8.0));
+	ivec3 info = tile_at(tile.x, tile.y);
+	vec3 color = vec3(0.0);
+	if (info.r > 128)
+		color = wall_line * 0.55;
+	else if (info.b > 128)
+		color = vec3(1.0, 0.72, 0.87);
+	else if (info.g > 64 && length(fract(position / 8.0) - 0.5) < (info.g > 192 ? 0.45 : 0.2))
+		color = dot_color;
+	for (int k = 0; k < 4; k++) {
+		ivec3 look = state_cell(10 + 3 * k);
+		if (look.b == 0)
+			continue;
+		vec2 ghost = vec2(fixed_value(8 + 3 * k, 16.0), fixed_value(9 + 3 * k, 0.0));
+		if (length(position - ghost) < 5.0)
+			color = look.r >= 8 && look.r < 12 ? vec3(0.13, 0.13, 1.0) : canvas_color(28 + 28 * k + 6, 256 + 7);
+	}
+	vec2 heroine = vec2(fixed_value(4, 16.0), fixed_value(5, 0.0));
+	if (length(position - heroine) < 5.0)
+		color = vec3(1.0, 1.0, 0.0);
+	return color;
+}
+
+void fxShader(out vec4 color, in vec2 uv) {
+	vec2 size = vec2(textureSize(image, 0));
+	zoom = max(1, int(size.x) / 224);
+	ivec3 header = state_cell(0);
+	int mode = header.r;
+	vec3 wall_fill = canvas_color(1, STATE_ROW);
+	vec3 wall_line = canvas_color(2, STATE_ROW);
+	vec3 dot_color = canvas_color(3, STATE_ROW);
+	if (state_cell(23).r > 128) {
+		wall_fill = vec3(1.0);
+		wall_line = vec3(1.0);
+	}
+
+	vec2 screen = (uv - 0.5) * vec2(size.x / size.y, -1.0) * 2.0;
+	ivec3 yaw_cell = state_cell(6);
+	float yaw = float(yaw_cell.r * 256 + yaw_cell.g) / 65535.0 * 6.2831853;
+	float drop = float(state_cell(7).g) / 255.0 * 3.5;
+	vec3 eye = vec3(fixed_value(4, 16.0), 4.0 - drop, fixed_value(5, 0.0));
+	float pitch = radians(-6.0);
+	vec3 forward = vec3(cos(yaw) * cos(pitch), sin(pitch), sin(yaw) * cos(pitch));
+	vec3 right = normalize(cross(forward, vec3(0.0, 1.0, 0.0)));
+	vec3 up = cross(right, forward);
+	vec3 ray = normalize(forward * 1.0 + right * screen.x + up * screen.y);
+
+	vec3 sky = mix(vec3(0.03, 0.02, 0.08), vec3(0.0), clamp(ray.y * 1.5, 0.0, 1.0));
+	vec2 star_cell = floor(vec2(atan(ray.z, ray.x), ray.y) * 90.0);
+	float star = fract(sin(dot(star_cell, vec2(12.9898, 78.233))) * 43758.5453);
+	if (star > 0.995 && ray.y > 0.05)
+		sky += vec3(0.7) * (0.6 + 0.4 * sin(parameters.x * 3.0 + star * 100.0));
+	vec3 shade = sky;
+
+	if (mode != 0) {
+		Hit hit = Hit(1e9, vec3(0.0), vec3(0.0), 0.0);
+		trace_maze(eye, ray, wall_fill, wall_line, dot_color, hit);
+		for (int k = 0; k < 4; k++) {
+			ivec3 look = state_cell(10 + 3 * k);
+			if (look.b == 0)
+				continue;
+			vec2 ghost = vec2(fixed_value(8 + 3 * k, 16.0), fixed_value(9 + 3 * k, 0.0));
+			ivec2 body_art = look.r == 255 ? ivec2(-1) : ivec2(28 + 14 * look.r, 256);
+			ivec2 eyes_art = ivec2(-1);
+			if (look.g < 4) {
+				vec3 moving = vec3(look.g == 1 ? -1.0 : (look.g == 3 ? 1.0 : 0.0), 0.0, look.g == 0 ? -1.0 : (look.g == 2 ? 1.0 : 0.0));
+				float along = dot(moving, forward);
+				float across = dot(moving, right);
+				int facing = abs(along) > abs(across) ? (along > 0.0 ? 0 : 2) : (across > 0.0 ? 3 : 1);
+				eyes_art = ivec2(28 + 14 * facing, 270);
+			}
+			trace_billboard(eye, ray, ghost, 0.6, ivec2(14, 14), body_art, eyes_art, look.r >= 8 && look.r < 12 ? 0.3 : 0.1, hit);
+		}
+		ivec3 fruit = state_cell(22);
+		if (fruit.b > 0)
+			trace_billboard(eye, ray, vec2(fixed_value(20, 16.0), fixed_value(21, 0.0)), 1.0, ivec2(12, 12), ivec2(84, 270), ivec2(-1), 0.4, hit);
+
+		float time = parameters.x;
+		float strength = (state_cell(28).r > 128 ? 0.35 : 1.0) * (0.75 + 0.25 * sin(time * 6.0));
+		for (int k = 0; k < 4; k++)
+			if (state_cell(24 + k).b > 128)
+				trace_crystal(eye, ray, crystal_center(k, time), time, CRYSTAL_COLOR, hit);
+
+		float floor_t = ray.y < 0.0 ? -eye.y / ray.y : 1e9;
+		vec3 surface = vec3(0.0);
+		float surface_t = 1e9;
+		if (floor_t < hit.t) {
+			vec3 point = eye + ray * floor_t;
+			vec2 grid = abs(fract(point.xz / 8.0) - 0.5);
+			float line = smoothstep(0.46, 0.5, max(grid.x, grid.y));
+			surface = vec3(0.015, 0.015, 0.04) + wall_line * 0.12 * line;
+			surface_t = floor_t;
+		} else if (hit.t < 1e8) {
+			vec3 light = normalize(vec3(0.3, 0.8, -0.4));
+			float diffuse = abs(dot(hit.normal, light)) * 0.6 + 0.4 * max(dot(hit.normal, -ray), 0.0);
+			surface = hit.glow < 0.0 ? hit.color : hit.color * (0.25 + 0.75 * diffuse + hit.glow);
+			surface_t = hit.t;
+		}
+		if (surface_t < 1e8) {
+			vec3 point = eye + ray * surface_t;
+			for (int k = 0; k < 4; k++) {
+				if (state_cell(24 + k).b < 128)
+					continue;
+				float distance = length(point - crystal_center(k, time));
+				float reach = max(1.0 - distance / 24.0, 0.0);
+				surface += CRYSTAL_COLOR * reach * reach * 0.7 * strength;
+			}
+			shade = mix(surface, sky, 1.0 - exp(-0.006 * surface_t));
+		}
+		for (int k = 0; k < 4; k++) {
+			if (state_cell(24 + k).b < 128)
+				continue;
+			vec3 center = crystal_center(k, time);
+			float along = dot(center - eye, ray);
+			if (along < 0.0 || along > surface_t + 2.0)
+				continue;
+			float miss = length(eye + ray * along - center);
+			shade += CRYSTAL_COLOR * exp(-miss * miss / 10.0) * 0.55 * strength;
+		}
+
+		vec2 map_uv = (uv - vec2(0.62, 0.035)) / vec2(0.36, 0.33);
+		if (map_uv.x >= 0.0 && map_uv.x < 1.0 && map_uv.y >= 0.0 && map_uv.y < 1.0)
+			shade = mix(shade, minimap(uv, wall_line, dot_color), 0.85);
+	}
+
+	ivec2 pixel = ivec2(uv * vec2(224.0, 288.0));
+	vec3 overlay = canvas_color(pixel.x, pixel.y);
+	int limit = mode == 0 ? STATE_ROW : MAP_TOP;
+	if (pixel.y < limit && visible(overlay))
+		shade = overlay;
+	color = vec4(shade, 1.0);
+}
+" to maze-shader
+
+\ === the canvas as data ===
+
+\ a packed color from three bytes, each rounded and held to [0, 255]
+: pack ( red green blue -- color )
+	| red green blue |
+	red 0 255 clamp round 65536 *
+	green 0 255 clamp round 256 * +
+	blue 0 255 clamp round + ;
+
+\ a position as a state pixel: the whole part plus an offset in red, the fraction in green
+: fixed ( value offset -- color )
+	| value offset |
+	value offset + 0 255.99 clamp to shifted
+	shifted truncate shifted shifted truncate - 255 * 0 pack ;
+
+\ the number the shader reads for each mode
+{ :title 0 :ready 1 :playing 1 :dying 2 :cleared 3 :over 4 } to mode-codes
+
+\ the walls and the door of the current maze as tile pixels, and its energizer tiles, rebuilt when the maze changes
+{ :maze -1 :tiles null :energizers [ ] } to tile-cache
+
+\ fill the cache for the current maze: the walls and door as a 31 by 28 matrix of tile pixels, the energizers as [ tx ty ]
+: cache-maze ( -- )
+	tile-cache :maze @ :maze game@ = if exit then
+	maze-height maze-width 0-matrix to tiles
+	[ ] to energizers
+	0 maze-height 1 do ty
+		0 maze-width 1 do tx
+			tx ty raw-char to char
+			char "#" = if tiles 0xff0000 ty tx !i,j drop then
+			char "-" = if tiles 0x0000ff ty tx !i,j drop then
+			char "o" = if energizers [ tx ty ] add-last! drop then
+		loop
+	loop
+	tile-cache :maze game@ :maze ! tiles :tiles ! energizers :energizers ! drop ;
+
+\ the current maze's walls and door as tile pixels
+: maze-tiles ( -- tiles ) cache-maze tile-cache :tiles @ ;
+
+\ the current maze's four energizer tiles
+: maze-energizers ( -- places ) cache-maze tile-cache :energizers @ ;
+
+\ the tile map at row 256: walls and door, plus the dots and energizers left
+: draw-tile-map ( -- )
+	:dots game@ to dots
+	maze-tiles dots 1 eq 32768 * + dots 2 eq 65280 * + 0 256 draw-bitmap ;
+
+[ :blinky :pinky :inky :sue ] to ghost-order
+
+\ the art strips: the ghosts' bodies, the eyes, and the fruit on show
+: draw-art ( -- )
+	0 4 1 do k
+		fresh-ghosts k @i :frames @ to frames
+		frames 0 @i k 28 * 28 + 256 draw-bitmap
+		frames 1 @i k 28 * 42 + 256 draw-bitmap
+	loop
+	frightened-frames 0 @i 140 256 draw-bitmap
+	frightened-frames 1 @i 154 256 draw-bitmap
+	flashing-frames 0 @i 168 256 draw-bitmap
+	flashing-frames 1 @i 182 256 draw-bitmap
+	0 4 1 do k
+		eyes-facing k @i k 14 * 28 + 270 draw-bitmap
+	loop
+	:fruit game@ null? not if :fruit game@ :kind @ fruit-bitmap 84 270 draw-bitmap then ;
+
+\ the camera: its heading in radians, turning toward the direction she moves at up to 9 radians a second
+{ :yaw 3.14159265 :drop 0 } to camera
+
+\ the heading of a maze direction: right 0, down a quarter turn, left a half, up three quarters
+: direction-yaw ( direction -- radians ) [ 4.71238898 3.14159265 1.57079633 0 ] swap @i ;
+
+\ turn the camera toward her heading, spin it as she dies, and lower it as she falls
+: update-camera ( elapsed -- )
+	| elapsed |
+	camera :yaw @ to yaw
+	:mode game@ :dying = :timer game@ 1 >= and if
+		yaw elapsed 9 * + to yaw
+		camera yaw :yaw ! :timer game@ 1 - 1.5 / 0 1 clamp :drop ! drop
+		exit
+	then
+	:heroine game@ null? if exit then
+	:heroine game@ :dir @ direction-yaw yaw - to difference
+	difference 3.14159265 + 6.28318531 mod dup 0 < if 6.28318531 + then 3.14159265 - to difference
+	yaw difference elapsed 9 * negate elapsed 9 * clamp + to yaw
+	camera yaw :yaw ! 0 :drop ! drop ;
+
+\ the state row at canvas row 287
+: draw-state ( -- )
+	1 32 0-matrix to cells
+	:palette game@ to palette
+	now 5 * truncate 2 mod 0= :mode game@ :playing = not or if 255 else 0 then to energizers-shown
+	cells mode-codes :mode game@ @ :paused game@ 255 * energizers-shown pack 0 0 !i,j drop
+	cells palette 0 @i 0 1 !i,j palette 1 @i 0 2 !i,j palette 2 @i 0 3 !i,j drop
+	:heroine game@ to heroine
+	cells heroine :x @ 16 fixed 0 4 !i,j heroine :y @ 0 fixed 0 5 !i,j drop
+	camera :yaw @ 6.28318531 mod dup 0 < if 6.28318531 + then 6.28318531 / 65535 * round to yaw
+	cells yaw 256 / truncate yaw 256 mod 0 pack 0 6 !i,j drop
+	cells 0 camera :drop @ 255 * 0 pack 0 7 !i,j drop
+	:mode game@ :cleared = :mode game@ :dying = :timer game@ 1 >= and or not to ghosts-shown
+	0 4 1 do k
+		ghost-order k @i ghost-named to ghost
+		ghost :state @ to state
+		now 8 * truncate 2 mod to skirt
+		state :eyes = state :entering = or if
+			255 ghost :dir @
+		else
+			ghost :frightened @ if
+				flashing? if 10 else 8 then skirt + 255
+			else
+				k 2 * skirt + ghost :dir @
+			then
+		then to eyes to body
+		cells ghost :x @ 16 fixed 0 k 3 * 8 + !i,j drop
+		cells ghost :y @ 0 fixed 0 k 3 * 9 + !i,j drop
+		cells body eyes ghosts-shown if 255 else 0 then pack 0 k 3 * 10 + !i,j drop
+	loop
+	:fruit game@ to fruit
+	fruit null? not if
+		cells fruit :x @ 16 fixed 0 20 !i,j fruit :y @ 0 fixed 0 21 !i,j 0 0 1 pack 0 22 !i,j drop
+	then
+	cells :mode game@ :cleared = :timer game@ 1 > and now 5 * truncate 2 mod 0= and if 255 else 0 then 0 0 pack 0 23 !i,j drop
+	maze-energizers to places
+	0 places size 4 min2 1 do k
+		places k @i to place
+		:dots game@ place 1 @i place 0 @i @i,j 2 = if 255 else 0 then to present
+		cells place 0 @i place 1 @i present pack 0 k 24 + !i,j drop
+	loop
+	cells :fright-time game@ 0 > if 255 else 0 then 0 0 pack 0 28 !i,j drop
+	cells 0 287 draw-bitmap ;
+
+\ the frames the window presented per second, measured over each half second
+{ :presented 0 :seconds 0 :rate 0 } to meter
+
+\ the frame rate at the bottom right
+: draw-frame-rate ( -- )
+	now to moment
+	moment meter :seconds @ - to span
+	span 0.5 >= if
+		screen-frames to presented
+		meter presented meter :presented @ - span / :rate ! presented :presented ! moment :seconds ! drop
+	then
+	:gray ink
+	176 242 meter :rate @ "{0:.0f} FPS" format print-at ;
+
+\ the text laid over the picture: her lives and level, the banners, and the scores just won, centred
+: draw-overlay ( -- )
+	:white ink
+	6 242 :lives game@ :level game@ "LIVES {1}   LEVEL {0}" format print-at
+	draw-banner
+	:popups game@ ( popup | popup :color @ ink 100 150 popup :text @ print-at ) each ;
+
+\ the speed play runs at, a fraction of the arcade's: the number after --speed on the command line, else 0.6
+: starting-speed ( -- factor )
+	args to arguments
+	0.6 to factor
+	0 arguments size 1 do k
+		arguments k @i "--speed" = if
+			k 1+ arguments size < if arguments k 1+ @i else "" then string>number to factor
+		then
+	loop
+	factor null? if "expected --speed followed by a number in (0, 2]" throw then
+	factor 0 <= factor 2 > or if "expected --speed followed by a number in (0, 2]" throw then
+	factor ;
+
+starting-speed to play-speed
+
+\ one 3D screen frame: advance, play slowed by the speed factor, then write the canvas the shader reads
+: frame-3d ( elapsed -- )
+	| elapsed |
+	:mode game@ :playing = if elapsed play-speed * else elapsed then advance
+	elapsed update-camera
+	:black paper
+	cls
+	draw-score-line
+	draw-frame-rate
+	now 0 0 0 screen-effect
+	:mode game@ :title = if draw-title exit then
+	draw-overlay
+	draw-tile-map
+	draw-art
+	draw-state ;
+
+:view :steering game!
+maze-shader screen-shader
+' frame-3d run-frames

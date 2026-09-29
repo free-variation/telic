@@ -1,0 +1,1435 @@
+\ Ms. Pac-Man: the mazes, the rules, the synthesizer patches and music, and the
+\ 2D drawing, shared by examples/ms-pac-man.telic (2D) and
+\ examples/ms-pac-man-3d.telic. Loading it defines everything and starts
+\ nothing; the front end calls run-frames with its own frame word.
+\
+\ The four maze layouts, their tunnel and wall colors, the maze for each
+\ level, the fruit's entrance, pen and exit routes and its bounce, the fruit
+\ table, the scatter behaviour of Blinky and Pinky and the tunnel slowdown are
+\ transcribed from src/maps.js, src/fruit.js and src/Ghost.js of Shaun
+\ LeBron's pacman.js (https://github.com/masonicGIT/pacman, GPL-3.0), whose
+\ fruit routes follow Bart Grantham's annotated disassembly of the arcade
+\ program. The speeds, the scatter and chase schedule, the ghosts' chase
+\ targets, the ghost house counters and Cruise Elroy follow Jamey Pittman's
+\ "The Pac-Man Dossier" (100% speed is 75.7576 pixels per second).
+\ Positions are maze pixels, x from the left and y from the top; tile t
+\ covers pixels 8t to 8t + 7. Directions are 0 up, 1 left, 2 down, 3 right,
+\ which is also the arcade's tie-break order.
+
+5 seed
+
+224 288 screen-size 3 screen-zoom :black paper
+
+\ === the mazes ===
+\ # wall, - ghost-house door, . dot, o energizer, , floor without a dot, _ outside the play
+
+[ [ "############################"
+    "#......##..........##......#"
+    "#o####.##.########.##.####o#"
+    "#.####.##.########.##.####.#"
+    "#..........................#"
+    "###.##.#####.##.#####.##.###"
+    "__#.##.#####.##.#####.##.#__"
+    "###.##.#####.##.#####.##.###"
+    ",,,.##.......##.......##.,,,"
+    "###.#####,########,#####.###"
+    "__#.#####,########,#####.#__"
+    "__#.,,,,,,,,,,,,,,,,,,,,.#__"
+    "__#.#####,###--###,#####.#__"
+    "__#.#####,#______#,#####.#__"
+    "__#.##,,,,#______#,,,,##.#__"
+    "__#.##,##,#______#,##,##.#__"
+    "###.##,##,########,##,##.###"
+    ",,,.,,,##,,,,,,,,,,##,,,.,,,"
+    "###.########,##,########.###"
+    "__#.########,##,########.#__"
+    "__#.......,,,##,,,.......#__"
+    "__#.#####.########.#####.#__"
+    "###.#####.########.#####.###"
+    "#............,,............#"
+    "#.####.#####.##.#####.####.#"
+    "#.####.#####.##.#####.####.#"
+    "#.####.##....##....##.####.#"
+    "#o####.##.########.##.####o#"
+    "#.####.##.########.##.####.#"
+    "#..........................#"
+    "############################" ]
+  [ "############################"
+    ",,,,,,,##..........##,,,,,,,"
+    "######,##.########.##,######"
+    "######,##.########.##,######"
+    "#o...........##...........o#"
+    "#.#######.##.##.##.#######.#"
+    "#.#######.##.##.##.#######.#"
+    "#.##......##.##.##......##.#"
+    "#.##.####,##....##,####.##.#"
+    "#.##.####,########,####.##.#"
+    "#......##,########,##......#"
+    "######.##,,,,,,,,,,##.######"
+    "######.##,###--###,##.######"
+    "#......##,#______#,##......#"
+    "#.####.##,#______#,##.####.#"
+    "#.####.,,,#______#,,,.####.#"
+    "#...##.##,########,##.##...#"
+    "###.##.##,,,,,,,,,,##.##.###"
+    "__#.##.####,####,####.##.#__"
+    "__#.##.####,####,####.##.#__"
+    "__#.........####.........#__"
+    "__#.#######.####.#######.#__"
+    "###.#######.####.#######.###"
+    ",,,....##...,,,,...##....,,,"
+    "###.##.##.########.##.##.###"
+    "###.##.##.########.##.##.###"
+    "#o..##.......##.......##..o#"
+    "#.####.#####.##.#####.####.#"
+    "#.####.#####.##.#####.####.#"
+    "#..........................#"
+    "############################" ]
+  [ "############################"
+    "#.........##....##.........#"
+    "#.#######.##.##.##.#######.#"
+    "#o#######.##.##.##.#######o#"
+    "#.##.........##.........##.#"
+    "#.##.##.####.##.####.##.##.#"
+    "#....##.####.##.####.##....#"
+    "####.##.####.##.####.##.####"
+    "####.##..............##.####"
+    ",....####,########,####....,"
+    "#.##,####,########,####,##.#"
+    "#.##,,,,,,,,,,,,,,,,,,,,##.#"
+    "#.####,##,###--###,##,####.#"
+    "#.####,##,#______#,##,####.#"
+    "#.,,,,,##,#______#,##,,,,,.#"
+    "#.##,####,#______#,####,##.#"
+    "#.##,####,########,####,##.#"
+    "#.##,,,,,,,,,,,,,,,,,,,,##.#"
+    "#.####,#####,##,#####,####.#"
+    "#.####,#####,##,#####,####.#"
+    "#......##....##....##......#"
+    "###.##.##.########.##.##.###"
+    "###.##.##.########.##.##.###"
+    "#o..##.......,,.......##..o#"
+    "#.####.#####.##.#####.####.#"
+    "#.####.#####.##.#####.####.#"
+    "#......##....##....##......#"
+    "#.####.##.########.##.####.#"
+    "#.####.##.########.##.####.#"
+    "#......##..........##......#"
+    "############################" ]
+  [ "############################"
+    "#..........................#"
+    "#.##.####.########.####.##.#"
+    "#o##.####.########.####.##o#"
+    "#.##.####.##....##.####.##.#"
+    "#.##......##.##.##......##.#"
+    "#.####.##.##.##.##.##.####.#"
+    "#.####.##.##.##.##.##.####.#"
+    "#......##....##....##......#"
+    "###.########,##,########.###"
+    "__#.########,##,########.#__"
+    "__#....##,,,,,,,,,,##....#__"
+    "###,##.##,###--###,##.##,###"
+    ",,,,##.##,#______#,##.##,,,,"
+    "######.,,,#______#,,,.######"
+    "######.##,#______#,##.######"
+    ",,,,##.##,########,##.##,,,,"
+    "###,##.##,,,,,,,,,,##.##,###"
+    "__#....#####,##,#####....#__"
+    "__#.##.#####,##,#####.##.#__"
+    "__#.##....,,,##,,,....##.#__"
+    "__#.#####.##,##,##.#####.#__"
+    "###.#####.##,##,##.#####.###"
+    "#.........##,,,,##.........#"
+    "#.####.##.########.##.####.#"
+    "#.####.##.########.##.####.#"
+    "#.##...##..........##...##.#"
+    "#o##.#######.##.#######.##o#"
+    "#.##.#######.##.#######.##.#"
+    "#............##............#"
+    "############################" ] ] ( ( string>chars ) map ) map to maze-layouts
+
+\ each maze's fruit routes: entrances as [ x y route ] in maze pixels, then exits; each route
+\ character is one 8-pixel step, taken in 16 frames
+[ [ [ [ 228 140 "<<<<vvv<<<<<<<<<^^^" ] [ -4 140 ">>>>vvvvvv>>>>>>>>>>>>>>>^^^<<<^^^" ]
+      [ -4 68 ">>>>^^^^>>>vvvv>>>vvv>>>>>>>>>vvvvvv<<<" ] [ 228 68 "<<<<vvvvvvvvv<<<^^^<<<vvv<<<" ] ]
+    [ "<vvv>>>>>>>>>^^^>>>>" "<<<<vvv<<<<<<<<<^^^<<<<" "<<<<<<<^^^^^^<<<<<<^^^<<<<" "<vvv>>>>>>>>>^^^^^^^^^^^^>>>>" ] ]
+  [ [ [ 228 188 "<<<<^^^<<<<<<<<^^^<" ] [ -4 188 ">>>>^^^>>>>>>>>vvv>>>>>^^^^^^<" ]
+      [ -4 12 ">>>>>>>vvv>>>vvvvvvv>>>>>>>>>vvvvvv<<<" ] [ 228 12 "<<<<<<<vvv<<<vvvvvvvvvvvvv<<<" ] ]
+    [ "vvv>>>>>>>>vvv>>>>" "vvvvvv<<<<<^^^<<<<<<<<vvv<<<<" "<<<<<<<^^^^^^^^^^^^^<<<^^^<<<<<<<" "vvv>>>>>^^^^^^^^^^>>>>>^^^^^^<<<<<^^^>>>>>>>" ] ]
+  [ [ [ 228 76 "<<<<<vv<<<<<vvvvvv<<<" ] [ -4 76 ">>>>>vv>>>>>>>>>>>>>>vvvvvv<<<" ]
+      [ -4 76 ">>>>>vv>>>>>>>>>>>>>>vvvvvv<<<" ] [ 228 76 "<<vvvvv<<<vvv<<<<<<<<" ] ]
+    [ "<vvv>>>vvv>>>^^^>>>>>^^^^^^^^^^^>>" "<<<<vvv<<<vvv<<<^^^<<<<<^^^^^^^^^^^<<" "<<<<vvv<<<vvv<<<^^^<<<<<^^^^^^^^^^^<<" "<vvv>>>vvv>>>^^^^^^<<<^^^^^^>>>>>^^>>>>>" ] ]
+  [ [ [ 228 132 "<<<<vv<<<vv<<<<<<^^^" ] [ -4 132 ">>>>vv>>>vv>>>>>>vvv>>>^^^^^^" ]
+      [ -4 108 ">>>>^^^^^>>>^^^>>>vvv>>>vvv>>>>>>vvvvvv<<<" ] [ 228 108 "<<<<^^<<<vvv<<<vvv<<<" ] ]
+    [ "<vvv>>>>>>^^>>>^^>>>>" "<<<<vvv<<<<<<^^<<<^^<<<<" "<<<<<<<^^^<<<^^^<<<vv<<<<" "<vvv>>>>>>^^^^^^^^^>>>vv>>>>" ] ] ] to fruit-routes
+
+\ the route every fruit takes around the ghost house between entering and leaving
+"<<<<<<^^^^^^>>>>>>>>>vvvvvv<<" to pen-route
+
+\ the fruit's hop: the pixel steps of the 16 frames that carry it 8 pixels one way
+{ :^ [ [ 0 -1 ] [ 0 -1 ] [ 0 -1 ] [ 0 -1 ] [ 0 -1 ] [ 0 -1 ] [ 0 -1 ] [ 0 -1 ] [ 0 -1 ] [ 0 0 ] [ 0 -1 ] [ 0 0 ] [ 0 0 ] [ 0 1 ] [ 0 0 ] [ 0 1 ] ]
+  :> [ [ 0 0 ] [ 1 -1 ] [ 0 0 ] [ 1 0 ] [ 0 0 ] [ 1 -1 ] [ 0 0 ] [ 1 0 ] [ 0 0 ] [ 1 0 ] [ 0 0 ] [ 1 0 ] [ 0 0 ] [ 1 1 ] [ 1 1 ] [ 0 0 ] ]
+  :< [ [ 0 0 ] [ 0 0 ] [ -1 -1 ] [ 0 0 ] [ -1 0 ] [ 0 0 ] [ -1 -1 ] [ 0 0 ] [ -1 0 ] [ 0 0 ] [ -1 0 ] [ 0 0 ] [ -1 0 ] [ 0 0 ] [ -1 1 ] [ -1 1 ] ]
+  :v [ [ 0 0 ] [ 0 1 ] [ 0 1 ] [ 0 1 ] [ 0 1 ] [ 0 1 ] [ 0 1 ] [ 0 1 ] [ 0 1 ] [ 0 1 ] [ 0 1 ] [ 0 1 ] [ 0 -1 ] [ 0 -1 ] [ 0 0 ] [ 0 -1 ] ] } to fruit-hops
+
+28 constant maze-width
+31 constant maze-height
+
+\ === the state ===
+
+{ :mode :title :running 1 :paused 0 :high 0 :score 0 :lives 3 :level 1 :events [ ] :maze 0 :waka-high 0 :ghosts-eaten 0 :timer 0 :heroine null :steering :map } to game
+
+\ set one key of the game state
+: game! ( value key -- )
+	| value key |
+	game value key ! drop ;
+
+\ the game state's value at key
+: game@ ( key -- value ) game swap @ ;
+
+\ the level's act: levels 1-2, 3-5, then four levels each
+: act-of ( level -- act )
+	| level |
+	level 2 <= if 1 exit then
+	level 5 <= if 2 exit then
+	level 6 - 4 / truncate 3 + ;
+
+\ the maze an act plays: 1, 2, then 3 and 4 in turn; numbered from 0
+: maze-of ( act -- maze )
+	| act |
+	act 1- to index
+	index 1 <= if index exit then
+	index 2 mod 2 + ;
+
+\ an act's wall fill, wall line and dot colors: each maze's own for acts 1-4, then a cycle of four
+: act-colors ( act -- colors )
+	| act |
+	[ [ 0xffb8ae 0xff0000 0xdedeff ] [ 0x47b8ff 0xdedeff 0xffff00 ] [ 0xde9751 0xdedeff 0xff0000 ] [ 0x2121ff 0xffb851 0xdedeff ] ] to own
+	[ [ 0xffb8ff 0xffff00 0x00ffff ] [ 0xffb8ae 0xff0000 0xdedeff ] [ 0xde9751 0xdedeff 0xff0000 ] [ 0x2121ff 0xffb851 0xdedeff ] ] to cycle
+	act 1- to index
+	index 4 < if own act maze-of @i exit then
+	cycle index 4 mod @i ;
+
+\ the current maze's rows
+: maze-rows ( -- rows ) maze-layouts :maze game@ @i ;
+
+\ the character at a tile of the current maze
+: raw-char ( tx ty -- char )
+	| tx ty |
+	maze-rows ty @i tx @i ;
+
+\ 1 when a tile of the current maze can be walked on
+: floor-char? ( char -- flag )
+	| char |
+	char "." = char "o" = or char "," = or ;
+
+\ 1 when a row of the current maze is a tunnel: walkable at both edges
+: tunnel-row? ( ty -- flag )
+	| ty |
+	ty 0 < ty maze-height >= or if 0 exit then
+	0 ty raw-char floor-char? maze-width 1- ty raw-char floor-char? and ;
+
+\ the maze character at a tile; a tunnel row is open past both sides, everything else outside is wall
+: maze-char ( tx ty -- char )
+	| tx ty |
+	ty 0 < ty maze-height >= or if "#" exit then
+	tx 0 < tx maze-width >= or if ty tunnel-row? if "," else "#" then exit then
+	tx ty raw-char ;
+
+\ 1 when a tile is wall
+: wall? ( tx ty -- flag ) maze-char "#" = ;
+
+\ 1 when a tile is the ghost-house door
+: door? ( tx ty -- flag ) maze-char "-" = ;
+
+\ 1 when Ms. Pac-Man or a ghost outside the house may enter a tile
+: open? ( tx ty -- flag )
+	| tx ty |
+	tx ty wall? tx ty door? or not ;
+
+\ 1 when a tile is walkable for the tunnel test: floor inside the map, open beyond a tunnel's ends
+: walkable? ( tx ty -- flag )
+	| tx ty |
+	tx ty maze-char floor-char? ;
+
+\ 1 inside a tunnel: on a tunnel row, between the edge and the first tile with floor above or below
+: tunnel-tile? ( tx ty -- flag )
+	| tx ty |
+	ty tunnel-row? not if 0 exit then
+	0 to left
+	begin left ty 1- walkable? not left ty 1+ walkable? not and left ty walkable? and while left 1+ to left repeat
+	maze-width 1- to right
+	begin right ty 1- walkable? not right ty 1+ walkable? not and right ty walkable? and while right 1- to right repeat
+	tx left < tx right > or ;
+
+[ 0 -1 0 1 ] to direction-dx
+[ -1 0 1 0 ] to direction-dy
+
+\ the direction opposite a direction
+: reverse-of ( direction -- direction ) 2 + 4 mod ;
+
+\ the largest whole number not above x
+: floor-of ( x -- n ) dup truncate dup rot > if 1- then ;
+
+\ the tile a pixel coordinate lies in
+: tile-of ( pixel -- tile ) 8 / floor-of ;
+
+\ the centre pixel of a tile
+: center-of ( tile -- pixel ) 8 * 4 + ;
+
+\ === the level table (Table A.1 of the Dossier, without its fruit) ===
+\ per level: Ms. Pac-Man speed, ghost speed, ghost tunnel speed, Elroy 1 dots left and speed,
+\ Elroy 2 dots left and speed, frightened Ms. Pac-Man speed, frightened ghost speed,
+\ frightened seconds, flashes; speeds in percent
+
+[ [ 80 75 40 20 80 10 85 90 50 6 5 ]
+  [ 90 85 45 30 90 15 95 95 55 5 5 ]
+  [ 90 85 45 40 90 20 95 95 55 4 5 ]
+  [ 90 85 45 40 90 20 95 95 55 3 5 ]
+  [ 100 95 50 40 100 20 105 100 60 2 5 ]
+  [ 100 95 50 50 100 25 105 100 60 5 5 ]
+  [ 100 95 50 50 100 25 105 100 60 2 5 ]
+  [ 100 95 50 50 100 25 105 100 60 2 5 ]
+  [ 100 95 50 60 100 30 105 100 60 1 3 ]
+  [ 100 95 50 60 100 30 105 100 60 5 5 ]
+  [ 100 95 50 60 100 30 105 100 60 2 5 ]
+  [ 100 95 50 80 100 40 105 100 60 1 3 ]
+  [ 100 95 50 80 100 40 105 100 60 1 3 ]
+  [ 100 95 50 80 100 40 105 100 60 3 5 ]
+  [ 100 95 50 100 100 50 105 100 60 1 3 ]
+  [ 100 95 50 100 100 50 105 100 60 1 3 ]
+  [ 100 95 50 100 100 50 105 100 60 0 0 ]
+  [ 100 95 50 100 100 50 105 100 60 1 3 ]
+  [ 100 95 50 120 100 60 105 100 60 0 0 ]
+  [ 100 95 50 120 100 60 105 100 60 0 0 ]
+  [ 90 95 50 120 100 60 105 90 60 0 0 ] ] to level-table
+
+\ the fruit of levels 1-7 and their points; from level 8 each fruit is one of the seven at random
+[ [ :cherry 100 ] [ :strawberry 200 ] [ :orange 500 ] [ :pretzel 700 ] [ :apple 1000 ] [ :pear 2000 ] [ :banana 5000 ] ] to fruit-table
+
+\ the scatter and chase durations in seconds, scatter first, for level 1, levels 2-4, levels 5 on; the last chase lasts
+[ [ 7 20 7 20 5 20 5 ] [ 7 20 7 20 5 1033 0.0167 ] [ 5 20 5 20 5 1037 0.0167 ] ] to mode-schedules
+
+\ pixels per 1/60 s at 100%
+75.7575763 60 / constant full-speed
+
+\ the level table's row for the current level, the last row from level 21 on
+: level-row ( -- row ) level-table :level game@ 1- 20 min2 @i ;
+
+\ one column of the current level's row
+: level-value ( column -- value ) level-row swap @i ;
+
+\ a speed column of the current level as pixels per 1/60 s
+: level-speed ( column -- pixels ) level-value 100 / full-speed * ;
+
+\ the mode schedule for the current level
+: mode-schedule ( -- durations )
+	:level game@ to level
+	level 1 = if mode-schedules 0 @i exit then
+	level 5 < if mode-schedules 1 @i exit then
+	mode-schedules 2 @i ;
+
+\ === the art ===
+
+\ a copy of a bitmap with every visible pixel in one packed color
+: tint ( bitmap packed -- bitmap ) swap 0 * + ;
+
+\ a bitmap mirrored left to right
+: mirror ( bitmap -- bitmap ) transpose 1 rotate-bitmap ;
+
+\ a yellow disc 13 pixels across facing right, its mouth open by half-angle radians either side of the right
+: mouth-bitmap ( half-angle -- bitmap )
+	| half-angle |
+	13 13 blank-bitmap to bitmap
+	0 13 1 do row
+		0 13 1 do column
+			column 6 - to dx
+			row 6 - to dy
+			dx dx * dy dy * + 42.25 <= to inside
+			dy dx atan2 abs half-angle < dx 0 > and to in-mouth
+			inside in-mouth not and if bitmap 16776960 row column !i,j drop then
+		loop
+	loop
+	bitmap ;
+
+\ her bow, her eye and the mark by her mouth, drawn over the disc
+[ "rr..........."
+  "rrr.rr......."
+  ".rrbrrr......"
+  "rrr.rr......."
+  "rr.....kk...."
+  "......kk....."
+  "............."
+  "............."
+  "............."
+  "........k...."
+  "............."
+  "............."
+  "............." ] { "r" string>symbol 0xff0000 "b" string>symbol 0x2121ff "k" string>symbol 0 } art>bitmap to face-marks
+
+\ Ms. Pac-Man facing right with her mouth open by half-angle
+: heroine-bitmap ( half-angle -- bitmap ) mouth-bitmap face-marks swap 0 0 blit ;
+
+\ the mouth cycle: open, half, closed, half; facing left she is mirrored, so her bow stays on top
+[ 0.8 0.4 0.0 0.4 ] ( heroine-bitmap ) map to heroine-right
+heroine-right ( 1 rotate-bitmap ) map to heroine-down
+heroine-right ( mirror ) map to heroine-left
+heroine-right ( 3 rotate-bitmap ) map to heroine-up
+[ heroine-up heroine-left heroine-down heroine-right ] to heroine-facing
+
+\ a ghost's body rows, the two skirts, and the frightened face drawn over the body
+[ ".....####....."
+  "...########..."
+  "..##########.."
+  ".############."
+  ".############."
+  ".############."
+  "##############"
+  "##############"
+  "##############"
+  "##############"
+  "##############"
+  "##############" ] to ghost-dome
+[ "##.###..###.##" "#...##..##...#" ] to ghost-skirt-a
+[ "####.####.####" ".##...##...##." ] to ghost-skirt-b
+[ ".............."
+  ".............."
+  ".............."
+  ".............."
+  "....ff..ff...."
+  "....ff..ff...."
+  ".............."
+  ".............."
+  "..ff..ff..ff.."
+  ".f..ff..ff..f."
+  ".............."
+  ".............."
+  ".............."
+  ".............." ] { "f" string>symbol 1 } art>bitmap to fright-face
+
+\ a ghost body in a color, one skirt
+: ghost-body ( skirt color -- bitmap )
+	| skirt color |
+	ghost-dome skirt concat { "#" string>symbol color } art>bitmap ;
+
+\ a frightened body: the body color with the face in a packed color
+: frightened-body ( skirt body-color face-packed -- bitmap )
+	| skirt body-color face-packed |
+	skirt body-color ghost-body to bitmap
+	fright-face face-packed tint bitmap 0 0 blit ;
+
+\ both skirts of a ghost in a color
+: ghost-frames ( color -- bitmaps )
+	| color |
+	[ ghost-skirt-a color ghost-body ghost-skirt-b color ghost-body ] ;
+
+[ ghost-skirt-a "#2121ff" 0xffb8ae frightened-body ghost-skirt-b "#2121ff" 0xffb8ae frightened-body ] to frightened-frames
+[ ghost-skirt-a :white 0xff0000 frightened-body ghost-skirt-b :white 0xff0000 frightened-body ] to flashing-frames
+
+\ a ghost's eyes looking one way: whites 4 by 5, pupils 2 by 2 toward the direction
+: eyes-bitmap ( direction -- bitmap )
+	| direction |
+	14 14 blank-bitmap to bitmap
+	direction-dx direction @i to shift-x
+	direction-dy direction @i to shift-y
+	[ 2 8 ] to lefts
+	0 2 1 do eye
+		lefts eye @i shift-x + to left
+		3 shift-y + to top
+		0 5 1 do row
+			0 4 1 do column
+				bitmap 16777215 top row + left column + !i,j drop
+			loop
+		loop
+		left 1 + shift-x + to pupil-left
+		top 2 + shift-y 2 * + to pupil-top
+		0 2 1 do row
+			0 2 1 do column
+				bitmap 2171391 pupil-top row + pupil-left column + !i,j drop
+			loop
+		loop
+	loop
+	bitmap ;
+
+[ 0 1 2 3 ] ( eyes-bitmap ) map to eyes-facing
+
+\ the fruit, 12 by 12
+{ :cherry [ [ "......###..." ".....#..#..." "....#...#..." "...#.....#.." "..#......#.." ".rr.....rr.."
+              "rrrr...rrrr." "rwrr...rwrr." "rrrr...rrrr." ".rr.....rr.." "............" "............" ]
+            { "#" string>symbol "#de9751" "r" string>symbol "#ff0000" "w" string>symbol :white } ]
+  :strawberry [ [ "....gggg...." "...gggggg..." "..rrrrrrrr.." ".rrwrrrwrrr." ".rrrrrrrrrr." ".rwrrrwrrwr."
+                  "..rrrrrrrr.." "..rrwrrrrr.." "...rrrrrr..." "....rrrr...." ".....rr....." "............" ]
+                { "g" string>symbol "#00ff00" "r" string>symbol "#ff0000" "w" string>symbol :white } ]
+  :orange [ [ ".....g......" "....gg.gg..." "...oooooo..." "..oooooooo.." ".oooooooooo." ".oowooooooo."
+              ".oooooooooo." ".oooooooooo." "..oooooooo.." "...oooooo..." "............" "............" ]
+            { "g" string>symbol "#00ff00" "o" string>symbol "#ffb852" "w" string>symbol :white } ]
+  :pretzel [ [ "............" "..bbb..bbb.." ".b...bb...b." ".b...bb...b." ".b..b..b..b." "..bb....bb.."
+               "..b.b..b.b.." ".b...bb...b." ".b...bb...b." "..bbb..bbb.." "............" "............" ]
+             { "b" string>symbol "#de9751" } ]
+  :apple [ [ ".....#......" "....#.gg...." "..rrr#rrr..." ".rrrrrrrrrr." ".rwrrrrrrrr." ".rwrrrrrrrr."
+             ".rrrrrrrrrr." ".rrrrrrrrrr." "..rrrrrrrr.." "...rr..rr..." "............" "............" ]
+           { "#" string>symbol "#de9751" "g" string>symbol "#00ff00" "r" string>symbol "#ff0000" "w" string>symbol :white } ]
+  :pear [ [ ".....#......" ".....#g....." "....ggg....." "...ggggg...." "...gwggg...." "..ggggggg..."
+            ".gwggggggg.." ".ggggggggg.." ".ggggggggg.." "..ggggggg..." "...ggggg...." "............" ]
+          { "#" string>symbol "#de9751" "g" string>symbol "#00ff00" "w" string>symbol :white } ]
+  :banana [ [ ".........##." "........yy.." ".......yyy.." "......yyyy.." ".....yyyyy.." "...yyyyyy..."
+              ".yyyyyyyy..." "yyyyyyyy...." ".yyyyyy....." "..yyy......." "............" "............" ]
+            { "#" string>symbol "#de9751" "y" string>symbol "#ffff00" } ] } to fruit-art
+
+\ the bitmap of a fruit
+: fruit-bitmap ( fruit -- bitmap ) fruit-art swap @ dup 0 @i swap 1 @i art>bitmap ;
+
+\ === the maze bitmaps ===
+\ a wall pixel's distance to the open space decides its color: a line where it lies in [2, 3), the
+\ fill beyond. Across a wall's convex corner the distance is the rounded-rectangle one, radius 6, and
+\ toward an open diagonal tile it is the distance to that tile's corner point, so the corners round.
+\ Outside the map counts as open.
+
+\ 1 when a tile counts as open for drawing the walls
+: open-for-lines? ( tx ty -- flag )
+	| tx ty |
+	tx 0 < tx maze-width >= or ty 0 < or ty maze-height >= or if 1 exit then
+	tx ty raw-char "#" = not ;
+
+\ a wall pixel's distance to the open space, px py its position in tile tx ty
+: wall-distance ( tx ty px py -- distance )
+	| tx ty px py |
+	px 0.5 + to x
+	py 0.5 + to y
+	100 to gap-x
+	100 to gap-y
+	tx 1- ty open-for-lines? if x gap-x min2 to gap-x then
+	tx 1+ ty open-for-lines? if 8 x - gap-x min2 to gap-x then
+	tx ty 1- open-for-lines? if y gap-y min2 to gap-y then
+	tx ty 1+ open-for-lines? if 8 y - gap-y min2 to gap-y then
+	gap-x gap-y min2 to distance
+	gap-x 6 < gap-y 6 < and if
+		6 6 gap-x - dup * 6 gap-y - dup * + sqrt - to distance
+	then
+	[ [ -1 -1 0 0 ] [ 1 -1 8 0 ] [ -1 1 0 8 ] [ 1 1 8 8 ] ] to diagonals
+	0 4 1 do k
+		diagonals k @i to diagonal
+		tx diagonal 0 @i + ty diagonal 1 @i + open-for-lines? if
+			x diagonal 2 @i - dup * y diagonal 3 @i - dup * + sqrt distance min2 to distance
+		then
+	loop
+	distance ;
+
+\ the current maze's walls, 248 rows by 224 columns, filled and outlined in two packed colors
+: maze-bitmap ( fill line -- bitmap )
+	| fill line |
+	248 224 blank-bitmap to bitmap
+	0 maze-height 1 do ty
+		0 maze-width 1 do tx
+			tx ty raw-char "#" = if
+				0 8 1 do py
+					0 8 1 do px
+						tx ty px py wall-distance to distance
+						distance 2 >= if
+							bitmap distance 3 < if line else fill then ty 8 * py + tx 8 * px + !i,j drop
+						then
+					loop
+				loop
+			then
+		loop
+	loop
+	bitmap ;
+
+[ "..####.."
+  ".######."
+  "########"
+  "########"
+  "########"
+  "########"
+  ".######."
+  "..####.." ] { "#" string>symbol 1 } art>bitmap to energizer-shape
+
+\ === the synthesizer ===
+
+\ waka: a sine phase-modulated by its fifth, its pitch swept by a key-synced saw, one per dot
+{ :oscillators [
+    { :attack 0.002 :decay 0.06 :sustain 0 :release 0.03 }
+    { :ratio 1.5 :level 0.8 :attack 0.001 :decay 0.04 :sustain 0 :release 0.03 } ]
+  :modulation [ [ 1 0 1.8 ] ]
+  :lfo { :shape :saw :rate 12 :key-sync 1 :pitch-depth 7 }
+  :level 0.3 } :waka instrument-patch!
+
+\ siren: a sine and a quiet triangle an octave up, the pitch swung by a triangle LFO, sliding between stages
+{ :oscillators [
+    { :attack 0.05 :decay 0.2 :sustain 1 :release 0.1 }
+    { :wave :triangle :ratio 2 :level 0.25 :attack 0.05 :sustain 1 :release 0.1 } ]
+  :carriers [ 0 1 ]
+  :lfo { :shape :triangle :rate 3.2 :pitch-depth 4 }
+  :glide 0.4
+  :level 0.13 } :siren instrument-patch!
+
+\ fright-siren: a narrow pulse warbling fast, through a resonant ladder
+{ :oscillators [ { :wave :pulse :width 0.2 :lfo-width 0.15 :attack 0.02 :sustain 1 :release 0.1 } ]
+  :cutoff 2200 :resonance 1.5
+  :lfo { :shape :saw :rate 7 :pitch-depth 5 }
+  :level 0.1 } :fright-siren instrument-patch!
+
+\ eyes: a high sine stepping by a square LFO, while eaten ghosts fly home
+{ :oscillators [ { :attack 0.01 :sustain 1 :release 0.08 } { :ratio 2 :level 0.5 :attack 0.01 :sustain 1 :release 0.08 } ]
+  :modulation [ [ 1 0 0.8 ] ]
+  :lfo { :shape :square :rate 14 :pitch-depth 7 }
+  :level 0.12 } :eyes-sound instrument-patch!
+
+\ death: a saw and a pulse gliding down two octaves, through a ladder closing with its envelope
+{ :oscillators [
+    { :wave :saw :level 0.6 :attack 0.01 :decay 1.2 :sustain 0.3 :release 0.2 }
+    { :wave :pulse :width 0.3 :level 0.4 :attack 0.01 :decay 1.2 :sustain 0.3 :release 0.2 } ]
+  :carriers [ 0 1 ]
+  :cutoff 900 :resonance 1.8 :filter-envelope { :attack 0.01 :decay 1 :sustain 0 :release 0.2 :amount 2.5 }
+  :lfo { :shape :triangle :rate 9 :pitch-depth 1.5 }
+  :glide 1.2
+  :level 0.25 } :death instrument-patch!
+
+\ chomp: a bright phase-modulated chirp swept up, for a ghost eaten, a fruit eaten, and the death's last notes
+{ :oscillators [
+    { :attack 0.001 :decay 0.12 :sustain 0 :release 0.05 }
+    { :ratio 3 :level 1 :attack 0.001 :decay 0.08 :sustain 0 :release 0.05 } ]
+  :modulation [ [ 1 0 2.5 ] ]
+  :lfo { :shape :saw :rate 8 :key-sync 1 :pitch-depth 12 }
+  :level 0.3 } :chomp instrument-patch!
+
+\ bounce: a soft low thump each time the fruit lands
+{ :oscillators [ { :wave :triangle :attack 0.001 :decay 0.05 :sustain 0 :release 0.03 } ]
+  :lfo { :shape :saw :rate 20 :key-sync 1 :pitch-depth 5 }
+  :level 0.18 } :bounce instrument-patch!
+
+\ bell: an extra life, three detuned copies of a phase-modulated bell
+{ :oscillators [ { :attack 0.002 :decay 0.5 :sustain 0 :release 0.3 } { :ratio 3.5 :level 0.6 :attack 0.001 :decay 0.2 :sustain 0 :release 0.2 } ]
+  :modulation [ [ 1 0 1.5 ] ]
+  :unison 3 :unison-detune 12 :unison-spread 0.6
+  :level 0.25 } :bell instrument-patch!
+
+\ intro-lead: a pulse and a phase-modulated sine, bright and short
+{ :oscillators [
+    { :wave :pulse :width 0.25 :level 0.5 :attack 0.003 :decay 0.15 :sustain 0.5 :release 0.08 }
+    { :level 0.5 :attack 0.003 :decay 0.2 :sustain 0.4 :release 0.08 }
+    { :ratio 2 :level 0.7 :attack 0.002 :decay 0.1 :sustain 0.2 :release 0.08 } ]
+  :modulation [ [ 2 1 1.5 ] ]
+  :carriers [ 0 1 ]
+  :unison 2 :unison-detune 8 :unison-spread 0.4
+  :level 0.16 } :intro-lead instrument-patch!
+
+\ intro-bass: a triangle and a filtered saw
+{ :oscillators [
+    { :wave :triangle :level 0.7 :attack 0.003 :decay 0.2 :sustain 0.5 :release 0.06 }
+    { :wave :saw :level 0.3 :attack 0.003 :decay 0.15 :sustain 0.3 :release 0.06 } ]
+  :carriers [ 0 1 ]
+  :cutoff 900 :resonance 1 :filter-envelope { :attack 0.002 :decay 0.1 :sustain 0 :release 0.1 :amount 1.5 }
+  :level 0.3 } :intro-bass instrument-patch!
+
+\ the effects every screen starts from
+: settle-effects ( -- )
+	0.1 :wet :chorus effect! 0.002 :depth :chorus effect! 0.6 :rate :chorus effect!
+	0.12 :wet :reverb effect! 0.55 :decay :reverb effect! 0.9 :size :reverb effect!
+	0 :wet :delay effect!
+	0.85 :level :master effect! ;
+
+\ run a word after delay seconds
+: later ( word delay -- )
+	| word delay |
+	:events game@ [ now delay + word ] add-last! drop ;
+
+\ run every word whose time has come
+: run-due-events ( -- )
+	now to moment
+	:events game@ to events
+	events ( 0 @i moment > ) filter :events game!
+	events ( 0 @i moment <= ) filter ( 1 @i execute ) each ;
+
+\ play a note for length seconds
+: sound ( pitch velocity instrument length -- )
+	| pitch velocity instrument length |
+	pitch velocity instrument note-on
+	( pitch instrument note-off ) length later ;
+
+\ the intro: two bars of an original tune in C at 132 beats per minute, 3.6 s
+: queue-intro ( -- )
+	132 sequence-tempo 0.85 sequence-articulation 0.9 sequence-velocity
+	:intro-lead sequence-instrument
+	[ :c5 1/16 :e5 1/16 :g5 1/16 :c6 1/16 :a5 1/8 :g5 1/8 :e5 1/8 :c5 1/8 :d5 1/4
+	  :d5 1/16 :f5 1/16 :a5 1/16 :d6 1/16 :b5 1/8 :a5 1/8 :g5 1/4 :c6 1/4 ] to lead
+	0 lead size 2 do k lead k @i lead k 1+ @i sequence-note loop
+	:intro-bass sequence-instrument
+	[ :c3 1/8 :g3 1/8 :c3 1/8 :g3 1/8 :a2 1/8 :e3 1/8 :a2 1/8 :e3 1/8
+	  :d3 1/8 :a3 1/8 :d3 1/8 :a3 1/8 :g2 1/8 :d3 1/8 :g2 1/8 :c3 1/8 ] to bass
+	0 bass size 2 do k bass k @i bass k 1+ @i sequence-note loop ;
+
+\ === the actors ===
+
+\ the ghosts as a new level or life finds them: name, color, position, direction, state, corner tile
+: fresh-ghosts ( -- ghosts )
+	[ { :name :blinky :color "#ff0000" :x 112 :y 92 :dir 1 :state :active :corner [ 25 -3 ] }
+	  { :name :pinky :color "#ffb8ff" :x 112 :y 116 :dir 2 :state :house :corner [ 2 -3 ] }
+	  { :name :inky :color "#00ffff" :x 96 :y 116 :dir 0 :state :house :corner [ 27 31 ] }
+	  { :name :sue :color "#ffb852" :x 128 :y 116 :dir 0 :state :house :corner [ 0 31 ] } ] to ghosts
+	ghosts ( dup :color @ ghost-frames :frames ! 0 :frightened ! 0 :dot-count ! drop ) each
+	ghosts ;
+
+\ Ms. Pac-Man at her start, facing left
+: fresh-heroine ( -- heroine ) { :x 112 :y 188 :dir 1 :want 1 :stall 0 :moving 0 :frame 2 } ;
+
+\ the ghost with a name
+: ghost-named ( name -- ghost )
+	| name |
+	:ghosts game@ ( :name @ name = ) filter 0 @i ;
+
+\ the tile an actor stands on
+: actor-tile ( actor -- tx ty ) dup :x @ tile-of swap :y @ tile-of ;
+
+\ a dot matrix fresh from the current maze: 1 a dot, 2 an energizer
+: fresh-dots ( -- dots )
+	maze-height maze-width 0-matrix to dots
+	0 maze-height 1 do ty
+		0 maze-width 1 do tx
+			tx ty raw-char to char
+			char "." = if dots 1 ty tx !i,j drop then
+			char "o" = if dots 2 ty tx !i,j drop then
+		loop
+	loop
+	dots ;
+
+\ === modes ===
+
+\ 1 while the ghosts scatter
+: scattering? ( -- flag ) :mode-index game@ to index index 7 < index 2 mod 0= and ;
+
+\ turn every ghost in the maze around
+: reverse-ghosts ( -- )
+	:ghosts game@ ( dup :state @ :active = if dup :dir @ reverse-of :dir ! drop else drop then ) each ;
+
+\ advance the scatter and chase schedule by one 1/60 s, unless the ghosts are frightened
+: advance-schedule ( -- )
+	:fright-time game@ 0 > if exit then
+	:mode-index game@ 7 >= if exit then
+	:mode-time game@ 1 60 / + :mode-time game!
+	:mode-time game@ mode-schedule :mode-index game@ @i >= if
+		:mode-index game@ 1+ :mode-index game!
+		0 :mode-time game!
+		reverse-ghosts
+	then ;
+
+\ an energizer: the ghosts turn around and, where the level allows, turn blue
+: frighten ( -- )
+	reverse-ghosts
+	9 level-value to seconds
+	seconds 0 = if exit then
+	seconds :fright-time game!
+	0 :ghosts-eaten game!
+	:ghosts game@ ( dup :state @ :eyes = over :state @ :entering = or if drop else 1 :frightened ! drop then ) each ;
+
+\ count the frightened time down, ending it for every ghost at zero
+: advance-fright ( -- )
+	:fright-time game@ 0 <= if exit then
+	:fright-time game@ 1 60 / - :fright-time game!
+	:fright-time game@ 0 <= if
+		0 :fright-time game!
+		:ghosts game@ ( 0 :frightened ! drop ) each
+	then ;
+
+\ 1 while frightened ghosts should show white: during the level's last flashes, 0.4 s each
+: flashing? ( -- flag )
+	:fright-time game@ 10 level-value 0.4 * < now 5 * truncate 2 mod 0= and ;
+
+\ === the house ===
+
+\ the dots each ghost waits for in the house on this level
+: personal-limit ( ghost -- dots )
+	:name @ to name
+	:level game@ to level
+	name :inky = if level 1 = if 30 else 0 then exit then
+	name :sue = if level 1 = if 60 exit then level 2 = if 50 exit then 0 exit then
+	0 ;
+
+\ the first of pinky, inky and sue still in the house, or null
+: preferred-ghost ( -- ghost )
+	[ :pinky :inky :sue ] ( ghost-named ) map ( :state @ :house = ) filter to waiting
+	waiting size 0 = if null exit then
+	waiting 0 @i ;
+
+\ send a ghost out of the house
+: release ( ghost -- ) :leaving :state ! drop ;
+
+\ a dot was eaten: count it toward the preferred ghost, or the shared counter after a death
+: count-house-dot ( -- )
+	0 :idle-time game!
+	:global-counter game@ null? not if
+		:global-counter game@ 1+ :global-counter game!
+		exit
+	then
+	preferred-ghost to ghost
+	ghost null? if exit then
+	ghost ghost :dot-count @ 1+ :dot-count ! drop ;
+
+\ release the ghosts whose counters or the idle timer allow it
+: release-ghosts ( -- )
+	:idle-time game@ 1 60 / + :idle-time game!
+	preferred-ghost to ghost
+	ghost null? if null :global-counter game! exit then
+	:global-counter game@ to shared
+	shared null? not if
+		ghost :name @ :pinky = shared 7 >= and if ghost release then
+		ghost :name @ :inky = shared 17 >= and if ghost release then
+		ghost :name @ :sue = shared 32 >= and if ghost release null :global-counter game! then
+	else
+		ghost :dot-count @ ghost personal-limit >= if ghost release then
+	then
+	:idle-time game@ :level game@ 5 < if 4 else 3 then >= if
+		preferred-ghost to ghost
+		ghost null? not if ghost release then
+		0 :idle-time game!
+	then ;
+
+\ === targets ===
+
+\ the tile n tiles ahead of Ms. Pac-Man, with the arcade's overflow: facing up, also n tiles left
+: ahead-of-heroine ( n -- tx ty )
+	| n |
+	:heroine game@ to heroine
+	heroine actor-tile to ty to tx
+	heroine :dir @ to direction
+	tx direction-dx direction @i n * + direction 0 = if n - then
+	ty direction-dy direction @i n * + ;
+
+\ a ghost's chase target
+: chase-target ( ghost -- tx ty )
+	| ghost |
+	ghost :name @ to name
+	name :blinky = if :heroine game@ actor-tile exit then
+	name :pinky = if 4 ahead-of-heroine exit then
+	name :inky = if
+		2 ahead-of-heroine to pivot-y to pivot-x
+		:blinky ghost-named actor-tile to blinky-y to blinky-x
+		pivot-x 2 * blinky-x - pivot-y 2 * blinky-y - exit
+	then
+	ghost actor-tile to ty to tx
+	:heroine game@ actor-tile to heroine-y to heroine-x
+	tx heroine-x - dup * ty heroine-y - dup * + 64 > if heroine-x heroine-y exit then
+	ghost :corner @ dup 0 @i swap 1 @i ;
+
+\ Cruise Elroy's stage: 2 or 1 when few enough dots are left, 0 otherwise or while suspended after a death
+: elroy-level ( -- n )
+	:elroy-suspended game@ if 0 exit then
+	:dots-left game@ to left
+	left 5 level-value <= if 2 exit then
+	left 3 level-value <= if 1 exit then
+	0 ;
+
+\ the tile a ghost heads for; scattering, Blinky and Pinky head for a corner chosen at random each time
+: target-of ( ghost -- tx ty )
+	| ghost |
+	ghost :state @ :eyes = if 13 11 exit then
+	ghost :name @ :blinky = elroy-level 0 > and if ghost chase-target exit then
+	scattering? if
+		ghost :name @ :blinky = ghost :name @ :pinky = or if
+			:ghosts game@ random 4 * truncate @i :corner @ dup 0 @i swap 1 @i exit
+		then
+		ghost :corner @ dup 0 @i swap 1 @i exit
+	then
+	ghost chase-target ;
+
+\ === movement ===
+
+\ 1 where a maze forbids a ghost's turn: in maze 3, leaving a tunnel on row 9, no turn down
+: turn-barred? ( ghost tx ty direction -- flag )
+	| ghost tx ty direction |
+	:maze game@ 2 = ty 9 = and direction 2 = and not if 0 exit then
+	ghost :dir @ to heading
+	tx 1 = heading 3 = and tx 26 = heading 1 = and or ;
+
+\ the direction a ghost takes at the centre of tile tx ty
+: choose-direction ( ghost tx ty -- direction )
+	| ghost tx ty |
+	ghost :dir @ reverse-of to back
+	[ ] to options
+	0 4 1 do direction
+		tx direction-dx direction @i + ty direction-dy direction @i + open? to passable
+		ghost tx ty direction turn-barred? ghost :frightened @ 0= and to barred
+		direction back = not passable and barred not and if options direction add-last! drop then
+	loop
+	options size 0 = if back exit then
+	ghost :frightened @ if
+		random 4 * truncate to preferred
+		0 4 1 do k
+			preferred k + 4 mod to direction
+			options ( direction = ) any? if direction exit then
+		loop
+	then
+	ghost target-of to target-y to target-x
+	-1 to best
+	1e9 to best-distance
+	0 options size 1 do k
+		options k @i to direction
+		tx direction-dx direction @i + target-x - dup *
+		ty direction-dy direction @i + target-y - dup * + to distance
+		distance best-distance < if distance to best-distance direction to best then
+	loop
+	best ;
+
+\ a ghost's speed this 1/60 s; the tunnel slows ghosts on levels 1-3 only
+: ghost-speed ( ghost -- pixels )
+	| ghost |
+	ghost :state @ to state
+	state :eyes = state :entering = or if full-speed 1.6 * exit then
+	state :house = state :leaving = or if full-speed 0.5 * exit then
+	ghost actor-tile to ty to tx
+	:level game@ 3 <= tx ty tunnel-tile? and if 2 level-speed exit then
+	ghost :frightened @ if 8 level-speed exit then
+	ghost :name @ :blinky = if
+		elroy-level 2 = if 6 level-speed exit then
+		elroy-level 1 = if 4 level-speed exit then
+	then
+	1 level-speed ;
+
+\ wrap an actor through a tunnel, two tiles past the edge
+: wrap ( actor -- )
+	| actor |
+	actor :x @ -16 < if actor actor :x @ 256 + :x ! drop then
+	actor :x @ 240 >= if actor actor :x @ 256 - :x ! drop then ;
+
+\ move a ghost in the maze by distance pixels, choosing a direction at each tile centre it reaches
+: move-in-maze ( ghost distance -- )
+	| ghost distance |
+	ghost actor-tile to ty to tx
+	ghost :dir @ to direction
+	direction-dx direction @i to vx
+	direction-dy direction @i to vy
+	ghost :x @ tx center-of - vx * ghost :y @ ty center-of - vy * + to along
+	along 0 < along distance + 0 >= and if
+		along negate to approach
+		ghost tx center-of :x ! ty center-of :y ! drop
+		ghost tx ty choose-direction to direction
+		ghost direction :dir ! drop
+		distance approach - to distance
+		direction-dx direction @i to vx
+		direction-dy direction @i to vy
+	then
+	ghost ghost :x @ vx distance * + :x ! ghost :y @ vy distance * + :y ! drop
+	ghost wrap ;
+
+\ move one ghost by its state
+: move-ghost ( ghost -- )
+	| ghost |
+	ghost ghost-speed to distance
+	ghost :state @ to state
+	state :house = if
+		ghost :y @ 113 <= if ghost 2 :dir ! drop then
+		ghost :y @ 119 >= if ghost 0 :dir ! drop then
+		ghost ghost :y @ direction-dy ghost :dir @ @i distance * + :y ! drop
+		exit
+	then
+	state :leaving = if
+		ghost :x @ 112 - abs 0.5 > if
+			ghost ghost :x @ 112 ghost :x @ - distance negate distance clamp + :x ! drop
+			exit
+		then
+		ghost 112 :x ! drop
+		ghost :y @ 92 > if ghost ghost :y @ distance - 92 max2 :y ! drop exit then
+		ghost :active :state ! 1 :dir ! drop
+		exit
+	then
+	state :entering = if
+		ghost :x @ 112 - abs 0.5 > if
+			ghost ghost :x @ 112 ghost :x @ - distance negate distance clamp + :x ! drop
+			exit
+		then
+		ghost 112 :x ! drop
+		ghost :y @ 116 < if ghost ghost :y @ distance + 116 min2 :y ! drop exit then
+		ghost :leaving :state ! 0 :frightened ! drop
+		exit
+	then
+	state :eyes = if
+		ghost actor-tile to ty to tx
+		ty 11 = tx 13 = tx 14 = or and if ghost :entering :state ! drop exit then
+	then
+	ghost distance move-in-maze ;
+
+\ the arrow keys relative to her heading, read once per screen frame: left and right ask for a
+\ quarter turn at each press, up keeps the heading and drops a pending turn, down turns her around
+: read-view-arrows ( -- )
+	:heroine game@ to heroine
+	heroine :dir @ to direction
+	:left key-pressed? if heroine direction 1+ 4 mod :want ! drop then
+	:right key-pressed? if heroine direction 3 + 4 mod :want ! drop then
+	:up key-down? if heroine direction :want ! drop then
+	:down key-pressed? if heroine direction reverse-of :want ! drop then ;
+
+\ Ms. Pac-Man's direction from the arrow keys held, else the last one asked for; nothing here when steering by the view
+: read-arrows ( -- )
+	:steering game@ :view = if exit then
+	:heroine game@ to heroine
+	:up key-down? if heroine 0 :want ! drop then
+	:left key-down? if heroine 1 :want ! drop then
+	:down key-down? if heroine 2 :want ! drop then
+	:right key-down? if heroine 3 :want ! drop then ;
+
+\ add points to the score, with the extra life at 10000
+: add-score ( points -- )
+	:score game@ + :score game!
+	:score game@ 10000 >= :bonus-given game@ 0= and if
+		1 :bonus-given game!
+		:lives game@ 1+ :lives game!
+		:e6 1 :bell 0.4 sound
+		( :g#6 1 :bell 0.4 sound ) 0.1 later
+		( :b6 1 :bell 0.6 sound ) 0.2 later
+	then ;
+
+\ a fruit appears: this level's, or from level 8 one at random, entering by a random tunnel
+: launch-fruit ( -- )
+	:level game@ 7 <= if fruit-table :level game@ 1- @i else fruit-table random 7 * truncate @i then to kind
+	fruit-routes :maze game@ @i 0 @i random 4 * truncate @i to entrance
+	{ :kind kind 0 @i :points kind 1 @i :x entrance 0 @i :y entrance 1 @i :route entrance 2 @i string>chars :step 0 :phase :enter }
+	:fruit game! ;
+
+\ eat what lies on Ms. Pac-Man's tile
+: eat ( -- )
+	:heroine game@ actor-tile to ty to tx
+	tx 0 < tx maze-width >= or if exit then
+	:dots game@ ty tx @i,j to dot
+	dot 0 = if exit then
+	:dots game@ 0 ty tx !i,j drop
+	:dots-left game@ 1- :dots-left game!
+	:dots-eaten game@ 1+ :dots-eaten game!
+	count-house-dot
+	:waka-high game@ if :e5 else :b4 then 0.9 :waka 0.08 sound
+	:waka-high game@ 0= :waka-high game!
+	dot 1 = if
+		10 add-score
+		:heroine game@ 1 :stall ! drop
+	else
+		50 add-score
+		:heroine game@ 3 :stall ! drop
+		frighten
+	then
+	:dots-eaten game@ 64 = :dots-eaten game@ 176 = or :fruit game@ null? and if launch-fruit then ;
+
+\ move Ms. Pac-Man one 1/60 s: turn toward the direction asked for when its next tile is open, cornering
+\ by closing on the new line while moving, and stop against a wall at the tile centre
+: move-heroine ( -- )
+	:heroine game@ to heroine
+	heroine :stall @ 0 > if heroine heroine :stall @ 1- :stall ! drop exit then
+	heroine actor-tile to ty to tx
+	heroine :dir @ to direction
+	heroine :want @ to wanted
+	wanted direction = not if
+		wanted direction reverse-of = tx direction-dx wanted @i + ty direction-dy wanted @i + open? or if
+			wanted to direction
+			heroine direction :dir ! drop
+		then
+	then
+	:fright-time game@ 0 > if 7 level-speed else 0 level-speed then to distance
+	direction-dx direction @i to vx
+	direction-dy direction @i to vy
+	vx 0 = if heroine heroine :x @ tx center-of heroine :x @ - distance negate distance clamp + :x ! drop then
+	vy 0 = if heroine heroine :y @ ty center-of heroine :y @ - distance negate distance clamp + :y ! drop then
+	heroine heroine :x @ vx distance * + :x ! heroine :y @ vy distance * + :y ! drop
+	1 to moving
+	tx vx + ty vy + open? not if
+		heroine :x @ tx center-of - vx * heroine :y @ ty center-of - vy * + 0 >= if
+			vx 0 = not if heroine tx center-of :x ! drop then
+			vy 0 = not if heroine ty center-of :y ! drop then
+			0 to moving
+		then
+	then
+	heroine moving :moving ! drop
+	heroine wrap
+	moving if heroine heroine :frame @ 0.25 + 4 mod :frame ! drop then
+	eat ;
+
+\ === the round ===
+
+\ a score shown for life seconds where something was eaten
+: add-popup ( text color x y life -- )
+	| text color x y life |
+	:popups game@ { :text text :color color :x x :y y :life life } add-last! drop ;
+
+\ Ms. Pac-Man eats a frightened ghost: 200, 400, 800, 1600, a second's freeze, and the ghost's eyes fly home
+: eat-ghost ( ghost -- )
+	| ghost |
+	:ghosts-eaten game@ to eaten
+	[ 200 400 800 1600 ] eaten 3 min2 @i to points
+	eaten 1+ :ghosts-eaten game!
+	points add-score
+	points "{0}" format "#00ffff" ghost :x @ 8 - ghost :y @ 4 - 1 add-popup
+	ghost :eyes :state ! 0 :frightened ! drop
+	60 :freeze game!
+	1 :hide-heroine game!
+	:c5 1 :chomp 0.3 sound ;
+
+\ a ghost catches Ms. Pac-Man
+: start-dying ( -- )
+	:dying :mode game!
+	0 :timer game!
+	0 :death-sounded game! ;
+
+\ Ms. Pac-Man and the ghosts in the maze sharing her tile meet: she eats the frightened ones, the others catch her
+: check-collisions ( -- )
+	:heroine game@ actor-tile to heroine-y to heroine-x
+	:ghosts game@ to ghosts
+	0 4 1 do k
+		ghosts k @i to ghost
+		ghost :state @ :active = if
+			ghost actor-tile heroine-y = swap heroine-x = and if
+				ghost :frightened @ if ghost eat-ghost else start-dying exit then
+			then
+		then
+	loop ;
+
+\ move the fruit one frame along its route, hopping; it enters, laps the house, leaves, and is gone
+: move-fruit ( -- )
+	:fruit game@ to fruit
+	fruit null? if exit then
+	fruit :route @ to route
+	fruit :step @ to step
+	route step 16 / truncate @i string>symbol to heading
+	fruit-hops heading @ step 16 mod @i to hop
+	fruit fruit :x @ hop 0 @i + :x ! fruit :y @ hop 1 @i + :y ! step 1+ :step ! drop
+	step 16 mod 15 = if :c3 0.5 :bounce 0.06 sound then
+	fruit :step @ route size 16 * < if exit then
+	fruit :phase @ to phase
+	phase :enter = if fruit pen-route string>chars :route ! 0 :step ! :pen :phase ! drop exit then
+	phase :pen = if
+		fruit fruit-routes :maze game@ @i 1 @i random 4 * truncate @i string>chars :route ! 0 :step ! :exit :phase ! drop
+		exit
+	then
+	null :fruit game! ;
+
+\ Ms. Pac-Man eats the fruit when they share a tile
+: check-fruit ( -- )
+	:fruit game@ to fruit
+	fruit null? if exit then
+	fruit actor-tile to fruit-y to fruit-x
+	:heroine game@ actor-tile fruit-y = swap fruit-x = and not if exit then
+	fruit :points @ to points
+	points add-score
+	points "{0}" format "#ffb8ff" fruit :x @ 8 - fruit :y @ 4 - 2 add-popup
+	null :fruit game!
+	:g5 1 :chomp 0.3 sound ;
+
+\ the level is clear: a pause, the flashing maze, the next level
+: start-clearing ( -- )
+	:cleared :mode game!
+	0 :timer game!
+	null :fruit game! ;
+
+\ the actors at their starts; after a death the shared house counter runs and Elroy waits for Sue
+: reset-actors ( after-death -- )
+	| after-death |
+	fresh-heroine :heroine game!
+	fresh-ghosts :ghosts game!
+	0 :mode-index game!
+	0 :mode-time game!
+	0 :fright-time game!
+	0 :idle-time game!
+	0 :freeze game!
+	0 :hide-heroine game!
+	null :fruit game!
+	[ ] :popups game!
+	after-death if 0 else null then :global-counter game!
+	after-death :elroy-suspended game! ;
+
+\ the maze, its colors and its bitmaps for the current level's act
+: choose-maze ( -- )
+	:level game@ act-of to act
+	act maze-of :maze game!
+	act act-colors to palette
+	palette :palette game!
+	palette 0 @i palette 1 @i maze-bitmap :walls game!
+	0xffffff 0xffffff maze-bitmap :white-walls game! ;
+
+\ a fresh maze for the current level
+: start-level ( -- )
+	choose-maze
+	fresh-dots :dots game!
+	:dots game@ 0 > sum :dots-left game!
+	0 :dots-eaten game!
+	0 reset-actors
+	0 :accumulated game!
+	:ready :mode game!
+	2 :timer game! ;
+
+\ the level a new game starts at: the whole number after --level on the command line, else 1
+: starting-level ( -- level )
+	args to arguments
+	1 to level
+	0 arguments size 1 do k
+		arguments k @i "--level" = if
+			k 1+ arguments size < if arguments k 1+ @i else "" then string>number to level
+		then
+	loop
+	level null? if "expected --level followed by a whole number of 1 or more" throw then
+	level 1 < level dup truncate = not or if "expected --level followed by a whole number of 1 or more" throw then
+	level ;
+
+starting-level to first-level
+
+\ a new game: the intro plays while READY! shows
+: start-game ( -- )
+	silence-audio settle-effects
+	null :background game!
+	0 :score game!
+	3 :lives game!
+	first-level :level game!
+	0 :bonus-given game!
+	start-level
+	4.2 :timer game!
+	queue-intro ;
+
+\ the title screen
+: enter-title ( -- )
+	silence-audio settle-effects
+	null :background game!
+	:title :mode game! ;
+
+\ the siren's pitch as the dots run out
+: siren-pitch ( -- pitch )
+	:dots-left game@ to left
+	left 180 > if :g4 exit then
+	left 120 > if :a4 exit then
+	left 60 > if :b4 exit then
+	left 20 > if :c#5 exit then
+	:d#5 ;
+
+\ the sound under the play: the eyes' while any fly home, the frightened siren, or the siren
+: wanted-background ( -- sound )
+	:mode game@ :playing = not :paused game@ or :freeze game@ 0 > or if null exit then
+	:ghosts game@ ( :state @ dup :eyes = swap :entering = or ) any? if [ :eyes-sound :c6 ] exit then
+	:fright-time game@ 0 > if [ :fright-siren :g4 ] exit then
+	[ :siren siren-pitch ] ;
+
+\ start the wanted background sound when it differs from the one playing
+: update-background ( -- )
+	wanted-background to wanted
+	:background game@ to playing
+	wanted playing = if exit then
+	playing null? not if playing 1 @i playing 0 @i note-off then
+	wanted null? not if wanted 1 @i 0.9 wanted 0 @i note-on then
+	wanted :background game! ;
+
+\ one 1/60 s of play
+: tick ( -- )
+	:freeze game@ 0 > if
+		:freeze game@ 1- :freeze game!
+		:freeze game@ 0 = if 0 :hide-heroine game! then
+		exit
+	then
+	:mode game@ :playing = not if exit then
+	read-arrows
+	advance-schedule
+	advance-fright
+	move-heroine
+	check-collisions
+	:mode game@ :playing = not :freeze game@ 0 > or if exit then
+	release-ghosts
+	:sue ghost-named :state @ :house = not if 0 :elroy-suspended game! then
+	:ghosts game@ ( move-ghost ) each
+	check-collisions
+	:mode game@ :playing = not if exit then
+	move-fruit
+	check-fruit
+	:dots-left game@ 0 = if start-clearing then ;
+
+\ the death: a second's freeze, the death sound as she spins, then the next life or the end
+: update-dying ( elapsed -- )
+	:timer game@ + :timer game!
+	:timer game@ 1 >= :death-sounded game@ 0= and if
+		1 :death-sounded game!
+		:a5 1 :death note-on
+		( :a5 :death note-off :a3 1 :death note-on ) 0.05 later
+		( :a3 :death note-off ) 1.3 later
+		( :c6 1 :chomp 0.1 sound ) 1.45 later
+		( :c6 1 :chomp 0.1 sound ) 1.6 later
+	then
+	:timer game@ 3 < if exit then
+	:lives game@ 1- :lives game!
+	:lives game@ 0 > if
+		1 reset-actors
+		:ready :mode game!
+		2 :timer game!
+		exit
+	then
+	:score game@ :high game@ max2 :high game!
+	:over :mode game!
+	3 :timer game! ;
+
+\ read the keys and advance the game by elapsed seconds
+: advance ( elapsed -- )
+	| elapsed |
+	:escape key-pressed? if 0 :running game! exit then
+	run-due-events
+	:mode game@ to mode
+	mode :title = if :return key-pressed? if start-game then exit then
+	:p key-pressed? mode :playing = and if :paused game@ 0= :paused game! then
+	update-background
+	:paused game@ if exit then
+	:popups game@ ( dup :life @ elapsed - :life ! drop ) each
+	:popups game@ ( :life @ 0 > ) filter :popups game!
+	mode :ready = if
+		:timer game@ elapsed - :timer game!
+		:timer game@ 0 <= if :playing :mode game! 0 :accumulated game! then
+		exit
+	then
+	mode :dying = if elapsed update-dying exit then
+	mode :cleared = if
+		:timer game@ elapsed + :timer game!
+		:timer game@ 3 >= if :level game@ 1+ :level game! start-level then
+		exit
+	then
+	mode :over = if
+		:timer game@ elapsed - :timer game!
+		:timer game@ 0 <= if enter-title then
+		exit
+	then
+	:steering game@ :view = if read-view-arrows then
+	:accumulated game@ elapsed + :accumulated game!
+	0 to steps
+	begin :accumulated game@ 1 60 / >= steps 4 < and while
+		tick
+		:accumulated game@ 1 60 / - :accumulated game!
+		steps 1+ to steps
+	repeat
+	:accumulated game@ 1 60 / min2 :accumulated game! ;
+
+\ === drawing ===
+
+24 constant maze-top
+
+\ the score line
+: draw-score-line ( -- )
+	:white ink
+	now 4 * truncate 2 mod 0= :mode game@ :title = or if 24 0 "1UP" print-at then
+	72 0 "HIGH SCORE" print-at
+	24 11 :score game@ "{0:02}" format print-at
+	96 11 :high game@ :score game@ max2 "{0:02}" format print-at ;
+
+\ the walls, flashing white while a cleared level ends, the house door, the dots and the blinking energizers
+: draw-maze ( -- )
+	:mode game@ :cleared = :timer game@ 1 > and now 5 * truncate 2 mod 0= and if :white-walls game@ else :walls game@ then
+	0 maze-top draw-bitmap
+	"#ffb8de" ink
+	104 maze-top 12 8 * + 5 + 16 2 fill-rect
+	:mode game@ :cleared = if exit then
+	:dots game@ to dots
+	:palette game@ 2 @i to dot-color
+	energizer-shape dot-color tint to energizer
+	now 5 * truncate 2 mod 0= :mode game@ :playing = not or to energizers-shown
+	dot-color ink
+	0 maze-height 1 do ty
+		0 maze-width 1 do tx
+			dots ty tx @i,j to dot
+			dot 1 = if tx 8 * 3 + ty 8 * maze-top + 3 + 2 2 fill-rect then
+			dot 2 = energizers-shown and if energizer tx 8 * ty 8 * maze-top + draw-bitmap then
+		loop
+	loop ;
+
+\ one ghost: its body or the frightened body, and its eyes
+: draw-ghost ( ghost -- )
+	| ghost |
+	ghost :x @ 7 - to left
+	ghost :y @ maze-top + 7 - to top
+	now 8 * truncate 2 mod to skirt
+	ghost :state @ to state
+	state :eyes = state :entering = or if eyes-facing ghost :dir @ @i left top draw-bitmap exit then
+	ghost :frightened @ if
+		flashing? if flashing-frames else frightened-frames then skirt @i left top draw-bitmap
+		exit
+	then
+	ghost :frames @ skirt @i left top draw-bitmap
+	eyes-facing ghost :dir @ @i left top draw-bitmap ;
+
+\ Ms. Pac-Man: her mouth frame, or spinning through the four directions as she dies
+: draw-heroine ( -- )
+	:hide-heroine game@ if exit then
+	:heroine game@ to heroine
+	heroine :x @ 6 - to left
+	heroine :y @ maze-top + 6 - to top
+	:mode game@ :dying = :timer game@ 1 >= and if
+		:timer game@ 2.5 >= if exit then
+		[ 0 3 2 1 ] :timer game@ 1 - 10 * truncate 4 mod @i to facing
+		heroine-facing facing @i 2 @i left top draw-bitmap
+		exit
+	then
+	heroine-facing heroine :dir @ @i heroine :frame @ truncate @i left top draw-bitmap ;
+
+\ the fruit, the ghosts, Ms. Pac-Man and the scores shown
+: draw-actors ( -- )
+	:fruit game@ to fruit
+	fruit null? not if fruit :kind @ fruit-bitmap fruit :x @ 6 - fruit :y @ maze-top + 6 - draw-bitmap then
+	:mode game@ :cleared = :mode game@ :dying = :timer game@ 1 >= and or not if
+		:ghosts game@ ( draw-ghost ) each
+	then
+	draw-heroine
+	:popups game@ ( popup | popup :color @ ink popup :x @ popup :y @ maze-top + popup :text @ print-at ) each ;
+
+\ the spare lives at the bottom left and the fruit of the levels played at the bottom right, seven at most
+: draw-bottom ( -- )
+	0 :lives game@ 1- 5 min2 1 do k
+		heroine-left 1 @i k 16 * 24 + 274 draw-bitmap
+	loop
+	0 :level game@ 7 min2 1 do k
+		fruit-table k @i 0 @i fruit-bitmap 196 k 16 * - 274 draw-bitmap
+	loop ;
+
+\ READY!, PAUSED or GAME  OVER in the space below the house
+: draw-banner ( -- )
+	:mode game@ :ready = if "#ffff00" ink 90 182 "READY!" print-at then
+	:paused game@ :mode game@ :playing = and if "#ffff00" ink 88 182 "PAUSED" print-at then
+	:mode game@ :over = if "#ff0000" ink 78 182 "GAME  OVER" print-at then ;
+
+\ the title, as the arcade's attract screen lists the cast: WITH each ghost, STARRING Ms. Pac-Man
+: draw-title ( -- )
+	"#ff0000" ink
+	76 40 "MS. PAC-MAN" print-at
+	:white ink
+	96 72 "WITH" print-at
+	[ [ "BLINKY" "#ff0000" ] [ "PINKY" "#ffb8ff" ] [ "INKY" "#00ffff" ] [ "SUE" "#ffb852" ] ] to cast
+	0 4 1 do k
+		cast k @i to member
+		member 1 @i ghost-frames now 8 * truncate 2 mod @i 64 k 22 * 92 + draw-bitmap
+		eyes-facing 3 @i 64 k 22 * 92 + draw-bitmap
+		member 1 @i ink
+		88 k 22 * 93 + member 0 @i print-at
+	loop
+	:white ink
+	84 184 "STARRING" print-at
+	heroine-right now 8 * truncate 4 mod @i 64 202 draw-bitmap
+	"#ffff00" ink
+	88 202 "MS. PAC-MAN" print-at
+	now 1.5 * truncate 2 mod 0= if "#ffff00" ink 72 230 "PRESS RETURN" print-at then
+	:gray ink
+	40 252 "ARROWS MOVE   P PAUSE" print-at
+	72 264 "ESCAPE QUITS" print-at ;
+
+\ one 2D screen frame: advance, then draw
+: frame ( elapsed -- )
+	advance
+	cls
+	draw-score-line
+	:mode game@ :title = if draw-title exit then
+	draw-maze
+	draw-actors
+	draw-bottom
+	draw-banner ;
+
+\ run frame-word ( elapsed -- ) once per screen frame until escape, each
+\ advanced by the measured time since the last, at most 1/20 s
+: run-frames ( frame-word -- )
+	| frame-word |
+	audio-on
+	enter-title
+	now to last
+	begin :running game@ while
+		now to moment
+		moment last - 0.05 min2 to elapsed
+		moment to last
+		elapsed frame-word screen-frame
+	repeat
+	silence-audio
+	audio-off ;
+
+\ the 2D game
+: play ( -- ) ' frame run-frames ;
