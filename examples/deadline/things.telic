@@ -1,0 +1,1704 @@
+\ Deadline: what the things do. A thing's handler is asked first whenever a
+\ command names the thing, directly or indirectly, and answers 1 when it
+\ dealt with the command, 0 to leave it to the action's default. The few
+\ things that can be sat on are also asked at the start (:begin) and end
+\ (:end) of every command given from them, and take no part then.
+
+\ whether anyone is in a room
+: inhabited? ( room -- flag )
+	| room |
+	room null? if false exit then
+	room contents-of ( item | item :person flag? ) find-first null? not ;
+
+"You would be an impolite guest to fool with these things without cause." to no-touch
+
+\ === the grounds ===
+
+: lawn-handler ( context -- result )
+	drop
+	[< :examine >] verb? not if 0 exit then
+	"The lawn is well manicured." tell-line
+	1 ;
+
+' lawn-handler :lawn handles
+
+: bay-window-handler ( context -- result )
+	drop
+	[< :look-inside >] verb? if
+		here :west-of-door = if
+			"You see the living room through the window." tell-line
+		else :gardener :south-lawn inside? if
+			"Through the bay windows the gardener, Mr. McNabb, can be seen " tell
+			lawn-activities pick-one tell
+			" on the south lawn." tell-line
+		else
+			"You can see the south lawn." tell-line
+		then then
+		1 exit
+	then
+	[< :open >] verb? :foyer :touched flag? not and if
+		"The window seems to be latched from the inside." tell-line
+		1 exit
+	then
+	0 ;
+
+' bay-window-handler :bay-window handles
+
+: rose-handler ( context -- result )
+	drop
+	[< :smell >] verb? if "They smell nice." tell-line 1 exit then
+	[< :examine >] verb? if
+		"There are rows of yellow, red, pink, and white roses here." tell-line
+		1 exit
+	then
+	[< :take >] verb? if
+		"Taking a rose would be most ungracious, and possibly dangerous if Mr. McNabb
+		found out." tell-line
+		1 exit
+	then
+	0 ;
+
+' rose-handler :rose handles
+
+: house-handler ( context -- result )
+	drop
+	[< :find >] verb? if "It's right here. Some inspector you are." tell-line 1 exit then
+	[< :through >] verb? if
+		here :front-path = :front-door :open flag? and if
+			:foyer true goto
+		else here :east-of-door = :bay-window :open flag? and if
+			:living-room true goto
+		else
+			"You might try the front door." tell-line
+		then then
+		1 exit
+	then
+	[< :examine >] verb? if
+		"The house is a magnificent New England colonial, like many other houses
+		around the lake. It is painted slate gray with white trim." tell-line
+		1 exit
+	then
+	0 ;
+
+' house-handler :house handles
+
+: ground-handler ( context -- result )
+	drop
+	[< :brush >] verb? :fragment :player inside? and :fragment-cleaned state not and if
+		:brush :fragment null perform drop
+		1 exit
+	then
+	[< :examine :search :search-around >] verb? not if 0 exit then
+	here :rourke-room = if "The floor is hardwood." tell-line 1 exit then
+	here :foyer = if "The floor is marble." tell-line 1 exit then
+	here :in-roses = not if "You don't find anything new there." tell-line 1 exit then
+	:hole :invisible flag? not if
+		:search-around :hole null perform drop
+		1 exit
+	then
+	"There are rows upon rows of roses here. It would take you the best part of
+	a day to search the ground in great detail." tell-line
+	1 ;
+
+' ground-handler :ground handles
+
+\ a breeze through the first open door among the room's exits; true when there is one
+: fresh-air? ( -- flag )
+	here :exits property to exits
+	exits null? if false exit then
+	compass [ :in :out ] concat ( direction |
+		exits direction null @or to way
+		way null? if false exit then
+		way exit-kind :door = if way :door @ :open flag? else false then
+	) find-first to direction
+	direction null? if false exit then
+	"There is a pleasant breeze coming through the " tell
+	exits direction @ :door @ tell-name
+	"." tell-line
+	true ;
+
+: air-handler ( context -- result )
+	drop
+	[< :smell >] verb? not if 0 exit then
+	[ :rose-garden :in-roses ] here position-of 0 >= if
+		"The smell of roses permeates everything." tell-line
+	else [ :north-lawn :east-lawn :west-lawn ] here position-of 0 >= if
+		"A breeze carries the faint smell of roses through the air." tell-line
+	else here :line property outside-line = if
+		"The air is clear and fresh here." tell-line
+	else fresh-air? not if
+		"The air is rather musty here." tell-line
+	then then then then
+	1 ;
+
+' air-handler :air handles
+
+: lake-handler ( context -- result )
+	drop
+	[< :swim :leap :through >] verb? if
+		"You're not on vacation, but with ideas like that you will probably be given
+		a rather long one." tell-line
+		1 exit
+	then
+	[< :look-inside :examine >] verb? if
+		here :north-lawn = :soggy-will :lake inside? and if
+			"A crumpled piece of paper is floating on the water a few feet from shore.
+			With an uncommonly agile motion, you retrieve the drenched paper." tell-line
+			:soggy-will winner move-to
+		else
+			"Surely you don't suspect the fish also?" tell-line
+		then
+		1 exit
+	then
+	0 ;
+
+' lake-handler :lake handles
+
+: shed-handler ( context -- result )
+	drop
+	[< :through >] verb? if
+		[ :east-lawn :behind-shed ] here position-of 0 >= if
+			:shed-room true goto
+		else
+			"Senility strikes!" tell-line
+		then
+		1 exit
+	then
+	[< :listen >] verb? if
+		:secret-meeting state 0 = if 0 exit then
+		"You hear two muffled voices inside the shed." tell-line
+		1 exit
+	then
+	[< :hide-behind >] verb? if
+		here :east-lawn = if
+			"You carefully sneak behind the shed. It seems that no one saw you." tell-line
+		else
+			"You leave the shed and quietly slip behind it. Nobody appears to have seen
+			you." tell-line
+		then
+		:behind-shed true goto
+		1 exit
+	then
+	0 ;
+
+' shed-handler :shed handles
+
+: tools-handler ( context -- result )
+	drop
+	[< :take >] verb? not if 0 exit then
+	"The tools are standard gardening tools, in excellent condition. You have no
+	use for them, unless you are looking for a new profession." tell-line
+	1 ;
+
+' tools-handler :tools handles
+
+: shed-shelves-handler ( context -- result )
+	drop
+	[< :examine >] verb? not if 0 exit then
+	"The shelves contain various garden tools." tell-line
+	1 ;
+
+' shed-shelves-handler :s-shelves handles
+
+: ladder-handler ( context -- result )
+	drop
+	[< :put >] verb? indirect :hole = and if
+		"The ladder fits perfectly in the holes! You slowly release the
+		ladder and it rests on the railing of the balcony above." tell-line
+		true :ladder-flag state!
+		:ladder here move-to
+		true :ladder-positioned state!
+		:ladder :undescribed set-flag
+		1 exit
+	then
+	[< :climb-up >] verb? :ladder-flag state not and :ladder-flag-2 state not and if
+		"Climbing a ladder while it is horizontal is, at best, a contradiction
+		in terms." tell-line
+		1 exit
+	then
+	[< :lean >] verb? [< :house :balcony >] indirect has? and if
+		here :in-roses = if
+			true :ladder-flag state!
+			false :ladder-flag-2 state!
+			true :ladder-positioned state!
+			:ladder here move-to
+			"The ladder is now leaning against the railing of a balcony above." tell-line
+		else here :in-orchard = if
+			false :ladder-flag state!
+			true :ladder-flag-2 state!
+			:ladder here move-to
+			"The ladder, firmly planted in the soil of the orchard, is now leaning
+			against the balcony above." tell-line
+		else
+			"There is no good spot to lean it against here." tell-line
+			1 exit
+		then then
+		:ladder :undescribed set-flag
+		1 exit
+	then
+	[< :take :move >] verb? if
+		:ladder :undescribed clear-flag
+		false :ladder-flag state!
+		false :ladder-flag-2 state!
+		0 exit
+	then
+	[< :examine >] verb? if
+		"The ladder is a typical gardening ladder, about fifteen feet long and caked
+		with dirt and dried mud." tell-line
+		1 exit
+	then
+	0 ;
+
+' ladder-handler :ladder handles
+
+\ the ladder seen from the balcony it leans against
+: global-ladder-handler ( context -- result )
+	drop
+	here :library-balcony = :ladder-flag state and
+	here :bedroom-balcony = :ladder-flag-2 state and or not if 0 exit then
+	[< :take >] verb? if "It's too difficult from here." tell-line 1 exit then
+	[< :rub >] verb? if 0 exit then
+	[< :examine >] verb? if
+		"The top of the ladder is visible, but the rest is hard to see." tell-line
+		1 exit
+	then
+	"You can't do that from here." tell-line
+	1 ;
+
+' global-ladder-handler :global-ladder handles
+
+[ "You are making quite a mess, but you do run across some tiny pieces of a
+  hard, shiny substance, which drop from your fingers and back onto the ground."
+  "Although everything is coming up roses, you haven't found anything unusual
+  except for a few pieces of a hard substance which fall back to the ground."
+] to rose-digs
+
+: hole-handler ( context -- result )
+	drop
+	:hole-tell state not if "What hole?" tell-line 1 exit then
+	[< :ask-about >] verb? if 0 exit then
+	[< :find >] verb? if
+		here :in-roses = not if
+			"They're among the roses, or have you forgotten?" tell-line
+		else :hole :invisible flag? not if
+			"They're right here!" tell-line
+		else :hole-shown state if false else 80 probability then if
+			"The rose garden is vast and full of thorny roses. You might look
+			for the rest of the day before you find them." tell-line
+		else
+			"The garden is rather big, even just the area you are searching now, and the
+			holes were small. They're not here, but are probably nearby." tell-line
+		then then then
+		1 exit
+	then
+	object :hole = indirect :hole = or not if
+		"There is no hole here." tell-line
+		1 exit
+	then
+	[< :examine :look-inside >] verb? if
+		"There are two holes here, each about two inches by four inches. They are at
+		least three inches deep and the soil is compacted around them." tell-line
+		1 exit
+	then
+	[< :search-ground-around >] verb? object :ground = and [< :search-around >] verb? or not if 0 exit then
+	:gardener location-of here = if
+		"Mr. McNabb watches you with ill-concealed irritation." tell-line
+	then
+	:fragment-found state if
+		"Aside from dirt, organic fertilizer, and small crawly creatures, you turn
+		up nothing but roses." tell-line
+		1 exit
+	then
+	:rst state 1+ dup :rst state! to digs
+	digs 2 > if true else 30 probability then if
+		"Ouch! You cut your finger on a sharp edge as you dig. You search carefully
+		in the dirt, now that you are sure something is there, and pull up a piece
+		of porcelain, covered with dirt and dried mud." tell-line
+		:fragment this-is-it
+		:fragment winner move-to
+		:fragment :invisible clear-flag
+		true :fragment-found state!
+		true :fragment-felt state!
+		1 exit
+	then
+	rose-digs digs 1- @i tell-line
+	1 ;
+
+' hole-handler :hole handles
+
+: fragment-handler ( context -- result )
+	drop
+	[< :examine >] verb? if
+		:fragment-cleaned state if
+			"The fragment is beautifully hand-painted" tell
+			true :fragment-flag state!
+			:china-examined state if
+				", exactly like those you
+				saw in the kitchen" tell
+			then
+			"." tell-line
+		else
+			"The piece of porcelain is filthy, coated with dried mud. You can barely
+			make out some design underneath the dirt." tell-line
+		then
+		1 exit
+	then
+	[< :fingerprint >] verb? if
+		"It's covered with dirt and mud. You realize that there would be no good
+		fingerprints on it." tell-line
+		1 exit
+	then
+	[< :analyze >] verb? if analyze-in-laboratory exit then
+	[< :brush >] verb? if
+		true :fragment-cleaned state!
+		"As you wipe off the piece of porcelain, you notice that it is a fragment of
+		some very beautiful piece, handsomely painted." tell
+		:china-examined state if
+			"  The markings are identical
+			to those you saw on the china in the kitchen." tell
+		then
+		end-line
+		1 exit
+	then
+	0 ;
+
+' fragment-handler :fragment handles
+
+: fruit-trees-handler ( context -- result )
+	drop
+	[< :pick :eat :take >] verb? not if 0 exit then
+	"The fruits are not abundant, and those within reach are far from ripe." tell-line
+	1 ;
+
+' fruit-trees-handler :fruit-trees handles
+
+: berry-bush-handler ( context -- result )
+	drop
+	[< :pick :eat :take >] verb? not if 0 exit then
+	"You pick a few berries and pop them into your mouth. Delicious!" tell-line
+	1 ;
+
+' berry-bush-handler :berry-bush handles
+
+: grape-arbor-handler ( context -- result )
+	drop
+	[< :eat >] verb? not if 0 exit then
+	"You pick a few grapes and eat them. Mmmm!" tell-line
+	1 ;
+
+' grape-arbor-handler :grape-arbor handles
+
+: tree-tops-handler ( context -- result )
+	drop
+	"You can't reach the tree tops from here." tell-line
+	1 ;
+
+' tree-tops-handler :tree-tops handles
+
+\ === doors and windows ===
+
+{ :master-bedroom-door :master-bedroom :george-door :george-room
+  :dunbar-door :dunbar-room :rourke-door :rourke-room
+} to rooms-behind-doors
+
+: door-handler ( context -- result )
+	drop
+	[< :listen >] verb? if "You can't hear anything through the door." tell-line 1 exit then
+	[< :knock >] verb? not if 0 exit then
+	object :front-door = :welcomed state not and present-time 700 < and here :front-path = and if
+		"You hear footsteps inside the house. Mrs. Robner, dressed in black,
+		opens the door and greets you." tell-line
+		welcome
+		1 exit
+	then
+	rooms-behind-doors object null @or inhabited? if
+		"A muffled voice says, ""Come in!""" tell-line
+	else
+		"There is no answer at the door." tell-line
+	then
+	1 ;
+
+' door-handler :door handles
+
+: master-bedroom-door-handler ( context -- result )
+	| context |
+	[< :listen >] verb? :call-in-progress state and if
+		"You can hear the muffled voice of Mrs. Robner through the door." tell-line
+		1 exit
+	then
+	[< :knock >] verb? not if 0 exit then
+	:call-in-progress state not if context door-handler exit then
+	"Mrs. Robner's calls out. ""Wait just one minute!""" tell-line
+	1 ;
+
+' master-bedroom-door-handler :master-bedroom-door handles
+
+: balcony-door-handler ( context -- result )
+	drop
+	[< :hide-behind >] verb? if
+		object :open flag? not if
+			"You open the balcony door carefully." tell-line
+			object :open set-flag
+		then
+		here :library = if
+			:library-balcony
+		else here :library-balcony = if
+			:library
+		else here :master-bedroom = if
+			:bedroom-balcony
+		else
+			:master-bedroom
+		then then then true goto
+		1 exit
+	then
+	[< :look-inside >] verb? if
+		[ :master-bedroom :library ] here position-of 0 >= if
+			"You can see the balcony, but not much beyond." tell-line
+		else here :library-balcony = if
+			"You can see into the library from here." tell-line
+		else
+			"You can see the bedroom from here." tell-line
+		then then
+		1 exit
+	then
+	0 ;
+
+' balcony-door-handler :balcony-door handles
+
+\ what a dirty window answers to
+: dirty-window ( -- result )
+	[< :mung >] verb? if
+		"Vandalism is not the answer! Think of your position. How would
+		it look for a famous police inspector to be arrested?" tell-line
+		1 exit
+	then
+	[< :brush >] verb? if
+		"You think you're clever, don't you? The window is so dirty that
+		it isn't easily cleaned." tell-line
+		1 exit
+	then
+	[< :look-inside >] verb? if
+		"The window is dirty and impossible to see through clearly." tell-line
+		1 exit
+	then
+	0 ;
+
+: window-handler ( context -- result ) drop dirty-window ;
+
+' window-handler :window handles
+
+\ a knock on the window of a room someone is in
+: window-knock ( room -- result )
+	inhabited? not if 0 exit then
+	"Someone looks up at you disgustedly." tell-line
+	1 ;
+
+\ the people in a room, each told as being there when asked
+: population ( room tell? -- n )
+	| room tell? |
+	room contents-of ( item | item :person flag? ) filter to people
+	tell? if people ( person | person tell-name " is there." tell-line ) each then
+	people size ;
+
+\ how many people can be seen through a window into a room
+: window-shop ( room text -- )
+	| room text |
+	room false population to n
+	n 0 = if end-line exit then
+	" You can vaguely see " tell
+	n 1 = if "someone" tell else n tell-number " people" tell then
+	" inside the " tell text tell "." tell-line ;
+
+: kitchen-window-handler ( context -- result )
+	drop
+	[< :mung :brush >] verb? if dirty-window exit then
+	[< :open >] verb? if "The window can't be opened." tell-line 1 exit then
+	[< :knock >] verb? if here :kitchen = if :orchard else :kitchen then window-knock exit then
+	[< :look-inside >] verb? if
+		here :kitchen = if
+			"You can barely see through the thick leaves of the grape arbor,
+			but a lawn and lake can be seen in the distance." tell-line
+		else
+			"You can see the kitchen beyond the tangle of trees and branches." tell
+			:kitchen "kitchen" window-shop
+		then
+		1 exit
+	then
+	0 ;
+
+' kitchen-window-handler :kitchen-window handles
+
+: shed-window-handler ( context -- result )
+	drop
+	[< :mung :brush >] verb? if dirty-window exit then
+	[< :open >] verb? if "The window can't be opened." tell-line 1 exit then
+	:secret-meeting state to meeting
+	[< :listen >] verb? meeting 0 > and if "You can't make out any of the words." tell-line 1 exit then
+	[< :look-inside >] verb? not if 0 exit then
+	here :shed-room = if
+		"Although the window is grimy, you can make out the lawn outside. " tell
+		:east-lawn "east lawn" window-shop
+	else meeting 4 = if
+		"Mr. Baxter seems furious and about to strike Ms. Dunbar, then calms himself.
+		Ms. Dunbar starts to cry and is embraced by Mr. Baxter." tell-line
+	else meeting 2 > if
+		"Mr. Baxter and Ms. Dunbar are inside. Although you can't hear them, it's
+		clear from their gestures that a serious argument is occurring. Dunbar appears
+		very upset and breaks into tears. Baxter remains composed, but tense and  perhaps
+		angry -- you can't be sure." tell-line
+	else meeting 0 > if
+		"Through the grimy window you see Mr. Baxter and Ms. Dunbar talking. Dunbar
+		is doing most of the talking, barely restraining tears. Baxter is listening,
+		nodding grimly, and occassionally saying a few words. Unfortunately, you can't
+		make any of them out." tell-line
+	else
+		"You can vaguely make out the inside of the shed through the grime. " tell
+		:shed-room "shed" window-shop
+	then then then then
+	1 ;
+
+' shed-window-handler :shed-window handles
+
+: dining-room-window-handler ( context -- result )
+	drop
+	[< :mung >] verb? if dirty-window exit then
+	[< :open >] verb? if "The window can't be opened." tell-line 1 exit then
+	[< :look-inside >] verb? not if 0 exit then
+	here :rose-garden = if
+		"You can see the dining room through the window." tell
+		:dining-room "dining room" window-shop
+	else here :in-roses = if
+		"You can see the dining room pretty clearly through the window." tell-line
+		:dining-room true population drop
+	else
+		"Through the window, the rose garden can be seen, and, off to
+		the north, a wide lawn ending on a blue lake." tell-line
+	then then
+	1 ;
+
+' dining-room-window-handler :dining-room-window handles
+
+: guest-window-handler ( context -- result )
+	drop
+	[< :look-inside >] verb? if
+		"From here you have a good view of the east lawn, a shed, and the
+		lake in the background." tell-line
+		512 :guest-room :corridor property!
+		look-along-corridors
+		:i-window-look 2 queue enable
+		1 exit
+	then
+	[< :open >] verb? if "This window cannot be opened." tell-line 1 exit then
+	0 ;
+
+' guest-window-handler :guest-window handles
+
+\ the view from the guest room window lasts two minutes
+: window-look-ends ( context -- result )
+	drop
+	0 :guest-room :corridor property!
+	0 ;
+
+' window-look-ends :i-window-look handles
+
+: corridor-window-handler ( context -- result )
+	drop
+	[< :look-inside >] verb? not if 0 exit then
+	"You can see the west lawn through the window." tell-line
+	1 ;
+
+' corridor-window-handler :corridor-window handles
+
+\ === the house ===
+
+: global-house-handler ( context -- result )
+	drop
+	[< :walk-around >] verb? not if 0 exit then
+	"Use directions to move around inside the house." tell-line
+	1 ;
+
+' global-house-handler :global-house handles
+
+: global-room-handler ( context -- result )
+	drop
+	[< :through >] verb? if do-walk-around exit then
+	[< :knock >] verb? if
+		here :upstairs-closet = if
+			"The wall to the north here sounds unusually hollow."
+		else here :line property outside-line = if
+			"You're acting very strangely!"
+		else
+			"Knocking on the walls reveals nothing unusual."
+		then then tell-line
+		1 exit
+	then
+	[< :look-inside >] verb? here :corridor-2 = and if
+		"From here, it looks quite ordinary." tell-line
+		1 exit
+	then
+	[< :search :examine >] verb? not if 0 exit then
+	here :line property outside-line = if
+		10
+	else here corridor-bits 0 = not if
+		3
+	else
+		here :size property 2 +
+	then then to minutes
+	"An exhaustive search of even a single room would take hours. A more
+	productive approach would be to examine or search various items of interest
+	within the room. A cursory search would take on the order of " tell minutes tell-number "
+	minutes, but it wouldn't reveal much. Would you like to do it anyway? (Y/N)" tell
+	yes? if
+		minutes int-wait if
+			"Your brief search revealed nothing that was not obvious before." tell-line
+		else
+			"You didn't get a chance to finish looking over the room." tell-line
+		then
+	else
+		"Ok." tell-line
+	then
+	1 ;
+
+' global-room-handler :global-room handles
+
+: global-here-handler ( context -- result )
+	drop
+	[< :what :ask-about >] verb? not if 0 exit then
+	here contents-of ( item | item :person flag? item :player = not and ) filter to others
+	others ( person | person true 0 describe-object ) each
+	others size 0 = if "There's nobody else here." tell-line then
+	1 ;
+
+' global-here-handler :global-here handles
+
+: portraits-handler ( context -- result )
+	drop
+	[< :examine >] verb? if
+		"There are five portraits: two on each side of and one above the bay window.
+		The fading portraits are of members of the Phillips family, among the oldest
+		in New England." tell-line
+		1 exit
+	then
+	[< :take >] verb? if no-touch tell-line 1 exit then
+	0 ;
+
+' portraits-handler :portraits handles
+
+: living-room-cabinets-handler ( context -- result )
+	drop
+	[< :examine >] verb? not if 0 exit then
+	"The cabinets are beautifully handworked walnut and mahogany." tell-line
+	1 ;
+
+' living-room-cabinets-handler :lr-cabinets handles
+
+: seurat-handler ( context -- result )
+	drop
+	[< :examine >] verb? if
+		"The painting by Seurat is a cheerful design which suits the bright decor of
+		the dining room. It must be worth a fortune." tell-line
+		1 exit
+	then
+	[< :take >] verb? if no-touch tell-line 1 exit then
+	0 ;
+
+' seurat-handler :seurat handles
+
+: paintings-handler ( context -- result )
+	drop
+	[< :examine >] verb? if
+		"The paintings are by various artists. They are brightly colored (but not
+		overly loud) works of cheerful outdoor scenes and still-lifes. They give the
+		room a light and pleasant feel." tell-line
+		1 exit
+	then
+	[< :take >] verb? if no-touch tell-line 1 exit then
+	0 ;
+
+' paintings-handler :paintings handles
+
+: appliance-handler ( context -- result )
+	drop
+	[< :take :use >] verb? not if 0 exit then
+	"The appliances here are useful in preparing meals, cleaning dishes, and the
+	like. It is unlikely that Mrs. Rourke would like you using them." tell-line
+	1 ;
+
+' appliance-handler :appliance handles
+
+: silverware-handler ( context -- result )
+	drop
+	[< :take >] verb? if
+		"Although the set would make a fine addition to your home, you resist the
+		temptation. You would never get away with it anyway, as Mrs. Robner will no
+		doubt count the silverware upon your departure." tell-line
+		1 exit
+	then
+	[< :count >] verb? if "There are 16 complete sets of silver." tell-line 1 exit then
+	[< :examine >] verb? if "The silver is of the finest quality and design." tell-line 1 exit then
+	0 ;
+
+' silverware-handler :silverware handles
+
+: glasses-handler ( context -- result )
+	drop
+	[< :count >] verb? if "There are at least two dozen." tell-line 1 exit then
+	[< :take >] verb? if no-touch tell-line 1 exit then
+	0 ;
+
+' glasses-handler :glasses handles
+
+: foods-handler ( context -- result )
+	drop
+	[< :eat >] verb? not if 0 exit then
+	"Although manners are not taught at the Academy, surely your mother must have
+	given you some sense of proper behavior." tell-line
+	1 ;
+
+' foods-handler :foods handles
+
+: random-meal-handler ( context -- result )
+	drop
+	[< :eat :find >] verb? if
+		"Although rather hungry, you realize that the case is too important
+		for you to be eating meals." tell-line
+	else
+		"What a strange notion!" tell-line
+	then
+	1 ;
+
+' random-meal-handler :random-meal handles
+
+\ the fine china in the kitchen, used only by Mr. Robner
+: fine-china ( -- result )
+	[< :take :rub :move >] verb? if
+		"These items are very rare and delicate, and were used only by Mr.
+		Robner himself.  You shouldn't even be touching them." tell-line
+		1 exit
+	then
+	[< :examine >] verb? if
+		"Each one is hand-painted and depicts a scene from Greek mythology." tell-line
+		true :china-examined state!
+		1 exit
+	then
+	[< :mung >] verb? not if 0 exit then
+	75 probability if
+		"As you reach for the " tell object tell-name ", you think of the pension awaiting you
+		upon retirement. ""Is it worth it?"" you think, to be booted off the force
+		for an impulse of anger and stupidity. Fortunately, you calm your temper." tell-line
+		1 exit
+	then
+	"With a sweep of your hand, you smash all of them!
+	Mrs. Rourke runs into the room, screaming." tell-line
+	gone-crazy
+	1 ;
+
+\ a piece of the china, which counts as the text says
+: china-piece ( count-text -- result )
+	| count-text |
+	[< :take :rub :move :examine :mung >] verb? if fine-china exit then
+	[< :count >] verb? not if 0 exit then
+	count-text tell-line
+	1 ;
+
+: cups-handler ( context -- result ) drop "There are six hand-painted cups." china-piece ;
+
+' cups-handler :cups handles
+
+: saucers-handler ( context -- result ) drop "There are seven hand-painted saucers." china-piece ;
+
+' saucers-handler :saucers handles
+
+: china-handler ( context -- result )
+	drop
+	"There are eight large and small plates, seven saucers, and six cups." china-piece ;
+
+' china-handler :china handles
+
+: plates-handler ( context -- result )
+	drop
+	"There are eight of both the large and the small plates." china-piece ;
+
+' plates-handler :plates handles
+
+: liquor-handler ( context -- result )
+	drop
+	[< :drink >] verb? not if 0 exit then
+	:drunk-flag state if
+		"It's one thing to take a bracer on occasion, but you must resist
+		the temptation to indulge too often." tell-line
+	else
+		"You take a small swig of the golden fluid, which burns as it goes
+		down." tell-line
+		true :drunk-flag state!
+	then
+	1 ;
+
+' liquor-handler :liquor handles
+
+: stereo-handler ( context -- result )
+	drop
+	[< :lamp-on >] verb? if
+		"The stereo is now on." tell-line
+		true :stereo-on state!
+		1 exit
+	then
+	[< :lamp-off >] verb? if
+		:tune-on state :george here inside? and if
+			"George turns toward you in disgust as you turn off the " tell :tune-on state tell "." tell-line
+		else
+			"The stereo is now off." tell-line
+		then
+		false :stereo-on state!
+		false :tune-on state!
+		:i-tune-off 0 queue drop
+		1 exit
+	then
+	[< :turn-up >] verb? if
+		:tune-on state if
+			"The " tell :tune-on state tell " is already quite loud. Any louder would probably
+			disturb the rest of the house." tell-line
+		else
+			"It's not on!" tell-line
+		then
+		1 exit
+	then
+	[< :turn-down >] verb? if
+		:tune-on state not if
+			"It's not on!" tell-line
+		else :george here inside? if
+			"George stops you from turning down the volume. He is practically
+			addicted to the " tell :tune-on state tell "." tell-line
+		else
+			"You can't." tell-line
+		then then
+		1 exit
+	then
+	[< :listen >] verb? if
+		:tune-on state if "You can hardly avoid it." else "Nothing's playing." then tell-line
+		1 exit
+	then
+	0 ;
+
+' stereo-handler :stereo handles
+
+: records-handler ( context -- result )
+	drop
+	[< :play :listen >] verb? if
+		"You pick a record at random and start it playing. It is a " tell
+		record-table pick-one :tune-on state!
+		:tune-on state tell "." tell-line
+		:i-tune-off 20 queue enable
+		1 exit
+	then
+	[< :examine >] verb? if
+		"This is a large collection, with many different types of music represented.
+		George is evidently not very particular when it comes to music." tell-line
+		1 exit
+	then
+	0 ;
+
+' records-handler :records handles
+
+: tapes-handler ( context -- result )
+	drop
+	[< :play :listen >] verb? if
+		"You pick one at random and start it up. What you hear is a " tell
+		tape-table pick-one :tune-on state!
+		:i-tune-off 30 queue enable
+		:tune-on state tell "." tell-line
+		1 exit
+	then
+	[< :examine >] verb? if
+		"George's collection of tapes is large and quite odd in its variety of
+		music." tell-line
+		1 exit
+	then
+	0 ;
+
+' tapes-handler :tapes handles
+
+: closet-stuff-handler ( context -- result )
+	drop
+	[< :take :move :use >] verb? if "You have no need for them." tell-line 1 exit then
+	[< :search :examine >] verb? if
+		"You go through the" tell tell-direct-phrase " and find nothing of interest." tell-line
+		1 exit
+	then
+	0 ;
+
+' closet-stuff-handler :closet-stuff handles
+
+: master-bedroom-dresser-handler ( context -- result )
+	drop
+	[< :examine >] verb? if "The dresser is a beautiful piece of cabinetry." tell-line 1 exit then
+	[< :look-inside :search :open >] verb? if
+		"You open all of the drawers, but find only a variety of stockings,
+		undergarments, and handkerchiefs." tell-line
+		1 exit
+	then
+	0 ;
+
+' master-bedroom-dresser-handler :master-bedroom-dresser handles
+
+: bed-handler ( context -- result )
+	| context |
+	context null? not if 0 exit then
+	[< :look-under >] verb? not if 0 exit then
+	"No doubt you are looking for the bogeyman, but you are out of luck." tell-line
+	1 ;
+
+' bed-handler :bed handles
+
+: shower-handler ( context -- result )
+	drop
+	[< :take :through >] verb? not if 0 exit then
+	"Being unusually grubby, even for a police detective, this is one of your
+	better ideas so far on this case. However, your attire isn't suitable, and
+	you probably have better things to do." tell-line
+	1 ;
+
+' shower-handler :shower handles
+
+: toilet-handler ( context -- result )
+	| context |
+	context null? not if 0 exit then
+	[< :examine :look-inside >] verb? if
+		"You have stooped to a new low, snooping around toilet bowls. Wait! Something
+		catches your eye--was it the Tidy-Bowl man? Is he the murderer? Naw..." tell-line
+		1 exit
+	then
+	[< :flush >] verb? if "Whhoooossshhhhh!" tell-line 1 exit then
+	0 ;
+
+' toilet-handler :toilet handles
+
+: sink-handler ( context -- result )
+	drop
+	[< :lamp-on >] verb? not if 0 exit then
+	"You turn the handle and lo! Water starts to run. Impressed, you turn the
+	handle again, and the water stops running! Bravo!" tell-line
+	1 ;
+
+' sink-handler :sink handles
+
+: bathroom-mirror-handler ( context -- result )
+	drop
+	[< :mung >] verb? if "Don't you know it's bad luck to break mirrors?" tell-line 1 exit then
+	[< :look-inside >] verb? if
+		"A weary Police Inspector looks back at you, with
+		a look that seems to be saying ""Look what the cat dragged in.""" tell-line
+		1 exit
+	then
+	0 ;
+
+' bathroom-mirror-handler :bathroom-mirror handles
+
+: medicine-bottle-handler ( context -- result )
+	drop
+	[< :count >] verb? not if 0 exit then
+	"It's hard to tell with the bottle closed." tell-line
+	1 ;
+
+' medicine-bottle-handler :medicine-bottle handles
+
+\ pills that answer to tasting, smelling, eating and examining with these texts
+: pills ( taste smell eat look -- result )
+	| taste smell eat look |
+	[< :taste >] verb? if taste tell-line 1 exit then
+	[< :smell >] verb? if smell tell-line 1 exit then
+	[< :eat >] verb? if eat tell-line 1 exit then
+	[< :examine >] verb? if look tell-line 1 exit then
+	0 ;
+
+: loblo-handler ( context -- result )
+	drop
+	"The pills are virtually tasteless." "The pills are odorless."
+	"Nervous? Blood Pressure high? See a doctor." "These are small, yellow pills." pills ;
+
+' loblo-handler :loblo handles
+
+: sneezo-handler ( context -- result )
+	drop
+	"The pills are virtually tasteless." "The pills are odorless."
+	"You must realize that you aren't sick." "These are small, white pills." pills ;
+
+' sneezo-handler :sneezo handles
+
+: allergone-handler ( context -- result )
+	drop
+	"The pills are bitter on the tongue." "The pills are odorless."
+	"The only allergy you seem to have is to work." "These are tiny red pills." pills ;
+
+' allergone-handler :allergone handles
+
+: ebullion-handler ( context -- result )
+	drop
+	"The pills are quite bitter." "The pills have a faint pungent aroma."
+	"Are you depressed? Given your performance on this case, that isn't
+	surprising. In any event, you shouldn't take other people's medicine!"
+	"These are little white pills." pills ;
+
+' ebullion-handler :ebullion handles
+
+: dum-kof-handler ( context -- result )
+	drop
+	[< :drink >] verb? if
+		"You drink the remaining cough syrup. Yuk! That was awful!" tell-line
+		:dum-kof remove-thing
+		1 exit
+	then
+	[< :taste >] verb? if "Yuk! It tastes like cough medicine!" tell-line 1 exit then
+	0 ;
+
+' dum-kof-handler :dum-kof handles
+
+\ === the library, the hidden closet and the balconies ===
+
+: bookshelves-handler ( context -- result )
+	drop
+	[< :take >] verb? indirect :bookshelves = and if
+		"That would make an ungodly pile of books on the floor and take most of
+		the day." tell-line
+		1 exit
+	then
+	[< :take >] verb? if
+		"You have better things to do than taking books from the shelves." tell-line
+		1 exit
+	then
+	[< :read >] verb? if
+		"Reading, while educational, will not help you solve this case." tell-line
+		1 exit
+	then
+	[< :look-behind >] verb? if
+		"It would take all day to look behind all of the books." tell-line
+		1 exit
+	then
+	[< :examine :search >] verb? not if 0 exit then
+	"The shelves contain many books and manuscripts covering a wide range of
+	subjects. They are meticulously arranged." tell-line
+	:george-moves-books state :books-moved state adverb "carefully" key-is? and or if
+		"One book is out of place, however, leaving a gap in one row. On closer
+		inspection, a small black button can be seen at the back of this gap." tell-line
+		true :button-revealed state!
+		:library-button :invisible clear-flag
+	then
+	1 ;
+
+' bookshelves-handler :bookshelves handles
+
+: library-button-handler ( context -- result )
+	drop
+	[< :push >] verb? not if 0 exit then
+	:hidden-door-l :open flag? if
+		"The bookshelf on the left quietly swings shut." tell-line
+		:hidden-door-l :open clear-flag
+	else
+		"The leftmost shelf quietly swings out against the balcony window." tell-line
+		:hidden-door-l :open set-flag
+	then
+	1 ;
+
+' library-button-handler :library-button handles
+
+: red-button-handler ( context -- result )
+	drop
+	[< :push >] verb? not if 0 exit then
+	:hidden-door-l :open flag? if
+		:hidden-door-l :open clear-flag
+		"The wall to the west silently closes." tell-line
+	else
+		:hidden-door-l :open set-flag
+		"The wall to the west swings open, revealing the library on the other
+		side." tell-line
+	then
+	1 ;
+
+' red-button-handler :red-button handles
+
+: blue-button-handler ( context -- result )
+	drop
+	[< :push >] verb? not if 0 exit then
+	:hidden-door-b :open flag? if
+		:hidden-door-b :open clear-flag
+		"The wall to the east swings closed." tell-line
+		1 exit
+	then
+	:hidden-door-b :open set-flag
+	"The wall to the east swings open, revealing the master bedroom on the
+	other side." tell-line
+	:hc-robner state not :mrs-robner :master-bedroom inside? and if
+		"Mrs. Robner, sitting on her bed, appears stunned. She walks over and peeks
+		in, speaks of her complete surprise at the presence of such a place, and
+		returns to her bed, somewhat shaken." tell-line
+		true :hc-robner state!
+	then
+	1 ;
+
+' blue-button-handler :blue-button handles
+
+: safe-handler ( context -- result )
+	drop
+	[< :open >] verb? :safe :open flag? not and if "The safe is locked." tell-line 1 exit then
+	[< :close :lock >] verb? :safe :open flag? and if
+		"The safe closes and locks." tell-line
+		:safe :open clear-flag
+		1 exit
+	then
+	[< :lock >] verb? if "It already is." tell-line 1 exit then
+	[< :unlock >] verb? if "You don't know the combination." tell-line 1 exit then
+	[< :look-inside :examine >] verb? if :baxter-papers :invisible clear-flag then
+	0 ;
+
+' safe-handler :safe handles
+
+: library-desk-handler ( context -- result )
+	drop
+	[< :look-inside >] verb? not if 0 exit then
+	"There's nothing of interest in the desk." tell-line
+	1 ;
+
+' library-desk-handler :library-desk handles
+
+: library-carpet-handler ( context -- result )
+	drop
+	[< :look-under >] verb? if
+		"The carpeting is wall-to-wall so you can't look under it." tell-line
+		1 exit
+	then
+	[< :examine >] verb? not if 0 exit then
+	"The carpet is an expensive affair, and quite clean, except for
+	a few small areas of dried mud in the vicinity of the desk.
+	There are no other stains or markings that you can see." tell-line
+	:mud-spot :invisible clear-flag
+	1 ;
+
+' library-carpet-handler :library-carpet handles
+
+: desk-calendar-handler ( context -- result )
+	| context ^action |
+	[< :read :examine >] verb? indirect :intnum = and if
+		parsed-number 0 = parsed-number 30 > or if
+			"Why?  Is it your birthday?" tell-line
+		else
+			"You flip the pages until you find the page." tell-line
+			parsed-number :calendar-page state!
+		then
+	then
+	[< :close >] verb? if
+		"It's not worth the effort." tell-line
+	else [< :turn >] verb? indirect null? and if
+		:calendar-page state 31 = if
+			"You have reached the end of the book." tell-line
+			1 exit
+		then
+		:calendar-page state 1+ :calendar-page state!
+		:read to action
+	then then
+	:calendar-page state to page
+	context :object-description = if
+		"A desk calendar is here, open to July " tell page tell-number "." tell-line
+		1 exit
+	then
+	[< :read :examine >] verb? if
+		"It is open to July " tell page tell-number "." tell-line
+		page 8 = if
+			"There is only one notation here, in the 9AM spot:
+			""Call Coates: Will completed""." tell-line
+		else page 7 = if
+			"The only listing here is an appointment with Baxter at 2PM
+			at the Robner Corp. office." tell-line
+		else
+			"Nothing of interest is scheduled on this date." tell-line
+		then then
+		1 exit
+	then
+	[< :turn >] verb? not if 0 exit then
+	indirect :intnum = not if
+		"Huh?" tell-line
+	else parsed-number 30 > if
+		"Thirty days hath September,{nl}April, June, and November,{nl}All the rest have " tell
+		parsed-number tell-number "???" tell-line
+	else parsed-number 0 = if
+		"Do you suppose that would be June 30?" tell-line
+	else
+		parsed-number :calendar-page state!
+		"The calendar is now open to July " tell parsed-number tell-number "." tell-line
+	then then then
+	1 ;
+
+' desk-calendar-handler :desk-calendar handles
+
+\ the lines that come out of the pad when it is shaded, spaced as they were written
+[ "  Baxter," ""
+  "                  st time"
+  " nsist             op       merg"
+  "       mnidy               Oth"
+  "          forc"
+  "         ocumen     y poss"
+  "  plica     y      Focus s"
+  "          recons"
+  "late!"
+  "                              rsha"
+  ""
+] to pad-impressions
+
+\ the writing pressed into the note pad from the sheet above, revealed by a method
+: read-impressions ( method -- )
+	| method |
+	true :note-read state!
+	method tell
+	" reveals impressions left by writing on the previous sheet. The writer must
+	have borne down heavily, but only a few words come out clearly:" tell-line
+	end-line
+	pad-impressions ( line | line tell-raw end-line ) each ;
+
+: note-paper-handler ( context -- result )
+	drop
+	[< :read :examine >] verb? if
+		:note-read state if
+			"Examination of the paper" read-impressions
+		else adverb "carefully" key-is? if
+			"There are some indentations on the paper. Something may have been
+			written on the previous sheet." tell-line
+		else
+			"There doesn't seem to be anything written on the pad." tell-line
+		then then
+		1 exit
+	then
+	[< :rub >] verb? if
+		indirect null? if
+			"You should try rubbing or shading the pad with something." tell-line
+			1 exit
+		then
+		indirect :pencil = not if 0 exit then
+		"Shading the paper with the pencil" read-impressions
+		1 exit
+	then
+	[< :run-over >] verb? object :pencil = and if
+		"Running the pencil over the paper" read-impressions
+		1 exit
+	then
+	[< :hold-up >] verb? indirect :global-light = and if
+		"Looking at the pad against the light" read-impressions
+		1 exit
+	then
+	0 ;
+
+' note-paper-handler :note-paper handles
+
+: trash-handler ( context -- result )
+	drop
+	[< :take :read :examine >] verb? if
+		:trash :touched set-flag
+		:trash-basket :touched set-flag
+	then
+	0 ;
+
+' trash-handler :trash handles
+
+: telephone-handler ( context -- result )
+	drop
+	[ :library :master-bedroom :living-room ] here position-of 0 < if
+		"There's no telephone here." tell-line
+		1 exit
+	then
+	[< :find >] verb? if "You are the detective, after all." tell-line 1 exit then
+	[< :take :listen :reply >] verb? not if 0 exit then
+	:call-ring state if
+		"You take the phone and hear an unfamiliar man's voice
+		say ""Hello?  Is Leslie there?""  You start to reply, but Mrs. Robner" tell
+		here :living-room = if
+			" enters and takes the phone from you. ""Thank you, inspector,"" she says, and
+			then into the telephone: ""Hello? Oh, hi. I can't really talk now. I'll call
+			you back soon, OK? Bye."" She hangs up and starts toward the door." tell-line
+		else
+			" picks up the phone from another extension and hears you. ""I've got it,
+			inspector,"" she says. ""Hello? Oh, it's you. I can't talk now. I'll call
+			you back soon. Bye!"" You hear two clicks and the line goes dead." tell-line
+		then
+		false :call-ring state!
+		:mrs-robner :living-room move-to
+		call-from-bedroom
+		1 exit
+	then
+	:call-in-progress state if
+		"You can hear Mrs. Robner and a man whose voice you don't recognize.
+		Robner: ""...much too early to consider it.""{nl}Man's Voice: ""But we couldn't
+		have planned it better. You're free.""{nl}Robner: ""Yes, but it will...Wait a
+		second...I think...""{nl}""Click."" You realize that the call has been
+		disconnected." tell-line
+		true :call-overheard state!
+		false :call-in-progress state!
+		:i-call 0 queue drop
+		:mrs-robner unprioritize
+		1 exit
+	then
+	"All you hear is a dial tone." tell-line
+	1 ;
+
+' telephone-handler :telephone handles
+
+: global-call-handler ( context -- result )
+	drop
+	[< :listen >] verb? not if 0 exit then
+	:secret-meeting state 0 = not [ :behind-shed :east-lawn ] here position-of 0 >= and if
+		"The voices from within the shed are too quiet to make out." tell-line
+	else :call-in-progress state here :corridor-1 = and if
+		"You can't make out the conversation through the door." tell-line
+	else
+		"You can't hear any conversation." tell-line
+	then then
+	1 ;
+
+' global-call-handler :global-call handles
+
+: railing-handler ( context -- result )
+	drop
+	[< :examine >] verb? not if 0 exit then
+	"The railing is made of a sturdy metal and helps prevent nasty falls. There is
+	a small area of paint scraped off the outside edge." tell-line
+	1 ;
+
+' railing-handler :l-railing handles
+
+: bedroom-railing-handler ( context -- result )
+	drop
+	[< :examine >] verb? not if 0 exit then
+	"This sturdy railing protects people on the balcony from being impaled upon
+	the exotic plants below. The railing itself is uniformly painted." tell-line
+	1 ;
+
+' bedroom-railing-handler :b-railing handles
+
+: library-balcony-floor-handler ( context -- result )
+	drop
+	[< :examine >] verb? not if 0 exit then
+	"The balcony itself is made of wood, except the railing which is metal. The
+	balcony is in good repair, but a few spots of dried mud soil the floor." tell-line
+	1 ;
+
+' library-balcony-floor-handler :l-balcony handles
+
+: bedroom-balcony-floor-handler ( context -- result )
+	drop
+	[< :examine >] verb? not if 0 exit then
+	"The balcony is wooden, excepting the metal railing surrounding it.
+	It is in good repair and is quite clean." tell-line
+	1 ;
+
+' bedroom-balcony-floor-handler :b-balcony handles
+
+\ === evidence ===
+
+: cup-handler ( context -- result )
+	drop
+	[< :examine :look-inside >] verb? if
+		"The cup is painted with a scene from Greek mythology and has a brown
+		discoloration at the bottom." tell-line
+		1 exit
+	then
+	[< :smell >] verb? if "The cup smells faintly of tea." tell-line 1 exit then
+	[< :fingerprint >] verb? if
+		"There don't seem to be any fingerprints on the cup." tell-line
+		1 exit
+	then
+	[< :analyze >] verb? object :cup = and if analyze-in-laboratory exit then
+	0 ;
+
+' cup-handler :cup handles
+
+: saucer-handler ( context -- result )
+	drop
+	[< :examine >] verb? if
+		"The saucer is hand-painted with a mythological scene. It has a couple of
+		small areas of brown discoloration." tell-line
+		1 exit
+	then
+	[< :smell >] verb? if "There is a faint smell of tea." tell-line 1 exit then
+	[< :fingerprint >] verb? if false send-to-laboratory exit then
+	[< :analyze >] verb? if analyze-in-laboratory exit then
+	0 ;
+
+' saucer-handler :saucer handles
+
+: sugar-bowl-handler ( context -- result )
+	drop
+	[< :taste >] verb? if "The powder tastes like sugar." tell-line 1 exit then
+	[< :smell >] verb? if "There is no high from sniffing this powder." tell-line 1 exit then
+	[< :eat >] verb? if
+		"You eat some, but it is cloyingly sweet, so you stop." tell-line
+		1 exit
+	then
+	[< :fingerprint >] verb? if false send-to-laboratory exit then
+	[< :analyze >] verb? if analyze-in-laboratory exit then
+	0 ;
+
+' sugar-bowl-handler :sugar-bowl handles
+
+: global-fingerprints-handler ( context -- result )
+	drop
+	[< :take >] verb? object :global-fingerprints = and not if 0 exit then
+	indirect null? if
+		"You must specify what to take the fingerprints from." tell-line
+		1 exit
+	then
+	:fingerprint indirect null perform drop
+	1 ;
+
+' global-fingerprints-handler :global-fingerprints handles
+
+\ the item in the financial pages about the merger
+: read-second-section ( -- )
+	true :newspaper-read state!
+	"In your study of the second section, a small item in the financial section
+	catches your eye. A merger between Robner Corp. and Omnidyne is set to be
+	concluded shortly. There is a picture of Mr. Baxter with Omnidyne president
+	Starkwell, both smiling broadly. Baxter is quoted as saying that the deal
+	will enable the financially ailing Robner Corp. to continue to produce the
+	highest-quality products. The article points out that Marshall Robner, who
+	founded Robner Corp. but is no longer its major stockholder, had been found
+	dead yesterday morning, an apparent suicide victim. Baxter is quoted as
+	saying that Robner was in full agreement with the terms of the merger." tell-line ;
+
+: newspaper-handler ( context -- result )
+	drop
+	[< :examine :read :open >] verb? not if 0 exit then
+	adverb "carefully" key-is? adverb "slowly" key-is? or if
+		read-second-section
+		1 exit
+	then
+	"The Daily Herald is a local paper in two sections. In your cursory look at
+	the first, you find a brief obituary for Mr. Robner. It details his career,
+	including the formation of Robner Corp. A few years ago, Mr. Robner and the
+	Robner Corp. were given a prestigious award for works in the community. At
+	that time Robner said ""I am proud to accept this award for the Corporation.
+	Robner Corp is my whole life, and I will continue to guide it for the public
+	interest as long as I live."" Robner himself had won great public acclaim for
+	his charitable works." tell-line
+	1 ;
+
+' newspaper-handler :newspaper handles
+
+: second-section-handler ( context -- result )
+	drop
+	[< :take >] verb? if
+		:newspaper winner inside? if
+			"You already have the whole newspaper." tell-line
+		else
+			:take :newspaper null perform drop
+		then
+		1 exit
+	then
+	:newspaper winner inside? not if "You don't have the newspaper." tell-line 1 exit then
+	[< :examine :read >] verb? if read-second-section 1 exit then
+	[< :drop >] verb? if
+		"You shouldn't leave pieces of the paper lying around. At least
+		leave the whole thing." tell-line
+		1 exit
+	then
+	0 ;
+
+' second-section-handler :second-section handles
+
+: envelope-handler ( context -- result )
+	drop
+	[< :open >] verb? if
+		:mrs-robner location-of here = if
+			"Mrs. Robner grabs the envelope from you. ""That,"" she
+			says, ""is none of your business!""" tell-line
+			:envelope :mrs-robner move-to
+			1 exit
+		then
+		true :envelope-opened state!
+		:envelope winner inside? not if
+			false itake 0 = not if "(Taken)" tell-line then
+		then
+		0 exit
+	then
+	[< :close >] verb? :envelope-opened state and if
+		"You close the envelope carefully, but it still looks like it has been
+		opened." tell-line
+		:envelope :open clear-flag
+		1 exit
+	then
+	0 ;
+
+' envelope-handler :envelope handles
+
+: letter-handler ( context -- result )
+	drop
+	[< :take >] verb? if :envelope :touched set-flag then
+	0 ;
+
+' letter-handler :letter handles
+
+: pistol-handler ( context -- result )
+	drop
+	[< :examine >] verb? not if 0 exit then
+	:pistol :touched flag? if
+		"The pistol is bloody and has clearly been used recently." tell-line
+	else
+		"The pistol has bloodstains on it. It has recently been fired." tell-line
+	then
+	1 ;
+
+' pistol-handler :pistol handles
+
+: corpse-handler ( context -- result )
+	drop
+	[< :examine >] verb? if
+		"The corpse is most gruesome. Ms. Dunbar was apparently shot in the
+		head at close range, leaving a most distasteful mess." tell-line
+		1 exit
+	then
+	[< :rub >] verb? if "The body is still quite warm." tell 1 exit then
+	0 ;
+
+' corpse-handler :corpse handles
+
+: suicide-note-handler ( context -- result )
+	drop
+	[< :analyze >] verb? not if 0 exit then
+	"The handwriting is very shaky and would be impossible to compare with samples
+	on file. The blood makes the finding of fingerprints impossible." tell-line
+	1 ;
+
+' suicide-note-handler :suicide-note handles
+
+: global-pen-handler ( context -- result )
+	drop
+	[< :find >] verb? if
+		here :dunbar-room = if
+			"It doesn't seem to be around here." tell-line
+		else
+			"There isn't one here." tell-line
+		then
+		1 exit
+	then
+	[< :ask-for :ask-about >] verb? if 0 exit then
+	"There is no pen to be seen here." tell-line
+	1 ;
+
+' global-pen-handler :global-pen handles
+
+: pen-handler ( context -- result )
+	drop
+	[< :write >] verb? not if 0 exit then
+	"The pen makes a mark in a fine blue line." tell-line
+	1 ;
+
+' pen-handler :pen handles
+
+: recursive-book-handler ( context -- result )
+	drop
+	[< :ask-for >] verb? object :baxter = and if
+		indirect :undescribed clear-flag
+		0 exit
+	then
+	[< :take >] verb? :recursive-book :baxter inside? and if
+		object :undescribed clear-flag
+		0 exit
+	then
+	[< :examine >] verb? if
+		"This is a novelization of DEADLINE, a classic work of computer fiction." tell-line
+		1 exit
+	then
+	[< :read :open >] verb? if
+		"The book is a novelization of DEADLINE. You start to read it, and it seems
+		oddly familiar, as if you had lived it." tell-line
+		1 exit
+	then
+	0 ;
+
+' recursive-book-handler :recursive-book handles
+
+\ === things spoken of ===
+
+[ null null
+  """Murder? My dear inspector, I believe you are reading too many bad detective
+  stories. It's clear that he committed suicide."""
+  "Ms. Dunbar turns toward you, looking quite confused. ""Murder? But...but how
+  do you know it was murder? I'm sure..."" She stops short, looking frightened."
+  """My father killed himself, as everyone knows. Please leave me alone."""
+  """That's odd that you should say murder. Surely you don't suspect foul play,
+  Inspector. My husband was devoted to his business, and its decline led him to
+  take his life. The whole affair is tragic enough without your melodramatic
+  insinuations."""
+  """Was it a murder, then?"" She bounces with excitement. ""In the book I've
+  been reading, the jealous wife did it, but I don't know about this. A whole
+  batch of suspects, this group here. What do you know? A murder. Here!"" Her
+  enjoyment is barely concealed."
+  null
+] to murder-reactions
+
+\ asked about murder or suicide
+: global-murder-handler ( context -- result )
+	drop
+	[< :ask-about >] verb? not if 0 exit then
+	indirect :global-murder = not if
+		"""I told everything I know about it to the other detectives.""" tell-line
+		1 exit
+	then
+	murder-reactions object :character property @i to reaction
+	reaction null? if 0 exit then
+	reaction tell-line
+	1 ;
+
+' global-murder-handler :global-murder handles
+
+: global-mr-robner-handler ( context -- result )
+	drop
+	[< :follow >] verb? if "Is this what they call a death wish?" tell-line 1 exit then
+	[< :call >] verb? if "You are, for the moment, not with him." tell-line 1 exit then
+	0 ;
+
+' global-mr-robner-handler :global-mr-robner handles
+
+: global-red-herrings-handler ( context -- result )
+	drop
+	:george :dining-room inside? if
+		[< :eat :take :move >] verb? if
+			"You reach for the juicy herrings, but George forces you away. He
+			is a killer where herrings are concerned." tell-line
+			1 exit
+		then
+		[< :find >] verb? if "There are more in this room than elsewhere." tell-line 1 exit then
+		0 exit
+	then
+	[< :find >] verb? if "They're all around you." tell-line 1 exit then
+	[< :what >] verb? if "That would be telling." tell-line 1 exit then
+	0 ;
+
+' global-red-herrings-handler :global-red-herrings handles
+
+: global-ending-handler ( context -- result )
+	drop
+	:recursive-book :player inside? if
+		[< :read :what :turn >] verb? not if 0 exit then
+		"You thumb to the last page and start to read the ending, in which the
+		protagonist reads the plot of the story and kills himself in disgust.
+		Disgustedly, you reach into your pocket, remove a gun, and end your life." tell-line
+		quit-game
+	then
+	[< :what >] verb? if "That's up to you!" tell-line 1 exit then
+	"You don't have the book that tells the ending." tell-line
+	1 ;
+
+' global-ending-handler :global-ending handles
+
+: today-handler ( context -- result )
+	drop
+	[< :what >] verb? not if 0 exit then
+	"Today is Friday, July 10." tell-line
+	1 ;
+
+' today-handler :today handles
+
+: global-warrant-handler ( context -- result )
+	drop
+	[< :take :find >] verb? not if 0 exit then
+	"Knowing the courts, it would take weeks to get one." tell-line
+	1 ;
+
+' global-warrant-handler :global-warrant handles

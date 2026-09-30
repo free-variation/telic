@@ -25,8 +25,10 @@ A sample is computed in this order:
 2. Each of the 32 voices that is sounding computes one sample: its
    oscillators, the phase-modulation matrix between them, the sum of its
    carriers, its unison copies, its ladder filter, and its pan.
-3. The voices and every sample matrix given to `play-samples` are summed.
-4. The sum passes through the effects chain: chorus, delay, reverb, master
+3. The voices and every sample matrix given to `play-samples` are summed
+   into a dry signal and one send per effect, each voice scaled by its
+   patch's send.
+4. The sums pass through the effects chain: chorus, delay, reverb, master
    level.
 
 An **instrument** is a name, a symbol such as `:soprano`, that holds a
@@ -213,6 +215,23 @@ level is the filter envelope's level and `:amount` is in octaves, so a
 positive amount opens the filter on each note and closes it as the envelope
 decays.
 
+A patch with `:high-pass` also runs every voice, after the ladder, through a
+two-pole Butterworth high-pass filter: the biquad of Robert Bristow-Johnson's
+cookbook at Q = 1/√2, computed in transposed direct form II. It passes the
+signal above its cutoff, is 3 dB down at the cutoff, and falls 12 dB per
+octave below it. White noise through it is the treble hiss of a cymbal.
+
+```forth high-pass
+: level-at ( hz patch -- a ) :tone instrument-patch! silence-audio :a4 1 :tone note-on 1 render-audio 9600 48000 0 1 submatrix 48000 rot amplitude-at ;
+[ 500 1000 2000 ] ( hz | hz { :oscillators [ { :fixed-hz hz } ] :high-pass 1000 } level-at hz { :oscillators [ { :fixed-hz hz } ] } level-at / log10 20 * 10 * round 10 / . ) each cr silence-audio
+```
+```output
+-12.3 -3 -0.3
+```
+
+An octave below a 1 kHz cutoff the sine loses 12.3 dB; at the cutoff, 3 dB;
+an octave above it, 0.3 dB.
+
 ## The LFO
 
 Each voice has one low-frequency oscillator. Its value l in [−1, 1] follows
@@ -264,6 +283,9 @@ writes the value into the instrument's patch, for later notes, and moves it in
 every sounding voice of that instrument linearly over 64 frames (1.3 ms), so a
 change is heard at once without a step in the waveform. `:cutoff` on a voice
 without a filter turns its filter on, ramping down from 20 kHz.
+`instrument!` also sets `:chorus-send`, `:delay-send` and `:reverb-send`,
+which change at once in the sounding voices, so a piece can choose for each
+instrument how much of it reaches each effect.
 
 ## The sequencer
 
@@ -317,6 +339,28 @@ one key. Each effect mixes dry × its input + wet × its processed signal; every
 stage starts at `:wet 0 :dry 1`, and a stage at `:wet 0` is skipped, so an
 untouched chain passes the signal unchanged, sample for sample. `:wet`, `:dry`
 and `:level` move linearly over 64 frames.
+
+What an effect processes is a send: each patch's `:chorus-send`,
+`:delay-send` and `:reverb-send`, in [0, 1] and 1 by default, scale how much
+of each of its voices enters that effect, while the dry path carries every
+voice in full. An effect's wet output passes on into the later effects as
+before, so a voice sending nothing to the reverb still reaches it through
+the chorus's and the delay's wet outputs when it sends to those. With every
+send at 1 the chain is exactly the chain above. A drum kept out of a long
+reverb while a melody sends to it is the usual use.
+
+```forth effect-sends
+{ :oscillators [ { :fixed-hz 1000 :attack 0 :release 0 } ] :pan -1 :delay-send 0.5 } :tone instrument-patch! silence-audio
+0.1 :time :delay effect! 0.5 :feedback :delay effect! 1 :wet :delay effect! :straight :mode :delay effect!
+:a4 1 :tone note-on 0.01 render-audio drop :a4 :tone note-off 0.2 render-audio 4320 4800 0 1 submatrix 48000 1000 amplitude-at 1000 * round 1000 / . cr
+0 :wet :delay effect! :ping-pong :mode :delay effect! 0.375 :time :delay effect! 0.01 render-audio drop silence-audio
+```
+```output
+0.5
+```
+
+Sending half its signal to a straight delay, the 10 ms burst echoes at half
+the level it would at the default send of 1.
 
 - **Chorus.** A delay per side of `:delay` seconds swept by ± `:depth` at
   `:rate` Hz, the right side 90° behind the left, read with linear

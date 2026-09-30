@@ -1,0 +1,192 @@
+\ Deadline: the game. Each turn the parser reads a command, the command is
+\ performed on each thing it names, and a minute passes unless the command
+\ was about the game rather than the story. Saving writes the world and the
+\ game's state as one value; the random numbers are drawn from a stream
+\ seeded afresh each turn from the game's seed and the turn, so a restored
+\ game goes on as it would have.
+
+variable game-seed
+0 to game-seed
+variable turn
+0 to turn
+variable save-path
+"deadline.save" to save-path
+
+\ the state a saved game keeps
+: game-state ( -- state )
+	{ :world world :game game :interrupts interrupts :last-seen last-seen
+	  :present-time present-time :here here :winner winner :lit lit
+	  :it-object it-object :it-location it-location
+	  :him-her him-her :him-her-location him-her-location
+	  :verbose verbose :super-brief super-brief :blank-lines blank-lines
+	  :conversation conversation :conversation-room conversation-room
+	  :load-allowed load-allowed :turn turn :game-seed game-seed
+	  :last-action last-action :last-object last-object :last-indirect last-indirect
+	  :goals goals :attention attention :timetables timetables
+	  :timetable-positions timetable-positions :frotz-random frotz-random
+	} ;
+
+\ go back to a kept state
+: resume-state ( state -- )
+	| state ^world ^game ^interrupts ^last-seen ^present-time ^here ^winner ^lit ^it-object ^it-location ^him-her ^him-her-location ^verbose ^super-brief ^blank-lines ^conversation ^conversation-room ^load-allowed ^turn ^game-seed ^last-action ^last-object ^last-indirect ^goals ^attention ^timetables ^timetable-positions ^frotz-random |
+	state@world to world
+	state@game to game
+	state@interrupts to interrupts
+	state@last-seen to last-seen
+	state@present-time to present-time
+	state@here to here
+	state@winner to winner
+	state@lit to lit
+	state@it-object to it-object
+	state@it-location to it-location
+	state@him-her to him-her
+	state@him-her-location to him-her-location
+	state@verbose to verbose
+	state@super-brief to super-brief
+	state@blank-lines to blank-lines
+	state@conversation to conversation
+	state@conversation-room to conversation-room
+	state@load-allowed to load-allowed
+	state@turn to turn
+	state@game-seed to game-seed
+	state@last-action to last-action
+	state@last-object to last-object
+	state@last-indirect to last-indirect
+	state@goals to goals
+	state@attention to attention
+	state@timetables to timetables
+	state@timetable-positions to timetable-positions
+	state@frotz-random to frotz-random ;
+
+variable initial-state
+
+: stop-game ( -- ) :game-over throw ;
+
+' stop-game embodies quit-game
+
+: save-to-file ( -- flag )
+	( game-state value>bytes save-path write-file true ) catch if drop false then ;
+
+' save-to-file embodies save-game
+
+: restore-from-file ( -- flag )
+	save-path file-exists? not if false exit then
+	( save-path read-file bytes>value resume-state true ) catch if drop false then ;
+
+' restore-from-file embodies restore-game
+
+: restart-from-beginning ( -- )
+	initial-state bytes>value resume-state
+	:restart throw ;
+
+' restart-from-beginning embodies restart-game
+
+\ the person the player is talking to answers a question put to no one in particular
+: conversation-check ( direct -- )
+	| direct ^winner |
+	conversation null? if exit then
+	conversation here inside? not if exit then
+	conversation-room here = not if exit then
+	winner :player = not if exit then
+	[< :what :find >] verb?
+	[< :tell-me :show >] verb? direct :player = and or if
+		conversation to winner
+		"(said to " tell conversation tell-name ")" tell-line
+	then ;
+
+\ perform the command on every thing it names
+: perform-command ( -- result )
+	| ^object ^continuation ^conversation |
+	:indirect object-list to indirect-things
+	:direct object-list to direct-things
+	direct-things indirect-things concat ( item | world item has? if item note-seen then ) each
+	indirect-things size to n-indirect
+	direct-things size to n-direct
+	null to other
+	true to over-direct
+	n-direct 0 = if
+		0 to n
+	else n-direct 1 > if
+		n-indirect 0 = if null else indirect-things first then to other
+		n-direct to n
+	else n-indirect 1 > if
+		false to over-direct
+		direct-things first to other
+		n-indirect to n
+	else
+		1 to n
+	then then then
+	conversation-room here = not if null to conversation then
+	other null? n-indirect 1 = and if indirect-things first to other then
+	action :walk = if action object null perform exit then
+	n 0 = if
+		pattern@n-objects 0 = if
+			action null null perform to result
+			null to object
+			result exit
+		then
+		"There isn't anything to " tell
+		orphaned if verb-spelling@key tell-spelling else verb-spelling@text tell then
+		"!" tell-line
+		0 exit
+	then
+	over-direct n 2 = and action :arrest = and if action :object-pair null perform exit then
+	0 to result
+	0 n 1 do k
+		over-direct if direct-things else indirect-things then k @i to item
+		n 1 > item :player = item :duplicate flag? or and if continue then
+		n 1 > if item tell-name ": " tell then
+		over-direct if item else other then conversation-check
+		over-direct if action item other else action other item then perform to result
+		result fatal = if leave then
+	loop
+	result ;
+
+\ one turn: a command read and performed, and a minute passed
+: take-turn ( -- )
+	| ^continuation ^turn |
+	frotz-random null? if game-seed turn + seed then
+	++ turn
+	parse to understood
+	understood if
+		perform-command fatal = if null to continuation then
+	else
+		null to continuation
+	then
+	understood if
+		[< :tell :brief :super-brief :verbose :time :save :space :unspace :version
+		   :quit :restart :score :script :unscript :restore :grammar >] verb? not if clocker drop then
+	then ;
+
+\ the first turn's greeting and the look at the South Lawn
+: start-game ( -- )
+	| ^lit ^winner ^here ^it-location ^it-object ^him-her ^him-her-location |
+	true to lit
+	:player to winner
+	:south-lawn to here
+	here to it-location
+	null to it-object
+	:mrs-robner to him-her
+	:foyer to him-her-location
+	here :touched flag? not if
+		:i-start-interrupts 1 queue enable
+		start-movement
+		do-version drop
+		end-line
+	then
+	winner here move-to
+	do-look drop ;
+
+\ play until the game ends or the input does
+: play ( -- )
+	| ^initial-state |
+	game-state value>bytes to initial-state
+	begin
+		( start-game begin take-turn again ) catch if
+			to reason
+			reason [ :game-over :end-of-input ] swap position-of 0 >= if flush-output exit then
+			reason :restart = not if flush-output reason throw then
+		else
+			exit
+		then
+	again ;

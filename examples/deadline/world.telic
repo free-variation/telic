@@ -1,0 +1,158 @@
+\ Deadline: the world. Every room, person and thing is a frame in the frame
+\ world under its name, a symbol: its name as printed (:name), where it is
+\ (:location, a name or null), what it holds in order, first listed first
+\ (:contents), its flags (a set) and its other properties. Three places
+\ hold the rest: :rooms holds the rooms, :local-globals the things seen
+\ from several rooms (a room's :globals names those it shows) and
+\ :global-objects the things present everywhere. The frame game holds the
+\ rest of the state; world and game together are what a saved game keeps.
+
+{ } to world
+
+\ the plot's counters and times; its flags are absent until set
+{ :will-time 0 :rst 0 :calendar-page 7 :will-wait 0 :george-search 0
+  :george-run 0 :secret-meeting 0 :shot-count 0 :show-wait 0
+} to game
+
+\ the frame of a thing
+: thing ( name -- frame ) world swap @ ;
+
+\ put a thing into the world at the end of a place's contents
+: place ( frame name location -- )
+	| frame name location |
+	location frame!location
+	[ ] frame!contents
+	frame :flags [< >] @or frame!flags
+	world frame name ! drop
+	location null? if exit then
+	location thing@contents name add-last! drop ;
+
+{ :name "" } :rooms null place
+{ :name "" :flags [< :invisible :touched :surface :open :transparent :searchable >] } :global-objects null place
+{ :name "" :synonyms [ "zzkjlk" ] } :local-globals :global-objects place
+
+\ a property of a thing, the default when the thing has none: a size of 5, a capacity and a character number of 0, else null; null for no thing
+: property ( name key -- value )
+	| name key |
+	name null? if null exit then
+	key :size = if name thing :size 5 @or exit then
+	key :capacity = if name thing :capacity 0 @or exit then
+	key :character = if name thing :character 0 @or exit then
+	name thing key null @or ;
+
+\ set a property of a thing
+: property! ( value name key -- )
+	| value name key |
+	name thing value key ! drop ;
+
+\ the name of a thing as printed, empty for the few that have none
+: name-of ( name -- text )
+	| name |
+	name null? if "" exit then
+	name thing :name "" @or ;
+
+\ where a thing is, or null; null for no thing
+: location-of ( name -- place )
+	| name |
+	name null? if null exit then
+	name thing@location ;
+
+\ what a thing holds, first listed first
+: contents-of ( name -- names ) thing@contents ;
+
+\ the first thing a thing holds, or null
+: first-content ( name -- name ) contents-of dup size 0 = if drop null exit then first ;
+
+\ whether a thing has a flag; no thing has none
+: flag? ( name flag -- flag )
+	| name flag |
+	name null? if false exit then
+	name thing@flags flag has? ;
+
+: set-flag ( name flag -- ) swap thing@flags swap set-add! drop ;
+
+: clear-flag ( name flag -- ) swap thing@flags swap set-remove! drop ;
+
+\ whether a thing is directly in a place; no thing is in any place
+: inside? ( name place -- flag )
+	| name place |
+	name null? if false exit then
+	name location-of place = ;
+
+\ take a thing out of wherever it is
+: remove-thing ( name -- )
+	| name |
+	name location-of to place-name
+	place-name null? if exit then
+	place-name thing to holder
+	holder@contents ( name = not ) filter holder!contents
+	null name thing!location ;
+
+\ put a thing first among what a place holds
+: move-to ( name place -- )
+	| name place-name |
+	name remove-thing
+	place-name name thing!location
+	place-name thing to holder
+	[ name ] holder@contents concat holder!contents ;
+
+\ the number of things a thing holds
+: count-contents ( name -- n ) contents-of size ;
+
+\ the size of a thing with everything it holds, however deep
+: weight ( name -- n )
+	| name |
+	name contents-of 0 ( weight + ) reduce name :size property + ;
+
+\ a game setting or state flag
+: state ( key -- value ) game swap null @or ;
+
+: state! ( value key -- ) game -rot ! drop ;
+
+\ === random numbers ===
+
+\ Random numbers come from telic's generator, or, for comparing a
+\ transcript with the original's, from the generator of the Z-machine
+\ interpreter frotz: a 64-bit linear congruence whose bits 16 to 30 are
+\ the number drawn. frotz-random holds that generator's state, an exact
+\ integer, or null when telic's generator is used.
+variable frotz-random
+null to frotz-random
+
+\ a whole number from 0 below n
+: random-below ( n -- k )
+	| n ^frotz-random |
+	frotz-random null? if n random-int exit then
+	frotz-random 22695477/1 * 1/1 + 18446744073709551616/1 mod to frotz-random
+	frotz-random 65536/1 quotient 32768/1 mod exact>float n mod ;
+
+\ === behaviour ===
+
+\ The rooms, things and timed events that act do so through handlers: words
+\ ( context -- result ) registered under the symbol a room's or thing's
+\ :action or :describer names. A room's handler is told the context it is
+\ called in: :begin before a command, :end after it, null when the room is
+\ itself the object of a command, :enter, :look and :flash when it is
+\ described; a thing's :describer is told :object-description. A result of
+\ 0 lets the command go on, 1 means it was dealt with, fatal that the rest
+\ of the command is abandoned.
+
+{ } to handlers
+
+2 constant fatal
+
+\ register a handler under a name
+: handles ( xt routine -- ) handlers -rot ! drop ;
+
+\ run the handler a name registers, telling it the context; 0 when there is none
+: call-handler ( routine context -- result )
+	| routine context |
+	routine null? if 0 exit then
+	handlers routine null @or to handler
+	handler null? if 0 exit then
+	context handler execute ;
+
+\ run a thing's :action handler
+: act ( name context -- result )
+	| name context |
+	name :action property context call-handler ;

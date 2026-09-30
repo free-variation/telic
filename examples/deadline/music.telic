@@ -1,0 +1,685 @@
+\ Deadline: the theme, cool jazz on the synthesizer. A quartet in a smoky
+\ room at 72 beats a minute: a tenor saxophone carrying a minor melody, an
+\ upright bass playing in two, a piano comping sparse rootless voicings and
+\ answering in the gaps, and a three-piece kit played with brushes (a snare
+\ swept and tapped, a hi-hat closed by the foot on two and four, a bass drum
+\ feathered on one and three). Twenty-two bars in D minor: a four-bar piano
+\ introduction, the melody twice, and a two-bar ending on D minor with a
+\ major seventh. queue-theme queues the whole piece on the sequencer, so it
+\ plays live after audio-on or offline through render-audio.
+
+\ === the instruments ===
+
+\ tenor saxophone: 0 sine carrier with light self-feedback and a tremolo, 1 modulator at the note swelling after the onset, 2 octave modulator feeding it, 3 pink breath, 4 third-harmonic modulator for the reed's edge
+{ :oscillators [
+    { :lfo-level 0.25 :attack 0.05 :decay 0.6 :sustain 0.85 :sustain-decay 8 :release 0.18 }
+    { :level 1 :attack 0.09 :decay 0.5 :sustain 0.75 :release 0.18 }
+    { :ratio 2 :level 0.55 :attack 0.03 :decay 0.3 :sustain 0.35 :release 0.15 }
+    { :wave :pink :level 0.06 :attack 0.03 :decay 0.2 :sustain 0.35 :release 0.12 }
+    { :ratio 3 :level 0.5 :attack 0.06 :decay 0.4 :sustain 0.5 :release 0.15 } ]
+  :modulation [ [ 1 0 2.6 ] [ 2 1 0.7 ] [ 4 0 0.7 ] [ 0 0 0.3 ] ]
+  :carriers [ 0 3 ]
+  :cutoff 3400 :resonance 0.6 :drive 1.4
+  :filter-envelope { :attack 0.07 :decay 0.5 :sustain 0.55 :release 0.2 :amount 1.1 }
+  :lfo { :shape :sine :rate 5 :delay 0.3 :fade 0.5 :pitch-depth 0.18 }
+  :glide 0.05 :velocity-sensitivity 0.6 :pan 0.05 :level 0.16 } :sax instrument-patch!
+
+\ clarinet in its low register: 0 a square wave, the odd harmonics of a closed tube, 1 a sine for body, 2 pink breath; a low-pass that brightens at the attack, a slight vibrato entering late, and two copies a few cents apart spread across the stereo field, a chorus of its own
+{ :oscillators [
+    { :wave :pulse :level 0.7 :attack 0.06 :decay 0.4 :sustain 0.9 :sustain-decay 6 :release 0.15 }
+    { :level 0.5 :attack 0.05 :decay 0.4 :sustain 0.9 :sustain-decay 6 :release 0.15 }
+    { :wave :pink :level 0.04 :attack 0.03 :decay 0.15 :sustain 0.3 :release 0.1 } ]
+  :carriers [ 0 1 2 ]
+  :cutoff 1300 :resonance 0.2
+  :filter-envelope { :attack 0.06 :decay 0.3 :sustain 0.5 :release 0.15 :amount 0.6 }
+  :lfo { :shape :sine :rate 4.8 :delay 0.6 :fade 0.8 :pitch-depth 0.09 }
+  :unison 2 :unison-detune 7 :unison-spread 0.35
+  :velocity-sensitivity 0.6 :pan 0.1 :level 0.06 } :clarinet instrument-patch!
+
+\ a piano patch at a pan: 0-4 the string's first five partials, stretched sharp as a stiff string's are, each higher one decaying faster; 5 a hammer click on the fundamental; 6 pink hammer noise; two strings beating
+: piano-patch ( pan -- patch )
+	| pan |
+	{ :oscillators [
+	    { :attack 0.002 :decay 0.5 :sustain 0.45 :sustain-decay 4 :release 0.3 }
+	    { :ratio 2.002 :level 0.55 :attack 0.002 :decay 0.35 :sustain 0.35 :sustain-decay 2.5 :release 0.25 }
+	    { :ratio 3.007 :level 0.32 :attack 0.002 :decay 0.25 :sustain 0.25 :sustain-decay 1.5 :release 0.2 }
+	    { :ratio 4.015 :level 0.2 :attack 0.002 :decay 0.18 :sustain 0.15 :sustain-decay 0.9 :release 0.15 }
+	    { :ratio 5.026 :level 0.12 :attack 0.002 :decay 0.12 :sustain 0.1 :sustain-decay 0.5 :release 0.1 }
+	    { :level 0.7 :attack 0.001 :decay 0.03 :sustain 0 :release 0.02 }
+	    { :wave :pink :level 0.025 :attack 0.001 :decay 0.012 :sustain 0 :release 0.02 } ]
+	  :modulation [ [ 5 0 0.8 ] ]
+	  :carriers [ 0 1 2 3 4 6 ]
+	  :cutoff 3500 :filter-envelope { :attack 0.001 :decay 0.4 :sustain 0.2 :release 0.3 :amount 1 }
+	  :unison 2 :unison-detune 2 :unison-spread 0.3
+	  :velocity-sensitivity 0.7 :pan pan :level 0.08 } ;
+
+0.3 piano-patch :piano instrument-patch!
+0.4 piano-patch :piano-fill instrument-patch!
+
+\ upright bass, plucked: 0 carrier, 1 modulator at the note for the twang of the pluck, 2 second harmonic, 3 brown thump, 4 white click of the string meeting the fingerboard; no resonance, so the opening filter sweeps without a pitch
+{ :oscillators [
+    { :attack 0.002 :decay 0.25 :sustain 0.5 :sustain-decay 1.6 :release 0.2 }
+    { :level 0.8 :attack 0.001 :decay 0.04 :sustain 0.06 :release 0.2 }
+    { :ratio 2 :level 0.25 :attack 0.002 :decay 0.2 :sustain 0.2 :sustain-decay 1.2 :release 0.2 }
+    { :wave :brown :level 0.12 :attack 0.001 :decay 0.02 :sustain 0 :release 0.02 }
+    { :wave :white :level 0.2 :attack 0.0003 :decay 0.0025 :sustain 0 :release 0.003 } ]
+  :modulation [ [ 1 0 1.3 ] ]
+  :carriers [ 0 2 3 4 ]
+  :cutoff 1100 :filter-envelope { :attack 0.001 :decay 0.02 :sustain 0.1 :release 0.2 :amount 1.6 }
+  :velocity-sensitivity 0.5 :pan -0.05 :level 0.36 } :bass instrument-patch!
+
+\ brush swept round the snare head: pink noise swelling and fading, the cutoff circling once a beat
+{ :oscillators [ { :wave :pink :attack 0.1 :decay 0.25 :sustain 0.55 :release 0.2 } ]
+  :cutoff 2800 :resonance 0.2 :lfo { :shape :sine :rate 1.2 :cutoff-depth 0.6 }
+  :velocity-sensitivity 0.8 :pan -0.35 :level 0.07 } :brush instrument-patch!
+
+\ brush pressed on the snare: a burst of pink noise rising over 12 ms, over a faint body
+{ :oscillators [
+    { :wave :pink :attack 0.012 :decay 0.1 :sustain 0 :release 0.09 }
+    { :fixed-hz 185 :level 0.18 :attack 0.01 :decay 0.06 :sustain 0 :release 0.06 } ]
+  :carriers [ 0 1 ]
+  :cutoff 3800 :pan -0.3 :level 0.2 } :snare instrument-patch!
+
+\ a hi-hat that rings for a time constant: white noise between a high-pass at 6 kHz and the ladder's cutoff
+: hihat-patch ( ring cutoff level -- patch )
+	| ring cutoff level |
+	{ :oscillators [ { :wave :white :attack 0.001 :decay ring :sustain 0 :release ring 0.8 * } ]
+	  :high-pass 6000 :cutoff cutoff :pan -0.25 :level level } ;
+
+\ the hi-hat closed by the foot, cut short, and half open, ringing for about a fifth of a second
+0.05 11000 0.9 hihat-patch :hihat instrument-patch!
+0.22 9000 0.6 hihat-patch :open-hihat instrument-patch!
+
+\ bass drum, feathered: 0 a low sine body, 1 a short thump modulating it, 2 the head's octave decaying faster, 3 the felt beater's click, so the drum carries on small speakers; tuned between B1 and C2 so it never merges with a root the bass plays
+{ :oscillators [
+    { :fixed-hz 62 :attack 0.002 :decay 0.2 :sustain 0 :release 0.1 }
+    { :fixed-hz 100 :attack 0.001 :decay 0.03 :sustain 0 :release 0.03 }
+    { :fixed-hz 124 :level 0.45 :attack 0.002 :decay 0.08 :sustain 0 :release 0.05 }
+    { :wave :pink :level 0.25 :attack 0.0005 :decay 0.006 :sustain 0 :release 0.006 } ]
+  :modulation [ [ 1 0 1.5 ] ]
+  :carriers [ 0 2 3 ]
+  :velocity-sensitivity 0.5 :pan -0.1 :level 0.35 } :kick instrument-patch!
+
+\ === the score ===
+\ melodic parts are [ pitch length ... ], a pitch an array for a chord and :rest
+\ for silence; lengths are fractions of a whole note, swung eighths written as
+\ 1/6 then 1/12
+
+\ the chords: an introduction of four bars, the melody's two eight-bar halves, two bars of ending
+\ intro   Dm9 | Bbmaj7#11 | Gm9 | A7b9
+\ first   Dm9 | Dm9 | Bbmaj7#11 | A7b9 | Gm9 | C13 | Fmaj9 | Em7b5 A7b9
+\ second  Dm9 | Bbmaj7 | Gm9 | C7b9 | Fmaj9 | Bb7#11 | Em7b5 A7b9 | Dm(maj7)
+\ ending  Dm(maj7) held
+
+[ :rest 4
+  :a4 3/8 :g4 1/8 :f4 1/4 :e4 1/4
+  :d4 1/2 :rest 1/2
+  :rest 1/4 :e4 1/6 :d4 1/12 :e4 1/4 :f4 1/4
+  :bb4 1/2 :a4 1/4 :rest 1/4
+  :a4 3/8 :bb4 1/8 :a4 1/4 :g4 1/4
+  :f4 1/4 :e4 1/4 :rest 1/2
+  :rest 1/4 :g4 1/6 :f4 1/12 :e4 1/4 :c4 1/4
+  :d4 1/4 :c#4 1/2 :rest 1/4
+  :rest 1/4 :f4 1/4 :a4 1/4 :c5 1/4
+  :d5 1/2 :rest 1/2
+  :bb4 3/8 :a4 1/8 :g4 1/4 :f4 1/4
+  :e4 1/2 :rest 1/2
+  :rest 1/4 :a4 3/4
+  :ab4 3/8 :g4 1/8 :e4 1/4 :rest 1/4
+  :a4 3/8 :g4 1/8 :f4 1/4 :e4 1/4
+  :d4 3/2 :rest 3/2 ] to sax-part
+
+[ [ :f3 :a3 :c4 :e4 ] 1
+  [ :a3 :d4 :e4 ] 1
+  [ :bb3 :d4 :f4 :a4 ] 1
+  [ :g3 :bb3 :c#4 :f4 ] 1
+  [ :f3 :a3 :c4 :e4 ] 1/2 :rest 1/2
+  :rest 5/12 [ :f3 :b3 :e4 ] 7/12
+  [ :a3 :d4 :e4 ] 3/4 :rest 1/4
+  [ :g3 :bb3 :c#4 :f4 ] 1/2 :rest 1/2
+  [ :bb3 :d4 :f4 :a4 ] 1/2 :rest 1/2
+  :rest 5/12 [ :bb3 :d4 :e4 :a4 ] 7/12
+  [ :a3 :c4 :e4 :g4 ] 3/4 :rest 1/4
+  [ :g3 :bb3 :d4 ] 1/2 [ :g3 :bb3 :c#4 :f4 ] 1/2
+  [ :f3 :a3 :c4 :e4 ] 1/2 :rest 1/2
+  [ :a3 :d4 :f4 ] 3/4 :rest 1/4
+  :rest 5/12 [ :bb3 :d4 :f4 :a4 ] 7/12
+  [ :bb3 :db4 :e4 :a4 ] 1/2 :rest 1/2
+  [ :a3 :c4 :e4 :g4 ] 1
+  [ :ab3 :d4 :e4 :g4 ] 3/4 :rest 1/4
+  [ :g3 :bb3 :d4 ] 1/2 [ :g3 :bb3 :c#4 :f4 ] 1/2
+  [ :f3 :a3 :c#4 :e4 ] 1
+  [ :d3 :f3 :a3 :c#4 :e4 ] 2 ] to piano-part
+
+[ :a5 3/8 :g5 1/8 :f5 1/4 :e5 1/4
+  :d5 1/2 :rest 1/2
+  :bb4 3/8 :d5 1/8 :f5 1/4 :a5 1/4
+  :g5 1/4 :f5 1/6 :e5 1/12 :c#5 1/2
+  :rest 16
+  :a5 1/6 :e5 1/12 :c#5 1/6 :a4 1/12 :f4 1/2
+  :e5 1 ] to piano-fill-part
+
+[ :d2 1/2 :a2 1/2  :bb1 1/2 :f2 1/2  :g2 1/2 :d2 1/2  :a1 1/2 :e2 1/4 :c#2 1/4
+  :d2 1/2 :a2 1/2  :d2 1/2 :c2 1/2  :bb1 1/2 :f2 1/2  :a1 1/2 :e2 1/4 :a1 1/4
+  :g1 1/2 :d2 1/2  :c2 1/2 :g2 1/4 :e2 1/4  :f2 1/2 :c2 1/4 :d#2 1/4  :e2 1/2 :a1 1/2
+  :d2 1/2 :a2 1/2  :bb1 1/2 :f2 1/2  :g1 1/2 :d2 1/2  :c2 1/2 :e2 1/4 :g2 1/4
+  :f2 1/2 :c2 1/2  :bb1 1/2 :d2 1/4 :f2 1/4  :e2 1/2 :a1 1/2  :d2 1/2 :a1 1/2
+  :d2 2 ] to bass-part
+
+\ drum parts are [ length strength ... ], strength 0 for silence, bar by bar
+
+\ a bar's hits repeated over a number of bars
+: bars-of ( bar n-bars -- hits )
+	| bar n-bars |
+	[ ] to hits
+	0 n-bars 1 do k
+		hits bar concat to hits
+	loop
+	hits ;
+
+[ 1/2 0.7 1/2 0.55 ] 20 bars-of [ 1/2 0.5 1/2 0.4 1/2 0.3 1/2 0.2 ] concat to brush-part
+\ the snare taps on two and four with a ghost on four's swung off-beat; a soft triplet on three at a phrase's end, on four at a section's end
+[ 1/4 0 1/4 0.55 1/4 0 1/6 0.6 1/12 0.25 ] to snare-plain
+[ 1/4 0 1/4 0.55 1/12 0.3 1/12 0.35 1/12 0.4 1/4 0.55 ] to snare-phrase-end
+[ 1/4 0 1/4 0.55 1/4 0 1/12 0.3 1/12 0.35 1/12 0.45 ] to snare-section-end
+[ snare-plain snare-plain snare-plain snare-section-end
+  snare-plain snare-plain snare-plain snare-phrase-end snare-plain snare-plain snare-plain snare-section-end
+  snare-plain snare-plain snare-plain snare-phrase-end snare-plain snare-plain snare-plain snare-section-end
+  [ 1/4 0.35 7/4 0 ]
+] [ ] ' concat reduce to snare-part
+\ the hi-hat on two and four, a swung pair or a triplet on four at a phrase's end, and a pickup into a triplet at a section's end
+[ 1/4 0 1/4 0.5 1/4 0 1/4 0.5 ] to hihat-plain
+[ 1/4 0 1/4 0.5 1/4 0 1/6 0.5 1/12 0.35 ] to hihat-pair
+[ 1/4 0 1/4 0.5 1/4 0 1/12 0.45 1/12 0.35 1/12 0.4 ] to hihat-triplet
+[ 1/4 0 1/4 0.5 1/6 0 1/12 0.35 1/12 0.5 1/12 0.35 1/12 0.45 ] to hihat-section-end
+[ hihat-plain hihat-pair hihat-plain hihat-section-end
+  hihat-plain hihat-pair hihat-plain hihat-triplet hihat-plain hihat-pair hihat-plain hihat-section-end
+  hihat-plain hihat-pair hihat-plain hihat-triplet hihat-plain hihat-pair hihat-plain hihat-section-end
+] [ ] ' concat reduce to hihat-part
+[ 1/4 0.35 1/4 0 1/4 0.3 1/4 0 ] 20 bars-of [ 1/4 0.3 7/4 0 ] concat to kick-part
+
+\ === queueing ===
+
+\ a number in [-0.5, 0.5) fixed by k, so a performance is the same every time and draws nothing from the random stream
+: variation ( k -- f ) 12.9898 * sin 43758.5453 * dup round-down - 0.5 - ;
+
+\ queue a melodic part on an instrument, each note's velocity varied a little around the given one
+: queue-part ( notes instrument velocity articulation -- )
+	| notes instrument velocity articulation |
+	instrument sequence-instrument
+	articulation sequence-articulation
+	0 notes size 2 do k
+		notes k @i to pitch
+		notes k 1 + @i to length
+		pitch :rest = if length sequence-rest continue then
+		k 0.37 * variation 0.1 * velocity + 0 1 clamp sequence-velocity
+		pitch array? if pitch length sequence-chord else pitch length sequence-note then
+	loop ;
+
+\ queue a drum part on an instrument, each hit's strength varied a little
+: queue-hits ( hits instrument articulation -- )
+	| hits instrument articulation |
+	instrument sequence-instrument
+	articulation sequence-articulation
+	0 hits size 2 do k
+		hits k @i to length
+		hits k 1 + @i to strength
+		strength 0 = if length sequence-rest continue then
+		k 0.53 * variation 0.08 * strength + 0 1 clamp sequence-velocity
+		:c4 length sequence-note
+	loop ;
+
+\ every instrument back at its patch's level, sending all of itself to every effect, so a cue that changed one leaves no trace on the next
+: standard-mix! ( -- )
+	[ [ :sax 0.16 ] [ :clarinet 0.06 ] [ :piano 0.08 ] [ :piano-fill 0.08 ] [ :bass 0.36 ]
+	  [ :brush 0.07 ] [ :snare 0.2 ] [ :hihat 0.9 ] [ :open-hihat 0.6 ] [ :kick 0.35 ] ]
+	( entry |
+		entry second :level entry first instrument!
+		[ :chorus-send :delay-send :reverb-send ] ( send | 1 send entry first instrument! ) each
+	) each ;
+
+\ a melodic part moved by a number of semitones, chords and all
+: shifted ( notes semitones -- notes )
+	| notes semitones |
+	( pitch>midi semitones + ) to shift-pitch
+	[ 0 notes size 2 do k
+		notes k @i to pitch
+		pitch :rest = if :rest else pitch array? if pitch shift-pitch map else pitch pitch>midi semitones + then then
+		notes k 1 + @i
+	loop ] ;
+
+\ the room: a small dark plate that takes little of the brush noise's brightness, a faint echo of each phrase at a dotted eighth, and a slow chorus
+: theme-effects! ( -- )
+	0.26 :wet :reverb effect! 1 :dry :reverb effect!
+	0.5 :decay :reverb effect! 0.7 :size :reverb effect! 0.72 :damping :reverb effect!
+	0.12 :wet :delay effect! 0.625 :time :delay effect! 0.28 :feedback :delay effect!
+	0.12 :wet :chorus effect! 0.3 :rate :chorus effect! 0.002 :depth :chorus effect!
+	0.02 :predelay :reverb effect! 0.4 :bandwidth :reverb effect!
+	120 :low-cut :reverb effect! 4500 :high-cut :reverb effect!
+	0.9 :level :master effect! ;
+
+\ queue the whole theme from the present
+: queue-theme ( -- )
+	standard-mix!
+	theme-effects!
+	72 sequence-tempo
+	sax-part :sax 0.72 0.97 queue-part
+	piano-part :piano 0.5 0.92 queue-part
+	piano-fill-part :piano-fill 0.6 0.9 queue-part
+	bass-part :bass 0.75 0.85 queue-part
+	brush-part :brush 1 queue-hits
+	snare-part :snare 0.5 queue-hits
+	hihat-part :hihat 0.5 queue-hits
+	kick-part :kick 0.5 queue-hits ;
+
+\ === exploring the house: a quiet loop ===
+\ sixteen bars without the saxophone, soft enough to read over; its last bar
+\ leads back to its first, so queueing it again as it ends plays on without a seam
+\ bars 1-8   Dm9 | Dm9 | Ebmaj7#11 | Ebmaj7#11 | Dm9 | Dm9 | Bbmaj7 | A7b9
+\ bars 9-16  Gm9 | Gm9 | Dm9 | Dm9 | Ebmaj7#11 | Ebmaj7#11 | Em7b5 A7b9 | A7b9
+
+[ [ :f3 :a3 :c4 :e4 ] 3/2 :rest 1/2
+  [ :g3 :a3 :d4 :f4 ] 1 :rest 5/12 [ :g3 :a3 :d4 :f4 ] 7/12
+  [ :f3 :a3 :c4 :e4 ] 3/4 :rest 5/4
+  [ :a3 :d4 :f4 ] 1/2 :rest 1/2 [ :g3 :bb3 :c#4 :f4 ] 1
+  [ :bb3 :d4 :f4 :a4 ] 3/2 :rest 1/2
+  [ :f3 :a3 :c4 :e4 ] 1 :rest 1
+  [ :g3 :a3 :d4 :f4 ] 1 :rest 1
+  [ :g3 :bb3 :d4 ] 1/2 [ :g3 :bb3 :c#4 :f4 ] 1 :rest 1/2 ] to house-piano-part
+
+[ :rest 3/2 :e5 1/6 :d5 1/12 :a4 1/4
+  :a4 1/2 :rest 3/2
+  :rest 2
+  :rest 1 :bb4 1/4 :a4 1/4 :c#5 1/2
+  :rest 2
+  :a5 3/8 :g5 1/8 :f5 1/4 :e5 1/4 :d5 1/2 :rest 1/2
+  :rest 1 :d5 1/2 :rest 1/2
+  :rest 2 ] to house-fill-part
+
+[ :d2 1/2 :a2 1/2  :d2 1/2 :a1 1/2  :eb2 1/2 :bb1 1/2  :eb2 1/2 :bb1 1/2
+  :d2 1/2 :a2 1/2  :d2 1/2 :c2 1/2  :bb1 1/2 :f2 1/2  :a1 1/2 :e2 1/4 :a1 1/4
+  :g1 1/2 :d2 1/2  :g1 1/2 :d2 1/4 :c#2 1/4  :d2 1/2 :a2 1/2  :d2 1/2 :a1 1/2
+  :eb2 1/2 :bb1 1/2  :eb2 1/2 :bb1 1/2  :e2 1/2 :a1 1/2  :a1 1/2 :e2 1/4 :c#2 1/4 ] to house-bass-part
+
+\ the kit softer than in the theme: a triplet at the half's end and the loop's end
+[ 1/2 0.5 1/2 0.4 ] 16 bars-of to house-brush-part
+[ 1/4 0 1/4 0.4 1/4 0 1/4 0.4 ] to house-snare-plain
+[ house-snare-plain 7 bars-of
+  [ 1/4 0 1/4 0.4 1/12 0.22 1/12 0.26 1/12 0.3 1/4 0.4 ]
+  house-snare-plain 7 bars-of
+  [ 1/4 0 1/4 0.4 1/4 0 1/12 0.22 1/12 0.26 1/12 0.32 ]
+] [ ] ' concat reduce to house-snare-part
+[ 1/4 0 1/4 0.35 1/4 0 1/4 0.35 ] to house-hihat-plain
+[ house-hihat-plain 7 bars-of
+  [ 1/4 0 1/4 0.35 1/4 0 1/6 0.35 1/12 0.25 ]
+  house-hihat-plain 7 bars-of
+  [ 1/4 0 1/4 0.35 1/4 0 1/12 0.3 1/12 0.22 1/12 0.28 ]
+] [ ] ' concat reduce to house-hihat-part
+[ 1/4 0.22 3/4 0 ] 16 bars-of to house-kick-part
+
+\ queue one pass of the house loop from the present, or from where the last pass ends
+: queue-house-loop ( -- )
+	standard-mix!
+	theme-effects!
+	72 sequence-tempo
+	house-piano-part :piano 0.4 0.95 queue-part
+	house-fill-part :piano-fill 0.45 0.9 queue-part
+	house-bass-part :bass 0.6 0.85 queue-part
+	house-brush-part :brush 1 queue-hits
+	house-snare-part :snare 0.5 queue-hits
+	house-hihat-part :hihat 0.5 queue-hits
+	house-kick-part :kick 0.5 queue-hits ;
+
+\ the house in the morning: a little quicker, the piano's answers an octave higher, the brushes lighter and no bass drum
+: queue-house-morning ( -- )
+	standard-mix!
+	theme-effects!
+	82 sequence-tempo
+	0.05 :level :brush instrument!
+	0.14 :level :snare instrument!
+	house-piano-part :piano 0.4 0.95 queue-part
+	house-fill-part 12 shifted :piano-fill 0.42 0.9 queue-part
+	house-bass-part :bass 0.6 0.85 queue-part
+	house-brush-part :brush 1 queue-hits
+	house-snare-part :snare 0.5 queue-hits
+	house-hihat-part :hihat 0.5 queue-hits ;
+
+\ the house in the evening: slower, only the brushes, and the clarinet low and soft, a note every two bars stepping down the motif, A G F, then back to the A it began on, the fifth of Dm9; the second and third notes are held and then fall to a chord tone, G a step to the F of Bbmaj7 and F a third to the D of Gm9, each phrase a breath's length with a rest after it, and silence to the loop's end
+[ :rest 4
+  :a3 3/4 :rest 5/4
+  :g3 1/2 :f3 1/4 :rest 5/4
+  :f3 1/2 :d3 1/4 :rest 5/4
+  :a3 3/4 :rest 5/4
+  :rest 4 ] to house-evening-clarinet-part
+
+: queue-house-evening ( -- )
+	standard-mix!
+	theme-effects!
+	0.3 :wet :reverb effect! 0.6 :decay :reverb effect! 0.04 :predelay :reverb effect!
+	66 sequence-tempo
+	house-piano-part :piano 0.38 0.95 queue-part
+	house-fill-part :piano-fill 0.4 0.9 queue-part
+	house-bass-part :bass 0.55 0.85 queue-part
+	house-evening-clarinet-part :clarinet 0.4 1 queue-part
+	house-brush-part :brush 1 queue-hits
+	house-snare-part :snare 0.5 queue-hits ;
+
+\ === the grounds: an airy loop ===
+\ sixteen bars at 60 beats a minute for piano and saxophone alone, in D Dorian;
+\ the saxophone plays the motif at half speed, and the last bar leads back to the first
+\ bars 1-8   Dm9 | G13 | Dm9 | G13 | Bbmaj7#11 | Am9 | Gm9 | A7sus4 A7b9
+\ bars 9-16  Dm9 | G13 | Fmaj7#11 | Ebmaj7#11 | Dm9 | Bbmaj7 | Em7b5 | A7sus4
+
+[ [ :d2 :a2 :e3 :f3 :c4 ] 1
+  [ :g2 :f3 :b3 :e4 ] 1
+  [ :d2 :a2 :e3 :f3 :c4 ] 1
+  [ :g2 :f3 :b3 :e4 ] 1
+  [ :bb1 :f2 :a3 :d4 :e4 ] 1
+  [ :a2 :e3 :g3 :c4 ] 1
+  [ :g2 :f3 :bb3 :d4 ] 1
+  [ :a2 :g3 :d4 :e4 ] 1/2 [ :a2 :g3 :c#4 :bb4 ] 1/2
+  [ :d2 :a2 :e3 :f3 :c4 ] 1
+  [ :g2 :f3 :b3 :e4 ] 1
+  [ :f2 :c3 :e3 :a3 :b3 ] 1
+  [ :eb2 :bb2 :d3 :g3 :a3 ] 1
+  [ :d2 :a2 :e3 :f3 :c4 ] 1
+  [ :bb1 :f2 :a3 :d4 ] 1
+  [ :e2 :d3 :g3 :bb3 ] 1
+  [ :a2 :g3 :d4 :e4 ] 1 ] to grounds-piano-part
+
+[ :rest 1/2 :a4 1/4 :e5 1/4
+  :d5 1/2 :b4 1/2
+  :rest 1/2 :f5 1/4 :e5 1/4
+  :e5 1
+  :rest 6
+  :a5 1/2 :e5 1/2
+  :d5 1/2 :rest 1/2
+  :rest 1
+  :d5 1/4 :f5 1/4 :a5 1/2
+  :g5 1/2 :d5 1/2
+  :e5 1 ] to grounds-fill-part
+
+[ :rest 4
+  :d5 3/4 :c5 1/4
+  :a4 1
+  :rest 1/4 :bb4 1/2 :a4 1/4
+  :g4 1/2 :rest 1/2
+  :a4 1/2 :g4 1/4 :f4 1/4
+  :e4 1/2 :d4 1/2
+  :rest 1
+  :rest 1/2 :g4 1/2
+  :f4 1
+  :rest 3 ] to grounds-sax-part
+
+\ out of doors: a larger, wider plate than the house's whose tail starts late, as from far boundaries, and a clearer echo
+: grounds-effects! ( -- )
+	theme-effects!
+	0.35 :wet :reverb effect! 0.76 :decay :reverb effect! 1.5 :size :reverb effect!
+	0.06 :predelay :reverb effect! 1.5 :width :reverb effect!
+	0.5 :bandwidth :reverb effect! 6000 :high-cut :reverb effect!
+	0.18 :wet :delay effect! 0.75 :time :delay effect! 0.3 :feedback :delay effect! ;
+
+\ queue one pass of the grounds loop from the present, or from where the last pass ends
+: queue-grounds-loop ( -- )
+	standard-mix!
+	grounds-effects!
+	60 sequence-tempo
+	0.11 :level :sax instrument!
+	grounds-piano-part :piano 0.38 1 queue-part
+	grounds-fill-part :piano-fill 0.42 0.95 queue-part
+	grounds-sax-part :sax 0.45 0.97 queue-part ;
+
+\ === talking to people: a waltz ===
+\ sixteen bars of 3/4 at 100 beats a minute in C minor, apart from the theme:
+\ no saxophone, no motif, the piano in fourths, and no cadence, the harmony
+\ swaying between Cm11 and the chord a half step above it
+\ bars 1-8   Cm11 Cm11 | Dbmaj7#11 Dbmaj7#11 | Cm11 Cm11 | Dbmaj7#11 Dbmaj7#11
+\ bars 9-16  Cm11 Cm11 | Abmaj7#11 Abmaj7#11 | Cm11 Cm11 | Dbmaj7#11 Dbmaj7#11
+
+[ [ :f3 :bb3 :eb4 :g4 ] 3/4  :rest 1/4 [ :f3 :bb3 :eb4 :g4 ] 1/2
+  [ :g3 :c4 :f4 :ab4 ] 3/2
+  [ :f3 :bb3 :eb4 :g4 ] 3/4  :rest 1/4 [ :g3 :c4 :f4 :bb4 ] 1/2
+  [ :g3 :c4 :f4 :ab4 ] 3/4  :rest 3/4
+  [ :f3 :bb3 :eb4 :g4 ] 3/2
+  [ :d3 :g3 :c4 :eb4 ] 3/4  :rest 1/4 [ :d3 :g3 :c4 :eb4 ] 1/2
+  [ :f3 :bb3 :eb4 :g4 ] 3/4  :rest 3/4
+  [ :g3 :c4 :f4 :ab4 ] 3/4  :rest 1/4 [ :g3 :c4 :f4 :ab4 ] 1/2 ] to waltz-piano-part
+
+[ :rest 9/4 :rest 1/4 :f5 1/6 :eb5 1/12 :c5 1/4
+  :rest 9/4 :rest 1/2 :g5 1/4
+  :rest 9/4 :rest 1/4 :d5 1/4 :eb5 1/4
+  :rest 9/4 :rest 1/4 :ab4 1/4 :g4 1/4 ] to waltz-fill-part
+
+[ :c2 3/4  :g1 1/2 :bb1 1/6 :c2 1/12
+  :db2 3/4  :ab1 3/4
+  :c2 3/4  :g1 3/4
+  :db2 3/4  :ab1 3/4
+  :c2 3/4  :g1 1/2 :bb1 1/6 :a1 1/12
+  :ab1 3/4  :eb2 1/2 :d2 1/6 :c#2 1/12
+  :c2 3/4  :g1 3/4
+  :db2 3/4  :ab1 1/2 :bb1 1/6 :b1 1/12 ] to waltz-bass-part
+
+\ the hi-hat leads in three: the bass drum on one, the hat closed on two and its swung off-beat, half open and ringing on three, and in every other bar closed again on three's off-beat into the next one; a closed triplet on three at bars 8 and 16; under it a light brush sweep a bar and faint snare taps on two and three
+[ 3/4 0.25 ] 16 bars-of to waltz-brush-part
+[ 1/4 0 1/4 0.22 1/4 0.18 ] 16 bars-of to waltz-snare-part
+[ 1/4 0 1/6 0.45 1/12 0.3 1/6 0 1/12 0.3 ] to waltz-hihat-pickup
+[ 1/4 0 1/6 0.45 1/12 0.3 1/4 0 ] to waltz-hihat-plain
+[ 1/4 0 1/6 0.45 1/12 0.3 1/12 0.35 1/12 0.3 1/12 0.35 ] to waltz-hihat-triplet
+[ waltz-hihat-pickup waltz-hihat-plain waltz-hihat-pickup waltz-hihat-plain waltz-hihat-pickup waltz-hihat-plain waltz-hihat-pickup waltz-hihat-triplet
+  waltz-hihat-pickup waltz-hihat-plain waltz-hihat-pickup waltz-hihat-plain waltz-hihat-pickup waltz-hihat-plain waltz-hihat-pickup waltz-hihat-triplet
+] [ ] ' concat reduce to waltz-hihat-part
+[ 1/2 0 1/4 0.5 ] to waltz-open-plain
+[ waltz-open-plain 7 bars-of [ 3/4 0 ] waltz-open-plain 7 bars-of [ 3/4 0 ]
+] [ ] ' concat reduce to waltz-open-hihat-part
+[ 1/4 0.22 1/2 0 ] 16 bars-of to waltz-kick-part
+
+\ queue one pass of the waltz from the present, or from where the last pass ends
+: queue-waltz-loop ( -- )
+	standard-mix!
+	theme-effects!
+	100 sequence-tempo
+	waltz-piano-part :piano 0.42 0.95 queue-part
+	waltz-fill-part :piano-fill 0.45 0.9 queue-part
+	waltz-bass-part :bass 0.6 0.85 queue-part
+	waltz-brush-part :brush 1 queue-hits
+	waltz-snare-part :snare 0.5 queue-hits
+	waltz-hihat-part :hihat 0.5 queue-hits
+	waltz-open-hihat-part :open-hihat 0.9 queue-hits
+	waltz-kick-part :kick 0.5 queue-hits ;
+
+\ === a discovery: a sting ===
+\ about five seconds: a snare triplet into the downbeat, where the bass and the
+\ bass drum land under a held D minor chord with its major seventh and the
+\ saxophone climbs the motif's first four notes backwards, E F G A, holding the
+\ A the theme begins on
+
+[ :rest 1/4 :e4 1/4 :f4 1/12 :g4 1/12 :a4 1/2 ] to sting-sax-part
+[ :rest 1/4 [ :d3 :a3 :c#4 :f4 ] 11/12 ] to sting-piano-part
+[ :rest 1/4 :d2 1/2 ] to sting-bass-part
+[ 1/12 0.2 1/12 0.28 1/12 0.36 ] to sting-snare-part
+[ 1/4 0 11/12 0.35 ] to sting-brush-part
+[ 1/4 0 1/4 0.35 ] to sting-kick-part
+
+\ queue the sting from the present
+: queue-discovery-sting ( -- )
+	standard-mix!
+	theme-effects!
+	72 sequence-tempo
+	sting-sax-part :sax 0.62 1 queue-part
+	sting-piano-part :piano 0.5 1 queue-part
+	sting-bass-part :bass 0.7 0.85 queue-part
+	sting-snare-part :snare 0.5 queue-hits
+	sting-brush-part :brush 1 queue-hits
+	sting-kick-part :kick 0.5 queue-hits ;
+
+\ === something suspicious: a cue ===
+\ two bars: the bass creeps down the motif at half speed, A G F E, stopping
+\ unresolved on E under two chords built on tritones, with a soft high note on
+\ three, a heartbeat on the bass drum and slow swells of the brush
+
+[ :a2 1/2 :g2 1/2 :f2 1/2 :e2 1/2 ] to suspense-bass-part
+[ [ :d3 :ab3 :c4 ] 1 [ :e3 :bb3 :d4 ] 1 ] to suspense-piano-part
+[ :rest 1/2 :eb6 1/4 :rest 3/4 :a5 1/4 :rest 1/4 ] to suspense-fill-part
+[ 1 0.4 1 0.5 ] to suspense-brush-part
+[ 1/6 0.3 1/12 0.22 3/4 0 1/6 0.3 1/12 0.22 3/4 0 ] to suspense-kick-part
+
+\ queue the cue from the present
+: queue-suspense-cue ( -- )
+	standard-mix!
+	theme-effects!
+	72 sequence-tempo
+	suspense-bass-part :bass 0.65 0.9 queue-part
+	suspense-piano-part :piano 0.45 1 queue-part
+	suspense-fill-part :piano-fill 0.35 0.9 queue-part
+	suspense-brush-part :brush 1 queue-hits
+	suspense-kick-part :kick 0.5 queue-hits ;
+
+\ === the hour turning: a time mark ===
+\ six seconds at 120 beats a minute, so the clock is exact: the hi-hat ticks
+\ every half second, stronger on each second, while the piano chimes the motif
+\ high a second a note, A G F E, and lands on D over an open fifth and the bass's
+\ low D left to ring, the one cue that completes the motif
+
+[ :a5 1/2 :g5 1/2 :f5 1/2 :e5 1/2 :d5 1 ] to time-mark-fill-part
+[ :rest 2 [ :d3 :a3 ] 1 ] to time-mark-piano-part
+[ :rest 2 :d2 1 ] to time-mark-bass-part
+[ 1/4 0.4 1/4 0.22 ] 4 bars-of to time-mark-hihat-part
+
+\ queue the time mark from the present
+: queue-time-mark ( -- )
+	standard-mix!
+	theme-effects!
+	120 sequence-tempo
+	time-mark-fill-part :piano-fill 0.5 0.95 queue-part
+	time-mark-piano-part :piano 0.4 1 queue-part
+	time-mark-bass-part :bass 0.7 1 queue-part
+	time-mark-hihat-part :hihat 0.5 queue-hits ;
+
+\ === a confrontation: a build that stops unresolved ===
+\ eight bars at 94 beats a minute: the saxophone states the motif over a D
+\ pedal, answers it a fourth higher over Gm9, and climbs to hold C#, the
+\ leading note of A7b9, which the ending that follows resolves or leaves
+\ bars 1-4  Dm(maj7) Dm(maj7) | Ebmaj7#11 Ebmaj7#11, over D
+\ bars 5-8  Gm9 | Bb7#11 | Em7b5 | A7b9, held
+
+[ :a4 3/8 :g4 1/8 :f4 1/4 :e4 1/4
+  :d4 1/2 :rest 1/2
+  :rest 2
+  :d5 3/8 :c5 1/8 :bb4 1/4 :a4 1/4
+  :g4 1/2 :rest 1/2
+  :bb4 1/2 :a4 1/4 :g4 1/4
+  :c#5 1 ] to confrontation-sax-part
+
+\ a bar of stabs on the swung off-beats of two and four
+: stabs ( chord -- notes )
+	| chord |
+	[ :rest 5/12 chord 1/12 :rest 5/12 chord 1/12 ] ;
+
+[ [ :f3 :a3 :c#4 :e4 ] stabs [ :f3 :a3 :c#4 :e4 ] stabs
+  [ :g3 :a3 :d4 ] stabs [ :g3 :a3 :d4 ] stabs
+  [ :bb3 :d4 :f4 :a4 ] stabs [ :ab3 :d4 :e4 :g4 ] stabs
+  [ :g3 :bb3 :d4 ] stabs [ [ :g3 :bb3 :c#4 :f4 ] 1 ]
+] [ ] ' concat reduce to confrontation-piano-part
+
+[ :d2 1/4 :d2 1/4 :d2 1/4 :d2 1/4   :d2 1/4 :d2 1/4 :d2 1/4 :c#2 1/4
+  :d2 1/4 :d2 1/4 :d2 1/4 :d2 1/4   :d2 1/4 :d2 1/4 :d2 1/4 :d2 1/4
+  :g1 1/4 :bb1 1/4 :d2 1/4 :bb1 1/4   :bb1 1/4 :d2 1/4 :f2 1/4 :e2 1/4
+  :e2 1/4 :g2 1/4 :f2 1/4 :bb1 1/4   :a1 1 ] to confrontation-bass-part
+
+\ the kit firmer than in the loops, the bass drum quickening from one and three to every beat, a triplet into the held last bar
+[ 1/2 0.55 1/2 0.5 ] 7 bars-of [ 1 0.6 ] concat to confrontation-brush-part
+[ 1/4 0 1/4 0.6 1/4 0 1/6 0.6 1/12 0.3 ] 6 bars-of
+[ 1/4 0 1/4 0.6 1/4 0 1/12 0.35 1/12 0.45 1/12 0.55 ] concat [ 1 0 ] concat to confrontation-snare-part
+[ 1/4 0 1/4 0.5 1/4 0 1/4 0.5 ] 7 bars-of [ 1 0 ] concat to confrontation-hihat-part
+[ 1/4 0.3 1/4 0 1/4 0.28 1/4 0 ] 4 bars-of [ 1/4 0.3 1/4 0.25 1/4 0.3 1/4 0.25 ] 3 bars-of concat [ 1/4 0.35 3/4 0 ] concat to confrontation-kick-part
+
+\ queue the confrontation from the present
+: queue-confrontation ( -- )
+	standard-mix!
+	theme-effects!
+	94 sequence-tempo
+	confrontation-sax-part :sax 0.8 0.95 queue-part
+	confrontation-piano-part :piano 0.6 1 queue-part
+	confrontation-bass-part :bass 0.8 0.85 queue-part
+	confrontation-brush-part :brush 1 queue-hits
+	confrontation-snare-part :snare 0.5 queue-hits
+	confrontation-hihat-part :hihat 0.5 queue-hits
+	confrontation-kick-part :kick 0.5 queue-hits ;
+
+\ === the resolved ending ===
+\ six bars at 72 beats a minute, the theme taken up in D major: the saxophone
+\ plays the motif in the major, A G F# E D, through the major key's own
+\ progression, and lands on D over Dmaj9; the piano's last arpeggio ends on the ninth
+\ bars 1-6  Dmaj9 | Gmaj9 | Em9 | A13 | Dmaj9 | Dmaj9
+
+[ :a4 3/8 :g4 1/8 :f#4 1/4 :e4 1/4
+  :d4 1/2 :rest 1/4 :a4 1/4
+  :b4 3/8 :a4 1/8 :g4 1/4 :e4 1/4
+  :f#4 1/2 :e4 1/4 :c#4 1/4
+  :d4 1 :rest 1 ] to resolved-sax-part
+
+[ [ :f#3 :a3 :c#4 :e4 ] 3/4 :rest 1/4
+  [ :f#3 :a3 :b3 :d4 ] 3/4 :rest 1/4
+  [ :g3 :b3 :d4 :f#4 ] 3/4 :rest 1/4
+  [ :g3 :c#4 :f#4 ] 1
+  [ :f#3 :a3 :c#4 :e4 ] 2 ] to resolved-piano-part
+
+[ :rest 4
+  :a5 1/6 :f#5 1/12 :e5 1/6 :c#5 1/12 :a4 1/2
+  :e5 1 ] to resolved-fill-part
+
+[ :d2 1/2 :a1 1/2  :g1 1/2 :d2 1/2  :e2 1/2 :b1 1/2  :a1 1/2 :e2 1/4 :c#2 1/4  :d2 2 ] to resolved-bass-part
+
+[ 1/2 0.45 1/2 0.4 ] 4 bars-of [ 1 0.4 1 0.2 ] concat to resolved-brush-part
+[ 1/4 0 1/4 0.4 1/4 0 1/4 0.4 ] 3 bars-of [ 1/4 0 1/4 0.4 1/4 0 1/12 0.25 1/12 0.3 1/12 0.35 ] concat [ 2 0 ] concat to resolved-snare-part
+[ 1/4 0 1/4 0.35 1/4 0 1/4 0.35 ] 4 bars-of [ 2 0 ] concat to resolved-hihat-part
+[ 1/4 0.25 3/4 0 ] 4 bars-of [ 1/4 0.3 7/4 0 ] concat to resolved-kick-part
+
+\ queue the resolved ending from the present
+: queue-resolved-ending ( -- )
+	standard-mix!
+	theme-effects!
+	72 sequence-tempo
+	resolved-sax-part :sax 0.66 0.97 queue-part
+	resolved-piano-part :piano 0.5 1 queue-part
+	resolved-fill-part :piano-fill 0.5 0.95 queue-part
+	resolved-bass-part :bass 0.7 0.9 queue-part
+	resolved-brush-part :brush 1 queue-hits
+	resolved-snare-part :snare 0.5 queue-hits
+	resolved-hihat-part :hihat 0.5 queue-hits
+	resolved-kick-part :kick 0.5 queue-hits ;
+
+\ === the failed ending ===
+\ five slow bars at 60 beats a minute: the A7 the confrontation holds turns
+\ aside to Bbmaj7#11 instead of D; the saxophone climbs the motif's first steps
+\ turned upward, A Bb C D, reaches F, and crashes down through D Bb G to E,
+\ falls silent, and holds E over a bare D minor, never reaching the D; one high
+\ E rings out over the low chord
+\ bars 1-5  Bbmaj7#11 | Gm9 | Ebmaj7#11 over D | Dm(add9) | Dm(add9)
+
+[ :a4 1/4 :bb4 1/4 :c5 1/4 :d5 1/4
+  :f5 1/2 :d5 1/12 :bb4 1/12 :g4 1/12 :e4 1/4
+  :rest 1
+  :e4 3/4 :rest 5/4 ] to failed-sax-part
+
+[ [ :a3 :d4 :e4 ] 1
+  [ :bb3 :d4 :f4 :a4 ] 1
+  [ :g3 :a3 :d4 ] 1
+  [ :d2 :a2 :f3 :e4 ] 2 ] to failed-piano-part
+
+[ :rest 3 :rest 1/2 :e6 1/2 :rest 1 ] to failed-fill-part
+[ :bb1 1 :g1 1 :d2 1 :d2 2 ] to failed-bass-part
+[ 1 0.4 1 0.35 1 0.4 1 0.3 1 0.15 ] to failed-brush-part
+[ 1/4 0.25 19/4 0 ] to failed-kick-part
+
+\ queue the failed ending from the present
+: queue-failed-ending ( -- )
+	standard-mix!
+	theme-effects!
+	60 sequence-tempo
+	failed-sax-part :sax 0.6 0.97 queue-part
+	failed-piano-part :piano 0.45 1 queue-part
+	failed-fill-part :piano-fill 0.4 0.95 queue-part
+	failed-bass-part :bass 0.65 1 queue-part
+	failed-brush-part :brush 1 queue-hits
+	failed-kick-part :kick 0.5 queue-hits ;

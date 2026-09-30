@@ -61,6 +61,9 @@ typedef enum {
 	PARAMETER_CUTOFF,
 	PARAMETER_RESONANCE,
 	PARAMETER_DRIVE,
+	PARAMETER_CHORUS_SEND,
+	PARAMETER_DELAY_SEND,
+	PARAMETER_REVERB_SEND,
 	PARAMETER_OSCILLATOR_LEVEL,
 	PARAMETER_OSCILLATOR_RATIO,
 	PARAMETER_OSCILLATOR_WIDTH
@@ -121,6 +124,10 @@ typedef struct {
 	double drive;
 	EnvelopeShape filter_envelope;
 	double filter_amount;
+	double high_pass_cutoff;
+	double chorus_send;
+	double delay_send;
+	double reverb_send;
 	SynthLfo lfo;
 	double glide;
 } SynthPatch;
@@ -146,6 +153,16 @@ typedef struct {
 	double tv[4][2];
 	double previous_input[2];
 } MoogState;
+
+typedef struct {
+	double b0;
+	double b1;
+	double b2;
+	double a1;
+	double a2;
+	double r1[2];
+	double r2[2];
+} HighPassState;
 
 typedef struct {
 	int active;
@@ -181,6 +198,7 @@ typedef struct {
 	double filter_level;
 	EnvelopeRates filter_rates;
 	MoogState moog;
+	HighPassState high_pass;
 	SynthRamp level_ramp;
 	SynthRamp pan_ramp;
 	SynthRamp cutoff_ramp;
@@ -301,6 +319,9 @@ static void patch_default(SynthPatch *patch) {
 	patch->n_unison = 1;
 	patch->cutoff = SYNTH_MAX_CUTOFF;
 	patch->drive = 1.0;
+	patch->chorus_send = 1.0;
+	patch->delay_send = 1.0;
+	patch->reverb_send = 1.0;
 	envelope_shape_default(&patch->filter_envelope);
 	patch->lfo.shape = LFO_SINE;
 	patch->lfo.rate = 5.0;
@@ -445,7 +466,7 @@ static const char *const synth_lfo_keys[] = {
 static const char *const synth_patch_keys[] = {
 	"oscillators", "modulation", "carriers", "level", "pan", "velocity-sensitivity",
 	"unison", "unison-detune", "unison-spread", "cutoff", "resonance", "drive",
-	"filter-envelope", "lfo", "glide", NULL
+	"filter-envelope", "high-pass", "chorus-send", "delay-send", "reverb-send", "lfo", "glide", NULL
 };
 
 static int envelope_from_frame(Interpreter *interp, Object *frame, EnvelopeShape *envelope) {
@@ -623,6 +644,10 @@ static int patch_from_frame(Interpreter *interp, Object *frame, SynthPatch *patc
 		&& frame_number(interp, frame, "cutoff", SYNTH_MIN_CUTOFF, SYNTH_MAX_CUTOFF, &patch->cutoff)
 		&& frame_number(interp, frame, "resonance", 0, 4, &patch->resonance)
 		&& frame_number(interp, frame, "drive", 0.1, 10, &patch->drive)
+		&& frame_number(interp, frame, "high-pass", SYNTH_MIN_CUTOFF, SYNTH_MAX_CUTOFF, &patch->high_pass_cutoff)
+		&& frame_number(interp, frame, "chorus-send", 0, 1, &patch->chorus_send)
+		&& frame_number(interp, frame, "delay-send", 0, 1, &patch->delay_send)
+		&& frame_number(interp, frame, "reverb-send", 0, 1, &patch->reverb_send)
 		&& frame_number(interp, frame, "glide", 0, 10, &patch->glide);
 }
 
@@ -883,6 +908,22 @@ static void voice_pan_gains(SynthVoice *voice, double lfo_pan) {
 	}
 }
 
+#define HIGH_PASS_Q M_SQRT1_2
+
+static void high_pass_start(HighPassState *filter, double cutoff) {
+	double w0 = 2.0 * M_PI * cutoff / SYNTH_SAMPLE_RATE;
+	double cos_w0 = cos(w0);
+	double alpha = sin(w0) / (2.0 * HIGH_PASS_Q);
+	double a0 = 1.0 + alpha;
+
+	memset(filter, 0, sizeof(HighPassState));
+	filter->b0 = (1.0 + cos_w0) / 2.0 / a0;
+	filter->b1 = -(1.0 + cos_w0) / a0;
+	filter->b2 = filter->b0;
+	filter->a1 = -2.0 * cos_w0 / a0;
+	filter->a2 = (1.0 - alpha) / a0;
+}
+
 static void voice_start(SynthVoice *voice, int instrument, double note, double velocity, uint64_t seed) {
 	const SynthPatch *patch = &synth_instruments[instrument];
 	int retrigger = voice->active && voice->instrument == instrument && voice->note == note;
@@ -896,6 +937,8 @@ static void voice_start(SynthVoice *voice, int instrument, double note, double v
 				voice->noise_states[copy][j] = seed + (uint64_t)(copy * SYNTH_MAX_OSCILLATORS + j) * 0x632be59bd9b4e019ULL;
 		voice->lfo_noise = seed ^ 0xd6e8feb86659fd93ULL;
 		voice->filter_stage = STAGE_ATTACK;
+		if (patch->high_pass_cutoff > 0)
+			high_pass_start(&voice->high_pass, patch->high_pass_cutoff);
 		double previous_note = synth_last_notes[instrument];
 		if (patch->glide > 0 && previous_note >= 0 && previous_note != note) {
 			voice->glide_offset = previous_note - note;
@@ -1034,6 +1077,15 @@ static void voice_parameter(SynthVoice *voice, SynthParameter parameter, int osc
 	case PARAMETER_DRIVE:
 		ramp_start(voice, &voice->drive_ramp, value);
 		break;
+	case PARAMETER_CHORUS_SEND:
+		voice->patch.chorus_send = value;
+		break;
+	case PARAMETER_DELAY_SEND:
+		voice->patch.delay_send = value;
+		break;
+	case PARAMETER_REVERB_SEND:
+		voice->patch.reverb_send = value;
+		break;
 	case PARAMETER_OSCILLATOR_LEVEL:
 		if (oscillator_index < voice->patch.n_oscillators)
 			ramp_start(voice, &voice->oscillator_level_ramps[oscillator_index], value);
@@ -1066,6 +1118,15 @@ static void patch_parameter(SynthPatch *patch, SynthParameter parameter, int osc
 		break;
 	case PARAMETER_DRIVE:
 		patch->drive = value;
+		break;
+	case PARAMETER_CHORUS_SEND:
+		patch->chorus_send = value;
+		break;
+	case PARAMETER_DELAY_SEND:
+		patch->delay_send = value;
+		break;
+	case PARAMETER_REVERB_SEND:
+		patch->reverb_send = value;
 		break;
 	case PARAMETER_OSCILLATOR_LEVEL:
 		if (oscillator_index < patch->n_oscillators)
@@ -1121,7 +1182,19 @@ static double moog_sample(MoogState *moog, double sample, double cutoff, double 
 	return moog->v[3][channel] / MOOG_INPUT_SCALE * (1.0 + 0.5 * resonance);
 }
 
-static void voice_sample(SynthVoice *voice, double *left, double *right) {
+static double high_pass_sample(HighPassState *filter, double sample, int channel) {
+	double filtered = filter->b0 * sample + filter->r1[channel];
+	filter->r1[channel] = filter->b1 * sample - filter->a1 * filtered + filter->r2[channel];
+	filter->r2[channel] = filter->b2 * sample - filter->a2 * filtered;
+	return filtered;
+}
+
+static void bus_add(double bus[2], double send, double left, double right) {
+	bus[0] += left * send;
+	bus[1] += right * send;
+}
+
+static void voice_sample(SynthVoice *voice, EffectBuses *buses) {
 	const SynthPatch *patch = &voice->patch;
 	int n_oscillators = patch->n_oscillators;
 	unsigned carrier_mask = patch->carrier_mask;
@@ -1213,14 +1286,21 @@ static void voice_sample(SynthVoice *voice, double *left, double *right) {
 			mono = moog_sample(&voice->moog, mono, cutoff, resonance, drive, 0);
 		}
 	}
-
-	if (voice->stereo) {
-		*left += stereo_left * gain;
-		*right += stereo_right * gain;
-	} else {
-		*left += mono * voice->copy_left[0] * gain;
-		*right += mono * voice->copy_right[0] * gain;
+	if (patch->high_pass_cutoff > 0) {
+		if (voice->stereo) {
+			stereo_left = high_pass_sample(&voice->high_pass, stereo_left, 0);
+			stereo_right = high_pass_sample(&voice->high_pass, stereo_right, 1);
+		} else {
+			mono = high_pass_sample(&voice->high_pass, mono, 0);
+		}
 	}
+
+	double voice_left = voice->stereo ? stereo_left * gain : mono * voice->copy_left[0] * gain;
+	double voice_right = voice->stereo ? stereo_right * gain : mono * voice->copy_right[0] * gain;
+	bus_add(buses->dry, 1.0, voice_left, voice_right);
+	bus_add(buses->chorus, patch->chorus_send, voice_left, voice_right);
+	bus_add(buses->delay, patch->delay_send, voice_left, voice_right);
+	bus_add(buses->reverb, patch->reverb_send, voice_left, voice_right);
 
 	if (!carriers_sounding)
 		voice->active = 0;
@@ -1297,18 +1377,26 @@ static void schedule_clear(void) {
 
 static void synth_render(double *interleaved, int n_frames) {
 	for (int frame = 0; frame < n_frames; frame++) {
-		double left = 0.0;
-		double right = 0.0;
+		EffectBuses buses = {0};
 		if (synth_n_scheduled)
 			schedule_fire_due();
 		for (int v = 0; v < SYNTH_MAX_VOICES; v++) {
 			SynthVoice *voice = &synth_voices[v];
 			if (voice->active)
-				voice_sample(voice, &left, &right);
+				voice_sample(voice, &buses);
 		}
-		if (synth_n_plays)
-			plays_mix(&left, &right);
-		effects_process(&left, &right);
+		if (synth_n_plays) {
+			double played_left = 0.0;
+			double played_right = 0.0;
+			plays_mix(&played_left, &played_right);
+			bus_add(buses.dry, 1.0, played_left, played_right);
+			bus_add(buses.chorus, 1.0, played_left, played_right);
+			bus_add(buses.delay, 1.0, played_left, played_right);
+			bus_add(buses.reverb, 1.0, played_left, played_right);
+		}
+		double left;
+		double right;
+		effects_process(&buses, &left, &right);
 		interleaved[2 * frame] = left;
 		interleaved[2 * frame + 1] = right;
 		int slot = (int)(synth_recent_written & (SYNTH_RECENT_CAPACITY - 1));
@@ -1521,6 +1609,9 @@ static const ParameterRow synth_instrument_parameters[] = {
 	{"cutoff", PARAMETER_CUTOFF, SYNTH_MIN_CUTOFF, SYNTH_MAX_CUTOFF},
 	{"resonance", PARAMETER_RESONANCE, 0, 4},
 	{"drive", PARAMETER_DRIVE, 0.1, 10},
+	{"chorus-send", PARAMETER_CHORUS_SEND, 0, 1},
+	{"delay-send", PARAMETER_DELAY_SEND, 0, 1},
+	{"reverb-send", PARAMETER_REVERB_SEND, 0, 1},
 	{NULL, PARAMETER_LEVEL, 0, 0}
 };
 
@@ -1955,7 +2046,7 @@ void p_instrument_store(DISPATCH_ARGS) {
 
 	synth_ensure_ready();
 	if (!parameter_submit(interp, chain_sp[-3], chain_sp[-2], instrument, -1, synth_instrument_parameters,
-			":level :pan :cutoff :resonance :drive"))
+			":level :pan :cutoff :resonance :drive :chorus-send :delay-send :reverb-send"))
 		return;
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 3);

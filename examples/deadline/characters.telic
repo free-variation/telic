@@ -1,0 +1,1744 @@
+\ Deadline: the people. Each person's handler describes them when a room
+\ lists them (:object-description), answers what the player asks or shows
+\ them, takes commands addressed to them, and is told (:reached) when they
+\ arrive where their goal took them; told nothing, it moves them along
+\ their timetable. A person spoken of while away is reached through their
+\ global counterpart.
+
+\ the endings and plot events, defined with the plot
+defer end-header
+defer case-over
+defer george-hack
+defer dunbar-sequence
+
+[ "rose garden" "fruit trees" "weather" "snootiness of city slickers" "intricacies of weeding" ] to garden-mumbles
+[ """You can do that yourself.""" """Do it yourself!""" """Why not do it yourself?""" ] to why-me
+[ "show me useless items" "pick up every item in the house and show it to me" ] to baxter-annoyed
+[ "Hungarian Rhapsody" "march by Sir Edward Elgar" "chorus of African tribal music"
+  "Hebrew prayer service" "Pretenders concert" "cacophonous electronic jumble" "bluegrass tune"
+] to record-table
+[ "Wagnerian opera" "New Orleans jazz band" "Bulgarian shepherdess song" "Navajo night chant"
+  "simulated rain shower" "risque Russian drinking song"
+] to tape-table
+
+\ === what people have in common ===
+
+\ what a person carries, listed after their description; true
+: carry-check ( person -- flag )
+	| person |
+	person count-contents 0 > if person true 0 print-contents drop then
+	true ;
+
+\ a person glances at another who is here before answering
+: discretion ( speaker other -- )
+	| speaker other |
+	other here inside? not if exit then
+	speaker tell-name " looks briefly toward " tell other tell-name " and then speaks
+	in a low whisper." tell-line ;
+
+\ commands to a person that are questions the player means to ask them; true when dealt with
+: com-check ( person -- flag )
+	| person ^winner |
+	[< :what >] verb? if
+		:player to winner
+		:ask-about person object perform drop
+		true exit
+	then
+	[< :examine >] verb? if
+		:player to winner
+		:show person object perform drop
+		true exit
+	then
+	[< :tell-me >] verb? object :player = and if
+		:player to winner
+		:ask-about person indirect perform drop
+		true exit
+	then
+	[< :show >] verb? object :player = and if
+		"""I'm sure you can find it, Inspector.""" tell-line
+		true exit
+	then
+	[< :follow >] verb? object :player = and if
+		"""I would rather not.""" tell-line
+		true exit
+	then
+	false ;
+
+\ a room's corridor bits, 0 when it has none
+: corridor-bits ( room -- bits ) :corridor property dup null? if drop 0 then ;
+
+: global-person-handler ( context -- result )
+	| ^continuation |
+	drop
+	[< :ask-about >] verb? object :person flag? and object :global-objects inside? not and
+	[< :what :find :wait-for :follow :call :call-lose >] verb? or if 0 exit then
+	[< :tell >] verb? if
+		"It's not clear to whom you are referring." tell-line
+		null to continuation
+		1 exit
+	then
+	object :person flag? if object tell-name else indirect tell-name then
+	object :character property character location-of corridor-bits here corridor-bits bit-and 0 = not
+	[< :ask-about :tell >] verb? and if
+		" can't hear you." tell-line
+	else object :global-mrs-robner = here :master-bath = and :mrs-robner :master-bedroom inside? and if
+		" can't hear you." tell-line
+	else
+		" isn't here!" tell-line
+	then then
+	null to continuation
+	1 ;
+
+' global-person-handler :global-person handles
+
+\ === Mr. McNabb, the gardener ===
+
+: show-hole ( -- )
+	"McNabb grabs your arm and leads you to a spot deep within the garden and
+	near the house. You might never have found this place alone. He points at
+	the ground, where you see two holes in the soft earth." tell-line
+	:hole :invisible clear-flag
+	true :hole-shown state! ;
+
+: gardener-handler ( context -- result )
+	| context |
+	context :object-description = if
+		:gardener in-motion? if 1 exit then
+		:gardener location-of to place
+		place :orchard = if
+			"Mr. McNabb is here, pruning the trees." tell
+		else [ :north-lawn :east-lawn :south-lawn :west-lawn ] place position-of 0 >= if
+			"Mr. McNabb is here, " tell lawn-activities pick-one tell "." tell
+		else place :rose-garden = if
+			"Mr. McNabb is here, " tell garden-activities pick-one tell "." tell
+		else
+			"Mr. McNabb is here." tell
+		then then then
+		:g-i-g state if
+			" He seems quite worked up and is talking aloud to himself." tell
+		else :gardener-angry state if
+			" He seems pretty angry about something." tell
+		then then
+		end-line
+		:gardener carry-check exit
+	then
+	[< :hello :goodbye >] verb? if
+		:gardener-angry state if
+			"McNabb grunts briefly in your direction." tell-line
+		else :g-i-g state if
+			"He answers absently and starts to mumble quietly about the roses." tell-line
+		else
+			"He replies with a brief nod, and then starts mumbling to himself about
+			the " tell garden-mumbles pick-one tell "." tell-line
+		then then
+		1 exit
+	then
+	winner :gardener = if
+		[< :show :sshow >] verb? [ :global-hole :hole :global-roses :rose ] indirect position-of 0 >= and if
+			:hole-tell state not :g-i-g state not and if
+				"""I don't know what you're-a talkin' aboot.""" tell-line
+			else :no-show state if
+				"""I don't think I remember where it was. Now go away,"" he says. He looks
+				a bit annoyed at you, probably for asking him before and then running
+				off." tell-line
+			else :hole-shown state if
+				"""I've already shown you plenty. Now, git!""" tell-line
+			else here :in-roses = if
+				true :gardener-show state!
+				true :hole-tell state!
+				show-hole
+			else
+				:gardener :in-roses true establish-goal
+				true :gardener-show state!
+				true :hole-tell state!
+				"""Follow me!"" he says, and starts walking toward the roses." tell-line
+			then then then then
+			1 exit
+		then
+		[< :find >] verb? if 0 exit then
+		:gardener com-check if 1 exit then
+		why-me pick-one tell-line
+		1 exit
+	then
+	[< :listen >] verb? if
+		:g-i-g state if
+			"You can't make out everything, but he seems to be complaining about weeks
+			of work on the roses ruined by someone stomping around in the garden. There
+			are references to elephants and holes. When he's worked up, as now, he
+			doesn't always make much sense." tell-line
+			true :hole-tell state!
+		else
+			"He seems to be mumbling about the " tell garden-mumbles pick-one tell "." tell-line
+		then
+		1 exit
+	then
+	[< :ask-about >] verb? object :gardener = and not if 0 exit then
+	:gardener-no-reply state :gardener-show state not and if
+		"""I dinna give a hoot about you or your questions! Now, begone! Steppin' all
+		o'er me roses. A crime, it is! I'll call the police is what!"" He seems pretty
+		angry." tell-line
+	else indirect :global-hole = :hole-tell state and if
+		"""I've already told you. There's holes in my garden!""" tell-line
+	else indirect :global-weather = :g-i-g state not and if
+		"""Beautiful! What a fine day. Except for the rain Wednesday night, I ha'ent
+		had such a fine week in a long spell. Not that I'm complainin'. You see, with
+		my roses..."" He goes on and on about his roses." tell-line
+	else [ :global-ladder :ladder ] indirect position-of 0 >= if
+		"""What aboot it? I use it for cleanin' the gutters 'n prunin' the
+		trees.""" tell-line
+	else [ :global-roses :rose :global-weather ] indirect position-of 0 >= if
+		:g-i-g state if
+			"He tells you his story. He was tending to the roses this morning when he
+			noticed two deep holes in the garden, with a few roses crushed nearby. He
+			doesn't know when he'll be able to repair the damage." tell-line
+			true :hole-tell state!
+		else
+			"McNabb goes on for some time about the exquisite nature of the garden in
+			general and mentions, for your benefit, some of the finer points of his
+			gardening technique." tell-line
+		then
+	else indirect :lawn = if
+		"McNabb tells a long tale of woe and hardship, of days and nights sweating
+		with the lawn mower, roller, and weed puller." tell-line
+	else [ :george :global-george :baxter :global-baxter :dunbar :global-dunbar
+	       :mrs-robner :global-mrs-robner :rourke :global-rourke ] indirect position-of 0 >= if
+		"""I don't care much aboot any of them from in the house. I barely even know
+		which is which."" He shakes his head and continues with his work." tell-line
+	else indirect :global-mr-robner = if
+		"""Too bad aboot Mr. Robner. He was a good man, liked to talk aboot the
+		garden. He told me 'McNabb', he says, 'this here's the finest garden I've
+		seen.' We'd talk for hours about planting and gardening. None of the others
+		knows between a rose and a sunflower."" He shakes his head sadly and
+		continues his work." tell-line
+	else
+		"""I dinna know nothin' aboot that.""" tell-line
+	then then then then then then then then
+	1 ;
+
+' gardener-handler :gardener handles
+
+\ McNabb complains aloud about the holes in his roses
+: gardener-grumbles ( context -- result )
+	drop
+	present-time :g-i-g state!
+	here :rose-garden = :hole-shown state not and if
+		true :hole-tell state!
+		"All of a sudden, Mr. McNabb starts talking to himself quite loudly about
+		his poor roses being ruined. He walks up to you and says ""You canna believe
+		the holes someone's made. Crushed my roses. It'll take me plenty a time to
+		set it right. I just canna believe it!""  He shakes his head dejectedly." tell-line
+		1 exit
+	then
+	0 ;
+
+' gardener-grumbles :i-g-i-g handles
+
+\ McNabb waits among the roses for the player he offered to show the holes
+: waiting-to-show-hole ( context -- result )
+	drop
+	:show-wait state 1+ dup :show-wait state!
+	4 > if
+		true :no-show state!
+		:i-show-hole 0 queue drop
+		0 exit
+	then
+	here :in-roses = if
+		:show-wait state 1 = not if
+			"McNabb gives you a sideways glance. ""What kept you?"" he asks." tell-line
+		then
+		show-hole
+		:i-show-hole 0 queue drop
+		1 exit
+	then
+	0 ;
+
+' waiting-to-show-hole :i-show-hole handles
+
+: gardener-moves ( context -- result )
+	| context |
+	context null? if :gardener :i-gardener imovement 0 exit then
+	context :reached = not if 0 exit then
+	:gardener location-of to place
+	place :rose-garden = if
+		:i-g-i-g 10 random-below 1+ 2 + queue enable
+		0 exit
+	then
+	place :orchard = if
+		:ladder :orchard inside? if 0 exit then
+		:ladder :undescribed clear-flag
+		false :ladder-flag state!
+		false :ladder-flag-2 state!
+		:ladder :touched set-flag
+		:ladder winner inside? if
+			:ladder :orchard move-to
+			"McNabb comes over to you and takes the ladder. He walks off toward the
+			orchard." tell-line
+			1 exit
+		then
+		:ladder here inside? if
+			:ladder :orchard move-to
+			"McNabb picks up the ladder and walks away toward the orchard." tell-line
+			1 exit
+		then
+		here :orchard = if
+			:ladder :orchard move-to
+			"McNabb places the ladder he was carrying on the ground." tell-line
+			1 exit
+		then
+		:ladder :orchard move-to
+		0 exit
+	then
+	place :in-roses = if
+		:gardener unprioritize
+		here place = if
+			:gardener grab-attention drop
+			show-hole
+			1 exit
+		then
+		:i-show-hole -1 queue enable
+		0 exit
+	then
+	0 ;
+
+' gardener-moves :i-gardener handles
+
+\ === Mr. Baxter ===
+
+\ the district attorney will not prosecute; the investigation ends
+: murder-not-proven ( person motive? -- )
+	| person motive? |
+	"Sergeant Duffy dutifully appears and escorts " tell person tell-name " from
+	the grounds.{nl}{nl}" tell
+	"July 26" end-header
+	"I am sorry to inform you that the District Attorney's office has declined to
+	seek an indictment against " tell person tell-name " in the case of the death of
+	Mr. Robner, against your recommendation. It is still not clear that Mr. Robner
+	was murdered, although, as you point out, there are a number of suspicious
+	characters in the Robner household." tell
+	motive? not if
+		"  Additionally, Mr. Baxter seems to have had no clear motive for killing
+		Mr. Robner." tell
+	then
+	end-line
+	person :baxter = if
+		"Mr. Baxter has threatened to sue the department for malicious arrest, but
+		we feel that he will prefer to avoid the publicity." tell-line
+	then
+	"     Please be more careful in the future!{nl}{nl}" tell
+	case-over ;
+
+\ Baxter arrested
+: baxter-arrested ( -- )
+	:pen-seen state :baxter-seen state or if
+		:baxter here inside? if
+			"Sergeant Duffy enters the room solemnly. He places a pair of handcuffs on
+			Mr. Baxter, who is stiff and unspeaking. ""Let's not have any trouble,
+			now."" Duffy remarks to Baxter." tell
+		else
+			"A few moments pass and Sergeant Duffy appears, escorting a handcuffed Mr.
+			Baxter." tell
+		then
+		" With that, he leads him from your view and into a police car waiting near
+		the south lawn.{nl}{nl}" tell
+		"August 10" end-header
+		"Congratulations on your work in the Robner case. As I'm sure you are aware,
+		Mr. Baxter was found guilty " tell
+		:baxter-papers :touched flag? :note-read state and if
+			"of two counts of first-degree murder and has been sentenced to two
+			consecutive terms of life imprisonment. My only regret is that Dunbar
+			couldn't stand trial with him. We may never know the complete story behind
+			the Robner murder. But once again, thanks.{nl}{nl}" tell
+		else
+			"of first-degree murder in the death of Ms. Dunbar. Unfortunately, Baxter
+			remained tight-lipped throughout the proceedings, and except for the
+			revelation that Baxter and Dunbar were lovers, there was no motive
+			established for her murder. The jury acquitted Mr. Baxter in the murder of
+			Mr. Robner, as a motive had not been established. I am indeed sorry that a
+			proper conclusion to the case could not have been made.{nl}{nl}" tell
+		then
+		case-over
+		exit
+	then
+	:corpse :dunbar-room inside? if
+		"Trusty Sergeant Duffy enters and places Mr. Baxter under arrest. They leave,
+		Baxter remaining calm.{nl}{nl}" tell
+		"August 13" end-header
+		"I heard today that the jury in the Robner case has voted to acquit Mr.
+		Baxter of both murders at the Robner house." tell-line
+		:baxter-papers :touched flag? if
+			"While it was clear that Baxter had committed numerous crimes in the Focus
+			case, the jury was unconvinced of the relation between that and the
+			murders. They felt that Ms. Dunbar had committed the first murder, although
+			I can't imagine any scenario in which that would be possible, and had
+			committed suicide in desperation. These explanations leave much to be
+			desired, but what's done is done. I can't help feeling that there is more to
+			this case than has been discovered. Thank you for your work.{nl}{nl}" tell
+		else
+			"The jury believed the more probable story: that Ms. Dunbar committed the
+			first murder and then committed suicide when her guilt became clear to you.
+			I don't really believe this any more than you do, but the evidence is vague,
+			you must agree. Thanks again for handling the case.{nl}{nl}" tell
+		then
+		case-over
+		exit
+	then
+	:baxter-papers :touched flag? if
+		:lab-report :touched flag? if
+			"Trusty Sergeant Duffy enters and places Mr. Baxter under arrest. They
+			leave, Baxter remaining calm.{nl}{nl}" tell
+			"August 11" end-header
+			"I am sorry to report that Mr. Baxter was acquitted yesterday of the murder
+			of Mr. Robner. In speaking to the District Attorney, I gathered that the jury
+			was almost convinced of Baxter's guilt, given that he had both motive and a
+			means to enter the house using the ladder. However, the theory had a number
+			of serious flaws, including the means by which Baxter could have administered
+			the drug either without Robner's knowledge or without a struggle. I must
+			confess that I too am baffled. I am convinced that Baxter is guilty, but I
+			fear we will never know for certain.{nl}{nl}" tell
+			case-over
+		else
+			:baxter true murder-not-proven
+		then
+		exit
+	then
+	:lab-report :touched flag? if
+		"Duffy enters and places Mr. Baxter under arrest, then leads him away without
+		fuss.{nl}{nl}" tell
+		"August 11" end-header
+		"I am indeed sorry that Mr. Baxter was acquitted yesterday of the murder of
+		Mr. Robner. From the District Attorney, I gather that the jury was completely
+		unconvinced by the our case. They found neither sufficient motive nor any
+		plausible means of introducing the fatal medicine into Mr. Robner's drink. I
+		must confess to being baffled by this case. Perhaps we shall never know the
+		true story of Mr. Robner's murder.{nl}{nl}" tell
+		case-over
+		exit
+	then
+	:baxter false murder-not-proven ;
+
+\ Baxter asked about something
+: baxter-answers ( -- )
+	indirect :recursive-book = if
+		"""A fascinating story, Inspector. A man is found dead behind a locked door,
+		a clear suicide. Yet the detective seems bent on proving that a murder has
+		occured. Rather odd, wouldn't you say?""" tell-line exit
+	then
+	indirect :global-concert = if
+		"""A marvelous concert! There were works by Beethoven, Sibelius, and Ravel. I
+		never would've guessed you were interested in serious music,
+		Inspector.""" tell-line exit
+	then
+	indirect :stub = if
+		:stub-dx state if
+			"""My dear Inspector, it is just as Ms. Dunbar told you.""" tell-line exit
+		then
+		true :stub-b state!
+		:dunbar here inside? if true :stub-bx state! then
+		:stub-d state if true :contradiction state! then
+		"""Ah, that must be Ms. Dunbar's ticket stub. I should have told you earlier.
+		Ms. Dunbar was with me at the concert on the night that Marshall killed
+		himself. She became ill at intermission and hired a car to take her back home.
+		You see, Inspector, I know that Ms. Dunbar appreciates classical music, so I
+		occasionally ask her along to my subscription series. I really should have told
+		the other detective, but I didn't think it mattered.""" tell-line exit
+	then
+	indirect :global-ladder = if
+		"""What ladder? You know, Inspector, your questions are becoming quite
+		tiresome.""" tell-line exit
+	then
+	[ :global-merger :global-omnidyne ] indirect position-of 0 >= if
+		"""I didn't realize you had an interest in finance. Before Marshall died, we
+		agreed that the only reasonable way to protect our interests was to be bought
+		out by a larger company which could then provide us with capital for
+		expansion. I had been talking to people at Omnidyne and we agreed in principle
+		on the terms for such an agreement last week. I'm hopeful that we can close the
+		deal quickly.""" tell-line exit
+	then
+	indirect :global-new-will = if
+		:will-time state 0 > if
+			"""It's fortunate for George that Marshall died when he did. It must be quite
+			a relief to know that he'll have plenty of money."" He chuckles softly." tell
+			:at-reading state if
+				" ""I guess that explains his reaction at the reading.""" tell
+			then
+			end-line
+		else
+			"""I don't know much about the family's affairs. Marshall threatened to make a
+			new will, but it certainly appears that he never did.""" tell-line
+		then
+		exit
+	then
+	indirect :global-focus = if
+		:b-focus state if
+			"""I told you already. There was no legal wrongdoing, only some reporters
+			trying to stir up a fuss."" He appears quite nervous." tell-line
+		else :b-note state if
+			"""I understand the note no more than you do."" He turns away." tell-line
+		else
+			"There is a flicker of surprise on Baxter's face. ""I'm not sure what you
+			mean. Focus Corporation has been a subsidiary of Robner Corp. for some years.
+			I fail to see its import.""" tell-line
+		then then
+		exit
+	then
+	[ :george :global-george ] indirect position-of 0 >= if
+		:baxter :george discretion
+		"""I've known the boy for some time, and believe me, he's no good. He's wasted
+		more money this year than you've probably earned. His father reprimanded him
+		frequently, as you know. George even threatened his father from time to
+		time.""" tell-line exit
+	then
+	[ :corpse :dunbar :global-dunbar ] indirect position-of 0 >= if
+		"""Ms. Dunbar is an efficient and tireless worker. She has been of tremendous
+		help to Marshall and has been working quite hard for him lately. She had a
+		great deal of respect for him, that's clear. She has a keen mind and is an
+		exceptional strategic planner for the corporation.""" tell-line exit
+	then
+	[ :mrs-robner :global-mrs-robner ] indirect position-of 0 >= if
+		"""Leslie is a fine woman from a distinguished family. She was much more
+		outgoing than Marshall, but she seems to have become accustomed to the quiet
+		life here. I am quite grieved for her.""" tell-line exit
+	then
+	[ :rourke :global-rourke :gardener :global-gardener ] indirect position-of 0 >= if
+		"""I don't know much about " tell indirect tell-name """." tell-line exit
+	then
+	indirect :global-old-will = if
+		"""I really don't know anything about the old will.""" tell-line exit
+	then
+	indirect :global-mr-robner = if
+		"""Marshall was a truly great man...a brilliant manager; he started the
+		corporation single-handedly about 25 years ago and is mostly responsible for
+		its reputation. I owe him a great deal. He was also a great philanthropist and
+		got the corporation involved in many charitable works. I am not given to shows
+		of emotion, Inspector, but I will miss him greatly.""" tell-line exit
+	then
+	"""I can't help you there.""" tell-line ;
+
+\ Baxter shown something; true when he answers
+: baxter-sees ( -- flag )
+	indirect :lab-report = if
+		"Baxter studies the report carefully. ""This is quite peculiar. It appears
+		that Marshall was murdered. I wonder...I would have a word with George if I
+		were you, Inspector.""" tell-line true exit
+	then
+	indirect :stub = if :ask-about :baxter :stub perform drop true exit then
+	indirect :note-paper = :note-read state and :b-note state not and if
+		true :b-note state!
+		"He reads it carefully against the light, then speaks: ""I really don't know
+		what to make of this. Marshall seems to be insisting that I do something. I'm
+		afraid we will never know, since I never got the note.""" tell-line true exit
+	then
+	indirect :baxter-papers = :b-focus state not and if
+		true :b-focus state!
+		"He reads slowly and leafs through the pages. ""I'm afraid I haven't been
+		entirely candid with you. There was some trouble a few years ago with Focus
+		Corp. because of some, let us say, irresponsible dealings on my part. Marshall
+		agreed to cover up my involvement to save the company any bad
+		publicity.""" tell-line
+		:b-note state if
+			"""I can't understand why he would be insisting that I do this or that,
+			though, as it says on that note you showed me. He must have changed his
+			mind, since I never received the note.""" tell-line
+		then
+		true exit
+	then
+	indirect :letter = if
+		"""Very interesting, Inspector, but I assure you that this fellow is quite off
+		base about the business. Marshall and I were in complete agreement when it came
+		to those matters. I can't imagine where he got that idea.""" tell-line true exit
+	then
+	"""I can't understand why you are showing this to me. Have you nothing better to
+	do than " tell baxter-annoyed pick-one tell "?""" tell-line
+	true ;
+
+: baxter-handler ( context -- result )
+	| context |
+	context :object-description = if
+		:baxter in-motion? if
+		else :baxter :shed inside? :secret-meeting state 0 = not and if
+			"Mr. Baxter and Ms. Dunbar are here talking rapidly with each other. They
+			haven't noticed you yet." tell-line
+		else :dunbar-baxter-meet state if
+			false :dunbar-baxter-meet state!
+			"Mr. Baxter is in one corner, talking to Ms. Dunbar. He notices you and
+			motions Dunbar to stop talking." tell-line
+		else :baxter :living-room inside? if
+			:post-will state if
+				"Mr. Baxter is offering his sympathies to Mrs. Robner." tell-line
+			else :recursive-book :baxter inside? if
+				:recursive-book :undescribed set-flag
+				"Mr. Baxter is sitting here reading a book." tell-line
+			else
+				"Mr. Baxter is sitting quietly here." tell-line
+			then then
+		else
+			"Mr. Baxter is here." tell-line
+		then then then then
+		:baxter carry-check exit
+	then
+	[< :examine >] verb? if
+		:shot-fired state not if 0 exit then
+		:baxter :dunbar-room inside? if
+			"Baxter seems out of breath. His hair is disheveled and his hands are
+			somewhat soiled." tell-line
+		else
+			"Mr. Baxter has recovered his composure and looks calm. His hair is a bit
+			disheveled and his hands are dirty." tell-line
+		then
+		1 exit
+	then
+	[< :hello >] verb? if "Mr. Baxter returns your salutation." tell-line 1 exit then
+	[< :goodbye >] verb? if "Mr. Baxter nods." tell-line 1 exit then
+	winner :baxter = if
+		[< :find >] verb? if 0 exit then
+		:baxter com-check if 1 exit then
+		why-me pick-one tell-line
+		1 exit
+	then
+	[< :search :search-object-for >] verb? if
+		"Mr. Baxter pushes you away abruptly. ""I don't know what game you're playing,
+		Inspector, and frankly I'm not interested. You have been invited here to
+		investigate, not molest innocent persons.""" tell-line
+		1 exit
+	then
+	[< :accuse >] verb? indirect :global-murder = and if
+		:pen-seen state not if 0 exit then
+		"Mr. Baxter turns to run away, but notices Sergeant Duffy by the door. He stops
+		abruptly and faces you." tell-line
+		1 exit
+	then
+	[< :arrest >] verb? if baxter-arrested 1 exit then
+	[< :ask-for >] verb? :corpse :dunbar-room inside? and indirect :global-pen = and if
+		"Baxter reaches instinctively into his jacket and starts to pull out a pen. He
+		hesitates suddenly, pen in hand." tell-line
+		:pen :baxter move-to
+		true :pen-seen state!
+		1 exit
+	then
+	[< :ask-about >] verb? object :baxter = and if
+		:baxter grab-attention if baxter-answers then
+		1 exit
+	then
+	[< :confront :show >] verb? if
+		:baxter grab-attention if baxter-sees drop then
+		1 exit
+	then
+	0 ;
+
+' baxter-handler :baxter handles
+
+: baxter-moves ( context -- result )
+	| context |
+	context null? if :baxter :i-baxter imovement 0 exit then
+	context :reached = not if 0 exit then
+	:baxter location-of to place
+	place :living-room = if
+		:recursive-book :living-room inside? if
+			:recursive-book :baxter move-to
+			:recursive-book :undescribed set-flag
+		then
+		0 exit
+	then
+	place :dunbar-room = here :dunbar-room = and if
+		"Baxter looks at the body of Ms. Dunbar, lying on the floor, and falls to his
+		knees. He starts to sob. ""I knew she would do this,"" he says, sobbing, ""but
+		I couldn't stop her. She killed Marshall. She just told me a few minutes ago.
+		She said that he was going to fire her, just like that, after all of these
+		years. She was so hysterical, I couldn't understand everything she said,
+		something about having stolen some money. I don't know.""  With that, he breaks
+		down again." tell-line
+		:i-baxter-end-1 10 queue enable
+		1 exit
+	then
+	place :shed-room = if
+		here :behind-shed = if
+			"The sound of quick footsteps precedes someone into the shed. You can make
+			out two voices in rapid conversation. The voices are muffled, however, and
+			cannot be made out." tell-line
+			1 exit
+		then
+		0 exit
+	then
+	place :south-lawn = if
+		:baxter remove-thing
+		here :south-lawn = if
+			"A limousine comes up the drive and picks up Mr. Baxter." tell-line
+			1 exit
+		then
+		[ :front-path :east-of-door :west-of-door ] here position-of 0 >= if
+			"To the south, you observe a limousine picking up Mr. Baxter." tell-line
+			1 exit
+		then
+		0 exit
+	then
+	0 ;
+
+' baxter-moves :i-baxter handles
+
+\ Baxter's car arrives
+: baxter-arrives ( context -- result )
+	drop
+	:baxter :south-lawn move-to
+	here :south-lawn = if
+		"A limosine pulls up the drive. Mr. Baxter exits and the limo pulls away.
+		Baxter takes a deep breath and looks around." tell-line
+		1 exit
+	then
+	[ :front-path :east-lawn :west-lawn :east-of-door :west-of-door ] here position-of 0 >= if
+		"A car pulls up the drive to the south, and Mr. Baxter steps out onto the
+		lawn." tell-line
+		1 exit
+	then
+	0 ;
+
+' baxter-arrives :i-baxter-arrive handles
+
+\ === George ===
+
+: george-arrested ( -- result )
+	:new-will-seen state :george-run state 0 = not or not if 0 exit then
+	"Faithful Sergeant Duffy enters and handcuffs George, who spits at you. ""You
+	filthy, stinking..."" is all you hear as George is carted off
+	struggling.{nl}{nl}" tell
+	"August 4" end-header
+	"I am sorry to inform you that George Robner was acquitted in the death of his
+	father today. It seems the evidence, consisting mainly of a new will which
+	George admitted under pressure that he was trying to destroy, was insufficient
+	for the jury to return a guilty verdict. Although I suspect that George may have
+	committed the crime, his arrest was a bit premature.{nl}{nl}" tell
+	case-over
+	1 ;
+
+\ George shown something; true when he answers
+: george-sees ( -- flag )
+	indirect :lab-report = if
+		"George scans the report. ""Killed, eh? I wonder who might have wanted..."" He
+		cocks his head in thought. ""I'm sorry, Inspector, I really should act a bit
+		better with you. I thought you were just snooping about, digging up dirt about
+		the family. I'm not sure...I can't believe Mom would have anything to do with
+		it, although...Baxter, now there's a worm for you. He'd do anything, maybe even
+		murder, to get ahead. I just don't know.""" tell-line true exit
+	then
+	indirect :letter = if
+		"George reads the letter quickly. ""Pompous ass! What does he know about it?""
+		He pauses. ""I thought Mom was having an affair. How nice for the lovebirds
+		that Dad is dead! They can finish their honeymoon plans without worrying. It's
+		perfect!"" With a bitter laugh, he throws the letter to the ground." tell-line
+		true :g-letter state!
+		:letter here move-to
+		true exit
+	then
+	indirect :desk-calendar = :calendar-page state 8 = and :george-sequence state not and if
+		true :g-calendar state!
+		:will-time state 0 > if
+			"""I...uh...I don't really know what to say. I guess that Dad...but there is
+			no other...I can't help you...sorry."" George seems to be quite
+			agitated." tell-line
+			george-hack
+		else
+			"George tilts his head in thought (or perhaps surprise) but recovers quickly.
+			""All I know is that Coates is my father's personal attorney.""" tell-line
+		then
+		true exit
+	then
+	indirect :newspaper = :newspaper-read state and if
+		:george :baxter discretion
+		"""So Baxter's arranged the merger. I'll be damned. That's strange, since Dad
+		was opposed to the whole thing. He's worried about losing control of the
+		company ever since he had to sell off most of his interest. I bet he doesn't
+		even own enough shares to prevent the deal."" He shakes his head in
+		disbelief." tell-line
+		true exit
+	then
+	false ;
+
+\ George asked about something
+: george-answers ( -- )
+	indirect :global-hidden-closet = if
+		:safe-seen state :new-will-seen state or if
+			"""What of it? Dad's safe is there. I don't think anyone knows about it except
+			Dad and me.""" tell-line
+		else
+			"""Hidden closet, you say? Hmm. I think I'd know if there was one, but there
+			isn't!""" tell-line
+		then
+		exit
+	then
+	indirect :global-merger = if
+		"""I've heard talk of a merger between Dad's company and another one, but I
+		don't think it's happened yet. Dad would be furious if it did, though. I can
+		tell you that!""" tell-line exit
+	then
+	indirect :global-steven = if
+		:g-letter state if
+			"""He's a little worm who's been coming by lately. He's one of those fancy
+			ski-instructor types, if you know what I mean. From what I've seen, it
+			wouldn't surprise me if he and Mom are having an affair.""" tell-line
+		else
+			:george :mrs-robner discretion
+			"""Steven? Oh, you must mean the guy who comes around for Mom now and then. I
+			don't know much about him. Dresses a bit above himself, I'll say that
+			much.""" tell-line
+		then
+		exit
+	then
+	[ :baxter :global-baxter ] indirect position-of 0 >= if
+		"""I don't know much about him, really. With Baxter, it's always business, and
+		he's not here much except to discuss business with Dad. You might ask Ms.
+		Dunbar about him, though. She handled lots of Dad's business matters herself,
+		so they work together a lot. They probably know each other pretty
+		well.""" tell-line exit
+	then
+	[ :corpse :dunbar :global-dunbar ] indirect position-of 0 >= if
+		"""She's been here for about ten years, I guess. She knows a lot about Dad's
+		business, and he lets her take care of a lot of stuff by herself. Other than
+		that, I can't say. We don't get in each other's way. I think she's heard Dad
+		lecture me too often.""" tell-line exit
+	then
+	[ :mrs-robner :global-mrs-robner ] indirect position-of 0 >= if
+		"""She's OK. Not as stuck up as Dad about money. We've always gotten along
+		pretty well. I think she understands me better than Dad ever did.""" tell-line exit
+	then
+	indirect :global-safe = if
+		:new-will-seen state if
+			"""Let's not go into it, ok? You caught me looking for the will. Well, what of
+			it? I didn't kill Dad, if that's what you're thinking. Leave me
+			alone!""" tell-line
+		else :safe-seen state if
+			"""You mean my father's safe? Yeah, if he brings important papers home he puts
+			them in there. He keeps most important stuff at the office at the bank. You
+			really startled me in there. I thought I might be able to get it open. Dad
+			always acted like it was a big secret, something out of a spy story. Anyway,
+			it turns out I don't remember the combination. It was a long time
+			ago.""" tell-line
+		else :george-sequence state if
+			"George turns toward you with rage in his eyes. ""I don't know anything about
+			any damn safe! Now leave me alone or I'll have you kicked out of here!"" He
+			turns away." tell-line
+		else
+			"George looks briefly toward the ceiling, as if recalling something. ""Oh, I'm
+			sorry. A safe? No, I don't know about any safe...except at the office, that
+			is. I think there's one there.""" tell-line
+		then then then
+		exit
+	then
+	[ :gardener :global-gardener ] indirect position-of 0 >= if
+		"""McNabb, that old bore? Always talking about the damn roses and weeds. Don't
+		ask him about them, unless you have all day.""" tell-line exit
+	then
+	[ :rourke :global-rourke ] indirect position-of 0 >= if
+		:george :rourke discretion
+		"""She's nice but awfully nosy. She acts like she knows everything that goes on
+		around here, but she doesn't know the half of it.""" tell-line exit
+	then
+	indirect :global-old-will = if """I know what you know.""" tell-line exit then
+	[ :new-will :global-new-will ] indirect position-of 0 >= if
+		present-time :will-time state > if
+			:new-will :touched flag? if
+				"""You should know what it says.""" tell-line
+			else :new-will-seen state if
+				"""I don't know what you're talking about. There's no new will. Dad never
+				wrote one! He would just threaten me when I asked for spending
+				money.""" tell-line
+			else :george-sequence state if
+				"""Look. I know the same as you. There's no new will. I'm sure of it. Dad
+				would have rubbed my nose in it: you can be sure of that!""" tell-line
+			else :at-reading state if
+				"""You were there when I was. Coates says there's no new will.""" tell-line
+			else :will-time state 0 = if
+				"""Dad always threatened to write a new will, but I guess he ran out of
+				time."" He chuckles disturbingly." tell-line
+			else
+				"""Oh, yeah. You skipped out on the will reading. Anyhow, Coates says there's
+				no new will, and he should know, right?""" tell-line
+			then then then then then
+		else :g-calendar state if
+			"""I know what you're getting at...the desk calendar. Look, I've heard nothing
+			about a new will. Maybe the old man just wanted to change
+			something.""" tell-line
+		else
+			"""I don't know anything about any new will.""" tell-line
+		then then
+		exit
+	then
+	indirect :global-mr-robner = if
+		"""Like I told your detective friend yesterday, we didn't get along too well.
+		He was always riding me, giving me a hard time."" George gets worked up talking
+		about it.""Look, man. I'm not going to lie and say I loved him, right? He got
+		what..."" He stops in mid-sentence." tell-line exit
+	then
+	indirect :global-focus = if
+		"""Focus...Focus...That name rings a bell. Something about the company, quite a
+		while ago...what was it? I can't remember now. I don't pay much attention to
+		business stuff: I've got better things to do.""" tell-line exit
+	then
+	"""I haven't a clue.""" tell-line ;
+
+: george-handler ( context -- result )
+	| context |
+	context :object-description = if
+		:george in-motion? if 1 exit then
+		:george :kitchen inside? if
+			"George is here, preparing a snack." tell-line
+		else :george :dining-room inside? if
+			"George is sitting at the table, eating some red herrings." tell-line
+		else :george :living-room inside? if
+			:post-will state if
+				"George is staring contentedly out the bay window." tell-line
+			else
+				"George is here, pacing around the room." tell-line
+			then
+		else :george :north-lawn inside? if
+			"George is here, staring out over the lake." tell-line
+		else :george :george-room inside? :george-wait state not and if
+			:tune-on state if
+				"George is lying on his bed, listening intently to a " tell :tune-on state tell "." tell-line
+			else
+				"George is sitting on his bed, deep in thought." tell-line
+			then
+		else
+			"George is here." tell-line
+		then then then then then
+		:george carry-check exit
+	then
+	[< :hello :goodbye >] verb? if "George looks up and grunts disinterestedly." tell-line 1 exit then
+	winner :george = if
+		[< :find >] verb? if 0 exit then
+		:george com-check if 1 exit then
+		why-me pick-one tell-line
+		1 exit
+	then
+	[< :call >] verb? :george-run state 0 > and if
+		"""Don't bother me!"" he shouts, and continues on." tell-line
+		1 exit
+	then
+	[< :search :search-object-for >] verb? if
+		:george goal-of@station :north-lawn = if
+			"George points accusingly at you. ""Don't come near me! I'm getting sick and
+			tired of your accusing tone. Get lost!""" tell-line
+		else
+			"""Buzz off! Don't come back until you get a search warrant!"" He chuckles in
+			contempt." tell-line
+		then
+		1 exit
+	then
+	[< :accuse >] verb? if
+		"George sneers at you. ""What an ass! Go on, try to prove it!""" tell-line
+		1 exit
+	then
+	[< :arrest >] verb? if george-arrested exit then
+	[< :confront :show >] verb? if
+		:george grab-attention not if 1 exit then
+		george-sees if 1 else 0 then exit
+	then
+	[< :ask-about >] verb? object :george = and if
+		:george grab-attention if george-answers then
+		1 exit
+	then
+	0 ;
+
+' george-handler :george handles
+
+\ George's stereo finishes a piece; in his room he puts on another
+: tune-ends ( context -- result )
+	drop
+	here :george-room = if
+		"The " tell :tune-on state tell " has ended (and not soon enough)." tell-line
+		:george here inside? if
+			"George walks over to his stereo and returns the music to its proper place.
+			He then chooses a " tell
+			50 probability if
+				"record" tell
+				record-table to collection
+			else
+				"tape" tell
+				tape-table to collection
+			then
+			" from his large collection and starts it up. Dear Lord! It's a " tell
+			collection pick-one :tune-on state!
+			:tune-on state tell "." tell-line
+			:i-tune-off 25 queue enable
+		then
+		1 exit
+	then
+	:george :george-room inside? if
+		tape-table pick-one :tune-on state!
+		:i-tune-off 35 queue enable
+	then
+	0 ;
+
+' tune-ends :i-tune-off handles
+
+: george-moves ( context -- result )
+	| context |
+	:george location-of to place
+	context :reached = place :east-lawn = and if
+		:george unprioritize
+		0 exit
+	then
+	context :reached = place :george-room = and if
+		true :stereo-on state!
+		record-table pick-one :tune-on state!
+		:i-tune-off 25 queue enable
+		here place = if
+			"George walks over to his stereo and puts on a record. He turns to you. ""I
+			naturally assume that you would like to hear a " tell :tune-on state tell
+			"."" he says, barely concealing his clear distaste for you and your
+			profession." tell-line
+			1 exit
+		then
+		0 exit
+	then
+	context :reached = place :north-lawn = and if
+		:new-will remove-thing
+		:soggy-will :lake move-to
+		0 :george-run state!
+		:george unprioritize
+		here :north-lawn = if
+			"You catch, out of the corner of one eye, George motioning with his arm toward
+			the lake." tell-line
+			1 exit
+		then
+		0 exit
+	then
+	context null? if :george :i-george imovement then
+	0 ;
+
+' george-moves :i-george handles
+
+\ === Mrs. Robner ===
+
+\ Mrs. Robner greets the inspector and goes to make breakfast
+: mrs-robner-welcome ( -- )
+	"""Hello,"" she says, ""I'm Mrs. Robner. Please come in. I'm afraid I really
+	can't help you much. This is surely a terrible waste of time, not to mention
+	upsetting, having all these police marching around the house. This has been a
+	trying time, as I suppose you can understand. As I told Mr. Coates and the other
+	detective, you may look around but you must be out by 8 o'clock at the latest.
+	Oh, I almost forgot...Mr. Coates will be reading my husband's will at noon in the
+	living room. You may attend if you wish.""" tell
+	true :welcomed state!
+	:mrs-robner remove-thing
+	here :front-path = if
+		end-line
+		"Mrs. Robner leads you into the house and closes the door behind you." tell-line
+		end-line
+		:foyer true goto
+	then
+	:mrs-robner :foyer move-to
+	"""I'm going to make myself some breakfast now. I'll be around all day if you
+	need anything. I'll do what I can to help. Good day!""" tell-line
+	:front-door :open clear-flag
+	:mrs-robner :kitchen false establish-goal ;
+
+' mrs-robner-welcome embodies welcome
+
+: mrs-robner-arrested ( -- result )
+	:envelope-opened state :call-overheard state or not if 0 exit then
+	:lab-report :touched flag? not if :mrs-robner true murder-not-proven 1 exit then
+	"Sergeant Duffy enters and leads Mrs. Robner away.{nl}{nl}" tell
+	"August 2" end-header
+	"I am sorry to inform you that the grand jury investigating the murder charge
+	against Mrs. Robner declined to indict her, citing a lack of evidence linking
+	her with the execution of the crime. Please try to be more cautious when making
+	arrests in the future.{nl}{nl}" tell-line
+	case-over
+	1 ;
+
+\ Mrs. Robner asked about something
+: mrs-robner-answers ( -- )
+	indirect :global-hidden-closet = if
+		:hc-robner state if
+			"""I'm quite shocked about it. I really had no idea!""" tell-line
+		else
+			"""I don't know what you're talking about, Inspector. I know of no such
+			closet.""" tell-line
+		then
+		exit
+	then
+	[ :global-allergone :allergone :allergone-bottle ] indirect position-of 0 >= if
+		"""I have some allergies, Inspector. Simply dreadful in the fall and spring.
+		That's what the Allergone is for. I don't use them much this time of year,
+		though.""" tell-line exit
+	then
+	[ :global-sneezo :sneezo :sneezo-bottle ] indirect position-of 0 >= if
+		"""Sneezo is a wonderful cold remedy. Whenever I get a cold, I just take a few,
+		and I usually feel much better before long.""" tell-line exit
+	then
+	indirect :global-call = if
+		:call-overheard state :mr-envelope state and if
+			"""I guess you know it was Steven. I admit we were lovers, and we planned to
+			marry if I could get a divorce from Marshall. He refused to consider it, the
+			divorce I mean, even though he had no time for me anymore. He was married to
+			the company, and he refused to see my side of things. Steven was suggesting
+			that now we could marry. I told him I thought the timing was poor, or at least
+			I would have if you hadn't eavesdropped.""" tell-line
+		else :call-overheard state if
+			"""I was talking to a good friend of mine. We were discussing some plans we
+			made; of course they had to be changed, under the circumstances. They are none
+			of your business. They don't concern my husband's suicide at all, I assure
+			you.""" tell-line
+		else
+			"""It was just a friend of mine, offering his condolences.""" tell-line
+		then then
+		exit
+	then
+	indirect :global-steven = if
+		:mr-envelope state not if
+			"""I don't know who you mean. I have no friend named Steven.""" tell-line
+		else :call-overheard state if
+			"""I might as well tell you. Steven and I were lovers and we were going to be
+			married if I could divorce Marshall. I asked Marshall about it, but he became
+			angry and refused. I didn't know what to do. Don't look at me that way. I had
+			nothing to do with my husband's death. Driving him to it with talk of divorce?
+			You didn't know Marshall, that's for sure! I should've told the police
+			earlier, I suppose, but it's really none of your business.""" tell-line
+		else
+			"""Steven is a close personal friend. We have known each other for many years,
+			and I visit his home frequently. Marshall knew of our friendship and didn't
+			begrudge it in the slightest. My husband and I had a very trusting
+			relationship. You may find the idea of trust difficult to understand, I
+			suppose.""" tell-line
+		then then
+		exit
+	then
+	indirect :global-mr-robner = if
+		"""I loved my husband, no matter what you may think. I am very sorry to have
+		lost him."" The speech is almost a set piece, and not too convincing." tell-line exit
+	then
+	[ :george :global-george ] indirect position-of 0 >= if
+		:mrs-robner :george discretion
+		"""A child. He may be a man in age, but he still hasn't really grown up. He'll
+		find himself someday, but in the meantime he can be a trial. I guess Marshall
+		and I were too lenient. We probably still are, but he is our son, after all. We
+		can't throw him out on the street.""" tell-line exit
+	then
+	[ :baxter :global-baxter ] indirect position-of 0 >= if
+		"""Baxter has been my husband's partner for a long time, but they're not close
+		friends. Baxter has always had the head for making money, and Marshall had the
+		creative spark for new products. The two of them were perfect for each other in
+		the early days. Of course, things haven't been going well lately. I guess none
+		of that matters much now.""" tell-line exit
+	then
+	[ :corpse :dunbar :global-dunbar ] indirect position-of 0 >= if
+		:mrs-robner :dunbar discretion
+		"""I've always thought she was a bit too smug in her relationships around here.
+		A bit above herself, if you see my meaning. After all, she's really just a
+		glorified secretary. She acts as though she's part of the family, and she does
+		get along well with almost everyone here. I swear, though, Marshall spent more
+		time with her than me, lately. Um...not that I'm trying to imply that anything
+		went on between them. Quite the contrary.""" tell-line exit
+	then
+	[ :rourke :global-rourke ] indirect position-of 0 >= if
+		:mrs-robner :rourke discretion
+		"""She's an excellent housekeeper and sometimes even helps with the cooking For
+		all her good qualities, though, she's too much of a snoop and a gossip. She
+		tires to keep track of everyone around here. It's unnerving sometimes. But, as
+		servants go these days, she's quite extraordinary.""" tell-line exit
+	then
+	[ :gardener :global-gardener ] indirect position-of 0 >= if
+		"""I don't pay much attention to him. He's worked out well; the grounds are in
+		excellent condition. You must take a look at his roses while you're here.
+		They're really spectacular.""" tell-line exit
+	then
+	indirect :global-old-will = if
+		:will-time state 0 > if
+			"""It's what I expected, really.""" tell-line
+		else
+			"""Marshall takes care of that sort of thing. The will, I suppose, leaves the
+			estate to George and me, but I can't be sure.""" tell-line
+		then
+		exit
+	then
+	indirect :new-will = if
+		"""What do you know? Marshall changed the will, after all. Where did you ever
+		find this? What? George was trying to destroy it? I'm shocked. You don't think
+		George had anything to do..."" She stops short." tell-line exit
+	then
+	indirect :global-new-will = if
+		"""If there is a new will, I certainly don't know where it is.""" tell-line exit
+	then
+	indirect :global-focus = if
+		"""Oh, you mean the ""scandal""? Focus Corporation was a subsidiary of Robner
+		Corp. some years ago. There was a big to-do about misuse of funds or some such
+		thing, but Marshall kept it pretty quiet. He told me that the people
+		responsible were forced out of the company, but that charges weren't pressed to
+		avoid bad publicity. I didn't realize anyone remembered that.""" tell-line exit
+	then
+	indirect :global-safe = if
+		"""I don't know of a safe in the house, although it's perfectly believable that
+		Marshall has one hidden somewhere. It would appeal to his childish side, I
+		think.""" tell-line exit
+	then
+	"""I don't know much about that.""" tell-line ;
+
+\ Mrs. Robner shown something; true when she answers
+: mrs-robner-sees ( -- flag )
+	indirect :lab-report = if
+		"Mrs. Robner reads the report with shocked disbelief. ""I...I don't know what
+		to say. Who would want to kill Marshall? He was so well liked and..."" She
+		breaks down, sobbing." tell-line true exit
+	then
+	indirect :new-will = if
+		"Mrs. Robner reads the will. ""That's that, then,"" she says. ""I guess
+		Marshall was pushed too far.""" tell-line true exit
+	then
+	[ :envelope :letter ] indirect position-of 0 >= if
+		:envelope-opened state not if
+			"""Thank you, Inspector. The envelope is for me."" She takes the envelope from
+			you and examines it briefly." tell-line
+			:envelope :mrs-robner move-to
+			true exit
+		then
+		true :mr-envelope state!
+		"""You have certainly stooped to a new low, Inspector. Opening people's mail. I
+		think there are laws against that sort of thing, but I guess you wouldn't
+		know." tell
+		:call-overheard state if
+			" I suppose you also know that Steven is my lover and that we were planning to
+			marry. Don't look so melodramatic: I didn't kill my husband. You think my talk
+			of divorce may have driven him to it? Why don't you leave me
+			alone!""" tell-line
+		else
+			" In any case, what of it? It's from a friend of mine, an old friend from
+			school. We get together now and then to discuss old times. I don't suppose
+			there is a law against that?""" tell-line
+		then
+		true exit
+	then
+	false ;
+
+: mrs-robner-handler ( context -- result )
+	| context |
+	context null? [< :give >] verb? and object :envelope = and if
+		:show :mrs-robner :envelope perform drop
+		1 exit
+	then
+	context :object-description = if
+		:mrs-robner in-motion? if
+			:call-move state if "Mrs. Robner appears to be in a hurry." tell-line then
+		else :call-waiting state if
+			"Mrs. Robner is staring at you." tell-line
+		else :mrs-robner :kitchen inside? if
+			"Mrs. Robner is preparing a meal." tell-line
+		else :mrs-robner :dining-room inside? if
+			"Mrs. Robner is eating breakfast here." tell-line
+		else :mrs-robner :living-room inside? if
+			:post-will state if 1 exit then
+			"Mrs. Robner is sitting here, knitting." tell-line
+		else :mrs-robner :master-bedroom inside? if
+			"Mrs. Robner is sitting on her bed." tell-line
+		else
+			"Mrs. Robner is here." tell-line
+		then then then then then then
+		:mrs-robner carry-check exit
+	then
+	[< :hello :goodbye >] verb? if
+		"Mrs. Robner says a curt """ tell
+		[< :hello >] verb? if "Hello" else "Bye" then tell
+		"""." tell-line
+		1 exit
+	then
+	winner :mrs-robner = if
+		[< :find >] verb? if 0 exit then
+		[< :open >] verb? object :envelope = and if
+			:envelope-opened state if
+				"""You seem to have taken care of that already.""" tell-line
+			else
+				"""I believe there are laws protecting the privacy of mail. I will not open
+				the envelope for you or anyone else.""" tell-line
+			then
+			1 exit
+		then
+		:mrs-robner com-check if 1 exit then
+		why-me pick-one tell-line
+		1 exit
+	then
+	[< :arrest >] verb? :envelope-opened state :call-overheard state or and if
+		mrs-robner-arrested exit
+	then
+	[< :ask-about >] verb? object :mrs-robner = and if
+		:mrs-robner grab-attention if mrs-robner-answers then
+		1 exit
+	then
+	[< :confront :show >] verb? if
+		:mrs-robner grab-attention not if 1 exit then
+		mrs-robner-sees if 1 else 0 then exit
+	then
+	0 ;
+
+' mrs-robner-handler :mrs-robner handles
+
+: mrs-robner-moves ( context -- result )
+	| context |
+	:mrs-robner location-of to place
+	context :reached = place :master-bedroom = and if
+		:hc-robner state not :hidden-door-b :open flag? and if
+			true :hc-robner state!
+			[ :hidden-closet :master-bedroom ] here position-of 0 >= if
+				"Mrs. Robner stares in complete surprise at the hidden closet. ""I had no
+				idea that such a place existed!""  She sits down on her bed." tell-line
+				1 exit
+			then
+		then
+		0 exit
+	then
+	context null? if :mrs-robner :i-mrs-robner imovement then
+	0 ;
+
+' mrs-robner-moves :i-mrs-robner handles
+
+\ === Ms. Dunbar ===
+
+\ Ms. Dunbar asked about something
+: dunbar-answers ( -- )
+	indirect :global-concert = if
+		:stub-d state :stub-dx state or if
+			"""It was an excellent concert, Inspector, but I don't see why you're asking
+			about it.""" tell-line
+		else
+			"""I don't know what you are talking about. I don't go in for concerts much,
+			you know.""" tell-line
+		then
+		exit
+	then
+	indirect :stub = if
+		:stub-bx state if """Why, it's just as Mr. Baxter said.""" tell-line exit then
+		true :stub-d state!
+		:baxter here inside? if true :stub-dx state! then
+		:stub-b state if true :contradiction state! then
+		"""Oh, I...well, I guess I should tell you. You see, Mr. Baxter and I, we go
+		together to concerts, only occasionally, you understand. We went that night,
+		the night Marshall died. Then he took me home and that's it. I should have said
+		something before, but I just didn't think it was important, and, well, I didn't
+		think that the others should know we were seeing each other socially.
+		Our...nobody knows about it, you know. Please don't say anything!""" tell-line
+		exit
+	then
+	[ :baxter :global-baxter ] indirect position-of 0 >= if
+		"""Mr. Baxter? I see him often when he comes here on business, but I don't
+		really know him that well. We keep to business when he comes around, and I
+		hardly ever talk with him otherwise. He is, of course, an excellent executive,
+		and poor Mr. Robner had every confidence in him.""" tell-line exit
+	then
+	[ :loblo :global-loblo :loblo-bottle ] indirect position-of 0 >= if
+		:loblo-flag state if
+			"Ms. Dunbar is taken aback. ""I...I don't really know what to say. I take the
+			tablets for my blood pressure. I have for a few months now. I know what you're
+			thinking. I can't understand. Someone must have taken my pills and poisoned Mr.
+			Robner. That's it. It's probably George. He knew about my pills. He's always
+			snooping around. He used to talk about how half the money would be his
+			someday.""" tell-line
+		else
+			"Ms. Dunbar seems a bit surprised. ""You found those in my bathroom, didn't
+			you? I've been taking them for months for my blood pressure. Are they
+			important?"" she asks." tell-line
+		then
+		exit
+	then
+	[ :george :global-george ] indirect position-of 0 >= if
+		:dunbar :george discretion
+		"""Nobody likes George much. He's always alone when he's here, and that's only
+		when he can't get more money to waste. I think he's just been waiting for the
+		day when his father's money would be his. I can't say I miss him when he's not
+		here: A thoroughly obnoxious child.""" tell-line exit
+	then
+	[ :mrs-robner :global-mrs-robner ] indirect position-of 0 >= if
+		"""She's a lovely person. She and Marshall were always an odd couple: he was so
+		quiet and reserved, and she's so lively and sociable. She's changed a lot over
+		the last few years. She used to enjoy her life here, but lately she's been
+		restless and irritable, and now with Marshall's death, I'm worried about what
+		may become of her.""" tell-line exit
+	then
+	[ :rourke :global-rourke ] indirect position-of 0 >= if
+		"""Mrs. Rourke is a very good servant. Always helpful, and always nearby when
+		needed.""" tell-line exit
+	then
+	[ :gardener :global-gardener ] indirect position-of 0 >= if
+		"""He seems nice, if you can talk to him. You usually can't, really."" She
+		laughs briefly. ""Don't ever disturb his roses, or you'll learn the meaning of
+		temper."" She giggles again." tell-line exit
+	then
+	indirect :global-old-will = if
+		"""I really don't know too much about Marshall's personal business.""" tell-line exit
+	then
+	indirect :global-new-will = if
+		:will-time state 0 > if
+			"""I don't know anything about it. I suppose Marshall could have written a new
+			will, but I probably would have seen signs of it around the library.""" tell-line
+		else
+			"""As far as I know, there was no new will written, although Marshall did
+			threaten to disinherit George. I guess he could have written one without my
+			knowledge. I'm not always with him, you know.""" tell-line
+		then
+		exit
+	then
+	indirect :new-will = if
+		"Ms. Dunbar reads the will carefully, nodding slowly. ""I guess I'm not
+		surprised that Marshall disinherited George. He's been asking for it.""" tell-line exit
+	then
+	indirect :global-mr-robner = if
+		"Ms. Dunbar looks down at the ground and sniffles softly. ""I've known him for
+		years. He's been tremendously nervous and depressed lately about business. I
+		don't think all was well in his personal life either. George has always been a
+		problem for him. He even mentioned suicide once, although I never took it
+		seriously. It shows you can never tell."" She wipes her eyes with her
+		hands." tell-line exit
+	then
+	indirect :global-focus = if
+		"""Focus? There was once a subsidiary of Robner Corp. with that name. I can't
+		recall much about it, though.""" tell-line exit
+	then
+	indirect :global-safe = if
+		"""A safe? I don't think there's one in the house, although there's one at the
+		office.""" tell-line exit
+	then
+	"""I'm sorry, but I can't help you with that.""" tell-line ;
+
+: dunbar-arrested ( -- )
+	:lab-report :touched flag? not if :dunbar true murder-not-proven exit then
+	"Sergeant Duffy enters the room solemnly. He places handcuffs on Ms. Dunbar and
+	leads her off. She is sobbing hysterically.{nl}{nl}" tell
+	"August 10" end-header
+	:meeting-interrupted state if
+		"What a tragedy! Ms. Dunbar, released on bail during her trial for the murder of
+		Mr. Robner, was found dead this morning, the victim of an apparent suicide. Her
+		death is all the more distressing as the district attorney was trying to arrange
+		some plea-bargaining deal with her in exchange for information implicating an
+		unnamed accomplice. I am sorry to be the one to let you know. Thanks for your
+		hard work on the Robner case.{nl}{nl}" tell
+	else
+		"I wanted to let you know the disposition of the Robner case. Ms. Dunbar was
+		acquitted today, the jury citing a lack of motive and only circumstantial
+		evidence. I am extremely sorry.{nl}{nl}" tell
+	then
+	case-over ;
+
+: dunbar-handler ( context -- result )
+	| context |
+	context :object-description = if
+		:dunbar in-motion? if 1 exit then
+		:baxter :shed inside? :secret-meeting state 0 = not and if 1 exit then
+		:dunbar-baxter-meet state if 1 exit then
+		:dunbar :dunbar-bath inside? if
+			"Ms. Dunbar is here, brushing her hair." tell
+		else :dunbar :dunbar-room inside? if
+			"Ms. Dunbar is lying on her bed." tell
+		else :dunbar :living-room inside? if
+			:post-will state if
+				"Ms. Dunbar is standing in the corner, looking pensive." tell
+			else
+				"Ms. Dunbar is sitting on the sofa here." tell
+			then
+		else
+			"Ms. Dunbar is here." tell
+		then then then
+		end-line
+		:dunbar carry-check drop
+		1 exit
+	then
+	winner :dunbar = if
+		[< :find >] verb? if 0 exit then
+		:dunbar com-check if 1 exit then
+		[< :hello :goodbye >] verb? if "Ms. Dunbar nods at you." tell-line 1 exit then
+		why-me pick-one tell-line
+		1 exit
+	then
+	[< :hello :ask-about :show >] verb? if
+		:dunbar grab-attention not if 1 exit then
+	then
+	[< :hello >] verb? if "Ms. Dunbar nods at you." tell-line 1 exit then
+	[< :ask-about >] verb? object :dunbar = and if dunbar-answers 1 exit then
+	[< :show :confront >] verb? if
+		indirect :stub = if :ask-about :dunbar :stub perform drop 1 exit then
+		indirect :loblo = if
+			"She glances at the pills. ""They're my pills. You must have taken them from
+			my bathroom. Well, what am I supposed to say?"" She looks away." tell-line
+			1 exit
+		then
+		indirect :lab-report = if
+			"She seems stunned but recovers quickly. ""He didn't commit suicide, then?""
+			she says. ""But LoBlo, that's a pill I take for my blood pressure."" She
+			pauses. ""I can tell what you're thinking, but I didn't, couldn't have done
+			it. Why should I? Someone must have taken them, maybe George. He knew I used
+			them.""" tell-line
+			:i-dunbar-activate 15 random-below 1+ 5 + queue enable
+			true :loblo-flag state!
+			1 exit
+		then
+		0 exit
+	then
+	[< :accuse >] verb? if
+		:loblo-flag state if
+			"""No! I didn't do it! I've worked for Mr. Robner for years. What possible
+			motive could I have?"" With that, Ms. Dunbar begins to cry and move about the
+			room quite nervously." tell-line
+			dunbar-sequence
+		else
+			"""What?"" she cries. ""Murder?"" She regains her composure and asks, ""I
+			thought he committed suicide, with his medicine.""" tell-line
+		then
+		1 exit
+	then
+	[< :arrest >] verb? if dunbar-arrested 1 exit then
+	0 ;
+
+' dunbar-handler :dunbar handles
+
+: dunbar-moves ( context -- result )
+	| context |
+	context null? if :dunbar :i-dunbar imovement 0 exit then
+	context :reached = :dunbar :shed-room inside? and if
+		here :behind-shed = if
+			"You hear soft footsteps approaching. Someone has entered the shed!" tell-line
+			1 exit
+		then
+	then
+	0 ;
+
+' dunbar-moves :i-dunbar handles
+
+\ Ms. Dunbar, shown the lab report, grows nervous and acts
+: dunbar-activates ( context -- result )
+	drop
+	:dunbar-accused state not if dunbar-sequence then
+	0 ;
+
+' dunbar-activates :i-dunbar-activate handles
+
+\ === Mrs. Rourke ===
+
+\ Mrs. Rourke asked about something
+: rourke-answers ( -- )
+	indirect :envelope = :envelope :rourke inside? and if
+		"""It's a letter just arrived for Mrs. Robner. I was going to bring it to
+		her.""" tell-line exit
+	then
+	[ :baxter :global-baxter ] indirect position-of 0 >= if
+		:rourke :baxter discretion
+		"""Baxter! Hmmmph. Stuffiest person I ever met! I don't mind telling you I've
+		never liked him much. So serious, businesslike. Thinks he's hot stuff, I
+		imagine. I really shouldn't be telling you this, though, I suppose.
+		""Rourke,"" they tell me, ""stop your gossiping."" Not that I'm a gossip, mind
+		you, but I do have my opinions.""" tell-line exit
+	then
+	[ :george :global-george ] indirect position-of 0 >= if
+		:rourke :george discretion
+		"""George is something, I tell you. The black sheep of the family, is what I'd
+		say. Never met nobody with less respect for money. You'd think it grew on
+		trees; not that it don't around here. Well, there I go, shooting off my mouth
+		again.""" tell-line exit
+	then
+	[ :corpse :dunbar :global-dunbar ] indirect position-of 0 >= if
+		"""Ms. Dunbar is nice; the best of the lot, I think. She's always been real
+		friendly to me, and helps out when I have a problem. Mr. Robner, he really liked
+		her too. I don't think Mrs. Robner did, though. He's been so busy lately with
+		the business and Ms. Dunbar that I don't think the Mrs. hardly saw him much.
+		Kind of jealous, maybe, of the two of them, I mean.""" tell-line exit
+	then
+	[ :mrs-robner :global-mrs-robner ] indirect position-of 0 >= if
+		:rourke :mrs-robner discretion
+		"""Now she's a strange sort. Real lively when she moved here, but I don't think
+		she ever liked the life here. Her people are from Boston, one of those old
+		families, and she never got used to Mr. Robner's ways. She goes out a lot, and
+		sometimes she doesn't even come back at night. Not that I'm spying on her. But
+		I know about these things. She has callers here, a number of men. One in
+		particular comes more than others. A widower, I think, a real live wire. Not
+		what it's any of my business, but I think someone with a sharp tongue could do
+		her a lot of damage if she doesn't watch herself.""" tell-line exit
+	then
+	indirect :global-steven = if
+		:rourke :mrs-robner discretion
+		"""Ah, that's it! He's the one who's been coming around, taking Mrs. Robner
+		out. I don't like the look of it. I mean, I think it looks kind of funny, what
+		with she's a married woman. Mr. Robner takes no notice, of course, always busy.
+		Oh, well. I shouldn't be telling you this. Now that Mr. Robner's dead, I don't
+		suppose it matters, but what do you think people were saying! I tell you, gossip
+		is fierce around here!""" tell-line exit
+	then
+	[ :gardener :global-gardener ] indirect position-of 0 >= if
+		"""Oh, don't let him frighten you. Let him alone and don't bother his roses.
+		Gets positively livid about that. Got the green thumb, that's for
+		sure.""" tell-line exit
+	then
+	indirect :global-mr-robner = if
+		"""A fine man, but his head was always in the clouds. Just the opposite of Mrs.
+		Robner. Her feet were always on the ground. He's been so worried, it makes me
+		sick. I don't understand these business things, but he said something about
+		them taking his business away from him just two nights ago. I guess the
+		pressure was too much. He was a fine man, full of good works, though charity
+		does begin at home, as the saying goes. Not that I have anything to complain
+		about. He always treated me right.""" tell-line exit
+	then
+	"""I don't know nothing about no " tell indirect tell-name """." tell-line ;
+
+: rourke-handler ( context -- result )
+	| context |
+	context :object-description = if
+		:rourke in-motion? if 1 exit then
+		:rourke :kitchen inside? if
+			"Mrs. Rourke is here, cleaning the kitchen." tell-line
+		else :rourke :dining-room inside? if
+			"Mrs. Rourke is cleaning the table here." tell-line
+		else :rourke :living-room inside? if
+			"Mrs. Rourke is dusting the room." tell-line
+		else :rourke :rourke-room inside? if
+			"Mrs. Rourke is resting here." tell-line
+		else
+			"Mrs. Rourke is here, tidying up." tell-line
+		then then then then
+		:rourke carry-check drop
+		1 exit
+	then
+	winner :rourke = if
+		[< :find >] verb? if 0 exit then
+		:rourke com-check if 1 exit then
+		[< :hello :goodbye >] verb? if "Mrs. Rourke looks up from her work and nods." tell-line 1 exit then
+		why-me pick-one tell-line
+		1 exit
+	then
+	[< :hello :ask-about :show >] verb? if
+		:rourke grab-attention not if 1 exit then
+	then
+	[< :hello :goodbye >] verb? if "Mrs. Rourke looks up from her work and nods." tell-line 1 exit then
+	[< :ask-about >] verb? object :rourke = and if rourke-answers 1 exit then
+	[< :show :confront >] verb? if
+		indirect :lab-report = if
+			"""Well, if that don't beat all! A murder here, right under my nose! You've
+			got your work cut out for you, Inspector, all right. There's some pretty
+			strange people around here, and I wouldn't put it past hardly any of 'em to
+			do it. What do you know!""" tell-line
+		else
+			"Mrs. Rourke seems uninterested in it." tell-line
+		then
+		1 exit
+	then
+	0 ;
+
+' rourke-handler :rourke handles
+
+: rourke-moves ( context -- result )
+	| context |
+	context :reached = :rourke :rourke-room inside? and if
+		:rourke unprioritize
+		0 exit
+	then
+	context null? if :rourke :i-rourke imovement then
+	0 ;
+
+' rourke-moves :i-rourke handles
+
+\ === Mr. Coates ===
+
+: coates-handler ( context -- result )
+	| context |
+	context :object-description = if
+		:coates in-motion? not if "Mr. Coates is here." tell-line then
+		:coates carry-check exit
+	then
+	winner :coates = if
+		[< :find >] verb? if 0 exit then
+		:coates com-check if 1 exit then
+		why-me pick-one tell-line
+		1 exit
+	then
+	[< :phone >] verb? if
+		object tell-name
+		present-time 710 > if
+			"'s office phone rings. His secretary answers and informs you that he will
+			be out for the rest of the day." tell-line
+		else present-time 650 > if
+			"'s secretary answers and informs you that Mr. Coates is on his way to the
+			Robner estate." tell-line
+		else
+			"'s secretary informs you that Mr. Coates is in a very important meeting and
+			can't be disturbed. She reminds you that he will be at the Robner estate
+			before noon." tell-line
+		then then
+		1 exit
+	then
+	[< :ask-about >] verb? object :coates = and if
+		[ :global-old-will :global-new-will :global-focus :global-omnidyne ] indirect position-of 0 >= if
+			"""I am not at liberty to discuss Mr. Robner's legal matters. That is
+			privileged information between attorney and client.""" tell-line
+		else
+			"""I am sorry, but I can't help you there.""" tell-line
+		then
+		1 exit
+	then
+	0 ;
+
+' coates-handler :coates handles
+
+: coates-moves ( context -- result )
+	| context |
+	context :reached = not if 0 exit then
+	:coates :south-lawn inside? if
+		:coates remove-thing
+		false :post-will state!
+		[ :south-lawn :front-path :east-of-door :west-of-door :east-lawn :west-lawn ] here position-of 0 >= if
+			"A car pulls up the drive. Coates enters the vehicle, motions to the driver,
+			and the car starts up and leaves the grounds." tell-line
+			1 exit
+		then
+		0 exit
+	then
+	:coates :living-room inside? if
+		here :living-room = if
+			"Mr. Coates shakes your hand. ""I'm glad you're here, Inspector. We'll begin
+			the reading soon.""" tell-line
+		then
+		:i-will-reading 0 queue enable
+		:i-will-reading null call-handler exit
+	then
+	0 ;
+
+' coates-moves :i-coates handles
+
+\ Mr. Coates's car arrives before the reading of the will
+: coates-arrives ( context -- result )
+	drop
+	:coates :south-lawn move-to
+	:coates :living-room true establish-goal
+	here :south-lawn = if
+		"A large automobile pulls up the drive. Mr. Coates, the lawyer, steps out of
+		the car. ""Oh, hello! You must be the Inspector. I'll be reading the will at
+		noon, you know. Don't be late!"" he says." tell-line
+		1 exit
+	then
+	[ :front-path :east-lawn :west-lawn :east-of-door :west-of-door ] here position-of 0 >= if
+		"A car pulls up the drive to the south, and Mr. Coates steps out onto the
+		lawn." tell-line
+		1 exit
+	then
+	0 ;
+
+' coates-arrives :i-coates-arrive handles
+
+\ === Sergeant Duffy ===
+
+: duffy-handler ( context -- result )
+	drop
+	[< :find >] verb? not if 0 exit then
+	"Like a lurking grue in the dark places of the earth, Sergeant Duffy is always
+	near the scene of a crime. If you want something analyzed, he will arrive in an
+	instant to take the evidence to the lab. When the results are available, he
+	rushes them back to you. If you wish to arrest someone, Duffy will be there with
+	the handcuffs. A more dedicated civil servant cannot be found." tell-line
+	1 ;
+
+' duffy-handler :global-duffy handles
+
+\ === the day's first events ===
+
+\ the mail, the paper, a phone call, and the visitors, queued at the start
+: start-interrupts ( context -- result )
+	drop
+	:i-newspaper 40 random-below 1+ 175 + queue enable
+	:i-mail 60 random-below 1+ 70 + queue enable
+	:i-call 10 random-below 1+ 60 + queue enable
+	:i-baxter-arrive 115 queue enable
+	:i-coates-arrive 5 random-below 1+ 230 + queue enable
+	0 ;
+
+' start-interrupts :i-start-interrupts handles

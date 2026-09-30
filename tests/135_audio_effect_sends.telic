@@ -1,0 +1,77 @@
+\ ==== per-instrument effect sends: :chorus-send :delay-send :reverb-send ====
+
+\ Each patch sets how much of its signal enters each effect, in [0, 1],
+\ default 1; the effect's dry path carries every voice whatever its send, and
+\ each effect's wet output passes on into the later effects. The sources are
+\ fixed-frequency sines; amplitudes are rounded to thousandths.
+
+11 seed
+
+: amplitude ( stereo start end hz -- a )
+	| stereo start end hz |
+	stereo start 48000 * round end 48000 * round 0 1 submatrix 48000 hz amplitude-at 1000 * round 1000 / ;
+: tone ( hz -- patch )
+	| hz |
+	{ :oscillators [ { :fixed-hz hz :attack 0 :release 0 } ] :pan -1 } ;
+: effects-off ( -- )
+	0 :wet :chorus effect! 1 :dry :chorus effect!
+	0 :wet :delay effect! 1 :dry :delay effect! 0.375 :time :delay effect! :ping-pong :mode :delay effect!
+	0 :wet :reverb effect! 1 :dry :reverb effect!
+	0.01 render-audio drop silence-audio ;
+
+\ === the delay's echo scales with the send; the dry signal does not ===
+: echo ( send -- dry-level echo-level )
+	| send |
+	1000 tone send :delay-send ! :tone instrument-patch! silence-audio
+	0.1 :time :delay effect! 0.5 :feedback :delay effect! 1 :wet :delay effect! :straight :mode :delay effect!
+	:a4 1 :tone note-on 0.01 render-audio to struck :a4 :tone note-off 0.2 render-audio to echoed
+	struck 0 0.01 1000 amplitude
+	echoed 0.09 0.1 1000 amplitude ;
+1 echo . . cr                                                    \ 1 1 (echo, then the direct sound)
+0.5 echo . . cr                                                  \ 0.5 1
+0 echo . . cr                                                    \ 0 1
+effects-off clear
+
+\ === the reverb: fully wet and no dry signal, a voice that sends nothing is silent ===
+: reverberated ( send -- level )
+	| send |
+	1000 tone send :reverb-send ! :tone instrument-patch! silence-audio
+	1 :wet :reverb effect! 0 :dry :reverb effect!
+	:a4 1 :tone note-on 1 render-audio 0.5 1 1000 amplitude 0 > ;
+1 reverberated . 0 reverberated . cr                            \ 1 0
+effects-off clear
+
+\ === the chorus: fully wet and no dry signal, a voice that sends nothing is silent ===
+: chorused ( send -- level )
+	| send |
+	1000 tone send :chorus-send ! :tone instrument-patch! silence-audio
+	1 :wet :chorus effect! 0 :dry :chorus effect!
+	:a4 1 :tone note-on 0.5 render-audio 4800 24000 0 1 submatrix sq mean sqrt 1000 * round 1000 / ;
+1 chorused 0.1 > . 0 chorused . cr                              \ 1 0 (the swept copy, measured by its rms since the sweep shifts its pitch; nothing enters with send 0)
+effects-off clear
+
+\ === two instruments at once: the reverb carries only the one that sends to it ===
+1000 tone 0 :reverb-send ! :near instrument-patch!
+1500 tone :far instrument-patch!
+silence-audio 1 :wet :reverb effect! 0 :dry :reverb effect!
+:a4 1 :near note-on :a4 1 :far note-on 1 render-audio to both
+both 0.5 1 1000 amplitude 0.01 < . both 0.5 1 1500 amplitude 0.1 > . cr   \ 1 1 (at 1000 Hz only the 1500 Hz tail's spread, 0.002)
+effects-off clear
+
+\ === instrument! changes a send at once, in the patch and in sounding voices ===
+: resent ( send -- level )
+	| send |
+	1000 tone :tone instrument-patch! silence-audio
+	1 :wet :reverb effect! 0 :dry :reverb effect!
+	:a4 1 :tone note-on 0.5 render-audio drop
+	send :reverb-send :tone instrument!
+	1.5 render-audio 1 1.5 1000 amplitude ;
+0 resent 0.05 < . 1 resent 0.1 > . cr                           \ 1 1 (cut to 0, only the fading tail of the first half second remains)
+effects-off clear
+
+\ errors
+0.5 :glide :tone instrument!                                     \ (not a parameter instrument! changes)
+2 :delay-send :tone instrument!                                  \ (above 1)
+{ :chorus-send -0.1 } :tone instrument-patch!                    \ (below 0)
+{ :delay-send 1.5 } :tone instrument-patch!                      \ (above 1)
+{ :reverb-send :lots } :tone instrument-patch!                   \ (not a number)

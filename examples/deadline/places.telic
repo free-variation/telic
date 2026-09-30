@@ -1,0 +1,402 @@
+\ Deadline: what the rooms do. A room's handler describes the room when it
+\ is looked at (:look), reacts when the player arrives (:enter), and may take
+\ over a command before it is performed (:begin). Each handler answers as
+\ every handler does: 0 to let the command go on, 1 when it dealt with it.
+
+\ the plot's events, defined with the plot
+defer welcome
+
+"You've got to be crazy, carrying that ladder inside the house!" to no-ladders
+
+\ a description around whether a door is open or closed
+: door-description ( before door after -- )
+	| before door after |
+	before tell
+	door :open flag? if "open" else "closed" then tell
+	after tell-line ;
+
+: west-door-handler ( context -- result )
+	| context |
+	context :begin = [< :walk >] verb? and object [ :northeast :north ] swap position-of 0 >= and
+	:ladder :player inside? and if no-ladders tell-line 1 exit then
+	0 ;
+
+' west-door-handler :west-door handles
+
+: front-path-handler ( context -- result )
+	| context |
+	context :begin = [< :walk >] verb? and object :north = and :ladder :player inside? and if
+		no-ladders tell-line 1 exit
+	then
+	context :look = if
+		"You are at the Robners' front door, which is " :front-door "." door-description
+		"You can walk around the house from here to the east or west. To the south a
+		rolling lawn leads to the entrance of the estate." tell-line
+		1 exit
+	then
+	0 ;
+
+' front-path-handler :front-path handles
+
+: rose-garden-handler ( context -- result )
+	| context |
+	context :look = not if 0 exit then
+	"You are at the edge of a large rose garden, meticulously maintained by the
+	gardener, Mr. McNabb. He is said to be exceedingly proud of this particular
+	garden, which is the envy of the neighbors. Rows of roses are neatly arranged
+	and the sweet fragrance of the flowers is worth a trip here in itself. An
+	orchard to the east contains many varieties of fruit trees and wide lawns lie
+	to the west and north. The roses themselves are to the south, filling the area
+	between you and the back of the house." tell-line
+	1 ;
+
+' rose-garden-handler :rose-garden handles
+
+: in-orchard-handler ( context -- result )
+	| context |
+	context :look = not if 0 exit then
+	"You are amidst lovely trees bearing apples, pears, peaches, and other fruits.
+	A grape arbor and several berry bushes may also be seen. The kitchen window
+	and east side of the house are just to your south, and a path skirts the
+	orchard to your north." tell-line
+	:ladder-flag-2 state if
+		"A ladder is leaning against the balcony above." tell-line
+	else
+		"There is no way into the house from here." tell-line
+	then
+	1 ;
+
+' in-orchard-handler :in-orchard handles
+
+: in-roses-handler ( context -- result )
+	| context |
+	context :look = if
+		"You are among rows of roses. The ground is soft, and your footsteps leave a
+		rather bad impression as many poor seedlings are trampled underfoot. A safer
+		place to admire the flowers lies to the north. A window to the south allows a
+		view into the house." tell-line
+		:ladder-flag state not if
+			"There is no way into the house from here." tell-line
+		else
+			"A ladder is leaning against the house, its upper end against a balcony
+			above." tell-line
+		then
+		:hole :invisible flag? not if
+			"There are holes in the soft dirt near your feet." tell-line
+		then
+		1 exit
+	then
+	context :enter = :gardener-angry state not and :gardener-show state not and
+	[ :rose-garden :north-lawn :west-lawn ] :gardener location-of position-of 0 >= and if
+		"In the distance you hear ""Hey! WHAT? You, there!"" and other choice words
+		muffled by a strong Scottish burr and a stiff breeze. Now, standing at the
+		edge of the garden, can be seen the person of Mr. Angus McNabb, the gardener.
+		He advances, looking crazed and gesticulating wildly. With each carefully
+		chosen step in your direction, a barely visible wince of pain comes to his
+		deeply-lined face. He regards you as you would regard the man whose car just
+		ran over your little puppy dog." tell-line
+		:g-i-g state if
+			"""I canna believe it! I've already spent an hour fixing up the ground here
+			where some fool was walkin' aboot--and now you! I canna believe it!""" tell-line
+		then
+		true :gardener-angry state!
+		true :gardener-no-reply state!
+		:i-gardener-calm 90 queue enable
+		:gardener here move-to
+		1 exit
+	then
+	0 ;
+
+' in-roses-handler :in-roses handles
+
+: gardener-calm ( context -- result )
+	drop
+	false :gardener-no-reply state!
+	0 ;
+
+' gardener-calm :i-gardener-calm handles
+
+: foyer-handler ( context -- result )
+	| context |
+	context :enter = if
+		:welcomed state not present-time 700 < and if
+			"Mrs. Robner appears, walking down a hallway from the north." tell-line
+			welcome
+		then
+		0 exit
+	then
+	context :look = if
+		"This is the foyer of the Robner house, beautifully appointed with a fine
+		crystal chandelier, marble floors, and a large marble-topped table. The front
+		door, to the south, is " :front-door ". The foyer continues north." door-description
+		1 exit
+	then
+	0 ;
+
+' foyer-handler :foyer handles
+
+: shall-1-handler ( context -- result )
+	| context |
+	context :look = not if 0 exit then
+	"You are in an east-west hallway south of the staircase. A door to the south
+	is " :rourke-door "." door-description
+	1 ;
+
+' shall-1-handler :shall-1 handles
+
+: shall-2-handler ( context -- result )
+	| context |
+	context :look = not if 0 exit then
+	"This is the end of the east-west hallway. To the south a small door
+	is " :south-closet-door "." door-description
+	"Another door, to the east, is " :rourke-bath-door "." door-description
+	1 ;
+
+' shall-2-handler :shall-2 handles
+
+: rourke-room-handler ( context -- result )
+	| context |
+	context :look = not if 0 exit then
+	"This is the bedroom of the housekeeper, Mrs. Rourke, and is very simply
+	furnished. A single bed, flanked by bare wooden end tables, sits below a closed
+	window on the south end of the room. The floor is hardwood, with no rug. The
+	only exit is a door to the north, which is " :rourke-door "." door-description
+	1 ;
+
+' rourke-room-handler :rourke-room handles
+
+: rourke-bath-handler ( context -- result )
+	| context |
+	context :look = not if 0 exit then
+	"This is Mrs. Rourke's bathroom. Aside from the usual bathroom fixtures are
+	two shelves affixed to the wall. The door at the west side of the room
+	is " :rourke-bath-door "." door-description
+	1 ;
+
+' rourke-bath-handler :rourke-bath handles
+
+: living-room-handler ( context -- result )
+	| context |
+	context :look = not if 0 exit then
+	true :welcomed state!
+	"This is a large and impressive room, whose furnishings bespeak the great
+	personal wealth of the Robners. The south side of the room is a large bay
+	window, now " :bay-window ", which looks out onto the front yard." door-description
+	"A wood pile sits beside a huge fieldstone fireplace. A double doorway leading
+	to the main hall is the only exit. Pictures of Mrs. Robner's colonial ancestors
+	line one wall. The room contains formal seating for at least fifteen people, in
+	several groups of chairs and couches. Tables and cabinets, all of the finest
+	mahogany and walnut, complete the furnishings. On one of the tables is a
+	telephone." tell-line
+	1 ;
+
+' living-room-handler :living-room handles
+
+[ "picking weeds" "mowing the grass" "wiping his brow" "examining his work" ] to lawn-activities
+[ "planting seeds" "cutting fresh flowers" "pruning stems" ] to garden-activities
+
+: corridor-1-handler ( context -- result )
+	| context |
+	context :look = not if 0 exit then
+	"You are just west of the staircase. There are doors on both sides (north and
+	south) of the hallway, which continues west. " tell
+	:dunbar-door :open flag? if
+		:master-bedroom-door :open flag? if
+			"Both doors are open." tell-line
+		else
+			"The door to the south is open." tell-line
+		then
+	else :master-bedroom-door :open flag? if
+		"The door to the north is open." tell-line
+	else
+		"Both doors are closed." tell-line
+	then then
+	1 ;
+
+' corridor-1-handler :corridor-1 handles
+
+: corridor-3-handler ( context -- result )
+	| context |
+	context :look = not if 0 exit then
+	"This section of hallway is near the west end. Through the window at the end
+	of the hall you can see some trees and the lake beyond. The hallway continues
+	east and west, and a door to the south is " :george-door "." door-description
+	1 ;
+
+' corridor-3-handler :corridor-3 handles
+
+: corridor-4-handler ( context -- result )
+	| context |
+	context :enter = present-time :george-run state 1+ = and if
+		"As you enter the hallway, you catch a glimpse of George running down the
+		stairs." tell-line
+		0 exit
+	then
+	context :look = not if 0 exit then
+	"This is the west end of the upstairs hall. To the north is the library, where
+	Mr. Robner was found. Its solid oak door has been knocked down and is lying
+	just inside the entrance to the library. A window which cannot be opened is at
+	the end of the hallway." tell-line
+	1 ;
+
+' corridor-4-handler :corridor-4 handles
+
+: library-handler ( context -- result )
+	| context |
+	true :welcomed state!
+	context :look = not if 0 exit then
+	"This is the library where Mr. Robner's body was found. It is decorated in a
+	simple but comfortable style. Mr. Robner obviously spent a great deal of time
+	here. A wide executive desk sits before tall balcony windows which lie at the
+	north of the room. A telephone is sitting on the desk. The east side of the
+	room is composed of three large bookshelf units containing numerous volumes on
+	many topics. The floor is carpeted from wall to wall. The massive oak door
+	which blocked the entrance has been forcibly knocked off its hinges and is
+	lying by the doorway." tell-line
+	:library-balcony-door :open flag? if
+		"The window to the balcony has been opened." tell-line
+	then
+	:hidden-door-l :open flag? if
+		"The bookshelf unit on the far left has been swung open, revealing a room
+		behind it!" tell-line
+	then
+	1 ;
+
+' library-handler :library handles
+
+: library-balcony-handler ( context -- result )
+	| context |
+	context :look = not if 0 exit then
+	"The balcony is bare of furniture, though it has a beautiful view of the rose
+	garden, the north lawn and the lake. A metal railing around the
+	balcony  prevents an accidental drop to the thorny roses below. The window between the
+	balcony and the library is " :library-balcony-door "." door-description
+	:ladder-flag state if
+		"The top of a ladder is resting on the metal railing." tell-line
+	then
+	:gardener :rose-garden inside? if
+		"Mr. McNabb is tending to the roses." tell-line
+	else :gardener :north-lawn inside? if
+		"Away to the north, Mr. McNabb can be seen " tell lawn-activities pick-one tell "." tell-line
+	then then
+	1 ;
+
+' library-balcony-handler :library-balcony handles
+
+: hidden-closet-handler ( context -- result )
+	| context |
+	context :look = not if 0 exit then
+	"This is a secret room situated between the library and the master bedroom.
+	The room is bare and somewhat dusty, as if it were not often used. An unmarked
+	switchplate surrounds two buttons, one blue and one red. A formidable safe is
+	embedded in the south wall." tell
+	:safe :open flag? if " The heavy safe door is wide open." tell then
+	end-line
+	:hidden-door-l :open flag? if
+		"The library can be seen through a door to the west." tell-line
+	else :hidden-door-b :open flag? if
+		"The master bedroom can be seen through a door to the east." tell-line
+	then then
+	1 ;
+
+' hidden-closet-handler :hidden-closet handles
+
+: master-bedroom-handler ( context -- result )
+	| context |
+	context :enter = :baxter-seq-loc state :master-bedroom = and if
+		"As you walk through the door, there is an explosion from in front of you! The
+		impact of the bullet knocks you to the ground, stunned. You struggle, trying to
+		look up. Another explosion! You fall back, into a long silence." tell-line
+		quit-game
+	then
+	context :look = not if 0 exit then
+	"This is the Robners' master bedroom, decorated in the Queen Anne style. A
+	large four-poster bed with paired end tables fills the south end of the room.
+	On one of the end tables is a telephone. Dressers, a small chair, and a lounge
+	are against the walls. The north wall contains a balcony window, which
+	is " :bedroom-balcony-door ". An open doorway leads east to the bathroom. A
+	large mirror with a gilt frame hangs on the west wall." door-description
+	:hidden-door-b :open flag? if
+		"Part of the west wall has been swung away, revealing a hidden closet." tell-line
+	then
+	1 ;
+
+' master-bedroom-handler :master-bedroom handles
+
+: bedroom-balcony-handler ( context -- result )
+	| context |
+	context :enter = :baxter-seq-loc state :bedroom-balcony = and if
+		"As you enter the balcony, there is an explosion and a burst of flame from
+		your left. The pain freezes you for a moment as everything becomes black.
+		While you await a choir of angels, a short chuckle and the sound of running
+		feet are the last you hear." tell-line
+		quit-game
+	then
+	context :look = not if 0 exit then
+	"This balcony is atop the orchard, with the tallest of the fruit trees rising
+	to about the level of the balcony. A metal railing surrounds the balcony,
+	preventing a precipitous descent. A glass door leading to the master bedroom
+	is " :bedroom-balcony-door "." door-description
+	:ladder-flag-2 state if
+		"The top of a ladder is visible here, leaning on the railing." tell-line
+	then
+	1 ;
+
+' bedroom-balcony-handler :bedroom-balcony handles
+
+: shall-11-handler ( context -- result )
+	| context |
+	context :look = not if 0 exit then
+	"The hallway turns a corner here and continues east. To the north is the head
+	of the stairs. A door to the south is " :dunbar-bath-door "." door-description
+	1 ;
+
+' shall-11-handler :shall-11 handles
+
+: dunbar-bath-handler ( context -- result )
+	| context |
+	context :look = not if 0 exit then
+	"This bathroom contains the usual sink, toilet, and bath. A medicine cabinet, " tell
+	:dunbar-cabinet :open flag? if "lying partially open" else "closed" then tell
+	", is above the sink. A door to the north is " :dunbar-bath-door "." door-description
+	1 ;
+
+' dunbar-bath-handler :dunbar-bath handles
+
+: dunbar-room-handler ( context -- result )
+	| context |
+	context :enter = :dunbar-dead state and if
+		true :corpse-seen state!
+		0 exit
+	then
+	context :look = not if 0 exit then
+	"This is Ms. Dunbar's room. It is furnished in the usual style, with a few
+	additions indicative of Ms. Dunbar's taste. The bedroom door
+	is " :dunbar-door "." door-description
+	1 ;
+
+' dunbar-room-handler :dunbar-room handles
+
+: george-bath-handler ( context -- result )
+	| context |
+	context :look = not if 0 exit then
+	"This is George's bathroom, with all the appropriate fixtures. Shaving gear
+	sits near the sink. The door, to the west, is " :george-bath-door "." door-description
+	1 ;
+
+' george-bath-handler :george-bath handles
+
+: george-room-handler ( context -- result )
+	| context |
+	context :look = not if 0 exit then
+	"This is George's bedroom. In addition to the normal furnishings, there is a
+	small liquor cabinet, and a stereo with records and tapes. The door, leading
+	to the hallway to the north, is " tell
+	:george-door :open flag? if "open" else "closed" then tell
+	". Another door, to the east, is " :george-bath-door "." door-description
+	:tune-on state if
+		"Playing on the stereo is a " tell :tune-on state tell "." tell-line
+	then
+	1 ;
+
+' george-room-handler :george-room handles

@@ -1,0 +1,12 @@
+\ examples/deadline.telic, the translation of Infocom's Deadline, played from
+\ deadline.stdin: the holes among the roses and the porcelain fragment in
+\ them, Duffy's analysis of it, the lab report shown to Ms. Dunbar and her
+\ accusation, her meeting with Baxter in the shed, the pistol shot upstairs,
+\ the body in her room, and Baxter's arrest, which ends the case. The game
+\ reads its arguments from args, redefined here to text frotz=1 width=80: in
+\ the terminal, with the random numbers of the interpreter frotz started with
+\ -s 1, so the transcript is release 28's apart from the banner and the
+\ letter's indent.
+: args ( -- arguments ) [ "text" "frotz=1" "width=80" ] ;
+
+"../../examples/deadline.telic" load

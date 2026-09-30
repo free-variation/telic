@@ -300,14 +300,13 @@ static double chorus_tap(const double *buffer, int write_position, double delay_
 	return early + (late - early) * fraction;
 }
 
-static void chorus_process(Chorus *chorus, double *left, double *right) {
+static void chorus_wet(Chorus *chorus, const double input[2], double output[2]) {
 	effect_ramp_advance(&chorus->wet);
 	effect_ramp_advance(&chorus->dry);
-	double dry = chorus->dry.current;
+	output[0] = 0.0;
+	output[1] = 0.0;
 	if (effect_ramp_silent(&chorus->wet)) {
 		chorus->dormant = 1;
-		*left *= dry;
-		*right *= dry;
 		return;
 	}
 	if (chorus->dormant) {
@@ -315,22 +314,16 @@ static void chorus_process(Chorus *chorus, double *left, double *right) {
 		chorus->dormant = 0;
 	}
 
-	double wet = chorus->wet.current;
-	double inputs[2] = {*left, *right};
-	double outputs[2];
 	for (int channel = 0; channel < 2; channel++) {
-		chorus->buffers[channel][chorus->write_position] = inputs[channel];
+		chorus->buffers[channel][chorus->write_position] = input[channel];
 		double sweep = sin(2.0 * M_PI * (chorus->phase + 0.25 * channel));
 		double delay_samples = (chorus->delay + chorus->depth * sweep) * EFFECTS_SAMPLE_RATE;
-		double delayed = chorus_tap(chorus->buffers[channel], chorus->write_position, delay_samples);
-		outputs[channel] = inputs[channel] * dry + delayed * wet;
+		output[channel] = chorus_tap(chorus->buffers[channel], chorus->write_position, delay_samples);
 	}
 	chorus->write_position = (chorus->write_position + 1) % CHORUS_BUFFER;
 	chorus->phase += chorus->rate / EFFECTS_SAMPLE_RATE;
 	if (chorus->phase >= 1.0)
 		chorus->phase -= 1.0;
-	*left = outputs[0];
-	*right = outputs[1];
 }
 
 static int delay_target_frames(const PingPongDelay *delay) {
@@ -343,14 +336,13 @@ static void delay_clear(PingPongDelay *delay) {
 	delay->position = delay_target_frames(delay);
 }
 
-static void delay_process(PingPongDelay *delay, double *left, double *right) {
+static void delay_wet(PingPongDelay *delay, const double input[2], double output[2]) {
 	effect_ramp_advance(&delay->wet);
 	effect_ramp_advance(&delay->dry);
-	double dry = delay->dry.current;
+	output[0] = 0.0;
+	output[1] = 0.0;
 	if (effect_ramp_silent(&delay->wet)) {
 		delay->dormant = 1;
-		*left *= dry;
-		*right *= dry;
 		return;
 	}
 	if (delay->dormant) {
@@ -369,17 +361,16 @@ static void delay_process(PingPongDelay *delay, double *left, double *right) {
 	double delayed_right = delay->buffers[1][read_position];
 	double feedback = delay->feedback;
 	if (delay->mode == DELAY_PING_PONG) {
-		delay->buffers[0][delay->cursor] = (*left + *right) * 0.5 + delayed_right * feedback;
+		delay->buffers[0][delay->cursor] = (input[0] + input[1]) * 0.5 + delayed_right * feedback;
 		delay->buffers[1][delay->cursor] = delayed_left;
 	} else {
-		delay->buffers[0][delay->cursor] = *left + delayed_left * feedback;
-		delay->buffers[1][delay->cursor] = *right + delayed_right * feedback;
+		delay->buffers[0][delay->cursor] = input[0] + delayed_left * feedback;
+		delay->buffers[1][delay->cursor] = input[1] + delayed_right * feedback;
 	}
 	delay->cursor = (delay->cursor + 1) % DELAY_BUFFER;
 
-	double wet = delay->wet.current;
-	*left = *left * dry + delayed_left * wet;
-	*right = *right * dry + delayed_right * wet;
+	output[0] = delayed_left;
+	output[1] = delayed_right;
 }
 
 static void delay_line_prepare(ReverbDelayLine *line, const int *bases, int n_taps) {
@@ -547,14 +538,13 @@ static void channel_process(ReverbChannel *channel, uint32_t t, double input, in
 	*right = tank_output(&channel->tank[0], &channel->tank[1], t, size);
 }
 
-static void reverb_process(Reverb *reverb, double *left, double *right) {
+static void reverb_wet(Reverb *reverb, const double input[2], double output[2]) {
 	effect_ramp_advance(&reverb->wet);
 	effect_ramp_advance(&reverb->dry);
-	double dry = reverb->dry.current;
+	output[0] = 0.0;
+	output[1] = 0.0;
 	if (effect_ramp_silent(&reverb->wet)) {
 		reverb->dormant = 1;
-		*left *= dry;
-		*right *= dry;
 		return;
 	}
 	if (reverb->dormant) {
@@ -573,8 +563,8 @@ static void reverb_process(Reverb *reverb, double *left, double *right) {
 	reverb->smooth_decay += 0.0001 * (reverb->decay - reverb->smooth_decay);
 	double unfrozen = 1.0 - reverb->smooth_freeze;
 	double input_gain = reverb->freeze ? 0.0 : unfrozen * unfrozen;
-	double input_left = *left * input_gain;
-	double input_right = *right * input_gain;
+	double input_left = input[0] * input_gain;
+	double input_right = input[1] * input_gain;
 
 	ReverbFrameContext context = {
 		.decay = reverb->smooth_decay + (REVERB_FREEZE_DECAY - reverb->smooth_decay) * reverb->smooth_freeze,
@@ -647,9 +637,8 @@ static void reverb_process(Reverb *reverb, double *left, double *right) {
 		}
 	}
 
-	double wet = reverb->wet.current;
-	*left = *left * dry + wet_channels[0] * wet;
-	*right = *right * dry + wet_channels[1] * wet;
+	output[0] = wet_channels[0];
+	output[1] = wet_channels[1];
 	reverb->t++;
 }
 
@@ -701,14 +690,34 @@ void effects_clear(void) {
 	effects_reverb.dormant = 1;
 }
 
-void effects_process(double *left, double *right) {
-	chorus_process(&effects_chorus, left, right);
-	delay_process(&effects_delay, left, right);
-	reverb_process(&effects_reverb, left, right);
+static void bus_mix(double bus[2], double dry, double wet, const double returned[2]) {
+	bus[0] = bus[0] * dry + returned[0] * wet;
+	bus[1] = bus[1] * dry + returned[1] * wet;
+}
+
+void effects_process(EffectBuses *buses, double *left, double *right) {
+	double returned[2];
+
+	chorus_wet(&effects_chorus, buses->chorus, returned);
+	double chorus_dry = effects_chorus.dry.current;
+	double chorus_wet_gain = effects_chorus.wet.current;
+	bus_mix(buses->dry, chorus_dry, chorus_wet_gain, returned);
+	bus_mix(buses->delay, chorus_dry, chorus_wet_gain, returned);
+	bus_mix(buses->reverb, chorus_dry, chorus_wet_gain, returned);
+
+	delay_wet(&effects_delay, buses->delay, returned);
+	double delay_dry = effects_delay.dry.current;
+	double delay_wet_gain = effects_delay.wet.current;
+	bus_mix(buses->dry, delay_dry, delay_wet_gain, returned);
+	bus_mix(buses->reverb, delay_dry, delay_wet_gain, returned);
+
+	reverb_wet(&effects_reverb, buses->reverb, returned);
+	bus_mix(buses->dry, effects_reverb.dry.current, effects_reverb.wet.current, returned);
+
 	effect_ramp_advance(&effects_master_level);
 	double level = effects_master_level.current;
-	*left *= level;
-	*right *= level;
+	*left = buses->dry[0] * level;
+	*right = buses->dry[1] * level;
 }
 
 void effects_apply(int parameter, double value) {

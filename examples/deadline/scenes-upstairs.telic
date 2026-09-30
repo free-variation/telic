@@ -1,0 +1,941 @@
+\ Deadline: the pictures of the upstairs hall and the Robners' rooms. The
+\ hall is one long corridor running east and west, 2 metres wide: the End of
+\ Hallway (x -12 to -9) with the library to its north and the window at its
+\ west end, then the halls outside George's room, the linen closet and Ms.
+\ Dunbar's and the Robners' rooms, and the Top of Stairs (x 0 to 2.4), where
+\ short halls run north and south and the stairs go down to the east. Each
+\ hall picture stands the camera at its own place in the one corridor.
+
+\ === pieces shared by these rooms ===
+
+\ a window's frame on any four-sided wall patch a b c d (bottom left, bottom right, top right, top left), with panes columns by rows
+: pane-grid ( a b c d columns rows -- )
+	| a b c d columns rows |
+	[ a b c d ] outline
+	1 columns 1 do k
+		k columns / to along
+		a b along between d c along between segment
+	loop
+	1 rows 1 do k
+		k rows / to up
+		a d up between b c up between segment
+	loop ;
+
+\ the room behind an open door in a wall facing north or south at wall-z, centred at a distance east, the room toward into (1 north, -1 south): its floor and the door leaf swung into it; drawn before the wall hides what it should
+: hall-door-beyond ( centre wall-z into -- )
+	| centre wall-z into |
+	centre 0.45 - to west
+	centre 0.45 + to east
+	0.1 pen!
+	west 0 wall-z west 0 wall-z into 2.5 * + edge
+	east 0 wall-z east 0 wall-z into 2.5 * + edge
+	west 0 wall-z into 2.5 * + east 0 wall-z into 2.5 * + edge
+	0.45 pen!
+	[ [ west 0 wall-z ] [ west 0.3 + 0 wall-z into 0.84 * + ]
+	  [ west 0.3 + 2.06 wall-z into 0.84 * + ] [ west 2.06 wall-z ] ] outline ;
+
+\ a door's frame in a wall facing north or south at wall-z, centred at a distance east; shut, the door itself with its panels and knob
+: hall-door ( centre wall-z open -- )
+	| centre wall-z open |
+	centre 0.45 - to west
+	centre 0.45 + to east
+	[ [ west 0 wall-z ] [ east 0 wall-z ] [ east 2.1 wall-z ] [ west 2.1 wall-z ] ] to opening
+	open not if
+		opening 0 fill
+		0.3 pen!
+		0 2 1 do across
+			0 2 1 do high
+				across 0.36 * west 0.09 + + to panel-west
+				high 0.95 * 0.12 + to panel-bottom
+				[ [ panel-west panel-bottom wall-z ] [ panel-west 0.3 + panel-bottom wall-z ]
+				  [ panel-west 0.3 + panel-bottom 0.8 + wall-z ] [ panel-west panel-bottom 0.8 + wall-z ] ] outline
+			loop
+		loop
+		0.85 pen!
+		[ east 0.12 - 1.0 wall-z ] [ 1 0 0 ] [ 0 1 0 ] 0.022 detail-scale * 8 circle-points outline
+	then
+	0.6 pen!
+	[ [ west 0 wall-z ] [ west 2.1 wall-z ] [ east 2.1 wall-z ] [ east 0 wall-z ] ] path
+	0.25 pen!
+	[ [ west 0.07 - 0 wall-z ] [ west 0.07 - 2.17 wall-z ] [ east 0.07 + 2.17 wall-z ] [ east 0.07 + 0 wall-z ] ] path ;
+
+\ fill a stretch of a hall side wall black between two heights, in half-metre strips so that the strips behind the camera are the only ones left unfilled
+: hall-wall-strips ( west east bottom top z -- )
+	| west east bottom top z |
+	east west - 0.5 / round-up 1 max2 to n-strips
+	east west - n-strips / to width
+	0 n-strips 1 do k
+		k width * west + to from
+		from width + to onto
+		[ [ from bottom z ] [ onto bottom z ] [ onto top z ] [ from top z ] ] 0 fill
+	loop ;
+
+\ fill one of the hall's side walls black from x -12 to 2.4, leaving the openings given as [ west east top ] open
+: hall-wall-fill ( z openings -- )
+	| z openings |
+	-12 to from
+	0 openings size 1 do k
+		openings k @i spread to top to east to west
+		from west 0 2.8 z hall-wall-strips
+		west east top 2.8 z hall-wall-strips
+		east to from
+	loop
+	from 2.4 0 2.8 z hall-wall-strips ;
+
+\ a horizontal line along one of the hall's side walls from west to east, broken by the openings given as [ west east ] pairs
+: hall-wall-run ( west east y z openings -- )
+	| west east y z openings |
+	west to from
+	0 openings size 1 do k
+		openings k @i to gap
+		from y z gap first y z edge
+		gap second to from
+	loop
+	from y z east y z edge ;
+
+\ the long carpet runner down the middle of the hall, its border and its pattern
+: hall-runner ( west east -- )
+	| west east |
+	0.14 pen!
+	[ [ west 0 -0.45 ] [ east 0 -0.45 ] [ east 0 0.45 ] [ west 0 0.45 ] ] outline
+	0.07 pen!
+	[ [ west 0.06 + 0 -0.38 ] [ east 0.06 - 0 -0.38 ] [ east 0.06 - 0 0.38 ] [ west 0.06 + 0 0.38 ] ] outline
+	west 0.6 + east 0.6 do x
+		[ [ x 0 -0.25 ] [ x 0.25 + 0 0 ] [ x 0 0.25 ] [ x 0.25 - 0 0 ] ] outline
+	loop ;
+
+\ a light hanging from the hall ceiling
+: hall-lamp ( x -- )
+	| x |
+	[ x 2.62 0 ] 0.7 0.18 glow
+	0.5 pen!
+	x 2.8 0 x 2.68 0 edge
+	x 2.62 0 0.12 8 ring outline
+	x 2.68 0 0.05 8 ring outline ;
+
+\ the whole upstairs hall: floor, runner, walls, doors, the end window and the view through it, the halls off the Top of Stairs and the stairwell
+: upstairs-hall ( -- )
+	\ first what lies beyond the side walls, seen only through their openings
+	[ -10.7 1.2 3.5 ] 1.8 0.14 glow
+	0.08 pen!
+	[ -12 0 1 ] [ -8.8 0 1 ] [ -8.8 0 5 ] [ -12 0 5 ] 7 8 grid
+	0.65 pen!
+	-11.3 0 1.15 -9.95 0.08 2.2 solid-box
+	0.25 pen!
+	[ [ -11.2 0.08 1.3 ] [ -10.66 0.08 1.3 ] [ -10.66 0.08 2.05 ] [ -11.2 0.08 2.05 ] ] outline
+	[ [ -10.56 0.08 1.3 ] [ -10.05 0.08 1.3 ] [ -10.05 0.08 2.05 ] [ -10.56 0.08 2.05 ] ] outline
+	0.2 pen!
+	-5.2 0 1.6 -3.8 0 1.6 edge
+	-5.2 0 1 -5.2 0 1.6 edge
+	-3.8 0 1 -3.8 0 1.6 edge
+	0 5 1 do shelf
+		shelf 0.42 * 0.2 + to board
+		0.35 pen!
+		-5.2 board 1.25 -3.8 board 1.25 edge
+		-5.2 board 1.6 -3.8 board 1.6 edge
+		0.25 pen!
+		0 4 1 do pile
+			pile 0.34 * -5.1 + to pile-west
+			shelf 7 * pile + hash-fraction to chance
+			chance 0.1 * 0.14 + to pile-height
+			chance 0.06 * to pile-shift
+			[ [ pile-west pile-shift + board 1.26 ] [ pile-west 0.26 + pile-shift + board 1.26 ]
+			  [ pile-west 0.26 + pile-shift + board pile-height + 1.26 ] [ pile-west pile-shift + board pile-height + 1.26 ] ] outline
+			0.12 pen!
+			pile-west pile-shift + board pile-height 0.5 * + 1.26 pile-west 0.26 + pile-shift + board pile-height 0.5 * + 1.26 edge
+			0.25 pen!
+		loop
+	loop
+	:george-door :open flag? if -7.5 -1 -1 hall-door-beyond then
+	:dunbar-door :open flag? if -1.5 -1 -1 hall-door-beyond then
+	:master-bedroom-door :open flag? if -1.5 1 1 hall-door-beyond then
+	[ 1 -1 ] ( side |
+		0.2 pen!
+		0.3 0 side 0.3 0 side 4 * edge
+		1.8 0 side 1.8 0 side 4 * edge
+		0.3 2.8 side 0.3 2.8 side 4 * edge
+		1.8 2.8 side 1.8 2.8 side 4 * edge
+		0.12 pen!
+		0.3 0.9 side 0.3 0.9 side 4 * edge
+		1.8 0.9 side 1.8 0.9 side 4 * edge
+		0.15 pen!
+		[ [ 0.3 0 side 4 * ] [ 1.8 0 side 4 * ] [ 1.8 2.8 side 4 * ] [ 0.3 2.8 side 4 * ] ] outline
+		0.3 pen!
+		[ [ 0.65 0 side 4 * ] [ 0.65 2.05 side 4 * ] [ 1.45 2.05 side 4 * ] [ 1.45 0 side 4 * ] ] path
+		[ 1.05 2.6 side 2.5 * ] 0.6 0.1 glow
+		0.06 pen!
+		0.45 1.8 0.15 do x x 0 side x 0 side 4 * edge loop
+		0.14 pen!
+		[ [ 0.6 0 side ] [ 1.5 0 side ] [ 1.5 0 side 3.9 * ] [ 0.6 0 side 3.9 * ] ] outline
+	) each
+	\ then the side walls, solid, and the hall in front of them
+	[ [ -11.2 -10.2 2.2 ] [ -5.2 -3.8 2.2 ] [ -1.95 -1.05 2.1 ] [ 0.3 1.8 2.8 ] ] to north-gaps
+	[ [ -7.95 -7.05 2.1 ] [ -1.95 -1.05 2.1 ] [ 0.3 1.8 2.8 ] ] to south-gaps
+	1 north-gaps hall-wall-fill
+	-1 south-gaps hall-wall-fill
+	0.05 pen!
+	-0.9 0.95 0.15 do z -12 0 z 2.4 0 z edge loop
+	-11.7 2.3 hall-runner
+	[ [ -11.2 -10.2 ] [ -5.2 -3.8 ] [ -1.95 -1.05 ] [ 0.3 1.8 ] ] to north-openings
+	[ [ -7.95 -7.05 ] [ -1.95 -1.05 ] [ 0.3 1.8 ] ] to south-openings
+	0.42 pen!
+	-12 2.4 0 1 north-openings hall-wall-run
+	-12 2.4 0 -1 south-openings hall-wall-run
+	-12 2.4 2.8 1 [ [ 0.3 1.8 ] ] hall-wall-run
+	-12 2.4 2.8 -1 [ [ 0.3 1.8 ] ] hall-wall-run
+	0.14 pen!
+	-12 2.4 0.9 1 north-openings hall-wall-run
+	-12 2.4 0.9 -1 south-openings hall-wall-run
+	0.1 pen!
+	-12 2.4 2.5 1 [ [ 0.3 1.8 ] ] hall-wall-run
+	-12 2.4 2.5 -1 [ [ 0.3 1.8 ] ] hall-wall-run
+	\ the west end wall and its window, trees and the lake beyond
+	[ [ -12 0 -1 ] [ -12 0 1 ] [ -12 2.8 1 ] [ -12 2.8 -1 ] ] 0 fill
+	0.42 pen!
+	[ [ -12 0 -1 ] [ -12 0 1 ] [ -12 2.8 1 ] [ -12 2.8 -1 ] ] outline
+	[ [ -12 0.8 -0.6 ] [ -12 0.8 0.6 ] [ -12 2.3 0.6 ] [ -12 2.3 -0.6 ] ] 0.04 fill
+	0.1 pen!
+	-12.01 1.35 -0.6 -12.01 1.35 0.6 edge
+	-12.01 1.28 -0.6 -12.01 1.28 0.6 edge
+	0.16 pen!
+	[ [ -0.45 1.7 0.13 ] [ -0.1 1.95 0.15 ] [ 0.3 1.62 0.12 ] ] ( tree |
+		tree spread to radius to height to across
+		[ 0 14 1 do k
+			k 14 / TAU * to angle
+			across 17 * k + hash-fraction 0.35 * 0.8 + radius * to reach
+			[ -12.02 height angle sin reach * + across angle cos reach * + ]
+		loop ] outline
+		-12.02 1.35 across -12.02 height radius 0.8 * - across edge
+	) each
+	[ -12 1.55 0 ] 1.3 0.3 glow
+	0.8 pen!
+	[ -12 0.8 -0.6 ] [ -12 0.8 0.6 ] [ -12 2.3 0.6 ] [ -12 2.3 -0.6 ] 2 3 pane-grid
+	0.1 pen!
+	[ [ -12 0 -0.55 ] [ -12 0 0.55 ] [ -10.6 0 0.8 ] [ -10.6 0 -0.8 ] ] 0.05 fill
+	[ -12 0 -0.55 ] [ -12 0 0.55 ] [ -10.6 0 0.8 ] [ -10.6 0 -0.8 ] 6 hatch
+	\ the frames of the library doorway, its door knocked down, and of the linen closet; the doors of George's, Ms. Dunbar's and the Robners' rooms
+	0.6 pen!
+	[ [ -11.2 0 1 ] [ -11.2 2.2 1 ] [ -10.2 2.2 1 ] [ -10.2 0 1 ] ] path
+	0.35 pen!
+	-10.3 1.0 1 -10.3 1.25 1 edge
+	0.6 pen!
+	[ [ -5.2 0 1 ] [ -5.2 2.2 1 ] [ -3.8 2.2 1 ] [ -3.8 0 1 ] ] path
+	-7.5 -1 :george-door :open flag? hall-door
+	-1.5 -1 :dunbar-door :open flag? hall-door
+	-1.5 1 :master-bedroom-door :open flag? hall-door
+	\ the corners where the short halls leave the Top of Stairs
+	0.45 pen!
+	[ 1 -1 ] ( side |
+		0.3 0 side 0.3 2.8 side edge
+		1.8 0 side 1.8 2.8 side edge
+	) each
+	\ the stairwell going down to the east, its banisters and newel posts
+	0.3 pen!
+	0 12 1 do step
+		step 0.28 * 2.4 + to tread
+		step 0.18 * negate to height
+		tread height -0.85 tread height 0.85 edge
+	loop
+	[ 1 -1 ] ( side |
+		0.55 pen!
+		2.4 0.95 side 0.9 * 5.76 -1.21 side 0.9 * edge
+		2.35 0 side 0.9 * 0.06 - 2.47 1.05 side 0.9 * 0.06 + solid-box
+	) each
+	0.42 pen!
+	2.4 2.8 1 6.2 2.8 1 edge
+	2.4 2.8 -1 6.2 2.8 -1 edge
+	-9.2 hall-lamp
+	-4.5 hall-lamp
+	1.05 hall-lamp ;
+
+\ === the hall ===
+
+\ looking west from the head of the stairs down the whole length of the hall
+: stair-top-picture ( -- )
+	3.1 1.7 -0.65 -0.95 -0.07 230 new-picture
+	level-camera!
+	[ 1.05 2.6 0 ] lamp!
+	[ [ [ 1.0 0 0.2 ] 2.6 ] [ [ -0.6 0 -0.2 ] 1.9 ] [ [ 1.1 0 2.4 ] 2.8 ] ] spots!
+	upstairs-hall ;
+
+\ just west of the stairs, between Ms. Dunbar's door and the master bedroom door
+: corridor-1-picture ( -- )
+	0.6 1.65 0.1 -1.62 -0.05 270 new-picture
+	[ -1.5 2.6 0 ] lamp!
+	[ [ [ -2.8 0 0.25 ] 1.8 ] [ [ -4.4 0 -0.3 ] 1.4 ] [ [ -6.2 0 0.2 ] 1.6 ] ] spots!
+	upstairs-hall ;
+
+\ the middle of the hall by the linen closet, looking toward the window
+: corridor-2-picture ( -- )
+	-2.4 1.65 -0.25 -1.46 -0.05 270 new-picture
+	[ -4.5 2.6 0 ] lamp!
+	[ [ [ -5.4 0 -0.2 ] 1.4 ] [ [ -6.8 0 0.3 ] 1.8 ] [ [ -3.9 0 0.35 ] 1.9 ] ] spots!
+	upstairs-hall ;
+
+\ outside George's room, the window at the end of the hall ahead
+: corridor-3-picture ( -- )
+	-5.6 1.65 0.2 -1.66 -0.05 270 new-picture
+	[ -12 1.6 0 ] lamp!
+	[ [ [ -8.3 0 0.3 ] 1.8 ] [ [ -9.6 0 -0.3 ] 1.4 ] [ [ -7.0 0 0.45 ] 2.0 ] ] spots!
+	upstairs-hall ;
+
+\ the west end of the hall: the window ahead, the library doorway to the right
+: corridor-4-picture ( -- )
+	-8.6 1.65 -0.7 -1.08 -0.06 260 new-picture
+	[ -12 1.6 0 ] lamp!
+	[ [ [ -11.3 0 -0.3 ] 1.2 ] [ [ -9.9 0 0.1 ] 2.2 ] [ [ -11.0 0 0.45 ] 1.8 ] ] spots!
+	upstairs-hall ;
+
+\ === pieces for the rooms off the hall ===
+
+\ a standing spot and the heading that faces a point x z on the floor, as spots! takes them
+: upper-heading ( spot x z -- pair )
+	| spot x z |
+	[ spot x spot first - z spot 2 @i - atan2 ] ;
+
+\ a metal balcony railing from one point to another at floor height: top and bottom rails and the balusters between
+: upper-railing ( a b count -- )
+	| a b count |
+	a spread to az to ay to ax
+	b spread to bz to by to bx
+	0.75 pen!
+	ax ay 1.02 + az bx by 1.02 + bz edge
+	0.4 pen!
+	ax ay 0.08 + az bx by 0.08 + bz edge
+	0.32 pen!
+	0 count 1 + 1 do k
+		k count / to along
+		ax bx ax - along * + to x
+		az bz az - along * + to z
+		x ay 0.08 + z x ay 1.02 + z edge
+	loop ;
+
+\ a fruit tree's crown facing the camera: a ragged mass of foliage hiding what is behind it, clumps of leaves and a few fruit inside it, and the trunk forking up from the ground into it
+: upper-tree-crown ( x y z radius ground seed -- )
+	| x y z radius ground seed |
+	z view@z - to toward-z
+	view@x x - to toward-x
+	toward-x sq toward-z sq + sqrt to distance
+	[ toward-z distance / 0 toward-x distance / ] to across
+	0.12 pen!
+	[ -1 1 ] ( side | x side 0.1 * across first * + ground z side 0.1 * across 2 @i * + x side 0.06 * across first * + y radius 0.4 * - z side 0.06 * across 2 @i * + edge ) each
+	[ -1 1 ] ( side | x y radius 0.4 * - z x side radius 0.45 * * across first * + y radius 0.1 * - z side radius 0.45 * * across 2 @i * + edge ) each
+	[ 0 24 1 do k
+		k 24 / TAU * to angle
+		seed 31 * k + hash-fraction 0.3 * 0.78 + radius * to reach
+		[ x angle cos reach * across first * + y angle sin reach * 0.75 * + z angle cos reach * across 2 @i * + ]
+	loop ] to crown
+	crown 0 fill
+	0.45 pen!
+	crown outline
+	0.2 pen!
+	0 4 1 do k
+		seed 7 * k + hash-fraction 1.2 * radius * 0.6 radius * - to offset-across
+		seed 5 * k + 3 + hash-fraction 0.8 * radius * 0.4 radius * - to offset-up
+		[ x offset-across across first * + y offset-up + z offset-across across 2 @i * + ] to clump
+		[ 0 6 1 do step
+			step 5 / 3.1416 * to angle
+			[ clump first angle cos radius 0.22 * * across first * + clump 1 @i angle sin radius 0.18 * * + clump 2 @i angle cos radius 0.22 * * across 2 @i * + ]
+		loop ] path
+	loop
+	0.55 pen!
+	0 5 1 do k
+		seed 13 * k + hash-fraction 1.3 * radius * 0.65 radius * - to offset-across
+		seed 17 * k + hash-fraction 1.0 * radius * 0.5 radius * - to offset-up
+		[ x offset-across across first * + y offset-up + z offset-across across 2 @i * + ] across [ 0 1 0 ] 0.05 6 circle-points outline
+	loop ;
+
+\ the top of the wooden ladder leaning on a railing: its rails rising from the ground below to just above the rail, and the rungs between
+: upper-ladder-top ( x rail-z ground foot-z -- )
+	| x rail-z ground foot-z |
+	0.75 pen!
+	[ -0.22 0.22 ] ( side | x side + ground foot-z x side + 1.35 rail-z 0.05 + edge ) each
+	0.6 pen!
+	0 12 1 do k
+		k 11 / to along
+		ground 1.35 ground - along * + to height
+		foot-z rail-z 0.05 + foot-z - along * + to z
+		x 0.22 - height z x 0.22 + height z edge
+	loop ;
+
+\ rows of rose bushes on the ground far below, seen from above: dark mounds with a lit rim and a few blooms, in rows running east and west
+: upper-rose-rows ( west east south north ground -- )
+	| west east south north ground |
+	south north 1.1 do z
+		west east 0.9 do x
+			x 13 * z 7 * + hash-fraction to chance
+			x 0.9 / round z 1.1 / round + 2 mod 0.45 * to stagger
+			[ x chance 0.2 * + stagger + ground 0.3 + z chance 0.3 * + ] to centre
+			[ 0 11 1 do k
+				k 11 / TAU * to angle
+				chance 29 * k + hash-fraction 0.35 * 0.8 + 0.34 * to reach
+				[ centre first angle cos reach * + centre 1 @i centre 2 @i angle sin reach * + ]
+			loop ] to mound
+			mound 0 fill
+			0.24 pen!
+			mound outline
+			0.65 pen!
+			0 2 1 do k
+				chance 17 * k + hash-fraction TAU * to angle
+				chance 23 * k + hash-fraction 0.18 * to spread-out
+				[ centre first angle cos spread-out * + centre 1 @i 0.02 + centre 2 @i angle sin spread-out * + ] [ 1 0 0 ] [ 0 0 1 ] 0.045 5 circle-points outline
+			loop
+		loop
+	loop ;
+
+\ a cobweb in a corner: threads fanning from the corner and rings across them
+: upper-cobweb ( corner across down -- )
+	| corner across down |
+	0.18 pen!
+	[ 0 0.35 0.7 1 ] ( t | corner corner across down t between ' + 2 nmap segment ) each
+	[ 0.3 0.6 ] ( ring | [ 0 0.35 0.7 1 ] ( t | corner across down t between ( ring * ) map ' + 2 nmap ) map path ) each ;
+
+\ === the Library Balcony ===
+
+\ the bare balcony over the rose garden: the railing, the view of the roses, the north lawn and the lake, the window back into the library, the ladder's top when it leans here, and McNabb below
+: library-balcony-picture ( -- )
+	1.6 1.7 0.35 -1.0 -0.2 230 new-picture
+	[ -8 9 40 ] lamp!
+	[ [ -0.6 0 1.0 ] 1.6 0.35 upper-heading [ -1.8 0 0.7 ] 1.6 0.35 upper-heading ] spots!
+	\ the lake and its shore far off, the north lawn, the roses directly below
+	1.6 pen!
+	-45 -3.5 45 12 -3.5 45 edge
+	0.7 pen!
+	0 9 1 do k k 1.3 * 47 + to z -45 -3.5 z 12 -3.5 z edge loop
+	[ -16 3 60 ] 7 0.2 glow
+	0.06 pen!
+	[ -24 -3.5 12 ] [ 8 -3.5 12 ] [ 8 -3.5 44 ] [ -24 -3.5 44 ] 4 10 grid
+	0.13 pen!
+	-7 4 4.6 12 -3.5 upper-rose-rows
+	0.12 pen!
+	-7 -3.5 2.4 7 -3.5 2.4 edge
+	-7 -3.5 11.5 7 -3.5 11.5 edge
+	:gardener :rose-garden inside? if [ 3.2 -3.5 8.5 ] 2.9 gardener-figure then
+	:gardener :north-lawn inside? if [ -4 -3.5 26 ] 3.3 gardener-figure then
+	\ the balcony: its floor hiding the garden beneath it, the house wall and the window to the library, the railing
+	:ladder-flag state if -0.2 1.8 -3.5 2.9 upper-ladder-top then
+	:ladder-flag state if [ [ -1.2 0 0.9 ] [ 0.8 0 0.9 ] [ 0.8 0 1.8 ] [ -1.2 0 1.8 ] ] 0 fill then
+	0.1 pen!
+	[ -3 0 0.3 ] [ 2 0 0.3 ] [ 2 0 1.8 ] [ -3 0 1.8 ] 1 11 grid
+	0.5 pen!
+	[ [ -3 0 0 ] [ -3 0 1.8 ] [ 2 0 1.8 ] ] path
+	-3 0 0 2 0 0 edge
+	-3 0 0 -3 3.2 0 edge
+	0.25 pen!
+	-3 3.2 0 1.2 3.2 0 edge
+	0.45 pen!
+	[ [ -0.4 0.003 1.45 ] [ 1 0 0 ] [ 0 0 1 ] 0.05 detail-scale * 6 circle-points
+	  [ 0.2 0.003 1.1 ] [ 1 0 0 ] [ 0 0 1 ] 0.04 detail-scale * 6 circle-points ] ( spot | spot 0.12 fill ) each
+	0.7 pen!
+	[ -2.6 0 0 ] [ -1.2 0 0 ] [ -1.2 2.4 0 ] [ -2.6 2.4 0 ] 2 4 pane-grid
+	:library-balcony-door :open flag? if
+		[ [ -2.6 0 0 ] [ -1.9 0 0 ] [ -1.9 2.4 0 ] [ -2.6 2.4 0 ] ] 0 fill
+		[ -2.25 1.2 -1.5 ] 1.2 0.12 glow
+	then
+	[ -3 0 1.8 ] [ 2 0 1.8 ] 40 upper-railing
+	[ -3 0 0 ] [ -3 0 1.8 ] 16 upper-railing
+	0.9 pen!
+	-0.35 1.02 1.8 -0.1 1.02 1.8 edge
+	:library-balcony-door :open flag? if
+		[ [ -2.6 0 0 ] [ -2.2 0 0.6 ] [ -2.2 2.4 0.6 ] [ -2.6 2.4 0 ] ] 0.03 fill
+		0.6 pen!
+		[ -2.6 0 0 ] [ -2.2 0 0.6 ] [ -2.2 2.4 0.6 ] [ -2.6 2.4 0 ] 1 4 pane-grid
+	then ;
+
+\ === the Upstairs Closet ===
+
+\ a small bottle standing on a surface at height y: a solid body outlined along its silhouette, a lit label, its neck and cap brighter
+: upper-bottle ( x y z radius height -- )
+	| x y z radius height |
+	y height + to shoulder
+	radius 0.45 * to neck
+	z view@z - to toward-z
+	view@x x - to toward-x
+	toward-x sq toward-z sq + sqrt to distance
+	toward-z distance / to across-x
+	toward-x distance / to across-z
+	[ x across-x radius * - y z across-z radius * - ] to left-foot
+	[ x across-x radius * + y z across-z radius * + ] to right-foot
+	[ x across-x radius * + shoulder z across-z radius * + ] to right-top
+	[ x across-x radius * - shoulder z across-z radius * - ] to left-top
+	x shoulder z radius 10 ring to rim
+	[ left-foot right-foot right-top left-top ] 0 fill
+	rim 0 fill
+	[ left-foot left-top 0.3 between right-foot right-top 0.3 between right-foot right-top 0.72 between left-foot left-top 0.72 between ] 0.22 fill
+	0.75 pen!
+	x y z radius 10 ring outline
+	rim outline
+	left-foot left-top segment
+	right-foot right-top segment
+	0.9 pen!
+	x shoulder z neck 8 ring outline
+	x shoulder 0.035 + z neck 8 ring outline
+	[ -1 1 ] ( side | x side neck * across-x * + shoulder z side neck * across-z * + x side neck * across-x * + shoulder 0.035 + z side neck * across-z * + edge ) each ;
+
+\ the shallow linen closet off the hall: its shelves of folded linens, rolled towels and toilet articles, seen close from its opening
+: upstairs-closet-picture ( -- )
+	0 1.6 -1.7 0 -0.2 260 new-picture
+	[ 0 2.6 -1.6 ] lamp!
+	[ ] spots!
+	0.12 pen!
+	[ [ -0.7 0 0.6 ] [ 0.7 0 0.6 ] [ 0.7 2.2 0.6 ] [ -0.7 2.2 0.6 ] ] outline
+	-0.7 0 0 -0.7 0 0.6 edge
+	0.7 0 0 0.7 0 0.6 edge
+	-0.7 2.2 0 -0.7 2.2 0.6 edge
+	0.7 2.2 0 0.7 2.2 0.6 edge
+	0 5 1 do shelf
+		shelf 0.42 * 0.12 + to board
+		0.45 pen!
+		-0.7 board 0 0.7 board 0.6 solid-box
+		board 0.03 + to top
+		shelf 2 = if
+			0 5 1 do k
+				k 0.26 * -0.55 + to x
+				shelf 11 * k + hash-fraction to chance
+				0.035 detail-scale * to radius
+				chance 0.08 * 0.1 + detail-scale * to height
+				x top 0.3 radius height upper-bottle
+			loop
+		else shelf 3 = if
+			0 4 1 do k
+				k 0.34 * -0.52 + to x
+				0.07 detail-scale * to radius
+				0.55 pen!
+				[ x top radius + 0.12 ] [ 1 0 0 ] [ 0 1 0 ] radius 12 circle-points to roll
+				roll 0.05 fill
+				roll outline
+				[ x top radius + 0.12 ] [ 1 0 0 ] [ 0 1 0 ] radius 0.45 * 10 circle-points outline
+			loop
+		else
+			0 3 1 do k
+				k 0.44 * -0.64 + to x
+				shelf 5 * k + hash-fraction to chance
+				chance 0.14 * 0.14 + to height
+				0.5 pen!
+				x top 0.08 x 0.4 + top height + 0.5 solid-box
+				0.25 pen!
+				0 4 1 do fold
+					fold 1 + height * 5 / top + to crease
+					x crease 0.08 x 0.4 + crease 0.08 edge
+				loop
+			loop
+		then then
+	loop
+	0.65 pen!
+	[ [ -0.7 0 0 ] [ -0.7 2.2 0 ] [ 0.7 2.2 0 ] [ 0.7 0 0 ] ] path
+	0.3 pen!
+	[ [ -0.78 0 0 ] [ -0.78 2.28 0 ] [ 0.78 2.28 0 ] [ 0.78 0 0 ] ] path ;
+
+\ === the Hidden Closet ===
+
+\ the secret room between the library and the master bedroom, bare and dusty under one bulb: the safe in the south wall, the switchplate with its two buttons, the door to the library, footprints in the dust
+: hidden-closet-picture ( -- )
+	2.35 1.6 1.85 -2.3 -0.3 190 new-picture
+	[ 1.25 2.35 1.0 ] lamp!
+	[ [ 0.9 0 0.9 ] 2.35 1.85 upper-heading [ 1.7 0 0.8 ] 2.35 1.85 upper-heading ] spots!
+	\ the library through the door hidden in the west wall, when it stands open, and the wall hiding the rest of the library
+	:hidden-door-l :open flag? if
+		0.12 pen!
+		0 0 0.5 -2 0 0.5 edge
+		0 0 1.5 -2 0 1.5 edge
+		[ -1.5 1.2 1.0 ] 1.4 0.12 glow
+		[ [ 0 0 1.5 ] [ -0.95 0 1.8 ] [ -0.95 2.1 1.8 ] [ 0 2.1 1.5 ] ] to leaf
+		leaf 0.03 fill
+		0.55 pen!
+		leaf outline
+		[ [ [ 0 0 0 ] [ 0 0 0.5 ] [ 0 2.6 0.5 ] [ 0 2.6 0 ] ]
+		  [ [ 0 0 1.5 ] [ 0 0 2 ] [ 0 2.6 2 ] [ 0 2.6 1.5 ] ]
+		  [ [ 0 2.1 0.5 ] [ 0 2.1 1.5 ] [ 0 2.6 1.5 ] [ 0 2.6 0.5 ] ] ] ( wall | wall 0 fill ) each
+	then
+	0.4 pen!
+	0 2.5 0 2 2.6 room-shell
+	0.05 pen!
+	[ 0 0 0 ] [ 2.5 0 0 ] [ 2.5 0 2 ] [ 0 0 2 ] 10 8 grid
+	:hidden-door-l :open flag? if 0.55 pen! else 0.1 pen! then
+	[ [ 0 0 0.5 ] [ 0 2.1 0.5 ] [ 0 2.1 1.5 ] [ 0 0 1.5 ] ] path
+	\ the switchplate and its two buttons, the upper one lit
+	0.55 pen!
+	[ [ 0.01 1.1 1.62 ] [ 0.01 1.1 1.84 ] [ 0.01 1.4 1.84 ] [ 0.01 1.4 1.62 ] ] outline
+	[ 0.012 1.3 1.73 ] [ 0 0 1 ] [ 0 1 0 ] 0.025 detail-scale * 8 circle-points dup 0.35 fill 0.9 pen! outline
+	0.7 pen!
+	[ 0.012 1.2 1.73 ] [ 0 0 1 ] [ 0 1 0 ] 0.025 detail-scale * 8 circle-points outline
+	\ the safe, its heavy door shut on its dial or standing open on its papers
+	[ [ 0.85 0.45 0.01 ] [ 1.75 0.45 0.01 ] [ 1.75 1.35 0.01 ] [ 0.85 1.35 0.01 ] ] 0 fill
+	0.75 pen!
+	[ [ 0.85 0.45 0.01 ] [ 1.75 0.45 0.01 ] [ 1.75 1.35 0.01 ] [ 0.85 1.35 0.01 ] ] outline
+	:safe :open flag? if
+		0.2 pen!
+		[ [ 0.95 0.55 0.01 ] [ 1.65 0.55 0.01 ] [ 1.65 1.25 0.01 ] [ 0.95 1.25 0.01 ] ] outline
+		0.95 0.55 0.01 0.95 0.55 -0.3 edge
+		1.65 0.55 0.01 1.65 0.55 -0.3 edge
+		:baxter-papers :safe inside? :new-will :safe inside? or if
+			0 5 1 do sheet
+				sheet 0.018 * 0.56 + to height
+				sheet hash-fraction 0.04 * to shift
+				[ [ 1.08 shift + height -0.26 ] [ 1.44 shift + height -0.26 ] [ 1.44 shift + height -0.02 ] [ 1.08 shift + height -0.02 ] ] to page
+				page 0.08 fill
+				0.85 pen!
+				page outline
+			loop
+		then
+		0.7 pen!
+		0.85 0.45 0.01 0.95 1.35 0.72 solid-box
+		[ 0.97 0.9 0.4 ] [ 0 0 1 ] [ 0 1 0 ] 0.11 12 circle-points outline
+	else
+		0.6 pen!
+		[ 1.3 0.9 0.012 ] [ 1 0 0 ] [ 0 1 0 ] 0.13 16 circle-points outline
+		[ 1.3 0.9 0.012 ] [ 1 0 0 ] [ 0 1 0 ] 0.04 8 circle-points outline
+		0 12 1 do k
+			k 12 / TAU * to angle
+			1.3 angle cos 0.13 * + 0.9 angle sin 0.13 * + 0.012
+			1.3 angle cos 0.155 * + 0.9 angle sin 0.155 * + 0.012 edge
+		loop
+		0.8 pen!
+		1.55 0.8 0.012 1.55 1.0 0.012 edge
+	then
+	\ the bulb, the dust hanging in its light, the cobwebs, and footprints across the dusty floor
+	0.5 pen!
+	1.25 2.6 1.0 1.25 2.4 1.0 edge
+	[ 1.25 2.35 1.0 ] 0.8 0.35 glow
+	[ 1.25 2.35 1.0 ] 0.12 0.4 glow
+	0 40 1 do k
+		k 3.1 * hash-fraction 1.6 * 0.45 + to x
+		k 5.7 * hash-fraction 2.0 * 0.3 + to y
+		k 7.3 * hash-fraction 1.4 * 0.3 + to z
+		[ x y z ] to-camera to depth to up to right
+		depth nearest-depth > if
+			right up depth to-screen swap round swap round
+			k 2.9 * hash-fraction 0.3 * 0.1 + add-light
+		then
+	loop
+	[ 0 2.6 0 ] [ 0.45 0 0 ] [ 0 -0.4 0 ] upper-cobweb
+	[ 2.5 2.6 0 ] [ -0.4 0 0 ] [ 0 -0.45 0 ] upper-cobweb
+	0.3 pen!
+	0 6 1 do k
+		k 0.22 * 0.25 + to x
+		k 2 mod 0.16 * 0.9 + k 0.1 * - to z
+		[ x 0.003 z ] [ 2 0 -0.8 ] [ 0.37 0 0.93 ] 0.03 8 circle-points outline
+	loop ;
+
+\ === the Master Bedroom ===
+
+\ a turned bedpost from the floor to the canopy, its rings catching the light
+: upper-bedpost ( x z top -- )
+	| x z top |
+	0.6 pen!
+	x top z 0.03 8 ring outline
+	[ -1 1 ] ( side | x side 0.04 * + 0 z x side 0.03 * + top z edge ) each
+	0.45 pen!
+	[ 0.3 0.75 1.2 top 0.1 - ] ( height | x height z 0.055 8 ring outline ) each ;
+
+\ a desk telephone on a table top 0.62 high: a base narrowing upward, its dial, and the handset lying across the cradle with its earpiece and mouthpiece
+: upper-telephone ( x z -- )
+	| x z |
+	0.62 to table
+	0.08 detail-scale * to half-width
+	0.06 detail-scale * to half-depth
+	0.05 detail-scale * table + to cradle
+	[ [ x half-width - table z half-depth + ] [ x half-width + table z half-depth + ]
+	  [ x half-width 0.7 * + cradle z half-depth 0.6 * + ] [ x half-width 0.7 * - cradle z half-depth 0.6 * + ] ] to front
+	[ [ x half-width 0.7 * - cradle z half-depth 0.6 * - ] [ x half-width 0.7 * + cradle z half-depth 0.6 * - ]
+	  [ x half-width 0.7 * + cradle z half-depth 0.6 * + ] [ x half-width 0.7 * - cradle z half-depth 0.6 * + ] ] to top
+	[ [ x half-width + table z half-depth + ] [ x half-width + table z half-depth - ]
+	  [ x half-width 0.7 * + cradle z half-depth 0.6 * - ] [ x half-width 0.7 * + cradle z half-depth 0.6 * + ] ] to side
+	[ front top side ] ( face | face 0 fill ) each
+	0.7 pen!
+	[ front top side ] ( face | face outline ) each
+	0.55 pen!
+	[ x table cradle + 2 / z half-depth 0.8 * + 0.004 + ] [ 1 0 0 ] [ 0 0.86 0.5 ] half-width 0.3 * 10 circle-points outline
+	cradle 0.025 + to grip
+	[ -1 1 ] ( end |
+		x end half-width 0.85 * * + to end-x
+		end-x cradle 0.012 + z 0.028 detail-scale * 10 ring to cup
+		cup 0 fill
+		0.95 pen!
+		cup outline
+	) each
+	0.95 pen!
+	[ -0.01 0.01 ] ( offset |
+		[ [ x half-width 0.85 * - cradle 0.012 + z offset + ] [ x half-width 0.5 * - grip z offset + ]
+		  [ x half-width 0.5 * + grip z offset + ] [ x half-width 0.85 * + cradle 0.012 + z offset + ] ] path
+	) each ;
+
+\ the Robners' bedroom in the Queen Anne style, from just inside its door: the four-poster bed at the south end with its end tables and telephone, the balcony door and the light through its blinds, the gilt mirror, the hidden door, dressers, the lounge and the way to the bathroom
+: master-bedroom-picture ( -- )
+	2.6 1.65 0.4 -0.85 -0.17 172 new-picture
+	level-camera!
+	[ -0.2 1.6 6.4 ] lamp!
+	[ [ 0.8 0 3.0 ] 2.6 0.4 upper-heading [ -0.9 0 4.3 ] 2.6 0.4 upper-heading [ 1.6 0 4.4 ] 2.6 0.4 upper-heading ] spots!
+	0.06 pen!
+	[ -3 0 0 ] [ 3 0 0 ] [ 3 0 6 ] [ -3 0 6 ] 12 12 grid
+	\ light falling through the balcony door's blinds across the floor
+	[ -0.8 0 6 ] [ -0.1 0 3.6 ] [ 1.1 0 3.6 ] [ 0.4 0 6 ] 9 0.14 blind-light
+	[ -0.2 1.3 6 ] 1.6 0.22 glow
+	0.4 pen!
+	-3 3 0 6 3 room-shell
+	0.15 pen!
+	-3 2.7 0 -3 2.7 6 edge
+	-3 2.7 6 3 2.7 6 edge
+	3 2.7 0 3 2.7 6 edge
+	\ the balcony door in the north wall, its glass and blinds
+	:bedroom-balcony-door :open flag? if
+		0.2 pen!
+		-0.8 0 6 -0.8 0 7.2 edge
+		0.4 0 6 0.4 0 7.2 edge
+		0.5 pen!
+		-1.5 1.02 7.2 -0.1 1.02 7.2 edge
+		0.25 pen!
+		0 7 1 do k k 0.22 * -1.42 + to baluster baluster 0 7.2 baluster 1.02 7.2 edge loop
+		0.75 pen!
+		[ [ -0.8 0 6 ] [ 0.4 0 6 ] [ 0.4 2.5 6 ] [ -0.8 2.5 6 ] ] outline
+		[ [ -0.8 0 6 ] [ -0.2 0 5.0 ] [ -0.2 2.5 5.0 ] [ -0.8 2.5 6 ] ] to leaf
+		leaf 0.04 fill
+		0.12 pen!
+		0 14 1 do k k 0.16 * 0.2 + to slat -0.8 slat 6 -0.2 slat 5.0 edge loop
+		0.75 pen!
+		leaf outline
+	else
+		[ [ -0.8 0 6 ] [ 0.4 0 6 ] [ 0.4 2.5 6 ] [ -0.8 2.5 6 ] ] 0.04 fill
+		0.12 pen!
+		0 14 1 do k k 0.16 * 0.2 + to slat -0.8 slat 6 0.4 slat 6 edge loop
+		0.75 pen!
+		[ -0.8 0 6 ] [ 0.4 0 6 ] [ 0.4 2.5 6 ] [ -0.8 2.5 6 ] 2 5 pane-grid
+	then
+	\ the gilt mirror on the west wall and the hidden door beside it
+	[ [ -2.99 0.9 2.8 ] [ -2.99 0.9 4.2 ] [ -2.99 2.4 4.2 ] [ -2.99 2.4 2.8 ] ] 0.05 fill
+	0.85 pen!
+	[ [ -2.99 0.9 2.8 ] [ -2.99 0.9 4.2 ] [ -2.99 2.4 4.2 ] [ -2.99 2.4 2.8 ] ] outline
+	0.5 pen!
+	[ [ -2.99 0.98 2.88 ] [ -2.99 0.98 4.12 ] [ -2.99 2.32 4.12 ] [ -2.99 2.32 2.88 ] ] outline
+	0.15 pen!
+	-2.99 1.2 3.0 -2.99 2.0 3.6 edge
+	-2.99 1.4 3.3 -2.99 2.2 3.9 edge
+	:hidden-door-b :open flag? if
+		[ [ -3 0 4.5 ] [ -3 0 5.4 ] [ -3 2.1 5.4 ] [ -3 2.1 4.5 ] ] 0 fill
+		0.12 pen!
+		-3 0 4.5 -4.5 0 4.5 edge
+		-3 0 5.4 -4.5 0 5.4 edge
+		0.55 pen!
+		[ [ -3 0 5.4 ] [ -2.3 0 5.9 ] [ -2.3 2.1 5.9 ] [ -3 2.1 5.4 ] ] outline
+		[ [ -3 0 4.5 ] [ -3 2.1 4.5 ] [ -3 2.1 5.4 ] [ -3 0 5.4 ] ] path
+	then
+	\ the lounge along the north wall and the dressers on the east wall, the doorway to the bathroom
+	0.45 pen!
+	1.0 0 5.35 2.7 0.42 5.95 solid-box
+	1.0 0.42 5.8 2.7 0.85 5.95 solid-box
+	0.5 pen!
+	2.45 0 2.2 3 1.05 3.7 solid-box
+	0.3 pen!
+	[ 0.3 0.6 0.9 ] ( height | 2.45 height 2.25 2.45 height 3.65 edge ) each
+	[ 2.6 3.35 ] ( z | 2.45 0.45 z 2.45 0.45 z 0.12 + edge ) each
+	[ [ 3 0 4.2 ] [ 3 0 5.1 ] [ 3 2.1 5.1 ] [ 3 2.1 4.2 ] ] 0 fill
+	0.08 pen!
+	3 0 4.2 4.5 0 4.2 edge
+	3 0 5.1 4.5 0 5.1 edge
+	0.55 pen!
+	[ [ 3 0 4.2 ] [ 3 2.1 4.2 ] [ 3 2.1 5.1 ] [ 3 0 5.1 ] ] path
+	\ the small chair against the west wall
+	0.45 pen!
+	-2.95 0 2.3 -2.5 0.45 2.75 solid-box
+	-2.95 0.45 2.3 -2.89 0.95 2.75 solid-box
+	\ the four-poster bed with its canopy, the end tables and the telephone
+	0.45 pen!
+	-2.75 0 0.05 -2.3 0.62 0.5 solid-box
+	0.5 pen!
+	-2.2 0 0 -0.2 0.62 2.3 solid-box
+	0.35 pen!
+	[ 0.9 1.3 1.7 ] ( z | -2.2 0.62 z -0.2 0.62 z edge ) each
+	0.6 pen!
+	-2.05 0.62 0.1 -1.3 0.78 0.45 solid-box
+	-1.1 0.62 0.1 -0.35 0.78 0.45 solid-box
+	[ [ -2.2 0.62 0.03 ] [ -0.2 0.62 0.03 ] [ -0.2 1.3 0.03 ] [ -0.7 1.45 0.03 ] [ -1.7 1.45 0.03 ] [ -2.2 1.3 0.03 ] ] to headboard
+	headboard 0 fill
+	0.5 pen!
+	headboard outline
+	[ [ -2.2 0 ] [ -0.2 0 ] [ -2.2 2.3 ] [ -0.2 2.3 ] ] ( corner | corner spread to post-z to post-x post-x post-z 2.25 upper-bedpost ) each
+	[ [ [ -2.2 0 ] [ -0.2 0 ] ] [ [ -0.2 0 ] [ -0.2 2.3 ] ] [ [ -0.2 2.3 ] [ -2.2 2.3 ] ] [ [ -2.2 2.3 ] [ -2.2 0 ] ] ] ( side |
+		side spread to finish to start
+		start spread to start-z to start-x
+		finish spread to finish-z to finish-x
+		[ [ start-x 2.0 start-z ] [ finish-x 2.0 finish-z ] [ finish-x 2.25 finish-z ] [ start-x 2.25 start-z ] ] to valance
+		valance 0 fill
+		0.55 pen!
+		valance outline
+		0.22 pen!
+		1 8 1 do k
+			k 8 / to along
+			start-x finish-x start-x - along * + to fold-x
+			start-z finish-z start-z - along * + to fold-z
+			fold-x 2.0 fold-z fold-x 2.25 fold-z edge
+		loop
+	) each
+	0.45 pen!
+	-0.1 0 0.05 0.35 0.62 0.5 solid-box
+	0.125 0.27 upper-telephone ;
+
+\ === the Master Bathroom ===
+
+\ a plant hanging from the ceiling in its pot, its leaves trailing down
+: upper-hanging-plant ( x z drop seed -- )
+	| x z drop seed |
+	view@cos-yaw to across-x
+	view@sin-yaw negate to across-z
+	0.3 pen!
+	[ 0 2 4 ] ( k | k TAU * 6 / to angle x 2.8 z x angle cos 0.14 * + drop z angle sin 0.14 * + edge ) each
+	x drop z 0.14 12 ring to rim
+	[ [ x across-x 0.14 * - drop z across-z 0.14 * - ]
+	  [ x across-x 0.14 * + drop z across-z 0.14 * + ]
+	  [ x across-x 0.09 * + drop 0.2 - z across-z 0.09 * + ]
+	  [ x across-x 0.09 * - drop 0.2 - z across-z 0.09 * - ] ] to pot
+	pot 0 fill
+	rim 0 fill
+	0.6 pen!
+	pot outline
+	rim outline
+	0 7 1 do k
+		k 7 / TAU * seed + to angle
+		seed k + hash-fraction 0.4 * 0.35 + to length
+		[ 0 6 1 do step
+			step 5 / to along
+			[ x angle cos 0.14 along 0.3 * + * + drop 0.05 - along length * - z angle sin 0.14 along 0.3 * + * + ]
+		loop ] to strand
+		0.3 pen!
+		strand path
+		0.55 pen!
+		1 6 1 do step
+			strand step @i spread to leaf-z to leaf-y to leaf-x
+			step 2 mod 2 * 1 - 0.05 * to reach
+			leaf-x leaf-y leaf-z leaf-x across-x reach * + leaf-y 0.03 - leaf-z across-z reach * + edge
+		loop
+	loop ;
+
+\ the Robners' bathroom from its door: the long counter with two sinks under the mirror, the bottles on it, the jacuzzi, the toilet, tiles, and hanging plants
+: master-bath-picture ( -- )
+	0.15 1.65 0.3 1.75 -0.12 220 new-picture
+	level-camera!
+	[ 2.0 2.5 1.3 ] lamp!
+	[ [ 1.5 0 -0.4 ] 0.15 0.3 upper-heading [ 2.3 0 0.6 ] 0.15 0.3 upper-heading ] spots!
+	0.08 pen!
+	[ 0 0 -1.6 ] [ 4 0 -1.6 ] [ 4 0 1.6 ] [ 0 0 1.6 ] 10 8 grid
+	0.4 pen!
+	0 4 -1.6 1.6 2.8 room-shell
+	0.05 pen!
+	[ 4 0 -1.6 ] [ 4 0 1.6 ] [ 4 1.2 1.6 ] [ 4 1.2 -1.6 ] 8 3 grid
+	[ 0 0 -1.6 ] [ 4 0 -1.6 ] [ 4 1.2 -1.6 ] [ 0 1.2 -1.6 ] 10 3 grid
+	\ the mirror above the counter, its lamp, and the counter with its two sinks
+	[ 2.0 2.45 1.4 ] 1.2 0.3 glow
+	[ [ 0.6 1.15 1.59 ] [ 3.2 1.15 1.59 ] [ 3.2 2.25 1.59 ] [ 0.6 2.25 1.59 ] ] 0.05 fill
+	0.8 pen!
+	[ [ 0.6 1.15 1.59 ] [ 3.2 1.15 1.59 ] [ 3.2 2.25 1.59 ] [ 0.6 2.25 1.59 ] ] outline
+	0.15 pen!
+	1.0 1.3 1.59 1.6 2.1 1.59 edge
+	2.2 1.3 1.59 2.8 2.1 1.59 edge
+	0.55 pen!
+	0.6 0 1.0 3.2 0.9 1.6 solid-box
+	0.3 pen!
+	[ 1.9 ] ( x | x 0.1 1.0 x 0.85 1.0 edge ) each
+	[ 1.25 2.55 ] ( x |
+		0.6 pen!
+		x 0.905 1.3 0.2 12 ring outline
+		0.3 pen!
+		x 0.88 1.3 0.13 10 ring outline
+		0.7 pen!
+		x 0.9 1.52 x 1.05 1.52 edge
+		x 1.05 1.52 x 1.05 1.42 edge
+	) each
+	\ the bottles of Sneezo and Allergone on the counter, and the toothbrush
+	1.75 0.9 1.25 0.028 detail-scale * 0.09 detail-scale * upper-bottle
+	2.02 0.9 1.2 0.022 detail-scale * 0.065 detail-scale * upper-bottle
+	0.8 pen!
+	2.2 0.91 1.15 2.38 0.91 1.2 edge
+	\ the jacuzzi along the east wall
+	0.55 pen!
+	2.6 0 -1.55 3.98 0.55 0.5 solid-box
+	0.35 pen!
+	[ [ 2.72 0.55 -1.43 ] [ 3.86 0.55 -1.43 ] [ 3.86 0.55 0.38 ] [ 2.72 0.55 0.38 ] ] outline
+	0.6 pen!
+	[ [ 2.8 -1.2 ] [ 3.7 -1.2 ] [ 2.8 0.1 ] [ 3.7 0.1 ] ] ( jet | jet spread to jet-z to jet-x [ jet-x 0.45 jet-z ] 0.04 0.3 glow ) each
+	\ the toilet by the south wall
+	0.5 pen!
+	1.6 0 -1.6 2.05 0.75 -1.4 solid-box
+	1.825 0.42 -1.1 0.2 12 ring to seat
+	seat 0 fill
+	seat outline
+	1.825 0 -1.15 0.12 10 ring outline
+	0.3 pen!
+	1.825 0.42 -1.1 0.11 10 ring outline
+	\ the hanging plants
+	3.5 1.25 1.9 3 upper-hanging-plant
+	2.2 -1.2 1.8 11 upper-hanging-plant ;
+
+\ === the Bedroom Balcony ===
+
+\ the balcony over the orchard: the tops of the tallest fruit trees at its level, the metal railing, the glass door back into the bedroom, and the top of the ladder when it leans here
+: bedroom-balcony-picture ( -- )
+	2.6 1.7 0.5 -1.15 -0.14 200 new-picture
+	[ -30 12 20 ] lamp!
+	[ [ 0.4 0 1.2 ] 2.6 0.5 upper-heading [ -1.4 0 0.9 ] 2.6 0.5 upper-heading ] spots!
+	\ the distant lawn and lake to the north, the fruit trees below, farthest first
+	1.4 pen!
+	-60 -3.5 60 4 -3.5 60 edge
+	0.6 pen!
+	0 6 1 do k k 1.6 * 62 + to z -60 -3.5 z 4 -3.5 z edge loop
+	[ -30 6 70 ] 8 0.18 glow
+	[ [ -7 0.6 13 2.1 5 ] [ -12 -0.6 5 1.5 3 ] [ -9 0.2 9 2.0 1 ] [ -3 0.4 11 2.2 4 ] [ -5 -0.3 6 1.8 2 ] [ -2 -0.4 4 1.3 6 ] [ 1.0 -0.2 4.4 1.6 7 ] ]
+	( tree | tree spread to seed to radius to z to y to x x y z radius -3.5 seed upper-tree-crown ) each
+	:ladder-flag-2 state if -1.2 2 -3.5 3.1 upper-ladder-top then
+	\ the balcony floor in sunlight, striped by the shadows of the balusters and the top rail
+	[ [ -3 0 0 ] [ 1.6 0 0 ] [ 2.4 0 0.8 ] [ 3 0 2 ] [ -3 0 2 ] ] 0.07 fill
+	0 40 1 do k
+		k 40 / 6 * -3 + to baluster
+		[ [ baluster 0.012 - 0 2 ] [ baluster 0.012 + 0 2 ] [ baluster 0.462 + 0 1.05 ] [ baluster 0.438 + 0 1.05 ] ] 0 fill
+	loop
+	[ [ -2.55 0 1.02 ] [ 2.3 0 1.02 ] [ 2.3 0 1.1 ] [ -2.55 0 1.1 ] ] 0 fill
+	0.05 pen!
+	[ -3 0 0.2 ] [ 3 0 0.2 ] [ 3 0 2 ] [ -3 0 2 ] 1 9 grid
+	\ the house wall and the glass door to the bedroom
+	0.5 pen!
+	-3 0 0 -3 3.2 0 edge
+	-3 0 0 3 0 0 edge
+	0.25 pen!
+	-3 3.2 0 3 3.2 0 edge
+	:bedroom-balcony-door :open flag? if
+		[ [ -0.6 0 0 ] [ 0.6 0 0 ] [ 0.6 2.4 0 ] [ -0.6 2.4 0 ] ] 0 fill
+		[ 0 1.2 -2 ] 1.5 0.14 glow
+		0.08 pen!
+		[ -0.6 0 0 ] [ 0.6 0 0 ] [ 0.6 0 -1.6 ] [ -0.6 0 -1.6 ] 3 4 grid
+		0.7 pen!
+		[ [ -0.6 0 0 ] [ 0.6 0 0 ] [ 0.6 2.4 0 ] [ -0.6 2.4 0 ] ] outline
+		[ [ -0.6 0 0 ] [ -0.05 0 -0.85 ] [ -0.05 2.4 -0.85 ] [ -0.6 2.4 0 ] ] to leaf
+		leaf 0.03 fill
+		0.55 pen!
+		leaf first leaf second leaf 2 @i leaf 3 @i 1 5 pane-grid
+		[ [ [ -3 0 0 ] [ -0.6 0 0 ] [ -0.6 3.2 0 ] [ -3 3.2 0 ] ]
+		  [ [ 0.6 0 0 ] [ 1.6 0 0 ] [ 1.6 3.2 0 ] [ 0.6 3.2 0 ] ]
+		  [ [ -0.6 2.4 0 ] [ 0.6 2.4 0 ] [ 0.6 3.2 0 ] [ -0.6 3.2 0 ] ] ] ( wall | wall 0 fill ) each
+		0.5 pen!
+		-3 0 0 -3 3.2 0 edge
+		-3 0 0 -0.6 0 0 edge
+		0.6 0 0 3 0 0 edge
+		0.25 pen!
+		-3 3.2 0 3 3.2 0 edge
+		0.7 pen!
+		[ [ -0.6 0 0 ] [ 0.6 0 0 ] [ 0.6 2.4 0 ] [ -0.6 2.4 0 ] ] outline
+	else
+		0.7 pen!
+		[ -0.6 0 0 ] [ 0.6 0 0 ] [ 0.6 2.4 0 ] [ -0.6 2.4 0 ] 2 5 pane-grid
+	then
+	[ -3 0 2 ] [ 3 0 2 ] 40 upper-railing
+	[ -3 0 0 ] [ -3 0 2 ] 16 upper-railing ;
+
+room-pictures ' stair-top-picture :stair-top ! drop
+room-pictures ' corridor-1-picture :corridor-1 ! drop
+room-pictures ' corridor-2-picture :corridor-2 ! drop
+room-pictures ' corridor-3-picture :corridor-3 ! drop
+room-pictures ' corridor-4-picture :corridor-4 ! drop
+room-pictures ' library-balcony-picture :library-balcony ! drop
+room-pictures ' upstairs-closet-picture :upstairs-closet ! drop
+room-pictures ' hidden-closet-picture :hidden-closet ! drop
+room-pictures ' master-bedroom-picture :master-bedroom ! drop
+room-pictures ' master-bath-picture :master-bath ! drop
+room-pictures ' bedroom-balcony-picture :bedroom-balcony ! drop

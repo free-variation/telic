@@ -6416,6 +6416,8 @@ its range errors and leaves the instrument's patch unchanged:
 | `:resonance` | the ladder's feedback, [0, 4]; near 4 it rings at the cutoff | 0 |
 | `:drive` | input gain into the ladder's tanh stages, [0.1, 10]; above 1 it saturates | 1 |
 | `:filter-envelope` | a frame of `:attack :decay :sustain :release :sustain-decay` (as for an oscillator) plus `:amount` in octaves, [−10, 10]: the cutoff is `:cutoff` × 2^(amount × level) | amount 0 |
+| `:high-pass` | turns on a two-pole Butterworth high-pass filter (Q = 1/√2) after the ladder, at this cutoff in Hz, [20, 20000]: −3 dB at the cutoff, falling 12 dB per octave below it; without it there is none | none |
+| `:chorus-send` `:delay-send` `:reverb-send` | how much of each voice's signal enters that effect, [0, 1]; the effect's dry path carries the voice whatever its send, and an effect's wet output passes on into the later effects | 1 |
 | `:lfo` | a frame: `:shape` (`:sine` `:triangle` `:saw` `:square` `:sample-and-hold`), `:rate` Hz [0.01, 100], `:delay` s before it acts, `:fade` s to reach full depth, `:key-sync` 1 to start at phase 0 on each note or 0 to follow the free-running clock, and depths `:pitch-depth` in semitones [0, 24], `:cutoff-depth` in octaves [0, 8], `:pan-depth` [0, 1] | sine, 5 Hz, synced, depths 0 |
 | `:glide` | seconds for a note's pitch to slide, linearly in semitones, from the instrument's previous note; `silence-audio` forgets the previous note, [0, 10] | 0 |
 
@@ -6446,7 +6448,7 @@ Times are in [0, 60] seconds. After one time constant a stage has covered
 | `pitch>hz` | `( pitch -- hz )` | The equal-tempered frequency of a pitch, 440 × 2^((n − 69)/12) | 1 | none | O(1) |
 | `instrument-patch!` | `( frame instrument -- )` | Give an instrument, named by a symbol, a patch, binding the name when it is new; notes already sounding keep the patch they started with. A 17th name errors | keys | none | O(keys) |
 | `forget-instrument` | `( instrument -- )` | Unbind an instrument's name: its sounding voices end, its queued sequencer notes are dropped, and its previous note (for `:glide`) and sequence position reset, so the name is unknown again and its place is free for another | 1 | none | O(voices + queued events) |
-| `instrument!` | `( value key instrument -- )` | Change one parameter of an instrument — `:level` `:pan` `:cutoff` `:resonance` `:drive`, with the patch's ranges — in its patch and in its sounding voices, which move to the value linearly over 64 frames (1.3 ms). `:cutoff` on a voice without a filter turns the filter on | 1 | none | O(voices) |
+| `instrument!` | `( value key instrument -- )` | Change one parameter of an instrument — `:level` `:pan` `:cutoff` `:resonance` `:drive` `:chorus-send` `:delay-send` `:reverb-send`, with the patch's ranges — in its patch and in its sounding voices, which move to the value linearly over 64 frames (1.3 ms); a send changes at once. `:cutoff` on a voice without a filter turns the filter on | 1 | none | O(voices) |
 | `oscillator!` | `( value key oscillator instrument -- )` | As `instrument!` for one oscillator's `:level`, `:ratio` or `:width` | 1 | none | O(voices) |
 | `note-on` | `( pitch velocity instrument -- )` | Start a note, velocity in [0, 1], at the start of the next `render-audio` | 1 | none | O(voices) |
 | `note-off` | `( pitch instrument -- )` | Release the instrument's sounding voices at that pitch; a pitch not sounding is ignored | 1 | none | O(voices) |

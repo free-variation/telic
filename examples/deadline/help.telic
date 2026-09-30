@@ -1,0 +1,69 @@
+\ Deadline: GRAMMAR, the page that explains the language. Beneath a short
+\ account of how commands are put together it lists, from the parser's own
+\ tables, every verb with every sentence it takes, the words that mean the
+\ same as another, and the words passed over, so the page stays whole as the
+\ vocabulary does. Its nouns and adjectives are only those of the things the
+\ player has been shown, so it never names what is still to be found. The
+\ window shows it as pages; in the terminal it prints.
+
+\ show the page's lines; the window replaces this with pages of its own
+defer show-grammar
+( ( tell-line ) each ) embodies show-grammar
+
+\ a word in capitals
+: capitalized ( word -- word' ) upper-case ;
+
+\ a sentence as the page writes it: the words in capitals, a noun phrase as someone or something
+: sentence-text ( record -- text )
+	| record |
+	record@words ( item |
+		item string? if item capitalized exit then
+		item :find null @or :person = if "someone" else "something" then
+	) map " " join ;
+
+\ every verb and its sentences, a line each, in alphabetical order; the game's own checks ($) left out
+: verb-lines ( -- lines )
+	sentence-patterns values ( records | records ( sentence-text ) map ) map flatten
+	array>set set>array ( "^\$" has? not ) filter ;
+
+\ each word with the words that mean the same, a line each
+: synonym-lines ( -- lines )
+	synonym-lists keys ( key | key render ":" "" replace capitalized " = " + synonym-lists key @ ( capitalized ) map ", " join + ) map
+	sort ;
+
+\ the nouns or adjectives of the things the player has been shown, in capitals and alphabetical order
+: seen-words ( key -- words )
+	| key |
+	:seen-things state to seen
+	seen null? if [ ] exit then
+	seen set>array ( name | world name has? ) filter
+	( name | name thing key [ ] @or ) map flatten
+	( word | word "zzkjlk" = not ) filter array>set set>array ( capitalized ) map ;
+
+\ the whole page
+: grammar-lines ( -- lines )
+	[ "THE GRAMMAR"
+	  ""
+	  "A command is a verb and what it acts on: LOOK, EXAMINE THE DESK, TAKE THE CUP, OPEN THE DOOR."
+	  "Several things at once: TAKE X AND Y, TAKE ALL, TAKE ALL EXCEPT X. IT is the thing last mentioned."
+	  "Several commands on one line, a turn each: separate them with THEN or a full stop, as NORTH. OPEN THE DOOR THEN WEST."
+	  "Moving: NORTH, SOUTH, EAST, WEST, NE, NW, SE, SW, UP, DOWN, IN, OUT, or N, S, E, W, U, D; WALK NORTH says the same."
+	  "People: ASK someone ABOUT something, TELL someone ABOUT something, SHOW or GIVE something TO someone, and orders: MRS. ROBNER, TELL ME ABOUT THE WILL."
+	  "Time: each command takes a minute. WAIT, WAIT UNTIL 11:30 and WAIT FOR someone pass time; TIME tells it."
+	  "The game: SAVE, RESTORE, RESTART, QUIT, AGAIN (the last command once more), VERBOSE, BRIEF, SUPERBRIEF, SCORE, VERSION. GRAMMAR shows this page."
+	  "Words are known by their first six letters, so INVESTIGATE and INVEST are one word."
+	  ""
+	  "EVERY VERB AND THE SENTENCES IT TAKES"
+	] to page-lines
+	page-lines verb-lines concat [ "" "WORDS THAT MEAN THE SAME" ] concat synonym-lines concat to page-lines
+	passed-over-words ( word | word "^[a-z]+$" has? [ "and" "then" "all" "but" "except" ] word position-of 0 < and ) filter to skipped
+	page-lines [ "" "WORDS PASSED OVER" skipped ( capitalized ) map ", " join ] concat to page-lines
+	page-lines [ ""
+	  "WORDS FOR THE THINGS YOU HAVE SEEN (the lists grow as you explore)"
+	  "Nouns: " :synonyms seen-words ", " join +
+	  "Adjectives: " :adjectives seen-words ", " join +
+	] concat ;
+
+: do-grammar ( -- result ) grammar-lines show-grammar 1 ;
+
+verb-actions ' do-grammar :grammar ! drop

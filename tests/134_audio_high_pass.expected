@@ -1,0 +1,12 @@
+-24.12 -12.32 
+-3.01 
+-0.26 -0.02 
+-13.22 -3.01 
+1 
+1 
+error: expected :high-pass in [20, 20000]; got 10
+in instrument-patch!
+error: expected :high-pass in [20, 20000]; got 30000
+in instrument-patch!
+error: expected a float for :high-pass; got a symbol
+in instrument-patch!

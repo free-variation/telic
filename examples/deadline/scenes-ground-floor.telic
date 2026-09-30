@@ -1,0 +1,1213 @@
+\ Deadline: the pictures of the ground floor's rooms, besides the Foyer: the
+\ halls north and south of the stairs, the stairs and their landing, the
+\ living room, the corner, the dining room, the kitchen and pantry, and Mrs.
+\ Rourke's rooms and the south closet. Furniture is placed as people are, by
+\ a spot and a heading, in its own measure of metres right, up and forward.
+
+\ === pieces of furniture and rooms ===
+
+\ a box in a thing's own measure, between two corners [ right up forward ], placed at a spot facing a heading; filled black so it hides what is behind it
+: turned-box ( near far spot heading -- )
+	| near far spot heading |
+	near spread to f0 to u0 to r0
+	far spread to f1 to u1 to r1
+	[ [ r0 u0 f0 ] [ r1 u0 f0 ] [ r1 u0 f1 ] [ r0 u0 f1 ]
+	  [ r0 u1 f0 ] [ r1 u1 f0 ] [ r1 u1 f1 ] [ r0 u1 f1 ] ]
+	( corner | corner spot heading placed ) map to c
+	[ [ 0 1 2 3 ] [ 4 5 6 7 ] [ 0 1 5 4 ] [ 1 2 6 5 ] [ 2 3 7 6 ] [ 3 0 4 7 ] ]
+	( face | face ( c swap @i ) map 0 fill ) each
+	[ c 0 @i c 1 @i c 2 @i c 3 @i ] outline
+	[ c 4 @i c 5 @i c 6 @i c 7 @i ] outline
+	0 4 1 do k c k @i c k 4 + @i segment loop ;
+
+\ lines through points in a thing's own measure
+: turned-path ( points spot heading -- )
+	| points spot heading |
+	points ( point | point spot heading placed ) map path ;
+
+\ a point on a wall: from an origin, along the wall by a and up by b
+: wall-at ( origin along a b -- point )
+	| origin along a b |
+	[ 0 3 1 do k origin k @i along k @i a * + k 1 = if b + then loop ] ;
+
+\ an opening in a wall from one floor point to another, dark within, its frame drawn
+: open-doorway ( x0 z0 x1 z1 height -- )
+	| x0 z0 x1 z1 height |
+	[ [ x0 0 z0 ] [ x1 0 z1 ] [ x1 height z1 ] [ x0 height z0 ] ] 0 fill
+	[ [ x0 0 z0 ] [ x0 height z0 ] [ x1 height z1 ] [ x1 0 z1 ] ] path ;
+
+\ a panelled door in a wall from its hinge [ x0 z0 ] to its latch side [ x1 z1 ]; open, it swings into the room on the side given by a unit direction [ into-x into-z ]
+: wall-panel-door ( x0 z0 x1 z1 height open into-x into-z -- )
+	| x0 z0 x1 z1 height open into-x into-z |
+	x1 x0 - to along-x
+	z1 z0 - to along-z
+	along-x sq along-z sq + sqrt to width
+	open if
+		pen to frame-light
+		x0 z0 x1 z1 height open-doorway
+		x0 along-x 0.34 * + into-x width 0.94 * * + to leaf-x
+		z0 along-z 0.34 * + into-z width 0.94 * * + to leaf-z
+		[ [ x0 0.02 z0 ] [ leaf-x 0.02 leaf-z ] [ leaf-x height 0.04 - leaf-z ] [ x0 height 0.04 - z0 ] ] 0 fill
+		frame-light 1.2 * pen!
+		[ [ x0 0.02 z0 ] [ leaf-x 0.02 leaf-z ] [ leaf-x height 0.04 - leaf-z ] [ x0 height 0.04 - z0 ] ] outline
+		frame-light pen!
+		exit
+	then
+	[ [ x0 0 z0 ] [ x1 0 z1 ] [ x1 height z1 ] [ x0 height z0 ] ] 0 fill
+	[ [ x0 0 z0 ] [ x1 0 z1 ] [ x1 height z1 ] [ x0 height z0 ] ] outline
+	pen to frame-light
+	frame-light 0.55 * pen!
+	[ 0.12 0.55 ] ( bottom |
+		[ x0 0 z0 ] to base
+		[ along-x width / 0 along-z width / ] to along
+		bottom 0.55 = if height 0.12 - else height 0.5 * then to top
+		[ base along width 0.18 * bottom height * wall-at
+		  base along width 0.82 * bottom height * wall-at
+		  base along width 0.82 * top wall-at
+		  base along width 0.18 * top wall-at ] outline
+	) each
+	frame-light 1.4 * pen!
+	[ x0 0 z0 ] [ along-x width / 0 along-z width / ] width 0.88 * height 0.47 * wall-at to knob
+	knob [ knob 0 @i along-x width / 0.03 * + knob 1 @i knob 2 @i along-z width / 0.03 * + ] segment
+	frame-light pen! ;
+
+\ floor boards running along one axis between a room's walls, spacing apart
+: plank-floor ( west east south north spacing along-z -- )
+	| west east south north spacing along-z |
+	along-z if
+		east west - spacing / round-down to n-boards
+		0 n-boards 1 + 1 do k
+			k spacing * west + to x
+			x 0 south x 0 north edge
+		loop
+	else
+		north south - spacing / round-down to n-boards
+		0 n-boards 1 + 1 do k
+			k spacing * south + to z
+			west 0 z east 0 z edge
+		loop
+	then ;
+
+\ a long rug with a border inset inside it, lying on the floor
+: runner-rug ( west east south north -- )
+	| west east south north |
+	[ [ west 0.01 south ] [ east 0.01 south ] [ east 0.01 north ] [ west 0.01 north ] ] 0.03 fill
+	[ [ west 0.01 south ] [ east 0.01 south ] [ east 0.01 north ] [ west 0.01 north ] ] outline
+	pen to rug-light
+	rug-light 0.6 * pen!
+	[ [ west 0.1 + 0.012 south 0.1 + ] [ east 0.1 - 0.012 south 0.1 + ]
+	  [ east 0.1 - 0.012 north 0.1 - ] [ west 0.1 + 0.012 north 0.1 - ] ] outline
+	rug-light pen! ;
+
+\ a lamp hanging on a cord from the ceiling, with its shade and its glow
+: pendant-lamp ( x y z ceiling -- )
+	| x y z ceiling |
+	[ x y 0.1 - z ] 1.1 0.3 glow
+	0.4 pen!
+	x ceiling z x y z edge
+	0.75 pen!
+	x y z 0.05 8 ring to shade-top
+	x y 0.18 - z 0.16 12 ring to shade-bottom
+	shade-bottom outline
+	0 12 3 do k shade-top k 2 / round-down @i shade-bottom k @i segment loop
+	shade-top outline ;
+
+\ a flight of stairs from a spot, rising along a heading: count steps of run and rise, a width wide to the right, solid black, the nosing of each step drawn bright and the risers and sides faint
+: stair-flight ( spot heading width run rise count -- )
+	| spot heading width run rise count |
+	pen to nosing-light
+	count rise * 0 min2 to bottom
+	[ 0 1 ] ( side |
+		side width * to across
+		[ [ across bottom count run * ] [ across bottom 0 ] [ across 0 0 ]
+		  0 count 1 do k [ across k 1 + rise * k run * ] [ across k 1 + rise * k 1 + run * ] loop
+		] ( point | point spot heading placed ) map to profile
+		profile 0 fill
+		nosing-light 0.4 * pen!
+		profile outline
+	) each
+	( point | point spot heading placed ) to placing
+	count 1 - -1 -1 do k
+		[ [ 0 k rise * k run * ] [ width k rise * k run * ] [ width k 1 + rise * k run * ] [ 0 k 1 + rise * k run * ] ]
+		placing map 0 fill
+		[ [ 0 k 1 + rise * k run * ] [ width k 1 + rise * k run * ] [ width k 1 + rise * k 1 + run * ] [ 0 k 1 + rise * k 1 + run * ] ]
+		placing map 0 fill
+		nosing-light 0.35 * pen!
+		[ [ 0 k rise * k run * ] [ width k rise * k run * ] ] spot heading turned-path
+		nosing-light pen!
+		[ [ 0 k 1 + rise * k run * ] [ width k 1 + rise * k run * ] ] spot heading turned-path
+	loop
+	nosing-light pen! ;
+
+\ a banister beside a flight of stairs, on the side at right, from the newel post up the flight
+: banister ( spot heading right run rise count -- )
+	| spot heading right run rise count |
+	[ right 0.05 - 0 -0.05 ] [ right 0.05 + 1.05 0.05 ] spot heading turned-box
+	[ [ right 0.95 0 ] [ right count rise * 0.9 + count run * ] ] spot heading turned-path
+	pen to rail-light
+	rail-light 0.55 * pen!
+	0 count 1 do k
+		k 1 + rise * to tread
+		k 0.5 + run * to middle
+		[ [ right tread middle ] [ right middle rise * run / 0.95 + middle ] ] spot heading turned-path
+	loop
+	rail-light pen! ;
+
+\ the light a pane of a south window lets fall on the floor, falling north and a little west, with faint shafts from the pane down to it
+: south-pane-light ( west east bottom top z -- )
+	| west east bottom top z |
+	[ [ west bottom z ] [ east bottom z ] [ east top z ] [ west top z ] ] to pane
+	pane ( corner | corner spread to cz to y to x [ x y 0.3 * - 0 cz y 1.1 * + ] ) map to patch
+	patch 0.08 fill
+	0.16 pen!
+	patch 0 @i patch 1 @i patch 2 @i patch 3 @i 5 hatch
+	0.035 pen!
+	0 4 1 do k pane k @i patch k @i segment loop ;
+
+\ === North of Foyer ===
+
+\ the hall north of the foyer, seen from its south end: the living room's doorway to the west, the foot of the stairs to the east, the hall going on north
+: nfoyer-picture ( -- )
+	0.15 1.65 -1.2 0 -0.05 240 new-picture
+	[ 0 2.7 3.2 ] lamp!
+	[ [ [ 0.35 0 3.9 ] PI 0.1 + ] [ [ -0.45 0 5.1 ] PI 0.15 - ] [ [ 0.55 0 2.6 ] PI 0.25 + ] ] spots!
+	0.1 pen!
+	-1.3 1.3 0 7 0.25 true plank-floor
+	0.25 pen!
+	-0.55 0.55 0.8 6.4 runner-rug
+	[ 0 0 3.2 ] 1.3 0.08 glow
+	0.12 pen!
+	-1.3 0 7 -1.3 0 10 edge
+	1.3 0 7 1.3 0 10 edge
+	-1.3 3 7 -1.3 3 10 edge
+	1.3 3 7 1.3 3 10 edge
+	[ [ -1.3 0 10 ] [ 1.3 0 10 ] [ 1.3 3 10 ] [ -1.3 3 10 ] ] outline
+	0.45 pen!
+	[ [ -1.3 0 0 ] [ -1.3 0 7 ] ] path
+	[ [ 1.3 0 0 ] [ 1.3 0 7 ] ] path
+	[ [ -1.3 3.2 0 ] [ -1.3 3.2 7 ] [ 1.3 3.2 7 ] [ 1.3 3.2 0 ] ] path
+	-1.3 3.2 7 -1.3 0 7 edge
+	1.3 3.2 7 1.3 0 7 edge
+	-1.3 3 7 1.3 3 7 edge
+	0.2 pen!
+	-1.3 0.95 0 -1.3 0.95 2.1 edge
+	-1.3 0.95 3.5 -1.3 0.95 7 edge
+	1.3 0.95 0 1.3 0.95 2.2 edge
+	1.3 0.95 4.4 1.3 0.95 7 edge
+	0.5 pen!
+	-1.3 2.1 -1.3 3.5 2.4 open-doorway
+	0.1 pen!
+	-1.3 0 2.3 -2.6 0 2.1 edge
+	-1.3 0 3.3 -2.6 0 3.5 edge
+	[ -2.4 1.1 2.8 ] 0.9 0.06 glow
+	0.5 pen!
+	1.3 2.2 1.3 4.4 2.7 open-doorway
+	0.45 pen!
+	[ 1.35 0 4.3 ] PI 2 / 1.9 0.28 0.18 6 stair-flight
+	0 2.72 3.2 3.2 pendant-lamp ;
+
+\ === Bottom of Stairs ===
+
+\ the foot of the staircase, seen from the archway to the west: the stairs climbing east, the archway to the south hall on the right
+: stair-bottom-picture ( -- )
+	-2.2 1.65 0 PI 2 / 0.08 - -0.02 290 new-picture
+	[ 0.5 2.9 0.5 ] lamp!
+	[ [ [ -0.2 0 0.4 ] PI 2 / PI + 0.1 - ] [ [ 0.3 0 -0.8 ] PI 2 / PI + 0.35 - ] [ [ -0.9 0 1.0 ] PI 2 / PI + 0.25 + ] ] spots!
+	0.1 pen!
+	-2.4 3 -1.6 1.6 0.25 false plank-floor
+	[ 0.4 0 0.2 ] 1.6 0.08 glow
+	0.45 pen!
+	[ [ -2.4 0 1.6 ] [ 3 0 1.6 ] [ 3 3.4 1.6 ] [ -2.4 3.4 1.6 ] ] path
+	[ [ -2.4 0 -1.6 ] [ 3 0 -1.6 ] [ 3 3.4 -1.6 ] [ -2.4 3.4 -1.6 ] ] path
+	3 0 -1.6 3 0 1.6 edge
+	3 3.4 -1.6 3 3.4 1.6 edge
+	0.2 pen!
+	-2.4 0.95 1.6 -0.4 0.95 1.6 edge
+	-2.4 0.95 -1.6 0.2 0.95 -1.6 edge
+	1.6 0.95 -1.6 3 0.95 -1.6 edge
+	[ [ 0.2 0 -1.6 ]
+	  0 12 1 do k k 11 / PI * to angle [ 0.9 angle cos 0.7 * - 2.1 angle sin 0.7 * + -1.6 ] loop
+	  [ 1.6 0 -1.6 ] ] to arch
+	arch 0 fill
+	0.55 pen!
+	arch path
+	0.1 pen!
+	0.3 0 -1.6 0.3 0 -3.6 edge
+	1.5 0 -1.6 1.5 0 -3.6 edge
+	[ 0.9 1.3 -3.3 ] 0.8 0.05 glow
+	0.4 pen!
+	2.3 0 0.25 3 1.62 1.5 solid-box
+	[ [ 3 1.62 0.25 ] [ 3 1.62 1.5 ] [ 3 3.4 1.5 ] [ 3 3.4 0.25 ] ] 0 fill
+	[ [ 3 1.62 0.25 ] [ 3 3.4 0.25 ] ] path
+	0.55 pen!
+	[ -0.4 0 1.5 ] PI 2 / 1.25 0.3 0.18 9 stair-flight
+	0.6 pen!
+	[ -0.4 0 1.5 ] PI 2 / 1.3 0.3 0.18 9 banister
+	0.5 2.95 0.3 3.4 pendant-lamp ;
+
+\ === the Stairs ===
+
+\ the landing halfway up, seen looking back west: the lower flight falling away on the right, the upper flight climbing on the left, a rail between them, and the blinds of the window behind striping the landing and the stairwell's end wall with light
+: stairs-picture ( -- )
+	1.3 1.65 0.3 PI -2 / 0.05 + -0.3 250 new-picture
+	[ 3 2 0 ] lamp!
+	[ [ [ -0.9 0 -0.6 ] PI 2 / 0.15 - ] [ [ -0.7 0 0.9 ] PI 2 / 0.3 + ] ] spots!
+	0.4 pen!
+	-4 -1.6 -1.6 -4 3.2 -1.6 edge
+	[ [ -4 -1.6 -1.6 ] [ -4 -1.6 1.6 ] [ -4 4.8 1.6 ] [ -4 4.8 -1.6 ] ] outline
+	[ -4 0.4 -1.1 ] [ -4 2.9 -1.1 ] [ -4 2.7 1.1 ] [ -4 0.2 1.1 ] 7 0.09 blind-light
+	0.4 pen!
+	[ [ 1.6 0 -1.6 ] [ -4 0 -1.6 ] ] path
+	[ [ 1.6 0 1.6 ] [ -1.6 0 1.6 ] [ -4 -1.6 1.6 ] ] path
+	[ [ 1.6 3.2 -1.6 ] [ -1.6 3.2 -1.6 ] [ -4 4.8 -1.6 ] ] path
+	[ [ 1.6 3.2 1.6 ] [ -1.6 3.2 1.6 ] [ -4 3.2 1.6 ] ] path
+	[ [ 1.6 0 -1.6 ] [ 1.6 0 1.6 ] ] path
+	[ 1.5 0.005 -0.7 ] [ -1.5 0.005 -1.0 ] [ -1.5 0.005 1.0 ] [ 1.5 0.005 0.7 ] 8 0.12 blind-light
+	0.55 pen!
+	[ -1.6 0 0.1 ] PI -2 / 1.4 0.28 -0.18 8 stair-flight
+	[ -1.6 0 -1.5 ] PI -2 / 1.4 0.28 0.18 8 stair-flight
+	0.6 pen!
+	[ -1.6 0 -1.5 ] PI -2 / 1.45 0.28 0.18 8 banister
+	[ -1.6 0 0.1 ] PI -2 / -0.05 0.28 -0.18 8 banister ;
+
+\ === the south halls ===
+
+\ a lamp on a wall facing a direction [ out-x out-z ], its bracket and shade, and the glow it casts
+: hallway-sconce ( x y z out-x out-z -- )
+	| x y z out-x out-z |
+	[ x out-x 0.14 * + y 0.05 + z out-z 0.14 * + ] 0.8 0.28 glow
+	0.4 pen!
+	x y 0.1 - z x out-x 0.14 * + y 0.1 - z out-z 0.14 * + edge
+	0.75 pen!
+	x out-x 0.14 * + y 0.12 + z out-z 0.14 * + 0.07 8 ring outline
+	x out-x 0.14 * + y 0.04 - z out-z 0.14 * + 0.04 8 ring outline ;
+
+\ a hallway's two long walls, floor and ceiling from one end to the other, running east with its walls at south and north, a rail along each wall
+: east-hall-shell ( west east south north height -- )
+	| west east south north height |
+	0.45 pen!
+	[ [ west 0 south ] [ east 0 south ] [ east height south ] ] path
+	[ [ west 0 north ] [ east 0 north ] [ east height north ] ] path
+	west height south east height south edge
+	west height north east height north edge
+	east 0 south east 0 north edge
+	east height south east height north edge
+	0.2 pen!
+	west 0.95 south east 0.95 south edge
+	west 0.95 north east 0.95 north edge ;
+
+\ the west part of the south hallway, seen from the archway at the foot of the stairs: Mrs. Rourke's door in the south wall, the hall going on east
+: shall-1-picture ( -- )
+	-0.5 1.65 0.7 1.78 -0.06 260 new-picture
+	[ 3.5 2.3 1.1 ] lamp!
+	[ [ [ 3.3 0 0.2 ] PI 2 / PI + 0.3 - ] [ [ 4.7 0 -0.4 ] PI 2 / PI + ] [ [ 2.4 0 0.7 ] PI 2 / PI + 0.4 + ] ] spots!
+	0.1 pen!
+	-0.8 7 -1.2 1.2 0.25 false plank-floor
+	-0.8 7 -1.2 1.2 3 east-hall-shell
+	0.45 pen!
+	-0.8 0 -1.2 -0.8 3 -1.2 edge
+	0.45 pen!
+	7 -0.45 7 0.45 2.1 :rourke-bath-door :open flag? -1 0 wall-panel-door
+	5.4 -1.2 6.1 -1.2 1.9 :south-closet-door :open flag? 0 -1 wall-panel-door
+	0.55 pen!
+	1.4 -1.2 2.3 -1.2 2.2 :rourke-door :open flag? 0 -1 wall-panel-door
+	:rourke-door :open flag? if
+		0.08 pen!
+		1.5 0 -1.2 1.4 0 -3 edge
+		2.2 0 -1.2 2.4 0 -3 edge
+	then
+	3.5 2.2 1.2 0 -1 hallway-sconce ;
+
+\ the east end of the south hallway, seen coming from the west: the bathroom door at the end, the small closet door in the south wall
+: shall-2-picture ( -- )
+	-0.4 1.65 0.3 PI 2 / 0.08 + -0.06 260 new-picture
+	[ 2 2.7 0 ] lamp!
+	[ [ [ 2.9 0 0.5 ] PI 2 / PI + 0.2 - ] [ [ 2.5 0 -0.5 ] PI 2 / PI + 0.4 + ] ] spots!
+	0.1 pen!
+	-0.5 3.6 -1.2 1.2 0.25 false plank-floor
+	-0.5 3.6 -1.2 1.2 3 east-hall-shell
+	0.6 pen!
+	3.6 -0.45 3.6 0.45 2.1 :rourke-bath-door :open flag? -1 0 wall-panel-door
+	:rourke-bath-door :open flag? if
+		0.1 pen!
+		3.6 0 -0.4 5.2 0 -0.4 edge
+		3.6 0 0.4 5.2 0 0.4 edge
+		[ 5 1 0 ] 0.6 0.06 glow
+	then
+	0.55 pen!
+	2.7 -1.2 2.0 -1.2 1.8 :south-closet-door :open flag? 0 1 wall-panel-door
+	2 2.75 0 3 pendant-lamp ;
+
+\ === the South Closet ===
+
+\ a bare light bulb hanging on its cord, with a pull chain
+: closet-light ( x y z ceiling -- )
+	| x y z ceiling |
+	[ x y z ] 0.9 0.4 glow
+	0.4 pen!
+	x ceiling z x y 0.05 + z edge
+	0.9 pen!
+	x y z 0.035 8 ring outline
+	x y 0.05 + z 0.02 6 ring outline
+	0.3 pen!
+	x 0.02 + y z x 0.02 + y 0.35 - z edge ;
+
+\ the little storage closet, seen from its door: shelves of boxes and cans, a broom and a bucket, under a bare bulb
+: south-closet-picture ( -- )
+	0 1.65 1.2 PI -0.16 250 new-picture
+	[ 0 2.2 -1.1 ] lamp!
+	[ [ [ 0.1 0 -1.2 ] PI 0.1 + ] ] spots!
+	0.1 pen!
+	-1 1 -2.2 0 0.2 true plank-floor
+	0.45 pen!
+	-1 1 -2.2 0 2.6 room-shell
+	[ -1 0.62 ] ( wall-x |
+		0 4 1 do shelf
+			shelf 0.5 * 0.3 + to board
+			0.4 pen!
+			wall-x board -2.15 wall-x 0.38 + board 0.03 + -1.0 solid-box
+			0 5 1 do slot
+				wall-x 1234 * shelf 77 * + slot 13 * + hash-fraction to chance
+				chance 0.3 > if
+					slot 0.22 * -2.1 + to box-south
+					chance 0.14 * 0.1 + to box-height
+					0.3 chance 0.35 * + pen!
+					wall-x 0.06 + board 0.03 + box-south wall-x 0.3 + board 0.03 + box-height + box-south 0.18 + solid-box
+				then
+			loop
+		loop
+	) each
+	0.45 pen!
+	[ [ -0.45 0 -2.1 ] [ -0.2 1.5 -2.15 ] ] path
+	[ [ -0.45 0 -2.1 ] [ -0.58 -0.02 -1.95 ] ] path
+	[ [ -0.45 0 -2.1 ] [ -0.33 -0.02 -1.97 ] ] path
+	0.5 pen!
+	0.2 0.3 -1.7 0.14 10 ring outline
+	0.2 0 -1.7 0.11 10 ring outline
+	0 10 2 do k
+		k 10 / TAU * to angle
+		0.2 angle cos 0.11 * + 0 -1.7 angle sin 0.11 * +
+		0.2 angle cos 0.14 * + 0.3 -1.7 angle sin 0.14 * + edge
+	loop
+	0 1.95 -1.1 2.6 closet-light ;
+
+\ === Mrs. Rourke's rooms ===
+
+\ a plain wooden chair: seat, four legs and a back, placed at a spot facing a heading
+: rourke-chair ( spot heading -- )
+	| spot heading |
+	[ [ -0.2 0 -0.2 ] [ 0.2 0 -0.2 ] [ 0.2 0 0.2 ] [ -0.2 0 0.2 ] ]
+	( corner | corner spread to cz drop to cx [ [ cx 0 cz ] [ cx 0.45 cz ] ] spot heading turned-path ) each
+	[ -0.22 0.43 -0.22 ] [ 0.22 0.48 0.22 ] spot heading turned-box
+	[ -0.21 0.48 -0.22 ] [ 0.21 0.95 -0.19 ] spot heading turned-box ;
+
+\ Mrs. Rourke's bedroom, seen from its door: the single bed under the closed south window, bare end tables either side, the hardwood floor
+: rourke-room-picture ( -- )
+	0.4 1.65 1.1 PI 0.06 + -0.12 255 new-picture
+	[ 0 1.6 -3.4 ] lamp!
+	[ [ [ -1.15 0 -1.9 ] 0.25 ] [ [ 1.25 0 -1.8 ] -0.3 ] [ [ 0.1 0 -0.8 ] 0.1 ] ] spots!
+	[ 0 1.55 -3.2 ] 1.4 0.2 glow
+	0.12 pen!
+	-1.8 1.8 -3.2 0 0.18 true plank-floor
+	-0.6 0 1.0 2.1 -3.2 south-pane-light
+	0 0.6 1.0 2.1 -3.2 south-pane-light
+	0.45 pen!
+	-1.8 1.8 -3.2 0 2.9 room-shell
+	0.8 pen!
+	[ [ -0.6 1.0 -3.2 ] [ 0.6 1.0 -3.2 ] [ 0.6 2.1 -3.2 ] [ -0.6 2.1 -3.2 ] ] outline
+	0 1.0 -3.2 0 2.1 -3.2 edge
+	-0.6 1.55 -3.2 0.6 1.55 -3.2 edge
+	0.35 pen!
+	[ [ -0.7 0.95 -3.19 ] [ 0.7 0.95 -3.19 ] ] path
+	[ -1.8 0 -2.2 ] PI 2 / rourke-chair
+	0.5 pen!
+	-1.05 0 -3.2 -0.62 0.55 -2.8 solid-box
+	0.62 0 -3.2 1.05 0.55 -2.8 solid-box
+	0.45 pen!
+	-0.55 0 -3.2 0.55 0.95 -3.12 solid-box
+	0.55 pen!
+	-0.5 0.25 -3.12 0.5 0.45 -1.2 solid-box
+	0.35 pen!
+	[ [ -0.5 0.46 -2.9 ] [ 0.5 0.46 -2.9 ] ] path
+	[ [ -0.47 0.46 -3.08 ] [ 0.47 0.46 -3.08 ] [ 0.47 0.52 -2.75 ] [ -0.47 0.52 -2.75 ] ] outline
+	[ [ -0.5 0.45 -2.5 ] [ -0.5 0.05 -2.45 ] ] path
+	[ [ 0.5 0.45 -2.5 ] [ 0.5 0.05 -2.45 ] ] path
+	[ [ -0.5 0.05 -2.45 ] [ -0.5 0.05 -1.2 ] ] path
+	[ [ 0.5 0.05 -2.45 ] [ 0.5 0.05 -1.2 ] ] path ;
+
+\ a toilet: its tank against the wall, the bowl before it, the seat on the bowl
+: water-closet ( spot heading -- )
+	| spot heading |
+	[ -0.2 0.4 -0.02 ] [ 0.2 0.8 0.17 ] spot heading turned-box
+	[ -0.1 0 0.17 ] [ 0.1 0.36 0.4 ] spot heading turned-box
+	[ [ 0 0.41 0.17 ] [ 0.16 0.41 0.2 ] [ 0.2 0.41 0.32 ] [ 0.14 0.41 0.44 ] [ 0 0.41 0.47 ]
+	  [ -0.14 0.41 0.44 ] [ -0.2 0.41 0.32 ] [ -0.16 0.41 0.2 ] ] ( point | point spot heading placed ) map to seat
+	seat 0 fill
+	pen to fixture-light
+	fixture-light 1.3 * pen!
+	seat outline
+	fixture-light pen! ;
+
+\ a washbasin on its pedestal, its tap behind the bowl
+: washbasin ( spot heading -- )
+	| spot heading |
+	[ -0.08 0 0.05 ] [ 0.08 0.72 0.2 ] spot heading turned-box
+	[ -0.28 0.72 0 ] [ 0.28 0.86 0.42 ] spot heading turned-box
+	pen to fixture-light
+	fixture-light 0.8 * pen!
+	[ [ -0.22 0.86 0.08 ] [ 0.22 0.86 0.08 ] [ 0.22 0.86 0.36 ] [ -0.22 0.86 0.36 ] ] spot heading turned-path
+	fixture-light 1.3 * pen!
+	[ [ 0 0.86 0.04 ] [ 0 0.95 0.04 ] [ 0 0.95 0.12 ] ] spot heading turned-path
+	fixture-light pen! ;
+
+\ a shower stall in a corner: its tray, the corner post and the curtain hanging in folds from its rail
+: shower-stall ( x0 z0 x1 z1 -- )
+	| x0 z0 x1 z1 |
+	x0 0 z0 x1 0.12 z1 solid-box
+	[ [ x0 2.1 z1 ] [ x1 2.1 z1 ] [ x1 2.1 z0 ] ] path
+	pen to stall-light
+	stall-light 0.6 * pen!
+	0 9 1 do k
+		k 8 / to along
+		x0 x1 x0 - along * + to x
+		x 0.14 z1 x k 2 mod 0.04 * + 2.05 z1 0.03 - edge
+	loop
+	stall-light pen! ;
+
+\ Mrs. Rourke's bathroom, seen from its door: the toilet and the washbasin, the shower in the corner, two shelves of bottles on the wall
+: rourke-bath-picture ( -- )
+	-1.3 1.65 0.1 PI 2 / 0.08 + -0.16 245 new-picture
+	[ 1.3 2.5 0 ] lamp!
+	[ [ [ 1.3 0 0.15 ] PI 2 / PI + 0.2 + ] [ [ 0.8 0 -0.6 ] PI 2 / PI + 0.4 - ] ] spots!
+	0.12 pen!
+	[ 0 0 -1.2 ] [ 2.6 0 -1.2 ] [ 2.6 0 1.2 ] [ 0 0 1.2 ] 8 8 grid
+	0.45 pen!
+	0 2.6 -1.2 1.2 2.7 room-shell
+	0.5 pen!
+	1.7 -1.2 2.6 -0.3 shower-stall
+	0.6 pen!
+	[ 2.6 0 0.55 ] PI -2 / water-closet
+	[ 1.3 0 1.2 ] PI washbasin
+	0.5 pen!
+	[ 0.5 1.25 ] ( height |
+		0.3 height 1.1 1.3 height 0.03 + 1.2 solid-box
+		0 5 1 do k
+			k 7 * height 100 * + hash-fraction to chance
+			0.35 k 0.19 * + to bottle-x
+			0.4 chance 0.4 * + pen!
+			bottle-x height 0.03 + 1.15 0.025 detail-scale * 8 ring to bottle-base
+			bottle-x height 0.03 + chance 0.1 * + 0.12 + 1.15 0.025 detail-scale * 8 ring to bottle-top
+			bottle-base outline
+			bottle-top outline
+			bottle-base 0 @i bottle-top 0 @i segment
+			bottle-base 4 @i bottle-top 4 @i segment
+		loop
+	) each
+	1.3 2.4 0 2.7 closet-light ;
+
+\ === the Living Room ===
+
+\ the heading from a spot toward a point on the floor
+: heading-toward ( x z target-x target-z -- heading )
+	| x z target-x target-z |
+	target-x x - target-z z - atan2 ;
+
+\ a couch or an armchair, length wide, its seat facing forward: the seat, its back behind and an arm at each end
+: sofa-piece ( spot heading length -- )
+	| spot heading length |
+	length 2 / to half
+	[ half negate 0 -0.45 ] [ half 0.9 -0.25 ] spot heading turned-box
+	[ half negate 0 -0.25 ] [ half 0.45 0.45 ] spot heading turned-box
+	[ half negate 0 -0.45 ] [ half negate 0.15 + 0.62 0.45 ] spot heading turned-box
+	[ half 0.15 - 0 -0.45 ] [ half 0.62 0.45 ] spot heading turned-box
+	pen to seat-light
+	seat-light 0.5 * pen!
+	[ [ 0 0.45 -0.25 ] [ 0 0.45 0.45 ] ] spot heading turned-path
+	seat-light pen! ;
+
+\ a low table on four legs
+: coffee-table ( x z width depth -- )
+	| x z width depth |
+	x width 2 / - to west
+	x width 2 / + to east
+	z depth 2 / - to south
+	z depth 2 / + to north
+	[ [ west 0.06 + south 0.06 + ] [ east 0.06 - south 0.06 + ] [ east 0.06 - north 0.06 - ] [ west 0.06 + north 0.06 - ] ]
+	( corner | corner spread to leg-z to leg-x leg-x 0 leg-z leg-x 0 0.38 + leg-z edge ) each
+	west 0.38 south east 0.44 north solid-box ;
+
+\ a cabinet against the north wall, its doors facing south: the box, the join between its doors and their handles
+: walnut-cabinet ( west east south north height -- )
+	| west east south north height |
+	west 0 south east height north solid-box
+	west east + 2 / to middle
+	pen to cabinet-light
+	cabinet-light 0.6 * pen!
+	middle 0.08 south middle height 0.08 - south edge
+	cabinet-light 1.3 * pen!
+	middle 0.06 - height 0.55 * south middle 0.06 - height 0.45 * south edge
+	middle 0.06 + height 0.55 * south middle 0.06 + height 0.45 * south edge
+	cabinet-light pen! ;
+
+\ an oval of points on a wall around a centre, rx along the wall and ry up it
+: wall-oval ( centre along rx ry count -- points )
+	| centre along rx ry count |
+	[ 0 count 1 do k
+		k count / TAU * to angle
+		centre along angle cos rx * angle sin ry * wall-at
+	loop ] ;
+
+\ a framed portrait on a wall: the frame, the oval within, and the sitter's head and shoulders in shadow
+: portrait-frame ( corner along width height -- )
+	| corner along width height |
+	corner along 0 0 wall-at corner along width 0 wall-at
+	corner along width height wall-at corner along 0 height wall-at 4 array to frame
+	frame 0 fill
+	pen to frame-light
+	frame outline
+	corner along width 2 / height 2 / wall-at to middle
+	frame-light 0.5 * pen!
+	middle along width 0.36 * height 0.4 * 14 wall-oval outline
+	middle along 0 height 0.08 * wall-at along width 0.1 * height 0.14 * 10 wall-oval to face
+	face 0.06 fill
+	frame-light 0.7 * pen!
+	face outline
+	[ middle along width -0.22 * height -0.3 * wall-at middle along width -0.12 * height -0.12 * wall-at
+	  middle along width 0.12 * height -0.12 * wall-at middle along width 0.22 * height -0.3 * wall-at ] path
+	frame-light pen! ;
+
+\ a chimney breast of fieldstone standing out from the west wall: the stones in rough courses, the dark firebox and the hearth before it
+: fieldstone-chimney ( wall-x south north height -- )
+	| wall-x south north height |
+	wall-x 0.5 + to face-x
+	wall-x 0 south face-x height north solid-box
+	pen to stone-light
+	0 to course-bottom
+	0 to course
+	begin course-bottom height < while
+		course 31 * hash-fraction 0.08 * 0.2 + to course-height
+		course 2 mod 0.18 * south + to seam
+		stone-light 0.45 * pen!
+		face-x 0.02 + course-bottom south face-x 0.02 + course-bottom north edge
+		begin seam north < while
+			seam course 7 * + 13 * hash-fraction 0.22 * 0.28 + seam + to next-seam
+			next-seam north min2 to next-seam
+			face-x 0.02 + course-bottom seam face-x 0.02 + course-bottom course-height + seam edge
+			next-seam to seam
+		repeat
+		course-bottom course-height + to course-bottom
+		++ course
+	repeat
+	south north + 2 / to middle
+	[ [ face-x 0.01 + 0 middle 0.55 - ] [ face-x 0.01 + 0 middle 0.55 + ] [ face-x 0.01 + 0.85 middle 0.55 + ] [ face-x 0.01 + 0.85 middle 0.55 - ] ] to firebox
+	firebox 0 fill
+	stone-light 1.2 * pen!
+	firebox outline
+	stone-light pen!
+	face-x 0 middle 0.8 - face-x 0.6 + 0.08 middle 0.8 + solid-box ;
+
+\ a stack of split logs against the west wall, their cut ends toward the room
+: log-pile ( wall-x south -- )
+	| wall-x south |
+	[ 0 0 1 ] to across
+	[ 0 1 0 ] to upward
+	[ [ 0 0 ] [ 1 0 ] [ 2 0 ] [ 0.5 1 ] [ 1.5 1 ] [ 1 2 ] ] ( place |
+		place spread to row to column
+		[ wall-x 0.55 + row 0.17 * 0.09 + south column 0.19 * + 0.09 + ] to log-centre
+		log-centre across upward 0.085 10 circle-points to log-end
+		log-end 0 fill
+		log-end outline
+		log-centre across upward 0.04 8 circle-points outline
+	) each ;
+
+\ a telephone on a table top: its base and the handset in its cradle
+: telephone-set ( x y z heading -- )
+	| x y z heading |
+	[ x y z ] to spot
+	( point | point ( coordinate | coordinate detail-scale * ) map ) to enlarged
+	[ -0.07 0 -0.06 ] enlarged execute [ 0.07 0.06 0.06 ] enlarged execute spot heading turned-box
+	pen to phone-light
+	phone-light 1.3 * pen!
+	[ [ -0.1 0.09 0 ] [ -0.07 0.1 0 ] [ 0.07 0.1 0 ] [ 0.1 0.09 0 ] ] enlarged map spot heading turned-path
+	[ [ -0.1 0.09 0 ] [ -0.1 0.07 0 ] ] enlarged map spot heading turned-path
+	[ [ 0.1 0.09 0 ] [ 0.1 0.07 0 ] ] enlarged map spot heading turned-path
+	phone-light pen! ;
+
+\ the living room, seen from the double doorway to the east: the bay window to the south with the family portraits about it, the fieldstone fireplace and wood pile to the west, groups of couches and chairs, the cabinets, and the telephone on its table
+: living-room-picture ( -- )
+	5.3 1.65 2.9 -2.3 -0.09 245 new-picture
+	[ 0 2 -5 ] lamp!
+	[ [ -2.4 0.9 ] [ -0.3 -2.3 ] [ 1.6 0.4 ] [ -3.6 -2.5 ] ]
+	( place | place spread to spot-z to spot-x [ [ spot-x 0 spot-z ] spot-x spot-z 5.3 2.9 heading-toward ] ) map spots!
+	0.09 pen!
+	[ -6 0 -4 ] [ 6 0 -4 ] [ 6 0 4 ] [ -6 0 4 ] 24 16 grid
+	[ [ -2 0 -4 ] [ -1.2 0 -5 ] [ 1.2 0 -5 ] [ 2 0 -4 ] ] 0.02 fill
+	-1.1 -0.4 0.5 2.7 -5 south-pane-light
+	-0.35 0.35 0.5 2.7 -5 south-pane-light
+	0.4 1.1 0.5 2.7 -5 south-pane-light
+	[ 0 1.6 -5 ] 2.4 0.2 glow
+	0.45 pen!
+	-6 6 -4 4 3.4 room-shell
+	0.5 pen!
+	[ [ -2 0 -4 ] [ -1.2 0 -5 ] [ 1.2 0 -5 ] [ 2 0 -4 ] ] path
+	[ [ -2 3.4 -4 ] [ -1.2 3.4 -5 ] [ 1.2 3.4 -5 ] [ 2 3.4 -4 ] ] path
+	-1.2 0 -5 -1.2 3.4 -5 edge
+	1.2 0 -5 1.2 3.4 -5 edge
+	0.85 pen!
+	[ [ -1.2 0.5 -5 ] [ 1.2 0.5 -5 ] [ 1.2 2.7 -5 ] [ -1.2 2.7 -5 ] ] outline
+	[ -0.4 0.4 ] ( x | x 0.5 -5 x 2.7 -5 edge ) each
+	-1.2 1.6 -5 1.2 1.6 -5 edge
+	[ [ -2 0.5 -4 ] [ -1.2 0.5 -5 ] [ -1.2 2.7 -5 ] [ -2 2.7 -4 ] ] outline
+	[ [ 2 0.5 -4 ] [ 1.2 0.5 -5 ] [ 1.2 2.7 -5 ] [ 2 2.7 -4 ] ] outline
+	[ -1.6 2 ] ( side-x | side-x 0 < if -1.6 -4.5 else 1.6 -4.5 then to middle-z to middle-x
+		middle-x 0.5 middle-z middle-x 2.7 middle-z edge ) each
+	:bay-window :open flag? if
+		0.7 pen!
+		[ [ 0.4 0.5 -5 ] [ 0.95 0.5 -4.45 ] [ 0.95 2.7 -4.45 ] [ 0.4 2.7 -5 ] ] 0 fill
+		[ [ 0.4 0.5 -5 ] [ 0.95 0.5 -4.45 ] [ 0.95 2.7 -4.45 ] [ 0.4 2.7 -5 ] ] outline
+	then
+	0.6 pen!
+	[ -4.9 1.5 -3.99 ] [ 1 0 0 ] 0.7 0.9 portrait-frame
+	[ -3.4 1.5 -3.99 ] [ 1 0 0 ] 0.7 0.9 portrait-frame
+	[ 2.7 1.5 -3.99 ] [ 1 0 0 ] 0.7 0.9 portrait-frame
+	[ 4.2 1.5 -3.99 ] [ 1 0 0 ] 0.7 0.9 portrait-frame
+	[ -0.3 2.78 -4.99 ] [ 1 0 0 ] 0.6 0.55 portrait-frame
+	0.5 pen!
+	-6 -1.2 1.2 3.4 fieldstone-chimney
+	0.45 pen!
+	-6 1.35 log-pile
+	0.5 pen!
+	-4.6 -1.5 3.6 4 1.1 walnut-cabinet
+	-0.6 1.5 3.6 4 1.1 walnut-cabinet
+	0.55 pen!
+	[ -3.4 0 0.3 ] PI -2 / 2.2 sofa-piece
+	[ -4.3 0 -1.6 ] 0.25 0.9 sofa-piece
+	[ -4.3 0 1.9 ] PI 0.25 - 0.9 sofa-piece
+	-4.5 0.3 0.9 1.4 coffee-table
+	[ 0 0 -3.2 ] 0 2.2 sofa-piece
+	[ -1.6 0 -1.4 ] PI 2 / 0.9 sofa-piece
+	[ 1.6 0 -1.4 ] PI -2 / 0.9 sofa-piece
+	0 -1.6 1.4 0.8 coffee-table
+	0.5 pen!
+	3.6 0 -2.6 4.3 0.72 -1.9 solid-box
+	0.8 pen!
+	3.95 0.72 -2.25 0.4 telephone-set
+	:recursive-book :living-room inside? if
+		0.75 pen!
+		-0.2 0.44 -1.7 0.1 0.49 -1.45 solid-box
+	then ;
+
+\ === the Corner ===
+
+\ one leaf of a pair of swinging doors in a wall facing south, from x0 to x1: the leaf, its round window and its kick plate
+: swinging-door-leaf ( x0 x1 z height -- )
+	| x0 x1 z height |
+	[ [ x0 0 z ] [ x1 0 z ] [ x1 height z ] [ x0 height z ] ] to leaf
+	leaf 0 fill
+	pen to leaf-light
+	leaf outline
+	x0 x1 + 2 / to middle
+	leaf-light 1.2 * pen!
+	[ middle 1.55 z 0.01 - ] [ 1 0 0 ] [ 0 1 0 ] 0.17 16 circle-points to porthole
+	porthole 0.03 fill
+	porthole outline
+	[ middle 1.55 z 0.01 - ] [ 1 0 0 ] [ 0 1 0 ] 0.13 16 circle-points outline
+	leaf-light 0.9 * pen!
+	[ [ x0 0.06 + 0.03 z 0.01 - ] [ x1 0.06 - 0.03 z 0.01 - ] [ x1 0.06 - 0.3 z 0.01 - ] [ x0 0.06 + 0.3 z 0.01 - ] ] outline
+	leaf-light pen! ;
+
+\ the corner of the halls, seen from the long hall to the south: the swinging doors of the kitchen ahead, the short hall to the west ending in the dining room's doors
+: corner-picture ( -- )
+	1.2 1.65 1.6 -0.75 -0.06 225 new-picture
+	level-camera!
+	[ 0 2.6 3.2 ] lamp!
+	[ [ -0.6 4 ] [ -3.4 4.1 ] [ -1.6 2.5 ] ]
+	( place | place spread to spot-z to spot-x [ [ spot-x 0 spot-z ] spot-x spot-z 1.2 1.7 heading-toward ] ) map spots!
+	0.1 pen!
+	-1.3 1.3 -4 4.6 0.25 true plank-floor
+	-6 -1.3 2 4.6 0.25 false plank-floor
+	0.25 pen!
+	-0.55 0.55 -3.6 2.6 runner-rug
+	[ 0 0 3.2 ] 1.3 0.08 glow
+	0.5 pen!
+	-6 2.3 -6 3.3 2.3 false 1 0 wall-panel-door
+	-6 4.3 -6 3.3 2.3 false 1 0 wall-panel-door
+	0.3 pen!
+	-6 2.5 2 -6 2.5 4.6 edge
+	0.45 pen!
+	[ [ -1.3 0 -4 ] [ -1.3 0 2 ] [ -6 0 2 ] [ -6 0 4.6 ] [ 1.3 0 4.6 ] [ 1.3 0 -4 ] ] path
+	[ [ -1.3 3 -4 ] [ -1.3 3 2 ] [ -6 3 2 ] [ -6 3 4.6 ] [ 1.3 3 4.6 ] [ 1.3 3 -4 ] ] path
+	-1.3 0 2 -1.3 3 2 edge
+	-6 0 2 -6 3 2 edge
+	-6 0 4.6 -6 3 4.6 edge
+	1.3 0 4.6 1.3 3 4.6 edge
+	0.2 pen!
+	[ [ -1.3 0.95 -4 ] [ -1.3 0.95 2 ] [ -6 0.95 2 ] ] path
+	[ [ -6 0.95 4.6 ] [ -0.95 0.95 4.6 ] ] path
+	0.95 0.95 4.6 1.3 0.95 4.6 edge
+	1.3 0.95 4.6 1.3 0.95 -4 edge
+	[ [ -1.3 0 -4 ] [ -1.3 0 2 ] [ -1.3 3 2 ] [ -1.3 3 -4 ] ] 0 fill
+	0.45 pen!
+	[ [ -1.3 0 -4 ] [ -1.3 0 2 ] [ -1.3 3 2 ] [ -1.3 3 -4 ] ] path
+	0.2 pen!
+	-1.3 0.95 -4 -1.3 0.95 2 edge
+	0.5 pen!
+	[ [ -0.95 0 4.6 ] [ -0.95 2.3 4.6 ] [ 0.95 2.3 4.6 ] [ 0.95 0 4.6 ] ] path
+	0.55 pen!
+	-0.92 0 4.59 2.25 swinging-door-leaf
+	0 0.92 4.59 2.25 swinging-door-leaf
+	-3.6 2.6 3.3 3 pendant-lamp
+	0 2.6 3.2 3 pendant-lamp ;
+
+\ === the Dining Room ===
+
+\ a tall-backed dining chair, its seat facing forward: the legs, the seat and the back behind it
+: dining-chair ( spot heading -- )
+	| spot heading |
+	[ [ -0.2 -0.2 ] [ 0.2 -0.2 ] [ 0.2 0.2 ] [ -0.2 0.2 ] ]
+	( corner | corner spread to leg-forward to leg-right [ [ leg-right 0 leg-forward ] [ leg-right 0.42 leg-forward ] ] spot heading turned-path ) each
+	[ -0.22 0.42 -0.22 ] [ 0.22 0.47 0.2 ] spot heading turned-box
+	[ -0.22 0.47 -0.25 ] [ 0.22 1.12 -0.21 ] spot heading turned-box
+	pen to chair-light
+	chair-light 0.5 * pen!
+	[ [ -0.14 0.6 -0.2 ] [ 0.14 0.6 -0.2 ] [ 0.14 1.02 -0.2 ] [ -0.14 1.02 -0.2 ] [ -0.14 0.6 -0.2 ] ] spot heading turned-path
+	[ [ -0.14 0.6 -0.26 ] [ 0.14 0.6 -0.26 ] [ 0.14 1.02 -0.26 ] [ -0.14 1.02 -0.26 ] [ -0.14 0.6 -0.26 ] ] spot heading turned-path
+	chair-light pen! ;
+
+\ a long table on four legs, its top between two corners
+: dining-table ( west east south north height -- )
+	| west east south north height |
+	[ [ west 0.1 + south 0.1 + ] [ east 0.1 - south 0.1 + ] [ west 0.1 + north 0.1 - ] [ east 0.1 - north 0.1 - ] ]
+	( corner | corner spread to leg-z to leg-x leg-x 0.04 - 0 leg-z 0.04 - leg-x 0.04 + height 0.05 - leg-z 0.04 + solid-box ) each
+	west height 0.05 - south east height north solid-box ;
+
+\ a table on two trestles against the south wall: each trestle a foot and an upright, a stretcher between them, the top over all
+: trestle-table ( west east south north height -- )
+	| west east south north height |
+	south north + 2 / to middle
+	[ west 0.3 + east 0.3 - ] ( x |
+		x 0.05 - 0 south 0.05 + x 0.05 + 0.08 north 0.05 - solid-box
+		x 0.04 - 0.08 middle 0.07 - x 0.04 + height 0.05 - middle 0.07 + solid-box
+	) each
+	west 0.3 + 0.3 middle 0.03 - east 0.3 - 0.36 middle 0.03 + solid-box
+	west height 0.05 - south east height north solid-box ;
+
+\ a silver candlestick standing on a table top, its base, stem and candle
+: candlestick ( x y z -- )
+	| x y z |
+	pen to silver-light
+	x y z 0.05 detail-scale * 10 ring outline
+	x y 0.02 + z 0.02 detail-scale * 8 ring outline
+	x y 0.02 + z x y 0.22 + z edge
+	x y 0.22 + z 0.03 detail-scale * 8 ring outline
+	silver-light 1.3 * pen!
+	x y 0.22 + z x y 0.36 + z edge
+	[ x y 0.39 + z ] 0.08 0.25 glow
+	silver-light pen! ;
+
+\ a painting in the manner of Seurat on a wall: its frame, and within it a park by the water made of dots, pale sky, the bright river, the grass in shade and the dark figures standing on it
+: seurat-painting ( corner along width height -- )
+	| corner along width height |
+	corner along 0 0 wall-at corner along width 0 wall-at
+	corner along width height wall-at corner along 0 height wall-at 4 array to frame
+	frame 0 fill
+	pen to frame-light
+	frame outline
+	0 700 1 do k
+		k 0.37 * hash-fraction to u
+		k 0.71 * 3.1 + hash-fraction to v
+		k 1.93 * 7.7 + hash-fraction to shimmer
+		v 0.62 > if 0.8 else v 0.46 > if 1 else 0.45 then then to band
+		u 0.28 - abs 0.035 < v 0.52 < and to first-figure
+		u 0.66 - abs 0.045 < v 0.56 < and to second-figure
+		u 0.66 - sq 0.012 / v 0.58 - sq 0.0016 / + 1 < to parasol
+		first-figure second-figure or parasol or if 0.12 to band then
+		band shimmer 0.6 * 0.8 + * frame-light 1.3 * pen!
+		corner along u width 0.92 * * width 0.04 * + v height 0.9 * * height 0.05 * + wall-at to dot
+		dot corner along u width 0.92 * * width 0.04 * + 0.018 + v height 0.9 * * height 0.05 * + 0.012 + wall-at segment
+	loop
+	frame-light pen! ;
+
+\ a bright painting on a wall: its frame, a sun above rolling hills, and a field striped below them
+: cheerful-painting ( corner along width height seed -- )
+	| corner along width height seed |
+	corner along 0 0 wall-at corner along width 0 wall-at
+	corner along width height wall-at corner along 0 height wall-at 4 array to frame
+	frame 0 fill
+	pen to frame-light
+	frame outline
+	seed hash-fraction 0.5 * 0.25 + to sun-u
+	frame-light 1.3 * pen!
+	corner along width sun-u * height 0.72 * wall-at along [ 0 1 0 ] width 0.09 * 10 circle-points outline
+	frame-light 0.8 * pen!
+	[ 0 9 1 do k
+		k 8 / to u
+		k seed + 1.7 * hash-fraction 0.12 * 0.36 + to v
+		corner along width u 0.9 * 0.05 + * height v * wall-at
+	loop ] path
+	frame-light 0.45 * pen!
+	[ 0.14 0.24 ] ( v | corner along width 0.08 * height v * wall-at corner along width 0.92 * height v * wall-at segment ) each
+	frame-light pen! ;
+
+\ rose bushes seen through a north window: rounded clumps and their blooms, rows of them going back from the house
+: window-rose-bushes ( west east z0 z1 -- )
+	| west east z0 z1 |
+	0 18 1 do k
+		k 0.53 * hash-fraction east west - * west + to bush-x
+		k 0.91 * 2.2 + hash-fraction z1 z0 - * z0 + to bush-z
+		0.1 pen!
+		bush-x 0.45 bush-z 0.4 12 ring to bush
+		bush outline
+		bush-x 0.75 bush-z 0.28 10 ring outline
+		0.2 pen!
+		0 3 1 do bloom
+			k 3 * bloom + 0.37 * hash-fraction TAU * to angle
+			[ bush-x angle cos 0.3 * + 0.7 bush-z angle sin 0.3 * + ] [ 1 0 0 ] [ 0 1 0 ] 0.06 6 circle-points outline
+		loop
+	loop ;
+
+\ the dining room, seen from its east door: the long table with its twelve chairs, the trestle table against the south wall, the picture window to the north over the rose garden, the Seurat on the west wall
+: dining-room-picture ( -- )
+	4.3 1.65 -0.5 PI -2 / 0.25 + -0.1 245 new-picture
+	[ 0 2.3 0 ] lamp!
+	[ [ 1.2 2.4 ] [ -1 -1.7 ] [ -3.9 1.8 ] ]
+	( place | place spread to spot-z to spot-x [ [ spot-x 0 spot-z ] spot-x spot-z 4.3 -0.5 heading-toward ] ) map spots!
+	0.1 pen!
+	-4.6 4.6 -3 3 0.25 false plank-floor
+	0.08 pen!
+	-60 0 40 60 0 40 edge
+	-60 0 55 60 0 55 edge
+	-2.4 2.4 3.6 8 window-rose-bushes
+	[ [ [ -4.6 0 3 ] [ 4.6 0 3 ] [ 4.6 0.7 3 ] [ -4.6 0.7 3 ] ]
+	  [ [ -4.6 2.6 3 ] [ 4.6 2.6 3 ] [ 4.6 3.2 3 ] [ -4.6 3.2 3 ] ]
+	  [ [ -4.6 0.7 3 ] [ -2.4 0.7 3 ] [ -2.4 2.6 3 ] [ -4.6 2.6 3 ] ]
+	  [ [ 2.4 0.7 3 ] [ 4.6 0.7 3 ] [ 4.6 2.6 3 ] [ 2.4 2.6 3 ] ] ] ( wall | wall 0 fill ) each
+	[ -2.4 -0.8 0.8 2.4 ] ( pane-west | pane-west 1.6 + to pane-east pane-west pane-east 0.7 2.6 3 pane-light ) each
+	[ 0 1.6 3 ] 2.6 0.18 glow
+	0.45 pen!
+	-4.6 4.6 -3 3 3.2 room-shell
+	0.85 pen!
+	-2.4 2.4 0.7 2.6 3 6 3 north-window
+	0.5 pen!
+	-2.5 0.62 2.8 2.5 0.7 3 solid-box
+	0.6 pen!
+	[ -4.59 1.2 -0.8 ] [ 0 0 1 ] 1.6 1.05 seurat-painting
+	0.55 pen!
+	[ -2.4 1.45 -2.99 ] [ 1 0 0 ] 1.1 0.8 1 cheerful-painting
+	[ 1.1 1.45 -2.99 ] [ 1 0 0 ] 1.1 0.8 2 cheerful-painting
+	[ -3.9 1.3 2.99 ] [ 1 0 0 ] 0.8 1 3 cheerful-painting
+	0.5 pen!
+	-1.6 1.6 -2.95 -2.4 0.85 trestle-table
+	0.8 pen!
+	-1 0.85 -2.67 candlestick
+	1 0.85 -2.67 candlestick
+	0 0.85 -2.67 0.14 detail-scale * 12 ring outline
+	0 0.9 -2.67 0.1 detail-scale * 12 ring outline
+	0.55 pen!
+	[ -2.6 0 0 ] PI 2 / dining-chair
+	[ -1.8 -0.9 0 0.9 1.8 ] ( chair-x |
+		[ chair-x 0 0.88 ] PI dining-chair
+		[ chair-x 0 -0.88 ] 0 dining-chair
+	) each
+	0.5 pen!
+	-2.2 2.2 -0.55 0.55 0.77 dining-table
+	0.8 pen!
+	-0.9 0.77 0 candlestick
+	0.9 0.77 0 candlestick
+	0.55 pen!
+	[ 2.6 0 0 ] PI -2 / dining-chair
+	0 2.3 0 3.2 chandelier ;
+
+\ === the Kitchen ===
+
+\ the leaves of a grape arbor pressed close outside a window facing south: lobed leaves at many depths, darkest farthest, and the vines through them
+: window-grape-leaves ( west east bottom top z -- )
+	| west east bottom top z |
+	0 46 1 do k
+		k 0.61 * hash-fraction east west - * west + to leaf-x
+		k 0.29 * 5.3 + hash-fraction top bottom - * bottom + to leaf-y
+		k 0.83 * 1.9 + hash-fraction to depth
+		k 0.47 * 8.1 + hash-fraction 0.06 * 0.09 + to leaf-size
+		[ 0 10 1 do lobe
+			lobe 10 / TAU * k + to angle
+			lobe 2 mod 0 = if leaf-size else leaf-size 0.55 * then to reach
+			[ leaf-x angle cos reach * + leaf-y angle sin reach * + z 0.5 depth * + ]
+		loop ] to leaf
+		leaf 0 fill
+		0.3 depth 0.18 * - pen!
+		leaf outline
+		leaf 0 @i [ leaf-x leaf-y z 0.5 depth * + ] segment
+	loop
+	0.14 pen!
+	[ 0 7 1 do k [ k 6 / east west - * west + k 0.7 * hash-fraction 0.3 * top 0.35 - + z 0.2 + ] loop ] path ;
+
+\ a plate standing on edge on a shelf against a west wall, its face toward the room: the rim, the painted band and the scene in the middle
+: standing-plate ( x y z -- )
+	| x y z |
+	0.1 detail-scale * to radius
+	[ x y radius + z ] to centre
+	centre [ 0 0 1 ] [ 0 1 0 ] radius 16 circle-points to rim
+	rim 0 fill
+	pen to china-light
+	rim outline
+	china-light 0.6 * pen!
+	centre [ 0 0 1 ] [ 0 1 0 ] radius 0.72 * 14 circle-points outline
+	china-light 0.8 * pen!
+	[ [ x y radius 0.75 * + z 0.02 - ] [ x y radius 1.1 * + z ] [ x y radius 0.75 * + z 0.02 + ] ] path
+	[ x y radius 1.2 * + z ] [ 0 0 1 ] [ 0 1 0 ] radius 0.1 * 6 circle-points outline
+	china-light pen! ;
+
+\ a teacup on its saucer on a shelf: the saucer's rim, the cup's body filled so it reads solid, its rim and its handle to the north
+: teacup ( x y z -- )
+	| x y z |
+	pen to china-light
+	x y z 0.07 detail-scale * 12 ring outline
+	0.035 detail-scale * to foot
+	0.05 detail-scale * to mouth
+	0.07 detail-scale * to cup-height
+	x y 0.01 + z foot 12 ring to base
+	x y cup-height + z mouth 12 ring to rim
+	[ base 3 @i base 9 @i rim 9 @i rim 3 @i ] 0 fill
+	[ base 3 @i base 9 @i rim 9 @i rim 3 @i ] outline
+	china-light 1.2 * pen!
+	rim outline
+	china-light pen!
+	[ [ x y cup-height 0.3 * + z mouth 0.8 * + ] [ x y cup-height 0.5 * + z mouth 1.4 * + ] [ x y cup-height 0.8 * + z mouth + ] ] path ;
+
+\ the shelf unit of china against the west wall: a cabinet below, open shelves above holding plates on edge, then saucers and teacups
+: china-shelf-unit ( wall-x south north -- )
+	| wall-x south north |
+	wall-x 0.42 + to face-x
+	wall-x 0 south face-x 0.9 north solid-box
+	pen to unit-light
+	unit-light 0.6 * pen!
+	south north + 2 / to middle
+	face-x 0.1 south 0.05 + face-x 0.1 north 0.05 - edge
+	face-x 0.1 middle face-x 0.85 middle edge
+	unit-light pen!
+	wall-x 0.9 north 0.04 - face-x 2.45 north solid-box
+	[ 0.9 1.4 1.9 ] ( shelf |
+		wall-x shelf south face-x 0.85 * wall-x 0.15 * + shelf 0.03 + north solid-box
+		shelf 1.9 < if
+			unit-light 1.25 * pen!
+			north south - 0.4 - 0.36 / round-down 1 + to n-plates
+			0 n-plates 1 do k wall-x 0.1 + shelf 0.03 + k 0.36 * south + 0.2 + standing-plate loop
+			unit-light pen!
+		else
+			unit-light 1.25 * pen!
+			0 5 1 do k wall-x 0.22 + shelf 0.03 + north south - 0.5 - 4 / k * south + 0.25 + teacup loop
+			unit-light pen!
+		then
+	) each
+	wall-x 2.4 south face-x 2.5 north solid-box
+	wall-x 0.9 south face-x 2.45 south 0.04 + solid-box ;
+
+\ a counter against the north wall, height 0.9, its cabinet doors below and the basin of the sink sunk into its top with the faucet behind
+: kitchen-counter ( west east south north sink-x -- )
+	| west east south north sink-x |
+	west 0 south east 0.9 north solid-box
+	pen to counter-light
+	counter-light 0.5 * pen!
+	west 0.1 + 0.3 / round-up 0.3 * to door-x
+	begin door-x east < while
+		door-x 0.08 south 0.005 - door-x 0.8 south 0.005 - edge
+		door-x 0.6 + to door-x
+	repeat
+	counter-light 0.8 * pen!
+	sink-x 0.75 + 0.1 south 0.006 - sink-x 1.3 + 0.1 south 0.006 - edge
+	[ [ sink-x 0.75 + 0.1 south 0.006 - ] [ sink-x 0.75 + 0.8 south 0.006 - ] [ sink-x 1.3 + 0.8 south 0.006 - ] [ sink-x 1.3 + 0.1 south 0.006 - ] ] path
+	sink-x 0.8 + 0.74 south 0.006 - sink-x 1.25 + 0.74 south 0.006 - edge
+	[ [ sink-x 0.4 - 0.905 south 0.12 + ] [ sink-x 0.4 + 0.905 south 0.12 + ] [ sink-x 0.4 + 0.905 north 0.18 - ] [ sink-x 0.4 - 0.905 north 0.18 - ] ] to basin
+	basin 0.02 fill
+	counter-light pen!
+	basin outline
+	counter-light 1.3 * pen!
+	[ [ sink-x 0.9 north 0.1 - ] [ sink-x 1.15 north 0.1 - ] [ sink-x 1.15 north 0.28 - ] [ sink-x 1.08 north 0.3 - ] ] path
+	counter-light pen! ;
+
+\ a refrigerator against the east wall, its doors facing west: the freezer above, the handles
+: refrigerator ( wall-x face-x south north height -- )
+	| wall-x face-x south north height |
+	face-x 0 south wall-x height north solid-box
+	pen to box-light
+	face-x 0.005 - height 0.3 - south face-x 0.005 - height 0.3 - north edge
+	box-light 1.3 * pen!
+	face-x 0.03 - height 0.4 - south 0.08 + face-x 0.03 - height 0.1 - south 0.08 + edge
+	face-x 0.03 - height 0.95 - south 0.08 + face-x 0.03 - height 0.45 - south 0.08 + edge
+	box-light pen! ;
+
+\ a stove against the east wall, its oven door facing west: the burners on top, the knobs, the oven door with its window and handle, the splashback behind
+: kitchen-stove ( wall-x face-x south north -- )
+	| wall-x face-x south north |
+	face-x 0 south wall-x 0.9 north solid-box
+	wall-x 0.05 - 0.9 south wall-x 1.2 north solid-box
+	pen to stove-light
+	south north + 2 / to middle
+	[ [ -0.2 -0.2 ] [ -0.2 0.2 ] [ 0.2 -0.2 ] [ 0.2 0.2 ] ] ( offset |
+		offset spread to along-z to along-x
+		face-x wall-x + 2 / along-x + 0.905 middle along-z + 0.09 12 ring outline
+		face-x wall-x + 2 / along-x + 0.905 middle along-z + 0.05 10 ring outline
+	) each
+	stove-light 1.2 * pen!
+	[ -0.24 -0.08 0.08 0.24 ] ( along-z | [ face-x 0.01 - 0.82 middle along-z + ] [ 0 0 1 ] [ 0 1 0 ] 0.018 detail-scale * 8 circle-points outline ) each
+	stove-light pen!
+	[ [ face-x 0.005 - 0.12 south 0.07 + ] [ face-x 0.005 - 0.12 north 0.07 - ] [ face-x 0.005 - 0.72 north 0.07 - ] [ face-x 0.005 - 0.72 south 0.07 + ] ] outline
+	stove-light 0.7 * pen!
+	[ [ face-x 0.006 - 0.35 south 0.18 + ] [ face-x 0.006 - 0.35 north 0.18 - ] [ face-x 0.006 - 0.58 north 0.18 - ] [ face-x 0.006 - 0.58 south 0.18 + ] ] outline
+	stove-light 1.3 * pen!
+	face-x 0.04 - 0.66 south 0.15 + face-x 0.04 - 0.66 north 0.15 - edge
+	stove-light pen! ;
+
+\ the kitchen, seen from the swinging doors to the south: the counter and sink under the window, grape leaves outside, the cabinets, the shelf unit of china on the west wall, the refrigerator, the stove and the pantry door on the east wall
+: kitchen-picture ( -- )
+	0 1.65 -0.3 0.05 -0.1 225 new-picture
+	[ 0 2.45 3 ] lamp!
+	[ [ 0.3 4.7 ] [ -1.4 3.1 ] [ 1.2 2.7 ] ]
+	( place | place spread to spot-z to spot-x [ [ spot-x 0 spot-z ] spot-x spot-z 0 -0.3 heading-toward ] ) map spots!
+	-3 3 0 6 0.5 marble-floor
+	0.08 pen!
+	-60 0 45 60 0 45 edge
+	-60 0.2 70 60 0.2 70 edge
+	-1.1 1.1 1.05 2.2 6.15 window-grape-leaves
+	[ [ [ -3 0 6 ] [ 3 0 6 ] [ 3 1.15 6 ] [ -3 1.15 6 ] ]
+	  [ [ -3 2.1 6 ] [ 3 2.1 6 ] [ 3 3 6 ] [ -3 3 6 ] ]
+	  [ [ -3 1.15 6 ] [ -0.9 1.15 6 ] [ -0.9 2.1 6 ] [ -3 2.1 6 ] ]
+	  [ [ 0.9 1.15 6 ] [ 3 1.15 6 ] [ 3 2.1 6 ] [ 0.9 2.1 6 ] ] ] ( wall | wall 0 fill ) each
+	[ 0 1.6 6 ] 1.4 0.12 glow
+	[ 0 0 3 ] 1.6 0.08 glow
+	0.45 pen!
+	-3 3 0 6 3 room-shell
+	0.8 pen!
+	-0.9 0.9 1.15 2.1 6 2 2 north-window
+	0.5 pen!
+	[ -3 -1.15 ] [ 1.15 3 ] 2 array ( span |
+		span spread to cabinet-east to cabinet-west
+		cabinet-west 1.45 5.65 cabinet-east 2.3 6 solid-box
+		0.3 pen!
+		cabinet-west cabinet-east + 2 / 1.5 5.645 cabinet-west cabinet-east + 2 / 2.25 5.645 edge
+		0.5 pen!
+	) each
+	0.55 pen!
+	-3 3 5.4 6 0 kitchen-counter
+	0.5 pen!
+	-3 2.6 4.8 china-shelf-unit
+	0.5 pen!
+	3 2.3 4.45 5.3 1.85 refrigerator
+	3 2.35 3.55 4.3 kitchen-stove
+	0.2 pen!
+	0.5 pen!
+	3 2.6 3 3.35 2.1 open-doorway
+	0.15 pen!
+	[ 0.55 1.05 1.55 ] ( shelf | 3.02 shelf 2.65 3.02 shelf 3.3 edge ) each
+	0 2.45 3 3 pendant-lamp ;
+
+\ === the Pantry ===
+
+\ one thing of the pantry's stock standing on a shelf, chosen by a seed: a can, a packet or a jar with its lid
+: pantry-goods ( x y z seed -- )
+	| x y z seed |
+	seed hash-fraction to kind
+	seed 3.7 * hash-fraction to size
+	pen to goods-light
+	kind 0.4 < if
+		0.04 detail-scale * to radius
+		0.07 size 0.05 * + detail-scale * to can-height
+		x y z radius 10 ring to base
+		x y can-height + z radius 10 ring to top
+		[ base 0 @i base 5 @i top 5 @i top 0 @i ] 0 fill
+		[ base 2 @i base 7 @i top 7 @i top 2 @i ] 0 fill
+		base 2 @i top 2 @i segment
+		base 7 @i top 7 @i segment
+		base outline
+		goods-light 1.2 * pen!
+		top outline
+		goods-light 0.6 * pen!
+		x y can-height 0.5 * + z radius 10 ring outline
+		goods-light pen!
+		exit
+	then
+	kind 0.75 < if
+		0.05 detail-scale * to half
+		0.1 size 0.08 * + detail-scale * to box-height
+		x half - y z half 0.6 * - x half + y box-height + z half 0.6 * + solid-box
+		goods-light 0.6 * pen!
+		x half - y box-height 0.7 * + z half 0.6 * - x half + y box-height 0.7 * + z half 0.6 * - edge
+		goods-light pen!
+		exit
+	then
+	0.035 detail-scale * to radius
+	0.08 size 0.03 * + detail-scale * to jar-height
+	x y z radius 10 ring to base
+	x y jar-height + z radius 10 ring to shoulder
+	[ base 0 @i base 5 @i shoulder 5 @i shoulder 0 @i ] 0 fill
+	[ base 2 @i base 7 @i shoulder 7 @i shoulder 2 @i ] 0 fill
+	base outline
+	shoulder outline
+	base 2 @i shoulder 2 @i segment
+	base 7 @i shoulder 7 @i segment
+	goods-light 1.3 * pen!
+	x y jar-height + 0.01 + z radius 0.8 * 10 ring outline
+	x y jar-height + 0.03 + z radius 0.8 * 10 ring outline
+	goods-light pen! ;
+
+\ shelves from the floor to the ceiling along a wall: from the front corner at origin, length along a unit direction, each board 0.35 deep toward the wall, stocked from the far end
+: pantry-shelving ( origin along inward length seed -- )
+	| origin along inward length seed |
+	origin inward 0.35 0 wall-at to back
+	length 0.12 - 0.2 / round-down 1 + to n-goods
+	pen to shelf-light
+	[ 0.25 0.65 1.05 2.25 1.85 1.45 ] ( board |
+		[ origin along 0 board wall-at origin along length board wall-at
+		  back along length board wall-at back along 0 board wall-at ] to slab
+		board 1.65 < if slab 0 fill shelf-light pen! slab outline then
+		n-goods 1 - -1 -1 do k
+			origin along k 0.2 * 0.12 + board 0.02 + wall-at inward 0.17 0 wall-at to place
+			shelf-light 1.3 * pen!
+			place spread to place-z to place-y to place-x
+			place-x place-y place-z k 13 * board 100 * + seed + pantry-goods
+		loop
+		board 1.65 < not if slab 0 fill shelf-light pen! slab outline then
+		shelf-light 1.3 * pen!
+		origin along 0 board wall-at origin along length board wall-at segment
+		shelf-light pen!
+	) each
+	origin along 0 0 wall-at origin along 0 2.7 wall-at segment
+	origin along length 0 wall-at origin along length 2.7 wall-at segment ;
+
+\ the pantry, seen from the kitchen door to the west: shelves from floor to ceiling on three walls, stocked with cans, packets and jars, lit by a bare bulb
+: pantry-picture ( -- )
+	-0.8 1.65 0 PI 2 / -0.1 235 new-picture
+	[ 1.4 2.3 0 ] lamp!
+	[ [ 2.1 0.25 ] [ 1.6 -0.35 ] ]
+	( place | place spread to spot-z to spot-x [ [ spot-x 0 spot-z ] spot-x spot-z -0.8 0 heading-toward ] ) map spots!
+	0.1 pen!
+	0 3 -1.1 1.1 0.2 true plank-floor
+	0.4 pen!
+	0 3 -1.1 1.1 2.7 room-shell
+	0.5 pen!
+	[ 2.65 0 -1.1 ] [ 0 0 1 ] [ 1 0 0 ] 2.2 1 pantry-shelving
+	[ 0.6 0 0.75 ] [ 1 0 0 ] [ 0 0 1 ] 2.05 2 pantry-shelving
+	[ 0.6 0 -0.75 ] [ 1 0 0 ] [ 0 0 -1 ] 2.05 3 pantry-shelving
+	0.5 pen!
+	[ [ [ 0 0 -3 ] [ 0 0 -0.55 ] [ 0 3 -0.55 ] [ 0 3 -3 ] ]
+	  [ [ 0 0 0.55 ] [ 0 0 3 ] [ 0 3 3 ] [ 0 3 0.55 ] ]
+	  [ [ 0 2.1 -0.55 ] [ 0 2.1 0.55 ] [ 0 3 0.55 ] [ 0 3 -0.55 ] ] ] ( wall | wall 0 fill ) each
+	[ [ 0 0 -0.55 ] [ 0 2.1 -0.55 ] [ 0 2.1 0.55 ] [ 0 0 0.55 ] ] path
+	0.25 pen!
+	-3 0 0 0 0 0 edge
+	0 3 -3 0 3 3 edge
+	1.4 2.3 0 2.7 closet-light ;
+
+room-pictures ' nfoyer-picture :nfoyer ! drop
+room-pictures ' stair-bottom-picture :stair-bottom ! drop
+room-pictures ' stairs-picture :stairs ! drop
+room-pictures ' shall-1-picture :shall-1 ! drop
+room-pictures ' shall-2-picture :shall-2 ! drop
+room-pictures ' south-closet-picture :south-closet ! drop
+room-pictures ' rourke-room-picture :rourke-room ! drop
+room-pictures ' rourke-bath-picture :rourke-bath ! drop
+room-pictures ' living-room-picture :living-room ! drop
+room-pictures ' corner-picture :corner ! drop
+room-pictures ' dining-room-picture :dining-room ! drop
+room-pictures ' kitchen-picture :kitchen ! drop
+room-pictures ' pantry-picture :pantry ! drop

@@ -9,11 +9,11 @@
 0.5 
 1 0 
 1 
-error: expected a parameter key (:level :pan :cutoff :resonance :drive); got :glide
+error: expected a parameter key (:level :pan :cutoff :resonance :drive :chorus-send :delay-send :reverb-send); got :glide
 in instrument!
 error: expected :level in [0, 1]; got 2
 in instrument!
-error: expected a parameter key (:level :pan :cutoff :resonance :drive); got a string
+error: expected a parameter key (:level :pan :cutoff :resonance :drive :chorus-send :delay-send :reverb-send); got a string
 in instrument!
 error: unknown instrument :absent; give it a patch with instrument-patch!
 in instrument!

@@ -1,0 +1,845 @@
+\ Deadline: the pictures of the bedroom wing: the short hall north of the
+\ stairs and the guest room off it, the hall south of the stairs with its end
+\ and linen closet, Ms. Dunbar's bedroom and bathroom, George's bedroom and
+\ bathroom. Loaded after scenes.telic; each picture registers itself in
+\ room-pictures at the end.
+
+\ === pieces of the bedroom wing ===
+
+\ a point moved along a direction by an amount
+: offset-point ( point direction amount -- point' )
+	| point direction amount |
+	[ 0 3 1 do axis point axis @i direction axis @i amount * + loop ] ;
+
+\ the point at fractions across and up a four-sided surface, its corners in order from the lower left
+: quad-point ( quad across up -- point )
+	| quad across up |
+	quad 0 @i quad 1 @i across between quad 3 @i quad 2 @i across between up between ;
+
+\ the part of a four-sided surface between fractions across and up
+: quad-part ( quad left right bottom top -- quad' )
+	| quad left right bottom top |
+	[ quad left bottom quad-point quad right bottom quad-point
+	  quad right top quad-point quad left top quad-point ] ;
+
+\ a window in a wall, its corners from the lower left, divided into columns by rows of panes
+: wall-window ( a b c d columns rows -- )
+	| a b c d columns rows |
+	[ a b c d ] outline
+	1 columns 1 do k
+		a b k columns / between d c k columns / between segment
+	loop
+	1 rows 1 do k
+		a d k rows / between b c k rows / between segment
+	loop ;
+
+\ the slats of a venetian blind drawn down across a window, its corners from the lower left, down to a fraction of its height
+: window-slats ( a b c d count lowered -- )
+	| a b c d count lowered |
+	0 count 1 do k
+		1 k 0.5 + count / lowered * - to height
+		k 2 mod 0 = if 0.5 else 0.3 then pen!
+		a d height between b c height between segment
+	loop ;
+
+\ where light passing through a point in a direction reaches the floor
+: floor-hit ( point direction -- point' )
+	| point direction |
+	point direction point 1 @i direction 1 @i negate / offset-point ;
+
+\ the light a window, its corners from the lower left, lets fall on the floor in a direction: a patch ruled faintly along the light
+: window-light ( a b c d direction light -- )
+	| a b c d direction light |
+	[ a b c d ] ( corner | corner direction floor-hit ) map to patch
+	patch light fill
+	light 1.8 * pen!
+	patch 0 @i patch 1 @i patch 2 @i patch 3 @i 6 hatch ;
+
+\ the light a window with its blind down lets fall on the floor: stripes across the light, one for each gap between slats
+: window-blind-light ( a b c d direction count light -- )
+	| a b c d direction count light |
+	[ a b c d ] ( corner | corner direction floor-hit ) map to patch
+	patch 0 @i patch 3 @i patch 2 @i patch 1 @i count light blind-light ;
+
+\ a door in a wall between floor points, hinge side first, a height high: shut in its frame with panels and a knob, or swung open toward a direction into the room
+: wall-door ( hinge latch height into open? -- )
+	| hinge latch height into open? |
+	[ 0 1 0 ] to upward
+	latch hinge vector- to across
+	across across dot sqrt to width
+	across unit-vector to along
+	[ hinge latch latch upward height offset-point hinge upward height offset-point ] to opening
+	opening 0 fill
+	open? if
+		hinge along width 0.26 * offset-point into width 0.97 * offset-point to swung
+		[ hinge swung swung upward height offset-point hinge upward height offset-point ] to leaf
+	else
+		opening to leaf
+	then
+	leaf 0 fill
+	0.45 pen!
+	leaf outline
+	0.28 pen!
+	leaf 0.15 0.85 0.55 0.9 quad-part outline
+	leaf 0.15 0.85 0.1 0.45 quad-part outline
+	leaf 0.88 0.46 quad-point to knob
+	knob leaf 1 @i leaf 0 @i vector- unit-vector upward 0.022 detail-scale * 8 circle-points to knob-edge
+	knob-edge 0.3 fill
+	0.9 pen!
+	knob-edge outline
+	0.6 pen!
+	[ hinge hinge upward height offset-point latch upward height offset-point latch ] path ;
+
+\ floorboards running from one side of a floor to the other, a number of them
+: floorboards ( a b c d count -- )
+	| a b c d count |
+	0.07 pen!
+	a b c d count hatch ;
+
+\ a bed with its head against a wall: frame, mattress, pillow and the turned-down cover, between two corners on the floor, the head at the first corner's end
+: bed-frame ( x0 z0 x1 z1 head-at-north? -- )
+	| x0 z0 x1 z1 head-at-north? |
+	head-at-north? if z1 else z0 then to head-z
+	head-at-north? if 0.05 else -0.05 then to thickness
+	[ x0 x1 + 2 / 0.5 head-z ] [ view@x view@y view@z ] vector- dup dot to head-distance
+	[ x0 x1 + 2 / 0.5 z0 z1 + 2 / ] [ view@x view@y view@z ] vector- dup dot to bed-distance
+	head-distance bed-distance > if
+		0.55 pen!
+		x0 0 head-z x1 1.05 head-z thickness + solid-box
+	then
+	0.5 pen!
+	x0 0 z0 x1 0.3 z1 solid-box
+	0.6 pen!
+	x0 0.3 z0 x1 0.52 z1 solid-box
+	head-at-north? if z1 0.55 - else z0 0.55 + then to fold
+	head-at-north? if z1 0.1 - to head-end z1 0.45 - to pillow-end else z0 0.1 + to head-end z0 0.45 + to pillow-end then
+	0.45 pen!
+	x0 0.52 fold x1 0.52 fold edge
+	0.3 pen!
+	x0 0.3 fold 0.12 + x1 0.3 fold 0.12 + edge
+	0.8 pen!
+	x0 0.1 + 0.52 head-end x1 0.1 - 0.62 pillow-end solid-box
+	head-distance bed-distance > not if
+		0.55 pen!
+		x0 0 head-z x1 1.05 head-z thickness + solid-box
+	then ;
+
+\ an end table: a small cabinet with a drawer, a lamp on it if wanted
+: end-table-at ( x z lamp? -- )
+	| x z lamp? |
+	0.5 pen!
+	x 0.2 - 0 z 0.2 - x 0.2 + 0.58 z 0.2 + solid-box
+	0.35 pen!
+	x 0.17 - 0.46 z 0.2 + x 0.17 + 0.46 z 0.2 + edge
+	x 0.17 - 0.46 z 0.2 - x 0.17 + 0.46 z 0.2 - edge
+	lamp? if
+		0.6 pen!
+		x 0.58 z 0.02 8 ring outline
+		x 0.58 z x 0.84 z edge
+		x 0.84 z 0.07 10 ring to lower-rim
+		x 1.0 z 0.12 10 ring to upper-rim
+		0 10 1 do k lower-rim k @i upper-rim k @i segment loop
+		0.85 pen!
+		lower-rim outline
+		upper-rim outline
+		[ x 0.95 z ] 0.35 0.25 glow
+	then ;
+
+\ a plain chair facing a heading
+: plain-chair ( x z heading -- )
+	| x z heading |
+	[ heading sin 0 heading cos ] to ahead
+	[ heading cos 0 heading sin negate ] to aside
+	[ x 0 z ] to centre
+	0.5 pen!
+	[ [ -1 -1 ] [ 1 -1 ] [ 1 1 ] [ -1 1 ] ] ( corner |
+		corner spread to back to side
+		centre aside side 0.2 * offset-point ahead back 0.2 * offset-point to foot
+		foot foot [ 0 0.45 0 ] ' + 2 nmap segment
+	) each
+	[ [ -1 -1 ] [ 1 -1 ] [ 1 1 ] [ -1 1 ] ] ( corner |
+		corner spread to back to side
+		centre aside side 0.21 * offset-point ahead back 0.21 * offset-point [ 0 0.45 0 ] ' + 2 nmap
+	) map to seat
+	seat 0 fill
+	0.6 pen!
+	seat outline
+	seat 0 @i to back-left
+	seat 1 @i to back-right
+	[ back-left back-right back-right [ 0 0.5 0 ] ' + 2 nmap back-left [ 0 0.5 0 ] ' + 2 nmap ] to chair-back
+	chair-back 0 fill
+	chair-back outline ;
+
+\ a ceiling lamp hanging on a cord, its light pooled around it
+: hanging-lamp ( x y z ceiling -- )
+	| x y z ceiling |
+	[ x y z ] 0.9 0.3 glow
+	0.4 pen!
+	x ceiling z x y 0.12 + z edge
+	x y 0.12 + z 0.04 8 ring to top-rim
+	x y z 0.2 12 ring to bottom-rim
+	0.7 pen!
+	0 8 1 do k top-rim k @i bottom-rim k 3 * 2 / round @i segment loop
+	0.95 pen!
+	bottom-rim outline ;
+
+\ a bare bulb hanging on its cord
+: bare-bulb ( x y z ceiling -- )
+	| x y z ceiling |
+	[ x y z ] 0.7 0.45 glow
+	0.4 pen!
+	x ceiling z x y 0.05 + z edge
+	1 pen!
+	x y z 0.035 8 ring outline
+	x y 0.03 + z 0.025 8 ring outline ;
+
+\ a wall lamp, its shade against the wall, its light pooled around it
+: wall-sconce ( point -- )
+	| point |
+	point 0.6 0.3 glow
+	0.85 pen!
+	point spread to z to y to x
+	x y 0.08 - z 0.05 8 ring outline
+	x y 0.08 + z 0.09 8 ring outline ;
+
+\ === Ms. Dunbar's body, and what lies beside it ===
+
+\ a pistol lying on its side on the floor, its muzzle toward a heading, a thread of smoke rising from it
+: floor-pistol ( x z heading -- )
+	| x z heading |
+	[ heading sin 0 heading cos ] to ahead
+	[ heading cos 0 heading sin negate ] to aside
+	[ x 0.012 z ] to base
+	[ [ 0.14 0 ] [ 0.14 0.025 ] [ -0.03 0.025 ] [ -0.055 0.1 ] [ -0.1 0.1 ] [ -0.07 0 ] ]
+	( corner | corner spread to side to along
+		base ahead along detail-scale * offset-point aside side detail-scale * offset-point
+	) map to outline-points
+	outline-points 0.04 fill
+	0.95 pen!
+	outline-points outline
+	base ahead 0.0 offset-point aside 0.035 detail-scale * offset-point to guard
+	0.6 pen!
+	guard ahead aside 0.018 detail-scale * 8 circle-points outline
+	base ahead 0.14 detail-scale * offset-point aside 0.012 detail-scale * offset-point to muzzle
+	0.2 pen!
+	[ 0 9 1 do k
+		k 8 / to rise
+		muzzle [ rise 1.6 * sin 0.03 * rise 0.35 * rise 2.1 * cos 0.02 * ] ' + 2 nmap
+	loop ] path ;
+
+\ the note beside the body: a pale sheet with lines of shaky writing
+: floor-note ( x z heading -- )
+	| x z heading |
+	[ heading sin 0 heading cos ] to ahead
+	[ heading cos 0 heading sin negate ] to aside
+	[ x 0.006 z ] to centre
+	[ [ -1 -1 ] [ 1 -1 ] [ 1 1 ] [ -1 1 ] ] ( corner | corner spread to side to along
+		centre ahead along 0.075 * detail-scale * offset-point aside side 0.055 * detail-scale * offset-point
+	) map to sheet
+	sheet 0.35 fill
+	0.9 pen!
+	sheet outline
+	[ 0.55 0.4 0.25 ] ( row |
+		sheet 0.15 0.85 row row 0.06 + quad-part 0.12 fill
+	) each ;
+
+\ a dark pool of blood on the floor, glinting at its edge
+: blood-pool ( x z radius -- )
+	| x z radius |
+	[ 0 12 1 do k
+		k 12 / TAU * to angle
+		k x 71 * + z 13 * + hash-fraction 0.5 * 0.75 + radius * to reach
+		[ x angle cos reach * + 0.004 z angle sin reach * + ]
+	loop ] to pool
+	pool 0 fill
+	0.28 pen!
+	pool outline ;
+
+\ === the North Upstairs Hall ===
+
+\ a short hallway running north from the head of the stairs, a doorway to the guest room on the east
+: north-hall-picture ( -- )
+	0.05 1.65 -1.2 0.04 -0.08 270 new-picture
+	[ 0 2.05 3.9 ] lamp!
+	[ [ [ -0.3 0 3.2 ] PI ] [ [ 0.35 0 2.5 ] PI 0.15 + ] [ [ -0.35 0 1.8 ] PI 0.15 - ] ] spots!
+	[ -0.9 0 0 ] [ 0.9 0 0 ] [ 0.9 0 4 ] [ -0.9 0 4 ] 9 floorboards
+	[ [ 0.9 0 2.55 ] [ 0.9 0 3.5 ] [ 0.9 2.2 3.5 ] [ 0.9 2.2 2.55 ] ] 0 fill
+	[ [ 0.9 0.02 2.6 ] [ 0.9 0.02 3.45 ] [ 0.3 0.02 3.2 ] [ 0.3 0.02 2.75 ] ] 0.06 fill
+	0.13 pen!
+	[ 0.9 0.02 2.6 ] [ 0.9 0.02 3.45 ] [ 0.3 0.02 3.2 ] [ 0.3 0.02 2.75 ] 4 hatch
+	0.12 pen!
+	0.9 0 2.55 2.2 0 2.55 edge
+	0.9 2.2 2.55 2.2 2.2 2.55 edge
+	0.9 0 3.5 2.2 0 3.5 edge
+	0.45 pen!
+	-0.9 0.9 0 4 2.7 room-shell
+	0.22 pen!
+	-0.9 0.9 0 -0.9 0.9 4 edge
+	-0.9 0.9 4 0.9 0.9 4 edge
+	0.9 0.9 0 0.9 0.9 2.55 edge
+	-0.9 2.5 0 -0.9 2.5 4 edge
+	-0.9 2.5 4 0.9 2.5 4 edge
+	0.65 pen!
+	[ [ 0.9 0 2.55 ] [ 0.9 2.2 2.55 ] [ 0.9 2.2 3.5 ] [ 0.9 0 3.5 ] ] path
+	0.12 pen!
+	[ [ -0.45 0.01 0.4 ] [ 0.45 0.01 0.4 ] [ 0.45 0.01 3.7 ] [ -0.45 0.01 3.7 ] ] outline
+	[ [ -0.38 0.01 0.47 ] [ 0.38 0.01 0.47 ] [ 0.38 0.01 3.63 ] [ -0.38 0.01 3.63 ] ] outline
+	0.5 pen!
+	[ [ -0.35 1.1 3.99 ] [ 0.35 1.1 3.99 ] [ 0.35 1.6 3.99 ] [ -0.35 1.6 3.99 ] ] to frame
+	frame 0 fill
+	frame outline
+	frame 0.1 0.9 0.12 0.88 quad-part to canvas-part
+	0.2 pen!
+	canvas-part outline
+	0.14 pen!
+	[ [ -0.28 1.2 3.98 ] [ -0.1 1.4 3.98 ] [ 0.05 1.28 3.98 ] [ 0.28 1.45 3.98 ] ] path
+	[ 0 2.05 3.95 ] wall-sconce ;
+
+\ === the Guest Room ===
+
+\ a guest room with bed, tables and a chair, a window in the east wall looking out toward the lawn, the shed and the lake
+: guest-room-picture ( -- )
+	-2.4 1.65 -0.4 PI 2 / -0.1 250 new-picture
+	[ 6 3 0.3 ] lamp!
+	[ [ [ 0.5 0 -1.0 ] PI -2 / ] [ [ 1.5 0 -0.4 ] PI -2 / 0.2 - ] [ [ 0.3 0 -1.65 ] PI -2 / 0.3 + ] ] spots!
+	[ -2.5 0 -2 ] [ -2.5 0 2 ] [ 2.5 0 2 ] [ 2.5 0 -2 ] 12 floorboards
+	[ 2.5 0.8 -0.8 ] [ 2.5 0.8 0.8 ] [ 2.5 2.2 0.8 ] [ 2.5 2.2 -0.8 ] [ -1 -0.55 0.12 ] 0.07 window-light
+	0.035 pen!
+	[ [ 2.5 0.8 -0.8 ] [ 2.5 0.8 0.8 ] [ 2.5 2.2 0.8 ] [ 2.5 2.2 -0.8 ] ] ( corner |
+		corner corner [ -1 -0.55 0.12 ] floor-hit segment
+	) each
+	[ 2.5 1.5 0 ] 1.3 0.2 glow
+	0.12 pen!
+	2.5 1.25 -0.75 2.5 1.25 0.75 edge
+	[ [ 2.51 0.85 -0.75 ] [ 2.51 0.85 0.1 ] [ 2.51 1.05 0.4 ] [ 2.51 0.95 0.75 ] ] path
+	[ [ 2.51 1.0 -0.2 ] [ 2.51 1.35 -0.2 ] [ 2.51 1.35 0.05 ] [ 2.51 1.0 0.05 ] ] outline
+	0.45 pen!
+	-2.5 2.5 -2 2 2.7 room-shell
+	0.8 pen!
+	[ 2.5 0.8 -0.8 ] [ 2.5 0.8 0.8 ] [ 2.5 2.2 0.8 ] [ 2.5 2.2 -0.8 ] 2 2 wall-window
+	0.5 pen!
+	2.5 0.75 -0.9 2.35 0.75 -0.9 edge
+	2.35 0.75 -0.9 2.35 0.75 0.9 edge
+	2.35 0.75 0.9 2.5 0.75 0.9 edge
+	-0.55 1.75 false end-table-at
+	1.35 1.75 true end-table-at
+	-0.3 0 1.1 2 true bed-frame
+	1.9 -1.45 PI 0.6 + plain-chair ;
+
+\ === the South Upstairs Hall ===
+
+\ the corner where the hall from the stairs turns east, the door to Ms. Dunbar's bathroom in the south wall ahead
+: shall-11-picture ( -- )
+	-0.45 1.65 3.5 PI 0.35 - -0.1 250 new-picture
+	[ 0 2.5 1.3 ] lamp!
+	[ [ [ -0.15 0 1.2 ] -0.2 ] [ [ 2.0 0 0.9 ] -0.9 ] [ [ 0.35 0 2.2 ] -0.3 ] ] spots!
+	[ -0.9 0 0 ] [ 0.9 0 0 ] [ 0.9 0 3.6 ] [ -0.9 0 3.6 ] 9 floorboards
+	[ 0.9 0 0 ] [ 4.5 0 0 ] [ 4.5 0 1.8 ] [ 0.9 0 1.8 ] 9 floorboards
+	0.45 pen!
+	-0.9 0 0 0.9 0 0 edge
+	-0.9 2.7 0 0.9 2.7 0 edge
+	-0.9 0 0 -0.9 2.7 0 edge
+	-0.9 0 0 -0.9 0 3.6 edge
+	-0.9 2.7 0 -0.9 2.7 3.6 edge
+	0.9 0 1.8 0.9 0 3.6 edge
+	0.9 2.7 1.8 0.9 2.7 3.6 edge
+	0.9 0 1.8 0.9 2.7 1.8 edge
+	0.9 0 0 4.5 0 0 edge
+	0.9 2.7 0 4.5 2.7 0 edge
+	0.9 0 1.8 4.5 0 1.8 edge
+	0.9 2.7 1.8 4.5 2.7 1.8 edge
+	0.3 pen!
+	[ [ 4.5 0 0 ] [ 4.5 0 1.8 ] [ 4.5 2.7 1.8 ] [ 4.5 2.7 0 ] ] outline
+	0.2 pen!
+	-0.9 0.9 0 -0.9 0.9 3.6 edge
+	-0.9 0.9 0 0.9 0.9 0 edge
+	0.9 0.9 0 4.5 0.9 0 edge
+	0.9 0.9 1.8 0.9 0.9 3.6 edge
+	0.9 0.9 1.8 4.5 0.9 1.8 edge
+	[ 0.45 0 0 ] [ -0.45 0 0 ] 2.1 [ 0 0 1 ] :dunbar-bath-door :open flag? wall-door
+	:dunbar-bath-door :open flag? if
+		[ [ -0.4 0 -0.01 ] [ 0.4 0 -0.01 ] [ 0.4 2.05 -0.01 ] [ -0.4 2.05 -0.01 ] ] to beyond
+		0.1 pen!
+		beyond 0 0.6 0.15 0.5 quad-part outline
+		beyond 0.1 0.9 0 0.02 quad-part 0.05 fill
+		[ 0 1.3 -1.5 ] 0.8 0.12 glow
+	then
+	0.5 pen!
+	-0.9 0 0.45 -0.55 0.8 1.45 solid-box
+	0.3 pen!
+	-0.55 0.65 0.5 -0.55 0.65 1.4 edge
+	-0.72 0.8 0.95 0.06 detail-scale * 10 ring to vase-foot
+	-0.72 1.0 0.95 0.09 detail-scale * 10 ring to vase-belly
+	-0.72 1.12 0.95 0.04 detail-scale * 10 ring to vase-neck
+	vase-foot 0 fill
+	0.75 pen!
+	0 10 2 do k vase-foot k @i vase-belly k @i segment vase-belly k @i vase-neck k @i segment loop
+	vase-neck outline
+	vase-belly outline
+	0.3 pen!
+	[ [ -0.74 1.12 0.95 ] [ -0.8 1.35 0.87 ] [ -0.88 1.46 0.85 ] ] path
+	[ [ -0.7 1.12 0.95 ] [ -0.66 1.38 1.03 ] [ -0.6 1.5 1.07 ] ] path
+	[ [ -0.89 1.3 0.55 ] [ -0.89 1.3 1.35 ] [ -0.89 1.9 1.35 ] [ -0.89 1.9 0.55 ] ] to frame
+	frame 0 fill
+	0.55 pen!
+	frame outline
+	0.2 pen!
+	frame 0.1 0.9 0.1 0.9 quad-part outline
+	0.15 pen!
+	[ [ -0.885 1.4 0.7 ] [ -0.885 1.6 0.9 ] [ -0.885 1.5 1.05 ] [ -0.885 1.75 1.25 ] ] path
+	0 2.3 1.5 2.7 hanging-lamp
+	[ 4.45 1.9 0.9 ] wall-sconce ;
+
+\ === the End of South Hall ===
+
+\ the east end of the south hall, a walk-in closet opening to the south
+: shall-12-picture ( -- )
+	-1.4 1.65 0.95 PI 2 / -0.1 260 new-picture
+	level-camera!
+	[ 3.95 1.9 0.9 ] lamp!
+	[ [ [ 2.9 0 1.1 ] PI -2 / ] [ [ 2.1 0 0.65 ] PI -2 / 0.15 + ] ] spots!
+	[ -1.6 0 0 ] [ -1.6 0 1.8 ] [ 4 0 1.8 ] [ 4 0 0 ] 9 floorboards
+	0.45 pen!
+	-1.6 0 0 0 0 0 edge
+	-1.6 2.7 0 0 2.7 0 edge
+	-1.6 0 1.8 0 0 1.8 edge
+	-1.6 2.7 1.8 0 2.7 1.8 edge
+	[ [ 2.6 0 0 ] [ 3.5 0 0 ] [ 3.5 2.1 0 ] [ 2.6 2.1 0 ] ] 0 fill
+	0.12 pen!
+	2.6 0 0 2.6 0 -1.2 edge
+	3.5 0 0 3.5 0 -1.2 edge
+	2.6 2.1 0 2.6 2.1 -1.2 edge
+	[ [ 2.62 1.6 -0.5 ] [ 3.48 1.6 -0.5 ] ] path
+	[ [ 2.62 1.2 -0.5 ] [ 3.48 1.2 -0.5 ] ] path
+	0.45 pen!
+	0 4 0 1.8 2.7 room-shell
+	0.2 pen!
+	0 0.9 0 2.6 0.9 0 edge
+	3.5 0.9 0 4 0.9 0 edge
+	0 0.9 1.8 4 0.9 1.8 edge
+	4 0.9 0 4 0.9 1.8 edge
+	0.65 pen!
+	[ [ 2.6 0 0 ] [ 2.6 2.1 0 ] [ 3.5 2.1 0 ] [ 3.5 0 0 ] ] path
+	[ 3.95 1.9 0.9 ] wall-sconce
+	0.12 pen!
+	[ 3.99 0.01 0.35 ] [ 3.99 0.01 1.45 ] [ 3 0.01 1.45 ] [ 3 0.01 0.35 ] 3 hatch ;
+
+\ === the Closet ===
+
+\ a walk-in closet of shelves: cleaning things, stacks of linen, a bucket and mop, under a bare bulb
+: closet-11-picture ( -- )
+	0 1.6 2.45 PI -0.25 215 new-picture
+	[ 0 2.05 1.2 ] lamp!
+	[ [ [ -0.4 0 0.85 ] 0.1 ] [ [ 0.35 0 1.15 ] -0.15 ] ] spots!
+	[ -1.2 0 0 ] [ 1.2 0 0 ] [ 1.2 0 2.5 ] [ -1.2 0 2.5 ] 7 floorboards
+	0.4 pen!
+	-1.2 1.2 0 2.5 2.5 room-shell
+	0.3 pen!
+	-0.9 0 0.02 -0.9 2.3 0.02 edge
+	0.9 0 0.02 0.9 2.3 0.02 edge
+	[ 0.3 0.8 1.4 1.95 ] ( board |
+		0.5 pen!
+		-0.9 board 0 0.9 board 0 edge
+		-0.9 board 0.4 0.9 board 0.4 edge
+		-0.9 board 0 -0.9 board 0.4 edge
+		0.9 board 0 0.9 board 0.4 edge
+	) each
+	[ 0.8 ] ( board |
+		0 5 1 do k
+			k 0.42 * -1.0 + to left
+			board 131 * k 17 * + hash-fraction 0.1 * 0.12 + to box-height
+			0.45 pen!
+			left board 0.1 left 0.3 + board box-height + 0.32 solid-box
+			0.25 pen!
+			left 0.05 + board box-height 0.5 * + 0.32 left 0.25 + board box-height 0.5 * + 0.32 edge
+		loop
+	) each
+	0.55 pen!
+	[ -0.85 -0.5 -0.15 0.2 0.55 ] ( left |
+		left 0.3 0.1 left 0.3 + 0.3 0.12 + 0.35 solid-box
+		0.3 pen!
+		left 0.3 0.06 + 0.1 left 0.3 + 0.3 0.06 + 0.1 edge
+		0.55 pen!
+	) each
+	0.6 pen!
+	[ -0.82 -0.52 -0.22 0.08 0.38 0.68 ] ( left |
+		left 977 * hash-fraction 0.08 * 0.2 + to bottle-height
+		left 0.06 + 1.4 0.2 0.04 detail-scale * 8 ring to base-ring
+		left 0.06 + 1.4 bottle-height + 0.2 0.04 detail-scale * 8 ring to shoulder
+		base-ring 0 fill
+		0.65 pen!
+		0 8 2 do k base-ring k @i shoulder k @i segment loop
+		shoulder outline
+		left 0.06 + 1.4 bottle-height + 0.2 left 0.06 + 1.4 bottle-height + 0.07 + 0.2 edge
+	) each
+	0.75 pen!
+	[ -0.8 -0.2 0.4 ] ( left |
+		0 4 1 do k
+			left 1.95 k 0.05 * + 0.1 left 0.45 + 1.95 k 0.05 * + 0.045 + 0.34 solid-box
+		loop
+	) each
+	0.6 pen!
+	-0.8 0 0.75 0.14 10 ring to bucket-bottom
+	-0.8 0.3 0.75 0.17 10 ring to bucket-top
+	bucket-bottom 0 fill
+	0 10 1 do k bucket-bottom k @i bucket-top k @i segment loop
+	bucket-top outline
+	0.45 pen!
+	[ [ -0.8 0.3 0.6 ] [ -0.83 0.42 0.75 ] [ -0.8 0.3 0.9 ] ] path
+	0.4 pen!
+	-0.8 0.25 0.75 -1.1 1.6 0.2 edge
+	0.35 pen!
+	[ -0.1 -0.05 0 0.05 0.1 ] ( spread-out | -0.8 0.28 0.75 -0.8 spread-out + 0.12 0.75 spread-out 0.5 * + edge ) each
+	0.4 pen!
+	1.0 0.25 0.7 1.12 1.6 0.12 edge
+	[ [ 0.88 0 0.62 ] [ 1.12 0 0.78 ] [ 1.04 0.26 0.72 ] [ 0.96 0.26 0.68 ] ] to bristles
+	bristles 0.06 fill
+	0.55 pen!
+	bristles outline
+	0 2.05 1.2 2.5 bare-bulb ;
+
+\ === Ms. Dunbar's Bathroom ===
+
+\ a medicine bottle standing on a shelf: its body, shoulder and cap
+: shelf-bottle ( x y z height -- )
+	| x y z height |
+	x y z 0.02 detail-scale * 8 ring to bottom-ring
+	x y height + z 0.02 detail-scale * 8 ring to top-ring
+	bottom-ring 0 fill
+	0.75 pen!
+	0 8 2 do k bottom-ring k @i top-ring k @i segment loop
+	top-ring outline
+	0.9 pen!
+	x y height + z x 0.012 detail-scale * + y height + 0.02 + z edge ;
+
+\ a toilet with its tank against a south wall, its bowl reaching north: tank, the bowl's sides, the seat and lid ring
+: toilet-against-south-wall ( x wall-z -- )
+	| x wall-z |
+	0.55 pen!
+	x 0.27 - 0 wall-z 0.1 - x 0.27 + 0.8 wall-z 0.1 + solid-box
+	x 0.4 wall-z 0.42 + 0.2 12 ring to seat
+	x 0 wall-z 0.35 + 0.12 12 ring to toilet-base
+	0 12 1 do k
+		k 1 + 12 mod to next
+		[ toilet-base k @i toilet-base next @i seat next @i seat k @i ] 0 fill
+	loop
+	seat 0 fill
+	0.35 pen!
+	0 12 2 do k toilet-base k @i seat k @i segment loop
+	0.7 pen!
+	seat outline
+	0.85 pen!
+	x 0.42 wall-z 0.42 + 0.16 12 ring outline ;
+
+\ a bathroom with bath, toilet and sink, a medicine cabinet above the sink, shut or half open on its shelves
+: dunbar-bath-picture ( -- )
+	-0.3 1.65 2.75 PI 0.3 - -0.22 215 new-picture
+	[ 0 2.45 1.3 ] lamp!
+	[ [ [ -0.35 0 1.05 ] -0.1 ] [ [ 0.5 0 1.3 ] -0.4 ] ] spots!
+	0.08 pen!
+	[ -1.4 0 0 ] [ 1.4 0 0 ] [ 1.4 0 2.8 ] [ -1.4 0 2.8 ] 9 9 grid
+	0.06 pen!
+	[ -1.4 0 0 ] [ 1.4 0 0 ] [ 1.4 1.2 0 ] [ -1.4 1.2 0 ] 9 4 grid
+	[ 1.4 0 0 ] [ 1.4 0 2.8 ] [ 1.4 1.2 2.8 ] [ 1.4 1.2 0 ] 9 4 grid
+	[ -1.4 0 2.8 ] [ -1.4 0 0 ] [ -1.4 1.2 0 ] [ -1.4 1.2 2.8 ] 9 4 grid
+	0.45 pen!
+	-1.4 1.4 0 2.8 2.6 room-shell
+	0.25 pen!
+	-1.4 1.2 0 1.4 1.2 0 edge
+	1.4 1.2 0 1.4 1.2 2.8 edge
+	-1.4 1.2 0 -1.4 1.2 2.8 edge
+	0.35 pen!
+	-1.4 1.9 0.72 0.3 1.9 0.72 edge
+	0.3 1.9 0.72 0.3 1.9 0 edge
+	0 5 1 do k
+		k 0.05 * 0.08 + to fold
+		k 2 mod 0 = if 0.45 else 0.25 then pen!
+		[ [ 0.3 fold - 1.9 0.72 ] [ 0.28 fold - 1.3 0.74 ] [ 0.3 fold - 0.75 0.73 ] ] path
+	loop
+	0.6 pen!
+	-1.4 0 0 0.3 0.55 0.75 solid-box
+	0.4 pen!
+	[ [ -1.3 0.55 0.08 ] [ 0.2 0.55 0.08 ] [ 0.2 0.55 0.67 ] [ -1.3 0.55 0.67 ] ] outline
+	0.7 pen!
+	-0.45 0.55 0.08 -0.45 0.8 0.08 edge
+	-0.45 0.8 0.08 -0.3 0.8 0.08 edge
+	1.075 0.12 toilet-against-south-wall
+	0.6 pen!
+	1.0 0 1.35 1.4 0.78 1.85 solid-box
+	0.75 pen!
+	1.2 0.8 1.6 0.13 12 ring outline
+	1.2 0.74 1.6 0.09 12 ring outline
+	1.39 0.95 1.6 1.28 0.95 1.6 edge
+	[ [ 1.39 1.3 1.3 ] [ 1.39 1.3 1.9 ] [ 1.39 1.95 1.9 ] [ 1.39 1.95 1.3 ] ] to cabinet
+	cabinet 0 fill
+	0.55 pen!
+	cabinet outline
+	1.3 1.3 1.3 1.4 1.95 1.9 box
+	:dunbar-cabinet :open flag? if
+		0.4 pen!
+		[ 1.3 1.52 ] ( board | 1.3 board 1.32 1.39 board 1.32 edge 1.3 board 1.88 1.39 board 1.88 edge 1.3 board 1.32 1.3 board 1.88 edge ) each
+		:loblo-bottle :dunbar-cabinet inside? if 1.34 1.3 1.45 0.08 shelf-bottle then
+		:dum-kof-bottle :dunbar-cabinet inside? if
+			1.34 1.52 1.72 0.11 shelf-bottle
+			0.6 pen!
+			1.34 1.52 1.55 0.012 detail-scale * 6 ring outline
+			1.34 1.52 0.025 + 1.55 0.012 detail-scale * 6 ring outline
+		then
+		:aspirin-bottle :dunbar-cabinet inside? if 1.34 1.74 1.4 0.07 shelf-bottle then
+		0.7 pen!
+		[ [ 1.39 1.3 1.3 ] [ 1.05 1.3 1.1 ] [ 1.05 1.95 1.1 ] [ 1.39 1.95 1.3 ] ] to cabinet-door
+		cabinet-door 0 fill
+		cabinet-door outline
+		0.2 pen!
+		cabinet-door 0.1 0.9 0.1 0.9 quad-part outline
+	else
+		0.18 pen!
+		cabinet 0.12 0.88 0.1 0.9 quad-part 0 @i cabinet 0.12 0.88 0.1 0.9 quad-part 1 @i
+		cabinet 0.12 0.88 0.1 0.9 quad-part 2 @i cabinet 0.12 0.88 0.1 0.9 quad-part 3 @i 3 hatch
+		0.7 pen!
+		cabinet 0.12 0.88 0.1 0.9 quad-part outline
+	then
+	0 2.4 1.3 2.6 hanging-lamp ;
+
+\ === Ms. Dunbar's Bedroom ===
+
+\ Ms. Dunbar's bedroom: the bed and its tables, a chair, a dressing table with its mirror, the blind half down across the south window laying stripes of light on the floor; after the shot, her body sprawled in them beside the gun and the note
+: dunbar-room-picture ( -- )
+	0.2 1.65 4.9 PI 0.05 + -0.2 250 new-picture
+	level-camera!
+	[ -0.5 2.6 -3 ] lamp!
+	[ [ [ 0.7 0 1.2 ] 0.15 ] [ [ -1.5 0 2.5 ] -0.35 ] [ [ 0.9 0 2.85 ] 0.3 ] ] spots!
+	[ -2.5 0 0 ] [ -2.5 0 5 ] [ 2.5 0 5 ] [ 2.5 0 0 ] 12 floorboards
+	[ 0.25 -0.55 1 ] to sunlight
+	[ -1.1 0.8 0 ] [ 1.1 0.8 0 ] [ 1.1 2.3 0 ] [ -1.1 2.3 0 ] sunlight 9 0.14 window-blind-light
+	[ 0 1.6 0 ] 1.4 0.18 glow
+	0.45 pen!
+	-2.5 2.5 0 5 2.8 room-shell
+	0.2 pen!
+	-2.5 2.6 0 2.5 2.6 0 edge
+	-2.5 2.6 0 -2.5 2.6 5 edge
+	2.5 2.6 0 2.5 2.6 5 edge
+	0.8 pen!
+	[ -1.1 0.8 0 ] [ 1.1 0.8 0 ] [ 1.1 2.3 0 ] [ -1.1 2.3 0 ] 2 1 wall-window
+	[ -1.1 0.8 0 ] [ 1.1 0.8 0 ] [ 1.1 2.3 0 ] [ -1.1 2.3 0 ] 16 0.6 window-slats
+	0.5 pen!
+	-1.2 2.3 0.02 1.2 2.3 0.02 edge
+	1.05 2.3 0.02 1.05 1.35 0.02 edge
+	0.5 pen!
+	-2.5 0 0.9 -2.05 0.72 1.9 solid-box
+	0.35 pen!
+	-2.05 0.55 1.0 -2.05 0.55 1.8 edge
+	-2.05 0.35 1.0 -2.05 0.35 1.8 edge
+	[ -2.49 1.35 1.4 ] [ 0 0 1 ] [ 0 1 0 ] 0.32 16 circle-points to mirror
+	mirror 0.05 fill
+	0.85 pen!
+	mirror outline
+	0.2 pen!
+	[ -2.48 1.1 1.25 ] [ -2.48 1.6 1.55 ] segment
+	0.7 pen!
+	-2.15 0.72 1.15 0.025 detail-scale * 8 ring outline
+	-2.15 0.72 1.15 -2.15 0.8 1.15 edge
+	-2.2 0.72 1.55 0.035 detail-scale * 8 ring outline
+	-2.2 0.72 1.55 -2.2 0.78 1.55 edge
+	1.3 0.35 2.5 2.35 false bed-frame
+	1.9 2.6 false end-table-at
+	1.05 0.3 true end-table-at
+	-2.1 3.3 PI 2 / plain-chair
+	:corpse :dunbar-room inside? if
+		-0.95 1.95 0.32 blood-pool
+		[ 0.5 0 3.0 ] 0.93 corpse-figure
+		0.26 pen!
+		0 5 1 do k
+			[ -1.1 0.8 0 ] sunlight floor-hit to lower-left
+			[ 1.1 0.8 0 ] sunlight floor-hit to lower-right
+			[ -1.1 2.3 0 ] sunlight floor-hit to upper-left
+			[ 1.1 2.3 0 ] sunlight floor-hit to upper-right
+			lower-left upper-left k 2 * 1 + 9 / between [ 0 0.2 0 ] ' + 2 nmap to band-left
+			lower-right upper-right k 2 * 1 + 9 / between [ 0 0.2 0 ] ' + 2 nmap to band-right
+			band-left band-right 0.35 between band-left band-right 0.62 between segment
+		loop
+	then
+	:suicide-note :dunbar-room inside? if -0.55 2.35 0.4 floor-note then
+	:pistol :dunbar-room inside? if 0.15 2.05 -2.2 floor-pistol then ;
+
+\ === George's Bathroom ===
+
+\ George's bathroom: shower, toilet, and the sink with its mirror and his shaving gear
+: george-bath-picture ( -- )
+	-0.35 1.65 1.0 PI 2 / -0.2 200 new-picture
+	[ 1.3 2.45 1.1 ] lamp!
+	[ [ [ 1.6 0 0.85 ] PI -2 / 0.2 + ] [ [ 1.4 0 1.35 ] PI -2 / 0.3 - ] ] spots!
+	0.08 pen!
+	[ 0 0 0 ] [ 2.6 0 0 ] [ 2.6 0 2.2 ] [ 0 0 2.2 ] 8 7 grid
+	0.06 pen!
+	[ 2.6 0 0 ] [ 2.6 0 2.2 ] [ 2.6 1.2 2.2 ] [ 2.6 1.2 0 ] 7 4 grid
+	0.45 pen!
+	0 2.6 0 2.2 2.6 room-shell
+	0.25 pen!
+	0 1.2 0 2.6 1.2 0 edge
+	2.6 1.2 0 2.6 1.2 2.2 edge
+	0 1.2 2.2 2.6 1.2 2.2 edge
+	0.35 pen!
+	1.7 0 1.3 2.6 2.1 2.2 box-corners to stall
+	[ stall 0 @i stall 1 @i stall 5 @i stall 4 @i ] 0.02 fill
+	0.5 pen!
+	1.7 0 1.3 2.6 2.1 2.2 box
+	0.12 pen!
+	[ 1.7 0 1.3 ] [ 2.6 0 1.3 ] [ 2.6 2.1 1.3 ] [ 1.7 2.1 1.3 ] 7 hatch
+	0.7 pen!
+	2.4 1.95 1.75 0.08 10 ring outline
+	2.4 1.95 1.75 2.6 1.95 1.75 edge
+	2.3 0.12 toilet-against-south-wall
+	0.6 pen!
+	0.7 0 0 1.3 0.78 0.42 solid-box
+	0.75 pen!
+	1.0 0.8 0.2 0.14 12 ring outline
+	1.0 0.74 0.2 0.1 12 ring outline
+	[ [ 0.7 1.15 0.01 ] [ 1.3 1.15 0.01 ] [ 1.3 1.85 0.01 ] [ 0.7 1.85 0.01 ] ] to mirror
+	mirror 0.05 fill
+	0.8 pen!
+	mirror outline
+	0.2 pen!
+	mirror 0 @i mirror 2 @i 0.2 between mirror 0 @i mirror 2 @i 0.55 between segment
+	0.8 pen!
+	[ [ 1.0 0.78 0.03 ] [ 1.0 0.9 0.03 ] [ 1.0 0.9 0.11 ] [ 1.0 0.86 0.12 ] ] path
+	0.93 0.78 0.04 1.07 0.78 0.04 edge
+	0.9 pen!
+	0.77 0.79 0.36 0.02 detail-scale * 8 ring to can-bottom
+	0.77 0.79 0.09 detail-scale * + 0.36 0.02 detail-scale * 8 ring to can-top
+	can-bottom 0 fill
+	0 8 2 do k can-bottom k @i can-top k @i segment loop
+	can-top outline
+	1.22 0.79 0.28 1.22 0.79 0.28 0.08 detail-scale * + edge
+	1.19 0.79 0.28 1.25 0.79 0.28 edge
+	1.19 0.8 0.28 1.25 0.8 0.28 edge
+	0.88 0.79 0.38 0.95 0.79 0.4 edge
+	[ [ 0.93 0.79 0.37 ] [ 0.97 0.81 0.4 ] [ 1.0 0.79 0.37 ] ] path
+	1.0 2.45 1.1 2.6 hanging-lamp ;
+
+\ === George's Bedroom ===
+
+\ the sound of music drawn as arcs spreading from a speaker's face toward the room
+: music-arcs ( x y z -- )
+	| x y z |
+	[ 1 2 3 ] ( ring |
+		ring 0.12 * to radius
+		0.35 ring 0.08 * - pen!
+		[ 0 7 1 do k
+			k 6 / PI * PI 2 / - 0.9 * to angle
+			[ x angle sin radius * + y angle cos radius * + z radius 0.8 * + ]
+		loop ] path
+	) each ;
+
+\ George's bedroom: bed and table, a chair, the small liquor cabinet with its bottles, the stereo with records and tapes, playing when a piece is on; the bathroom door in the east wall
+: george-room-picture ( -- )
+	0.9 1.65 4.8 PI 0.17 + -0.17 250 new-picture
+	[ 0 2.5 2.5 ] lamp!
+	[ [ [ -1.55 0 1.6 ] 0.5 ] [ [ 1.0 0 3.0 ] -0.1 ] [ [ -0.1 0 1.5 ] 0.15 ] ] spots!
+	[ -2.8 0 0 ] [ -2.8 0 5 ] [ 2.8 0 5 ] [ 2.8 0 0 ] 13 floorboards
+	0.1 pen!
+	[ [ -1.3 0.01 1.3 ] [ 1.3 0.01 1.3 ] [ 1.3 0.01 3.5 ] [ -1.3 0.01 3.5 ] ] outline
+	[ [ -1.2 0.01 1.4 ] [ 1.2 0.01 1.4 ] [ 1.2 0.01 3.4 ] [ -1.2 0.01 3.4 ] ] outline
+	0.45 pen!
+	-2.8 2.8 0 5 2.8 room-shell
+	0.2 pen!
+	-2.8 2.6 0 2.8 2.6 0 edge
+	-2.8 2.6 0 -2.8 2.6 5 edge
+	2.8 2.6 0 2.8 2.6 5 edge
+	:george-bath-door :open flag? if
+		[ [ 2.8 0.02 1.3 ] [ 2.8 0.02 2.2 ] [ 1.9 0.02 2.1 ] [ 1.9 0.02 1.1 ] ] 0.06 fill
+	then
+	[ 2.8 0 2.2 ] [ 2.8 0 1.3 ] 2.1 [ -1 0 0 ] :george-bath-door :open flag? wall-door
+	0.55 pen!
+	-1.5 0 0.02 0.5 0.75 0.5 solid-box
+	0.35 pen!
+	-1.45 0.1 0.5 -0.55 0.1 0.5 edge
+	-1.45 0.1 0.5 -1.45 0.65 0.5 edge
+	-0.55 0.1 0.5 -0.55 0.65 0.5 edge
+	-1.45 0.65 0.5 -0.55 0.65 0.5 edge
+	0.4 pen!
+	0 22 1 do k
+		k 0.04 * -1.42 + to spine
+		spine 17 * hash-fraction 0.18 * 0.2 + pen!
+		spine 0.12 0.49 spine 0.12 0.28 k 3 mod 0.03 * + + 0.49 edge
+	loop
+	0.5 pen!
+	-0.45 0.12 0.5 -0.45 0.65 0.5 edge
+	0 4 1 do k
+		k 0.13 * 0.15 + to shelf
+		0.4 pen!
+		-0.45 shelf 0.5 0.45 shelf 0.5 edge
+		0 5 1 do j
+			j 0.17 * -0.4 + to tape
+			0.5 pen!
+			[ [ tape shelf 0.5 ] [ tape 0.14 + shelf 0.5 ] [ tape 0.14 + shelf 0.09 + 0.5 ] [ tape shelf 0.09 + 0.5 ] ] outline
+		loop
+	loop
+	0.7 pen!
+	-1.25 0.75 0.05 -0.35 0.85 0.45 solid-box
+	-0.8 0.85 0.25 0.16 16 ring to record
+	:tune-on state if
+		record 0.12 fill
+		1 pen!
+		record outline
+		-0.8 0.851 0.25 0.1 16 ring outline
+		-0.8 0.852 0.25 0.035 10 ring outline
+		[ -0.8 0.9 0.25 ] 0.5 0.18 glow
+	else
+		record outline
+	then
+	0.8 pen!
+	-0.5 0.86 0.35 -0.62 0.88 0.18 edge
+	0.55 pen!
+	[ -1.9 0.25 ] ( left |
+		left 0 0.05 left 0.35 + 1.0 0.4 solid-box
+		0.6 pen!
+		[ left 0.175 + 0.75 0.401 ] [ 1 0 0 ] [ 0 1 0 ] 0.06 12 circle-points outline
+		[ left 0.175 + 0.4 0.401 ] [ 1 0 0 ] [ 0 1 0 ] 0.11 12 circle-points outline
+		:tune-on state if left 0.175 + 0.55 0.45 music-arcs then
+		0.55 pen!
+	) each
+	0.5 pen!
+	-2.8 0 1.8 -2.35 0.95 2.7 solid-box
+	0.3 pen!
+	[ [ -2.35 0.1 1.85 ] [ -2.35 0.1 2.65 ] [ -2.35 0.9 2.65 ] [ -2.35 0.9 1.85 ] ] to glass-front
+	glass-front outline
+	-2.35 0.5 1.85 -2.35 0.5 2.65 edge
+	:scotch :liquor-cabinet inside? if
+		-2.55 0.52 2.05 0.035 detail-scale * 8 ring to bottom-ring
+		-2.55 0.72 2.05 0.035 detail-scale * 8 ring to top-ring
+		bottom-ring 0 fill
+		0.8 pen!
+		0 8 2 do k bottom-ring k @i top-ring k @i segment loop
+		top-ring outline
+		-2.55 0.72 2.05 -2.55 0.8 2.05 edge
+		0.4 pen!
+		-2.55 0.62 2.05 0.035 detail-scale * 8 ring outline
+	then
+	:bourbon :liquor-cabinet inside? if
+		-2.55 0.52 2.45 0.03 detail-scale * 8 ring to bottom-ring
+		-2.55 0.74 2.45 0.03 detail-scale * 8 ring to top-ring
+		bottom-ring 0 fill
+		0.8 pen!
+		0 8 2 do k bottom-ring k @i top-ring k @i segment loop
+		top-ring outline
+		-2.55 0.74 2.45 -2.55 0.82 2.45 edge
+		0.4 pen!
+		-2.55 0.55 2.45 0.03 detail-scale * 8 ring outline
+	then
+	-2.35 3.2 false end-table-at
+	-2.8 3.5 -1.3 5 true bed-frame
+	1.8 1.3 PI 0.4 - plain-chair
+	0 2.55 2.5 2.8 hanging-lamp ;
+
+\ === the pictures, registered ===
+
+room-pictures ' north-hall-picture :north-hall ! drop
+room-pictures ' guest-room-picture :guest-room ! drop
+room-pictures ' shall-11-picture :shall-11 ! drop
+room-pictures ' shall-12-picture :shall-12 ! drop
+room-pictures ' closet-11-picture :closet-11 ! drop
+room-pictures ' dunbar-bath-picture :dunbar-bath ! drop
+room-pictures ' dunbar-room-picture :dunbar-room ! drop
+room-pictures ' george-bath-picture :george-bath ! drop
+room-pictures ' george-room-picture :george-room ! drop

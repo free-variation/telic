@@ -20,6 +20,7 @@ Dedicated to Chuck Peddle and Tony Wilkinson.
 make           # builds ./telic
 make test      # runs the golden-output test suite
 make test-synth  # plays the synthesizer's listening tests on the audio device
+make test-examples  # plays the example programs against their golden transcripts
 make bench     # runs the benchmark suite (Telic vs CPython)
 ./telic              # REPL
 ./telic prog.telic     # run program files and exit (repeatable, in order; -i to drop into the REPL after)
@@ -452,7 +453,7 @@ Embedded relational storage via the vendored SQLite amalgamation — built into 
 
 ### Audio
 
-- **A phase-modulation synthesizer** — up to sixteen instruments named by symbols (`:soprano`), each with a patch frame of up to eight oscillators (sine, triangle, saw and pulse band-limited, white, pink and brown noise), a modulation matrix with feedback, per-oscillator envelopes, a Moog ladder filter with its own envelope, an LFO on pitch, cutoff, pan, level and pulse width, unison with detune and stereo spread, and glide; `instrument!`/`oscillator!` change parameters of sounding notes; `note-on`/`note-off` take pitches as MIDI numbers or symbols like `:f#3` and `:c+4` (quarter tones); after `audio-on` it plays live on the output device (miniaudio), and `render-audio` computes the same output offline into a stereo matrix for the Fourier words or a file. `play-samples` sends any sample matrix to the device, and `recent-audio` answers the last frames played, for live displays (`docs/synthesizer.md`).
+- **A phase-modulation synthesizer** — up to sixteen instruments named by symbols (`:soprano`), each with a patch frame of up to eight oscillators (sine, triangle, saw and pulse band-limited, white, pink and brown noise), a modulation matrix with feedback, per-oscillator envelopes, a Moog ladder filter with its own envelope, a high-pass filter, an LFO on pitch, cutoff, pan, level and pulse width, unison with detune and stereo spread, glide, and per-instrument sends to the chorus, delay and reverb; `instrument!`/`oscillator!` change parameters of sounding notes; `note-on`/`note-off` take pitches as MIDI numbers or symbols like `:f#3` and `:c+4` (quarter tones); after `audio-on` it plays live on the output device (miniaudio), and `render-audio` computes the same output offline into a stereo matrix for the Fourier words or a file. `play-samples` sends any sample matrix to the device, and `recent-audio` answers the last frames played, for live displays (`docs/synthesizer.md`).
 - **A sequencer** — `sequence-note`, `sequence-chord` and `sequence-rest` queue notes by exact fractions of a whole note (`1/4`, `3/8`) on per-instrument positions that never drift, at a set tempo, articulation and velocity, each note starting on its exact sample.
 - **An effects chain** — `effect!` sets the master chain's chorus, delay (ping-pong or straight), Dattorro plate reverb (with shimmer and freeze) and master level.
 
@@ -566,11 +567,11 @@ src/c/help_table.c     — generated help/man text (from docs/reference.md)
 src/forth/*.telic        — standard library (concatenated in Makefile order, embedded)
 lib/                   — loadable libraries: statistics.telic, plot.telic, http.telic, claude.telic, mcp.telic
 external/              — vendored deps: pcre2, sqlite, sqlite-vec, nanoarrow, pocketfft, tigr, miniaudio, isocline, lapacke
-tests/                 — golden-output test files; tests/lib/ the loadable-library tests, tests/synth/ the audible synthesizer tests
+tests/                 — golden-output test files; tests/lib/ the loadable-library tests, tests/synth/ the audible synthesizer tests, tests/examples/ the example-program tests
 bench/                 — benchmark suite (Telic vs CPython) and inventory
 docs/                  — the word reference (reference.md, reference-libraries.md), idioms.md,
                          and the primers: continuations, logic, tracing, synthesizer
-examples/              — graphics demos (primitives, shader), a Bach chorale on the synthesizer with a live spectrum analyzer, and Space Invaders (sprites, keyboard, synthesized music and effects; CC0 art in examples/assets), also in 3D through a GPU shader that reads the game state from the canvas, and Ms. Pac-Man with the arcade's four mazes and fruit routes, also in 3D through her eyes, and Star Raiders with the cartridge's galaxy, hyperwarp, docking and Zylon fleet, and The Hobbit running the ZX Spectrum tape's own data (read from a user-supplied .tzx) with its independent characters, redrawn vector pictures, new pictures for the 57 rooms the tape leaves without one, and new sound
+examples/              — graphics demos (primitives, shader), a Bach chorale on the synthesizer with a live spectrum analyzer, and Space Invaders (sprites, keyboard, synthesized music and effects; CC0 art in examples/assets), also in 3D through a GPU shader that reads the game state from the canvas, and Ms. Pac-Man with the arcade's four mazes and fruit routes, also in 3D through her eyes, and Star Raiders with the cartridge's galaxy, hyperwarp, docking and Zylon fleet, and The Hobbit running the ZX Spectrum tape's own data (read from a user-supplied .tzx) with its independent characters, redrawn vector pictures, new pictures for the 57 rooms the tape leaves without one, and new sound, and Infocom's Deadline translated from its ZIL source, with its parser, its timed plot and seven people keeping their own schedules, played in a window with a noir wireframe picture of every room and the people in it
 PLAN.md                — future work
 ```
 

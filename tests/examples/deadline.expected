@@ -1,0 +1,478 @@
+DEADLINE
+Infocom interactive fiction - a mystery story
+Copyright (c) 1982, 1983 by Infocom, Inc. All rights reserved.
+DEADLINE is a registered trademark of Infocom, Inc.
+Release 27 / Serial number 831005
+
+South Lawn
+You are on a wide lawn just north of the entrance to the Robner estate. Directly
+north at the end of a pebbled path is the Robner house, flanked to the northeast
+and northwest by a vast expanse of well-kept lawn. Beyond the house can be seen
+the lakefront.
+
+>West Lawn
+This is a sprawling lawn west of the Robner house. To the west and north is the
+lake shore. To the northeast is a rose garden, and to the south another wide
+lawn.
+
+>Garden Path
+You are at the edge of a large rose garden, meticulously maintained by the
+gardener, Mr. McNabb. He is said to be exceedingly proud of this particular
+garden, which is the envy of the neighbors. Rows of roses are neatly arranged
+and the sweet fragrance of the flowers is worth a trip here in itself. An
+orchard to the east contains many varieties of fruit trees and wide lawns lie to
+the west and north. The roses themselves are to the south, filling the area
+between you and the back of the house.
+
+>Garden Path
+You are at the edge of a large rose garden, meticulously maintained by the
+gardener, Mr. McNabb. He is said to be exceedingly proud of this particular
+garden, which is the envy of the neighbors. Rows of roses are neatly arranged
+and the sweet fragrance of the flowers is worth a trip here in itself. An
+orchard to the east contains many varieties of fruit trees and wide lawns lie to
+the west and north. The roses themselves are to the south, filling the area
+between you and the back of the house.
+
+>Time passes...
+To the east Mr. McNabb comes into view from the north.
+Do you want to keep waiting? (Y/N) >Mr. McNabb, off to the east, disappears from sight to the east.
+Do you want to keep waiting? (Y/N) >To the east Mr. McNabb comes into view from the east.
+Do you want to keep waiting? (Y/N) >Mr. McNabb, off to the east, disappears from sight to the north.
+Do you want to keep waiting? (Y/N) >Mr. McNabb stops here.
+Do you want to keep waiting? (Y/N) >All of a sudden, Mr. McNabb starts talking to himself quite loudly about his
+poor roses being ruined. He walks up to you and says "You canna believe the
+holes someone's made. Crushed my roses. It'll take me plenty a time to set it
+right. I just canna believe it!"  He shakes his head dejectedly.
+Do you want to keep waiting? (Y/N) >It is now 11:30 am.
+
+>You must supply a verb!
+
+>You must supply a verb!
+
+>"Follow me!" he says, and starts walking toward the roses.
+Mr. McNabb heads off to the south.
+
+>Garden Path
+You are at the edge of a large rose garden, meticulously maintained by the
+gardener, Mr. McNabb. He is said to be exceedingly proud of this particular
+garden, which is the envy of the neighbors. Rows of roses are neatly arranged
+and the sweet fragrance of the flowers is worth a trip here in itself. An
+orchard to the east contains many varieties of fruit trees and wide lawns lie to
+the west and north. The roses themselves are to the south, filling the area
+between you and the back of the house.
+Mr. McNabb stops here.
+
+>Among the Roses
+You are among rows of roses. The ground is soft, and your footsteps leave a
+rather bad impression as many poor seedlings are trampled underfoot. A safer
+place to admire the flowers lies to the north. A window to the south allows a
+view into the house.
+There is no way into the house from here.
+McNabb gives you a sideways glance. "What kept you?" he asks.
+McNabb grabs your arm and leads you to a spot deep within the garden and near
+the house. You might never have found this place alone. He points at the ground,
+where you see two holes in the soft earth.
+
+>Among the Roses
+You are among rows of roses. The ground is soft, and your footsteps leave a
+rather bad impression as many poor seedlings are trampled underfoot. A safer
+place to admire the flowers lies to the north. A window to the south allows a
+view into the house.
+There is no way into the house from here.
+There are holes in the soft dirt near your feet.
+
+>There are two holes here, each about two inches by four inches. They are at
+least three inches deep and the soil is compacted around them.
+
+>You are making quite a mess, but you do run across some tiny pieces of a hard,
+shiny substance, which drop from your fingers and back onto the ground.
+
+>Although everything is coming up roses, you haven't found anything unusual
+except for a few pieces of a hard substance which fall back to the ground.
+
+>Ouch! You cut your finger on a sharp edge as you dig. You search carefully in
+the dirt, now that you are sure something is there, and pull up a piece of
+porcelain, covered with dirt and dried mud.
+
+>Aside from dirt, organic fertilizer, and small crawly creatures, you turn up
+nothing but roses.
+
+>The piece of porcelain is filthy, coated with dried mud. You can barely make out
+some design underneath the dirt.
+
+>As you wipe off the piece of porcelain, you notice that it is a fragment of some
+very beautiful piece, handsomely painted.
+
+>The fragment is beautifully hand-painted.
+
+>It's covered with dirt and mud. You realize that there would be no good
+fingerprints on it.
+
+>Sergeant Duffy walks up as quietly as a mouse. He takes the fragment from you.
+"I'll return soon with the results," he says, and leaves as silently as he
+entered.
+
+>Time passes...
+Sergeant Duffy returns with the fragment. For a moment you muse on his almost
+magical entrances. "The fragment did contain LoBlo. Here is the full report." He
+hands you a slip of paper, and departs.
+It is now 12:14 pm.
+
+>You must supply a verb!
+
+>You must supply a verb!
+
+>You must supply a verb!
+
+>You must supply a verb!
+
+>You must supply a verb!
+
+>You must supply a verb!
+
+>You must supply a verb!
+
+>You must supply a verb!
+
+>You are carrying:
+  A fragment
+  A lab report
+
+>Dear Inspector,
+
+    In response to your request for analysis of the ceramic fragment, we have
+found evidence of a drug called Methsparin, which is usually sold in this
+country under the name "LoBlo". It is a blood pressure lowering agent used
+primarily in Europe, which explains the oversight in our blood analysis of the
+deceased. A double check reveals a high blood level of Methsparin. While the
+amount of Methsparin in the blood isn't dangerous in itself, a strong reaction
+between it and various other drugs has been well documented. As you may have
+gathered, one of those drugs is Amitraxin (Ebullion). The effect of Methsparin
+is to displace Amitraxin from protein binding, leaving more free in the blood
+and simulating an overdose.
+    Your new evidence leads me to conclude that the cause of death was Amitraxin
+toxicity secondary to ingestion of Methsparin and Amitraxin in combination.
+
+Sincerely,
+
+Arthur Chatworth, Pathologist
+
+
+>The fragment is beautifully hand-painted.
+
+>Garden Path
+Mr. McNabb is off to the east.
+
+>West Lawn
+
+>West of Front Door
+You are in front of the Robner house just west of the front door. To the north
+is a large bay window through which can be seen part of the living room. To the
+northwest is the west side of the house.
+
+>Front Path
+You are at the Robners' front door, which is open.
+You can walk around the house from here to the east or west. To the south a
+rolling lawn leads to the entrance of the estate.
+Leaning against the front door is today's issue of the Daily Herald.
+
+>It is already open.
+
+>Foyer
+This is the foyer of the Robner house, beautifully appointed with a fine crystal
+chandelier, marble floors, and a large marble-topped table. The front door, to
+the south, is open. The foyer continues north.
+
+>North of Foyer
+This is a hallway north of the foyer. To the west is an open doorway, and to the
+east is the foot of a staircase. The hall continues north.
+
+>Living Room
+This is a large and impressive room, whose furnishings bespeak the great
+personal wealth of the Robners. The south side of the room is a large bay
+window, now closed, which looks out onto the front yard.
+A wood pile sits beside a huge fieldstone fireplace. A double doorway leading to
+the main hall is the only exit. Pictures of Mrs. Robner's colonial ancestors
+line one wall. The room contains formal seating for at least fifteen people, in
+several groups of chairs and couches. Tables and cabinets, all of the finest
+mahogany and walnut, complete the furnishings. On one of the tables is a
+telephone.
+George is here, pacing around the room.
+Ms. Dunbar is sitting on the sofa here.
+Mrs. Rourke is dusting the room.
+Mrs. Robner is sitting here, knitting.
+Mr. Baxter is sitting here reading a book.
+Mrs. Robner turns to you. "I don't understand why you missed the will reading.
+You seem so interested in everything else that goes on around here."
+
+>Living Room
+This is a large and impressive room, whose furnishings bespeak the great
+personal wealth of the Robners. The south side of the room is a large bay
+window, now closed, which looks out onto the front yard.
+A wood pile sits beside a huge fieldstone fireplace. A double doorway leading to
+the main hall is the only exit. Pictures of Mrs. Robner's colonial ancestors
+line one wall. The room contains formal seating for at least fifteen people, in
+several groups of chairs and couches. Tables and cabinets, all of the finest
+mahogany and walnut, complete the furnishings. On one of the tables is a
+telephone.
+George is here, pacing around the room.
+Ms. Dunbar is sitting on the sofa here.
+Mrs. Rourke is dusting the room.
+Mrs. Robner is sitting here, knitting.
+Mr. Baxter is sitting here reading a book.
+
+>She seems stunned but recovers quickly. "He didn't commit suicide, then?" she
+says. "But LoBlo, that's a pill I take for my blood pressure." She pauses. "I
+can tell what you're thinking, but I didn't, couldn't have done it. Why should
+I? Someone must have taken them, maybe George. He knew I used them."
+
+>"No! I didn't do it! I've worked for Mr. Robner for years. What possible motive
+could I have?" With that, Ms. Dunbar begins to cry and move about the room quite
+nervously.
+Ms. Dunbar glances at Baxter and then at you.
+
+>North of Foyer
+
+>Foyer
+
+>Front Path
+Leaning against the front door is today's issue of the Daily Herald.
+
+>East of Front Door
+You are in front of the Robner house just east of the front door. A small
+window, closed and securely locked, is the only thing of note here. To the
+northeast is the east side of the house.
+The ornately carved cornerstone of the house is nearby.
+
+>East Lawn
+You are on a neatly manicured lawn, east of the house, which extends north and
+east to the shore of a lake. To the northwest is a peaceful orchard, and toward
+the south another wide lawn. Southeast, beside the lake, is a small shed with a
+solitary dirty window.
+Mr. McNabb is off to the northwest.
+
+>East Lawn
+You are on a neatly manicured lawn, east of the house, which extends north and
+east to the shore of a lake. To the northwest is a peaceful orchard, and toward
+the south another wide lawn. Southeast, beside the lake, is a small shed with a
+solitary dirty window.
+Mr. McNabb is off to the northwest.
+
+>You carefully sneak behind the shed. It seems that no one saw you.
+Behind the Shed
+You are now between the shed and the lake, a position invisible from the house
+or the adjacent lawns. There are no windows here, but you can easily enter the
+shed via the door around the corner.
+
+>Time passes...
+It is now 12:46 pm.
+
+>Time passes...
+You hear soft footsteps approaching. Someone has entered the shed!
+Do you want to keep waiting? (Y/N) >It is now 12:48 pm.
+
+>Time passes...
+It is now 12:51 pm.
+
+>Time passes...
+It is now 12:54 pm.
+
+>Time passes...
+It is now 12:57 pm.
+
+>Time passes...
+It is now 1:00 pm.
+
+>Time passes...
+The sound of quick footsteps precedes someone into the shed. You can make out
+two voices in rapid conversation. The voices are muffled, however, and cannot be
+made out.
+Do you want to keep waiting? (Y/N) >It is now 1:02 pm.
+
+>East Lawn
+Mr. McNabb is off to the northwest.
+George is here.
+
+>East of Front Door
+George is off to the east.
+The ornately carved cornerstone of the house is nearby.
+
+>Front Path
+George is off to the east.
+Leaning against the front door is today's issue of the Daily Herald.
+
+>Foyer
+
+>North of Foyer
+
+>Living Room
+Mrs. Rourke is dusting the room.
+
+>Living Room
+This is a large and impressive room, whose furnishings bespeak the great
+personal wealth of the Robners. The south side of the room is a large bay
+window, now closed, which looks out onto the front yard.
+A wood pile sits beside a huge fieldstone fireplace. A double doorway leading to
+the main hall is the only exit. Pictures of Mrs. Robner's colonial ancestors
+line one wall. The room contains formal seating for at least fifteen people, in
+several groups of chairs and couches. Tables and cabinets, all of the finest
+mahogany and walnut, complete the furnishings. On one of the tables is a
+telephone.
+Mrs. Rourke is dusting the room.
+
+>Time passes...
+It is now 1:12 pm.
+
+>Time passes...
+It is now 1:15 pm.
+
+>Time passes...
+It is now 1:18 pm.
+
+>Time passes...
+It is now 1:21 pm.
+
+>Time passes...
+It is now 1:24 pm.
+
+>Time passes...
+It is now 1:27 pm.
+
+>Time passes...
+It is now 1:30 pm.
+
+>Time passes...
+From upstairs, you hear a single explosion like a pistol shot.
+Mrs. Rourke heads off to the east.
+Do you want to keep waiting? (Y/N) >It is now 1:33 pm.
+
+>Time passes...
+Do you want to keep waiting? (Y/N) >It is now 1:35 pm.
+
+>Time passes...
+You can hear footsteps on the staircase.
+Do you want to keep waiting? (Y/N) >It is now 1:38 pm.
+
+>Time passes...
+It is now 1:41 pm.
+
+>Time passes...
+It is now 1:44 pm.
+
+>Time passes...
+You can hear footsteps on the staircase.
+Do you want to keep waiting? (Y/N) >It is now 1:45 pm.
+
+>Time passes...
+It is now 1:48 pm.
+
+>Time passes...
+It is now 1:51 pm.
+
+>Time passes...
+It is now 1:54 pm.
+
+>Time passes...
+George steps into the room.
+Do you want to keep waiting? (Y/N) >It is now 1:56 pm.
+
+>Time passes...
+You can hear footsteps on the staircase.
+Do you want to keep waiting? (Y/N) >It is now 1:59 pm.
+
+>Time passes...
+It is now 2:02 pm.
+
+>Time passes...
+It is now 2:05 pm.
+
+>Time passes...
+It is now 2:08 pm.
+
+>Time passes...
+It is now 2:11 pm.
+
+>Time passes...
+It is now 2:14 pm.
+
+>Time passes...
+It is now 2:17 pm.
+
+>North of Foyer
+
+>Bottom of Stairs
+You are at the foot of the stairs to the second floor. Open archways lead west
+and south.
+
+>Stairs
+You are on a landing halfway up the flight of stairs. You notice that the stairs
+do indeed make quite a noise when stepped upon.
+
+>Top of Stairs
+You are at the top of the staircase where short hallways run north and south and
+a corridor the length of the house heads west.
+Mrs. Robner is here.
+
+>Hallway
+You are just west of the staircase. There are doors on both sides (north and
+south) of the hallway, which continues west. Both doors are open.
+
+>Hallway
+You are just west of the staircase. There are doors on both sides (north and
+south) of the hallway, which continues west. Both doors are open.
+
+>Dunbar's Bedroom
+This is Ms. Dunbar's room. It is furnished in the usual style, with a few
+additions indicative of Ms. Dunbar's taste. The bedroom door is open.
+Sprawled on the floor is the body of Ms. Dunbar.
+Next to the body, near a pool of blood, is a note.
+Lying beside the body is a smoking gun.
+Mr. Baxter is here.
+
+>Dunbar's Bedroom
+This is Ms. Dunbar's room. It is furnished in the usual style, with a few
+additions indicative of Ms. Dunbar's taste. The bedroom door is open.
+Sprawled on the floor is the body of Ms. Dunbar.
+Next to the body, near a pool of blood, is a note.
+Lying beside the body is a smoking gun.
+Mr. Baxter is here.
+
+>The corpse is most gruesome. Ms. Dunbar was apparently shot in the head at close
+range, leaving a most distasteful mess.
+
+>The body is still quite warm.
+>The pistol has bloodstains on it. It has recently been fired.
+
+>Taken.
+
+>The pistol is bloody and has clearly been used recently.
+
+>Which note do you mean, the suicide note or the lab report?
+
+>Which note do you mean, the suicide note or the lab report?
+
+>Dunbar's Bedroom
+This is Ms. Dunbar's room. It is furnished in the usual style, with a few
+additions indicative of Ms. Dunbar's taste. The bedroom door is open.
+Sprawled on the floor is the body of Ms. Dunbar.
+Next to the body, near a pool of blood, is a note.
+Mr. Baxter is here.
+
+>Trusty Sergeant Duffy enters and places Mr. Baxter under arrest. They leave,
+Baxter remaining calm.
+
+Text of a letter from Police Commissioner Klutz dated August 13:
+
+Dear Inspector,
+
+     I heard today that the jury in the Robner case has voted to acquit Mr.
+Baxter of both murders at the Robner house.
+The jury believed the more probable story: that Ms. Dunbar committed the first
+murder and then committed suicide when her guilt became clear to you. I don't
+really believe this any more than you do, but the evidence is vague, you must
+agree. Thanks again for handling the case.
+
+
+
+The case has ended. Would you like to start your investigation over from
+scratch? (Y/N) >

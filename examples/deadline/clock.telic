@@ -1,0 +1,97 @@
+\ Deadline: the clock. The game begins at 8:00 am, minute 480 of the day,
+\ and every command that is understood takes a minute. Timed events are
+\ handlers queued to run a number of minutes from now; an event queued for
+\ -1 minutes runs every minute. Each minute the enabled events count down,
+\ the newest queued first, and run when their count reaches zero. At 8:00 pm
+\ the investigation is over.
+
+variable present-time
+480 to present-time
+variable clock-waiting
+false to clock-waiting
+variable interrupts
+[ ] to interrupts
+
+\ quit the game, defined with the game loop
+defer quit-game
+
+\ told when a minute's timed events did something in front of the player; nothing by default, the soundtrack listens
+defer event-witnessed
+( ) embodies event-witnessed
+
+\ the entry for a timed event, made disabled at the front of the queue the first time
+: interrupt ( routine -- entry )
+	| routine ^interrupts |
+	interrupts ( entry | entry@routine routine = ) find-first to entry
+	entry null? not if entry exit then
+	{ :routine routine :enabled false :tick 0 } to entry
+	[ entry ] interrupts concat to interrupts
+	entry ;
+
+\ set a timed event to run a number of minutes from now
+: queue ( routine minutes -- entry )
+	| routine minutes |
+	routine interrupt to entry
+	minutes entry!tick
+	entry ;
+
+: enable ( entry -- )
+	| entry |
+	true entry!enabled ;
+
+: disable ( entry -- )
+	| entry |
+	false entry!enabled ;
+
+\ whether a timed event is waiting to run
+: enabled? ( routine -- flag ) interrupt@enabled ;
+
+\ a minute passes: the day ends after 7:59 pm, and each enabled event counts down and runs at zero; true when one of them answered true
+: clocker ( -- flag )
+	| ^clock-waiting ^present-time |
+	clock-waiting if
+		false to clock-waiting
+		false exit
+	then
+	++ present-time
+	present-time 1199 > if
+		"Chief Inspector Klutz walks up to you, seemingly from out of nowhere.
+		""I'm sorry, Inspector, but your time is up here. I'm sorry that you
+		didn't have any more time to investigate the case. Maybe next time...""
+		He escorts you to a waiting police car, in which  you go off into the
+		sunset." tell-line
+		quit-game
+	then
+	false to any-answered
+	interrupts to entries
+	0 entries size 1 do k
+		entries k @i to entry
+		entry@enabled if
+			entry@tick to tick
+			tick 0 = not if
+				tick 1- entry!tick
+				tick 1 <= if
+					entry@routine null call-handler if true to any-answered then
+				then
+			then
+		then
+	loop
+	any-answered if event-witnessed then
+	any-answered ;
+
+\ a time of day: 8:05 am, 12:30 pm
+: time-text ( minutes -- text )
+	| minutes |
+	minutes 60 / truncate to hours
+	false to afternoon
+	hours 12 > if
+		hours 12 - to hours
+		true to afternoon
+	else hours 12 = if
+		true to afternoon
+	then then
+	minutes 60 mod to minute
+	minute 10 < if "0" else "" then minute "{1}{0}" format to minute-text
+	afternoon if "pm" else "am" then minute-text hours "{0}:{1} {2}" format ;
+
+: tell-time ( minutes -- ) time-text tell ;

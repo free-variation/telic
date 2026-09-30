@@ -1,0 +1,325 @@
+\ Deadline: the rooms as pictures. Each room's picture word places the camera
+\ where the player stands on arriving and draws the room back to front,
+\ reading the few states its description reports (doors and windows open or
+\ shut, the ladder, the hidden closet's shelves) so the picture shows them.
+
+\ === the people in a picture ===
+
+\ where people stand in the room last drawn: [ spot heading ] pairs, the likeliest first; a picture word sets them
+variable standing-spots
+[ ] to standing-spots
+
+: spots! ( spots -- )
+	| spots ^standing-spots |
+	spots to standing-spots ;
+
+\ the people with figures who are in a room, in the order of the character table
+: people-in ( room -- people )
+	| room |
+	character-table ( person | person room inside? person-figures person has? and ) filter ;
+
+\ the people present on the room's spots, the farthest from the camera drawn first so nearer ones hide them
+: draw-people ( room -- )
+	| room |
+	room people-in to present
+	present size standing-spots size min2 to n-placed
+	[ view@x view@y view@z ] to eye
+	[ 0 n-placed 1 do k [ present k @i standing-spots k @i ] loop ]
+	( placement | placement second first eye vector- dup dot negate ) sort-by
+	( placement |
+		placement second spread to heading to spot
+		spot heading person-figures placement first @ execute
+	) each ;
+
+\ === pieces shared by several rooms ===
+
+\ the floor, ceiling and corners of a rectangular room
+: room-shell ( west east south north height -- )
+	| west east south north height |
+	[ [ west 0 south ] [ east 0 south ] [ east 0 north ] [ west 0 north ] ] outline
+	[ [ west height south ] [ east height south ] [ east height north ] [ west height north ] ] outline
+	west 0 north west height north edge
+	east 0 north east height north edge
+	west 0 south west height south edge
+	east 0 south east height south edge ;
+
+\ a window's frame in a wall facing south, with panes columns by rows
+: north-window ( west east bottom top z columns rows -- )
+	| west east bottom top z columns rows |
+	[ [ west bottom z ] [ east bottom z ] [ east top z ] [ west top z ] ] outline
+	1 columns 1 do k
+		east west - k * columns / west + to x
+		x bottom z x top z edge
+	loop
+	1 rows 1 do k
+		top bottom - k * rows / bottom + to y
+		west y z east y z edge
+	loop ;
+
+\ the light a pane of a north window lets fall on the floor, falling south and a little east, with faint shafts from the pane down to it
+: pane-light ( west east bottom top z -- )
+	| west east bottom top z |
+	[ [ west bottom z ] [ east bottom z ] [ east top z ] [ west top z ] ] to pane
+	pane ( corner | corner spread to cz to y to x [ x y 0.3 * + 0 cz y 1.1 * - ] ) map to patch
+	patch 0.08 fill
+	0.16 pen!
+	patch 0 @i patch 1 @i patch 2 @i patch 3 @i 5 hatch
+	0.035 pen!
+	0 4 1 do k pane k @i patch k @i segment loop ;
+
+\ how much larger than life small things are drawn, so they read at the picture's size
+1.6 constant detail-scale
+
+\ a saucer lying upside down on the floor: its rim, the raised foot ring, and the dome between
+: overturned-saucer ( x z -- )
+	| x z |
+	x 0.004 z 0.085 detail-scale * 16 ring to rim
+	x 0.022 detail-scale * z 0.04 detail-scale * 16 ring to foot
+	rim outline
+	foot outline
+	0 16 4 do k rim k @i foot k @i segment loop ;
+
+\ a teacup lying on its side on the floor, its mouth toward a heading in radians, with its handle up
+: fallen-cup ( x z heading -- )
+	| x z heading |
+	[ heading sin 0 heading cos ] to toward-mouth
+	[ heading cos 0 heading sin negate ] to across
+	[ 0 1 0 ] to upward
+	0.045 detail-scale * to radius
+	0.075 detail-scale * to length
+	[ x radius z ] to mouth-centre
+	[ x heading sin length * - radius 0.9 * z heading cos length * - ] to base-centre
+	mouth-centre across upward radius 14 circle-points to mouth
+	base-centre across upward radius 0.66 * 14 circle-points to base
+	0 14 1 do k
+		k 1 + 14 mod to next
+		[ mouth k @i mouth next @i base next @i base k @i ] 0 fill
+	loop
+	base outline
+	[ 0 3 7 10 ] ( k | mouth k @i base k @i segment ) each
+	mouth 0 fill
+	mouth outline
+	mouth-centre base-centre 0.5 between to middle
+	[ 0 7 1 do k
+		k 6 / PI * to angle
+		angle cos length 0.35 * * to along
+		angle sin 0.53 * 0.92 + radius * to lift
+		[ 0 3 1 do coordinate
+			middle coordinate @i toward-mouth coordinate @i along * + upward coordinate @i lift * +
+		loop ]
+	loop ] path ;
+
+\ a shelf unit against the east wall, its front at x, between two norths, with books
+: east-shelves ( x south north height seed -- )
+	| x south north height seed |
+	0.45 pen!
+	x 0 south x 0.4 + height north solid-box
+	0 6 1 do shelf
+		shelf 0.45 * 0.12 + to board
+		0.4 pen!
+		x board south x board north edge
+		south 0.03 + to spine
+		begin spine north 0.05 - < while
+			seed shelf 131 * + spine 977 * + hash-fraction to chance
+			chance 0.05 * 0.025 + to thickness
+			chance 0.12 * 0.26 + board + to book-top
+			chance 0.2 * 0.12 + pen!
+			x board spine x book-top spine edge
+			x book-top spine x book-top spine thickness + edge
+			spine thickness + to spine
+			chance 0.9 > if spine 0.08 + to spine then
+		repeat
+	loop ;
+
+\ === the Library ===
+
+: library-picture ( -- )
+	-0.8 1.65 2.3 0.14 -0.1 290 new-picture
+	[ [ [ 0.9 0 5.3 ] PI 0.25 + ] [ [ -1.5 0 5.0 ] PI 0.35 - ] [ [ 0.1 0 4.9 ] PI 0.1 + ] ] spots!
+	0.09 pen!
+	[ -4 0 0 ] [ 4 0 0 ] [ 4 0 8 ] [ -4 0 8 ] 16 16 grid
+	[ -1.7 -0.95 -0.9 -0.15 0.15 0.9 0.95 1.7 ] to leaf-edges
+	0 4 1 do leaf
+		leaf-edges leaf 2 * @i leaf-edges leaf 2 * 1 + @i to pane-east to pane-west
+		0 4 1 do row
+			pane-west pane-east row 0.62 * 0.3 + row 0.62 * 0.86 + 8 pane-light
+		loop
+	loop
+	[ 0 1.6 8 ] 2.2 0.18 glow
+	0.06 pen!
+	[ -1.7 2.8 8 ] [ -0.15 2.8 8 ] [ -0.15 0.2 8 ] [ -1.7 0.2 8 ] 9 hatch
+	[ 0.15 2.8 8 ] [ 1.7 2.8 8 ] [ 1.7 0.2 8 ] [ 0.15 0.2 8 ] 9 hatch
+	0.5 pen!
+	-4 4 0 8 3.2 room-shell
+	-4 2.9 0 -4 2.9 8 edge
+	-4 2.9 8 4 2.9 8 edge
+	4 2.9 0 4 2.9 8 edge
+	0.8 pen!
+	-1.7 -0.15 0.2 2.8 8 2 4 north-window
+	:library-balcony-door :open flag? if
+		0.3 pen!
+		[ [ 0.15 0.2 8 ] [ 1.7 0.2 8 ] [ 1.7 2.8 8 ] [ 0.15 2.8 8 ] ] outline
+		0.8 pen!
+		[ [ 1.7 0.2 8 ] [ 0.6 0.2 6.9 ] [ 0.6 2.8 6.9 ] [ 1.7 2.8 8 ] ] outline
+		1.15 0.2 7.45 1.15 2.8 7.45 edge
+	else
+		0.15 1.7 0.2 2.8 8 2 4 north-window
+	then
+	0.55 pen!
+	-0.3 0.45 7.35 0.3 0.52 7.85 solid-box
+	-0.3 0.52 7.75 0.3 1.3 7.85 solid-box
+	0.65 pen!
+	-1.3 0 6.4 1.3 0.74 7.2 solid-box
+	-1.42 0.74 6.3 1.42 0.8 7.3 solid-box
+	0.45 pen!
+	[ [ -1.22 0.1 6.4 ] [ -0.55 0.1 6.4 ] [ -0.55 0.68 6.4 ] [ -1.22 0.68 6.4 ] ] outline
+	[ [ 0.55 0.1 6.4 ] [ 1.22 0.1 6.4 ] [ 1.22 0.68 6.4 ] [ 0.55 0.68 6.4 ] ] outline
+	-1.22 0.3 6.4 -0.55 0.3 6.4 edge
+	-1.22 0.5 6.4 -0.55 0.5 6.4 edge
+	0.55 0.3 6.4 1.22 0.3 6.4 edge
+	0.55 0.5 6.4 1.22 0.5 6.4 edge
+	0.7 pen!
+	0.62 0.8 6.55 0.9 0.88 6.8 solid-box
+	[ [ 0.6 0.93 6.6 ] [ 0.66 0.96 6.6 ] [ 0.86 0.96 6.75 ] [ 0.92 0.93 6.75 ] ] path
+	0.35 pen!
+	[ [ -0.5 0.81 6.5 ] [ -0.1 0.81 6.5 ] [ -0.1 0.81 6.8 ] [ -0.5 0.81 6.8 ] ] outline
+	-0.95 0.8 6.55 -0.7 0.95 6.62 solid-box
+	0.4 pen!
+	-1.9 0.4 6.6 0.18 12 ring outline
+	-1.9 0 6.6 0.14 12 ring outline
+	0 12 1 do k
+		k 12 / TAU * to angle
+		-1.9 angle cos 0.14 * + 0 6.6 angle sin 0.14 * +
+		-1.9 angle cos 0.18 * + 0.4 6.6 angle sin 0.18 * + edge
+	loop
+	0.5 pen!
+	1.65 0 6.1 2.15 0.68 6.1 edge
+	2.15 0 6.1 1.65 0.68 6.1 edge
+	1.6 0.68 5.95 2.2 0.7 6.35 solid-box
+	1.9 0.76 6.15 0.09 10 ring outline
+	0.35 pen!
+	0.6 pen!
+	-0.6 5.5 overturned-saucer
+	0.25 5.25 2.4 fallen-cup
+	0.35 pen!
+	-2.4 0.005 3.1 -2.25 0.005 3.25 edge
+	:hidden-door-l :open flag? if
+		0.05 pen!
+		[ [ 3.99 0 5.4 ] [ 3.99 2.6 5.4 ] [ 3.99 2.6 7.4 ] [ 3.99 0 7.4 ] ] 0 fill
+		0.25 pen!
+		[ [ 3.99 0 5.4 ] [ 3.99 2.6 5.4 ] [ 3.99 2.6 7.4 ] [ 3.99 0 7.4 ] ] outline
+		3.6 3.2 5.2 2.6 11 east-shelves
+		3.6 1.0 3.0 2.6 7 east-shelves
+		0.45 pen!
+		[ [ 3.6 0 7.4 ] [ 1.7 0 6.9 ] [ 1.7 2.6 6.9 ] [ 3.6 2.6 7.4 ] ] outline
+	else
+		3.6 5.4 7.4 2.6 3 east-shelves
+		3.6 3.2 5.2 2.6 11 east-shelves
+		3.6 1.0 3.0 2.6 7 east-shelves
+	then
+	0.55 pen!
+	-2.6 0 2.4 -1.6 0.08 4.5 solid-box
+	0.3 pen!
+	0 2 1 do across
+		0 2 1 do along
+			across 0.5 * -2.5 + to panel-west
+			along 1.05 * 2.52 + to panel-south
+			[ [ panel-west 0.08 panel-south ] [ panel-west 0.38 + 0.08 panel-south ]
+			  [ panel-west 0.38 + 0.08 panel-south 0.85 + ] [ panel-west 0.08 panel-south 0.85 + ] ] outline
+		loop
+	loop ;
+
+\ === the Foyer ===
+
+\ a floor of alternating pale and dark squares, its joints drawn
+: marble-floor ( west east south north square -- )
+	| west east south north square |
+	east west - square / round to n-across
+	north south - square / round to n-along
+	0 n-across 1 do across
+		0 n-along 1 do along
+			across along + 2 mod 0 = if
+				across square * west + to square-west
+				along square * south + to square-south
+				[ [ square-west 0 square-south ] [ square-west square + 0 square-south ]
+				  [ square-west square + 0 square-south square + ] [ square-west 0 square-south square + ] ] 0.05 fill
+			then
+		loop
+	loop
+	0.14 pen!
+	0 n-across 1 + 1 do across
+		across square * west + to x
+		x 0 south x 0 north edge
+	loop
+	0 n-along 1 + 1 do along
+		along square * south + to z
+		west 0 z east 0 z edge
+	loop ;
+
+\ a crystal chandelier hanging from the ceiling: chain, arms, candles and hanging drops
+: chandelier ( x y z ceiling -- )
+	| x y z ceiling |
+	[ x y z ] 0.8 0.4 glow
+	0.5 pen!
+	x ceiling z x y 0.25 + z edge
+	x y 0.25 + z 0.06 8 ring outline
+	x y 0.05 - z 0.08 8 ring outline
+	x y z 0.5 8 ring to arm-ends
+	0.75 pen!
+	arm-ends outline
+	arm-ends ( end | [ x y 0.05 - z ] end segment ) each
+	arm-ends ( end |
+		end spread to end-z to end-y to end-x
+		0.9 pen!
+		end-x end-y end-z end-x end-y 0.12 + end-z edge
+		[ end-x end-y 0.15 + end-z ] 0.08 0.35 glow
+		0.45 pen!
+		end-x end-y end-z end-x end-y 0.16 - end-z edge
+		0.04 pen!
+		end-x end-y end-z end-x 2.2 * x - 0 end-z 2.2 * z - edge
+	) each ;
+
+: foyer-picture ( -- )
+	0.2 1.6 0.4 -0.05 -0.02 290 new-picture
+	[ [ [ 0.9 0 4.4 ] PI 0.35 - ] [ [ -0.7 0 5.3 ] PI 0.2 + ] [ [ -1.3 0 6.1 ] PI 0.4 + ] ] spots!
+	[ 0 2.55 3.6 ] lamp!
+	-2.8 2.8 0 7 0.7 marble-floor
+	[ 0 0 3.6 ] 1.4 0.1 glow
+	0.4 pen!
+	-2.8 2.8 0 7 3.6 room-shell
+	0.25 pen!
+	-2.8 3.4 0 -2.8 3.4 7 edge
+	2.8 3.4 0 2.8 3.4 7 edge
+	-2.8 3.4 7 2.8 3.4 7 edge
+	-2.8 1.0 0 -2.8 1.0 7 edge
+	2.8 1.0 0 2.8 1.0 7 edge
+	[ [ -1 0 7 ] [ 1 0 7 ] [ 1 2.7 7 ] [ -1 2.7 7 ] ] 0 fill
+	0.12 pen!
+	-1 0 7 -1 0 11 edge
+	1 0 7 1 0 11 edge
+	-1 2.7 7 -1 2.7 11 edge
+	1 2.7 7 1 2.7 11 edge
+	[ [ -1 0 11 ] [ 1 0 11 ] [ 1 2.7 11 ] [ -1 2.7 11 ] ] outline
+	0.6 pen!
+	[ [ -1 0 7 ] [ -1 2.7 7 ] [ 1 2.7 7 ] [ 1 0 7 ] ] path
+	0 2.55 3.6 3.6 chandelier
+	0.4 pen!
+	[ [ -2.55 0 3.6 ] [ -1.75 0 3.6 ] [ -2.55 0 5.6 ] [ -1.75 0 5.6 ] ]
+	( corner | corner spread to leg-z drop to leg-x leg-x 0 leg-z leg-x 0.07 + 0.72 leg-z 0.07 + solid-box ) each
+	-2.6 0.62 3.55 -1.65 0.74 5.7 solid-box
+	0.8 pen!
+	-2.7 0.74 3.45 -1.55 0.82 5.8 solid-box ;
+
+\ the picture word of each room
+{ :library ' library-picture
+  :foyer ' foyer-picture
+} to room-pictures
+
+\ draw a room's picture as things stand: the room, then the people in it; a room without a picture is left black
+: draw-room ( room -- )
+	| room |
+	[ ] spots!
+	room-pictures room null @or to picture-word
+	picture-word null? if 0 1.6 0 0 0 290 new-picture exit then
+	picture-word execute
+	room draw-people ;

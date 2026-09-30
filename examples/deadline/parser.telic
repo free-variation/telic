@@ -1,0 +1,1066 @@
+\ Deadline: the parser. A typed line becomes tokens; the tokens become a
+\ sentence: a verb, up to two prepositions and up to two noun clauses, each
+\ clause a run of tokens. The sentence is matched against the verb's
+\ patterns; a missing noun is supplied when exactly one thing fits the
+\ pattern, or the question "What do you want to ...?" is asked and the next
+\ line may complete the sentence. The clauses are then resolved into the
+\ things they name among those the player can reach, asking "Which ... do
+\ you mean" when a clause names several. The results are the action and the
+\ lists of direct and indirect objects.
+
+\ === the state of the parser ===
+
+\ the tokens of the typed lines: a new line overwrites the tokens from the front and leaves older ones after its own, as the original's word buffer did; the command being read is the tokens from command-start on, n-command-words of them
+variable tokens
+[ ] to tokens
+variable command-start
+0 to command-start
+variable n-command-words
+0 to n-command-words
+variable sentence
+variable orphan-sentence
+null to orphan-sentence
+variable orphaned
+false to orphaned
+variable merged
+false to merged
+variable quoting
+false to quoting
+variable continuation
+null to continuation
+variable adverb
+null to adverb
+variable parsed-number
+0 to parsed-number
+variable n-remaining
+variable n-words
+variable word-index
+variable verb-seen
+null to verb-seen
+variable last-word
+null to last-word
+variable next-word
+null to next-word
+variable n-noun-clauses
+variable walk-direction
+null to walk-direction
+variable get-flags
+null to get-flags
+variable search-bits
+variable noun
+null to noun
+variable adjective
+null to adjective
+variable adjective-word
+null to adjective-word
+variable one-object
+null to one-object
+variable gwim-flag
+null to gwim-flag
+variable pattern
+null to pattern
+variable current-clause
+null to current-clause
+variable target-list
+null to target-list
+variable ambiguous-clause
+null to ambiguous-clause
+variable ambiguous-adjective
+null to ambiguous-adjective
+variable ambiguous-noun
+null to ambiguous-noun
+variable blank-lines
+1 to blank-lines
+variable verb-spelling
+{ :key null :text "" :typed true } to verb-spelling
+{ :direct [ ] :indirect [ ] :excluded [ ] :merge [ ] } to object-lists
+
+\ the room the player is in, who the command is for, the thing and person last referred to, and the command being performed
+variable here
+null to here
+variable winner
+null to winner
+variable lit
+true to lit
+variable it-object
+null to it-object
+variable it-location
+null to it-location
+variable him-her
+null to him-her
+variable him-her-location
+null to him-her-location
+variable action
+null to action
+variable object
+null to object
+variable indirect
+null to indirect
+
+\ an empty sentence
+: empty-sentence ( -- sentence )
+	{ :verb null :verb-word false
+	  :first-preposition null :first-preposition-word null
+	  :second-preposition null :second-preposition-word null
+	  :first-clause null :second-clause null
+	} ;
+
+empty-sentence to sentence
+
+\ the list of things a noun clause resolved to, by :direct, :indirect, :excluded or :merge
+: object-list ( key -- names ) object-lists swap @ ;
+
+: object-list! ( names key -- ) object-lists -rot ! drop ;
+
+\ === tokens ===
+
+\ a typed line as tokens: words split at spaces, with . , and " tokens of their own
+: tokenize ( line -- tokens )
+	lower-case "([.,""])" " & " replace " +" split ( "" = not ) filter
+	( text | { :text text :key text dictionary-key } ) map ;
+
+\ the token at an index, or null outside the tokens
+: token-at ( words index -- token )
+	| words index |
+	index 0 < index words size >= or if null exit then
+	words index @i ;
+
+\ a typed line into the tokens, over the front of the older ones
+: read-into-tokens ( line -- )
+	| line ^command-start ^n-command-words |
+	line tokenize to typed-tokens
+	0 typed-tokens size 1 do k
+		k tokens size < if
+			tokens typed-tokens k @i k !i drop
+		else
+			tokens typed-tokens k @i add-last! drop
+		then
+	loop
+	0 to command-start
+	typed-tokens size to n-command-words ;
+
+\ the vocabulary entry of a key, or null
+: key-entry ( key -- entry ) vocabulary swap null @or ;
+
+\ the vocabulary entry of a token, or null
+: token-entry ( token -- entry )
+	| token |
+	token null? if null exit then
+	token@key key-entry ;
+
+\ whether a token is a given word
+: word? ( token word -- flag )
+	| token word |
+	token null? if false exit then
+	token@key word dictionary-key = ;
+
+\ whether a token is one of several words
+: one-of? ( token words -- flag )
+	| token words |
+	words ( word | token word word? ) any? ;
+
+\ whether a token has a part of speech
+: token-part? ( token part -- flag ) swap token-entry swap part? ;
+
+\ the direction, verb or preposition a token stands for, or null
+: token-value ( token part -- value )
+	| token part |
+	token part token-part? not if null exit then
+	token token-entry part @ ;
+
+\ make a token the given word
+: become-word ( token word -- )
+	| token word |
+	word dictionary-key token!key ;
+
+\ whether a key is a given word's
+: key-is? ( key word -- flag ) dictionary-key = ;
+
+\ whether search bits hold every bit of a mask
+: bits? ( bits mask -- flag )
+	| bits mask |
+	bits mask bit-and mask = ;
+
+\ === telling the player about words ===
+
+\ a word as the player typed it
+: tell-typed ( token -- ) :text @ tell ;
+
+\ a key's word as the dictionary spells it
+: spelling-of ( key -- text )
+	| key |
+	key key-entry to entry
+	entry null? not if entry@spelling exit then
+	key render 1 over size substring ;
+
+: tell-spelling ( key -- ) spelling-of tell ;
+
+\ "The word '...' isn't in your vocabulary."
+: unknown-word ( token -- )
+	| token ^quoting ^orphaned |
+	"The word '" tell token tell-typed "' isn't in your vocabulary." tell-line
+	false to quoting
+	false to orphaned ;
+
+\ "The word '...' can't be used in that sense."
+: cannot-use ( token -- )
+	| token ^quoting ^orphaned |
+	"The word '" tell token tell-typed "' can't be used in that sense." tell-line
+	false to quoting
+	false to orphaned ;
+
+\ a typed name with its first letter capitalized
+: tell-capitalized ( token -- )
+	| token |
+	token@text to text
+	text 0 1 substring upper-case text 1 text size substring + tell ;
+
+variable proper-noun
+variable first-word
+variable no-space
+
+\ one word of a clause after a space, as buffer-print shows it
+: buffer-word ( word the? -- )
+	| word the? ^proper-noun ^first-word ^no-space |
+	no-space if false to no-space else " " tell then
+	word "." word? if true to no-space exit then
+	word "mrs" word? if "Mrs." tell true to proper-noun exit then
+	word "ms" word? if "Ms." tell true to proper-noun exit then
+	word "mr" word? if "Mr." tell true to proper-noun exit then
+	word [ "baxter" "george" "robner" "mcnabb" "rourke" "dunbar" "steven" "steve" "duffy" ] one-of? if
+		word tell-capitalized
+		true to proper-noun
+		exit
+	then
+	first-word proper-noun not and the? and if "the " tell then
+	false to first-word
+	orphaned if word@key tell-spelling exit then
+	word "it" word? it-location here = and if it-object name-of tell exit then
+	word tell-typed ;
+
+\ the words of a clause, each after a space, "the" before the first when asked for
+: buffer-print ( clause the? -- )
+	| clause the? ^proper-noun ^first-word ^no-space |
+	clause null? if exit then
+	clause :wanted = if exit then
+	false to no-space
+	true to first-word
+	false to proper-noun
+	clause@start clause@end 1 do k
+		clause@words k @i the? buffer-word
+	loop ;
+
+\ the sentence's first or second noun clause
+: clause-print ( clause-key the? -- )
+	| clause-key the? |
+	sentence clause-key @ the? buffer-print ;
+
+\ a preposition after a space, as the dictionary spells it
+: preposition-print ( preposition -- )
+	| preposition |
+	preposition null? if exit then
+	" " tell
+	preposition "against" key-is? if "against" tell exit then
+	preposition tell-spelling ;
+
+\ the direct object as the player named it, after a space
+: tell-direct-phrase ( -- )
+	sentence@first-clause to phrase
+	merged if " " tell object name-of tell exit then
+	phrase null? phrase :wanted = or if exit then
+	phrase@words phrase@start token-at "it" word? if " " tell object name-of tell exit then
+	phrase false buffer-print ;
+
+\ the indirect object as the player named it, after a space; as in the original, a pronoun or a completed sentence names the direct object
+: tell-indirect-phrase ( -- )
+	sentence@second-clause to phrase
+	merged if " " tell object name-of tell exit then
+	phrase null? phrase :wanted = or if exit then
+	phrase@words phrase@start token-at "it" word? if " " tell object name-of tell exit then
+	phrase false buffer-print ;
+
+\ === numbers and times ===
+
+\ a token read as a number, or as a time of day in minutes, made the word intnum; null when it is neither
+: number-token ( token -- word )
+	| token ^parsed-number |
+	0 to total
+	null to hours
+	token@text string>chars to characters
+	0 characters size 1 do k
+		characters k @i to character
+		character ":" = if
+			total to hours
+			0 to total
+		else total 10000 > if
+			null exit
+		else character "^[0-9]$" has? if
+			total 10 * character string>number + to total
+		else
+			null exit
+		then then then
+	loop
+	token "intnum" become-word
+	total 1000 > if null exit then
+	hours null? not if
+		hours 8 < if
+			hours 12 + to hours
+		else hours 23 > if
+			null exit
+		then then
+		total hours 60 * + to total
+	then
+	total to parsed-number
+	token ;
+
+\ a token that is a known word or a number, or null
+: known-token ( token -- token )
+	| token |
+	token null? if null exit then
+	token token-entry null? not if token exit then
+	token number-token ;
+
+\ === orphans: a sentence kept to be completed by the next line ===
+
+\ a token that keeps a word but not what was typed, as the original's copies of clauses kept only the dictionary word
+: blank-token ( token -- token' )
+	| token |
+	{ :text "" :key token@key } ;
+
+\ a copy of a clause as a new run of tokens, with a token put before every token of the ambiguous noun when one is given
+: clause-copy ( clause insert -- clause' )
+	| source-clause insert |
+	[ ] to copied
+	source-clause@start source-clause@end 1 do k
+		source-clause@words k @i to word
+		insert null? not word@key ambiguous-noun = and if copied insert blank-token add-last! drop then
+		copied word blank-token add-last! drop
+	loop
+	{ :words copied :start 0 :end copied size } ;
+
+\ keep the sentence to complete from the next line: its clauses copied, the missing noun's clause marked wanted
+: orphan ( first-pattern second-pattern -- )
+	| first-pattern second-pattern ^orphan-sentence |
+	sentence { } merge to orphan-sentence
+	n-noun-clauses 2 = if orphan-sentence@second-clause null clause-copy orphan-sentence!second-clause then
+	n-noun-clauses 1 >= if orphan-sentence@first-clause null clause-copy orphan-sentence!first-clause then
+	first-pattern null? not if
+		first-pattern@first-preposition orphan-sentence!first-preposition
+		:wanted orphan-sentence!first-clause
+		exit
+	then
+	second-pattern null? not if
+		second-pattern@second-preposition orphan-sentence!second-preposition
+		:wanted orphan-sentence!second-clause
+	then ;
+
+\ === finding what a clause names ===
+
+\ whether a thing fits the noun, the adjective and the flag being looked for
+: this-it? ( name -- flag )
+	| name |
+	name :invisible flag? if false exit then
+	name thing to frame
+	noun null? not if
+		frame :synonym-keys [ ] @or noun position-of 0 < if false exit then
+	then
+	adjective null? not if
+		frame :adjective-keys [ ] @or adjective position-of 0 < if false exit then
+	then
+	gwim-flag null? not if
+		name gwim-flag flag? not if false exit then
+	then
+	true ;
+
+\ add a thing to the list being filled
+: found ( name -- )
+	| name |
+	target-list object-list name add-last! drop ;
+
+\ look through what a place holds: :all looks inside everything open, :top only at the top level and into surfaces and searchable things, :bottom only inside
+: search-list ( place level -- )
+	| place level |
+	place contents-of ( item |
+		level :bottom = not item thing :synonyms has? and if
+			item this-it? if item found then
+		then
+		level :top = not item :searchable flag? or item :surface flag? or
+		item count-contents 0 > and
+		item :open flag? item :transparent flag? or and if
+			item
+			item :surface flag? item :searchable flag? or if :all else :top then
+			search-list
+		then
+	) each ;
+
+\ look through a place as the search bits allow: both bits look everywhere, the first the top level, the second inside
+: search-place ( place first-bit second-bit -- )
+	| place first-bit second-bit |
+	search-bits first-bit second-bit + bits? if place :all search-list exit then
+	search-bits first-bit bits? if place :top search-list exit then
+	search-bits second-bit bits? if place :bottom search-list then ;
+
+\ look among the room's own globals and imagined things, then among the things present everywhere
+: global-check ( -- )
+	| ^search-bits |
+	target-list object-list size to n-before
+	search-bits to saved-bits
+	here :globals property to local-things
+	local-things null? not if
+		local-things ( item | item this-it? if item found then ) each
+	then
+	here :pseudo property to imagined
+	imagined null? not if
+		imagined ( pair | pair first dictionary-key noun = ) find-first to hit
+		hit null? not if
+			hit second :pseudo-object :action property!
+			noun spelling-of :pseudo-object :name property!
+			:pseudo-object found
+		then
+	then
+	target-list object-list size n-before = if
+		-1 to search-bits
+		:global-objects 1 1 search-place
+		saved-bits to search-bits
+		target-list object-list size 0 = if
+			[< :look-inside :search :examine :find :through >] action has? if
+				:rooms 1 1 search-place
+			then
+		then
+	then ;
+
+\ "Which ... do you mean, the ..., or the ...?"
+: which-print ( candidates list-key -- )
+	| candidates list-key |
+	"Which" tell
+	orphaned merged or if
+		" " tell noun tell-spelling
+	else list-key :direct = if
+		:first-clause false clause-print
+	else
+		:second-clause false clause-print
+	then then
+	" do you mean, " tell
+	candidates size to n-candidates
+	0 n-candidates 1 do k
+		candidates k @i to candidate
+		candidate :person flag? not if "the " tell then
+		candidate name-of tell
+		n-candidates k - to n-left
+		n-left 2 = if
+			n-candidates 2 = not if "," tell then
+			" or " tell
+		else n-left 2 > if
+			", " tell
+		then then
+	loop
+	"?" tell-line ;
+
+\ find the things the noun and adjective name, first everywhere the player can reach, then among what the syntax allows, then among the globals; answers false after telling the player why
+: get-object ( list-key verbose -- flag )
+	| list-key verbose ^noun ^adjective ^search-bits ^target-list ^ambiguous-clause ^ambiguous-adjective ^ambiguous-noun ^orphaned |
+	search-bits to saved-bits
+	list-key object-list size to n-before
+	get-flags :inhibit = if true exit then
+	noun null? adjective null? not and if
+		adjective-word key-entry :object part? if
+			adjective-word to noun
+			null to adjective
+		then
+	then
+	noun null? adjective null? and get-flags :all = not and gwim-flag null? and if
+		verbose if "Your last sentence seemed to be missing a noun." tell-line then
+		false exit
+	then
+	get-flags :all = not search-bits 0 = or if -1 to search-bits then
+	list-key to target-list
+	false to checking-globals
+	[ ] to first-pass
+	begin
+		checking-globals if
+			global-check
+		else
+			lit if here 16 32 search-place then
+			:player 128 64 search-place
+		then
+		list-key object-list to matches
+		matches size n-before - to n-found
+		get-flags :all = if
+			null to adjective
+			null to noun
+			saved-bits to search-bits
+			true exit
+		then
+		get-flags :one = n-found 0 = not and if
+			n-found 1 = not if
+				matches n-found random-below @i to chosen
+				matches chosen 0 !i drop
+				"(How about the " tell chosen name-of tell "?)" tell-line
+			then
+			[ matches first ] list-key object-list!
+			null to adjective
+			null to noun
+			saved-bits to search-bits
+			true exit
+		then
+		n-found 1 > n-found 0 = search-bits -1 = not and or if
+			search-bits -1 = if
+				saved-bits to search-bits
+				matches n-before skip to first-pass
+				matches n-before take list-key object-list!
+			else
+				n-found 0 = if first-pass else matches n-before skip then to candidates
+				verbose noun null? not and if
+					candidates list-key which-print
+					list-key :direct = if :first-clause else :second-clause then to ambiguous-clause
+					adjective to ambiguous-adjective
+					noun to ambiguous-noun
+					null null orphan
+					true to orphaned
+				else verbose if
+					"You must supply a verb!" tell-line
+				then then
+				null to noun
+				null to adjective
+				false exit
+			then
+		else n-found 0 = checking-globals and if
+			verbose if
+				lit if
+					"You can't see any" tell
+					orphaned if
+						adjective null? not if " " tell adjective-word tell-spelling then
+						noun null? not if " " tell noun tell-spelling then
+					else
+						current-clause false buffer-print
+					then
+					" here." tell-line
+				else
+					"It's too dark to see." tell-line
+				then
+			then
+			null to noun
+			null to adjective
+			false exit
+		else n-found 0 = if
+			true to checking-globals
+		else
+			null to adjective
+			null to noun
+			saved-bits to search-bits
+			true exit
+		then then then
+	again ;
+
+\ the one thing with a flag the syntax asks for when its noun is left out, told to the player in parentheses; null when there is not exactly one
+: gwim ( flag bits preposition -- name )
+	| flag bits preposition ^gwim-flag ^search-bits |
+	flag :any-room = if :rooms exit then
+	flag to gwim-flag
+	bits to search-bits
+	[ ] :merge object-list!
+	:merge false get-object not if null to gwim-flag null exit then
+	null to gwim-flag
+	:merge object-list to candidates
+	candidates size 1 = not if null exit then
+	candidates first to chosen
+	"(" tell
+	preposition null? not if
+		preposition tell-spelling
+		chosen :person flag? if " " tell else " the " tell then
+	then
+	chosen name-of tell
+	")" tell-line
+	chosen ;
+
+\ === reading a sentence ===
+
+\ scan a noun clause beginning at an index, after a preposition when one was given; answers the index to go on from, -1 at the end of the input, null after an error
+: clause ( index preposition preposition-token -- index )
+	| index preposition preposition-token ^n-remaining ^n-noun-clauses |
+	n-noun-clauses 1 = if :first else :second then to which
+	preposition null? not if
+		which :first = if
+			preposition sentence!first-preposition
+			preposition-token sentence!first-preposition-word
+		else
+			preposition sentence!second-preposition
+			preposition-token sentence!second-preposition-word
+		then
+		++ index
+	else
+		++ n-remaining
+	then
+	n-remaining 0 = if
+		-- n-noun-clauses
+		-1 exit
+	then
+	index to start
+	tokens index token-at [ "the" "a" "an" ] one-of? if ++ start then
+	{ :words tokens :start start :end start } to new-clause
+	which :first = if new-clause sentence!first-clause else new-clause sentence!second-clause then
+	false to and-seen
+	true to at-start
+	null to last-token
+	begin
+		-- n-remaining
+		n-remaining 0 < if
+			index new-clause!end
+			-1 exit
+		then
+		tokens index token-at known-token to word
+		word null? if tokens index token-at unknown-word null exit then
+		n-remaining 0 = if null else tokens index 1+ token-at then to following
+		word "of" word? sentence@verb "accuse" key-is? and if word "with" become-word then
+		word "." word? last-token [ "mrs" "mr" "ms" ] one-of? and if
+		else word [ "and" "," ] one-of? if
+			true to and-seen
+		else word [ "all" "one" ] one-of? if
+			following "of" word? if
+				-- n-remaining
+				++ index
+			then
+		else word [ "then" "." ] one-of? word :preposition token-part? at-start not and or if
+			++ n-remaining
+			index new-clause!end
+			index 1- exit
+		else word :object token-part? if
+			word :adjective token-part? following null? not and following :object token-part? and if
+			else and-seen not following [ "but" "except" ] one-of? not and following [ "and" "," ] one-of? not and if
+				index 1+ new-clause!end
+				index exit
+			else
+				false to and-seen
+			then then
+		else word :adjective token-part? word :buzz token-part? or if
+		else and-seen word :direction token-part? word :verb token-part? or and if
+			index 2 - to index
+			tokens index 1+ token-at "then" become-word
+			n-remaining 2 + to n-remaining
+		else word :preposition token-part? if
+		else
+			word cannot-use
+			null exit
+		then then then then then then then then
+		word to last-token
+		false to at-start
+		++ index
+	again ;
+
+\ whether a direction word is the whole command: alone, after "walk", or before the end of a command
+: whole-direction? ( -- flag )
+	| ^next-word |
+	n-words 1 = if true exit then
+	n-words 2 = verb-seen "walk" key-is? and if true exit then
+	tokens word-index 1+ token-at to next-word
+	next-word [ "then" """" ] one-of? n-words 2 > and if true exit then
+	next-word "." word? n-words 1 > and if true exit then
+	quoting n-words 2 = and next-word """" word? and if true exit then
+	n-words 2 > next-word [ "," "and" ] one-of? and ;
+
+\ read one word of the sentence: answers :next to go on, :done when the sentence ends and :failed after telling the player why
+: sentence-word ( word -- outcome )
+	| word ^word-index ^verb-seen ^quoting ^continuation ^walk-direction ^adverb ^n-noun-clauses ^verb-spelling ^n-remaining ^n-command-words |
+	word "to" word? verb-seen "tell" key-is? verb-seen "ask" key-is? or and if
+		word """" become-word
+	else word "then" word? verb-seen null? and if
+		"tell" dictionary-key sentence!verb
+		false sentence!verb-word
+		word """" become-word
+	then then
+	word "." word? last-word [ "mrs" "mr" "ms" ] one-of? and if :next exit then
+	word [ "then" "." """" ] one-of? if
+		word """" word? if quoting not to quoting then
+		n-remaining 0 = not if word-index 1+ to continuation then
+		n-remaining to n-command-words
+		:done exit
+	then
+	word :direction token-value to direction-value
+	direction-value null? not if
+		whole-direction? if
+			direction-value to walk-direction
+			next-word [ "," "and" ] one-of? if next-word "then" become-word then
+			n-words 2 > not if
+				false to quoting
+				:done exit
+			then
+			:next exit
+		then
+	then
+	word :verb token-value to verb-value
+	verb-value null? not verb-seen null? verb-seen "what" key-is? or and if
+		verb-value to verb-seen
+		verb-value sentence!verb
+		true sentence!verb-word
+		{ :key word@key :text word@text :typed true } to verb-spelling
+		:next exit
+	then
+	word :preposition token-value to preposition-value
+	preposition-value null? not
+	word [ "all" "one" "a" ] one-of? or word :adjective token-part? or word :object token-part? or if
+		n-remaining 0 > tokens word-index 1+ token-at "of" word? and verb-seen "accuse" key-is? not and
+		preposition-value null? and word [ "all" "one" "a" ] one-of? not and if
+			:next exit
+		then
+		preposition-value null? not
+		n-remaining 0 = tokens word-index 1+ token-at [ "then" "." ] one-of? or and if
+			n-noun-clauses 2 < if
+				preposition-value sentence!first-preposition
+				word sentence!first-preposition-word
+			then
+			:next exit
+		then
+		n-noun-clauses 2 = if
+			"There were more than two nouns in that sentence." tell-line
+			:failed exit
+		then
+		++ n-noun-clauses
+		word-index preposition-value word clause to resumed
+		resumed null? if :failed exit then
+		resumed 0 < if
+			false to quoting
+			:done exit
+		then
+		resumed to word-index
+		:next exit
+	then
+	word [ "carefully" "quietly" "slowly" "quickly" "briefly" ] one-of? if
+		word@key to adverb
+		:next exit
+	then
+	word :buzz token-part? if :next exit then
+	word cannot-use
+	:failed ;
+
+\ read the typed tokens into the sentence; false after telling the player why it cannot be read
+: read-sentence ( -- flag )
+	| ^n-remaining ^n-words ^word-index ^verb-seen ^last-word ^next-word ^n-noun-clauses ^get-flags ^walk-direction ^quoting |
+	n-remaining to n-words
+	command-start to word-index
+	null to verb-seen
+	null to last-word
+	null to next-word
+	0 to n-noun-clauses
+	null to get-flags
+	null to walk-direction
+	begin
+		-- n-remaining
+		n-remaining 0 < if
+			false to quoting
+			true exit
+		then
+		tokens word-index token-at known-token to word
+		word null? if tokens word-index token-at unknown-word false exit then
+		word sentence-word to outcome
+		outcome :failed = if false exit then
+		outcome :done = if true exit then
+		word to last-word
+		++ word-index
+	again ;
+
+\ fill in the kept sentence from the one just typed: its noun completes the missing one, or its adjective picks among the ambiguous things; false when it does not fit
+: aclause-win ( adjective-token -- )
+	| adjective-token ^n-noun-clauses ^ambiguous-clause |
+	orphan-sentence ambiguous-clause @ adjective-token clause-copy to completed
+	orphan-sentence completed ambiguous-clause ! drop
+	orphan-sentence@second-clause null? not if 2 to n-noun-clauses then
+	null to ambiguous-clause ;
+
+: orphan-merge ( -- flag )
+	| ^orphaned ^n-noun-clauses ^ambiguous-clause ^sentence ^merged ^orphan-sentence |
+	false to orphaned
+	sentence@verb to verb
+	verb null? not verb orphan-sentence@verb = not and if false exit then
+	n-noun-clauses 2 = if false exit then
+	orphan-sentence@first-clause :wanted = if
+		sentence@first-preposition to preposition
+		preposition orphan-sentence@first-preposition = preposition null? or not if false exit then
+		sentence@first-clause orphan-sentence!first-clause
+	else orphan-sentence@second-clause :wanted = if
+		sentence@first-preposition to preposition
+		preposition orphan-sentence@second-preposition = preposition null? or not if false exit then
+		sentence@first-clause orphan-sentence!second-clause
+		2 to n-noun-clauses
+	else ambiguous-clause null? not if
+		n-noun-clauses 1 = not if
+			null to ambiguous-clause
+			false exit
+		then
+		sentence@first-clause to typed-clause
+		null to found-adjective
+		null to word
+		typed-clause@start to k
+		begin
+			k typed-clause@end = if
+				found-adjective null? if
+					null to ambiguous-clause
+					false exit
+				then
+				found-adjective aclause-win
+				leave
+			then
+			found-adjective null? if typed-clause@words k @i to word then
+			found-adjective null? word :adjective token-part? and if
+				word to found-adjective
+			else word :object token-part? word "one" word? or if
+				word@key ambiguous-noun = word "one" word? or not if false exit then
+				found-adjective aclause-win
+				leave
+			then then
+			++ k
+		again
+	then then then
+	orphan-sentence { } merge to sentence
+	true to merged
+	true ;
+
+\ === matching the sentence to a pattern ===
+
+: syntax-found ( candidate -- )
+	| candidate ^pattern ^action |
+	candidate to pattern
+	candidate@action to action ;
+
+\ the verb's pattern the sentence fits, a missing noun supplied, or the question for it asked
+: syntax-check ( -- flag )
+	| ^orphaned |
+	sentence@verb to verb
+	verb null? if "There's no verb in that sentence!" tell-line false exit then
+	sentence-patterns verb [ ] @or to patterns
+	null to first-drive
+	null to second-drive
+	0 patterns size 1 do k
+		patterns k @i to candidate
+		candidate@n-objects to n
+		n 1 >= n-noun-clauses 0 = and
+		sentence@first-preposition null? sentence@first-preposition candidate@first-preposition = or and if
+			candidate to first-drive
+		else candidate@first-preposition sentence@first-preposition = if
+			n 2 = n-noun-clauses 1 = and if
+				candidate to second-drive
+			else candidate@second-preposition sentence@second-preposition = if
+				candidate syntax-found
+				true exit
+			then then
+		then then
+	loop
+	first-drive null? second-drive null? and if
+		"That last sentence didn't make sense." tell-line
+		false exit
+	then
+	first-drive null? not if
+		first-drive@first-find first-drive@first-search first-drive@first-preposition gwim to chosen
+		chosen null? not if
+			[ chosen ] :direct object-list!
+			first-drive syntax-found
+			true exit
+		then
+	then
+	second-drive null? not if
+		second-drive@second-find second-drive@second-search second-drive@second-preposition gwim to chosen
+		chosen null? not if
+			[ chosen ] :indirect object-list!
+			second-drive syntax-found
+			true exit
+		then
+	then
+	verb "find" key-is? verb "what" key-is? or if
+		"That question cannot be answered." tell-line
+		false exit
+	then
+	first-drive second-drive orphan
+	"What do you want to " tell
+	orphan-sentence@verb-word not if
+		"tell" tell
+	else verb-spelling@typed not if
+		verb-spelling@key tell-spelling
+	else
+		verb-spelling@text tell
+		false verb-spelling!typed
+	then then
+	second-drive null? not if :first-clause true clause-print then
+	true to orphaned
+	first-drive null? not if first-drive@first-preposition else second-drive@second-preposition then preposition-print
+	"?" tell-line
+	false ;
+
+\ === resolving the clauses ===
+
+\ the things a clause names, into a list
+: snarfem ( clause list-key -- flag )
+	| clause list-key ^get-flags ^current-clause ^noun ^adjective ^adjective-word ^one-object |
+	null to get-flags
+	clause to current-clause
+	[ ] :excluded object-list!
+	[ ] list-key object-list!
+	null to but-key
+	clause@words to words
+	clause@start to index
+	clause@end to end-index
+	words index token-at to word
+	begin
+		but-key null? if list-key else but-key then to current-key
+		index end-index = if current-key true get-object exit then
+		words index 1+ token-at to following
+		word "all" word? if
+			:all to get-flags
+			following "of" word? if ++ index then
+		else word [ "but" "except" ] one-of? if
+			current-key true get-object not if false exit then
+			:excluded to but-key
+			[ ] :excluded object-list!
+		else word [ "a" "one" ] one-of? if
+			adjective null? if
+				:one to get-flags
+				following "of" word? if ++ index then
+			else
+				one-object to noun
+				current-key true get-object not if false exit then
+				following null? if true exit then
+			then
+		else word [ "and" "," ] one-of? following [ "and" "," ] one-of? not and if
+			current-key true get-object not if false exit then
+		else word :buzz token-part? if
+		else word [ "and" "," ] one-of? if
+		else word "of" word? if
+			get-flags null? if :inhibit to get-flags then
+		else word :adjective token-part? adjective null? and if
+			word@text canonical-word dictionary-key to adjective
+			word@key to adjective-word
+		else word :object token-part? if
+			word@key to noun
+			word@key to one-object
+		then then then then then then then then then
+		index end-index = not if
+			++ index
+			following to word
+		then
+	again ;
+
+\ remove the excluded things from a list
+: but-merge ( list-key -- )
+	| list-key |
+	list-key object-list ( :excluded object-list swap position-of 0 < ) filter list-key object-list! ;
+
+: snarf-objects ( -- flag )
+	| ^search-bits |
+	sentence@first-clause to first-phrase
+	first-phrase null? not if
+		pattern@first-search to search-bits
+		first-phrase :direct snarfem not if false exit then
+		:excluded object-list size 0 > if :direct but-merge then
+	then
+	sentence@second-clause to second-phrase
+	second-phrase null? not if
+		pattern@second-search to search-bits
+		second-phrase :indirect snarfem not if false exit then
+		:excluded object-list size 0 > if
+			:indirect object-list size 1 = if :direct but-merge else :indirect but-merge then
+		then
+	then
+	true ;
+
+\ taking, silently, what a pattern must hold: 1 when taken
+defer take-quietly
+
+\ take what the pattern asks to be taken, telling "(Taken)"; false when a thing that must be held cannot be
+: itake-check ( list-key bits -- flag )
+	| list-key bits ^object |
+	list-key object-list to things
+	things size 0 > bits 8 bits? and not if true exit then
+	things size 1- -1 -1 do k
+		things k @i to candidate
+		candidate :it = if it-object to candidate then
+		candidate winner inside? not if
+			candidate to object
+			candidate :try-take flag? if
+				true to refused
+			else
+				take-quietly 1 = not to refused
+			then
+			refused bits 2 bits? and if
+				"You don't have the " tell candidate name-of tell "." tell-line
+				false exit
+			then
+			refused not if "(Taken)" tell-line then
+		then
+	loop
+	true ;
+
+: take-check ( -- flag )
+	:direct pattern@first-search itake-check not if false exit then
+	:indirect pattern@second-search itake-check ;
+
+\ several things where the pattern takes one
+: many-check ( -- flag )
+	null to loss
+	:direct object-list size 1 > pattern@first-search 4 bits? not and if
+		1 to loss
+	else :indirect object-list size 1 > pattern@second-search 4 bits? not and if
+		2 to loss
+	then then
+	loss null? if true exit then
+	"You can't use multiple " tell
+	loss 2 = if "in" tell then
+	"direct objects with '" tell
+	sentence@verb-word not if
+		"tell" tell
+	else orphaned if
+		verb-spelling@key tell-spelling
+	else
+		verb-spelling@text tell
+	then then
+	"'." tell-line
+	false ;
+
+\ === the parser ===
+
+\ the next command: read a line, or go on with the rest of the last; false when it could not be understood
+: parse ( -- flag )
+	| ^sentence ^adverb ^merged ^winner ^here ^command-start ^continuation ^quoting ^n-remaining ^action ^object |
+	empty-sentence to sentence
+	null to adverb
+	false to merged
+	[ ] :direct object-list!
+	[ ] :indirect object-list!
+	[ ] :excluded object-list!
+	quoting not winner :player = not and if
+		:player to winner
+		winner location-of :vehicle flag? not if winner location-of to here then
+	then
+	continuation null? not if
+		continuation to command-start
+		null to continuation
+		action :tell = not if end-line then
+	else
+		:player to winner
+		false to quoting
+		winner location-of :vehicle flag? not if winner location-of to here then
+		' end-line blank-lines times
+		">" tell
+		flush-output
+		read-command-line to typed
+		typed null? if :end-of-input throw then
+		typed read-into-tokens
+	then
+	n-command-words to n-remaining
+	n-remaining 0 = if "What?" tell-line false exit then
+	tokens command-start token-at [ "why" "how" "when" "is" "did" "are" ] one-of? if
+		"Detectives are expected to know how to conduct an interrogation;
+		please re-read your casebook for remedial instruction. Remember that the
+		documentary evidence enclosed contains the answers to all of the important
+		questions which cannot be asked directly." tell-line
+		false exit
+	then
+	read-sentence not if false exit then
+	walk-direction null? not if
+		:walk to action
+		walk-direction to object
+		true exit
+	then
+	orphaned if orphan-merge drop then
+	sentence@verb null? if "call" dictionary-key sentence!verb then
+	syntax-check not if false exit then
+	snarf-objects not if false exit then
+	take-check not if false exit then
+	many-check ;

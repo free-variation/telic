@@ -1,0 +1,17 @@
+1 1 
+0.5 1 
+0 1 
+1 0 
+1 0 
+1 1 
+1 1 
+error: expected a parameter key (:level :pan :cutoff :resonance :drive :chorus-send :delay-send :reverb-send); got :glide
+in instrument!
+error: expected :delay-send in [0, 1]; got 2
+in instrument!
+error: expected :chorus-send in [0, 1]; got -0.1
+in instrument-patch!
+error: expected :delay-send in [0, 1]; got 1.5
+in instrument-patch!
+error: expected a float for :reverb-send; got a symbol
+in instrument-patch!

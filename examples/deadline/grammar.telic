@@ -1,0 +1,472 @@
+\ Deadline: the vocabulary and the sentence patterns. A pattern is the verb,
+\ its prepositions and a frame per noun phrase: :find names the flag of the
+\ thing understood when the phrase is left out, :search where the thing may
+\ be (held, carried, on-ground, in-room), and whether it is taken first
+\ (take), must be held (have) or may be several (many). The symbol after a
+\ pattern names the action it performs.
+
+\ ---- words the parser passes over ----
+
+[ "a" "an" "the" "is" "are" "and" "of" "then" "all" "one" "but" "except" "."
+  "," """" "y" "number" "minute" "back" "page" "carefully" "quietly"
+  "slowly" "quickly" "briefly" "do" "you" "have" "was" "were" "your"
+] buzz-words
+
+\ ---- directions ----
+
+"north" :north direction-word
+"south" :south direction-word
+"east" :east direction-word
+"west" :west direction-word
+"ne" :northeast direction-word
+"nw" :northwest direction-word
+"se" :southeast direction-word
+"sw" :southwest direction-word
+"up" :up direction-word
+"down" :down direction-word
+"in" :in direction-word
+"out" :out direction-word
+
+\ ---- words that mean the same as the first word, in every part of speech ----
+
+"with" [ "using" "through" ] synonyms
+"in" [ "inside" "into" ] synonyms
+"under" [ "underneath" "beneath" ] synonyms
+"north" [ "n" ] synonyms
+"south" [ "s" ] synonyms
+"east" [ "e" ] synonyms
+"west" [ "w" ] synonyms
+"down" [ "d" "downstairs" ] synonyms
+"up" [ "u" "upstairs" ] synonyms
+"nw" [ "northwest" ] synonyms
+"ne" [ "northeast" ] synonyms
+"sw" [ "southwest" ] synonyms
+"se" [ "southe" ] synonyms
+"super" [ "superbrief" ] synonyms
+"inventory" [ "i" ] synonyms
+"time" [ "t" ] synonyms
+"quit" [ "q" ] synonyms
+"analyze" [ "analyse" "check" "test" "dust" ] synonyms
+"answer" [ "reply" ] synonyms
+"ask" [ "question" "inquire" ] synonyms
+"attack" [ "fight" "hurt" "injure" "hit" ] synonyms
+"brush" [ "clean" "wipe" ] synonyms
+"burn" [ "incinerate" "ignite" ] synonyms
+"call" [ "hey" "dial" ] synonyms
+"climb" [ "sit" "hatch" ] synonyms
+"cross" [ "ford" ] synonyms
+"cut" [ "slice" "pierce" ] synonyms
+"curse" [ "damn" ] synonyms
+"drink" [ "imbibe" "swallow" ] synonyms
+"drop" [ "release" ] synonyms
+"eat" [ "consume" ] synonyms
+"examine" [ "describe" ] synonyms
+"extinguish" [ "douse" ] synonyms
+"find" [ "where" "there" "seen" ] synonyms
+"follow" [ "pursue" "chase" ] synonyms
+"give" [ "hand" "donate" "offer" ] synonyms
+"hello" [ "hi" ] synonyms
+"jump" [ "leap" ] synonyms
+"kick" [ "bite" "taunt" ] synonyms
+"kill" [ "dispatch" "strangle" ] synonyms
+"knock" [ "rap" ] synonyms
+"lean" [ "stand" "prop" ] synonyms
+"look" [ "l" "stare" "gaze" ] synonyms
+"search" [ "dig" ] synonyms
+"pull" [ "tug" ] synonyms
+"mumble" [ "sigh" ] synonyms
+"destroy" [ "damage" "break" "smash" ] synonyms
+"poke" [ "jab" "blind" ] synonyms
+"pour" [ "spill" ] synonyms
+"push" [ "press" ] synonyms
+"put" [ "stuff" "insert" "place" ] synonyms
+"raise" [ "lift" ] synonyms
+"rape" [ "molest" ] synonyms
+"read" [ "skim" ] synonyms
+"ring" [ "peal" ] synonyms
+"rub" [ "touch" "feel" "shade" ] synonyms
+"skip" [ "hop" ] synonyms
+"smell" [ "sniff" ] synonyms
+"swim" [ "bathe" "wade" ] synonyms
+"swing" [ "thrust" ] synonyms
+"take" [ "get" "hold" "carry" "remove" "lead" ] synonyms
+"say" [ "talk" ] synonyms
+"throw" [ "hurl" "chuck" "toss" ] synonyms
+"tie" [ "fasten" "secure" "attach" ] synonyms
+"turn" [ "flip" "shut" ] synonyms
+"untie" [ "free" "unfasten" "unattach" "unhook" ] synonyms
+"wake" [ "awake" "surprise" "startle" ] synonyms
+"walk" [ "go" "run" "proceed" ] synonyms
+"wave" [ "brandish" ] synonyms
+"what" [ "whats" "who" ] synonyms
+"yes" [ "no" "maybe" ] synonyms
+"thanks" [ "thank" ] synonyms
+"when" [ "did" "why" "how" ] synonyms
+
+\ ---- sentence patterns ----
+
+[ "brief" ] :brief syntax
+
+[ "super" ] :super-brief syntax
+
+[ "space" ] :space syntax
+
+[ "unspace" ] :unspace syntax
+
+[ "diagnose" ] :diagnose syntax
+
+[ "inventory" ] :inventory syntax
+
+[ "time" ] :time syntax
+
+[ "quit" ] :quit syntax
+
+[ "restart" ] :restart syntax
+
+[ "restore" ] :restore syntax
+
+[ "save" ] :save syntax
+
+[ "score" ] :score syntax
+
+[ "version" ] :version syntax
+
+[ "grammar" ] :grammar syntax
+
+[ "verbose" ] :verbose syntax
+
+[ "accuse" { :find :person } "with" { } ] :accuse syntax
+[ "accuse" { :find :person } ] :accuse syntax
+
+[ "again" ] :again syntax
+
+[ "analyze" { } "for" { } ] :analyze syntax
+[ "analyze" { } ] :analyze syntax
+[ "analyze" "off" { } ] :analyze syntax
+
+[ "answer" ] :answer syntax
+[ "answer" { } ] :reply syntax
+
+[ "apply" { } "to" { } ] :put syntax
+
+[ "arrest" { :find :person :search [ :many ] } "for" { } ] :arrest syntax
+[ "arrest" { :find :person :search [ :many ] } ] :arrest syntax
+
+[ "ask" { :find :person } "about" { } ] :ask-about syntax
+[ "ask" { :find :person } "for" { } ] :ask-for syntax
+[ "ask" { :find :person } ] :tell syntax
+
+[ "attack" { :find :person :search [ :on-ground :in-room ] } "with" { :find :weapon :search [ :held :carried :have ] } ] :attack syntax
+
+[ "brush" { :search [ :held :carried :on-ground :in-room ] } ] :brush syntax
+[ "brush" "off" { :search [ :held :carried ] } ] :brush syntax
+[ "brush" { :search [ :held :carried :on-ground :in-room ] } "with" { } ] :brush syntax
+
+[ "bug" ] :bug syntax
+
+[ "burn" { :find :burnable :search [ :held :carried :on-ground :in-room ] } "with" { :find :flame :search [ :held :carried :on-ground :in-room :have ] } ] :burn syntax
+[ "burn" "down" { :find :burnable :search [ :held :carried :on-ground :in-room ] } "with" { :find :flame :search [ :held :carried :on-ground :in-room :have ] } ] :burn syntax
+
+[ "call" ] :call-lose syntax
+[ "call" { } ] :call syntax
+[ "call" "up" { } ] :phone syntax
+
+[ "climb" "on" { :find :vehicle :search [ :on-ground :in-room ] } ] :climb-on syntax
+[ "climb" "up" { :find :climbable :search [ :on-ground :in-room ] } ] :climb-up syntax
+[ "climb" "down" { :find :climbable :search [ :on-ground :in-room ] } ] :climb-down syntax
+[ "climb" { :find :climbable :search [ :on-ground :in-room ] } ] :climb-foo syntax
+
+[ "close" { :find :door :search [ :held :carried :on-ground :in-room ] } ] :close syntax
+
+[ "confront" { :find :person } "with" { } ] :confront syntax
+
+[ "count" { } ] :count syntax
+
+[ "cross" { } ] :cross syntax
+
+[ "cut" { } "with" { :find :weapon :search [ :carried :held ] } ] :cut syntax
+
+[ "curse" ] :curses syntax
+[ "curse" { :find :person } ] :curses syntax
+
+[ "drink" { :find :drinkable :search [ :held :carried :on-ground :in-room ] } ] :drink syntax
+
+[ "drop" { :search [ :held :many :have ] } ] :drop syntax
+[ "drop" { :search [ :held :many :have ] } "down" { } ] :put syntax
+[ "drop" { :search [ :held :many :have ] } "in" { } ] :put syntax
+[ "drop" { :search [ :held :many :have ] } "on" { } ] :put syntax
+
+[ "eat" { :find :food :search [ :held :carried :on-ground :in-room :take :many ] } ] :eat syntax
+
+[ "enter" ] :enter syntax
+[ "enter" { } ] :through syntax
+
+[ "exit" ] :exit syntax
+[ "exit" { } ] :exit syntax
+
+[ "examine" { :search [ :held :carried :in-room :on-ground ] } ] :examine syntax
+
+[ "extinguish" { :find :light-source :search [ :many :held :carried :on-ground :in-room :take :have ] } ] :lamp-off syntax
+
+[ "fill" { :find :container :search [ :held :carried :on-ground :in-room ] } "with" { } ] :fill syntax
+[ "fill" { :find :container :search [ :held :carried :on-ground :in-room ] } ] :fill syntax
+
+[ "find" { } ] :find syntax
+
+[ "fingerprint" { :search [ :held :carried :in-room :on-ground ] } ] :fingerprint syntax
+
+[ "flush" { :search [ :on-ground :in-room ] } ] :flush syntax
+
+[ "follow" { } ] :follow syntax
+
+[ "give" { :search [ :many :held :carried :on-ground :in-room ] } "to" { :find :person :search [ :on-ground ] } ] :give syntax
+[ "give" { :find :person :search [ :on-ground ] } { :search [ :many ] } ] :sgive syntax
+
+[ "goodbye" ] :goodbye syntax
+[ "goodbye" { } ] :goodbye syntax
+
+[ "hello" ] :hello syntax
+[ "hello" { } ] :hello syntax
+
+[ "hide" ] :hide syntax
+[ "hide" "behind" { } ] :hide-behind syntax
+[ "hide" "on" { } ] :through syntax
+
+[ "blow" "out" { } ] :lamp-off syntax
+
+[ "jump" ] :leap syntax
+[ "jump" "over" { } ] :leap syntax
+[ "jump" "across" { } ] :leap syntax
+[ "jump" "in" { } ] :leap syntax
+
+[ "kick" { } ] :kick syntax
+
+[ "kill" { :find :person :search [ :on-ground :in-room ] } ] :kill syntax
+[ "kill" { :find :person :search [ :on-ground :in-room ] } "with" { :find :weapon :search [ :held :carried :have ] } ] :kill syntax
+
+[ "kiss" { :find :person :search [ :on-ground :in-room ] } ] :kiss syntax
+
+[ "knock" "on" { } ] :knock syntax
+[ "knock" "at" { } ] :knock syntax
+[ "knock" "down" { :find :person :search [ :on-ground :in-room ] } ] :attack syntax
+
+[ "lean" { } "against" { } ] :lean syntax
+[ "lean" { } "on" { } ] :lean syntax
+[ "lean" { } "up" { } ] :lean syntax
+[ "lean" ] :stand syntax
+[ "lean" "up" { :find :any-room } ] :stand syntax
+
+[ "leave" ] :leave syntax
+[ "leave" { } ] :drop syntax
+
+[ "light" { :find :light-source :search [ :held :carried :on-ground :in-room :take :have ] } ] :lamp-on syntax
+[ "light" { :find :light-source :search [ :held :carried :on-ground :in-room ] } "with" { :find :flame :search [ :held :carried :take :have ] } ] :burn syntax
+
+[ "listen" "to" { } ] :listen syntax
+[ "listen" "at" { } ] :listen syntax
+
+[ "lock" { :search [ :on-ground :in-room ] } "with" { :find :tool :search [ :held :carried :on-ground :in-room :take ] } ] :lock syntax
+
+[ "look" ] :look syntax
+[ "look" "around" { :find :any-room } ] :look syntax
+[ "look" "up" { :find :any-room } ] :look-up syntax
+[ "look" "down" { :find :any-room } ] :look-down syntax
+[ "look" "at" { :search [ :held :carried :on-ground :in-room :many ] } ] :examine syntax
+[ "look" "over" { :search [ :held :carried :on-ground :in-room ] } ] :examine syntax
+[ "look" "with" { } ] :look-inside syntax
+[ "look" "through" { } ] :look-inside syntax
+[ "look" "out" { } ] :look-inside syntax
+[ "look" "under" { } ] :look-under syntax
+[ "look" "behind" { } ] :look-behind syntax
+[ "look" "in" { :search [ :held :carried :on-ground :in-room ] } ] :look-inside syntax
+[ "look" "on" { :search [ :on-ground :in-room ] } ] :look-on syntax
+[ "look" "at" { :search [ :held :carried :many ] } "with" { } ] :read syntax
+[ "look" "for" { } ] :find syntax
+[ "look" "near" { } ] :search-around syntax
+
+[ "watch" { } ] :examine syntax
+
+[ "search" { } ] :search syntax
+[ "search" "in" { } ] :search syntax
+[ "search" "for" { } ] :find syntax
+[ "search" { } "around" { } ] :search-ground-around syntax
+[ "search" { } "under" { } ] :search-ground-under syntax
+[ "search" "around" { } ] :search-around syntax
+[ "search" "near" { } ] :search-around syntax
+[ "search" { } "near" { } ] :search-ground-around syntax
+[ "search" { } "for" { } ] :search-object-for syntax
+[ "search" "up" { } ] :search syntax
+
+[ "lower" { } ] :lower syntax
+
+[ "move" { :search [ :on-ground :in-room ] } ] :move syntax
+
+[ "roll" "up" { :search [ :on-ground :in-room ] } ] :move syntax
+
+[ "play" { } ] :play syntax
+
+[ "pull" { :search [ :on-ground :in-room ] } ] :move syntax
+[ "pull" "on" { :search [ :on-ground :in-room ] } ] :move syntax
+
+[ "mumble" ] :mumble syntax
+
+[ "destroy" { :search [ :on-ground :in-room :held :carried ] } "with" { :search [ :held :carried :take ] } ] :mung syntax
+[ "destroy" "down" { :search [ :on-ground :in-room :held :carried ] } "with" { :search [ :held :carried :take ] } ] :mung syntax
+
+[ "open" { :find :door :search [ :held :carried :on-ground :in-room ] } ] :open syntax
+[ "open" "up" { :find :door :search [ :held :carried :on-ground :in-room ] } ] :open syntax
+[ "open" { :find :door :search [ :held :carried :on-ground :in-room ] } "with" { :find :tool :search [ :on-ground :in-room :held :carried :have ] } ] :open syntax
+
+[ "peek" "in" { } ] :look-inside syntax
+
+[ "pick" { } ] :pick syntax
+[ "pick" { } "with" { } ] :pick syntax
+[ "pick" "up" { :find :takeable :search [ :on-ground :many ] } ] :take syntax
+
+[ "poke" { :find :person :search [ :on-ground :in-room ] } "with" { :find :weapon :search [ :held :carried :have ] } ] :mung syntax
+
+[ "pour" { :search [ :held :carried ] } ] :drop syntax
+[ "pour" { :search [ :held :carried ] } "in" { } ] :drop syntax
+[ "pour" { :search [ :held :carried ] } "on" { } ] :pour-on syntax
+[ "pour" { :search [ :held :carried ] } "from" { } ] :drop syntax
+
+[ "push" { :search [ :in-room :on-ground :many ] } ] :push syntax
+[ "push" "on" { :search [ :in-room :on-ground :many ] } ] :push syntax
+[ "push" { } "under" { } ] :put-under syntax
+
+[ "put" { :search [ :held :many :have ] } "in" { } ] :put syntax
+[ "put" { :search [ :held :many :have ] } "on" { } ] :put syntax
+[ "put" "down" { :search [ :held :many :have ] } ] :drop syntax
+[ "put" { :search [ :carried :held :have ] } "under" { } ] :put-under syntax
+[ "put" { :search [ :carried :held :have ] } "against" { } ] :lean syntax
+
+[ "raise" { } ] :raise syntax
+[ "raise" "up" { } ] :raise syntax
+[ "raise" { } "off" { } ] :take syntax
+
+[ "rape" { :find :person } ] :rape syntax
+
+[ "read" { :find :readable :search [ :held :carried :on-ground :in-room :take ] } ] :read syntax
+[ "read" { :find :readable :search [ :held :carried :on-ground :in-room :take ] } { } ] :read syntax
+[ "read" { :find :readable :search [ :held :carried :on-ground :in-room :take ] } "with" { } ] :read syntax
+
+[ "ring" { :search [ :take ] } ] :ring syntax
+[ "ring" { :search [ :take ] } "with" { } ] :ring syntax
+
+[ "rub" { } ] :rub syntax
+[ "rub" { } "with" { :search [ :take :have ] } ] :rub syntax
+[ "rub" { :search [ :take :have ] } "over" { } ] :rub-over syntax
+[ "rub" { :search [ :take :have ] } "on" { } ] :rub-over syntax
+
+[ "script" ] :script syntax
+
+[ "unscript" ] :unscript syntax
+
+[ "send" "for" { } ] :send-for syntax
+
+[ "shake" { } ] :shake syntax
+
+[ "show" { } "to" { :find :person } ] :sshow syntax
+[ "show" { :find :person } { } ] :show syntax
+
+[ "slide" { } "under" { } ] :put-under syntax
+
+[ "skip" ] :skip syntax
+
+[ "smell" { } ] :smell syntax
+
+[ "squeeze" { } ] :squeeze syntax
+[ "squeeze" { } "on" { } ] :put syntax
+
+[ "strike" { :find :person :search [ :on-ground :in-room ] } "with" { :find :weapon :search [ :held :carried :on-ground :in-room :have ] } ] :attack syntax
+[ "strike" { :find :person :search [ :on-ground :in-room ] } ] :attack syntax
+[ "strike" { :search [ :on-ground :in-room :held :carried ] } ] :lamp-on syntax
+
+[ "swim" ] :swim syntax
+[ "swim" "in" { } ] :swim syntax
+
+[ "swing" { :find :weapon :search [ :held :carried :have ] } ] :swing syntax
+[ "swing" { :find :weapon :search [ :held :carried :have ] } "at" { :find :person :search [ :on-ground :in-room ] } ] :swing syntax
+
+[ "take" { :find :takeable :search [ :on-ground :many ] } ] :take syntax
+[ "take" "out" { :find :vehicle :search [ :on-ground :in-room ] } ] :disembark syntax
+[ "take" "on" { :find :vehicle :search [ :on-ground :in-room ] } ] :climb-on syntax
+[ "take" { :find :takeable :search [ :carried :in-room :many ] } "out" { } ] :take syntax
+[ "take" { :find :takeable :search [ :carried :in-room :many ] } "off" { } ] :take syntax
+[ "take" { :find :takeable :search [ :in-room :carried :many ] } "from" { } ] :take syntax
+[ "take" { :find :takeable :search [ :in-room :carried :take :have ] } "up" { } ] :hold-up syntax
+[ "take" "up" { :find :any-room } ] :stand syntax
+[ "take" { } "to" { } ] :show syntax
+
+[ "taste" { } ] :taste syntax
+
+[ "tell" { :find :person :search [ :in-room ] } ] :tell syntax
+[ "tell" { :find :person } "about" { } ] :tell-me syntax
+
+[ "say" "to" { :find :person :search [ :in-room ] } ] :tell syntax
+[ "say" ] :say syntax
+
+[ "throw" { :search [ :held :carried :have ] } "at" { :find :person :search [ :on-ground :in-room ] } ] :throw-at syntax
+[ "throw" { :search [ :held :carried :have ] } "with" { :find :person :search [ :on-ground :in-room ] } ] :throw-through syntax
+[ "throw" { :search [ :held :carried :have ] } "in" { } ] :put syntax
+[ "throw" { :search [ :held :carried :have ] } "on" { } ] :put syntax
+[ "throw" { :search [ :held :carried :have ] } "over" { } ] :put syntax
+
+[ "tie" { } "to" { } ] :tie syntax
+[ "tie" "up" { :find :person :search [ :on-ground :in-room ] } "with" { :find :tool :search [ :on-ground :in-room :held :carried :have ] } ] :tie-up syntax
+
+[ "turn" { :find :turnable :search [ :held :carried :on-ground :in-room ] } ] :turn syntax
+[ "turn" "in" { :find :turnable :search [ :held :carried :on-ground :in-room ] } ] :turn syntax
+[ "turn" "to" { :search [ :held :carried :on-ground :in-room ] } ] :turn syntax
+[ "turn" "on" { :find :light-source :search [ :held :carried :on-ground :in-room ] } ] :lamp-on syntax
+[ "turn" "off" { :find :light-source :search [ :held :carried :on-ground :in-room ] } ] :lamp-off syntax
+[ "turn" "up" { } ] :turn-up syntax
+[ "turn" "down" { } ] :turn-down syntax
+
+[ "unlock" { :search [ :on-ground :in-room ] } ] :unlock syntax
+
+[ "untie" { :search [ :on-ground :in-room :held :carried ] } ] :untie syntax
+[ "untie" { :search [ :on-ground :in-room :held :carried ] } "from" { } ] :untie syntax
+
+[ "use" { } ] :use syntax
+
+[ "wait" ] :wait syntax
+[ "wait" { } ] :wait-for syntax
+[ "wait" "until" { } ] :wait-until syntax
+[ "wait" "for" { } ] :wait-for syntax
+
+[ "wake" { :find :person :search [ :on-ground :in-room ] } ] :alarm syntax
+[ "wake" "up" { :find :person :search [ :on-ground :in-room ] } ] :alarm syntax
+
+[ "walk" { } ] :walk syntax
+[ "walk" "to" { } ] :through syntax
+[ "walk" "in" { } ] :through syntax
+[ "walk" "with" { } ] :through syntax
+[ "walk" "around" { } ] :walk-around syntax
+[ "walk" "up" { :find :climbable :search [ :on-ground :in-room ] } ] :climb-up syntax
+[ "walk" "down" { :find :climbable :search [ :on-ground :in-room ] } ] :climb-down syntax
+[ "walk" "behind" { } ] :hide-behind syntax
+[ "walk" { } "over" { } ] :run-over syntax
+
+[ "wave" { :search [ :held :carried ] } ] :wave syntax
+[ "wave" { :search [ :held :carried ] } "at" { } ] :wave syntax
+
+[ "write" "with" { } ] :write syntax
+[ "write" "on" { } "with" { } ] :write syntax
+
+[ "what" { } ] :what syntax
+[ "what" "about" { } ] :what syntax
+[ "what" "in" { :search [ :held :carried :in-room :on-ground :many ] } ] :look-inside syntax
+[ "what" "on" { :search [ :held :carried :in-room :on-ground :many ] } ] :look-inside syntax
+
+[ "know" "about" { } ] :what syntax
+[ "know" "where" { } ] :find syntax
+
+[ "yes" ] :yn syntax
+
+[ "thanks" ] :thanks syntax
+[ "thanks" { } ] :thanks syntax
+
+[ "$verify" ] :$verify syntax
+
+[ "when" ] :thanks syntax

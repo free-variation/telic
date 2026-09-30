@@ -1,0 +1,43 @@
+\ ==== the high-pass filter: :high-pass ====
+
+\ A patch with :high-pass runs each voice, after the ladder, through a
+\ two-pole Butterworth high-pass (the RBJ cookbook biquad at Q = 1/sqrt 2,
+\ transposed direct form II). Without :high-pass there is none. The source is
+\ a fixed-frequency sine; levels are in dB against the same sine unfiltered.
+
+11 seed
+
+: level-at ( hz patch -- a )
+	| hz patch |
+	patch :filtered instrument-patch! silence-audio
+	:a4 1 :filtered note-on 1 render-audio 9600 48000 0 1 submatrix 48000 hz amplitude-at ;
+: loss ( hz cutoff -- db )
+	| hz cutoff |
+	hz { :oscillators [ { :fixed-hz hz } ] :high-pass cutoff } level-at
+	hz { :oscillators [ { :fixed-hz hz } ] } level-at / log10 20 * 100 * round 100 / ;
+
+\ === the Butterworth response around a 1 kHz cutoff ===
+250 1000 loss . 500 1000 loss . cr                               \ -24.12 -12.32 (12 dB per octave below)
+1000 1000 loss . cr                                              \ -3.01 (3 dB down at the cutoff)
+2000 1000 loss . 4000 1000 loss . cr                             \ -0.26 -0.02 (unity well above)
+clear
+
+\ === the response follows the cutoff ===
+3500 7000 loss . 7000 7000 loss . cr                             \ -13.22 -3.01 (an octave below 7 kHz the bilinear warp makes the ratio tan(pi 3500/48000)/tan(pi 7000/48000) = 0.473, not 0.5)
+clear
+
+\ === a patch without :high-pass is not filtered ===
+{ :oscillators [ { :fixed-hz 100 } ] } :filtered instrument-patch! silence-audio
+:a4 1 :filtered note-on 1 render-audio 9600 48000 0 1 submatrix 48000 100 amplitude-at 0.70710678 / 1000 * round 1000 / . cr   \ 1
+clear
+
+\ === white noise through it keeps its treble and loses its bass ===
+{ :oscillators [ { :wave :white } ] :high-pass 7000 } :filtered instrument-patch! silence-audio
+:a4 1 :filtered note-on 1 render-audio 0 @j 9600 13696 0 1 submatrix 4096 hann * fft magnitudes to bins
+bins 170 341 0 1 submatrix sq mean bins 9 86 0 1 submatrix sq mean / log10 10 * 20 > . cr   \ 1 (14-28 kHz band over 100 Hz-1 kHz band)
+silence-audio clear
+
+\ errors
+{ :high-pass 10 } :filtered instrument-patch!                     \ (below 20 Hz)
+{ :high-pass 30000 } :filtered instrument-patch!                  \ (above 20 kHz)
+{ :high-pass :low } :filtered instrument-patch!                   \ (not a number)

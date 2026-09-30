@@ -1,0 +1,1950 @@
+\ Deadline: performing a command, and what every action does when no room,
+\ person or thing takes it over. A command is performed by asking, in turn,
+\ the person it is for, the room they are in (:begin), the action's
+\ precondition, the indirect object, the direct object and finally the
+\ action's default; the first to answer non-zero has dealt with it. The room
+\ then has a last word (:end) unless the command was abandoned.
+
+\ === helpers ===
+
+\ whether the command being performed is one of these actions
+: verb? ( actions -- flag ) action has? ;
+
+\ a thing's name as printed
+: tell-name ( name -- ) name-of tell ;
+
+\ one of several texts, chosen at random
+: pick-one ( texts -- text ) dup size random-below @i ;
+
+\ true with a chance of percent in 100
+: probability ( percent -- flag ) 100 random-below 1+ swap < ;
+
+\ whether a thing is held by the one the command is for, however deep inside what they hold
+: held? ( name -- flag )
+	| name |
+	begin
+		name location-of to holder
+		holder [ :rooms :global-objects ] swap position-of 0 >= if false exit then
+		name winner inside? if true exit then
+		holder to name
+	again ;
+
+\ whether a room shows a thing among its globals
+: global-in? ( thing room -- flag )
+	| thing room |
+	room :globals property to local-things
+	local-things null? if false exit then
+	local-things thing position-of 0 >= ;
+
+\ whether the inside of a thing can be seen
+: see-inside? ( name -- flag )
+	| name |
+	name :invisible flag? not name :transparent flag? name :open flag? or and ;
+
+\ "You can't see that here." or the person
+: not-here ( name -- )
+	| name |
+	"You can't see " tell
+	name :person flag? if name tell-name else "that" tell then
+	" here." tell-line ;
+
+[ "Don't be ridiculous." "Surely you jest." "You can't be serious!" ] to yuks
+[ "You ought to be ashamed of yourself."
+  "One must try to avoid locker-room talk while working."
+] to offended
+[ " isn't particularly useful." " has no effect." ] to ho-hum
+[ " doesn't appear interested" " seems not to care" " lets out a loud yawn"
+  " seems to be getting impatient"
+] to who-cares
+
+[ "" "  " "    " "      " "        " "          " ] to indents
+
+\ "yes" or "y" typed after a question
+: yes? ( -- flag )
+	" >" tell
+	flush-output
+	read-command-line to typed
+	typed null? if :end-of-input throw then
+	typed read-into-tokens
+	n-command-words 0 = if false exit then
+	tokens first [ "yes" "y" ] one-of? ;
+
+\ things defined with the people, their movement and the plot
+defer grab-attention
+defer in-motion?
+( drop false ) embodies grab-attention
+( drop false ) embodies in-motion?
+defer gone-crazy
+defer analyze-in-laboratory
+defer restart-game
+defer save-game
+defer restore-game
+defer start-movement
+
+\ === the directions ===
+
+\ the directions an exit can take, in the order a room lists them
+[ :north :south :east :west :northeast :northwest :southeast :southwest :up :down ] to compass
+
+{ :north "north" :south "south" :east "east" :west "west"
+  :northwest "northwest" :northeast "northeast"
+  :southwest "southwest" :southeast "southeast"
+  :down "downstairs" :up "upstairs" :in "in" :out "out"
+} to direction-names
+
+\ a direction as it is told: "the north", "upstairs"
+: tell-direction ( direction -- )
+	| direction |
+	direction [ :up :down ] swap position-of 0 < if "the " tell then
+	direction-names direction @ tell ;
+
+\ an exit's kind: :plain to a room, :refusal with a text, :door through a door, :conditional on a state flag, :routine decided by a handler
+: exit-kind ( way -- kind )
+	| way |
+	way symbol? if :plain exit then
+	way string? if :refusal exit then
+	way :door has? if :door exit then
+	way :if has? if :conditional exit then
+	:routine ;
+
+\ the room an exit leads to
+: exit-room ( way -- room )
+	| way |
+	way symbol? if way exit then
+	way string? if null exit then
+	way :to null @or ;
+
+\ the direction from a room that leads to another by a plain, door or conditional exit, or null
+: direction-from ( room there -- direction )
+	| room there |
+	room :exits property to exits
+	exits null? if null exit then
+	compass ( direction |
+		exits direction null @or to way
+		way null? if false exit then
+		way exit-kind [ :plain :door :conditional ] swap position-of 0 >=
+		way exit-room there = and
+	) find-first ;
+
+\ the corridors: rooms in a line that can see along it, the direction toward the start of the line and toward its end
+[ { :directions [ :west :east ] :rooms [ :corridor-4 :corridor-3 :corridor-2 :corridor-1 :stair-top ] }
+  { :directions [ :north :south ] :rooms [ :stair-top :shall-11 ] }
+  { :directions [ :west :east ] :rooms [ :shall-11 :shall-12 ] }
+  { :directions [ :south :north ] :rooms [ :foyer :nfoyer :corner ] }
+  { :directions [ :north :south ] :rooms [ :stair-bottom :shall-1 ] }
+  { :directions [ :west :east ] :rooms [ :west-lawn :west-of-door :front-path :east-of-door :east-lawn ] }
+  { :directions [ :north :south ] :rooms [ :east-side :east-of-door :south-lawn ] }
+  { :directions [ :northwest :southeast ] :rooms [ :north-lawn :orchard :east-lawn ] }
+  { :directions [ :west :east ] :rooms [ :nfoyer :stair-bottom :stairs ] }
+  { :directions [ :west :east ] :rooms [ :guest-room :east-lawn ] }
+  { :directions [ :north :south ] :rooms [ :upstairs-closet :corridor-2 ] }
+  { :directions [ :west :east ] :rooms [ :rose-garden :orchard ] }
+] to corridors
+
+\ the corridor a single bit of a :corridor property names; any other number names the last
+: corridor-of ( bit -- corridor )
+	| bit |
+	0 11 1 do k
+		bit 1 k lshift = if corridors k @i exit then
+	loop
+	corridors last ;
+
+\ the direction along the corridor two rooms share from one toward the other
+: corridor-direction ( room there -- direction )
+	| room there |
+	there :corridor property room :corridor property bit-and corridor-of to corridor
+	0 to past
+	corridor@rooms ( member |
+		member room = if true exit then
+		member there =
+	) find-first to reached
+	reached room = if 1 to past then
+	corridor@directions past @i ;
+
+\ tell the people seen along a corridor, or find where a thing is along it: the direction toward it, or null
+: corridor-check ( corridor item -- direction )
+	| corridor item |
+	0 to past
+	corridor@rooms to members
+	0 members size 1 do k
+		members k @i to member
+		member here = if
+			1 to past
+		else
+			member contents-of to present
+			0 present size 1 do j
+				present j @i to someone
+				item null? not if
+					someone item = if corridor@directions past @i exit then
+				else someone :person flag? someone in-motion? not and if
+					someone tell-name " is " tell
+					member :line property 2 = if "off" else "down the hall" then tell
+					" to " tell
+					corridor@directions past @i tell-direction
+					"." tell-line
+				then then
+			loop
+		then
+	loop
+	null ;
+
+\ tell the people seen down the corridors from here, or answer the direction toward a thing seen down one
+: corridor-look ( item -- direction )
+	| item |
+	here :corridor property to bits
+	bits null? if null exit then
+	null to seen
+	11 -1 -1 do k
+		1 k lshift to bit
+		bits bit >= if
+			bits bit - to bits
+			corridors k @i item corridor-check to direction
+			seen null? if direction to seen then
+		then
+	loop
+	seen ;
+
+\ === performing a command ===
+
+variable last-action
+null to last-action
+variable last-object
+null to last-object
+variable last-indirect
+null to last-indirect
+
+\ the action words that answer when nothing else does, and the preconditions some actions check first; filled in at the end of this file
+{ } to verb-actions
+{ } to preactions
+
+: perform ( an-action direct indirect-thing -- result )
+	| an-action direct indirect-thing ^action ^object ^indirect ^it-object ^it-location ^him-her ^him-her-location ^last-action ^last-object ^last-indirect |
+	action to saved-action
+	object to saved-object
+	indirect to saved-indirect
+	an-action to action
+	:it indirect-thing = :it direct = or it-location here = not and if
+		"I don't see what you are referring to." tell-line
+		fatal exit
+	then
+	:him-her indirect-thing = :him-her direct = or him-her-location here = not and if
+		him-her :character property global-character to counterpart
+		:him-her direct = if
+			counterpart to direct
+		else :him-her indirect-thing = if
+			counterpart to indirect-thing
+		then then
+	then
+	direct :it = if it-object to direct else direct :him-her = if him-her to direct then then
+	indirect-thing :it = if it-object to indirect-thing else indirect-thing :him-her = if him-her to indirect-thing then then
+	direct to object
+	object null? not an-action :walk = not and if
+		object :person flag? if
+			object to him-her
+			here to him-her-location
+		else
+			object to it-object
+			here to it-location
+		then
+	then
+	indirect-thing to indirect
+	an-action :again = not if
+		an-action to last-action
+		an-action :walk = if null else direct then to last-object
+		indirect-thing to last-indirect
+	then
+	winner null act to result
+	result 0 = if winner location-of :begin act to result then
+	result 0 = if an-action preactions swap null @or to precondition precondition null? if 0 else precondition execute then to result then
+	result 0 = indirect-thing null? not and if indirect-thing null act to result then
+	result 0 = direct null? not and an-action :walk = not and if direct null act to result then
+	result 0 = if verb-actions an-action null @or to default default null? if 0 else default execute then to result then
+	result fatal = not if winner location-of :end act to result then
+	saved-action to action
+	saved-object to object
+	saved-indirect to indirect
+	result ;
+
+\ === settings ===
+
+variable verbose
+false to verbose
+variable super-brief
+false to super-brief
+
+: do-verbose ( -- result )
+	| ^verbose ^super-brief |
+	true to verbose
+	false to super-brief
+	"OK, you will get verbose descriptions." tell-line
+	1 ;
+
+: do-brief ( -- result )
+	| ^verbose ^super-brief |
+	false to verbose
+	false to super-brief
+	"OK, you will get brief descriptions." tell-line
+	1 ;
+
+: do-super-brief ( -- result )
+	| ^super-brief |
+	true to super-brief
+	"OK, you will get super-brief descriptions. Remember that objects and
+	people are not mentioned; only the name of the place you are in." tell-line
+	1 ;
+
+\ === describing ===
+
+\ "You are carrying:", "The box contains:", nothing for a room
+: firster ( name level -- flag )
+	| name level |
+	name winner = if "You are carrying:" tell-line true exit then
+	name :rooms inside? if false exit then
+	level 0 > if indents level @i tell-raw then
+	name :surface flag? if
+		"Sitting on the " tell name tell-name " is:" tell-line
+	else name :person flag? if
+		name tell-name " is holding:" tell-line
+	else
+		"The " tell name tell-name " contains:" tell-line
+	then then
+	true ;
+
+defer print-contents
+
+\ remember that the player has been shown a thing, for the words GRAMMAR lists
+: note-seen ( name -- )
+	| name |
+	:seen-things state to seen
+	seen null? if [< >] to seen then
+	seen name set-add! :seen-things state! ;
+
+\ a room's scenery, and the things in it not hidden, as its description shows them
+: note-room-seen ( -- )
+	here :globals property to scenery
+	scenery null? not if scenery ' note-seen each then
+	here contents-of ( item | item :invisible flag? not if item note-seen then ) each ;
+
+\ a thing as a room or a container lists it
+: describe-object ( name verbose? level -- )
+	| name verbose? level |
+	name note-seen
+	level 0 = if
+		name :describer property :object-description call-handler if exit then
+	then
+	level 0 = if
+		name :touched flag? not name :initial-description property null? not and if
+			name :initial-description property to text
+		else
+			name :description property to text
+		then
+	else
+		null to text
+	then
+	level 0 = text null? not and if
+		text tell
+	else level 0 = if
+		"There is a " tell name tell-name " here." tell
+	else
+		indents level @i tell-raw
+		"A " tell name tell-name
+	then then
+	winner location-of to seat
+	level 0 = seat :vehicle flag? and if " (outside the " tell seat tell-name ")" tell then
+	end-line
+	name see-inside? name count-contents 0 > and if name verbose? level print-contents drop then ;
+
+\ what a room or a thing holds, listed; true when something was listed
+: list-contents ( name verbose? level -- flag )
+	| holder verbose? level |
+	holder count-contents 0 = if true exit then
+	winner location-of to seat
+	seat :vehicle flag? not if null to seat then
+	true to first?
+	false to seat-seen
+	false to inventory?
+	holder winner = holder location-of winner = or if
+		true to inventory?
+	else
+		holder contents-of to items
+		0 items size 1 do k
+			items k @i to item
+			item seat = if
+				true to seat-seen
+			else item winner = if
+			else item :invisible flag? not item :touched flag? not and item :initial-description property null? not and if
+				item :undescribed flag? not if
+					false to first?
+					0 to level
+					item note-seen
+					item :initial-description property tell-line
+				then
+				item see-inside? item location-of :describer property null? and item count-contents 0 > and if
+					item verbose? 0 recurse drop
+				then
+			then then then
+		loop
+	then
+	holder contents-of to items
+	0 items size 1 do k
+		items k @i to item
+		item seat = item :player = or if
+		else item :invisible flag? not
+			inventory? item :touched flag? or item :initial-description property null? or and if
+			item :undescribed flag? not if
+				first? if
+					holder level firster if level 0 < if 0 to level then then
+					++ level
+					false to first?
+				then
+				item verbose? level describe-object
+			else item count-contents 0 > item see-inside? and if
+				item verbose? level recurse drop
+			then then
+		then then
+	loop
+	seat-seen seat null? not and if
+		seat count-contents 0 > if seat verbose? level recurse drop then
+	then
+	first? not ;
+
+' list-contents embodies print-contents
+
+\ the people seen down the corridors from here
+: look-along-corridors ( -- ) null corridor-look drop ;
+
+\ the room's name, and its description when it is new, asked for or the game is verbose
+: describe-room ( look? -- flag )
+	| look? |
+	look? verbose or to full
+	here :touched flag? not if
+		here :touched set-flag
+		true to full
+	then
+	here :rooms inside? if here tell-name end-line then
+	look? super-brief not or if
+		winner location-of to seat
+		seat :vehicle flag? if
+			"(You are " tell
+			seat :surface flag? if "sitting o" else "standing i" then tell
+			"n the " tell seat tell-name ".)" tell-line
+		then
+		full lit and if note-room-seen then
+		full if
+			here :look act if true exit then
+			here :description property to text
+		else
+			null to text
+		then
+		text null? not if
+			text tell-line
+		else
+			here :flash act drop
+		then
+		here seat = not if seat :look act drop then
+	then
+	here :corridor property null? not if look-along-corridors then
+	true ;
+
+\ what the room holds, listed
+: describe-objects ( verbose? -- )
+	| verbose? |
+	lit not if "You can't see anything in the dark." tell-line exit then
+	here count-contents 0 > if here verbose? verbose or -1 print-contents drop then ;
+
+: do-look ( -- result )
+	true describe-room if true describe-objects then
+	1 ;
+
+\ the room as it is seen on arriving
+: first-look ( -- )
+	false describe-room if super-brief not if false describe-objects then then ;
+
+\ === moving ===
+
+\ go to a room, noting when the people here were last seen, and look at it
+: goto ( room describe? -- )
+	| room describe? ^here ^lit |
+	winner location-of :rooms inside? not if
+		"You are seated, if you remember." tell-line
+		exit
+	then
+	last-seen 0 @i to sightings
+	here contents-of ( item |
+		item :person flag? item :player = not and if
+			sightings present-time item :character property !i drop
+		then
+	) each
+	winner room move-to
+	room to here
+	true to lit
+	here :enter act drop
+	describe? if first-look then ;
+
+: do-walk-around ( -- result ) "Use directions for movement here." tell-line 1 ;
+
+defer before-turn
+
+: do-walk ( -- result )
+	| ^it-location ^it-object |
+	object :global-call = if before-turn drop 1 exit then
+	object null? if "You can't go that way." tell-line 1 exit then
+	here :exits property to exits
+	exits null? if null else exits object null @or then to way
+	way null? if
+		object :in = if
+			"In which direction do you want to go?" tell-line
+		else
+			"You can't go that way." tell-line
+		then
+		fatal exit
+	then
+	way exit-kind to kind
+	kind :plain = if
+		way to room
+		:stairs here = :stairs room = or
+		adverb "quietly" key-is? adverb "slowly" key-is? or and if
+			"The stairs are still quite noisy even when walking up very slowly." tell-line
+		then
+		room true goto
+		1 exit
+	then
+	kind :refusal = if way tell-line fatal exit then
+	kind :routine = if
+		way :per @ null call-handler to room
+		room if room true goto 1 exit then
+		fatal exit
+	then
+	kind :conditional = if
+		way :if @ state if way :to @ true goto 1 exit then
+		way :else null @or to refusal
+		refusal null? not if refusal tell-line fatal exit then
+		"You can't go that way." tell-line
+		fatal exit
+	then
+	way :door @ to door
+	door :open flag? if way :to @ true goto 1 exit then
+	door :invisible flag? if "You can't go that way." tell-line 1 exit then
+	way :else null @or to refusal
+	refusal null? not if refusal tell-line fatal exit then
+	"The " tell door tell-name " is closed." tell-line
+	here to it-location
+	door to it-object
+	fatal ;
+
+: do-leave ( -- result ) :walk :out null perform ;
+
+: do-enter ( -- result ) :walk :in null perform ;
+
+: do-exit ( -- result ) :walk :out null perform ;
+
+: do-inventory ( -- result )
+	winner count-contents 0 > if
+		winner false 0 print-contents drop
+	else
+		"You are empty-handed." tell-line
+	then
+	1 ;
+
+\ === taking, dropping and putting ===
+
+variable load-allowed
+100 to load-allowed
+100 constant load-maximum
+7 constant fumble-number
+8 constant fumble-probability
+
+\ take the direct object: 1 when taken, 0 when it cannot be, fatal when the attempt failed; tells why when verbose
+: itake ( verbose? -- result )
+	| verbose? |
+	object :takeable flag? not if
+		verbose? if yuks pick-one tell-line then
+		0 exit
+	then
+	object location-of winner inside? not
+	object weight winner weight + load-allowed > and if
+		verbose? if
+			"Your load is too heavy" tell
+			load-allowed load-maximum < if ", especially in light of your condition." else "." then tell
+			end-line
+		then
+		fatal exit
+	then
+	winner count-contents to n-held
+	n-held fumble-number > if n-held fumble-probability * probability else false then if
+		winner contents-of second to dropped
+		"Oh, no. The " tell dropped tell-name " slips from your arms while you are taking the " tell object tell-name ", and both tumble to the ground." tell-line
+		:drop dropped null perform drop
+		fatal exit
+	then
+	object winner move-to
+	object :touched set-flag
+	1 ;
+
+( false itake ) embodies take-quietly
+
+: before-take ( -- result )
+	| ^indirect |
+	[< :second-section :global-fingerprints :global-ladder >] object has? if 0 exit then
+	[< :global-warrant :global-red-herrings >] object has? if 0 exit then
+	object :global-objects inside? if object not-here 1 exit then
+	object winner inside? if "You already have it." tell-line 1 exit then
+	object location-of to holder
+	holder :container flag? holder :open flag? not and if "You can't reach that." tell-line 1 exit then
+	indirect null? not if
+		indirect :bookshelves = if 0 exit then
+		indirect holder = not if "It's not in that!" tell-line 1 exit then
+		null to indirect
+		0 exit
+	then
+	object winner location-of = if "You are in it, loser!" tell-line 1 exit then
+	0 ;
+
+: do-take ( -- result )
+	true itake 1 = if "Taken." tell-line then
+	1 ;
+
+: before-put ( -- result )
+	object :global-objects inside? object :takeable flag? not or if "Nice try." tell-line 1 exit then
+	0 ;
+
+: do-put ( -- result )
+	indirect :open flag? indirect :door flag? or indirect :container flag? or indirect :vehicle flag? or not if
+		"You can't do that." tell-line
+		1 exit
+	then
+	indirect :open flag? not if
+		"The" tell tell-indirect-phrase " isn't open." tell-line
+	else indirect object = if
+		"How can you do that?" tell-line
+	else object indirect inside? if
+		"The " tell object tell-name " is already in the " tell indirect tell-name "." tell-line
+	else indirect weight object weight + indirect :size property - indirect :capacity property > if
+		"There's no room." tell-line
+	else object held? not true itake 0 = and if
+	else
+		object indirect move-to
+		object :touched set-flag
+		"Done." tell-line
+	then then then then then
+	1 ;
+
+\ drop the direct object where the one the command is for stands; true when dropped
+: idrop ( -- flag )
+	object :person flag? if
+		"It's not likely that " tell object tell-name " would enjoy that." tell-line
+		false exit
+	then
+	object winner inside? not object location-of winner inside? not and if
+		"You're not carrying the" tell tell-direct-phrase "." tell-line
+		false exit
+	then
+	object winner inside? not object location-of :open flag? not and if
+		"The " tell object tell-name " is closed." tell-line
+		false exit
+	then
+	object winner location-of move-to
+	true ;
+
+: do-drop ( -- result )
+	idrop if
+		"The " tell object tell-name " is now on the " tell
+		here :line property 2 = if "ground" else "floor" then tell
+		"." tell-line
+	then
+	1 ;
+
+: do-throw ( -- result ) idrop if "Thrown." tell-line then 1 ;
+
+: do-throw-through ( -- result )
+	object :person flag? not if "Let's not resort to violence, please." tell-line 1 exit then
+	do-throw ;
+
+: do-throw-at ( -- result )
+	idrop not if 1 exit then
+	indirect :person flag? if
+		indirect tell-name ", puzzled by your unorthodox methods, ducks as the " tell
+		object tell-name " flies by." tell-line
+	else
+		"Perhaps you aren't feeling well?" tell-line
+	then
+	1 ;
+
+: before-give ( -- result )
+	object held? not indirect :player = not and if
+		"That's easy for you to say, since you don't even have it." tell-line
+		1 exit
+	then
+	0 ;
+
+: before-sgive ( -- result ) :give indirect object perform drop 1 ;
+
+: do-give ( -- result )
+	indirect :person flag? not if
+		"You can't give a " tell object tell-name " to a " tell indirect tell-name "!" tell-line
+	else
+		indirect tell-name " refuses your offer." tell-line
+	then
+	1 ;
+
+: do-sgive ( -- result ) "FOOOO!!" tell-line 1 ;
+
+\ === opening and closing ===
+
+\ "a pen, a cup, and a saucer"
+: tell-contents ( name -- )
+	| name |
+	name contents-of to items
+	0 items size 1 do k
+		k 0 > if
+			", " tell
+			k items size 1- = if "and " tell then
+		then
+		"a " tell items k @i tell-name
+	loop ;
+
+: do-open ( -- result )
+	object :container flag? not if
+		"You must be very clever to do that to the" tell tell-direct-phrase "." tell-line
+		1 exit
+	then
+	object :door flag? object :capacity property 0 = not or not if
+		"The" tell tell-direct-phrase " cannot be opened." tell-line
+		1 exit
+	then
+	object :open flag? if "It is already open." tell-line 1 exit then
+	object :open set-flag
+	object :door flag? if
+		"The " tell object tell-name " is now open." tell-line
+		1 exit
+	then
+	object count-contents 0 = object :transparent flag? or if "Opened." tell-line 1 exit then
+	object first-content to inside-thing
+	object count-contents 1 = inside-thing :initial-description property null? not and if
+		"The " tell object tell-name " opens." tell-line
+		inside-thing :initial-description property tell-line
+		1 exit
+	then
+	"Opening the " tell object tell-name " reveals " tell
+	object tell-contents
+	"." tell-line
+	1 ;
+
+: do-close ( -- result )
+	object :container flag? not if
+		"You must be very clever to do that to the" tell tell-direct-phrase "." tell-line
+		1 exit
+	then
+	object :door flag? if
+		object :open flag? if
+			"The " tell object tell-name " is now closed." tell-line
+			object :open clear-flag
+		else
+			"It is already closed." tell-line
+		then
+		1 exit
+	then
+	object :surface flag? not object :capacity property 0 = not and if
+		object :open flag? if
+			object :open clear-flag
+			"Closed." tell-line
+		else
+			"It is already closed." tell-line
+		then
+		1 exit
+	then
+	"You cannot close that." tell-line
+	1 ;
+
+\ === looking at things ===
+
+\ the room is the direct object: itself when here, else a refusal
+: room-check ( -- flag )
+	| ^object |
+	object :rooms inside? not if false exit then
+	object here = if :global-room to object false exit then
+	"You aren't in that room!" tell-line
+	true ;
+
+: before-search ( -- result ) room-check if 1 else 0 then ;
+
+defer int-wait
+
+: before-examine ( -- result )
+	room-check if 1 exit then
+	adverb "carefully" key-is? if
+		3 int-wait not if
+			"You never got to finish looking over the " tell object tell-name "." tell-line
+			1 exit
+		then
+	then
+	0 ;
+
+defer do-look-inside
+
+: do-examine ( -- result )
+	object :global-objects inside? if object not-here 1 exit then
+	object :text property to text
+	text null? not if text tell-line 1 exit then
+	object :container flag? object :door flag? or if do-look-inside exit then
+	object :person flag? if character-descriptions object :character property @i tell-line 1 exit then
+	"There's nothing special about the" tell tell-direct-phrase "." tell-line
+	1 ;
+
+\ whether the room there can be seen into from here, through an open way
+: see-into? ( there -- flag )
+	| there |
+	here :exits property to exits
+	exits null? if "You can't seem to find that room." tell-line false exit then
+	0 compass size 1 do k
+		exits compass k @i null @or to way
+		way null? not if
+			way exit-kind to kind
+			kind :plain = way there = and if true exit then
+			kind :door = way :to @ there = and if
+				way :door @ :open flag? if true exit then
+				"The door to that room is closed." tell-line
+				false exit
+			then
+			kind :conditional = way :to @ there = and if
+				way :if @ state if true exit then
+				"You can't seem to find that room." tell-line
+				false exit
+			then
+		then
+	loop
+	"You can't seem to find that room." tell-line
+	false ;
+
+\ a quick look into a room seen from here
+: room-peek ( -- )
+	| ^here |
+	here to from
+	object see-into? if
+		object to here
+		"You take a quick peek into the " tell object tell-name ":" tell-line
+		false describe-objects
+		from to here
+	then ;
+
+: look-inside ( -- result )
+	object :room flag? if room-peek 1 exit then
+	object :door flag? if
+		object :open flag? if
+			"The " tell object tell-name " is open, but you can't tell what's beyond it." tell
+		else
+			"The " tell object tell-name " is closed." tell
+		then
+		end-line
+		1 exit
+	then
+	object :container flag? if
+		object see-inside? not if "The " tell object tell-name " is closed." tell-line 1 exit then
+		object count-contents 0 > if object false 0 print-contents if 1 exit then then
+		object :surface flag? if
+			"There is nothing on the" tell tell-direct-phrase "." tell-line
+		else
+			"The " tell object tell-name " is empty." tell-line
+		then
+		1 exit
+	then
+	"One can't look inside the" tell tell-direct-phrase "." tell-line
+	1 ;
+
+' look-inside embodies do-look-inside
+
+: do-look-on ( -- result )
+	object :surface flag? if look-inside exit then
+	"There's no surface on the" tell tell-direct-phrase "." tell-line
+	1 ;
+
+: do-look-under ( -- result )
+	object :furniture flag? if
+		"You twist your head to look under the" tell tell-direct-phrase " but find nothing." tell-line
+	else object :person flag? if
+		"Nope. Nothing hiding under " tell object tell-name "." tell-line
+	else object location-of [ here :local-globals :global-objects ] swap position-of 0 >= if
+		"There is nothing but dust there." tell-line
+	else
+		"That's not so useful." tell-line
+	then then then
+	1 ;
+
+: do-look-behind ( -- result )
+	"There is nothing behind " tell
+	object :person flag? if object tell-name else "the" tell tell-direct-phrase then
+	"." tell-line
+	1 ;
+
+: do-look-up ( -- result )
+	object :person flag? if "What a pervert!" tell-line 1 exit then
+	object :rooms = not if "Your sanity is in question." tell-line 1 exit then
+	here :in-roses = here :in-orchard = or if
+		"You can see a balcony directly above you." tell-line
+	else here :shed-room = if
+		"There's nothing up there." tell-line
+	else here :line property 2 = if
+		"There is blue sky above you." tell-line
+	else
+		"You can see the ceiling. It's not the Sistine Chapel, but it's nicely
+		painted." tell-line
+	then then then
+	1 ;
+
+: do-look-down ( -- result )
+	object :rooms = if
+		here :line property 2 = if
+			"There's dirt there, mostly. And grass." tell-line
+		else
+			"Nothing's interesting about the floor." tell-line
+		then
+	else
+		"Your sanity is in question." tell-line
+	then
+	1 ;
+
+: before-read ( -- result )
+	lit not if "It is impossible to read in the dark." tell-line 1 exit then
+	[< :global-ending :second-section >] object has? if 0 exit then
+	object :global-objects inside? if object not-here 1 exit then
+	object :drug flag? if "You examine one of the handful of pills:" tell-line 0 exit then
+	indirect null? not indirect :transparent flag? not and indirect :intnum = not and if
+		"How does one look through the" tell tell-indirect-phrase "?" tell-line
+		1 exit
+	then
+	adverb "carefully" key-is? if
+		3 int-wait not if
+			"You never got to finish reading the " tell object tell-name "." tell-line
+			1 exit
+		then
+	then
+	0 ;
+
+: do-read ( -- result )
+	object :readable flag? not if
+		"You cannot read the " tell object tell-name "." tell-line
+	else
+		object :text property tell-line
+	then
+	1 ;
+
+: do-search ( -- result )
+	object :person flag? if
+		object tell-name " grudgingly allows you to search. You find nothing
+		whatsoever of interest." tell-line
+	else
+		"You find nothing unusual." tell-line
+	then
+	1 ;
+
+: do-search-object-for ( -- result )
+	object :person flag? if
+		object tell-name " resignedly allows you to perform the search." tell-line
+		indirect object inside? if
+			"Indeed, " tell object tell-name " has the " tell indirect tell-name "." tell-line
+		else
+			object tell-name " doesn't have that." tell-line
+		then
+	else indirect object inside? if
+		"How observant you are!  There it is!" tell-line
+	else
+		"You don't find the" tell tell-indirect-phrase " there." tell-line
+	then then
+	1 ;
+
+: do-search-around ( -- result ) "You don't find anything interesting." tell-line 1 ;
+
+: do-search-ground-around ( -- result )
+	object :ground = if "You don't find anything interesting." tell-line else "Huh?" tell-line then
+	1 ;
+
+: do-search-ground-under ( -- result ) do-search-ground-around ;
+
+\ === waiting and the time ===
+
+variable waited-minutes
+0 to waited-minutes
+\ whether a status line shows the time, as an interpreter's does; waiting then leaves the time out of its question
+false to status-line-shown
+
+: do-time ( -- result )
+	"It is now " tell present-time tell-time "." tell-line
+	1 ;
+
+\ wait a number of minutes, or until someone arrives, asking whether to go on when something happens; an inner wait is part of another action and asks whether to continue it
+: wait-minutes ( minutes someone inner? -- )
+	| minutes someone inner? ^waited-minutes ^clock-waiting |
+	0 to waited-minutes
+	inner? not if "Time passes..." tell-line then
+	begin
+		-- minutes
+		minutes 0 < if leave then
+		clocker to happened
+		happened if
+			happened fatal = if leave then
+			someone :global-duffy = :fingerprint-object state not and if leave then
+			someone null? not someone here inside? and if
+				someone tell-name ", for whom you are waiting, has arrived." tell-line
+				leave
+			then
+			++ waited-minutes
+			status-line-shown not if "(" tell present-time tell-time ") " tell then
+			inner? if
+				"Do you want to continue what you were doing? (Y/N)" tell
+			else
+				"Do you want to keep waiting? (Y/N)" tell
+			then
+			yes? not if leave then
+		else someone :global-duffy = :fingerprint-object state not and if
+			leave
+		else someone null? not someone here inside? and if
+			someone tell-name ", for whom you are waiting, has arrived." tell-line
+			leave
+		else someone null? not waited-minutes 1+ dup to waited-minutes 30 > and if
+			someone tell-name " still hasn't arrived. Do you want to keep waiting? (Y/N) " tell
+			yes? not if leave then
+			0 to waited-minutes
+		then then then then
+	again
+	true to clock-waiting
+	inner? not if do-time drop then ;
+
+: do-wait ( -- result ) 3 null false wait-minutes 1 ;
+
+\ wait up to twice a number of minutes as part of another action; true when not interrupted
+: inner-wait ( n -- flag )
+	| n |
+	present-time to started
+	n 2 * random-below 1+ to wanted
+	wanted null true wait-minutes
+	present-time started - wanted >= ;
+
+' inner-wait embodies int-wait
+
+: do-wait-until ( -- result )
+	| ^parsed-number ^object |
+	object :noon = if
+		720 to parsed-number
+		:intnum to object
+	else parsed-number 8 < if
+		parsed-number 12 + 60 * to parsed-number
+	else parsed-number 13 < if
+		parsed-number 60 * to parsed-number
+	then then then
+	object :intnum = if
+		parsed-number present-time > if
+			parsed-number present-time - null false wait-minutes
+		else
+			"You are clearly ahead of your time." tell-line
+		then
+	else
+		"Your sanity is coming into question." tell-line
+	then
+	1 ;
+
+: do-wait-for ( -- result )
+	object :intnum = if
+		parsed-number present-time > if do-wait-until drop 1 exit then
+		parsed-number 180 > if "That's too long to wait." tell-line 1 exit then
+		parsed-number null false wait-minutes
+		1 exit
+	then
+	object :noon = if do-wait-until drop 1 exit then
+	object :global-duffy = if
+		:fingerprint-object state if
+			10000 object false wait-minutes
+		else
+			"You would wait quite a while, since Sergeant Duffy is always nearby, but
+			never approaches you unless requested." tell-line
+		then
+		1 exit
+	then
+	object :person flag? if
+		object :character property character to someone
+		someone here inside? if
+			"That person is already here!" tell-line
+		else
+			10000 someone false wait-minutes
+		then
+		1 exit
+	then
+	"Not a good idea. You might wait all day." tell-line
+	1 ;
+
+\ === people ===
+
+: do-follow ( -- result )
+	| ^object |
+	object :character property to n
+	n null? not if n character to someone else null to someone then
+	someone null? not if someone location-of else null then to place-now
+	object :player = if "It's not clear whom you are talking to." tell-line 1 exit then
+	object :person flag? not if
+		"How tragic to see a formerly great detective stalking a " tell object tell-name "." tell-line
+		1 exit
+	then
+	here place-now = if "You're in the same place as " tell someone tell-name "!" tell-line 1 exit then
+	place-now null? if someone tell-name " has left the grounds." tell-line 1 exit then
+	last-seen 0 @i n @i present-time = if place-now true goto 1 exit then
+	here :corridor property to mine
+	place-now :corridor property to theirs
+	mine null? not theirs null? not and if
+		mine theirs bit-and 0 = not if
+			here place-now corridor-direction to object
+			do-walk exit
+		then
+	then
+	"You seem to have lost track of " tell someone tell-name "." tell-line
+	1 ;
+
+: before-find ( -- result )
+	| ^object |
+	"him" to pronoun
+	"he" to subject-pronoun
+	object :rooms inside? if
+		object here = if
+			"You're already here!" tell-line
+		else object :touched flag? if
+			"You should know - you've been there!" tell-line
+		else
+			"You're the detective!" tell-line
+		then then
+		1 exit
+	then
+	object :global-mr-robner = if "He's in the morgue, no doubt." tell-line 1 exit then
+	object :person flag? not if 0 exit then
+	object :character property to n
+	last-seen winner :character property @i n @i to seen-at
+	object :global-objects inside? if n character to object then
+	n 5 = n 6 = or n 3 = or if
+		"her" to pronoun
+		"she" to subject-pronoun
+	then
+	winner :player = not winner grab-attention not and if 1 exit then
+	winner location-of object location-of = if
+		winner :player = if "Are you blind?" tell-line else """Ahem...""" tell-line then
+		1 exit
+	then
+	seen-at 0 = if
+		winner :player = if
+			"You haven't seen " tell pronoun tell " yet." tell-line
+		else
+			"""I haven't seen " tell pronoun tell " today.""" tell-line
+		then
+		1 exit
+	then
+	present-time seen-at - to ago
+	winner :player = if "You last saw " else """I last saw " then tell pronoun tell " " tell
+	ago 120 > if "a few hours ago"
+	else ago 80 > if "an hour or two ago"
+	else ago 45 > if "about an hour ago"
+	else ago 20 > if "about half an hour ago"
+	else ago 10 > if "about 15 minutes ago"
+	else ago 5 > if "less than 10 minutes ago"
+	else "just a minute ago"
+	then then then then then then tell
+	winner :player = not if
+		". I don't know where " tell subject-pronoun tell " went, though.""" tell-line
+	else
+		"." tell-line
+	then
+	1 ;
+
+: do-find ( -- result )
+	object location-of to holder
+	object :player = if "You're around here somewhere..." tell-line 1 exit then
+	winner :player = not if """I don't know.""" tell-line 1 exit then
+	holder :global-objects = if "You're the detective." tell-line 1 exit then
+	object winner inside? if "You have it." tell-line 1 exit then
+	object here inside? object :pseudo-object = or if "It's right here." tell-line 1 exit then
+	holder :person flag? if holder tell-name " has it." tell-line 1 exit then
+	holder :container flag? if
+		"It's " tell holder :surface flag? if "o" else "i" then tell "n the " tell holder tell-name "." tell-line
+		1 exit
+	then
+	"Who knows?" tell-line
+	1 ;
+
+variable conversation
+null to conversation
+variable conversation-room
+null to conversation-room
+
+: do-tell ( -- result )
+	| ^winner ^conversation ^conversation-room ^quoting ^continuation |
+	object :player = if
+		"Talking to yourself is said to be a sign of impending mental collapse." tell-line
+		1 exit
+	then
+	object :person flag? if
+		continuation null? not if
+			object to winner
+		else
+			object tell-name " is listening." tell-line
+		then
+		object to conversation
+		here to conversation-room
+		1 exit
+	then
+	"You can't talk to the" tell tell-direct-phrase "!" tell-line
+	false to quoting
+	null to continuation
+	fatal ;
+
+: do-answer ( -- result )
+	| ^continuation ^quoting |
+	"Nobody seems to be awaiting your answer." tell-line
+	null to continuation
+	false to quoting
+	1 ;
+
+: do-reply ( -- result )
+	| ^continuation ^quoting |
+	"It is hardly likely that the " tell object tell-name " is interested." tell-line
+	null to continuation
+	false to quoting
+	1 ;
+
+: do-what ( -- result )
+	object :person flag? if
+		"Surely you have read the interviews." tell-line
+	else
+		"Are you talking to yourself again?" tell-line
+	then
+	1 ;
+
+: do-kiss ( -- result )
+	object :person flag? if
+		"Section 204D, Paragraph 7.6 of the Connecticut Police Code of Conduct
+		specifically prohibits kissing suspects." tell-line
+	else
+		"What a (ahem!) strange idea!" tell-line
+	then
+	1 ;
+
+: do-rape ( -- result )
+	object :person flag? if
+		75 probability if
+			"Section 29A of the United States Criminal Code, whose provisions come to
+			your unhealthy mind, tut-tuts this sort of thing. A pity." tell-line
+		else
+			gone-crazy
+		then
+	else
+		"What a (ahem!) strange idea!" tell-line
+	then
+	1 ;
+
+: do-say ( -- result )
+	| ^quoting ^continuation |
+	false to quoting
+	null to continuation
+	"To talk to someone, try 'SAY TO someone ""something""'." tell-line
+	1 ;
+
+: before-sshow ( -- result )
+	| ^merged |
+	true to merged
+	:show indirect object perform drop
+	1 ;
+
+: do-sshow ( -- result ) 1 ;
+
+: do-show ( -- result )
+	object :player = if "Do you often talk to yourself?" tell-line 1 exit then
+	object :person flag? not if "Do you expect applause from the" tell tell-direct-phrase "?" tell-line 1 exit then
+	object tell-name who-cares pick-one tell "." tell-line
+	1 ;
+
+: do-confront ( -- result )
+	object :player = if "You aren't talking to anyone!" tell-line 1 exit then
+	object :person flag? not if "That ought to put a scare into the" tell tell-direct-phrase "." tell-line 1 exit then
+	object tell-name who-cares pick-one tell "." tell-line
+	1 ;
+
+: do-tell-me ( -- result ) do-confront ;
+
+: do-send-for ( -- result )
+	object :person flag? not if "You can only send for a person." tell-line 1 exit then
+	object :global-objects inside? if object :character property character else object then to someone
+	someone here inside? if
+		someone tell-name " is already here." tell-line
+	else
+		"You can't send for people." tell-line
+	then
+	1 ;
+
+: do-send ( -- result )
+	object :person flag? if
+		"Why would you send for the" tell tell-direct-phrase "?" tell-line
+	else
+		"Sigh." tell-line
+	then
+	1 ;
+
+: do-analyze ( -- result )
+	indirect :global-fingerprints = if :fingerprint object null perform drop 1 exit then
+	object :takeable flag? if analyze-in-laboratory exit then
+	:fingerprint-object state if "Duffy is already occupied with another errand." tell-line 1 exit then
+	object :global-objects inside? if
+		"Duffy appears in an instant. ""Well, I might be able to analyze the " tell
+		object tell-name ", but you don't even have it with you!""  With that, he discreetly leaves." tell-line
+		1 exit
+	then
+	"Sergeant Duffy appears with a puzzled look on his face. ""With all respect,
+	I don't think I can take THAT to the laboratory! I'll be nearby if you need
+	me."" He leaves, shaking his head slowly." tell-line
+	1 ;
+
+: before-accuse ( -- result )
+	| ^indirect |
+	indirect null? if :global-murder to indirect then
+	indirect :global-murder = not if "What an accusation!" tell-line 1 exit then
+	object :person flag? not if
+		"What a detective!  Quick, Sergeant!  Arrest that " tell object tell-name "!" tell-line
+		1 exit
+	then
+	0 ;
+
+: do-accuse ( -- result ) object tell-name " shrugs off your suggestion." tell-line 1 ;
+
+: do-arrest ( -- result )
+	object :person flag? if
+		"You realize that you don't have enough evidence to convict " tell object tell-name
+		" so you resolve to continue the investigation." tell-line
+	else object :global-duffy = if
+		"Oh, come on now!  Not trusty " tell object tell-name "!" tell-line
+	else
+		"Sergeant Duffy enters, strokes his chin, and in a rather puzzled voice says
+		""Excuse me, sir, but it would cause quite a stir at the station to be
+		charging a " tell object tell-name " with murder!""  He leaves quietly." tell-line
+	then then
+	1 ;
+
+: do-ask-about ( -- result )
+	object :player = if
+		"Talking to yourself is said to be a sign of impending mental collapse." tell-line
+	else object :global-steven = if
+		"Steven isn't in the area." tell-line
+	else object :person flag? not if
+		"Do you often talk to a " tell object tell-name "?" tell-line
+	else
+		object tell-name " doesn't seem to know about that." tell-line
+	then then then
+	1 ;
+
+: do-ask-for ( -- result )
+	object :person flag? object :player = not and if
+		indirect :safe = indirect :global-safe = or if :ask-about object indirect perform drop 1 exit then
+		object tell-name
+		indirect object inside? if
+			" hands you the " tell indirect tell-name "." tell-line
+			indirect winner move-to
+		else
+			" doesn't have that." tell-line
+		then
+	else
+		"Be serious!" tell-line
+	then
+	1 ;
+
+: do-call-lose ( -- result ) "You must supply a verb!" tell-line 1 ;
+
+: do-call ( -- result )
+	object :person flag? not if do-call-lose exit then
+	object :character property character to someone
+	someone in-motion? to moving
+	someone here inside? someone corridor-look null? not or if
+		someone tell-name
+		someone grab-attention if
+			moving if " stops and turns toward you." else " is facing you." then tell-line
+		else
+			" takes no notice of your call." tell-line
+		then
+	else
+		"You don't see " tell someone tell-name " here." tell-line
+	then
+	1 ;
+
+: do-yn ( -- result )
+	conversation null? not if
+		conversation tell-name " ignores you completely." tell-line
+	else
+		"Did you say something?" tell-line
+	then
+	1 ;
+
+: do-thanks ( -- result )
+	object null? not conversation null? not or if
+		object null? not if object else conversation then tell-name " acknowledges your thanks." tell-line
+	else
+		"Whatever do you have to be thankful for?" tell-line
+	then
+	1 ;
+
+: do-phone ( -- result )
+	object :person flag? not if "Perhaps it's time for you to rest...." tell-line 1 exit then
+	object here inside? if object tell-name " is here!" tell-line 1 exit then
+	[ :living-room :library :master-bedroom ] here position-of 0 < if "There's no phone here." tell-line 1 exit then
+	"There's no sense in phoning " tell object tell-name "." tell-line
+	1 ;
+
+\ as in the original, the word said is never printed: "Only schizophrenics say "" to a lamp."
+: do-hello ( -- result )
+	object null? not if
+		object :person flag? if
+			object tell-name " returns the salutation." tell-line
+		else
+			"Only schizophrenics say """" to a " tell object tell-name "." tell-line
+		then
+	else
+		"Good day." tell-line
+	then
+	1 ;
+
+: do-goodbye ( -- result ) do-hello ;
+
+\ === violence ===
+
+: kill-with ( verb-text -- result )
+	| verb-text |
+	object null? if "There is nothing here to " tell verb-text tell "." tell-line 1 exit then
+	object :person flag? not if
+		"No doubt you need a refresher course at the academy in the martial arts, but the " tell
+		object tell-name " is hardly a likely target." tell-line
+		1 exit
+	then
+	indirect :pistol = if
+		"A shot rings out and " tell object tell-name " falls to the ground, dead. Good shot." tell-line
+		gone-crazy
+		1 exit
+	then
+	50 probability if "You rethink your planned action." tell-line 1 exit then
+	"With a lethal blow of your hand, " tell object tell-name " falls dead." tell-line
+	gone-crazy
+	1 ;
+
+: do-kill ( -- result ) "kill" kill-with ;
+
+: do-attack ( -- result ) "attack" kill-with ;
+
+: do-swing ( -- result )
+	indirect null? if "Whoosh!" tell-line 1 exit then
+	:attack indirect object perform drop
+	1 ;
+
+\ "Kicking the lamp isn't particularly useful."
+: hack-hack ( text -- result )
+	| text |
+	text tell object tell-name ho-hum pick-one tell-line
+	1 ;
+
+: do-kick ( -- result )
+	object :person flag? if "This sort of shabby behavior is disgusting." tell-line 1 exit then
+	"Kicking the " hack-hack ;
+
+: do-wave ( -- result ) "Waving the " hack-hack ;
+
+: do-raise ( -- result ) "Playing in this way with the " hack-hack ;
+
+: do-lower ( -- result ) "Playing in this way with the " hack-hack ;
+
+: do-rub ( -- result ) "Fiddling with the " hack-hack ;
+
+: do-push ( -- result ) "Pushing the " hack-hack ;
+
+: do-mung ( -- result ) "Trying to destroy the " hack-hack ;
+
+: do-cut ( -- result )
+	object :person flag? if :kill object indirect perform drop 1 exit then
+	object :burnable flag? indirect :weapon flag? and if
+		object remove-thing
+		"Your skillful " tell indirect tell-name "smanship slices the " tell object tell-name
+		" into innumerable slivers that evaporate instantaneously." tell-line
+		1 exit
+	then
+	indirect :weapon flag? not if
+		"You find that the ""cutting edge"" of the" tell tell-indirect-phrase " is inadequate." tell-line
+		1 exit
+	then
+	"That's a strange concept, cutting the" tell tell-direct-phrase "." tell-line
+	1 ;
+
+\ === everything else ===
+
+: do-score ( -- result ) "You are an amateur inspector, at best." tell-line 1 ;
+
+: do-quit ( -- result )
+	"Do you wish to stop your investigation (Y/N)" tell
+	yes? if quit-game then
+	"Ok." tell-line
+	1 ;
+
+: do-restart ( -- result )
+	"Do you wish to restart your investigation (Y/N)" tell
+	yes? if restart-game "Failed." tell-line then
+	1 ;
+
+: do-save ( -- result ) save-game if "Ok." else "Failed." then tell-line 1 ;
+
+: do-restore ( -- result )
+	restore-game if
+		"Ok." tell-line
+		first-look
+	else
+		"Failed." tell-line
+	then
+	1 ;
+
+: do-version ( -- result )
+	"DEADLINE{nl}Infocom interactive fiction - a mystery story{nl}Copyright (c) 1982,
+	1983 by Infocom, Inc. All rights reserved.{nl}DEADLINE is a registered trademark
+	of Infocom, Inc.{nl}Release 27 / Serial number 831005" tell-line
+	1 ;
+
+: do-$verify ( -- result )
+	"Verifying game..." tell-line
+	"Game correct." tell-line
+	1 ;
+
+" a transcript of interaction with DEADLINE.{nl}DEADLINE is a registered trademark of
+Infocom, Inc.{nl}Copyright (c) 1982 Infocom, Inc. All rights reserved.{nl}" to copyright-notice
+
+: do-script ( -- result ) "Here begins" tell copyright-notice tell-line 1 ;
+
+: do-unscript ( -- result ) "Here ends" tell copyright-notice tell-line 1 ;
+
+: do-space ( -- result )
+	| ^blank-lines |
+	1 to blank-lines
+	"Spacing." tell-line
+	1 ;
+
+: do-unspace ( -- result )
+	| ^blank-lines |
+	0 to blank-lines
+	"No spacing." tell-line
+	1 ;
+
+: do-again ( -- result )
+	last-object null? not last-object location-of null? and if
+		last-object
+	else last-indirect null? not last-indirect location-of null? and if
+		last-indirect
+	else
+		null
+	then then to vanished
+	vanished null? not if
+		"You can't see the " tell vanished tell-name " any more." tell-line
+		fatal exit
+	then
+	last-action last-object last-indirect perform ;
+
+: do-bug ( -- result )
+	"If there is a problem here, it is unintentional. You may report your problem
+	to the address provided in your documentation." tell-line
+	1 ;
+
+: before-move ( -- result )
+	object held? if "Juggling isn't one of your talents." tell-line 1 exit then
+	0 ;
+
+: do-move ( -- result )
+	object :takeable flag? if
+		"Moving the" tell tell-direct-phrase " reveals nothing." tell-line
+	else
+		"You can't move the" tell tell-direct-phrase "." tell-line
+	then
+	1 ;
+
+: do-lamp-on ( -- result )
+	object :person flag? if
+		"Ahem!  You may or may not realize this, but you are on a case. You shouldn't
+		be wasting your time attempting to flirt with the suspects. In any event,
+		it's unlikely that you are person enough to do it." tell-line
+	else
+		"You can't turn that on." tell-line
+	then
+	1 ;
+
+: do-lamp-off ( -- result )
+	object :person flag? if
+		"Your uncouth manner is certain to turn anyone off." tell-line
+	else
+		"You can't turn that off." tell-line
+	then
+	1 ;
+
+: do-stand ( -- result )
+	winner location-of to seat
+	seat :surface flag? seat :furniture flag? or if
+		"You are on your own feet again." tell-line
+		winner here move-to
+	else
+		"You're already standing up!" tell-line
+	then
+	1 ;
+
+: do-disembark ( -- result )
+	winner location-of object = not if "You're not in that!" tell-line fatal exit then
+	"You are on your own feet again." tell-line
+	winner here move-to
+	1 ;
+
+: before-pour-on ( -- result ) "You can't pour that on anything." tell-line 1 ;
+
+: do-pour-on ( -- result )
+	object remove-thing
+	indirect :flame flag? indirect :lit flag? and if
+		"The " tell indirect tell-name " is extinguished." tell-line
+	else
+		"The water spills over the " tell indirect tell-name " and to the floor where it evaporates." tell-line
+	then
+	1 ;
+
+: do-squeeze ( -- result )
+	object :person flag? if
+		"It's unclear how " tell object tell-name " would take this, so you defer until after hours." tell
+	else
+		"How singularly useless." tell
+	then
+	end-line
+	1 ;
+
+: do-fill ( -- result )
+	indirect null? if
+		:global-water here global-in? if
+			:fill object :global-water perform drop
+		else
+			"There's nothing to fill it with." tell-line
+		then
+	else
+		"You can't do that." tell-line
+	then
+	1 ;
+
+: do-brush ( -- result )
+	"Cleanliness is next to Godliness, although in this case it seems to be next to
+	Uselessness." tell-line
+	1 ;
+
+: do-ring ( -- result ) "How, exactly, does one ring that?" tell-line 1 ;
+
+: do-eat ( -- result )
+	object :food flag? to food?
+	food? object winner inside? and if
+		[< :drink >] verb? if
+			"How does one drink that?" tell-line
+		else
+			"Mmm. That really hit the spot." tell-line
+			object remove-thing
+		then
+		end-line
+		1 exit
+	then
+	object :drinkable flag? to drink?
+	drink? if
+		object location-of to holder
+		object :global-objects inside? holder winner inside? holder :open flag? and or if
+			"Mmm. That really hit the spot." tell-line
+			object remove-thing
+		else
+			"You can't get to it." tell-line
+		then
+		1 exit
+	then
+	food? drink? or not if "The" tell tell-direct-phrase " wouldn't agree with you." tell-line then
+	1 ;
+
+: do-drink ( -- result ) do-eat ;
+
+: do-curses ( -- result )
+	object null? not if
+		object :person flag? if
+			"Insults of this nature won't help you." tell-line
+		else
+			"What a loony!" tell-line
+		then
+	else
+		offended pick-one tell-line
+	then
+	1 ;
+
+: do-listen ( -- result )
+	object :person flag? not if "The " tell then
+	object tell-name " makes no sound." tell-line
+	1 ;
+
+: do-skip ( -- result ) "Wheeeeeeeeee!!!!!" tell-line 1 ;
+
+: do-leap ( -- result )
+	object null? not if
+		object here inside? if
+			object :person flag? if
+				"The " tell object tell-name " is too big to jump over." tell-line
+			else
+				do-skip drop
+			then
+		else
+			"That would be a good trick." tell-line
+		then
+		1 exit
+	then
+	here :exits property to exits
+	exits null? if null else exits :down null @or then to way-down
+	way-down null? not if
+		way-down exit-kind to kind
+		kind :refusal = kind :conditional = way-down :if @ state not and or if
+			"For a brief moment, you feel the exhilaration of free fall. A thought hits
+			you: the ground is moving toward me. It is your last thought." tell-line
+			quit-game
+		then
+	then
+	do-skip ;
+
+: do-knock ( -- result )
+	object thing :synonym-keys [ ] @or "door" dictionary-key position-of 0 >= if
+		"It appears that nobody's home." tell-line
+	else
+		"Why knock on a " tell object tell-name "?" tell-line
+	then
+	1 ;
+
+: do-shake ( -- result )
+	object :takeable flag? not if "You can't take it; thus, you can't shake it!" tell-line 1 exit then
+	object :open flag? not object count-contents 0 > and if
+		"It sounds as though there is something inside the " tell object tell-name "." tell-line
+		1 exit
+	then
+	object :open flag? object count-contents 0 > and if
+		begin object count-contents 0 > while
+			object first-content to spilled
+			spilled here move-to
+			spilled :touched set-flag
+		repeat
+		"Everything in it spills onto the floor." tell-line
+		1 exit
+	then
+	"Well, what did you expect to happen?" tell-line
+	1 ;
+
+: do-smell ( -- result ) "It smells just like a" tell tell-direct-phrase "." tell-line 1 ;
+
+: do-swim ( -- result )
+	"Swimming isn't possible " tell
+	object null? not if
+		"in the " tell object tell-name
+	else here :line property 2 = if
+		"on the grounds" tell
+	else
+		"right on the floor, Sherlock" tell
+	then then
+	"." tell-line
+	1 ;
+
+: before-untie ( -- result ) "This cannot be tied, so it cannot be untied!" tell-line 1 ;
+
+: do-untie ( -- result ) "Foo!" tell-line 1 ;
+
+: before-tie ( -- result )
+	indirect winner = if "You can't tie it to yourself." tell-line 1 exit then
+	0 ;
+
+: do-tie ( -- result ) "You can't tie the" tell tell-direct-phrase " to that." tell-line 1 ;
+
+: do-tie-up ( -- result ) "You could certainly never tie it with that!" tell-line 1 ;
+
+: do-mumble ( -- result ) "It has been a long day, hasn't it?" tell-line 1 ;
+
+: do-alarm ( -- result )
+	object :person flag? if
+		"He's wide awake, or haven't you noticed?" tell-line
+	else
+		"The" tell tell-direct-phrase " doesn't sleep." tell-line
+	then
+	1 ;
+
+: do-climb-on ( -- result )
+	object :furniture flag? object :vehicle flag? and if
+		:player object move-to
+		"You are now seated on the " tell object tell-name "." tell-line
+	else object :furniture flag? if
+		"This isn't the kind of thing to sit on!" tell-line
+	else
+		"You can't climb onto the " tell object tell-name "." tell-line
+	then then
+	1 ;
+
+: climb ( direction object? -- result )
+	| direction object? |
+	here :exits property to exits
+	exits null? not if
+		exits direction has? if :walk direction null perform drop 1 exit then
+	then
+	object? not if "You can't go that way." tell-line 1 exit then
+	object thing :synonym-keys [ ] @or "wall" dictionary-key position-of 0 >= if
+		"Climbing the walls is to no avail." tell-line
+	else
+		"Bizarre!" tell-line
+	then
+	1 ;
+
+: do-climb-foo ( -- result ) :up true climb ;
+
+: do-climb-up ( -- result ) :up false climb ;
+
+: do-climb-down ( -- result )
+	object :furniture flag? object :vehicle flag? and if do-climb-on exit then
+	:down false climb ;
+
+: do-count ( -- result )
+	object :count property to n
+	object :drug flag? if
+		"There " tell
+		n 1 = if "is " else "are " then tell
+		n tell-number
+		" of them." tell-line
+	else object :end-table = if
+		"There are two in a pair, or have you forgotten?" tell-line
+	else
+		"Unless you are drunk, one." tell-line
+	then then
+	1 ;
+
+: do-put-under ( -- result ) "There's not enough room." tell-line 1 ;
+
+: do-cross ( -- result ) "You can't cross that!" tell-line 1 ;
+
+: do-diagnose ( -- result ) "You're OK for now." tell-line 1 ;
+
+: do-lean ( -- result ) "You can't do that!" tell-line 1 ;
+
+: do-fingerprint ( -- result )
+	"Upon looking over and dusting the" tell tell-direct-phrase " you notice that there
+	are no good fingerprints to be found." tell-line
+	1 ;
+
+: do-flush ( -- result ) "Whatever do you have in mind?" tell-line 1 ;
+
+: do-taste ( -- result ) "That's ridiculous!" tell-line 1 ;
+
+: do-write ( -- result ) "You're nuts." tell-line 1 ;
+
+: do-through ( -- result )
+	object :rooms inside? if
+		here object = if "Duuuhhh!" tell-line 1 exit then
+		here object direction-from to direction
+		direction null? not if :walk direction null perform drop 1 exit then
+		"You can't go directly from here to there." tell-line
+		1 exit
+	then
+	object :takeable flag? not if
+		"You hit your head against the" tell tell-direct-phrase " as you attempt this feat." tell-line
+		1 exit
+	then
+	object winner inside? if "That would involve quite a contortion!" tell-line 1 exit then
+	yuks pick-one tell-line
+	1 ;
+
+: do-use ( -- result ) "You should be more specific with what you want to do." tell-line 1 ;
+
+: do-play ( -- result ) "You are adept only at playing the fool." tell-line 1 ;
+
+: do-turn-up ( -- result ) "That is silly." tell-line 1 ;
+
+: do-turn-down ( -- result ) "That is silly." tell-line 1 ;
+
+: do-hide-behind ( -- result ) "There's no room to hide behind the" tell tell-direct-phrase "." tell-line 1 ;
+
+: do-hide ( -- result )
+	here :east-lawn = if
+		"You might hide behind the shed." tell-line
+	else here :library = if
+		"You might hide on the balcony." tell-line
+	else
+		"There's no good hiding place here." tell-line
+	then then
+	1 ;
+
+: do-run-over ( -- result ) "That doesn't make much sense." tell-line 1 ;
+
+: before-rub-over ( -- result ) :rub indirect object perform drop 1 ;
+
+: do-rub-over ( -- result ) "Do you really expect that to help?" tell-line 1 ;
+
+: turn-check ( -- result )
+	object :global-call = if "Specify a direction if you want to move around." tell-line 1 exit then
+	object :turnable flag? not if "You can't turn that!" tell-line 1 exit then
+	0 ;
+
+' turn-check embodies before-turn
+
+: do-turn ( -- result ) "This has no effect." tell-line 1 ;
+
+: do-lock ( -- result ) "It doesn't seem to work." tell-line 1 ;
+
+: do-unlock ( -- result ) "It doesn't seem to work." tell-line 1 ;
+
+: do-pick ( -- result ) "You can't pick that." tell-line 1 ;
+
+: before-burn ( -- result )
+	indirect :flame flag? indirect :lit flag? and if 0 exit then
+	"With the" tell tell-indirect-phrase "??!?" tell-line
+	1 ;
+
+: do-burn ( -- result ) "You can't burn the " tell object tell-name "." tell-line 1 ;
+
+: do-hold-up ( -- result ) "That doesn't seem to help at all." tell-line 1 ;
+
+\ === the actions' defaults and preconditions ===
+
+{ :$verify ' do-$verify :accuse ' do-accuse :again ' do-again :alarm ' do-alarm
+  :analyze ' do-analyze :answer ' do-answer :arrest ' do-arrest
+  :ask-about ' do-ask-about :ask-for ' do-ask-for :attack ' do-attack
+  :brief ' do-brief :brush ' do-brush :bug ' do-bug :burn ' do-burn
+  :call ' do-call :call-lose ' do-call-lose :climb-down ' do-climb-down
+  :climb-foo ' do-climb-foo :climb-on ' do-climb-on :climb-up ' do-climb-up
+  :close ' do-close :confront ' do-confront :count ' do-count :cross ' do-cross
+  :curses ' do-curses :cut ' do-cut :diagnose ' do-diagnose
+  :disembark ' do-disembark :drink ' do-drink :drop ' do-drop :eat ' do-eat
+  :enter ' do-enter :examine ' do-examine :exit ' do-exit :fill ' do-fill
+  :find ' do-find :fingerprint ' do-fingerprint :flush ' do-flush
+  :follow ' do-follow :give ' do-give :goodbye ' do-goodbye :hello ' do-hello
+  :hide ' do-hide :hide-behind ' do-hide-behind :hold-up ' do-hold-up
+  :inventory ' do-inventory :kick ' do-kick :kill ' do-kill :kiss ' do-kiss
+  :knock ' do-knock :lamp-off ' do-lamp-off :lamp-on ' do-lamp-on
+  :lean ' do-lean :leap ' do-leap :leave ' do-leave :listen ' do-listen
+  :lock ' do-lock :look ' do-look :look-behind ' do-look-behind
+  :look-down ' do-look-down :look-inside ' look-inside :look-on ' do-look-on
+  :look-under ' do-look-under :look-up ' do-look-up :lower ' do-lower
+  :move ' do-move :mumble ' do-mumble :mung ' do-mung :open ' do-open
+  :phone ' do-phone :pick ' do-pick :play ' do-play :pour-on ' do-pour-on
+  :push ' do-push :put ' do-put :put-under ' do-put-under :quit ' do-quit
+  :raise ' do-raise :rape ' do-rape :read ' do-read :reply ' do-reply
+  :restart ' do-restart :restore ' do-restore :ring ' do-ring :rub ' do-rub
+  :rub-over ' do-rub-over :run-over ' do-run-over :save ' do-save
+  :say ' do-say :score ' do-score :script ' do-script :search ' do-search
+  :search-around ' do-search-around :search-ground-around ' do-search-ground-around
+  :search-ground-under ' do-search-ground-under
+  :search-object-for ' do-search-object-for :send-for ' do-send-for
+  :sgive ' do-sgive :shake ' do-shake :show ' do-show :skip ' do-skip
+  :smell ' do-smell :space ' do-space :squeeze ' do-squeeze :sshow ' do-sshow
+  :stand ' do-stand :super-brief ' do-super-brief :swim ' do-swim
+  :swing ' do-swing :take ' do-take :taste ' do-taste :tell ' do-tell
+  :tell-me ' do-tell-me :thanks ' do-thanks :through ' do-through
+  :throw-at ' do-throw-at :throw-through ' do-throw-through :tie ' do-tie
+  :tie-up ' do-tie-up :time ' do-time :turn ' do-turn :turn-down ' do-turn-down
+  :turn-up ' do-turn-up :unlock ' do-unlock :unscript ' do-unscript
+  :unspace ' do-unspace :untie ' do-untie :use ' do-use :verbose ' do-verbose
+  :version ' do-version :wait ' do-wait :wait-for ' do-wait-for
+  :wait-until ' do-wait-until :walk ' do-walk :walk-around ' do-walk-around
+  :wave ' do-wave :what ' do-what :write ' do-write :yn ' do-yn
+} to verb-actions
+
+{ :accuse ' before-accuse :burn ' before-burn :examine ' before-examine
+  :find ' before-find :give ' before-give :move ' before-move
+  :pour-on ' before-pour-on :put ' before-put :read ' before-read
+  :rub-over ' before-rub-over :search ' before-search :sgive ' before-sgive
+  :sshow ' before-sshow :take ' before-take :tie ' before-tie
+  :turn ' before-turn :untie ' before-untie
+} to preactions

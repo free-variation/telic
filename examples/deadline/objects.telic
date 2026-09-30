@@ -1,0 +1,1466 @@
+\ Deadline: every thing that is not a room, placed in the world under its
+\ name. Each container's things are placed in the order the container lists
+\ them.
+
+\ ---- South Lawn ----
+
+{ :name "player"
+  :synonyms [ "me" "player" "inspector" ]
+  :flags [< :undescribed >]
+  :action :player
+  :character 0
+} :player :south-lawn place
+
+\ ---- George's Bedroom ----
+
+{ :name "George"
+  :synonyms [ "george" "robner" ]
+  :adjectives [ "george" ]
+  :flags [< :person :open >]
+  :action :george
+  :describer :george
+  :character 4
+  :capacity 40
+} :george :george-room place
+
+{ :name "tape collection"
+  :synonyms [ "tape" "tapes" "cassette" ]
+  :flags [< :undescribed >]
+  :action :tapes
+} :tapes :george-room place
+
+{ :name "record collection"
+  :synonyms [ "record" ]
+  :flags [< :undescribed >]
+  :action :records
+} :records :george-room place
+
+{ :name "stereo"
+  :synonyms [ "stereo" "volume" "music" "hifi" ]
+  :flags [< :undescribed >]
+  :action :stereo
+} :stereo :george-room place
+
+{ :name "liquor cabinet"
+  :synonyms [ "cabinet" ]
+  :adjectives [ "liquor" ]
+  :flags [< :undescribed :container :searchable >]
+  :capacity 30
+} :liquor-cabinet :george-room place
+
+{ :name "bottle of Scotch"
+  :initial-description "A half-filled bottle of Scotch is in the cabinet."
+  :synonyms [ "bottle" "scotch" ]
+  :adjectives [ "scotch" ]
+  :flags [< :takeable >]
+  :action :liquor
+} :scotch :liquor-cabinet place
+
+{ :name "bottle of Bourbon"
+  :initial-description "A nearly empty bottle of Bourbon is here."
+  :synonyms [ "bottle" "bourbon" ]
+  :adjectives [ "bourbon" ]
+  :flags [< :takeable >]
+  :action :liquor
+} :bourbon :liquor-cabinet place
+
+\ ---- George's Bathroom ----
+
+{ :name "shaving gear"
+  :synonyms [ "gear" "razor" "cream" ]
+  :adjectives [ "shaving" ]
+  :flags [< :undescribed >]
+} :shaving-gear :george-bath place
+
+\ ---- Dunbar's Bathroom ----
+
+{ :name "cabinet"
+  :synonyms [ "cabinet" "chest" ]
+  :adjectives [ "medicine" ]
+  :flags [< :undescribed :container :searchable >]
+  :capacity 50
+} :dunbar-cabinet :dunbar-bath place
+
+{ :name "bottle of LoBlo"
+  :initial-description "On the bottom shelf is a bottle of tablets labelled
+                        'LoBlo'."
+  :text "Frobizz Pharmacy   #69105{nl}{nl}Ms. S. Dunbar{nl}LoBLO{nl}Take 1
+         tablet 3 times daily{nl}{nl}Fizmo Labs, Ltd. - Kingston, Ont.{nl}LoBLO
+         Brand of Methsparin, USP{nl}10mg Tablets{nl}{nl}Warning:  LoBLO may be
+         dangerous{nl}when used in combination with{nl}other
+         medications.  Please read{nl}the enclosed circular prior to{nl}using
+         these tablets.{nl}   "
+  :synonyms [ "bottle" "loblo" "label" ]
+  :adjectives [ "loblo" ]
+  :flags [< :takeable :readable :container >]
+  :capacity 5
+} :loblo-bottle :dunbar-cabinet place
+
+{ :name "couple of LoBLO tablets"
+  :synonyms [ "couple" "tablets" "pills" "loblo" ]
+  :adjectives [ "loblo" ]
+  :flags [< :takeable :drug >]
+  :action :loblo
+  :size 4
+  :count 10
+} :loblo :loblo-bottle place
+
+{ :name "bottle of cough medicine"
+  :initial-description "Standing on a shelf beside some nail polish is a
+                        bottle of cough medicine."
+  :text "{nl}General Drug Co.{nl}        DUM - KOF{nl}     Cough
+         Supressant{nl}{nl}Directions:  1 tsp every 3-4 hrs{nl}Warning:  Take
+         as Directed.  May{nl}cause sedation when taken with
+         other{nl}drugs.{nl}{nl}"
+  :synonyms [ "bottle" "medicine" "dum-kof" "label" ]
+  :adjectives [ "cough" ]
+  :flags [< :takeable :readable :container >]
+  :capacity 4
+} :dum-kof-bottle :dunbar-cabinet place
+
+{ :name "quantity of cough syrup"
+  :synonyms [ "syrup" ]
+  :adjectives [ "cough" ]
+  :flags [< :takeable >]
+  :action :dum-kof
+  :size 4
+} :dum-kof :dum-kof-bottle place
+
+{ :name "bottle of aspirin"
+  :initial-description "On the top shelf, among various toilet items, is a
+                        bottle of aspirin."
+  :text "{nl}{nl}Generic ASPIRIN, usp{nl}     30mg / 5 gr{nl}{nl}"
+  :synonyms [ "bottle" "aspirin" "label" ]
+  :adjectives [ "aspirin" ]
+  :flags [< :takeable :readable :container >]
+  :capacity 5
+} :aspirin-bottle :dunbar-cabinet place
+
+{ :name "handful of aspirin tablets"
+  :synonyms [ "pills" "tablets" "aspirin" "handful" ]
+  :adjectives [ "aspirin" ]
+  :flags [< :takeable :drug >]
+  :size 4
+  :count 15
+} :aspirin :aspirin-bottle place
+
+\ ---- Closet ----
+
+{ :name "shelf"
+  :synonyms [ "shelves" "shelf" ]
+  :flags [< :undescribed :container :open :surface >]
+  :capacity 30
+} :c11-shelves :closet-11 place
+
+{ :name "linens"
+  :synonyms [ "linens" "sheets" "linen" ]
+  :flags [< :undescribed >]
+  :action :closet-stuff
+} :c11-linens :c11-shelves place
+
+\ ---- Guest Room ----
+
+{ :name "window"
+  :synonyms [ "window" ]
+  :flags [< :undescribed >]
+  :action :guest-window
+} :guest-window :guest-room place
+
+\ ---- Bedroom Balcony ----
+
+{ :name "railing"
+  :synonyms [ "railing" ]
+  :adjectives [ "metal" ]
+  :flags [< :undescribed >]
+  :action :b-railing
+} :b-railing :bedroom-balcony place
+
+{ :name "treetop"
+  :synonyms [ "treetop" "top" ]
+  :adjectives [ "tree" ]
+  :flags [< :undescribed >]
+  :action :tree-tops
+} :tree-tops :bedroom-balcony place
+
+{ :name "balcony"
+  :synonyms [ "balcony" ]
+  :flags [< :undescribed >]
+  :action :b-balcony
+} :b-balcony :bedroom-balcony place
+
+\ ---- Master Bathroom ----
+
+{ :name "bathtub"
+  :synonyms [ "tub" "bathtub" ]
+  :adjectives [ "bath" ]
+  :flags [< :undescribed :vehicle :open :container :furniture >]
+  :capacity 50
+} :bathtub :master-bath place
+
+{ :name "hanging plant"
+  :synonyms [ "plant" "plants" ]
+  :adjectives [ "hanging" ]
+  :flags [< :undescribed >]
+} :hanging-plants :master-bath place
+
+{ :name "mirror"
+  :synonyms [ "mirror" ]
+  :flags [< :undescribed >]
+  :action :bathroom-mirror
+} :bathroom-mirror :master-bath place
+
+{ :name "counter"
+  :synonyms [ "counter" ]
+  :adjectives [ "long" ]
+  :flags [< :undescribed :furniture :surface :container :open >]
+  :capacity 50
+} :master-bath-counter :master-bath place
+
+{ :name "bottle of Sneezo brand decongestant"
+  :initial-description "On the counter is a bottle of Sneezo tablets."
+  :text "Lakeville Pharmacy   #223224{nl}{nl}Mrs. M. Robner{nl}Take 1 tablet
+         every 3 hours as needed{nl}{nl}Sniffle Labs{nl}Sneezo Tablets{nl}"
+  :synonyms [ "bottle" "decong" "sneezo" ]
+  :adjectives [ "bottle" "decong" "sneezo" "brand" ]
+  :flags [< :takeable :readable :container >]
+  :action :medicine-bottle
+  :capacity 5
+} :sneezo-bottle :master-bath-counter place
+
+{ :name "handful of Sneezo tablets"
+  :synonyms [ "handful" "tablets" "decong" "sneezo" ]
+  :adjectives [ "decong" "sneezo" ]
+  :flags [< :takeable :drug >]
+  :action :sneezo
+  :size 4
+  :count 20
+} :sneezo :sneezo-bottle place
+
+{ :name "bottle of Allergone"
+  :initial-description "Beside a toothbrush is a bottle of Allergone."
+  :text "Lakeville Pharmacy   #220331{nl}{nl}Mrs. M. Robner{nl}Take 2 tablets
+         every 4 hours as needed for allergy symptoms.  Do not exceed
+         recommended dosage.{nl}{nl}Rash Labs / Allergone Tablets{nl}{nl}May
+         cause extreme drowsiness.  Do not{nl}use machinery or drive while
+         taking this{nl}medication.  Combination of Allergone with{nl}alcohol
+         is dangerous.  In case of overdose{nl}consult a physician
+         promptly.  Keep out{nl}of the reach of children!{nl}"
+  :synonyms [ "bottle" "allergone" ]
+  :adjectives [ "bottle" "allergone" ]
+  :flags [< :takeable :readable :container >]
+  :action :medicine-bottle
+  :capacity 5
+} :allergone-bottle :master-bath-counter place
+
+{ :name "bunch of Allergone tablets"
+  :synonyms [ "bunch" "tablets" "allergone" ]
+  :adjectives [ "allergone" ]
+  :flags [< :takeable :drug >]
+  :action :allergone
+  :size 4
+  :count 15
+} :allergone :allergone-bottle place
+
+\ ---- Master Bedroom ----
+
+{ :name "dresser"
+  :synonyms [ "dresser" ]
+  :flags [< :undescribed :container >]
+  :action :master-bedroom-dresser
+  :capacity 30
+} :master-bedroom-dresser :master-bedroom place
+
+{ :name "large mirror"
+  :synonyms [ "mirror" "frame" ]
+  :adjectives [ "large" "gilt" ]
+  :flags [< :undescribed >]
+  :action :bathroom-mirror
+} :bedroom-mirror :master-bedroom place
+
+{ :name "lounge"
+  :synonyms [ "lounge" ]
+  :flags [< :undescribed :furniture >]
+} :lounge :master-bedroom place
+
+{ :name "four-poster bed"
+  :synonyms [ "bed" "poster" ]
+  :adjectives [ "four" "four-" ]
+  :flags [< :undescribed :surface :container :open :furniture :vehicle >]
+  :action :bed
+  :capacity 30
+} :four-poster :master-bedroom place
+
+\ ---- Hidden Closet ----
+
+{ :name "red button"
+  :synonyms [ "button" ]
+  :adjectives [ "red" ]
+  :flags [< :undescribed >]
+  :action :red-button
+} :red-button :hidden-closet place
+
+{ :name "dust and cobwebs"
+  :synonyms [ "dust" "cobwebs" ]
+  :flags [< :undescribed >]
+} :dust :hidden-closet place
+
+{ :name "safe"
+  :synonyms [ "combination" "safe" "door" ]
+  :adjectives [ "safe" "wall" "large" ]
+  :flags [< :undescribed :container >]
+  :action :safe
+  :capacity 15
+} :safe :hidden-closet place
+
+{ :name "stack of papers"
+  :initial-description "A stack of papers bound together is in the safe."
+  :text "Leafing through these papers, it becomes obvious that they
+         incriminate Mr. Baxter in wrongdoings regarding the Focus scandal.
+         They document funds which were embezzled by Baxter and tell how the
+         scandal was hushed up. This evidence would be sufficient to convict
+         Mr. Baxter in the Focus case."
+  :synonyms [ "stack" "papers" ]
+  :flags [< :takeable :readable :burnable :invisible >]
+} :baxter-papers :safe place
+
+{ :name "new will"
+  :text "This is Mr. Robner's new will, disowning George and giving his entire
+         estate to his wife."
+  :synonyms [ "will" ]
+  :adjectives [ "new" ]
+  :flags [< :takeable :readable :burnable >]
+} :new-will :safe place
+
+{ :name "blue button"
+  :synonyms [ "button" ]
+  :adjectives [ "blue" ]
+  :flags [< :undescribed >]
+  :action :blue-button
+} :blue-button :hidden-closet place
+
+\ ---- Upstairs Closet ----
+
+{ :name "shelf"
+  :synonyms [ "shelves" "shelf" ]
+  :flags [< :undescribed :container :open :surface >]
+  :capacity 30
+} :uc-shelves :upstairs-closet place
+
+{ :name "linens"
+  :synonyms [ "linens" "sheets" "linen" ]
+  :flags [< :undescribed >]
+  :action :closet-stuff
+} :uc-linens :uc-shelves place
+
+{ :name "towel"
+  :synonyms [ "towel" "towels" ]
+  :flags [< :undescribed >]
+  :action :closet-stuff
+} :uc-towels :uc-shelves place
+
+\ ---- Library Balcony ----
+
+{ :name "railing"
+  :synonyms [ "railing" ]
+  :adjectives [ "metal" ]
+  :flags [< :undescribed >]
+  :action :l-railing
+} :l-railing :library-balcony place
+
+{ :name "balcony"
+  :synonyms [ "balcony" ]
+  :flags [< :undescribed >]
+  :action :l-balcony
+} :l-balcony :library-balcony place
+
+\ ---- Library ----
+
+{ :name "desk"
+  :synonyms [ "desk" ]
+  :adjectives [ "large" "executive" ]
+  :flags [< :undescribed :surface :container :open >]
+  :action :library-desk
+  :capacity 25
+} :library-desk :library place
+
+{ :name "note pad"
+  :initial-description "Lying atop the desk is a pad of white note paper."
+  :synonyms [ "pad" "paper" "notepad" ]
+  :adjectives [ "note" "white" ]
+  :flags [< :takeable :readable :burnable >]
+  :action :note-paper
+} :note-paper :library-desk place
+
+{ :name "desk calendar"
+  :synonyms [ "calendar" "july" ]
+  :adjectives [ "desk" ]
+  :flags [< :takeable :readable :burnable :turnable >]
+  :action :desk-calendar
+  :describer :desk-calendar
+} :desk-calendar :library-desk place
+
+{ :name "pencil"
+  :initial-description "A pencil is lying on the floor near the desk."
+  :synonyms [ "pencil" ]
+  :flags [< :takeable >]
+} :pencil :library place
+
+{ :name "bottle of Ebullion"
+  :text "Head Drugs     No. 44543{nl}{nl}Mr. Marshall Robner{nl}{nl}EBULLION
+         Tablets, 25mg.{nl}{nl}Directions: Take 1 or 2 twice{nl}daily for
+         depression.{nl}{nl}Warning:  Keep out of the reach{nl}of
+         children.  May be harmful or{nl}fatal in sufficient dosage.{nl}"
+  :synonyms [ "label" "bottle" "ebullion" ]
+  :adjectives [ "ebullion" ]
+  :flags [< :takeable :container :readable >]
+  :capacity 5
+} :ebullion-bottle :library place
+
+{ :name "couple of Ebullion tablets"
+  :synonyms [ "couple" "tablets" "ebullion" ]
+  :adjectives [ "ebullion" ]
+  :flags [< :takeable :drug >]
+  :action :ebullion
+  :size 4
+  :count 3
+} :ebullion :ebullion-bottle place
+
+{ :name "tray"
+  :initial-description "Beside the desk is a large collapsible tray."
+  :synonyms [ "tray" ]
+  :adjectives [ "large" "collapsible" ]
+  :flags [< :takeable :container :open :surface >]
+  :size 40
+  :capacity 40
+} :tray :library place
+
+{ :name "sugar bowl"
+  :initial-description "Sitting on the tray is a bowl containing a white
+                        powdery substance."
+  :synonyms [ "bowl" "sugar" "substance" "powder" ]
+  :adjectives [ "sugar" "white" "powder" ]
+  :flags [< :takeable >]
+  :action :sugar-bowl
+} :sugar-bowl :tray place
+
+{ :name "mud spots"
+  :text "The spots, which seem to be dried dirt or mud, are in the area
+         between the balcony and the desk."
+  :synonyms [ "spot" "mark" "dirt" "mud" ]
+  :adjectives [ "dried" ]
+  :flags [< :undescribed :invisible >]
+} :mud-spot :library place
+
+{ :name "carpet"
+  :synonyms [ "carpet" "rug" ]
+  :flags [< :undescribed >]
+  :action :library-carpet
+} :library-carpet :library place
+
+{ :name "wastepaper basket"
+  :initial-description "Alongside the desk is a wicker wastepaper basket."
+  :synonyms [ "basket" ]
+  :adjectives [ "wastep" "wicker" "trash" ]
+  :flags [< :takeable :open :container >]
+  :size 10
+  :capacity 15
+} :trash-basket :library place
+
+{ :name "bunch of crumpled papers"
+  :description "Inside the wastepaper basket are some crumpled papers."
+  :text "There are three wads of paper. One is a shopping list. Another is a
+         list of current stock prices. The last is the start of a letter to the
+         Board of Directors of the Robner Corp.  Unfortunately, it does not
+         contain enough information to allow even a guess about the intent of
+         the letter."
+  :synonyms [ "trash" "papers" ]
+  :adjectives [ "crumpled" ]
+  :flags [< :takeable :readable >]
+  :action :trash
+} :trash :trash-basket place
+
+{ :name "saucer"
+  :initial-description "Lying on the floor, overturned, is a beautiful
+                        saucer."
+  :synonyms [ "saucer" ]
+  :adjectives [ "beautiful" ]
+  :flags [< :takeable >]
+  :action :saucer
+  :size 4
+} :saucer :library place
+
+{ :name "cup"
+  :initial-description "Turned onto its side, lying on the floor, is a
+                        beautiful teacup."
+  :synonyms [ "cup" "teacup" ]
+  :adjectives [ "tea" "beautiful" ]
+  :flags [< :takeable >]
+  :action :cup
+  :size 4
+} :cup :library place
+
+{ :name "black button"
+  :synonyms [ "button" ]
+  :adjectives [ "black" ]
+  :flags [< :undescribed :invisible >]
+  :action :library-button
+} :library-button :library place
+
+{ :name "set of bookshelves"
+  :synonyms [ "bookshelves" "shelves" "book" "books" ]
+  :adjectives [ "book" ]
+  :flags [< :undescribed >]
+  :action :bookshelves
+} :bookshelves :library place
+
+\ ---- End of Hallway ----
+
+{ :name "window"
+  :synonyms [ "window" ]
+  :flags [< :undescribed >]
+  :action :corridor-window
+} :corridor-window :corridor-4 place
+
+\ ---- Pantry ----
+
+{ :name "set of wooden shelves"
+  :synonyms [ "shelves" ]
+  :adjectives [ "wooden" ]
+  :flags [< :undescribed :container :open :surface >]
+  :capacity 30
+} :p-shelves :pantry place
+
+{ :name "food assortment"
+  :synonyms [ "food" "foods" "can" "cans" ]
+  :adjectives [ "dried" "canned" "packaged" ]
+  :action :foods
+} :foods :p-shelves place
+
+\ ---- Kitchen ----
+
+{ :name "Mrs. Rourke"
+  :synonyms [ "rourke" ]
+  :adjectives [ "ms" "mrs" ]
+  :flags [< :person :open >]
+  :action :rourke
+  :describer :rourke
+  :character 6
+  :capacity 40
+} :rourke :kitchen place
+
+{ :name "cabinet"
+  :synonyms [ "cabinet" ]
+  :flags [< :undescribed :container >]
+  :action :k-cabinets
+  :capacity 50
+} :k-cabinets :kitchen place
+
+{ :name "set of silverware"
+  :synonyms [ "silver" ]
+  :flags [< :try-take >]
+  :action :silverware
+} :silverware :k-cabinets place
+
+{ :name "glass collection"
+  :synonyms [ "glass" "glasses" "collection" ]
+  :adjectives [ "glass" ]
+  :flags [< :try-take >]
+  :action :glasses
+} :glasses :k-cabinets place
+
+{ :name "appliance"
+  :synonyms [ "washer" "dishwasher" "disposal" "compactor" ]
+  :adjectives [ "garbage" "dish" ]
+  :flags [< :undescribed :duplicate >]
+  :action :appliance
+} :appliance-2 :kitchen place
+
+{ :name "appliance"
+  :synonyms [ "appliance" "oven" "stove" "refrigerator" ]
+  :flags [< :undescribed >]
+  :action :appliance
+} :appliance-1 :kitchen place
+
+{ :name "shelf unit"
+  :synonyms [ "shelf" "unit" ]
+  :adjectives [ "beautiful" "shelf" ]
+  :flags [< :undescribed >]
+} :shelf-unit :kitchen place
+
+{ :name "plates"
+  :synonyms [ "plate" "plates" ]
+  :flags [< :undescribed >]
+  :action :plates
+} :plates :kitchen place
+
+{ :name "china"
+  :synonyms [ "china" ]
+  :flags [< :undescribed >]
+  :action :china
+} :china :kitchen place
+
+{ :name "group of saucers"
+  :synonyms [ "group" "saucer" ]
+  :adjectives [ "saucer" "antique" ]
+  :flags [< :undescribed >]
+  :action :saucers
+} :saucers :kitchen place
+
+{ :name "group of cups"
+  :synonyms [ "group" "cups" "teacup" ]
+  :adjectives [ "cups" "antique" "tea" ]
+  :flags [< :undescribed >]
+  :action :cups
+} :cups :kitchen place
+
+\ ---- Dining Room ----
+
+{ :name "Seurat"
+  :synonyms [ "seurat" ]
+  :flags [< :undescribed >]
+  :action :seurat
+} :seurat :dining-room place
+
+{ :name "trestle table"
+  :synonyms [ "table" ]
+  :adjectives [ "large" "trestle" ]
+  :flags [< :undescribed >]
+} :trestle-table :dining-room place
+
+{ :name "long table"
+  :synonyms [ "table" ]
+  :adjectives [ "long" ]
+  :flags [< :furniture :undescribed >]
+} :dining-room-table :dining-room place
+
+{ :name "collection of paintings"
+  :synonyms [ "painting" "collection" "picture" ]
+  :adjectives [ "painting" ]
+  :flags [< :undescribed >]
+  :action :paintings
+} :paintings :dining-room place
+
+\ ---- Living Room ----
+
+{ :name "Ms. Dunbar"
+  :synonyms [ "dunbar" ]
+  :adjectives [ "ms" "mrs" ]
+  :flags [< :person :open >]
+  :action :dunbar
+  :describer :dunbar
+  :character 3
+  :capacity 40
+} :dunbar :living-room place
+
+{ :name "mystery book"
+  :initial-description "Sitting on a table is a hardcover book."
+  :synonyms [ "book" ]
+  :adjectives [ "hardcover" "mystery" ]
+  :flags [< :takeable :readable >]
+  :action :recursive-book
+} :recursive-book :living-room place
+
+{ :name "fine wooden cabinets"
+  :synonyms [ "cabinet" ]
+  :adjectives [ "fine" "wooden" ]
+  :flags [< :undescribed >]
+  :action :lr-cabinets
+} :lr-cabinets :living-room place
+
+{ :name "collection of portraits"
+  :synonyms [ "portraits" "collection" "picture" "painting" ]
+  :adjectives [ "portraits" ]
+  :flags [< :undescribed >]
+  :action :portraits
+} :portraits :living-room place
+
+{ :name "wood pile"
+  :synonyms [ "pile" ]
+  :adjectives [ "wood" ]
+  :flags [< :undescribed >]
+} :wood-pile :living-room place
+
+{ :name "fieldstone fireplace"
+  :synonyms [ "firepl" ]
+  :adjectives [ "fields" ]
+  :flags [< :undescribed >]
+} :fireplace :living-room place
+
+{ :name "living room table"
+  :synonyms [ "table" "tables" ]
+  :adjectives [ "living" "room" ]
+  :flags [< :undescribed :surface :container :open :furniture >]
+  :capacity 40
+} :living-room-table :living-room place
+
+{ :name "Mrs. Robner"
+  :synonyms [ "robner" "mother" "leslie" ]
+  :adjectives [ "mrs" "ms" "leslie" ]
+  :flags [< :person :open >]
+  :action :mrs-robner
+  :describer :mrs-robner
+  :character 5
+  :capacity 40
+} :mrs-robner :living-room place
+
+\ ---- Mrs. Rourke's Bathroom ----
+
+{ :name "shelf"
+  :synonyms [ "shelves" "shelf" ]
+  :flags [< :undescribed :container :open :surface >]
+  :capacity 30
+} :rourke-shelves :rourke-bath place
+
+\ ---- Foyer ----
+
+{ :name "marble-top table"
+  :synonyms [ "table" ]
+  :adjectives [ "marble" ]
+  :flags [< :undescribed :open :container :surface >]
+  :capacity 40
+} :foyer-table :foyer place
+
+{ :name "crystal lamp"
+  :synonyms [ "lamp" "chandelier" ]
+  :adjectives [ "fine" "crystal" ]
+  :flags [< :undescribed >]
+} :crystal-lamp :foyer place
+
+\ ---- North Lawn ----
+
+{ :name "Mr. McNabb"
+  :synonyms [ "mcnabb" ]
+  :adjectives [ "mr" "mister" "angus" ]
+  :flags [< :person :open >]
+  :action :gardener
+  :describer :gardener
+  :character 1
+  :capacity 40
+} :gardener :north-lawn place
+
+\ ---- In the Orchard ----
+
+{ :name "berry bush"
+  :synonyms [ "bush" ]
+  :adjectives [ "berry" "berrie" ]
+  :flags [< :undescribed >]
+  :action :berry-bush
+} :berry-bush :in-orchard place
+
+{ :name "grape arbor"
+  :synonyms [ "arbor" "grape" ]
+  :adjectives [ "grape" ]
+  :flags [< :undescribed >]
+  :action :grape-arbor
+} :grape-arbor :in-orchard place
+
+\ ---- Among the Roses ----
+
+{ :name "holes"
+  :synonyms [ "hole" "holes" ]
+  :adjectives [ "deep" ]
+  :flags [< :undescribed :invisible >]
+  :action :hole
+} :hole :in-roses place
+
+{ :name "fragment"
+  :synonyms [ "piece" "porcelain" "fragment" "shard" ]
+  :flags [< :invisible :takeable >]
+  :action :fragment
+} :fragment :in-roses place
+
+\ ---- Shed ----
+
+{ :name "wooden ladder"
+  :initial-description "Leaning in a corner is a wooden ladder."
+  :synonyms [ "ladder" ]
+  :adjectives [ "wooden" ]
+  :flags [< :takeable :climbable >]
+  :action :ladder
+  :size 50
+} :ladder :shed-room place
+
+{ :name "shelf"
+  :synonyms [ "shelves" ]
+  :flags [< :undescribed :open :container :surface >]
+  :action :s-shelves
+  :capacity 20
+} :s-shelves :shed-room place
+
+{ :name "collection of garden tools"
+  :synonyms [ "spade" "hoe" "rake" "hose" ]
+  :flags [< :undescribed :duplicate >]
+  :action :tools
+} :tools-2 :shed-room place
+
+{ :name "collection of carpentry tools"
+  :synonyms [ "tools" "saw" "hammer" "rope" ]
+  :flags [< :undescribed >]
+  :action :tools
+} :tools-1 :shed-room place
+
+\ ---- East of Front Door ----
+
+{ :name "cornerstone"
+  :description "The ornately carved cornerstone of the house is nearby."
+  :text "{nl}   DEADLINE: An INTERLOGIC Mystery{nl}          By Infocom,
+         Inc.{nl}     Marc Blank, Chief Architect{nl}   Copyright 1982 by
+         Infocom, Inc.{nl}        All rights reserved.{nl}DEADLINE and
+         INTERLOGIC are trademarks of Infocom, Inc.{nl}"
+  :synonyms [ "cornerstone" "stone" ]
+  :adjectives [ "carved" "ornate" ]
+  :flags [< :readable >]
+} :cornerstone :east-of-door place
+
+\ ---- things seen from several rooms ----
+
+{ :name "FROBNO"
+  :action :library
+} :pseudo-object :local-globals place
+
+{ :name "closet"
+  :synonyms [ "closet" ]
+  :action :global-room
+} :closet :local-globals place
+
+{ :name "fruit tree"
+  :synonyms [ "tree" ]
+  :adjectives [ "fruit" "apple" "pear" "peach" ]
+  :flags [< :undescribed >]
+  :action :fruit-trees
+} :fruit-trees :local-globals place
+
+{ :name "window"
+  :synonyms [ "window" ]
+  :adjectives [ "shed" "dirty" "grimy" ]
+  :action :shed-window
+} :shed-window :local-globals place
+
+{ :name "dining room window"
+  :synonyms [ "window" ]
+  :adjectives [ "dining" "room" ]
+  :flags [< :undescribed >]
+  :action :dining-room-window
+} :dining-room-window :local-globals place
+
+{ :name "kitchen window"
+  :synonyms [ "window" ]
+  :adjectives [ "kitchen" ]
+  :flags [< :undescribed >]
+  :action :kitchen-window
+} :kitchen-window :local-globals place
+
+{ :name "window"
+  :synonyms [ "window" ]
+  :flags [< :undescribed >]
+  :action :window
+} :window :local-globals place
+
+{ :name "bed"
+  :synonyms [ "bed" ]
+  :flags [< :undescribed :surface :container :open :furniture :vehicle >]
+  :action :bed
+  :capacity 30
+} :bed :local-globals place
+
+{ :name "pair of end tables"
+  :synonyms [ "table" "tables" ]
+  :adjectives [ "end" ]
+  :flags [< :undescribed :furniture >]
+} :end-table :local-globals place
+
+{ :name "table"
+  :synonyms [ "table" "tables" ]
+  :flags [< :undescribed :furniture >]
+} :lgtable :local-globals place
+
+{ :name "sofa"
+  :synonyms [ "couch" "sofa" "couches" ]
+  :flags [< :undescribed :surface :container :open :vehicle :furniture >]
+} :sofa :local-globals place
+
+{ :name "chair"
+  :synonyms [ "chair" "chairs" ]
+  :flags [< :undescribed :furniture >]
+} :chair :local-globals place
+
+{ :name "shower"
+  :synonyms [ "shower" "tub" "bath" "bathtub" ]
+  :adjectives [ "shower" "bath" ]
+  :flags [< :undescribed :try-take :furniture >]
+  :action :shower
+} :shower :local-globals place
+
+{ :name "toilet"
+  :synonyms [ "toilet" ]
+  :flags [< :undescribed :furniture :surface :vehicle >]
+  :action :toilet
+} :toilet :local-globals place
+
+{ :name "sink"
+  :synonyms [ "sink" "sinks" "bowl" "basin" ]
+  :flags [< :undescribed :furniture >]
+  :action :sink
+} :sink :local-globals place
+
+{ :name "oak door"
+  :text "The door is a magnificent solid oak piece. Its metal bolt is bent and
+         the metal piece in which it rested has been sheared off the door
+         frame.  It seems clear that the door was securely locked from the
+         inside when it was broken down."
+  :synonyms [ "door" ]
+  :adjectives [ "oak" "broken" ]
+  :flags [< :undescribed >]
+} :library-door :local-globals place
+
+{ :name "telephone"
+  :synonyms [ "telephone" "phone" "receiver" ]
+  :action :telephone
+} :telephone :local-globals place
+
+{ :name "bay window"
+  :synonyms [ "window" ]
+  :adjectives [ "bay" ]
+  :flags [< :door :container >]
+  :action :bay-window
+} :bay-window :local-globals place
+
+{ :name "balcony"
+  :synonyms [ "balcony" ]
+} :balcony :local-globals place
+
+{ :name "lake"
+  :synonyms [ "lake" "water" ]
+  :action :lake
+} :lake :local-globals place
+
+{ :name "shed"
+  :synonyms [ "shed" "cabin" ]
+  :adjectives [ "log" "wooden" "wood" ]
+  :action :shed
+} :shed :local-globals place
+
+{ :name "lawn"
+  :synonyms [ "lawn" "grass" ]
+  :adjectives [ "green" ]
+  :action :lawn
+} :lawn :local-globals place
+
+{ :name "house"
+  :synonyms [ "house" "wall" ]
+  :adjectives [ "robner" ]
+  :action :house
+} :house :local-globals place
+
+{ :name "roses"
+  :synonyms [ "bed" "rose" "roses" ]
+  :adjectives [ "red" "white" "pink" "yellow" ]
+  :action :rose
+} :rose :local-globals place
+
+{ :name "balcony door"
+  :synonyms [ "door" "doors" "window" ]
+  :adjectives [ "balcony" ]
+  :flags [< :door :container >]
+  :action :balcony-door
+} :library-balcony-door :local-globals place
+
+{ :name "balcony door"
+  :synonyms [ "door" "doors" "window" ]
+  :adjectives [ "glass" "balcony" ]
+  :flags [< :door :container >]
+  :action :balcony-door
+} :bedroom-balcony-door :local-globals place
+
+{ :name "hidden door"
+  :synonyms [ "door" ]
+  :adjectives [ "hidden" ]
+  :flags [< :door :container :invisible >]
+} :hidden-door-l :local-globals place
+
+{ :name "hidden door"
+  :synonyms [ "door" ]
+  :adjectives [ "hidden" ]
+  :flags [< :door :container :invisible >]
+} :hidden-door-b :local-globals place
+
+{ :name "bathroom door"
+  :synonyms [ "door" ]
+  :adjectives [ "bathroom" "east" ]
+  :flags [< :door :container :open >]
+} :george-bath-door :local-globals place
+
+{ :name "bedroom door"
+  :synonyms [ "door" ]
+  :adjectives [ "bedroom" "master" "north" ]
+  :flags [< :door :container >]
+  :action :master-bedroom-door
+} :master-bedroom-door :local-globals place
+
+{ :name "bedroom door"
+  :synonyms [ "door" ]
+  :adjectives [ "bedroom" "south" "southe" ]
+  :flags [< :door :container >]
+  :action :door
+} :george-door :local-globals place
+
+{ :name "bathroom door"
+  :synonyms [ "door" ]
+  :adjectives [ "bathroom" ]
+  :flags [< :door :container >]
+} :rourke-bath-door :local-globals place
+
+{ :name "door"
+  :synonyms [ "door" ]
+  :flags [< :door :container :open >]
+} :dunbar-bath-door :local-globals place
+
+{ :name "south door"
+  :synonyms [ "door" ]
+  :adjectives [ "dunbar" "south" "southe" ]
+  :flags [< :door :container >]
+  :action :door
+} :dunbar-door :local-globals place
+
+{ :name "door"
+  :synonyms [ "door" ]
+  :flags [< :door :container >]
+  :action :door
+} :rourke-door :local-globals place
+
+{ :name "front door"
+  :synonyms [ "door" ]
+  :adjectives [ "front" ]
+  :flags [< :door :container >]
+  :action :door
+} :front-door :local-globals place
+
+{ :name "south closet door"
+  :synonyms [ "door" ]
+  :adjectives [ "closet" ]
+  :flags [< :door :container :open >]
+  :action :door
+} :south-closet-door :local-globals place
+
+\ ---- things present everywhere ----
+
+{ :name "concert"
+  :synonyms [ "symphony" "concert" "performance" ]
+  :adjectives [ "symphony" "philharmonic" ]
+} :global-concert :global-objects place
+
+{ :name "house"
+  :synonyms [ "house" ]
+  :action :global-house
+} :global-house :global-objects place
+
+{ :name "meal"
+  :synonyms [ "meal" "lunch" "dinner" "breakfast" ]
+  :action :random-meal
+} :random-meal :global-objects place
+
+{ :name "ending"
+  :synonyms [ "ending" "end" "book" "page" ]
+  :adjectives [ "last" ]
+  :action :global-ending
+} :global-ending :global-objects place
+
+{ :name "red herring"
+  :synonyms [ "herring" ]
+  :adjectives [ "red" ]
+  :flags [< :undescribed >]
+  :action :global-red-herrings
+} :global-red-herrings :global-objects place
+
+{ :name "here"
+  :synonyms [ "here" ]
+  :flags [< :undescribed >]
+  :action :global-here
+} :global-here :global-objects place
+
+{ :name "Allergone tablets"
+  :synonyms [ "tablets" "allergone" "pills" ]
+  :adjectives [ "allergone" ]
+} :global-allergone :global-objects place
+
+{ :name "Sneezo tablets"
+  :synonyms [ "tablets" "sneezo" "decong" "pills" ]
+  :adjectives [ "decong" "sneezo" ]
+} :global-sneezo :global-objects place
+
+{ :name "hidden closet"
+  :synonyms [ "closet" ]
+  :adjectives [ "hidden" ]
+  :flags [< :undescribed >]
+} :global-hidden-closet :global-objects place
+
+{ :name "noontime"
+  :synonyms [ "noon" ]
+} :noon :global-objects place
+
+{ :name "Mr. Coates"
+  :synonyms [ "coates" ]
+  :adjectives [ "mr" ]
+  :flags [< :person >]
+  :action :global-person
+  :character 7
+} :global-coates :global-objects place
+
+{ :name "room"
+  :synonyms [ "room" "wall" "walls" ]
+  :action :global-room
+} :global-room :global-objects place
+
+{ :name "merger"
+  :synonyms [ "merger" ]
+  :adjectives [ "omnidyne" ]
+} :global-merger :global-objects place
+
+{ :name "Sergeant Duffy"
+  :synonyms [ "duffy" ]
+  :adjectives [ "sergeant" ]
+  :action :global-duffy
+} :global-duffy :global-objects place
+
+{ :name "circular"
+  :synonyms [ "circular" ]
+} :circular :global-objects place
+
+{ :name "water"
+  :synonyms [ "water" ]
+} :global-water :global-objects place
+
+{ :name "search warrant"
+  :synonyms [ "warrant" ]
+  :adjectives [ "search" ]
+  :action :global-warrant
+} :global-warrant :global-objects place
+
+{ :name "today"
+  :synonyms [ "today" ]
+  :action :today
+} :today :global-objects place
+
+{ :name "safe"
+  :synonyms [ "combination" "safe" ]
+} :global-safe :global-objects place
+
+{ :name "Steven"
+  :synonyms [ "steven" "steve" ]
+} :global-steven :global-objects place
+
+{ :name "pen"
+  :synonyms [ "pen" ]
+  :adjectives [ "blue" ]
+  :action :global-pen
+} :global-pen :global-objects place
+
+{ :name "number"
+  :synonyms [ "intnum" ]
+} :intnum :global-objects place
+
+{ :name "telephone conversation"
+  :synonyms [ "call" "conversation" "left" "right" ]
+  :adjectives [ "telephone" "phone" ]
+  :action :global-call
+} :global-call :global-objects place
+
+{ :name "meeting"
+  :synonyms [ "meeting" "rendezvous" "tryst" ]
+  :adjectives [ "secret" "private" ]
+} :global-meeting :global-objects place
+
+{ :name "LoBlo tablets"
+  :synonyms [ "tablets" "loblo" "pills" ]
+  :adjectives [ "loblo" ]
+} :global-loblo :global-objects place
+
+{ :name "Ebullion tablets"
+  :synonyms [ "tablets" "ebullion" "pills" ]
+  :adjectives [ "ebullion" ]
+} :global-ebullion :global-objects place
+
+{ :name "holes"
+  :synonyms [ "hole" "holes" ]
+  :flags [< :undescribed >]
+  :action :hole
+} :global-hole :global-objects place
+
+{ :name "fingerprints"
+  :synonyms [ "fingerprint" ]
+  :action :global-fingerprints
+} :global-fingerprints :global-objects place
+
+{ :name "ladder"
+  :synonyms [ "ladder" ]
+  :adjectives [ "wooden" ]
+  :flags [< :undescribed >]
+  :action :global-ladder
+} :global-ladder :global-objects place
+
+{ :name "Mr. Robner"
+  :synonyms [ "robner" "father" "marshall" ]
+  :adjectives [ "mr" "mister" ]
+  :flags [< :person >]
+  :action :global-mr-robner
+} :global-mr-robner :global-objects place
+
+{ :name "Focus"
+  :synonyms [ "focus" "scandal" "case" ]
+  :adjectives [ "focus" ]
+} :global-focus :global-objects place
+
+{ :name "new will"
+  :synonyms [ "will" ]
+  :adjectives [ "new" ]
+} :global-new-will :global-objects place
+
+{ :name "present will"
+  :synonyms [ "will" ]
+  :adjectives [ "current" "present" "old" ]
+} :global-old-will :global-objects place
+
+{ :name "light"
+  :synonyms [ "light" "sunlight" ]
+} :global-light :global-objects place
+
+{ :name "weather"
+  :synonyms [ "weather" "climate" "wrong" "problem" ]
+} :global-weather :global-objects place
+
+{ :name "roses"
+  :synonyms [ "roses" "garden" "rose" ]
+  :adjectives [ "rose" ]
+} :global-roses :global-objects place
+
+{ :name "Omnidyne Corporation"
+  :synonyms [ "omnidyne" ]
+} :global-omnidyne :global-objects place
+
+{ :name "suicide"
+  :synonyms [ "suicide" ]
+  :action :global-murder
+} :global-suicide :global-objects place
+
+{ :name "murder"
+  :synonyms [ "murder" "killing" "crime" ]
+  :action :global-murder
+} :global-murder :global-objects place
+
+{ :name "second section of the Herald"
+  :synonyms [ "section" ]
+  :adjectives [ "second" "back" "last" ]
+  :flags [< :readable >]
+  :action :second-section
+} :second-section :global-objects place
+
+{ :name "Mrs. Rourke"
+  :synonyms [ "rourke" ]
+  :adjectives [ "ms" "mrs" ]
+  :flags [< :person >]
+  :action :global-person
+  :character 6
+} :global-rourke :global-objects place
+
+{ :name "Mrs. Robner"
+  :synonyms [ "robner" "mother" "leslie" ]
+  :adjectives [ "mrs" "ms" "leslie" ]
+  :flags [< :person >]
+  :action :global-person
+  :character 5
+} :global-mrs-robner :global-objects place
+
+{ :name "George"
+  :synonyms [ "george" "robner" ]
+  :adjectives [ "george" ]
+  :flags [< :person >]
+  :action :global-person
+  :character 4
+} :global-george :global-objects place
+
+{ :name "Ms. Dunbar"
+  :synonyms [ "dunbar" ]
+  :adjectives [ "ms" "mrs" ]
+  :flags [< :person >]
+  :action :global-person
+  :character 3
+} :global-dunbar :global-objects place
+
+{ :name "Mr. Baxter"
+  :synonyms [ "baxter" ]
+  :adjectives [ "mister" "mr" ]
+  :flags [< :person >]
+  :action :global-person
+  :character 2
+} :global-baxter :global-objects place
+
+{ :name "Mr. McNabb"
+  :synonyms [ "mcnabb" ]
+  :adjectives [ "mr" "mister" "angus" ]
+  :flags [< :person >]
+  :action :global-person
+  :character 1
+} :global-gardener :global-objects place
+
+{ :name "air"
+  :synonyms [ "air" "wind" "breeze" ]
+  :action :air
+} :air :global-objects place
+
+{ :name "ground"
+  :synonyms [ "ground" "dirt" "mud" "soil" ]
+  :adjectives [ "hard" ]
+  :action :ground
+} :ground :global-objects place
+
+{ :name "X"
+  :synonyms [ "it" "them" ]
+  :flags [< :undescribed >]
+} :it :global-objects place
+
+{ :name "X"
+  :synonyms [ "he" "she" "him" "her" ]
+  :flags [< :undescribed >]
+} :him-her :global-objects place
+
+\ ---- things not yet in the game ----
+
+{ :name "Mr. Baxter"
+  :synonyms [ "baxter" ]
+  :adjectives [ "mister" "mr" ]
+  :flags [< :person :open >]
+  :action :baxter
+  :describer :baxter
+  :character 2
+  :capacity 40
+} :baxter null place
+
+{ :name "Daily Herald"
+  :initial-description "Leaning against the front door is today's issue of the
+                        Daily Herald."
+  :synonyms [ "newspaper" "herald" "section" "paper" ]
+  :adjectives [ "daily" "front" "first" ]
+  :flags [< :takeable :readable :burnable >]
+  :action :newspaper
+} :newspaper null place
+
+{ :name "handwritten envelope"
+  :initial-description "A handwritten envelope, recently delivered, is lying
+                        on the table."
+  :text "{nl}                  CANAAN CT POST OFFICE{nl}                   *
+         JULY 06 * 08:00 *{nl}{nl}          Mrs. Marshall
+         Robner{nl}          506 Lake View Rd.{nl}          Maitland, Ct.{nl}"
+  :synonyms [ "envelope" ]
+  :adjectives [ "handwr" ]
+  :flags [< :takeable :readable :burnable :container >]
+  :action :envelope
+  :capacity 2
+} :envelope null place
+
+{ :name "letter"
+  :text """Dear Leslie,{nl}   I am sorry to learn that Marshall has been
+         despondent again. His obsessive interest in business must be causing
+         you terrible anguish. It doesn't surprise me that he talks of suicide
+         when he's in this state, but the thought of the business going to
+         Baxter after he's gone will keep him alive.{nl}   So George has
+         finally gone too far? It's hard to believe, after all those empty
+         threats, that Marshall actually followed through. It serves that
+         little leech right, if you ask me. This means that, should the
+         unthinkable happen, you will be provided for as you
+         deserve.{nl}   I'll see you Friday as
+         usual.{nl}{nl}                      Love,{nl}                      Steven""{nl}"
+  :synonyms [ "letter" ]
+  :flags [< :takeable :readable :burnable >]
+  :action :letter
+  :size 1
+} :letter :envelope place
+
+{ :name "lab report"
+  :text "Dear Inspector,{nl}{nl}    In response to your request for analysis
+         of the ceramic fragment, we have found evidence of a drug called
+         Methsparin, which is usually sold in this country under the name
+         ""LoBlo"". It is a blood pressure lowering agent used primarily in
+         Europe, which explains the oversight in our blood analysis of the
+         deceased. A double check reveals a high blood level of Methsparin.
+         While the amount of Methsparin in the blood isn't dangerous in itself,
+         a strong reaction between it and various other drugs has been well
+         documented. As you may have gathered, one of those drugs is Amitraxin
+         (Ebullion). The effect of Methsparin is to displace Amitraxin from
+         protein binding, leaving more free in the blood and simulating an
+         overdose.{nl}    Your new evidence leads me to conclude that the cause
+         of death was Amitraxin toxicity secondary to ingestion of Methsparin
+         and Amitraxin in combination.{nl}{nl}Sincerely,{nl}{nl}Arthur
+         Chatworth, Pathologist{nl}"
+  :synonyms [ "report" "paper" "note" "slip" ]
+  :adjectives [ "lab" ]
+  :flags [< :takeable :readable >]
+} :lab-report null place
+
+{ :name "smoking gun"
+  :initial-description "Lying beside the body is a smoking gun."
+  :synonyms [ "pistol" "gun" ]
+  :adjectives [ "smoking" ]
+  :flags [< :takeable >]
+  :action :pistol
+} :pistol null place
+
+{ :name "body of Ms. Dunbar"
+  :initial-description "Sprawled on the floor is the body of Ms. Dunbar."
+  :synonyms [ "body" "dunbar" "corpse" "stiff" ]
+  :adjectives [ "ms" "bloody" ]
+  :action :corpse
+} :corpse null place
+
+{ :name "suicide note"
+  :initial-description "Next to the body, near a pool of blood, is a note."
+  :text "The note is written in thin blue ink in a very unsteady hand and is
+         smeared with blood from your touch.  It says:{nl}{nl}    ""I killed
+         Mr. Robner.  Please forgive me.""{nl}"
+  :synonyms [ "note" "handwr" ]
+  :adjectives [ "suicide" ]
+  :flags [< :takeable :readable >]
+  :action :suicide-note
+} :suicide-note null place
+
+{ :name "pool of blood"
+  :description "A pool of blood is at the head of the body."
+  :synonyms [ "pool" "blood" ]
+} :pool-of-blood null place
+
+{ :name "blue pen"
+  :synonyms [ "pen" ]
+  :adjectives [ "blue" ]
+  :flags [< :takeable >]
+  :action :pen
+} :pen null place
+
+{ :name "Mr. Coates"
+  :synonyms [ "coates" ]
+  :adjectives [ "mr" ]
+  :flags [< :person >]
+  :action :coates
+  :describer :coates
+  :character 7
+} :coates null place
+
+{ :name "combination of objects specified"
+  :action :object-pair
+} :object-pair null place
+
+{ :name "wet piece of paper"
+  :text "The paper was once some sort of document. It is now smeared and
+         completely unreadable."
+  :synonyms [ "piece" "paper" ]
+  :adjectives [ "paper" "wet" "drenched" "soggy" ]
+  :flags [< :takeable :readable >]
+} :soggy-will null place
+
+{ :name "ticket stub"
+  :description "Lying on the ground is what appears to be a ticket stub."
+  :text "{nl}   Hartford{nl} Philharmonic{nl}  Orchestra{nl}{nl} July 7,
+         1982{nl}{nl}   - 8PM -{nl}{nl}Row R / Seat
+         7{nl}{nl}-^-^-^-^-^-^-^{nl}{nl}"
+  :synonyms [ "ticket" "stub" ]
+  :adjectives [ "ticket" ]
+  :flags [< :takeable :readable >]
+} :stub null place

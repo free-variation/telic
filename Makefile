@@ -322,6 +322,11 @@ test-libs: telic $(LAPACKE_SHARED) docs-tests
 test-synth: telic
 	sh tests/run-synth.sh
 
+# Example-program golden tests (tests/examples/): they play the programs in
+# examples/, so they stay out of `make test` and the wasm suite.
+test-examples: telic
+	sh tests/run-examples.sh
+
 # Runs the golden suite against the wasm build under a WASI runtime. The runner
 # finds wasmtime on PATH or ~/.wasmtime/bin; otherwise set WASMTIME=<path>.
 test-wasm: telic.wasm docs-tests
@@ -352,4 +357,4 @@ install: all pack
 clean:
 	rm -f telic telic.wasm $(PCRE2_OBJS) $(PCRE2_LIB) $(WASM_PCRE2_OBJS) $(WASM_PCRE2_LIB) $(SQLITE_OBJ) $(WASM_SQLITE_OBJ) $(SQLITE_VEC_OBJ) $(WASM_SQLITE_VEC_OBJ) $(NANOARROW_OBJS) $(WASM_NANOARROW_OBJS) $(POCKETFFT_OBJ) $(WASM_POCKETFFT_OBJ) $(TIGR_OBJ) $(MINIAUDIO_OBJ) $(ISOCLINE_OBJ) $(LAPACKE_OBJS) $(LAPACKE_LIB) $(LAPACKE_SHARED) $(LAPACKE_DIR)/exports.map
 
-.PHONY: all clean install test test-libs test-synth test-wasm bench wasm vendor-pcre2 vendor-sqlite vendor-isocline vendor-lapacke lapacke editors
+.PHONY: all clean install test test-libs test-synth test-examples test-wasm bench wasm vendor-pcre2 vendor-sqlite vendor-isocline vendor-lapacke lapacke editors

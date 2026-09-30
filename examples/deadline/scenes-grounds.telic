@@ -1,0 +1,854 @@
+\ Deadline: the grounds as pictures. Every outdoor picture shows the same
+\ house, placed in metres: its south front along z 0 from x -10 to 10, its
+\ back along z 12, two storeys to the eaves at 7 m and the roof ridge at 10 m
+\ running east and west. The front door is at x 0, the bay window of the
+\ living room west of it, the small locked window east of it; at the back
+\ are the dining room's picture window and the library balcony to the west,
+\ the kitchen window and the bedroom balcony to the east. The lake lies
+\ beyond the north lawn and along the west and east shores; the shed stands
+\ on the east lawn beside the water. The sun is the lamp, low in the
+\ south-east of the morning.
+
+\ how fast lines fade with distance out of doors, and indoors after
+0.035 constant outdoor-fading
+0.12 constant indoor-fading
+
+\ set the global distance fade
+: outdoor-fade! ( rate -- )
+	| rate ^fade |
+	rate to fade ;
+
+\ begin an outdoor picture: the camera where it stands, the sun as the lamp, lines fading slowly
+: outdoor-view ( x y z yaw pitch focal -- )
+	| x y z yaw pitch focal |
+	x y z yaw pitch focal new-picture
+	[ 60 45 -50 ] lamp!
+	outdoor-fading outdoor-fade! ;
+
+\ the end of an outdoor picture: lines fade as indoors again for what is drawn next
+: outdoor-done ( -- ) indoor-fading outdoor-fade! ;
+
+\ === surfaces seen from outside ===
+
+\ the centre of a polygon's corners
+: corner-centre ( points -- point )
+	| points |
+	points [ 0 0 0 ] ( total corner | total corner ' + 2 nmap ) reduce
+	( points size / ) map ;
+
+\ fill a polygon with a light, the part of it behind the camera cut away, so a wall beside the camera still hides what is behind it
+: near-fill ( points light -- )
+	| points light |
+	points ( point | [ point to-camera ] ) map to corners
+	[ ] to kept
+	0 corners size 1 do k
+		corners k @i to a
+		corners k 1 + corners size mod @i to b
+		a 2 @i nearest-depth >= to a-ahead
+		b 2 @i nearest-depth >= to b-ahead
+		a-ahead if kept a add-last! drop then
+		a-ahead b-ahead = not if
+			nearest-depth a 2 @i - b 2 @i a 2 @i - / to cut
+			kept [ 0 3 1 do axis a axis @i b axis @i a axis @i - cut * + loop ] add-last! drop
+		then
+	loop
+	kept size 3 < if exit then
+	[ ] to xs
+	[ ] to ys
+	kept ( corner | corner spread to-screen to sy to sx xs sx add-last! drop ys sy add-last! drop ) each
+	xs ys light fill-screen-polygon ;
+
+\ whether a flat face of a solid, its corners and outward normal, is turned toward the camera
+: face-seen? ( points normal -- flag )
+	| points normal |
+	points corner-centre normal facing-camera? ;
+
+\ outline a face turned toward the camera, as bright as the sun lights it
+: sunlit-face ( points normal brightness -- )
+	| points normal brightness |
+	points normal face-seen? not if exit then
+	points corner-centre normal brightness lamp-light pen!
+	points outline ;
+
+\ a window in a wall facing north or south, at z, its frame, cross bars and sill; its glass dark, or lit from a lamp within for some windows
+: facade-window ( west east bottom top z outward brightness -- )
+	| west east bottom top z outward brightness |
+	z outward 0.03 * + to front
+	[ [ west bottom front ] [ east bottom front ] [ east top front ] [ west top front ] ] to frame
+	west 3.1 * top 1.7 * + z 0.37 * + hash-fraction 0.62 > to lit-within
+	frame lit-within if 0.3 else 0.035 then near-fill
+	lit-within if frame corner-centre east west - 0.9 * 0.18 glow then
+	frame corner-centre [ 0 0 outward ] brightness lamp-light to light
+	light pen!
+	frame outline
+	light 0.55 * pen!
+	west east + 2 / to middle
+	middle bottom front middle top front edge
+	west top bottom - 0.45 * bottom + front east top bottom - 0.45 * bottom + front edge
+	light 1.2 * pen!
+	west 0.08 - bottom 0.04 - z outward 0.08 * + east 0.08 + bottom 0.04 - z outward 0.08 * + edge ;
+
+\ === the ground, the lake and the sky ===
+
+\ faint strokes of grass scattered over a stretch of lawn
+: grass-strokes ( west east south north count seed -- )
+	| west east south north count seed |
+	0 count 1 do k
+		seed k 7.13 * + hash-fraction to across
+		seed k 3.71 * + 1.3 + hash-fraction to along
+		seed k 5.3 * + 2.1 + hash-fraction to tall
+		east west - across * west + to x
+		north south - along * south + to z
+		x 0 z x tall 0.06 * 0.02 - + tall 0.12 * 0.06 + z edge
+	loop ;
+
+\ the lawn as faint rows running across the view, closing up with distance, each broken into lengths
+: lawn-rows ( west east south north count seed -- )
+	| west east south north count seed |
+	0 count 1 do k
+		north south - k count / * south + to z
+		0 6 1 do piece
+			seed k 11 * + piece + hash-fraction to chance
+			chance 0.35 > if
+				east west - piece 6 / * west + to from
+				east west - piece chance 0.5 * + 6 / * west + to onto
+				from 0 z onto 0 z edge
+			then
+		loop
+	loop ;
+
+\ water from a shore line out to a far edge: dim ripples, brighter glints where the sun catches it
+: lake-ripples ( west east south north count seed -- )
+	| west east south north count seed |
+	0 count 1 do k
+		seed k 4.7 * + hash-fraction to across
+		seed k 2.3 * + 0.7 + hash-fraction to along
+		seed k 6.1 * + 3.3 + hash-fraction to span
+		east west - across * west + to x
+		north south - along * south + to z
+		span 1.5 * 0.3 + to half-length
+		span 0.9 > if 0.75 else 0.22 then pen!
+		x half-length - -0.05 z x half-length + -0.05 z edge
+	loop ;
+
+\ a far shore line across the horizon, low and faint
+: far-shore ( west east z height seed -- )
+	| west east z height seed |
+	0.1 pen!
+	[ 0 13 1 do k
+		k 12 / to t
+		[ east west - t * west + seed k + hash-fraction height * z ]
+	loop ] path ;
+
+\ === things on the grounds ===
+
+\ the camera's rightward direction, for shapes drawn facing it
+: facing-across ( -- direction ) [ view@cos-yaw 0 view@sin-yaw negate ] ;
+
+\ the leafy crown of a tree or bush: an outline of lumps facing the camera, filled black, with a few leaves inside
+: crown-blob ( centre radius seed brightness -- )
+	| centre radius seed brightness |
+	facing-across to across
+	[ 0 1 0 ] to upward
+	[ 0 18 1 do k
+		k 18 / TAU * to angle
+		seed k + hash-fraction 0.3 * 0.85 + radius * to reach
+		[ 0 3 1 do axis
+			centre axis @i across axis @i angle cos reach * * + upward axis @i angle sin reach * 0.8 * * +
+		loop ]
+	loop ] to lumps
+	lumps 0 near-fill
+	lumps corner-centre [ 0 1 0 ] brightness lamp-light pen!
+	lumps outline
+	brightness 0.35 * pen!
+	0 7 1 do k
+		seed k 1.7 * + hash-fraction 1.6 * 0.8 - radius * to offset-across
+		seed k 2.9 * + hash-fraction 1.2 * 0.6 - radius * to offset-up
+		[ 0 3 1 do axis centre axis @i across axis @i offset-across * + upward axis @i offset-up * + loop ] to leaf
+		leaf [ 0 3 1 do axis leaf axis @i across axis @i radius 0.18 * * + loop ] segment
+	loop ;
+
+\ a fruit tree: a trunk forking into branches under a leafy crown
+: fruit-tree ( x z height seed -- )
+	| x z height seed |
+	height 0.38 * to fork
+	0.35 pen!
+	x 0.08 - 0 z x 0.05 - fork z edge
+	x 0.08 + 0 z x 0.05 + fork z edge
+	0 4 1 do k
+		seed k + hash-fraction 1.6 * 0.8 - height 0.3 * * to spread-across
+		x fork z x spread-across + height 0.7 * z edge
+	loop
+	[ x height 0.68 * z ] height 0.36 * seed 0.5 crown-blob ;
+
+\ a rose bush: a low round crown dotted with bright blooms
+: rose-bush ( x z seed -- )
+	| x z seed |
+	[ x 0.4 z ] 0.42 seed 0.35 crown-blob
+	facing-across to across
+	0 4 1 do k
+		seed k 3.1 * + hash-fraction 1.4 * 0.7 - 0.3 * to offset-across
+		seed k 1.9 * + hash-fraction 0.35 * 0.3 + to bloom-height
+		[ x across 0 @i offset-across * + bloom-height z across 2 @i offset-across * + ] to bloom
+		0.95 pen!
+		bloom 0.02 detail-scale * 0.28 glow
+		bloom [ bloom first 0.03 + bloom second bloom 2 @i ] segment
+	loop ;
+
+\ a ladder leaning from its foot to its top, rails and rungs, bright enough to catch the eye
+: leaning-ladder ( foot top -- )
+	| foot top |
+	facing-across to across
+	[ 0 3 1 do axis across axis @i 0.22 * loop ] to half-width
+	foot half-width vector- to left-foot
+	foot half-width ' + 2 nmap to right-foot
+	top half-width vector- to left-top
+	top half-width ' + 2 nmap to right-top
+	0.8 pen!
+	left-foot left-top segment
+	right-foot right-top segment
+	0.55 pen!
+	1 16 1 do k
+		k 16 / to t
+		left-foot left-top t between right-foot right-top t between segment
+	loop ;
+
+\ a ladder lying flat on the ground from one end to the other
+: lying-ladder ( a b -- )
+	| a b |
+	b a vector- to along
+	[ along 2 @i 0 along 0 @i negate ] unit-vector ( 0.22 * ) map to half-width
+	a half-width vector- b half-width vector- 0.7 pen! segment
+	a half-width ' + 2 nmap b half-width ' + 2 nmap segment
+	0.45 pen!
+	1 16 1 do k
+		k 16 / to t
+		a half-width vector- b half-width vector- t between
+		a half-width ' + 2 nmap b half-width ' + 2 nmap t between segment
+	loop ;
+
+\ a balcony against the back of the house: its floor out from the wall and the railing round it
+: balcony-shelf ( west east height depth -- )
+	| west east height depth |
+	[ [ west height 12 ] [ east height 12 ] [ east height 12 depth + ] [ west height 12 depth + ] ] to deck
+	deck 0 near-fill
+	0.55 pen!
+	deck outline
+	west height 0.25 - 12 east height 0.25 - 12 edge
+	height 1 + to rail
+	0.75 pen!
+	[ [ west rail 12 ] [ west rail 12 depth + ] [ east rail 12 depth + ] [ east rail 12 ] ] path
+	0.35 pen!
+	west east - abs 0.3 / round to n-balusters
+	0 n-balusters 1 + 1 do k
+		k n-balusters / to t
+		west east west - t * + height 12 depth + west east west - t * + rail 12 depth + edge
+	loop
+	west height 12 depth + west rail 12 depth + edge
+	east height 12 depth + east rail 12 depth + edge ;
+
+\ === the house ===
+
+\ the living room's bay window standing out from the front between two xs, its three faces of glass
+: bay-window-bulge ( west east -- )
+	| west east |
+	[ [ west 0 0 ] [ west 0.5 + 0 -1.1 ] [ east 0.5 - 0 -1.1 ] [ east 0 0 ] ] to base
+	base ( corner | corner spread to z drop to x [ x 2.9 z ] ) map to crown
+	[ base first base second crown second crown first ] to left-face
+	[ base second base 2 @i crown 2 @i crown second ] to front-face
+	[ base 2 @i base 3 @i crown 3 @i crown 2 @i ] to right-face
+	[ left-face front-face right-face ] ( face | face 0 near-fill ) each
+	[ [ crown first crown second crown 2 @i crown 3 @i [ east 3.3 0 ] [ west 3.3 0 ] ] ] ( roof | roof 0 near-fill 0.6 pen! roof outline ) each
+	0.7 pen!
+	base path
+	crown path
+	[ left-face front-face right-face ] ( face |
+		face first face second 0.12 between to low-a
+		face first face second 0.88 between to low-b
+		[ low-a first 0.5 low-a 2 @i ] to glass-a
+		[ low-b first 0.5 low-b 2 @i ] to glass-b
+		[ glass-a [ glass-b first 0.5 glass-b 2 @i ] [ glass-b first 2.6 glass-b 2 @i ] [ glass-a first 2.6 glass-a 2 @i ] ] to glass
+		glass 0.06 near-fill
+		0.65 pen!
+		glass outline
+		:bay-window :open flag? face front-face = and if
+			glass-b first glass-a first - abs 0.5 * to sash
+			[ glass-a first sash 0.5 * + 0.5 glass-a 2 @i sash 0.85 * - ] to swung
+			[ glass-a swung [ swung first 2.6 swung 2 @i ] [ glass-a first 2.6 glass-a 2 @i ] ] to open-sash
+			glass 0 near-fill
+			[ glass-a first sash + 1.4 glass-a 2 @i 0.3 + ] 1.1 0.18 glow
+			open-sash 0.1 near-fill
+			0.85 pen!
+			open-sash outline
+		then
+		0.35 pen!
+		glass-a glass-b 0.5 between to foot
+		foot [ foot first 2.6 foot 2 @i ] segment
+	) each
+	0.6 pen!
+	base first crown first segment
+	base 3 @i crown 3 @i segment
+	base second crown second segment
+	base 2 @i crown 2 @i segment ;
+
+\ the house, a solid seen from outside: walls and roof filled black, the faces turned toward the camera outlined as the sun lights them, their doors and windows drawn
+: robner-house ( -- )
+	[ [ -10 0 0 ] [ 10 0 0 ] [ 10 7 0 ] [ -10 7 0 ] ] to south-wall
+	[ [ 10 0 12 ] [ -10 0 12 ] [ -10 7 12 ] [ 10 7 12 ] ] to north-wall
+	[ [ 10 0 0 ] [ 10 0 12 ] [ 10 7 12 ] [ 10 10 6 ] [ 10 7 0 ] ] to east-wall
+	[ [ -10 0 12 ] [ -10 0 0 ] [ -10 7 0 ] [ -10 10 6 ] [ -10 7 12 ] ] to west-wall
+	[ [ -10.4 6.8 -0.4 ] [ 10.4 6.8 -0.4 ] [ 10.4 10 6 ] [ -10.4 10 6 ] ] to south-roof
+	[ [ 10.4 6.8 12.4 ] [ -10.4 6.8 12.4 ] [ -10.4 10 6 ] [ 10.4 10 6 ] ] to north-roof
+	[ south-wall north-wall east-wall west-wall south-roof north-roof ] ( face | face 0 near-fill ) each
+	south-wall [ 0 0 -1 ] 0.75 sunlit-face
+	north-wall [ 0 0 1 ] 0.75 sunlit-face
+	east-wall [ 1 0 0 ] 0.75 sunlit-face
+	west-wall [ -1 0 0 ] 0.75 sunlit-face
+	south-roof [ 0 0.894 -0.447 ] 0.7 sunlit-face
+	north-roof [ 0 0.894 0.447 ] 0.7 sunlit-face
+	south-roof [ 0 0.894 -0.447 ] face-seen? if
+		0.07 pen!
+		[ -10.4 6.8 -0.4 ] [ 10.4 6.8 -0.4 ] [ 10.4 10 6 ] [ -10.4 10 6 ] 14 hatch
+	then
+	6 9 4.6 7 11.4 5.6 solid-box
+	south-wall [ 0 0 -1 ] face-seen? if
+		[ -7.5 -4.4 -1.4 1.6 4.4 7.4 ] ( centre | centre 0.55 - centre 0.55 + 4.0 5.6 0 -1 0.7 facade-window ) each
+		3.3 4.3 1.1 2.1 0 -1 0.6 facade-window
+		[ [ -0.7 0 -0.02 ] [ 0.7 0 -0.02 ] [ 0.7 2.4 -0.02 ] [ -0.7 2.4 -0.02 ] ] to doorway
+		:front-door :open flag? if
+			doorway 0 near-fill
+			0.2 pen!
+			doorway outline
+			0.55 pen!
+			[ [ 0.7 0 -0.02 ] [ 0.7 0 1.3 ] [ 0.7 2.4 1.3 ] [ 0.7 2.4 -0.02 ] ] outline
+			[ 0 1.2 3 ] 1.2 0.08 glow
+		else
+			doorway 0.02 near-fill
+			0.75 pen!
+			doorway outline
+			0.4 pen!
+			[ [ -0.55 0.2 -0.03 ] [ -0.05 0.2 -0.03 ] [ -0.05 1.1 -0.03 ] [ -0.55 1.1 -0.03 ] ] outline
+			[ [ 0.05 0.2 -0.03 ] [ 0.55 0.2 -0.03 ] [ 0.55 1.1 -0.03 ] [ 0.05 1.1 -0.03 ] ] outline
+			[ [ -0.55 1.3 -0.03 ] [ -0.05 1.3 -0.03 ] [ -0.05 2.2 -0.03 ] [ -0.55 2.2 -0.03 ] ] outline
+			[ [ 0.05 1.3 -0.03 ] [ 0.55 1.3 -0.03 ] [ 0.55 2.2 -0.03 ] [ 0.05 2.2 -0.03 ] ] outline
+			0.9 pen!
+			0.45 1.15 -0.06 0.5 1.15 -0.06 edge
+		then
+		0.5 pen!
+		-1.1 0 -0.6 1.1 0.18 0 solid-box
+		[ 0.95 2.1 -0.3 ] 0.25 0.35 glow
+		-6.5 -2.5 bay-window-bulge
+	then
+	north-wall [ 0 0 1 ] face-seen? if
+		-8 -4.5 0.9 2.4 12 1 0.65 facade-window
+		3.5 5.5 1 2.2 12 1 0.6 facade-window
+		[ 1 7.5 ] ( centre | centre 0.55 - centre 0.55 + 4.0 5.6 12 1 0.6 facade-window ) each
+		-6 -4.5 3.6 6 12 1 0.7 facade-window
+		4 5.3 3.6 6 12 1 0.7 facade-window
+		-7 -3.5 3.6 1.3 balcony-shelf
+		3 6.5 3.6 1.2 balcony-shelf
+	then ;
+
+\ === South Lawn ===
+
+\ the house's south front seen from the lawn
+: south-lawn-picture ( -- )
+	0 1.65 -24 0 0.04 300 outdoor-view
+	[ [ [ -2.2 0 -17 ] PI 0.1 + ] [ [ 2.6 0 -16 ] PI 0.15 - ] [ [ -5 0 -13 ] PI 0.3 + ] [ [ 5.5 0 -12 ] PI 0.35 - ] ] spots!
+	-60 60 20 34 0 1 far-shore
+	-60 -12 14 40 90 11 lake-ripples
+	12 60 14 40 90 23 lake-ripples
+	0.06 pen!
+	-40 40 -24 14 24 3 lawn-rows
+	robner-house
+	-16 8 5.5 3 fruit-tree
+	15 9 6 7 fruit-tree
+	0.35 pen!
+	-0.9 0 -24 -0.9 0 -0.6 edge
+	0.9 0 -24 0.9 0 -0.6 edge
+	0.55 pen!
+	0 160 1 do k
+		k 0.37 * hash-fraction 1.6 * 0.8 - to across
+		k 0.61 * hash-fraction 23 * -23.5 + to along
+		across 0.005 along across 0.03 + 0.005 along 0.02 + edge
+	loop
+	0.14 pen!
+	-14 14 -24 -1 160 41 grass-strokes
+	outdoor-done ;
+
+\ === more things on the grounds ===
+
+\ a tall picket fence from one point to another along the ground
+: garden-fence ( x0 z0 x1 z1 height -- )
+	| x0 z0 x1 z1 height |
+	[ x0 0 z0 ] [ x1 0 z1 ] vector- dup dot sqrt to span
+	span 0.32 / round 1 max2 to n-pickets
+	0.4 pen!
+	x0 height 0.8 * z0 x1 height 0.8 * z1 edge
+	x0 height 0.25 * z0 x1 height 0.25 * z1 edge
+	0.2 pen!
+	0 n-pickets 1 + 1 do k
+		k n-pickets / to t
+		x1 x0 - t * x0 + to x
+		z1 z0 - t * z0 + to z
+		x 0 z x height z edge
+	loop ;
+
+\ a grape arbor: posts carrying a lattice of beams, vines hanging from it
+: grape-arbor ( west east south north height -- )
+	| west east south north height |
+	0.4 pen!
+	[ [ west south ] [ east south ] [ west north ] [ east north ] ]
+	( corner | corner spread to z to x x 0 z x height z edge ) each
+	[ [ west height south ] [ east height south ] [ east height north ] [ west height north ] ] 0 near-fill
+	0.5 pen!
+	[ [ west height south ] [ east height south ] [ east height north ] [ west height north ] ] outline
+	0.3 pen!
+	[ west height south ] [ east height south ] [ east height north ] [ west height north ] 8 3 grid
+	0 12 1 do k
+		k 17.7 * hash-fraction east west - * west + to x
+		k 9.3 * hash-fraction 0.8 * 0.3 + to hang
+		0.25 pen!
+		x height south x 0.1 - height hang - south edge
+		[ x 0.1 - height hang - south ] 0.05 detail-scale * 0.15 glow
+	loop ;
+
+\ the newspaper leaning against the front door, folded, its headline catching the light
+: newspaper-at-door ( -- )
+	0.2 0.02 -0.18 0.62 0.4 -0.14 solid-box
+	0.9 pen!
+	[ [ 0.24 0.3 -0.19 ] [ 0.58 0.3 -0.19 ] ] path
+	0.5 pen!
+	0 4 1 do k
+		k 0.06 * 0.08 + to y
+		0.24 y -0.19 0.58 y -0.19 edge
+	loop ;
+
+\ the shed beside the lake: plank walls, a pitched roof, its door toward the lawn and the one dirty window
+: garden-shed ( -- )
+	[ [ 25 0 -3.6 ] [ 28 0 -3.6 ] [ 28 2.3 -3.6 ] [ 26.5 3.1 -3.6 ] [ 25 2.3 -3.6 ] ] to north-face
+	[ [ 28 0 -6 ] [ 25 0 -6 ] [ 25 2.3 -6 ] [ 26.5 3.1 -6 ] [ 28 2.3 -6 ] ] to south-face
+	[ [ 25 0 -6 ] [ 25 0 -3.6 ] [ 25 2.3 -3.6 ] [ 25 2.3 -6 ] ] to west-face
+	[ [ 28 0 -3.6 ] [ 28 0 -6 ] [ 28 2.3 -6 ] [ 28 2.3 -3.6 ] ] to east-face
+	[ [ 24.8 2.2 -3.4 ] [ 26.5 3.1 -3.4 ] [ 26.5 3.1 -6.2 ] [ 24.8 2.2 -6.2 ] ] to west-roof
+	[ [ 28.2 2.2 -6.2 ] [ 26.5 3.1 -6.2 ] [ 26.5 3.1 -3.4 ] [ 28.2 2.2 -3.4 ] ] to east-roof
+	[ north-face south-face west-face east-face west-roof east-roof ] ( face | face 0 near-fill ) each
+	north-face [ 0 0 1 ] 0.6 sunlit-face
+	south-face [ 0 0 -1 ] 0.6 sunlit-face
+	west-face [ -1 0 0 ] 0.6 sunlit-face
+	east-face [ 1 0 0 ] 0.6 sunlit-face
+	west-roof [ -0.47 0.88 0 ] 0.65 sunlit-face
+	east-roof [ 0.47 0.88 0 ] 0.65 sunlit-face
+	west-face [ -1 0 0 ] face-seen? if
+		0.12 pen!
+		[ 25 0 -6 ] [ 25 0 -3.6 ] [ 25 2.3 -3.6 ] [ 25 2.3 -6 ] 9 hatch
+		[ [ 24.97 1.0 -5.3 ] [ 24.97 1.0 -4.3 ] [ 24.97 1.8 -4.3 ] [ 24.97 1.8 -5.3 ] ] to grimy
+		grimy 0.1 near-fill
+		0.7 pen!
+		grimy outline
+		0.18 pen!
+		[ 24.96 1.0 -5.3 ] [ 24.96 1.0 -4.3 ] [ 24.96 1.8 -4.3 ] [ 24.96 1.8 -5.3 ] 7 hatch
+	then
+	north-face [ 0 0 1 ] face-seen? if
+		0.12 pen!
+		[ 25 0 -3.6 ] [ 25 2.3 -3.6 ] [ 28 2.3 -3.6 ] [ 28 0 -3.6 ] 11 hatch
+		[ [ 25.6 0 -3.57 ] [ 26.5 0 -3.57 ] [ 26.5 1.95 -3.57 ] [ 25.6 1.95 -3.57 ] ] to door
+		door 0.02 near-fill
+		0.65 pen!
+		door outline
+		0.9 pen!
+		26.35 1.0 -3.54 26.4 1.0 -3.54 edge
+	then
+	south-face [ 0 0 -1 ] face-seen? if
+		0.22 pen!
+		[ 28 0 -6 ] [ 25 0 -6 ] [ 25 2.3 -6 ] [ 28 2.3 -6 ] 11 hatch
+	then ;
+
+\ fruit trees scattered over a stretch of ground, each seeded from its place
+: orchard-trees ( west east south north count seed -- )
+	| west east south north count seed |
+	[ 0 count 1 do k
+		seed k 5.1 * + hash-fraction east west - * west + to x
+		seed k 8.3 * + 1.1 + hash-fraction north south - * south + to z
+		[ x z seed k + ]
+	loop ] to trees
+	[ view@x view@z ] to eye
+	trees ( tree | tree first eye first - sq tree second eye second - sq + negate ) sort-by
+	( tree | tree spread to tree-seed to z to x x z 4.2 tree-seed hash-fraction 1.2 * + tree-seed fruit-tree ) each ;
+
+\ rows of rose bushes across a bed, the farthest drawn first
+: rose-rows ( west east south north n-rows n-across seed -- )
+	| west east south north n-rows n-across seed |
+	[ view@x view@z ] to eye
+	[ 0 n-rows 1 do row
+		0 n-across 1 do across
+			east west - across 0.5 + row 2 mod 0.4 * + n-across / * west + to x
+			north south - row 0.5 + n-rows / * south + to z
+			[ x z seed row 31 * + across + ]
+		loop
+	loop ] ( bush | bush first eye first - sq bush second eye second - sq + negate ) sort-by
+	( bush | bush spread rose-bush ) each ;
+
+\ the ladder where the plot has put it: leaning against a balcony, lying on the ground, or not here at all
+: ladder-for ( room lean-foot lean-top ground-a ground-b leaning -- )
+	| room lean-foot lean-top ground-a ground-b leaning |
+	:ladder room inside? not if exit then
+	leaning if lean-foot lean-top leaning-ladder exit then
+	ground-a ground-b lying-ladder ;
+
+\ === Front Path ===
+
+\ the front door and step seen from the path
+: front-path-picture ( -- )
+	0.9 1.65 -10.5 -0.05 0.1 270 outdoor-view
+	[ [ [ -2.1 0 -4.2 ] PI 0.2 + ] [ [ 2.5 0 -3.8 ] PI 0.25 - ] [ [ -4.3 0 -6.4 ] PI 0.35 + ] ] spots!
+	0.06 pen!
+	-12 12 -7 -0.6 10 5 lawn-rows
+	0.14 pen!
+	-8 8 -7 -0.7 90 43 grass-strokes
+	robner-house
+	:newspaper :front-path inside? if newspaper-at-door then
+	0.4 pen!
+	-0.9 0 -7 -0.9 0 -0.6 edge
+	0.9 0 -7 0.9 0 -0.6 edge
+	0.55 pen!
+	0 70 1 do k
+		k 0.43 * hash-fraction 1.6 * 0.8 - to across
+		k 0.71 * hash-fraction 6 * -6.8 + to along
+		across 0.005 along across 0.025 + 0.005 along 0.015 + edge
+	loop
+	:front-path [ 0 0 0 ] [ 0 0 0 ] [ -3.5 0.05 -5.5 ] [ -2.6 0.05 -1.9 ] false ladder-for
+	outdoor-done ;
+
+\ === West of Front Door ===
+
+\ the bay window of the living room seen from the lawn before it
+: west-of-door-picture ( -- )
+	-4.4 1.65 -10 -0.03 0.1 270 outdoor-view
+	[ [ [ -1.6 0 -4.3 ] PI 0.2 + ] [ [ -7.3 0 -4.4 ] PI 0.3 - ] [ [ -0.4 0 -6.2 ] PI 0.4 + ] ] spots!
+	0.06 pen!
+	-16 8 -7 -0.6 10 7 lawn-rows
+	0.14 pen!
+	-12 4 -7 -1.3 90 47 grass-strokes
+	[ -4.5 1.6 -0.4 ] 1.6 0.12 glow
+	robner-house
+	outdoor-done ;
+
+\ === East of Front Door ===
+
+\ the carved cornerstone at the house's south-east corner, its carving picked out in light
+: cornerstone-block ( -- )
+	0.55 pen!
+	9.3 0 -0.12 10.05 0.55 0.5 solid-box
+	0.8 pen!
+	[ [ 9.4 0.1 -0.13 ] [ 9.95 0.1 -0.13 ] [ 9.95 0.45 -0.13 ] [ 9.4 0.45 -0.13 ] ] outline
+	0.45 pen!
+	0 4 1 do k
+		k 0.07 * 0.16 + to y
+		9.48 y -0.14 9.87 k 0.3 * hash-fraction 0.1 * - y -0.14 edge
+	loop ;
+
+\ the east half of the south front and its cornerstone
+: east-of-door-picture ( -- )
+	4.8 1.65 -9.5 0.3 0.08 270 outdoor-view
+	[ [ [ 3.2 0 -4.4 ] PI 0.2 + ] [ [ 8.6 0 -5.8 ] PI 0.45 - ] [ [ 5.4 0 -6.4 ] PI 0.3 + ] ] spots!
+	0.06 pen!
+	-4 20 -7 -0.6 10 9 lawn-rows
+	0.14 pen!
+	0 14 -7 -0.7 90 49 grass-strokes
+	robner-house
+	cornerstone-block
+	outdoor-done ;
+
+\ === West Lawn ===
+
+\ the house's west end seen across the west lawn
+: west-lawn-picture ( -- )
+	-24 1.65 -10 0.62 0.03 290 outdoor-view
+	[ [ [ -19 0 -3 ] PI 0.62 + ] [ [ -15.5 0 -6 ] PI 0.62 + ] [ [ -21 0 1 ] PI 0.7 + ] ] spots!
+	-80 -26 48 5 51 far-shore
+	-70 -30 -30 50 140 51 lake-ripples
+	-30 20 34 60 90 53 lake-ripples
+	0.35 pen!
+	-30 0 -12 -30 0 34 edge
+	-30 0 34 20 0 34 edge
+	0.06 pen!
+	-30 12 -20 34 26 57 lawn-rows
+	robner-house
+	-16 12 -10.2 12 2.1 garden-fence
+	-16 12 -16 24 2.1 garden-fence
+	-15 -1 14 23 3 6 61 rose-rows
+	-20 -12 20 32 3 63 orchard-trees
+	0.14 pen!
+	-28 -14 -12 6 140 67 grass-strokes
+	outdoor-done ;
+
+\ === East Lawn ===
+
+\ the east lawn looking toward the shed and the path beyond
+: east-lawn-picture ( -- )
+	15 1.65 -1 1.45 0.02 290 outdoor-view
+	[ [ [ 20 0 1.5 ] PI 1.45 + ] [ [ 21 0 -1.8 ] PI 1.45 + ] [ [ 19 0 4.5 ] PI 1.6 + ] ] spots!
+	0.12 pen!
+	[ 0 13 1 do k [ 70 k 71.3 * hash-fraction 4 * k 12 / 80 * -40 + ] loop ] path
+	31 70 -40 40 300 73 lake-ripples
+	0.35 pen!
+	30 0 -30 30 0 30 edge
+	0.06 pen!
+	10 30 -30 30 26 77 lawn-rows
+	garden-shed
+	0.14 pen!
+	16 29 -8 8 150 79 grass-strokes
+	outdoor-done ;
+
+\ === East Side of House ===
+
+\ the house's east wall seen from beside it
+: east-side-picture ( -- )
+	13.5 1.65 -3 0.18 0.05 290 outdoor-view
+	[ [ [ 12.5 0 2.5 ] PI 0.12 - ] [ [ 15 0 5 ] PI 0.2 - ] [ [ 13.2 0 8 ] PI 0.1 - ] ] spots!
+	-10 60 46 3 81 far-shore
+	22 60 -10 46 120 83 lake-ripples
+	0.35 pen!
+	22 0 -10 22 0 46 edge
+	0.06 pen!
+	10 22 -3 30 28 87 lawn-rows
+	5 21 15 26 6 89 orchard-trees
+	robner-house
+	0.3 pen!
+	10.02 0.6 0 10.02 0.6 12 edge
+	10.02 3.5 0 10.02 3.5 12 edge
+	0.14 pen!
+	10.5 20 -3 14 120 91 grass-strokes
+	outdoor-done ;
+
+\ === West Side of House ===
+
+\ the house's west wall seen from beside it
+: west-side-picture ( -- )
+	-13.5 1.65 -3 -0.18 0.05 290 outdoor-view
+	[ [ [ -12.6 0 3 ] PI 0.12 + ] [ [ -15 0 6 ] PI 0.2 + ] [ [ -13 0 8.5 ] PI 0.1 + ] ] spots!
+	-70 0 50 4 93 far-shore
+	-70 -26 -10 50 120 95 lake-ripples
+	0.35 pen!
+	-26 0 -10 -26 0 50 edge
+	0.06 pen!
+	-26 -10 -3 13 22 97 lawn-rows
+	-18 -10.5 13.5 22 3 5 99 rose-rows
+	robner-house
+	-10.2 12.4 -20 12.4 2.2 garden-fence
+	0.3 pen!
+	-10.02 0.6 0 -10.02 0.6 12 edge
+	-10.02 3.5 0 -10.02 3.5 12 edge
+	0.14 pen!
+	-22 -10.5 -3 12 120 101 grass-strokes
+	outdoor-done ;
+
+\ === Shed ===
+
+\ a garden tool hanging on a wall facing north: its handle and a head of the given shape
+: hanging-tool ( x top length head z -- )
+	| x top length head z |
+	0.45 pen!
+	x top z x top length - z edge
+	top length - to foot
+	0.7 pen!
+	head :spade = if [ [ x 0.09 - foot z ] [ x 0.09 + foot z ] [ x 0.07 + foot 0.24 - z ] [ x 0.07 - foot 0.24 - z ] ] outline then
+	head :rake = if
+		x 0.2 - foot z x 0.2 + foot z edge
+		0 7 1 do k k 6 / 0.4 * 0.2 - x + to tine tine foot z tine foot 0.08 - z edge loop
+	then
+	head :hoe = if x foot z x 0.14 + foot 0.08 - z edge then
+	head :saw = if [ [ x 0.03 - foot z ] [ x 0.1 + foot z ] [ x 0.06 + foot 0.42 - z ] [ x 0.03 - foot 0.42 - z ] ] outline then ;
+
+\ the inside of the shed from its doorway
+: shed-room-picture ( -- )
+	26.3 1.55 -3.72 PI -0.12 215 new-picture
+	[ 24 1.4 -4.8 ] lamp!
+	[ [ [ 26.1 0 -5.1 ] 0.15 ] [ [ 26.9 0 -5.4 ] -0.2 ] ] spots!
+	0.35 pen!
+	25 28 -6 -3.6 2.3 room-shell
+	[ [ 25 2.3 -3.6 ] [ 26.5 3.1 -3.6 ] [ 28 2.3 -3.6 ] ] path
+	[ [ 25 2.3 -6 ] [ 26.5 3.1 -6 ] [ 28 2.3 -6 ] ] path
+	26.5 3.1 -3.6 26.5 3.1 -6 edge
+	0.08 pen!
+	[ 25 0 -6 ] [ 28 0 -6 ] [ 28 0 -3.6 ] [ 25 0 -3.6 ] 12 hatch
+	[ 25.03 1.0 -5.3 ] 0.5 0.12 glow
+	[ [ 25.02 1.0 -5.3 ] [ 25.02 1.0 -4.3 ] [ 25.02 1.8 -4.3 ] [ 25.02 1.8 -5.3 ] ] to grimy
+	grimy 0.12 near-fill
+	0.75 pen!
+	grimy outline
+	0.22 pen!
+	[ 25.03 1.0 -5.3 ] [ 25.03 1.0 -4.3 ] [ 25.03 1.8 -4.3 ] [ 25.03 1.8 -5.3 ] 7 hatch
+	0.06 pen!
+	0 5 1 do k
+		k 0.5 * -5.3 + to z
+		[ 25.02 1.8 z ] [ 26.6 0 z 0.15 + ] segment
+	loop
+	[ [ 25.8 0 -5.3 ] [ 26.6 0 -5.3 ] [ 26.6 0 -4.3 ] [ 25.8 0 -4.3 ] ] 0.05 near-fill
+	0.5 pen!
+	0 3 1 do shelf
+		shelf 0.55 * 0.5 + to board
+		27.6 board -5.95 28 board -3.65 solid-box
+		0 5 1 do k
+			shelf 5 * k + 13.1 * hash-fraction to chance
+			k 0.44 * -5.8 + to z
+			chance 0.4 > if
+				0.6 pen!
+				27.65 board 0.04 + z 27.95 board chance 0.25 * + 0.1 + z 0.18 + solid-box
+			then
+		loop
+	loop
+	[ [ 26.0 1.95 :spade ] [ 26.5 1.95 :rake ] [ 27.0 1.95 :hoe ] [ 25.6 1.9 :saw ] ]
+	( tool | tool spread to head to top to x x top 1.2 head -5.97 hanging-tool ) each
+	0.55 pen!
+	[ 26.3 1.3 -5.95 ] [ 1 0 0 ] [ 0 1 0 ] 0.12 12 circle-points outline
+	[ 26.3 1.3 -5.95 ] [ 1 0 0 ] [ 0 1 0 ] 0.08 12 circle-points outline
+	:shed-room [ 27.2 0 -5.3 ] [ 27.85 2.25 -5.9 ] [ 0 0 0 ] [ 0 0 0 ] true ladder-for ;
+
+\ === Behind the Shed ===
+
+\ the shed's back and grimy window from the rough ground behind it
+: behind-shed-picture ( -- )
+	29.7 1.65 -12.5 -0.1 0.02 280 outdoor-view
+	[ [ [ 29.3 0 -5.2 ] PI 0.1 - ] [ [ 29.8 0 -3.4 ] PI 0.2 - ] ] spots!
+	0 60 40 5 103 far-shore
+	30.5 70 -40 40 240 107 lake-ripples
+	0.4 pen!
+	30.3 0 -40 30.3 0 40 edge
+	0 26 1 do k
+		k 3.7 * hash-fraction 20 * -12 + to z
+		k 5.1 * hash-fraction 0.6 * 0.3 + to reed
+		0.3 pen!
+		30.35 0 z 30.45 reed z 0.05 + edge
+	loop
+	0.06 pen!
+	10 30.3 -20 20 22 109 lawn-rows
+	garden-shed
+	0.12 pen!
+	[ 28.01 0 -6 ] [ 28.01 0 -3.6 ] [ 28.01 2.3 -3.6 ] [ 28.01 2.3 -6 ] 9 hatch
+	0.14 pen!
+	22 30.2 -12 -6.2 110 113 grass-strokes
+	28.3 30.2 -6.2 0 50 115 grass-strokes
+	outdoor-done ;
+
+\ === Garden Path, the rose garden ===
+
+\ the rose garden and the house's back seen from the garden path
+: rose-garden-picture ( -- )
+	-6 1.65 27 PI 0.05 290 outdoor-view
+	[ [ [ -4 0 22.5 ] 0.1 ] [ [ -8.2 0 23 ] -0.2 ] [ [ -1.5 0 24 ] 0.3 ] ] spots!
+	0.06 pen!
+	-26 14 12.4 30 20 117 lawn-rows
+	robner-house
+	:in-roses [ -5.2 0 17.2 ] [ -5.2 4.6 13.4 ] [ -6.5 0.05 18.6 ] [ -3.7 0.05 19.4 ] :ladder-flag state ladder-for
+	2 12 14 24 4 119 orchard-trees
+	-13 0 13.5 20.5 5 8 121 rose-rows
+	0.3 pen!
+	-13 0 21 0 0 21 edge
+	0.14 pen!
+	-14 2 21 29 120 123 grass-strokes
+	outdoor-done ;
+
+\ === Among the Roses ===
+
+\ the ground under the library balcony seen from among the roses
+: in-roses-picture ( -- )
+	-5.4 1.65 22.2 PI 0.02 250 outdoor-view
+	[ [ [ -3.6 0 15.6 ] 0.2 ] [ [ -7.4 0 15.9 ] -0.2 ] [ [ -2.2 0 16.8 ] 0.4 ] ] spots!
+	0.08 pen!
+	-14 2 12.2 22 14 127 lawn-rows
+	robner-house
+	:hole :invisible flag? not if
+		[ [ -5.55 0.004 17.35 ] [ -5.35 0.004 17.35 ] [ -5.35 0.004 17.05 ] [ -5.55 0.004 17.05 ] ] to left-hole
+		[ [ -5.05 0.004 17.35 ] [ -4.85 0.004 17.35 ] [ -4.85 0.004 17.05 ] [ -5.05 0.004 17.05 ] ] to right-hole
+		[ left-hole right-hole ] ( hole | hole 0 near-fill 0.7 pen! hole outline ) each
+	then
+	:in-roses [ -5.2 0 17.2 ] [ -5.2 4.6 13.4 ] [ -6.8 0.05 18.4 ] [ -4.0 0.05 19.2 ] :ladder-flag state ladder-for
+	-12 -8.3 15 19.6 4 2 125 rose-rows
+	-2.9 0.8 15 19.6 4 2 126 rose-rows
+	-12 1 13.2 14.6 2 7 129 rose-rows
+	0.14 pen!
+	-8 -3.2 14.6 22 130 131 grass-strokes
+	outdoor-done ;
+
+\ === Orchard Path ===
+
+\ the orchard trees and the house's back beyond them
+: orchard-picture ( -- )
+	7 1.65 27.5 PI 0.07 290 outdoor-view
+	[ [ [ 5 0 23 ] 0.1 ] [ [ 9.5 0 23.5 ] -0.25 ] [ [ 7 0 21 ] 0.05 ] ] spots!
+	0.06 pen!
+	-6 22 12.4 30 20 133 lawn-rows
+	robner-house
+	:orchard [ 4.8 0 14.6 ] [ 4.8 4.6 13.2 ] [ 3.6 0.05 20.6 ] [ 6.8 0.05 19.2 ] :ladder-flag-2 state ladder-for
+	:in-orchard [ 4.8 0 14.6 ] [ 4.8 4.6 13.2 ] [ 6.6 0.05 16.4 ] [ 8.6 0.05 13.9 ] :ladder-flag-2 state ladder-for
+	1.5 5.5 12.6 14.2 2.3 grape-arbor
+	-1 16 14.5 21.5 7 137 orchard-trees
+	0.14 pen!
+	-2 16 21 29 120 139 grass-strokes
+	outdoor-done ;
+
+\ === In the Orchard ===
+
+\ the bedroom balcony and grape arbor seen from under the trees
+: in-orchard-picture ( -- )
+	5.2 1.65 20 PI 0.12 250 outdoor-view
+	[ [ [ 3.4 0 15.9 ] 0.2 ] [ [ 7.2 0 16.2 ] -0.2 ] [ [ 2.4 0 17.4 ] 0.3 ] ] spots!
+	0.08 pen!
+	-2 12 12.2 18.8 12 141 lawn-rows
+	robner-house
+	:in-orchard [ 4.8 0 14.6 ] [ 4.8 4.6 13.2 ] [ 6.6 0.05 16.4 ] [ 8.6 0.05 13.9 ] :ladder-flag-2 state ladder-for
+	:orchard [ 4.8 0 14.6 ] [ 4.8 4.6 13.2 ] [ 5 0.05 26 ] [ 7 0.05 25 ] :ladder-flag-2 state ladder-for
+	0.5 3.5 12.4 13.8 2.4 grape-arbor
+	[ [ 7.6 13.8 ] [ 8.4 15.4 ] [ 1.2 15.2 ] ] ( bush | bush spread 143 rose-bush ) each
+	[ [ -0.5 16.5 ] [ 10.5 16 ] ] ( tree | tree spread 4.6 147 fruit-tree ) each
+	0.14 pen!
+	0 10 14.4 18.8 110 149 grass-strokes
+	outdoor-done ;
+
+\ === North Lawn ===
+
+\ the wet paper floating a few feet from the shore, crumpled and pale
+: floating-paper ( -- )
+	[ [ 1.2 0.01 38.6 ] [ 1.6 0.03 38.4 ] [ 1.9 0.01 38.7 ] [ 1.7 0.02 39.0 ] [ 1.3 0.03 38.95 ] ] to crumple
+	crumple 0.25 near-fill
+	0.9 pen!
+	crumple outline
+	0.5 pen!
+	1.35 0.02 38.7 1.75 0.02 38.8 edge ;
+
+\ the lake and its far shore from the north lawn
+: north-lawn-picture ( -- )
+	0 1.65 31 -0.1 -0.02 290 outdoor-view
+	[ [ [ -1.6 0 35.4 ] PI 0.1 - ] [ [ 2.2 0 35 ] PI 0.1 - ] [ [ 0.4 0 36.6 ] PI 0.1 - ] ] spots!
+	-80 80 95 6 151 far-shore
+	-80 80 37.5 95 220 153 lake-ripples
+	-80 -9 20 38 70 155 lake-ripples
+	9 80 20 38 70 157 lake-ripples
+	0.4 pen!
+	[ [ -9 0 20 ] [ -8 0 30 ] [ -5 0 36 ] [ 0 0 37.6 ] [ 5 0 36.2 ] [ 8 0 31 ] [ 9 0 20 ] ] path
+	:soggy-will :lake inside? if floating-paper then
+	0.06 pen!
+	-8 8 31 37 8 159 lawn-rows
+	0.14 pen!
+	-7 7 31 36.5 70 161 grass-strokes
+	outdoor-done ;
+
+\ === registration ===
+
+room-pictures ' south-lawn-picture :south-lawn ! drop
+room-pictures ' front-path-picture :front-path ! drop
+room-pictures ' west-of-door-picture :west-of-door ! drop
+room-pictures ' east-of-door-picture :east-of-door ! drop
+room-pictures ' west-lawn-picture :west-lawn ! drop
+room-pictures ' east-lawn-picture :east-lawn ! drop
+room-pictures ' east-side-picture :east-side ! drop
+room-pictures ' west-side-picture :west-side ! drop
+room-pictures ' shed-room-picture :shed-room ! drop
+room-pictures ' behind-shed-picture :behind-shed ! drop
+room-pictures ' rose-garden-picture :rose-garden ! drop
+room-pictures ' in-roses-picture :in-roses ! drop
+room-pictures ' orchard-picture :orchard ! drop
+room-pictures ' in-orchard-picture :in-orchard ! drop
+room-pictures ' north-lawn-picture :north-lawn ! drop

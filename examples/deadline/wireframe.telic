@@ -1,0 +1,386 @@
+\ Deadline: drawing the rooms. A picture is 512 by 256 pixels of light, 0
+\ black to 1 full white, seen through a camera standing in the room: points
+\ are metres east (x), up (y) and north (z), and the camera turns (yaw) and
+\ tilts (pitch) from looking north. Lines are anti-aliased and add their light
+\ to what is already drawn, so crossings glow; a line fades with its distance
+\ from the camera. Surfaces are filled black, or with a light of their own,
+\ before their edges are drawn, so nearer things hide farther ones when they
+\ are drawn after them. Details that look random (book spines, wicker) come
+\ from a hash of their position, not from the game's random numbers, so
+\ drawing a picture changes nothing in the story.
+
+512 constant picture-width
+256 constant picture-height
+\ how near the camera anything is drawn; a picture moves it out to cut away the wall the camera stands behind
+variable nearest-depth
+0.1 to nearest-depth
+
+variable canvas
+picture-height picture-width 0-matrix to canvas
+\ the part of the canvas's light that comes from glows and filled areas rather than lines, so a daytime picture can draw it as shade
+variable wash
+picture-height picture-width 0-matrix to wash
+\ whether the finished picture is drawn as ink on paper, for the daytime, or as light on black
+variable daylight
+false to daylight
+variable view
+{ :x 0 :y 1.6 :z 0 :cos-yaw 1 :sin-yaw 0 :cos-pitch 1 :sin-pitch 0 :focal 300 :lens-shift 0 } to view
+\ the light of the lines drawn next, and how fast it fades with distance
+variable pen
+0.6 to pen
+variable fade
+0.12 to fade
+
+\ the light of the lines drawn next
+: pen! ( light -- )
+	| light ^pen |
+	light to pen ;
+
+\ a number in [0, 1) that depends only on k
+: hash-fraction ( k -- f ) 12.9898 * sin 43758.5453 * dup round-down - ;
+
+\ begin a picture: all black, the camera where it stands
+: new-picture ( x y z yaw pitch focal -- )
+	| x y z yaw pitch focal ^canvas ^wash ^view ^nearest-depth |
+	picture-height picture-width 0-matrix to canvas
+	picture-height picture-width 0-matrix to wash
+	{ :x x :y y :z z :cos-yaw yaw cos :sin-yaw yaw sin
+	  :cos-pitch pitch cos :sin-pitch pitch sin :focal focal :lens-shift 0
+	} to view
+	0.1 to nearest-depth ;
+
+\ hold the camera level and move the picture by the tilt's height instead, so upright edges stay upright
+: level-camera! ( -- )
+	view view@focal view@sin-pitch * view@cos-pitch / :lens-shift ! drop
+	view 0 :sin-pitch ! drop
+	view 1 :cos-pitch ! drop ;
+
+\ draw nothing nearer the camera than a depth in metres, so the camera can stand behind the wall it looks through
+: near-cut! ( depth -- )
+	| depth ^nearest-depth |
+	depth to nearest-depth ;
+\ === projection ===
+
+\ a point in the camera's coordinates: right, up, and depth ahead
+: to-camera ( point -- right up depth )
+	| point |
+	point spread to pz to py to px
+	px view@x - to dx
+	py view@y - to dy
+	pz view@z - to dz
+	dx view@cos-yaw * dz view@sin-yaw * - to right
+	dx view@sin-yaw * dz view@cos-yaw * + to ahead
+	dy view@cos-pitch * ahead view@sin-pitch * - to up
+	dy view@sin-pitch * ahead view@cos-pitch * + to depth
+	right up depth ;
+
+\ where a point in the camera's coordinates falls on the picture
+: to-screen ( right up depth -- sx sy )
+	| right up depth |
+	picture-width 2 / view@focal right * depth / +
+	picture-height 2 / view@focal up * depth / - view@lens-shift + ;
+
+\ the light of the pen at a depth
+: light-at ( depth -- light ) 1 - 0 max2 fade * 1 + pen swap / ;
+
+\ === lines ===
+
+\ add light to one pixel
+: add-light ( x y amount -- )
+	| x y amount |
+	x 0 < x picture-width >= or y 0 < or y picture-height >= or if exit then
+	y picture-width * x + to index
+	canvas canvas index @e amount + index !e drop ;
+
+\ an anti-aliased line between two picture points, its light going from one end's to the other's; the far end is left out, so lines meeting at a corner light it once
+: light-line ( x0 y0 light0 x1 y1 light1 -- )
+	| x0 y0 light0 x1 y1 light1 |
+	y1 y0 - abs x1 x0 - abs > to steep
+	steep if
+		y0 x0 to y0 to x0
+		y1 x1 to y1 to x1
+	then
+	x1 x0 - 0 < to reversed
+	reversed if
+		x1 x0 to x1 to x0
+		y1 y0 to y1 to y0
+		light1 light0 to light1 to light0
+	then
+	x1 x0 - to run
+	run 0.001 < if 0 else y1 y0 - run / then to gradient
+	x0 round to first-column
+	x1 round to last-column
+	reversed if first-column 1 + to first-column else last-column 1 - to last-column then
+	first-column last-column 1 + 1 do column
+		column x0 - to offset
+		y0 gradient offset * + to y
+		y round-down to lower
+		y lower - to fraction
+		run 0.001 < if 0 else offset run / 0 1 clamp then to along
+		light0 light1 light0 - along * + to light
+		steep if
+			lower column 1 fraction - light * add-light
+			lower 1 + column fraction light * add-light
+		else
+			column lower 1 fraction - light * add-light
+			column lower 1 + fraction light * add-light
+		then
+	loop ;
+
+\ a line between two points in the room, cut where it passes behind the camera
+: segment ( a b -- )
+	| a b |
+	a to-camera to depth-a to up-a to right-a
+	b to-camera to depth-b to up-b to right-b
+	depth-a nearest-depth < depth-b nearest-depth < and if exit then
+	depth-a nearest-depth < if
+		nearest-depth depth-a - depth-b depth-a - / to cut
+		right-a right-b right-a - cut * + to right-a
+		up-a up-b up-a - cut * + to up-a
+		nearest-depth to depth-a
+	then
+	depth-b nearest-depth < if
+		nearest-depth depth-b - depth-a depth-b - / to cut
+		right-b right-a right-b - cut * + to right-b
+		up-b up-a up-b - cut * + to up-b
+		nearest-depth to depth-b
+	then
+	right-a up-a depth-a to-screen depth-a light-at
+	right-b up-b depth-b to-screen depth-b light-at
+	light-line ;
+
+\ a line given by its two ends' coordinates
+: edge ( x0 y0 z0 x1 y1 z1 -- )
+	| x0 y0 z0 x1 y1 z1 |
+	[ x0 y0 z0 ] [ x1 y1 z1 ] segment ;
+
+\ lines through points in turn
+: path ( points -- )
+	| points |
+	0 points size 1 - 1 do k points k @i points k 1 + @i segment loop ;
+
+\ lines through points in turn and back to the first
+: outline ( points -- )
+	| points |
+	points path
+	points last points first segment ;
+
+\ the point a fraction of the way from one point to another
+: between ( a b t -- point )
+	| a b t |
+	[ 0 3 1 do k a k @i b k @i a k @i - t * + loop ] ;
+
+\ lines across a four-sided surface a b c d, evenly spaced from side a-d to side b-c
+: hatch ( a b c d count -- )
+	| a b c d count |
+	0 count 1 do k
+		k 0.5 + count / to t
+		a b t between d c t between segment
+	loop ;
+
+\ a four-sided surface ruled both ways, a grid
+: grid ( a b c d across along -- )
+	| a b c d across along |
+	a b c d across hatch
+	b c d a along hatch ;
+
+\ === surfaces ===
+
+\ fill a polygon given by picture points with a light, replacing what is there
+: fill-screen-polygon ( xs ys light -- )
+	| xs ys light |
+	xs size to n-corners
+	ys ' min2 ys first swap reduce round-down 0 max2 to top
+	ys ' max2 ys first swap reduce round-up picture-height 1 - min2 to bottom
+	top bottom 1 + 1 do row
+		row to y
+		[ ] to crossings
+		0 n-corners 1 do k
+			k 1 + n-corners mod to j
+			xs k @i to xa
+			ys k @i to ya
+			xs j @i to xb
+			ys j @i to yb
+			ya y <= yb y > and yb y <= ya y > and or if
+				crossings xb xa - y ya - * yb ya - / xa + add-last! drop
+			then
+		loop
+		crossings sort to crossings
+		0 crossings size 2 / truncate 1 do p
+			crossings p 2 * @i round-up 0 max2 to first-filled
+			crossings p 2 * 1 + @i round-up 1 - picture-width 1 - min2 to last-filled
+			row picture-width * to row-start
+			first-filled last-filled 1 + 1 do column
+				canvas light row-start column + !e drop
+				wash light row-start column + !e drop
+			loop
+		loop
+	loop ;
+
+\ fill a polygon in the room with a light, the part of it nearer than the near cut-off cut away
+: fill ( points light -- )
+	| points light |
+	points ( point | [ point to-camera ] ) map to projected
+	[ ] to kept
+	0 projected size 1 do k
+		projected k @i to from
+		projected k 1 + projected size mod @i to onto
+		from 2 @i nearest-depth >= to from-ahead
+		onto 2 @i nearest-depth >= to onto-ahead
+		from-ahead if kept from add-last! drop then
+		from-ahead onto-ahead = not if
+			kept from onto nearest-depth from 2 @i - onto 2 @i from 2 @i - / between add-last! drop
+		then
+	loop
+	kept size 3 < if exit then
+	[ ] to xs
+	[ ] to ys
+	kept ( corner |
+		corner spread to-screen to sy to sx
+		xs sx add-last! drop
+		ys sy add-last! drop
+	) each
+	xs ys light fill-screen-polygon ;
+
+\ the eight corners of a box between two opposite corners
+: box-corners ( x0 y0 z0 x1 y1 z1 -- corners )
+	| x0 y0 z0 x1 y1 z1 |
+	[ [ x0 y0 z0 ] [ x1 y0 z0 ] [ x1 y0 z1 ] [ x0 y0 z1 ]
+	  [ x0 y1 z0 ] [ x1 y1 z0 ] [ x1 y1 z1 ] [ x0 y1 z1 ] ] ;
+
+\ the twelve edges of a box
+: box ( x0 y0 z0 x1 y1 z1 -- )
+	box-corners to c
+	[ c 0 @i c 1 @i c 2 @i c 3 @i ] outline
+	[ c 4 @i c 5 @i c 6 @i c 7 @i ] outline
+	0 4 1 do k c k @i c k 4 + @i segment loop ;
+
+\ a box that hides what is behind it: its faces filled black, then its edges
+: solid-box ( x0 y0 z0 x1 y1 z1 -- )
+	| x0 y0 z0 x1 y1 z1 |
+	x0 y0 z0 x1 y1 z1 box-corners to c
+	[ [ 0 1 2 3 ] [ 4 5 6 7 ] [ 0 1 5 4 ] [ 1 2 6 5 ] [ 2 3 7 6 ] [ 3 0 4 7 ] ]
+	( face | face ( c swap @i ) map 0 fill ) each
+	x0 y0 z0 x1 y1 z1 box ;
+
+\ light through blinds falling on a four-sided surface a b c d: count bands of light running from side a-d to side b-c, each followed by a dark gap
+: blind-light ( a b c d count light -- )
+	| a b c d count light |
+	0 count 1 do k
+		k count / to near
+		k 0.55 + count / to far
+		[ a b near between a b far between d c far between d c near between ] light fill
+	loop ;
+
+\ a horizontal circle of points
+: ring ( x y z radius count -- points )
+	| x y z radius count |
+	[ 0 count 1 do k
+		k count / TAU * to angle
+		[ x angle cos radius * + y z angle sin radius * + ]
+	loop ] ;
+
+\ a circle of points around a centre in the plane of two perpendicular unit directions
+: circle-points ( centre u v radius count -- points )
+	| centre u v radius count |
+	[ 0 count 1 do k
+		k count / TAU * to angle
+		angle cos radius * to along-u
+		angle sin radius * to along-v
+		[ 0 3 1 do axis
+			centre axis @i u axis @i along-u * + v axis @i along-v * +
+		loop ]
+	loop ] ;
+
+\ a soft pool of light around a point, its radius in metres
+: glow ( point radius strength -- )
+	| point radius strength |
+	point to-camera to depth to up to right
+	depth nearest-depth < if exit then
+	right up depth to-screen to cy to cx
+	view@focal radius * depth / to reach
+	cy reach - round-down 0 max2 to top
+	cy reach + round-up picture-height 1 - min2 to bottom
+	cx reach - round-down 0 max2 to left
+	cx reach + round-up picture-width 1 - min2 to right-edge
+	top bottom 1 + 1 do row
+		left right-edge 1 + 1 do column
+			column cx - sq row cy - sq + sqrt reach / to distance
+			distance 1 < if
+				1 distance - sq strength * to amount
+				column row amount add-light
+				row picture-width * column + to index
+				wash wash index @e amount + index !e drop
+			then
+		loop
+	loop ;
+
+\ === light on curved surfaces ===
+
+\ the point the light comes from, for lighting curved surfaces
+variable lamp
+[ 0 3 0 ] to lamp
+
+: lamp! ( point -- )
+	| point ^lamp |
+	point to lamp ;
+
+\ arithmetic on points and directions, arrays of three
+: vector- ( a b -- a-b ) ' - 2 nmap ;
+: dot ( a b -- product ) ' * 2 nmap 0 ' + reduce ;
+: unit-vector ( a -- a' )
+	| a |
+	a a dot sqrt 1e-9 max2 to length
+	a ( length / ) map ;
+
+\ whether a surface at a point, with an outward normal, faces the camera
+: facing-camera? ( point normal -- flag )
+	| point normal |
+	[ view@x view@y view@z ] point vector- normal dot 0 > ;
+
+\ the light of a surface line at a point with an outward normal: full where it faces the lamp, falling steeply to an eighth of it where it faces away
+: lamp-light ( point normal brightness -- light )
+	| point normal brightness |
+	lamp point vector- unit-vector normal unit-vector dot 0 max2 1.5 ^ 0.875 * 0.125 + brightness * ;
+
+\ where a point falls across the picture
+: screen-x ( point -- sx ) to-camera to-screen drop ;
+
+\ === the finished picture ===
+
+\ the light kept at each pixel, less toward the corners
+: vignette-matrix ( -- matrix )
+	picture-height picture-width 0-matrix to shading
+	0 picture-height 1 do row
+		row picture-height 2 / - picture-height 2 / / sq to down
+		0 picture-width 1 do column
+			column picture-width 2 / - picture-width 2 / / sq to across
+			shading 1 across down + 0.32 * - row picture-width * column + !e drop
+		loop
+	loop
+	shading ;
+
+vignette-matrix to vignette
+
+\ the picture as light on black: a bitmap of greys
+: night-bitmap ( -- bitmap ) canvas vignette * 0 1 clamp 0.8 ^ 255 * round 65793 * ;
+
+\ warm paper and dark ink, as red, green and blue
+[ 236 231 219 ] constant paper-colour
+[ 28 27 32 ] constant ink-colour
+
+\ the picture as ink on paper: the lines as ink, the glows and lit areas as a faint shade, the corners darkened as on a print
+: day-bitmap ( -- bitmap )
+	canvas wash - 0 1 clamp 0.8 ^ to lines-ink
+	wash 0 1 clamp 0.25 * to shade
+	lines-ink shade + 0 1 clamp to darkness
+	vignette 1 - 0.5 * 1 + to print-light
+	[ 0 1 2 ] ( channel |
+		paper-colour channel @i to paper
+		ink-colour channel @i to ink
+		darkness paper ink - * paper swap - print-light * round 0 255 clamp
+	) map to channels
+	channels first 65536 * channels second 256 * + channels 2 @i + ;
+
+\ the finished picture as a bitmap: ink on paper by day, light on black otherwise
+: picture>bitmap ( -- bitmap ) daylight if day-bitmap else night-bitmap then ;

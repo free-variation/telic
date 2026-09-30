@@ -1,0 +1,87 @@
+\ Deadline (Infocom, 1982), translated from its ZIL source into telic.
+\
+\   ./telic examples/deadline.telic [text] [seed=N] [width=N] [save=path] [frotz=N]
+\
+\ You are the inspector called to the Robner estate at 8:00 am to look into
+\ the death of Marshall Robner; you have until 8:00 pm. Type commands as in
+\ any Infocom game: LOOK, NORTH, TAKE THE CUP, EXAMINE THE DESK, ASK MRS.
+\ ROBNER ABOUT THE WILL, WAIT UNTIL 11:30, SAVE, QUIT; GRAMMAR lists every
+\ verb and the sentences it takes, and every synonym. The game runs in a
+\ window: the status line, a picture of the room with the people in it, and
+\ the story below; up and down recall commands, page up and page down scroll,
+\ escape ends. text runs it in the terminal instead. seed=N fixes the random
+\ numbers, so the same commands replay the same story; width=N wraps the
+\ terminal's text at N columns (0 does not wrap); save=path names the file
+\ SAVE and RESTORE use (deadline.save by default). frotz=N draws the random
+\ numbers as the interpreter frotz does when started with -s N, and words
+\ questions as under its status line, so a transcript can be compared line by
+\ line with the original game's (release 28, whose source this is).
+\
+\ The world is in examples/deadline/: the rooms and things (rooms.telic,
+\ objects.telic), the vocabulary and sentence patterns (vocabulary.telic,
+\ grammar.telic), the parser, the clock, the people, the actions (verbs.telic),
+\ what the rooms do (places.telic), how the people move and act (movement.telic,
+\ characters.telic), the day's events and the endings (plot.telic), what the
+\ things do (things.telic) and the turn loop (game.telic). The pictures are
+\ drawn by wireframe.telic, the people by figures.telic, the rooms by
+\ scenes.telic and scenes-*.telic, and the window is screen.telic. In the
+\ window the game has a cool-jazz soundtrack on the synthesizer: the pieces
+\ are music.telic, the sounds of the places ambience.telic, and
+\ soundtrack.telic chooses what plays when.
+
+"deadline/text.telic" load
+"deadline/world.telic" load
+"deadline/vocabulary.telic" load
+"deadline/rooms.telic" load
+"deadline/objects.telic" load
+"deadline/grammar.telic" load
+complete-vocabulary
+"deadline/parser.telic" load
+"deadline/clock.telic" load
+"deadline/people.telic" load
+"deadline/verbs.telic" load
+"deadline/places.telic" load
+"deadline/movement.telic" load
+"deadline/characters.telic" load
+"deadline/plot.telic" load
+"deadline/things.telic" load
+"deadline/help.telic" load
+"deadline/game.telic" load
+
+\ text runs the game in the terminal; otherwise it runs in a window with the room pictures
+args "text" position-of 0 >= to text-mode
+( text-mode not if
+	"deadline/wireframe.telic" load
+	"deadline/figures.telic" load
+	"deadline/scenes.telic" load
+	"deadline/scenes-grounds.telic" load
+	"deadline/scenes-ground-floor.telic" load
+	"deadline/scenes-upstairs.telic" load
+	"deadline/scenes-bedrooms.telic" load
+	"deadline/screen.telic" load
+	"deadline/music.telic" load
+	"deadline/ambience.telic" load
+	"deadline/soundtrack.telic" load
+then ) execute
+
+\ the value of an argument name=value, or a default
+: argument ( name default -- value )
+	| name default |
+	args ( argument | argument "^" name + "=" + has? ) find-first to given
+	given null? if default exit then
+	given "^[^=]*=" "" replace ;
+
+"seed" "1" argument string>number to game-seed
+"width" "79" argument string>number to line-width
+"save" "deadline.save" argument to save-path
+"frotz" "" argument to frotz-seed
+( ^frotz-random ^status-line-shown |
+	frotz-seed "" = not if
+		frotz-seed string>number float>exact to frotz-random
+		true to status-line-shown
+	then
+) execute
+
+open-display
+play
+close-display

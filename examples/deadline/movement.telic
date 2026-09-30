@@ -1,0 +1,398 @@
+\ Deadline: how the people move. The estate has four lines, each a row of
+\ rooms a person walks along one room a minute: upstairs, downstairs, the
+\ kitchen wing and the grounds. Every room belongs to a line (:line 0 to 3)
+\ and has a station, the room on its line a person passes through to reach
+\ it. A person heading for a room on another line first walks to the room
+\ where the lines meet. Each person's goal records the final room, the
+\ station to reach, the transfer point on the way, the direction last taken,
+\ whether they are moving, and a goal they will go back to after an urgent
+\ one. Timetables set new goals through the day; when a goal is reached the
+\ person's handler is told :reached. Someone who is spoken to stops and
+\ attends for a few minutes before going on.
+
+\ the lines, their rooms in order
+[ [ :library-balcony :library :corridor-4 :corridor-3 :corridor-2 :corridor-1 :stair-top :shall-11 :shall-12 ]
+  [ :foyer :nfoyer :stair-bottom :shall-1 :shall-2 ]
+  [ :front-path :east-of-door :east-side :east-lawn :orchard :north-lawn :rose-garden
+    :west-lawn :west-side :west-of-door :south-lawn ]
+  [ :dining-room :corner :kitchen :pantry ]
+] to lines
+
+0 constant upstairs-line
+2 constant outside-line
+3 constant food-line
+
+\ each person's goal: final room, station, transfer point, last direction, moving, urgent, the goal to go back to, the handler told of arrival, how long they attend when spoken to
+: new-goal ( handler span -- goal )
+	| handler span |
+	{ :final null :station null :intermediate null :last-direction null
+	  :enabled true :priority false :queued null :handler handler
+	  :attention-span span :attention span
+	} ;
+
+[ :i-follow 4 new-goal :i-gardener 3 new-goal :i-baxter 4 new-goal :i-dunbar 3 new-goal
+  :i-george 2 new-goal :i-mrs-robner 4 new-goal :i-rourke 6 new-goal :i-coates 2 new-goal
+] to goals
+
+\ the minutes each person has left of attending to someone who spoke to them
+0 8 array-of to attention
+
+\ a person's goal
+: goal-of ( person -- goal ) :character property goals swap @i ;
+
+\ the timetables: after the minutes given (give or take the variation) a person sets off for the room
+[ [ null ]
+  [ null 60 10 :north-lawn 60 10 :east-lawn 60 10 :rose-garden 60 10 :orchard
+    60 15 :south-lawn 120 15 :west-lawn 0 ]
+  [ null 120 2 :living-room 360 10 :south-lawn 0 ]
+  [ null 60 10 :dunbar-bath 30 10 :dunbar-room 135 20 :living-room 135 20 :dunbar-room 0 ]
+  [ null 80 10 :kitchen 30 10 :dining-room 70 20 :george-room 45 15 :living-room
+    60 10 :east-lawn 75 20 :living-room 60 15 :george-room 0 ]
+  [ null 30 10 :dining-room 100 15 :dining-room 60 20 :living-room 90 20 :master-bedroom
+    70 30 :living-room 0 ]
+  [ null 60 10 :kitchen 60 20 :dining-room 60 10 :kitchen 120 20 :living-room 60 30 :rourke-room 0 ]
+] to timetables
+
+\ where each person is in their timetable
+0 7 array-of to timetable-positions
+
+\ set a person off toward a room; an urgent goal holds back the timetable until it is reached, then the person goes back where they were
+: establish-goal ( person destination urgent? -- )
+	| person destination urgent? |
+	person goal-of to goal
+	person location-of to place
+	urgent? if
+		true goal!enabled
+		true goal!priority
+		place goal!queued
+	then
+	place :line property to place-line
+	destination :line property to destination-line
+	place-line destination-line = if
+		null goal!intermediate
+	else place-line upstairs-line = if
+		:stair-top goal!intermediate
+	else place-line outside-line = if
+		:front-path goal!intermediate
+	else place-line food-line = if
+		:corner goal!intermediate
+	else destination-line upstairs-line = if
+		:stair-bottom goal!intermediate
+	else destination-line food-line = if
+		:nfoyer goal!intermediate
+	else
+		:foyer goal!intermediate
+	then then then then then then
+	destination :station property goal!station
+	destination goal!final ;
+
+\ an urgent goal done: back to the goal it interrupted
+: unprioritize ( person -- )
+	| person |
+	person goal-of to goal
+	false goal!priority
+	goal@queued null? if exit then
+	person goal@queued false establish-goal
+	null goal!queued ;
+
+\ tell a person's handler they have arrived
+: goal-reached ( person -- result ) goal-of@handler :reached call-handler ;
+
+\ whether a person is on the way somewhere
+: moving? ( person -- flag )
+	| person |
+	person goal-of to goal
+	goal@enabled goal@station null? not and person location-of goal@final = not and ;
+
+' moving? embodies in-motion?
+
+\ === a person moves one room ===
+
+\ tell of a person seen leaving along a corridor, entering it, or passing along it
+: corridor-sighting ( person from destination door -- seen? )
+	| person from destination door |
+	here :corridor property to mine
+	mine null? if false exit then
+	from :corridor property to theirs
+	theirs null? not if mine theirs bit-and 0 = not else false then if
+		destination :stairs = if
+			person tell-name " steps onto the stairs." tell-line
+			true exit
+		then
+		destination :corridor property to ahead
+		ahead null? if
+			person tell-name ", off to " tell
+			here from corridor-direction tell-direction
+			"," tell
+			door null? not if " opens a door and" tell then
+			here :line property outside-line = if
+				" leaves your view"
+			else destination :shed-room = if
+				" darts into the shed"
+			else
+				" ducks into a room"
+			then then tell
+			" to " tell
+			from destination direction-from tell-direction
+			"." tell-line
+			true exit
+		then
+		mine ahead bit-and 0 = if
+			person tell-name ", off to " tell
+			here from corridor-direction tell-direction
+			", disappears from sight " tell
+			from destination direction-from to way
+			way :up = if
+				"up the stairs" tell
+			else way :down = if
+				"down the stairs" tell
+			else
+				"to " tell way tell-direction
+			then then
+			"." tell-line
+			true exit
+		then
+		person tell-name " is to " tell
+		here destination corridor-direction tell-direction
+		", heading toward " tell
+		from destination direction-from tell-direction
+		"." tell-line
+		true exit
+	then
+	destination :corridor property to ahead
+	ahead null? not if mine ahead bit-and 0 = not else false then if
+		"To " tell here destination corridor-direction tell-direction " " tell person tell-name
+		destination :line property outside-line = destination :stairs = or if
+			" comes into view from "
+		else
+			" enters the hallway from "
+		then tell
+		destination from direction-from tell-direction
+		"." tell-line
+		true exit
+	then
+	false ;
+
+\ move a person to a neighbouring room, opening a closed door on the way, and tell the player what they see of it; true when the player saw
+: move-person ( person destination -- seen? )
+	| person destination |
+	person goal-of to goal
+	person :character property to number
+	person location-of to from
+	from destination direction-from to direction
+	from :exits property direction null @or to way
+	null to door
+	way exit-kind :door = if
+		way :door @ to door
+		door :open flag? if null to door else door :open set-flag then
+	then
+	direction goal!last-direction
+	false to seen
+	from here = if
+		true to seen
+		person tell-name
+		direction :out = if
+			" walks out of the room." tell-line
+		else direction :down = if
+			" is going downstairs." tell-line
+		else direction :up = if
+			" is going upstairs." tell-line
+		else direction :in = if
+			door null? not if " opens the " tell door tell-name " and" tell then
+			" goes into another room." tell
+		else
+			door null? not if " opens the " tell door tell-name " and" tell then
+			" heads off to " tell direction tell-direction "." tell-line
+		then then then then
+	else destination here = if
+		true to seen
+		person tell-name
+		here goal@final = not if
+			" is walking past you." tell-line
+		else here :line property outside-line = if
+			" stops here." tell-line
+		else
+			" steps into the room." tell-line
+		then then
+	else
+		person from destination door corridor-sighting to seen
+	then then
+	last-seen number @i to sightings
+	0 character-max 1+ 1 do k
+		k character to someone
+		someone person = not if
+			k 0 = seen and someone from inside? or if
+				sightings present-time k !i drop
+				last-seen k @i present-time number !i drop
+			then
+		then
+	loop
+	person destination move-to
+	seen ;
+
+\ footsteps heard on the staircase from the rooms near it
+: stair-footsteps ( near -- heard? )
+	| near |
+	near here position-of 0 >= if
+		"You can hear footsteps on the staircase." tell-line
+		true exit
+	then
+	false ;
+
+\ change lines at a transfer point, then head for the final room
+: transfer ( person transfer-point final -- seen? )
+	| person transfer-point final |
+	transfer-point :stair-top = if
+		[ :stair-bottom :nfoyer :rourke-room :living-room :foyer :corner ] stair-footsteps to heard
+		person :stairs move-person heard or exit
+	then
+	transfer-point :stair-bottom = if
+		[ :stair-top :corridor-1 :corridor-2 :corridor-3 ] stair-footsteps to heard
+		person :stairs move-person heard or exit
+	then
+	transfer-point :stairs = if
+		final :line property upstairs-line = if :stair-top else :stair-bottom then to next-room
+	else transfer-point :front-path = if
+		:front-door :open set-flag
+		:foyer to next-room
+	else transfer-point :foyer = if
+		:front-door :open set-flag
+		:front-path to next-room
+	else transfer-point :nfoyer = if
+		:corner to next-room
+	else
+		:nfoyer to next-room
+	then then then then
+	person next-room move-person to seen
+	person final false establish-goal
+	seen ;
+
+\ one step toward a person's goal; true when the player saw it
+: follow-goal ( person -- seen? )
+	| person |
+	person goal-of to goal
+	person location-of to place
+	place goal@final = if
+		person goal-reached to reached
+		null goal!station
+		reached exit
+	then
+	goal@enabled not if false exit then
+	place :station property to station
+	station place = not if person station move-person exit then
+	goal@intermediate to target
+	target null? not to changing-lines
+	changing-lines not if goal@station to target then
+	target null? if false exit then
+	place :stairs = if person place goal@final transfer exit then
+	place target = if
+		changing-lines if person target goal@final transfer exit then
+		place goal@final = not if
+			person goal@final move-person to seen
+			null goal!station
+			seen if person goal-reached drop else person goal-reached to seen then
+			seen exit
+		then
+		null goal!station
+		person goal-reached exit
+	then
+	lines target :line property @i to line
+	false to target-passed
+	0 line size 1 do k
+		line k @i to room
+		room place = if
+			person line k target-passed if 1- else 1+ then @i move-person exit
+		then
+		room target = if true to target-passed then
+	loop
+	false ;
+
+\ === the timetables ===
+
+\ set a person's next goal from their timetable and queue the next change, varying its time
+: imovement ( person routine -- )
+	| person routine |
+	person :character property to number
+	timetables number @i to timetable
+	timetable-positions number @i to at
+	person goal-of to goal
+	timetable at @i to room
+	room null? not if
+		goal@priority if room goal!queued else person room false establish-goal then
+	then
+	timetable at 1+ @i to minutes
+	minutes 0 = if exit then
+	timetable at 2 + @i to variation
+	variation 2 * random-below 1+ to drawn
+	routine minutes drawn + variation - queue drop
+	timetable-positions at 3 + number !i drop
+	timetable at 4 + @i 0 = not if
+		timetable timetable at 4 + @i variation drawn - + at 4 + !i drop
+	then ;
+
+\ every minute each person with somewhere to go takes a step
+: i-follow ( context -- result )
+	drop
+	false to seen
+	1 character-max 1+ 1 do k
+		goals k @i to goal
+		goal@station null? not goal@enabled goal@attention 0 = or and if
+			true goal!enabled
+			k character follow-goal if true to seen then
+		then
+	loop
+	seen ;
+
+' i-follow :i-follow handles
+
+\ every minute the people who were spoken to attend a little less
+: i-attention ( context -- result )
+	drop
+	false to seen
+	1 character-max 1+ 1 do k
+		attention k @i 1- to left
+		left 1 = if
+			k character here inside? if
+				k character tell-name " starts to move about distractedly." tell-line
+				true to seen
+			then
+		else left 0 = if
+			true goals k @i !enabled
+		then then
+		attention left k !i drop
+	loop
+	seen ;
+
+' i-attention :i-attention handles
+
+\ speaking to someone who is on the way stops them for a while; the conversation turns to them
+: take-attention ( person -- flag )
+	| person ^conversation ^conversation-room |
+	person :character property to number
+	goals number @i to goal
+	goal@station null? not if
+		goal@attention-span to span
+		attention span number !i drop
+		span 0 = if
+			true goal!enabled
+			false exit
+		then
+		goal@enabled if false goal!enabled then
+	then
+	person to conversation
+	here to conversation-room
+	true ;
+
+' take-attention embodies grab-attention
+
+: start-people ( -- )
+	:i-gardener 1 queue enable
+	:i-baxter 1 queue enable
+	:i-dunbar 1 queue enable
+	:i-george 1 queue enable
+	:i-mrs-robner 1 queue enable
+	:i-rourke 1 queue enable
+	:i-follow -1 queue enable
+	:i-attention -1 queue enable ;
+
+' start-people embodies start-movement

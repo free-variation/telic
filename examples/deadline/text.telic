@@ -1,0 +1,83 @@
+\ Deadline: the text. Game text is written as paragraphs whose line breaks
+\ stand for spaces; {nl} in a text breaks the line there. Output collects in
+\ the line being written and is wrapped at line-width columns when the line
+\ ends; a line-width of 0 leaves lines unbroken.
+
+variable line-width
+79 to line-width
+
+variable pending-line
+"" to pending-line
+
+10 codepoint>char constant newline-character
+
+\ where the text goes and where commands come from: standard output and input, unless the window takes them over
+defer write-out
+defer read-command-line
+( stdout write ) embodies write-out
+( stdin read-line ) embodies read-command-line
+\ what the display does before the game and after it ends; nothing in the terminal
+defer open-display
+defer close-display
+( ) embodies open-display
+( ) embodies close-display
+
+\ where the last piece of a line that fits in a column can end: at a space or after a hyphen; -1 when there is none
+: break-before ( line column -- index )
+	| line column |
+	column 0 -1 do k
+		line k char-at " " = if k exit then
+		k 0 > if line k 1- char-at "-" = if k exit then then
+	loop
+	-1 ;
+
+\ write the pieces of a line wider than line-width, broken at spaces and hyphens, and answer the rest
+: write-broken ( line -- rest )
+	| line |
+	begin
+		line-width 0 > line size line-width > and
+	while
+		line line-width break-before to break
+		break 0 < if line-width to break then
+		line 0 break substring " +$" "" replace newline-character + write-out
+		line break line size substring "^ " "" replace to line
+	repeat
+	line ;
+
+\ end the line being written
+: end-line ( -- )
+	| ^pending-line |
+	pending-line write-broken newline-character + write-out
+	"" to pending-line ;
+
+\ add text to the line being written, as the original's compiler prepared its strings: a line break in the text is a space, the spaces after a period are one space, and {nl} ends a line
+: tell ( text -- )
+	| text ^pending-line |
+	text null? if exit then
+	text "\{nl\}\n" "{nl}" replace
+	"\n[ \t]*" " " replace
+	"\. {2,}" ". " replace
+	"\{nl\}" newline-character replace to text
+	text "\n" split to pieces
+	0 pieces size 1- 1 do k
+		pieces k @i pending-line swap + to pending-line
+		end-line
+	loop
+	pieces last pending-line swap + to pending-line ;
+
+\ text added exactly as it is, such as the indentation of a listing
+: tell-raw ( text -- )
+	| text ^pending-line |
+	pending-line text + to pending-line ;
+
+\ text and then the end of the line
+: tell-line ( text -- ) tell end-line ;
+
+\ a whole number as digits
+: tell-number ( n -- ) "{0}" format tell ;
+
+\ write the line being written without ending it, before input is read
+: flush-output ( -- )
+	| ^pending-line |
+	pending-line write-broken write-out
+	"" to pending-line ;

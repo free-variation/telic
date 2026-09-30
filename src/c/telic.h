@@ -1153,10 +1153,16 @@ int synth_submit_play(Interpreter *interp, float *samples, int n_frames);
 int synth_wait_quiet(Interpreter *interp);
 
 // audio_effects.c
+typedef struct {
+	double dry[2];
+	double chorus[2];
+	double delay[2];
+	double reverb[2];
+} EffectBuses;
 void effects_apply(int parameter, double value);
 void effects_clear(void);
 int effects_parameter_parse(Interpreter *interp, Val value_val, Val key_val, Val effect_val, int *parameter, double *value);
-void effects_process(double *left, double *right);
+void effects_process(EffectBuses *buses, double *left, double *right);
 void effects_reset(void);
 
 // superwords.c

@@ -1,0 +1,353 @@
+\ Deadline: the people in the pictures. A body is a stack of cross-sections,
+\ each an ellipse given in the person's own measure: metres right, up and
+\ forward of the spot they stand on, turned to face a heading (0 faces north,
+\ PI south). Three settings shape the whole figure: stature scales heights,
+\ girth scales widths, and recline tips the figure back about its hips' line
+\ (PI/2 lays it on its back). A body hides what is behind it; only the lines
+\ on its near side are drawn, as bright as its surface is turned toward the
+\ lamp. Clothes are filled black and skin pale grey.
+
+12 constant points-around
+
+variable stature
+1 to stature
+variable girth
+1 to girth
+variable recline
+0 to recline
+
+\ set the shape of the next figure
+: figure-shape! ( stature girth recline -- )
+	| new-stature new-girth new-recline ^stature ^girth ^recline |
+	new-stature to stature
+	new-girth to girth
+	new-recline to recline ;
+
+\ a direction in a person's measure, tipped back by recline and turned to face a heading
+: turned ( direction heading -- direction' )
+	| direction heading |
+	direction spread to forward to up to right
+	recline cos to upright
+	recline sin to tipped
+	up upright * forward tipped * - to raised
+	up tipped * forward upright * + to advanced
+	heading cos to cosine
+	heading sin to sine
+	[ right cosine * advanced sine * + raised advanced cosine * right sine * - ] ;
+
+\ a point in a person's measure placed at their spot, scaled by stature and girth
+: placed ( local spot heading -- point )
+	| local spot heading |
+	local spread to forward to up to right
+	[ right girth * up stature * forward girth * ] heading turned spot ' + 2 nmap ;
+
+\ the points of a cross-section [ right up forward half-width half-depth ] and their outward normals
+: section-ring ( section spot heading -- points normals )
+	| section spot heading |
+	section spread to half-depth to half-width to forward to up to right
+	[ ] to points
+	[ ] to normals
+	0 points-around 1 do k
+		k points-around / TAU * to angle
+		angle cos to across
+		angle sin to ahead
+		points [ right across half-width * + up forward ahead half-depth * + ] spot heading placed add-last! drop
+		normals [ across half-width / 0 ahead half-depth / ] heading turned add-last! drop
+	loop
+	points normals ;
+
+\ the two points of a ring where its surface turns away from the camera, left one first, with their normals; empty when the ring shows no edge
+: outline-points ( points normals -- edges )
+	| points normals |
+	[ ] to edges
+	0 points-around 1 do k
+		k 1 + points-around mod to next
+		points k @i normals k @i facing-camera? points next @i normals next @i facing-camera? = not if
+			edges [ points k @i points next @i 0.5 between normals k @i normals next @i ' + 2 nmap ] add-last! drop
+		then
+	loop
+	edges size 2 < if [ ] exit then
+	[ edges first edges last ] ( edge | edge first screen-x ) sort-by ;
+
+\ a body of cross-sections in order along it: filled with a light of its own, its outline down each side drawn lit, its near rings fainter
+: body ( sections spot heading brightness surface -- )
+	| sections spot heading brightness surface |
+	sections ( section | [ section spot heading section-ring ] ) map to rings
+	0 rings size 1 - 1 do j
+		rings j @i first to lower
+		rings j 1 + @i first to upper
+		0 points-around 1 do k
+			k 1 + points-around mod to next
+			[ lower k @i lower next @i upper next @i upper k @i ] surface fill
+		loop
+	loop
+	rings first first surface fill
+	rings last first surface fill
+	0 rings size 1 do j
+		rings j @i first to points
+		rings j @i second to normals
+		0 points-around 1 do k
+			k 1 + points-around mod to next
+			points k @i points next @i 0.5 between to middle
+			normals k @i normals next @i ' + 2 nmap to normal
+			middle normal facing-camera? if
+				middle normal brightness surface 0 > if 0.25 else 0.1 then * lamp-light pen!
+				points k @i points next @i segment
+			then
+		loop
+	loop
+	rings ( ring | ring spread outline-points ) map to edges
+	0 rings size 1 - 1 do j
+		edges j @i to lower
+		edges j 1 + @i to upper
+		lower size 2 = upper size 2 = and if
+			0 2 1 do side
+				lower side @i to from
+				upper side @i to onto
+				from first onto first 0.5 between from second brightness lamp-light pen!
+				from first onto first segment
+			loop
+		then
+	loop ;
+
+\ lines through points in a person's measure, at a light
+: figure-path ( points spot heading light -- )
+	| points spot heading light |
+	light pen!
+	points ( point | point spot heading placed ) map path ;
+
+\ a flat shape in a person's measure, filled with a light of its own and outlined
+: figure-patch ( points spot heading surface light -- )
+	| points spot heading surface light |
+	points ( point | point spot heading placed ) map to corners
+	corners surface fill
+	light pen!
+	corners outline ;
+
+\ === the parts people share ===
+
+\ two legs in trousers or stockings, from the shoes to the hips, a gap apart
+: legs ( spot heading apart ankle knee hip top brightness -- )
+	| spot heading apart ankle knee hip top brightness |
+	[ -1 1 ] ( side |
+		[ [ side apart * 0 0.04 0.045 0.11 ]
+		  [ side apart * 0.08 0 ankle ankle 1.1 * ]
+		  [ side apart * 0.5 0 knee knee 1.05 * ]
+		  [ side apart * top 0 hip hip ]
+		] spot heading brightness 0 body
+	) each ;
+
+\ an arm hanging at a side, from the shoulder to the hand, the hand bare
+: hanging-arm ( spot heading side shoulder-height thickness -- )
+	| spot heading side shoulder-height thickness |
+	[ [ side 0.2 * shoulder-height 0 thickness 1.1 * thickness ]
+	  [ side 0.245 * shoulder-height 0.1 - 0 thickness thickness ]
+	  [ side 0.26 * shoulder-height 0.28 - 0 thickness 0.92 * thickness 0.92 * ]
+	  [ side 0.25 * shoulder-height 0.55 - 0.03 thickness 0.82 * thickness 0.82 * ]
+	] spot heading 0.55 0 body
+	[ [ side 0.25 * shoulder-height 0.53 - 0.032 thickness 0.84 * thickness 0.84 * ]
+	  [ side 0.25 * shoulder-height 0.56 - 0.034 thickness 0.8 * thickness 0.8 * ]
+	] spot heading 0.8 0.35 body
+	[ [ side 0.25 * shoulder-height 0.56 - 0.035 0.04 0.035 ]
+	  [ side 0.25 * shoulder-height 0.66 - 0.04 0.035 0.03 ]
+	] spot heading 0.9 0.09 body ;
+
+\ a man's jacketed torso from the hips to the shoulders
+: jacket ( spot heading brightness -- )
+	| spot heading brightness |
+	[ [ 0 0.82 0 0.19 0.13 ] [ 0 1.05 0 0.18 0.12 ] [ 0 1.3 0.01 0.21 0.13 ]
+	  [ 0 1.4 0 0.235 0.12 ] [ 0 1.46 0 0.18 0.1 ] [ 0 1.5 0 0.08 0.07 ]
+	] spot heading brightness 0 body ;
+
+\ a head on a neck, its face pale, looking a little down or ahead by a forward lean
+: head ( spot heading lean -- )
+	| spot heading lean |
+	[ [ 0 1.48 0 0.05 0.05 ] [ 0 1.55 0.01 lean + 0.055 0.06 ] [ 0 1.6 0.02 lean + 0.085 0.095 ]
+	  [ 0 1.67 0.02 lean + 0.095 0.105 ] [ 0 1.75 0.01 lean + 0.09 0.1 ] [ 0 1.81 lean 0.065 0.075 ]
+	  [ 0 1.85 -0.01 lean + 0.02 0.02 ]
+	] spot heading 1 0.09 body ;
+
+\ short dark hair capping a head
+: short-hair ( spot heading lean -- )
+	| spot heading lean |
+	[ [ 0 1.76 -0.005 lean + 0.097 0.107 ] [ 0 1.81 -0.01 lean + 0.072 0.082 ] [ 0 1.86 -0.01 lean + 0.022 0.022 ]
+	] spot heading 0.5 0 body ;
+
+\ how far the collar, tie and lapels sit to the figure's left of its centre line, so they fall under the middle of the neck in the picture
+-0.018 constant collar-offset
+
+\ points in a person's measure moved sideways by the collar offset
+: collar-shifted ( points -- points' ) ( point | point [ collar-offset 0 0 ] ' + 2 nmap ) map ;
+
+\ the front of a suit: the pale shirt between the lapels, a dark tie, the lapels out to their notches, and the jacket's opening down to the hem with its buttons
+: lapels ( spot heading tie -- )
+	| spot heading tie |
+	[ [ -0.05 1.5 0.05 ] [ 0.05 1.5 0.05 ] [ 0 1.22 0.1 ] ] collar-shifted spot heading 0.4 0 figure-patch
+	tie if
+		[ [ -0.005 1.49 0.052 ] [ 0.005 1.49 0.052 ] [ 0.007 1.31 0.084 ] [ 0 1.28 0.088 ] [ -0.007 1.31 0.084 ] ]
+		collar-shifted spot heading 0.18 0 figure-patch
+	then
+	[ -1 1 ] ( side |
+		[ [ side 0.05 * 1.5 0.05 ] [ side 0.1 * 1.44 0.085 ] [ side 0.085 * 1.41 0.09 ] [ 0 1.22 0.1 ] ]
+		collar-shifted spot heading 0.75 figure-path
+	) each
+	[ [ 0 1.22 0.1 ] [ 0 0.82 0.135 ] ] collar-shifted spot heading 0.45 figure-path
+	[ 1.08 0.96 ] ( height |
+		[ [ -0.006 height 0.12 ] [ 0.006 height 0.12 ] ] collar-shifted spot heading 0.8 figure-path
+	) each
+	[ [ -0.19 0.83 0.12 ] [ -0.1 0.82 0.132 ] [ 0 0.815 0.135 ] [ 0.1 0.82 0.132 ] [ 0.19 0.83 0.12 ] ] spot heading 0.6 figure-path
+	[ -1 1 ] ( side |
+		[ [ side 0.07 * 0.93 0.135 ] [ side 0.16 * 0.93 0.125 ] ] spot heading 0.5 figure-path
+		[ [ side 0.1 * 0.8 0.09 ] [ side 0.1 * 0.1 0.07 ] ] spot heading 0.35 figure-path
+	) each ;
+
+\ === the people ===
+
+\ Mr. McNabb, the gardener: elderly and a little stooped, in overalls with a flat cap
+: gardener-figure ( spot heading -- )
+	| spot heading |
+	0.96 1 0 figure-shape!
+	spot heading 0.11 0.055 0.075 0.1 0.9 0.5 legs
+	spot heading 0.5 jacket
+	[ [ -0.15 0.9 0.14 ] [ 0.15 0.9 0.14 ] [ 0.14 1.32 0.14 ] [ -0.14 1.32 0.14 ] ] spot heading 0.02 0.55 figure-patch
+	[ [ -0.12 1.32 0.14 ] [ -0.16 1.46 0.1 ] ] spot heading 0.7 figure-path
+	[ [ 0.12 1.32 0.14 ] [ 0.16 1.46 0.1 ] ] spot heading 0.7 figure-path
+	[ -1 1 ] ( side | spot heading side 1.41 0.062 hanging-arm ) each
+	spot heading 0.05 head
+	[ [ 0 1.77 0.08 0.11 0.14 ] [ 0 1.8 0.05 0.1 0.12 ] [ 0 1.84 0.03 0.07 0.08 ] ] spot heading 0.55 0 body
+	1 1 0 figure-shape! ;
+
+\ Mr. Baxter: tall and immaculate in a dark suit and tie, a handkerchief in the breast pocket
+: baxter-figure ( spot heading -- )
+	| spot heading |
+	1.04 1.05 0 figure-shape!
+	spot heading 0.1 0.05 0.065 0.085 0.9 0.5 legs
+	spot heading 0.6 jacket
+	[ [ 0.1 1.34 0.135 ] [ 0.15 1.34 0.13 ] [ 0.14 1.37 0.13 ] ] spot heading 0.25 0.9 figure-patch
+	[ -1 1 ] ( side | spot heading side 1.41 0.062 hanging-arm ) each
+	spot heading 0 head
+	spot heading 0 short-hair
+	spot heading true lapels
+	1 1 0 figure-shape! ;
+
+\ Mr. Coates, the lawyer: older, heavier and stooped, bald but for the sides, in spectacles, carrying a briefcase
+: coates-figure ( spot heading -- )
+	| spot heading |
+	0.97 1.12 0 figure-shape!
+	spot heading 0.1 0.05 0.065 0.085 0.9 0.5 legs
+	spot heading 0.55 jacket
+	[ -1 1 ] ( side | spot heading side 1.4 0.065 hanging-arm ) each
+	[ [ 0 1.62 -0.02 0.1 0.09 ] [ 0 1.72 -0.03 0.1 0.09 ] ] spot heading 0.45 0 body
+	spot heading 0.05 head
+	spot heading true lapels
+	[ -1 1 ] ( side | [ side 0.04 * 1.69 0.15 ] ) map ( centre | centre [ 1 0 0 ] [ 0 1 0 ] 0.022 8 circle-points ) map to lenses
+	lenses ( lens | lens ( point | point spot heading placed ) map to glass 0.9 pen! glass outline ) each
+	[ [ -0.018 1.69 0.15 ] [ 0.018 1.69 0.15 ] ] spot heading 0.8 figure-path
+	[ [ 0.29 0.34 0.02 ] [ 0.29 0.74 0.02 ] [ 0.36 0.74 0.02 ] [ 0.36 0.34 0.02 ] ] spot heading 0 0.7 figure-patch
+	[ [ 0.3 0.74 0.02 ] [ 0.31 0.8 0.02 ] [ 0.34 0.8 0.02 ] [ 0.35 0.74 0.02 ] ] spot heading 0.6 figure-path
+	1 1 0 figure-shape! ;
+
+\ George: young, in an open jacket over a loud striped shirt, a chain at his neck, hands in his pockets
+: george-figure ( spot heading -- )
+	| spot heading |
+	1 0.95 0 figure-shape!
+	spot heading 0.1 0.05 0.065 0.085 0.9 0.5 legs
+	spot heading 0.55 jacket
+	[ [ -0.07 1.47 0.12 ] [ 0.07 1.47 0.12 ] [ 0.06 0.84 0.14 ] [ -0.06 0.84 0.14 ] ] spot heading 0.05 0.6 figure-patch
+	[ -0.04 -0.015 0.015 0.04 ] ( across | [ [ across 1.46 0.125 ] [ across 0.86 0.143 ] ] spot heading 0.45 figure-path ) each
+	[ [ -0.05 1.5 0.07 ] [ 0 1.44 0.11 ] [ 0.05 1.5 0.07 ] ] spot heading 1 figure-path
+	[ -1 1 ] ( side |
+		[ [ side 0.23 * 1.43 0 0.062 0.062 ]
+		  [ side 0.27 * 1.15 -0.02 0.058 0.058 ]
+		  [ side 0.21 * 0.92 0.04 0.052 0.052 ]
+		  [ side 0.17 * 0.86 0.05 0.045 0.045 ]
+		] spot heading 0.55 0 body
+	) each
+	spot heading 0 head
+	[ [ 0 1.74 -0.01 0.1 0.11 ] [ 0 1.81 -0.005 0.085 0.095 ] [ 0 1.87 0 0.04 0.045 ] ] spot heading 0.5 0 body
+	1 1 0 figure-shape! ;
+
+\ Ms. Dunbar: slim, in a fashionable pants suit, her hair to her shoulders
+: dunbar-figure ( spot heading -- )
+	| spot heading |
+	0.97 0.9 0 figure-shape!
+	spot heading 0.09 0.04 0.055 0.08 0.9 0.5 legs
+	[ [ 0 0.84 0 0.18 0.13 ] [ 0 1.02 0 0.15 0.1 ] [ 0 1.24 0.015 0.18 0.13 ]
+	  [ 0 1.4 0 0.2 0.11 ] [ 0 1.46 0 0.08 0.07 ]
+	] spot heading 0.55 0 body
+	[ -1 1 ] ( side | spot heading side 1.4 0.05 hanging-arm ) each
+	[ [ 0 1.5 -0.03 0.1 0.09 ] [ 0 1.6 -0.03 0.115 0.11 ] [ 0 1.72 -0.02 0.105 0.115 ]
+	  [ 0 1.8 -0.01 0.07 0.08 ] [ 0 1.84 -0.01 0.02 0.02 ]
+	] spot heading 0.5 0 body
+	spot heading 0 head
+	spot heading false lapels
+	1 1 0 figure-shape! ;
+
+\ Mrs. Robner: a long dark dress, hands clasped in front, hair in a bun
+: mrs-robner-figure ( spot heading -- )
+	| spot heading |
+	[ -1 1 ] ( side |
+		[ [ side 0.07 * 0 0.04 0.04 0.085 ]
+		  [ side 0.07 * 0.07 0 0.03 0.035 ]
+		  [ side 0.07 * 0.3 0 0.042 0.045 ]
+		] spot heading 0.55 0 body
+	) each
+	[ [ 0 0.2 0 0.33 0.28 ] [ 0 0.5 0 0.27 0.22 ] [ 0 0.8 0 0.2 0.16 ]
+	  [ 0 0.95 0 0.175 0.13 ] [ 0 1.04 0 0.14 0.1 ] [ 0 1.15 0.01 0.16 0.12 ]
+	  [ 0 1.25 0.015 0.18 0.13 ] [ 0 1.34 0 0.2 0.12 ] [ 0 1.4 0 0.18 0.1 ]
+	  [ 0 1.44 0 0.07 0.06 ]
+	] spot heading 0.6 0 body
+	[ -1 1 ] ( side |
+		[ [ side 0.21 * 1.38 0 0.055 0.055 ]
+		  [ side 0.245 * 1.25 0.01 0.05 0.05 ]
+		  [ side 0.23 * 1.08 0.05 0.045 0.045 ]
+		  [ side 0.14 * 0.97 0.15 0.04 0.04 ]
+		] spot heading 0.6 0 body
+		[ [ side 0.1 * 0.965 0.16 0.035 0.035 ]
+		  [ side 0.035 * 0.95 0.18 0.04 0.035 ]
+		] spot heading 0.9 0.09 body
+	) each
+	[ [ 0 1.65 -0.11 0.035 0.035 ] [ 0 1.7 -0.14 0.055 0.05 ] [ 0 1.76 -0.12 0.035 0.035 ]
+	] spot heading 0.6 0 body
+	[ [ 0 1.43 0 0.05 0.05 ] [ 0 1.5 0.01 0.055 0.06 ] [ 0 1.55 0.02 0.085 0.095 ]
+	  [ 0 1.62 0.02 0.095 0.105 ] [ 0 1.7 0.01 0.09 0.1 ] [ 0 1.76 0 0.065 0.075 ]
+	  [ 0 1.8 -0.01 0.02 0.02 ]
+	] spot heading 1 0.09 body ;
+
+\ Mrs. Rourke, the housekeeper: short and stout, in a maid's dark dress with a white apron and cap
+: rourke-figure ( spot heading -- )
+	| spot heading |
+	0.88 1.3 0 figure-shape!
+	spot heading 0.08 0.035 0.05 0.07 0.45 0.55 legs
+	[ [ 0 0.42 0 0.24 0.2 ] [ 0 0.75 0 0.21 0.17 ] [ 0 0.98 0 0.17 0.13 ]
+	  [ 0 1.2 0.02 0.19 0.14 ] [ 0 1.38 0 0.2 0.12 ] [ 0 1.45 0 0.08 0.07 ]
+	] spot heading 0.55 0 body
+	[ [ -0.14 0.47 0.2 ] [ 0.14 0.47 0.2 ] [ 0.13 0.98 0.135 ] [ -0.13 0.98 0.135 ] ] spot heading 0.13 0.85 figure-patch
+	[ [ -0.09 0.98 0.135 ] [ 0.09 0.98 0.135 ] [ 0.08 1.24 0.16 ] [ -0.08 1.24 0.16 ] ] spot heading 0.13 0.85 figure-patch
+	[ -1 1 ] ( side | spot heading side 1.38 0.06 hanging-arm ) each
+	spot heading 0 head
+	spot heading 0 short-hair
+	[ [ 0 1.84 0 0.07 0.07 ] [ 0 1.87 0 0.06 0.06 ] ] spot heading 0.9 0.13 body
+	1 1 0 figure-shape! ;
+
+\ Ms. Dunbar's body, lying on its back, the feet at the spot and the head away from the heading
+: corpse-figure ( spot heading -- )
+	| spot heading |
+	0.97 0.9 PI -2 / figure-shape!
+	spot [ 0 0.12 0 ] ' + 2 nmap to lying
+	lying heading 0.09 0.04 0.055 0.08 0.9 0.45 legs
+	[ [ 0 0.84 0 0.18 0.13 ] [ 0 1.02 0 0.15 0.1 ] [ 0 1.24 0.015 0.18 0.13 ]
+	  [ 0 1.4 0 0.2 0.11 ] [ 0 1.46 0 0.08 0.07 ]
+	] lying heading 0.5 0 body
+	[ -1 1 ] ( side | lying heading side 1.4 0.05 hanging-arm ) each
+	[ [ 0 1.5 -0.03 0.1 0.09 ] [ 0 1.6 -0.03 0.115 0.11 ] [ 0 1.72 -0.02 0.105 0.115 ]
+	  [ 0 1.8 -0.01 0.07 0.08 ] [ 0 1.84 -0.01 0.02 0.02 ]
+	] lying heading 0.45 0 body
+	lying heading 0 head
+	1 1 0 figure-shape! ;
+
+\ each person's figure word
+{ :gardener ' gardener-figure :baxter ' baxter-figure :dunbar ' dunbar-figure
+  :george ' george-figure :mrs-robner ' mrs-robner-figure :rourke ' rourke-figure
+  :coates ' coates-figure
+} to person-figures

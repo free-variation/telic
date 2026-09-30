@@ -1,0 +1,254 @@
+\ Deadline: the window. The status line (the room and the time, as Infocom's
+\ interpreters showed them) runs across the top, the room's picture sits
+\ below it, and the story scrolls beneath, the line being typed at the
+\ bottom. The picture is drawn afresh each time a command is to be read, so it
+\ shows who is in the room then: before 6:00 pm as ink on paper, from then
+\ on as light on black. The text is wrapped to the window by the
+\ widths of the font's characters, measured once when the window opens.
+\ Return enters the line, backspace takes back a letter, up and down recall
+\ earlier commands, page up and page down scroll the story, and escape ends
+\ the game.
+
+640 480 screen-size
+2 screen-zoom
+
+64 constant picture-left
+18 constant picture-top
+16 constant text-left
+282 constant text-top
+12 constant text-line-height
+16 constant text-rows
+608 constant text-width
+
+0xC8C8C8 constant story-colour
+0xFFFFFF constant typed-colour
+0xE8E8E8 constant status-colour
+0x3A3A3A constant status-bar-colour
+
+{ :rows [ ] :current "" :typed "" :history [ ] :recalled 0 :scrolled 0
+  :picture null :entered null :widths { }
+} to window
+
+\ === measuring the font ===
+
+\ how far right the ink of a text reaches, drawn at the window's left edge
+: ink-extent ( text -- width )
+	| text |
+	0 paper cls
+	0xFFFFFF ink
+	0 0 text print-at
+	0 0 64 14 capture-bitmap to shot
+	-1 to widest
+	0 14 1 do row
+		0 64 1 do column
+			shot row column @i,j 0 > if column widest max2 to widest then
+		loop
+	loop
+	widest ;
+
+\ the advance of every printable character, measured against a bar after it
+: measure-font ( -- )
+	"|" ink-extent to bar
+	{ } to widths
+	32 127 1 do code
+		code codepoint>char to letter
+		widths letter "|" + ink-extent bar - letter string>symbol ! drop
+	loop
+	window widths :widths ! drop ;
+
+\ the width of a text in the font; a character not measured counts as an m
+: text-pixels ( text -- width )
+	| text |
+	window :widths @ to widths
+	widths :m 7 @or to fallback
+	text string>chars 0 ( total letter | widths letter string>symbol fallback @or total + ) reduce ;
+
+\ a line broken at spaces into rows that fit the text area
+: wrap-to-width ( line -- rows )
+	| line |
+	[ ] to rows
+	"" to row
+	line " " split to words
+	0 words size 1 do k
+		words k @i to word
+		row "" = if word else row " " + word + then to candidate
+		candidate text-pixels text-width > row "" = not and if
+			rows row add-last! drop
+			word to row
+		else
+			candidate to row
+		then
+	loop
+	rows row add-last! drop
+	rows ;
+
+\ === the story ===
+
+\ text written by the game: whole lines join the rows, the rest waits on the current line
+: window-write ( text -- )
+	| text |
+	text "\n" split to pieces
+	window :current @ pieces first + to current-line
+	1 pieces size 1 do k
+		window :rows @ current-line wrap-to-width concat to all-rows
+		all-rows size 400 > if all-rows all-rows size 400 - skip to all-rows then
+		window all-rows :rows ! drop
+		pieces k @i to current-line
+	loop
+	window current-line :current ! drop ;
+
+' window-write embodies write-out
+
+\ the rows to show: the story's, then the current line with what is being typed
+: visible-rows ( -- rows )
+	window :current @ window :typed @ + "_" + wrap-to-width to open-rows
+	window :rows @ open-rows concat to all-rows
+	all-rows size text-rows - window :scrolled @ - 0 max2 to first-shown
+	all-rows first-shown skip text-rows take ;
+
+\ === drawing ===
+
+\ the room's picture as it stands now, or black in the dark
+: refresh-picture ( -- )
+	| ^daylight |
+	lit present-time 1080 < and to daylight
+	lit if here draw-room else 0 1.6 0 0 0 290 new-picture then
+	window picture>bitmap :picture ! drop ;
+
+\ the status line: the room's name at the left, the time at the right, light on a dark bar, since the font's glyphs carry a dark border that blots dark letters on a light ground
+: draw-status ( -- )
+	status-bar-colour ink
+	0 0 640 14 fill-rect
+	status-colour ink
+	text-left 1 here name-of print-at
+	present-time time-text "Time: " swap + to time-shown
+	624 time-shown text-pixels - 1 time-shown print-at ;
+
+\ one frame: the status line, the picture and the story
+: draw-window ( -- )
+	0 paper
+	cls
+	draw-status
+	window :picture @ to picture
+	picture null? not if picture picture-left picture-top draw-bitmap then
+	0x606060 ink
+	picture-left 1 - picture-top 1 - picture-width 2 + picture-height 2 + rect
+	visible-rows to rows
+	0 rows size 1 do k
+		k rows size 1 - = window :scrolled @ 0 = and if typed-colour else story-colour then ink
+		text-left text-top k text-line-height * + rows k @i print-at
+	loop ;
+
+\ run once a frame while the window waits for keys; nothing by default, the soundtrack keeps its music and sounds going here
+defer between-frames
+( ) embodies between-frames
+
+\ === the keyboard ===
+
+\ recall an earlier command, stepping back or forward through the history
+: recall-command ( step -- )
+	| step |
+	window :history @ to history
+	history size 0 = if exit then
+	window :recalled @ step + 0 max2 history size min2 to recalled
+	window recalled :recalled ! drop
+	recalled 0 = if "" else history history size recalled - @i then to line
+	window line :typed ! drop ;
+
+\ read the keys for the line being typed
+: read-keys ( -- )
+	:escape key-pressed? if window :end-of-input :entered ! drop exit then
+	:page-up key-pressed? if window window :scrolled @ text-rows 2 / + :scrolled ! drop then
+	:page-down key-pressed? if window window :scrolled @ text-rows 2 / - 0 max2 :scrolled ! drop then
+	:up key-pressed? if 1 recall-command then
+	:down key-pressed? if -1 recall-command then
+	window :typed @ to line
+	typed-text string>chars to letters
+	0 letters size 1 do k
+		letters k @i to letter
+		letter 0 codepoint-at to code
+		code 32 >= code 127 < and line size 120 < and if line letter + to line then
+	loop
+	:backspace key-pressed? line size 0 > and if line 0 line size 1 - substring to line then
+	window line :typed ! drop
+	:return key-pressed? if window line :entered ! 0 :scrolled ! drop then ;
+
+\ === the grammar page ===
+
+38 constant grammar-rows-per-page
+
+\ the grammar's lines wrapped to the window and cut into pages, shown in place of the picture and the story
+: window-show-grammar ( lines -- )
+	| lines |
+	lines ( wrap-to-width ) map flatten to rows
+	[ ] to pages
+	0 rows size grammar-rows-per-page do start
+		pages rows start skip grammar-rows-per-page take add-last! drop
+	loop
+	window pages :grammar-pages ! 0 :grammar-page ! drop ;
+
+' window-show-grammar embodies show-grammar
+
+\ turn the page, staying on the last one, or close the pages on escape; letters typed meanwhile are dropped
+: grammar-keys ( -- )
+	window :grammar-pages @ size to n-pages
+	window :grammar-page @ to page
+	typed-text drop
+	:escape key-pressed? if window null :grammar-pages ! drop exit then
+	:space key-pressed? :return key-pressed? or :right key-pressed? or page 1+ n-pages < and if
+		window page 1+ :grammar-page ! drop
+	then
+	:backspace key-pressed? :left key-pressed? or if window page 1- 0 max2 :grammar-page ! drop then ;
+
+\ the page being read, and how to turn it; the window as usual once the keys have closed the pages
+: draw-grammar ( -- )
+	window :grammar-pages @ to pages
+	pages null? if draw-window exit then
+	0 paper
+	cls
+	pages window :grammar-page @ @i to rows
+	story-colour ink
+	0 rows size 1 do k
+		text-left 4 k text-line-height * + rows k @i print-at
+	loop
+	status-colour ink
+	pages size window :grammar-page @ 1+
+	"Page {0} of {1}    space, return, right: next    backspace, left: back    escape: back to the game" format to footer
+	text-left 466 footer print-at ;
+
+\ a command typed in the window: the picture brought up to date, then frames until return; null when escape ends the game
+: window-read-line ( -- line )
+	refresh-picture
+	window "" :typed ! null :entered ! 0 :recalled ! drop
+	begin
+		between-frames
+		( window :grammar-pages null @or null? if read-keys draw-window else grammar-keys draw-grammar then ) screen-frame
+		window :entered @ null? not
+	until
+	window :entered @ to line
+	line :end-of-input = if null exit then
+	line "{0}{nl}" format window-write
+	line "" = not if window :history @ line add-last! drop then
+	window "" :typed ! drop
+	line ;
+
+' window-read-line embodies read-command-line
+
+\ after the game ends, keep the window until a key is pressed
+: wait-for-a-key ( -- )
+	begin
+		between-frames
+		( draw-window ) screen-frame
+		typed-text size 0 > :escape key-pressed? or :return key-pressed? or
+	until ;
+
+' wait-for-a-key embodies close-display
+
+\ open the window: the font measured, the text left unwrapped for the window to wrap
+: open-window ( -- )
+	| ^line-width ^status-line-shown |
+	measure-font
+	0 to line-width
+	true to status-line-shown ;
+
+' open-window embodies open-display

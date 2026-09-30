@@ -1,0 +1,71 @@
+\ Deadline: the sounds of the places. Under the music, and in the silences
+\ between its passes, each place has a sound of its own: out of doors the
+\ wind, with birds by day and crickets in the evening, and water on the lake's
+\ shore; in the shed only the wind; in the house the quiet tick of a clock.
+\ The sounds are queued four seconds at a time, a whole note at 60 beats a
+\ minute, so the soundtrack keeps them a few seconds ahead of the device; the
+\ variations come from a hash of the chunk's number, not from the random
+\ numbers.
+
+\ === the instruments ===
+
+\ wind: pink noise through a low filter that drifts slowly open and shut; each note swells in over a second and overlaps the next
+{ :oscillators [ { :wave :pink :attack 1.2 :decay 1 :sustain 1 :release 1.5 } ]
+  :cutoff 600 :lfo { :shape :sine :rate 0.07 :cutoff-depth 1 :key-sync 0 }
+  :chorus-send 0 :delay-send 0 :reverb-send 0.2 :level 0.05 } :wind instrument-patch!
+
+\ a bird: short high notes sliding into one another, warbled by a fast vibrato
+{ :oscillators [ { :attack 0.004 :decay 0.05 :sustain 0.4 :release 0.03 } ]
+  :lfo { :shape :sine :rate 24 :pitch-depth 0.8 } :glide 0.02
+  :chorus-send 0 :delay-send 0 :reverb-send 0.6 :pan 0.35 :level 0.035 } :bird instrument-patch!
+
+\ water on the shore: brown noise swelling and falling back
+{ :oscillators [ { :wave :brown :attack 0.5 :decay 0.6 :sustain 0.3 :release 0.9 } ]
+  :cutoff 450 :lfo { :shape :sine :rate 0.3 :cutoff-depth 0.5 }
+  :chorus-send 0 :delay-send 0 :reverb-send 0.3 :pan -0.3 :level 0.08 } :water instrument-patch!
+
+\ a cricket: a high tone pulsed on and off thirty-two times a second
+{ :oscillators [ { :fixed-hz 4600 :lfo-level 1 :attack 0.005 :decay 0.2 :sustain 0.6 :release 0.03 } ]
+  :lfo { :shape :square :rate 32 }
+  :chorus-send 0 :delay-send 0 :reverb-send 0.5 :pan 0.3 :level 0.015 } :cricket instrument-patch!
+
+\ a clock's tick: a click of noise above 1.5 kHz and a short tone of the escapement
+{ :oscillators [
+    { :wave :white :attack 0.0005 :decay 0.006 :sustain 0 :release 0.005 }
+    { :fixed-hz 1800 :level 0.4 :attack 0.0005 :decay 0.01 :sustain 0 :release 0.01 } ]
+  :carriers [ 0 1 ] :high-pass 1500
+  :chorus-send 0 :delay-send 0 :reverb-send 0.4 :pan 0.2 :level 0.04 } :tick instrument-patch!
+
+\ === the chunks ===
+
+\ a bird's phrase within a whole note: a wait, three to six notes a thirty-second apart stepping about a high pitch, and silence to the end
+: bird-phrase ( index -- notes )
+	| index |
+	index 3.1 * variation 0.5 + 8 * round-down 1 + 8 min2 float>exact 1/16 * to wait
+	index 5.7 * variation 0.5 + 4 * round-down 3 + to n-notes
+	index 2.3 * variation 0.5 + 8 * round-down 94 + to pitch
+	1/1 wait - n-notes float>exact 1/32 * - to after
+	[ :rest wait
+	  0 n-notes 1 do k
+		pitch
+		1/32
+		index k + 1.9 * variation 0 > if 2 else -2 then pitch + to pitch
+	  loop
+	  :rest after ] ;
+
+\ four seconds of the sound of a kind of place — :indoors :outdoors :lakeside :shelter — by day or in the evening
+: queue-ambience ( kind evening index -- )
+	| kind evening index |
+	60 sequence-tempo
+	kind :indoors = if
+		[ 1/4 0.5 1/4 0.35 1/4 0.5 1/4 0.35 ] :tick 0.5 queue-hits
+		exit
+	then
+	[ 1 0.6 ] :wind 1 queue-hits
+	kind :shelter = if exit then
+	kind :lakeside = if [ 1/2 0.5 1/2 0.4 ] :water 1 queue-hits then
+	evening if
+		[ 1/8 0 1/16 0.5 1/16 0 1/16 0.45 11/16 0 ] :cricket 0.9 queue-hits
+	else
+		index 1.3 * variation 0 > if index bird-phrase :bird 0.5 0.7 queue-part then
+	then ;

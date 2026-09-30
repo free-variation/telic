@@ -1,0 +1,154 @@
+\ Deadline: the vocabulary. Words are known by their first six letters, as
+\ the original's dictionary knew them: a letter counts one toward the six, a
+\ digit or one of . , ! ? _ # ' " / \ - : ( ) counts two, any other
+\ character four, and a character that does not fit is cut. An entry holds
+\ the word as the dictionary spells it and its parts of speech: :buzz,
+\ :direction, :verb, :preposition, :object and :adjective, the first three
+\ with the direction, verb or preposition they stand for.
+
+{ } to vocabulary
+{ } to canonical-words
+{ } to sentence-patterns
+\ the words as typed in full, for the grammar page: each word's synonyms, and the words passed over
+{ } to synonym-lists
+[ ] to passed-over-words
+
+"0123456789.,!?_#'""/\-:()" string>chars array>set to punctuation-characters
+
+\ the parts of a word the dictionary keeps, each character's pieces in order
+: key-pieces ( word -- pieces )
+	| word |
+	[ ] to pieces
+	word string>chars ( character |
+		character "^[a-z]$" has? if pieces character add-last! drop exit then
+		punctuation-characters character has? if
+			pieces "^" add-last! character add-last! drop exit then
+		pieces "^" add-last! "@" add-last! character add-last! "~" add-last! drop
+	) each
+	pieces ;
+
+\ the dictionary's key for a word: its first six pieces
+: dictionary-key ( word -- key )
+	key-pieces 6 take "" join string>symbol ;
+
+\ the word as the dictionary spells it: the characters whose pieces fit in six
+: dictionary-spelling ( word -- spelling )
+	| word |
+	"" to spelling
+	0 to n-pieces
+	word string>chars to characters
+	0 characters size 1 do k
+		characters k @i to character
+		character key-pieces size n-pieces + to n-pieces
+		n-pieces 6 <= if spelling character + to spelling then
+	loop
+	spelling ;
+
+\ the entry for a key, made empty the first time
+: entry-for ( word -- entry )
+	| word |
+	word dictionary-key to key
+	vocabulary key has? if vocabulary key @ exit then
+	{ :spelling word dictionary-spelling :parts [< >] } to entry
+	vocabulary entry key ! drop
+	entry ;
+
+\ give a word a part of speech
+: add-part ( word part -- )
+	| word part |
+	word entry-for@parts part set-add! drop ;
+
+\ give a word a part of speech that stands for a value
+: add-part-with-value ( word part value -- )
+	| word part value |
+	word part add-part
+	word entry-for value part ! drop ;
+
+\ the word a synonym stands for, or the word itself
+: canonical-word ( word -- word' )
+	| word |
+	canonical-words word dictionary-key word @or ;
+
+\ words the parser passes over
+: buzz-words ( words -- )
+	| words |
+	words ( :buzz add-part ) each
+	words ( passed-over-words swap add-last! drop ) each ;
+
+\ a direction and the word that names it
+: direction-word ( word direction -- ) :direction swap add-part-with-value ;
+
+\ words that mean what the first word means, whatever part of speech it is
+: synonyms ( word words -- )
+	| word others |
+	others ( other |
+		other entry-for drop
+		canonical-words word other dictionary-key ! drop
+	) each
+	synonym-lists synonym-lists word string>symbol [ ] @or others concat word string>symbol ! drop ;
+
+\ where a noun phrase's thing may be, as the bits the parser tests: held 128, carried 64, in-room 32, on-ground 16, take 8, many 4, have 2
+{ :held 128 :carried 64 :in-room 32 :on-ground 16 :take 8 :many 4 :have 2 } to search-bit-values
+
+: search-bits-of ( places -- bits ) 0 ( search-bit-values swap @ bit-or ) reduce ;
+
+\ a sentence pattern: the verb word, then preposition words and a frame per noun phrase. A verb's patterns are tried last defined first, as the original's compiled table held them
+: syntax ( pattern action -- )
+	| pattern action |
+	pattern first canonical-word to verb-word
+	verb-word dictionary-key to verb
+	verb-word :verb verb add-part-with-value
+	{ :action action :n-objects 0 :words pattern
+	  :first-preposition null :second-preposition null
+	  :first-find null :second-find null
+	  :first-search 0 :second-search 0
+	} to record
+	pattern 1 skip ( item |
+		item string? if
+			item canonical-word to preposition-word
+			preposition-word :preposition preposition-word dictionary-key add-part-with-value
+			record :n-objects @ 0 = if
+				preposition-word dictionary-key record!first-preposition
+			else
+				preposition-word dictionary-key record!second-preposition
+			then
+		else
+			record :n-objects @ 0 = if
+				item :find null @or record!first-find
+				item :search [ ] @or search-bits-of record!first-search
+			else
+				item :find null @or record!second-find
+				item :search [ ] @or search-bits-of record!second-search
+			then
+			record :n-objects @ 1+ record!n-objects
+		then
+	) each
+	[ record ] sentence-patterns verb [ ] @or concat to patterns
+	sentence-patterns patterns verb ! drop ;
+
+\ the object and adjective words of every thing, and every synonym's parts of speech: a synonym stands only for its first word, whatever else it names ("dust" is only a verb, though a thing is called dust)
+: complete-vocabulary ( -- )
+	world values ( frame |
+		frame :synonyms [ ] @or ( :object add-part ) each
+		frame :adjectives [ ] @or ( :adjective add-part ) each
+		frame :synonyms [ ] @or ' dictionary-key map frame!synonym-keys
+		frame :adjectives [ ] @or ( canonical-word dictionary-key ) map frame!adjective-keys
+	) each
+	canonical-words keys ( key |
+		canonical-words key @ to word
+		word entry-for to canonical-entry
+		vocabulary key @ to entry
+		canonical-entry@parts copy entry!parts
+		[ :direction :verb :preposition ] ( part |
+			canonical-entry part has? if entry canonical-entry part @ part ! drop then
+		) each
+	) each ;
+
+\ the entry for a typed word, or null
+: lookup-word ( word -- entry ) vocabulary swap dictionary-key null @or ;
+
+\ whether an entry has a part of speech
+: part? ( entry part -- flag )
+	| entry part |
+	entry null? if false exit then
+	entry@parts part has? ;

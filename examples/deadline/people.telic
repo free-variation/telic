@@ -1,0 +1,39 @@
+\ Deadline: the people. Each person has a number (:character): 0 the
+\ player, 1 McNabb the gardener, 2 Baxter, 3 Dunbar, 4 George, 5 Mrs.
+\ Robner, 6 Mrs. Rourke, 7 Coates. A person out of the room is spoken of
+\ through a global counterpart present everywhere, and last-seen holds for
+\ each person the time each other person was last seen with them.
+
+[ :player :gardener :baxter :dunbar :george :mrs-robner :rourke :coates ] to character-table
+
+[ :player :global-gardener :global-baxter :global-dunbar :global-george
+  :global-mrs-robner :global-rourke :global-coates
+] to global-character-table
+
+7 constant character-max
+
+[ ""
+  "Mr. McNabb is an elderly Scottish man with a deeply lined face. He is
+  wearing overalls."
+  "Baxter is an immaculately dressed middle-aged man with rugged good looks."
+  "Ms. Dunbar, wearing a fashionable pants suit, is a rather attractive woman
+  in her early thirties."
+  "George is a young man in his mid-twenties. He is poorly dressed in that
+  each item he is wearing clashes with the others. His attire is of the
+  highest quality, however. He is wearing various pieces of jewelry."
+  "Mrs. Robner is a middle-aged woman of great beauty. She is dressed in
+  black."
+  "Mrs. Rourke is a short woman, more than a bit overweight. She is wearing a
+  maid's outfit."
+  "Mr. Coates is a rather homely man of advancing years."
+] to character-descriptions
+
+\ the time each person last saw each other person, 0 for never
+[ 0 8 array-of 0 8 array-of 0 8 array-of 0 8 array-of
+  0 8 array-of 0 8 array-of 0 8 array-of 0 8 array-of
+] to last-seen
+
+\ the person a character number stands for, and the global counterpart
+: character ( n -- name ) character-table swap @i ;
+
+: global-character ( n -- name ) global-character-table swap @i ;

@@ -1,0 +1,247 @@
+\ Deadline: the soundtrack. The window's frames drive it while the game waits
+\ for a command, so nothing sounds, and nothing draws on the random numbers,
+\ while a turn is being played. The theme opens the game. Then one pass of a
+\ loop plays at a time, chosen by where the player is and when — the house's
+\ morning, day and evening versions, the grounds, the waltz while talking with
+\ someone — and a silence follows it before the next, only the place's own
+\ sounds going on. What a turn did chooses a cue that interrupts the loop: an
+\ ending (the confrontation, then the ending the case reached), a discovery,
+\ something happening in front of the player, the hour striking. A move to a
+\ place wanting another loop fades the pass out.
+
+\ the flags the game sets when the player finds or learns something
+[ :safe-seen :pen-seen :note-read :newspaper-read :new-will-seen :fragment-found
+  :fragment-felt :fragment-cleaned :envelope-opened :corpse-seen :china-examined
+  :call-overheard :button-revealed :hole-shown :contradiction :loblo-flag ] to discovery-flags
+
+[< :south-lawn :front-path :west-of-door :east-of-door :west-lawn :east-lawn :east-side
+   :west-side :shed-room :behind-shed :rose-garden :in-roses :orchard :in-orchard :north-lawn >] to outdoor-rooms
+[< :north-lawn :east-lawn :west-lawn :behind-shed >] to lakeside-rooms
+
+{ :theme ' queue-theme :house-morning ' queue-house-morning :house ' queue-house-loop
+  :house-evening ' queue-house-evening :grounds ' queue-grounds-loop :waltz ' queue-waltz-loop
+  :sting ' queue-discovery-sting :suspense ' queue-suspense-cue :time-mark ' queue-time-mark
+  :confrontation ' queue-confrontation :resolved-ending ' queue-resolved-ending :failed-ending ' queue-failed-ending
+} to cue-words
+
+[< :house-morning :house :house-evening :grounds :waltz >] to loop-names
+[< :resolved-ending :failed-ending >] to ending-names
+
+\ seconds of silence after each piece before the next loop may begin
+{ :waltz 15 :house-morning 45 :house 45 :house-evening 45 :grounds 45 } to rest-seconds
+
+variable soundtrack-on
+variable music-until
+variable rest-until
+variable playing-loop
+variable pending-cues
+variable fading-until
+variable fade-length
+variable ambient-until
+variable ambient-index
+variable last-turn
+variable last-hour
+variable last-suspense
+variable seen-discoveries
+variable witnessed
+variable letter-written
+variable case-over-reached
+variable game-lost
+variable case-closed
+variable player-quit
+false to player-quit
+
+\ everything back to the start of a game: the theme waiting to play, nothing yet noticed
+: reset-soundtrack ( -- )
+	| ^music-until ^rest-until ^playing-loop ^pending-cues ^fading-until ^ambient-until ^last-turn ^last-hour ^last-suspense ^seen-discoveries ^witnessed ^letter-written ^case-over-reached ^game-lost ^case-closed |
+	now to music-until
+	now to rest-until
+	null to playing-loop
+	[ :theme ] to pending-cues
+	-1 to fading-until
+	now to ambient-until
+	turn to last-turn
+	present-time 60 / truncate to last-hour
+	-100 to last-suspense
+	[< >] to seen-discoveries
+	false to witnessed
+	false to letter-written
+	false to case-over-reached
+	false to game-lost
+	false to case-closed ;
+
+\ === where and when ===
+
+\ the kind of place the player is in, for its sounds
+: place-kind ( -- kind )
+	here :shed-room = if :shelter exit then
+	lakeside-rooms here member? if :lakeside exit then
+	outdoor-rooms here member? if :outdoors exit then
+	:indoors ;
+
+: evening? ( -- flag ) present-time 1080 >= ;
+
+\ the loop the moment wants
+: desired-loop ( -- name )
+	conversation null? not conversation-room here = and if :waltz exit then
+	place-kind :indoors = not if :grounds exit then
+	present-time 720 < if :house-morning exit then
+	evening? if :house-evening exit then
+	:house ;
+
+\ === playing ===
+
+\ queue a piece and note when it ends and when the silence after it does
+: start-music ( name -- )
+	| name ^music-until ^rest-until ^playing-loop ^case-closed |
+	cue-words name @ execute
+	now sequence-end + to music-until
+	loop-names name member? if name else null then to playing-loop
+	music-until rest-seconds name 30 @or + to rest-until
+	ending-names name member? if true to case-closed then ;
+
+\ fade everything out over some seconds, unless a fade is under way or nothing is playing
+: begin-fade ( seconds -- )
+	| seconds ^fading-until ^fade-length |
+	fading-until 0 >= if exit then
+	music-until now <= if exit then
+	now seconds + to fading-until
+	seconds to fade-length ;
+
+\ one frame of a fade; at its end every voice stops and the master level returns
+: fade-step ( -- )
+	| ^fading-until ^music-until ^playing-loop ^ambient-until |
+	fading-until now - to remaining
+	remaining 0 <= if
+		silence-audio
+		0.9 :level :master effect!
+		-1 to fading-until
+		now to music-until
+		null to playing-loop
+		now to ambient-until
+		exit
+	then
+	remaining fade-length / 0.9 * :level :master effect! ;
+
+\ keep the place's sounds queued a second and a half ahead
+: keep-ambience ( -- )
+	| ^ambient-until ^ambient-index |
+	ambient-until now < if now to ambient-until then
+	ambient-until now - 1.5 >= if exit then
+	place-kind evening? ambient-index queue-ambience
+	++ ambient-index
+	ambient-until 4 + to ambient-until ;
+
+\ === what the turn did ===
+
+\ after each turn: a discovery, something seen happening, or the hour striking chooses a cue; a restart or restore only resets what has been noticed
+: note-turn ( -- )
+	| ^last-turn ^last-hour ^last-suspense ^seen-discoveries ^witnessed ^pending-cues |
+	turn last-turn < to rewound
+	turn to last-turn
+	discovery-flags ( flag | flag state ) filter array>set to discovered
+	discovered seen-discoveries difference size to n-new
+	discovered to seen-discoveries
+	present-time 60 / truncate to hour
+	hour last-hour > to hour-struck
+	hour to last-hour
+	witnessed present-time last-suspense - 20 >= and to suspicious
+	false to witnessed
+	rewound if [ :theme ] to pending-cues exit then
+	n-new 1 2 between? if [ :sting ] to pending-cues 0.8 begin-fade exit then
+	suspicious if [ :suspense ] to pending-cues present-time to last-suspense 0.8 begin-fade exit then
+	hour-struck if [ :time-mark ] to pending-cues 0.8 begin-fade then ;
+
+\ an ending reached: the confrontation and the ending the case came to, or the failed ending alone
+: note-ending ( -- )
+	| ^letter-written ^case-over-reached ^game-lost ^pending-cues |
+	letter-written if
+		[ :confrontation case-over-reached if :failed-ending else :resolved-ending then ] to pending-cues
+	else case-over-reached game-lost or if
+		[ :failed-ending ] to pending-cues
+	else
+		exit
+	then then
+	false to letter-written
+	false to case-over-reached
+	false to game-lost
+	0.8 begin-fade ;
+
+\ === each frame ===
+
+: soundtrack-frame ( -- )
+	| ^pending-cues |
+	soundtrack-on not if exit then
+	keep-ambience
+	fading-until 0 >= if fade-step exit then
+	turn last-turn < if reset-soundtrack then
+	turn last-turn = not if note-turn then
+	note-ending
+	music-until now > if
+		playing-loop null? not pending-cues size 0 = and if
+			playing-loop desired-loop = not if 2 begin-fade then
+		then
+		exit
+	then
+	pending-cues size 0 > if
+		pending-cues first start-music
+		pending-cues 1 skip to pending-cues
+		exit
+	then
+	case-closed if exit then
+	now rest-until < if exit then
+	desired-loop start-music ;
+
+' soundtrack-frame embodies between-frames
+
+\ === the game's moments ===
+
+: note-witnessed ( -- )
+	| ^witnessed |
+	true to witnessed ;
+
+' note-witnessed embodies event-witnessed
+
+: letter-with-music ( date -- )
+	| date ^letter-written |
+	true to letter-written
+	date letter-heading ;
+
+' letter-with-music embodies end-header
+
+: case-over-with-music ( -- )
+	| ^case-over-reached |
+	true to case-over-reached
+	offer-restart ;
+
+' case-over-with-music embodies case-over
+
+\ the game ending other than by a verdict or the player's own quit — time up, or a fatal act — ends in the failed ending
+: quit-with-music ( -- )
+	| ^game-lost ^player-quit |
+	[< :quit >] verb? to player-quit
+	player-quit case-closed or letter-written or not if true to game-lost then
+	stop-game ;
+
+' quit-with-music embodies quit-game
+
+\ === the window ===
+
+: open-with-sound ( -- )
+	| ^soundtrack-on |
+	open-window
+	( audio-on ) catch if drop false else true then to soundtrack-on
+	reset-soundtrack ;
+
+' open-with-sound embodies open-display
+
+\ close the window: at once when the player quit or pressed escape, else after a key, so the ending can be read and heard
+: close-with-sound ( -- )
+	player-quit window :entered @ :end-of-input = or not if
+		"[Press any key to close the window.]" tell-line
+		flush-output
+		wait-for-a-key
+	then
+	soundtrack-on if silence-audio audio-off then ;
+
+' close-with-sound embodies close-display

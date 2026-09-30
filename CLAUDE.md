@@ -65,16 +65,17 @@ by file in SRCS order. What each file is:
   half-complex and interleaved arrays.
 - synth.c — the synthesizer: patch-frame validation into C structs, the
   voice pool, oscillators (PolyBLEP waves, seeded noise), the
-  phase-modulation loop, unison copies, envelopes, the per-voice Moog ladder
-  and LFO, glide, 64-frame parameter ramps, pitch parsing, the instrument
+  phase-modulation loop, unison copies, envelopes, the per-voice Moog ladder,
+  Butterworth high-pass and LFO, glide, 64-frame parameter ramps, pitch parsing, the instrument
   names (symbol to slot, binding, forget-instrument), the words
   pitch>midi … render-audio, instrument!, oscillator!, the sequencer (exact
   per-instrument positions, the sample-accurate schedule, the sequence-*
   words), effect!, recent-audio; also the lock-free rings to the device
   thread, the ring of recent output frames, and synth_device_render.
   Plain C with libm only, so it builds for wasm.
-- audio_effects.c — the master effects chain synth_render runs each frame:
-  chorus, ping-pong/straight delay, the Dattorro plate reverb with its
+- audio_effects.c — the master effects chain synth_render runs each frame
+  over the dry signal and the per-effect send buses (EffectBuses): chorus,
+  ping-pong/straight delay, the Dattorro plate reverb with its
   shimmer pitch shifters (ported from promini), master level; the effect!
   key table and its validation. Static buffers only, so the device thread
   never allocates; plain C with libm, both builds.
@@ -334,6 +335,10 @@ new inline that calls functions → the tail.
   tests/synth/ and run via `make test-synth` (tests/run-synth.sh), outside
   `make test` and the wasm suite. Everything else about the synthesizer is
   tested offline through render-audio in the core suite.
+- Tests that play a program in examples/ live in tests/examples/, named
+  after the example, and run via `make test-examples`
+  (tests/run-examples.sh), outside `make test` and the wasm suite. The core
+  suite tests the language, never an example.
 - A test needing an input file it cannot write itself reads a fixture from
   data/ by relative path, as 079_tsv_to_db reads data/iris.tsv. A fixture no
   other tool can produce carries a tools/gen-*.py that regenerates it, run by

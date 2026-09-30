@@ -1,0 +1,1270 @@
+\ Deadline: the plot. The day's timed events: the mail and the newspaper,
+\ the telephone call Mrs. Robner wants to take in private, the reading of the
+\ will, George's search of the hidden closet for the new will, and Sergeant
+\ Duffy's trips to the laboratory. Accusing Ms. Dunbar once the evidence is
+\ in sets off her meeting with Baxter in the shed, after which Baxter kills
+\ her. An arrest ends the case with a letter from the commissioner.
+
+\ the thing "it" refers to from now on
+: this-is-it ( name -- )
+	| name ^it-object ^it-location |
+	name to it-object
+	here to it-location ;
+
+\ === the endings ===
+
+\ the opening of the commissioner's letter that reports the verdict
+: letter-heading ( date -- )
+	| date |
+	"Text of a letter from Police Commissioner Klutz dated " tell
+	date tell
+	":{nl}{nl}Dear Inspector,{nl}{nl}     " tell ;
+
+' letter-heading embodies end-header
+
+\ the investigation is over: begin it again, or stop
+: offer-restart ( -- )
+	end-line
+	end-line
+	"The case has ended.  Would you like to start your investigation over
+	from scratch? (Y/N)" tell
+	yes? if restart-game then
+	quit-game ;
+
+' offer-restart embodies case-over
+
+: arrested-for-madness ( -- )
+	"Your mind becomes confused amidst strange screaming, yelling, and the pangs
+	of your conscience. ""How could I have done it?"" you ask yourself, as you
+	hear the distant sound of police sirens. Sergeant Duffy and two other officers
+	enter and grab you rather unceremoniously. They take you to a waiting car,
+	where, forlorn and disgusted, you begin to ponder prison life. ""Perhaps,""
+	you think, ""I shouldn't have done that.""" tell-line
+	case-over ;
+
+' arrested-for-madness embodies gone-crazy
+
+\ the case solved: the author's summary, if wanted, and the end
+: offer-summary ( -- )
+	end-line
+	"You have solved the case! If you would like, you may see the author's summary
+	of the story. We would advise you to come up with your own first! Would you
+	like to see the author's summary? (Y/N)" tell
+	yes? if
+		end-line
+		"Mr. Robner's work was his life, as pointed out by a number of the principals.
+		George knew that his father had lost control of the company, and a story in
+		the newspaper indicated that Baxter intended to sell the company to a
+		multi-national conglomerate, presumably to advance his career. Baxter admitted
+		to the merger plans, but indicated that Mr. Robner was in complete agreement.
+		This is contrary to what George and Mrs. Robner said. The note pad found in
+		the library was Robner's last, desperate attempt to save the company, in which
+		Robner threatened to expose Baxter's involvement in the Focus scandal. Baxter
+		denied getting the note, but it was not in the trash. The papers detailing
+		Baxter's criminality in the scandal were kept locked in a safe in a hidden
+		closet near the library. Only George and Marshall Robner knew the whereabouts
+		of the safe.{nl}  Baxter planned to murder his partner, aided by the fact that
+		Robner was known to be depressed, even suicidal. He enlisted the help of his
+		lover, Dunbar, one of whose medicines was found to interact fatally with the
+		pills Robner was taking. The relationship of Baxter and Dunbar was kept quiet,
+		although Mrs. Rourke had an inkling of it. After the concert in Hartford which
+		both Baxter and Dunbar attended, they returned to the Robner estate. Dunbar
+		placed some LoBlo in Robner's tea. After Robner died, Baxter used the ladder
+		from the shed to enter the library and exchange the incriminating cup for a
+		clean one (counting the china in the kitchen reveals that a cup is missing).
+		Coming down the ladder, Baxter presumably dropped the cup and inadvertently
+		left one piece on the ground in the rose garden, near the ladder holes that
+		McNabb found while tending his roses.{nl}{nl}" tell
+	then
+	quit-game ;
+
+\ Baxter and Dunbar arrested together: the verdict turns on the evidence found
+: conspirators-arrested ( -- )
+	:corpse-seen state if
+		"Ms. Dunbar is dead!" tell-line
+	else :dunbar-dead state if
+		"Sergeant Duffy rushes into view. ""Ms. Dunbar is dead! She has
+		shot herself in her room! Come quickly!"" He dashes off." tell-line
+	else :baxter-papers :touched flag? :lab-report :touched flag? and :note-read state and :stub-d state and if
+		end-line
+		"September 5" end-header
+		"Congratulations on your superb handling of the Robner case. As you have
+		probably heard, a jury convicted Mr. Baxter and Ms. Dunbar today of the
+		murder of Mr. Robner. Thanks to you, the murderers will be behind bars,
+		possibly for the rest of their lives. Thanks for a job brilliantly done.
+		Which reminds me of another fascinating case I would like to assign you
+		to...{nl}{nl}Coming soon: Another INTERLOGIC Mystery from Infocom{nl}" tell-line
+		offer-summary
+	else present-time 700 < if
+		"You realize the arrest would be a trifle premature, since you're not even
+		sure that a murder was committed." tell-line
+	else :lab-report :touched flag? not if
+		end-line
+		"August 19" end-header
+		"The District Attorney has decided not to seek an indictment in the Robner
+		case. He points out that it has never been proven that a murder was committed,
+		despite the deep suspicions to the contrary. Thanks for your help on this
+		case. It's too bad we couldn't find out more about the circumstances
+		surrounding the death of Mr. Robner.{nl}{nl}" tell
+	else :baxter-papers :touched flag? not if
+		end-line
+		"September 2" end-header
+		"A grand jury looking into the death of Mr. Robner has decided not to indict
+		the accused. They felt that the lack of motive as well as the contorted
+		hypothesis involving the actual mechanism of the murder of Mr. Robner was not
+		convincing. Personally, I think you're on the right track, but I must admit
+		that the evidence is meager. Thank you for helping in the case.{nl}{nl}" tell
+	else :note-read state not if
+		end-line
+		"October 4" end-header
+		"The jury in the Robner case has declined to convict Mr. Baxter and Ms.
+		Dunbar. Appearances indicate that the verdict was difficult, and that several
+		jury members were convinced that the two were guilty. However, no evidence
+		was presented directly relating the Focus case with the murder of Mr. Robner.
+		This left the question of motive unresolved. I appreciate your efforts in the
+		case and am sorry to report this outcome to you.{nl}{nl}" tell
+	else
+		end-line
+		"October 6" end-header
+		"The jury in the Robner case has declined to convict Mr. Baxter and Ms. Dunbar.
+		Although most of the jury was convinced of their guilt, it seems that one or
+		two felt there was some reasonable doubt about the proposed conspiracy. Their
+		main concern was the lack of evidence that Baxter was near the grounds on the
+		night of the murder. His alibi of having been to the symphony was confirmed by
+		several people. Although this doesn't mean that he didn't go back to the
+		Robner estate later, it nevertheless was not convincing. Thank you for your
+		excellent efforts. It is sad to think that we may have let the murderers slip
+		between our fingers.{nl}{nl}" tell
+	then then then then then then then
+	case-over ;
+
+\ George and Baxter arrested together
+: george-and-baxter-arrested ( -- )
+	:lab-report :touched flag? not if
+		"You realize that there is no evidence that a murder has been committed
+		and decide not to go ahead with the arrest." tell-line
+		exit
+	then
+	:new-will-seen state :george-run state 0 = not or
+	:baxter-papers :touched flag? and :note-read state and if
+		end-line
+		"November 12" end-header
+		" The district attorney, after extensive interrogation of George Robner and
+		Mr. Baxter, has declined to seek an indictment against them. He agrees that
+		there has been foul play in the death of Mr. Robner and that both suspects
+		have motives for the crime. However, no coherent theory could be proposed
+		which involved the two of them conspiring to murder Mr. Robner. On the other
+		hand, it seems unlikely that either of them alone could have committed the
+		crime. I am sorry that your work has gone for naught.{nl}{nl}" tell
+	else
+		end-line
+		"August 1" end-header
+		"The district attorney has declined to indict George Robner and Mr. Baxter
+		in the death of Marshall Robner, noting that there is no link between the
+		accused, except hatred, and that all of the evidence is circumstantial.
+		I wish you luck on your future cases.{nl}{nl}" tell
+	then
+	case-over ;
+
+\ an arrest of two people at once
+: pair-arrested ( context -- result )
+	drop
+	[< :arrest >] verb? not if 0 exit then
+	present-time 600 < if
+		"It is rather early in the case to be making hasty judgments." tell-line
+		1 exit
+	then
+	:direct object-list to pair
+	pair first to one
+	pair second to other
+	[< :baxter :global-baxter >] to baxter-names
+	[< :dunbar :global-dunbar >] to dunbar-names
+	[< :george :global-george >] to george-names
+	baxter-names one has? dunbar-names other has? and
+	dunbar-names one has? baxter-names other has? and or if
+		conspirators-arrested
+		1 exit
+	then
+	baxter-names one has? george-names other has? and
+	george-names one has? baxter-names other has? and or if
+		george-and-baxter-arrested
+		1 exit
+	then
+	"You realize that this arrest is quite farfetched and would result
+	only in your humiliation." tell-line
+	1 ;
+
+' pair-arrested :object-pair handles
+
+\ === the mail and the newspaper ===
+
+: mail-arrives ( context -- result )
+	drop
+	here :front-path = here :foyer = :front-door :open flag? and or if
+		"A mailman walks briskly up to you, hands you an envelope,
+		and departs." tell-line
+		:envelope winner move-to
+		:envelope :touched set-flag
+		1 exit
+	then
+	here :foyer = if
+		"There is a short rap on the front door.  A moment later, a thin
+		envelope appears under the door." tell-line
+		:envelope :foyer move-to
+		"Partially exposed under the front door is an envelope." :envelope :initial-description property!
+		:i-mail-2 60 queue enable
+		1 exit
+	then
+	:envelope :foyer-table move-to
+	:i-mail-2 60 queue enable
+	[ :south-lawn :west-of-door :east-of-door ] here position-of 0 >= if
+		"You notice a mailman stop by the house briefly and depart." tell-line
+		1 exit
+	then
+	0 ;
+
+' mail-arrives :i-mail handles
+
+\ an hour later Mrs. Rourke goes for the mail left in the foyer
+: mail-waiting ( context -- result )
+	drop
+	[ :foyer :foyer-table ] :envelope location-of position-of 0 >= if
+		:rourke :foyer true establish-goal
+		:i-mail-3 -1 queue enable
+	then
+	0 ;
+
+' mail-waiting :i-mail-2 handles
+
+\ Mrs. Rourke takes the mail to Mrs. Robner
+: mail-delivered ( context -- result )
+	drop
+	:rourke-mail state if
+		:rourke :mrs-robner location-of inside? not if 0 exit then
+		:i-mail-3 0 queue drop
+		:rourke :rourke-room true establish-goal
+		:envelope winner inside? winner :mrs-robner location-of inside? and if
+			"Mrs. Rourke walks up to Mrs. Robner. ""I'm sorry, Ma'am, but this gentleman
+			has a letter that just arrived for you."" Mrs. Robner grabs the letter from
+			you. ""That is none of your business!""" tell-line
+		else :envelope :rourke inside? not if
+			1 exit
+		then then
+		here :rourke location-of = not if
+			:envelope remove-thing
+			0 exit
+		then
+		:envelope :rourke inside? if
+			"Mrs. Rourke hands an envelope to Mrs. Robner." tell
+		then
+		:envelope :mrs-robner move-to
+		:envelope-opened state if
+			" Mrs. Robner examines the
+			envelope, then turns to you. ""You did this, I suppose."" she says. ""You had
+			no right! I expected better treatment than this. You would think I were
+			suspected of wrongdoing!""" tell-line
+		else
+			" Mrs. Robner examines
+			the envelope briefly, then puts it in her pocket." tell-line
+			:envelope remove-thing
+		then
+		1 exit
+	then
+	:rourke :foyer inside? not if 0 exit then
+	[ :foyer-table :foyer ] :envelope location-of position-of 0 < if
+		:rourke unprioritize
+		0 exit
+	then
+	:envelope :rourke move-to
+	:envelope :touched set-flag
+	:rourke :mrs-robner location-of true establish-goal
+	true :rourke-mail state!
+	here :foyer = if
+		"Mrs. Rourke takes the envelope and starts to walk away." tell-line
+		1 exit
+	then
+	0 ;
+
+' mail-delivered :i-mail-3 handles
+
+: newspaper-arrives ( context -- result )
+	drop
+	:newspaper :front-path move-to
+	[ :south-lawn :front-path ] here position-of 0 >= if
+		"The local paperboy, in an amazing athletic feat, throws a newspaper toward
+		the house from a distance of at least 100 feet. It even lands beside the front
+		door, rather than in the bushes." tell-line
+		1 exit
+	then
+	0 ;
+
+' newspaper-arrives :i-newspaper handles
+
+\ === the reading of the will ===
+
+\ George's calendar question sends him to his room to wait for a chance at the library
+: george-hurries ( -- )
+	:george location-of to place
+	place here = if
+		place :george-room = if
+			"George paces around. ""I just remembered,"" he says, ""I've got some personal
+			business to attend to. Would you mind?"" He shows you to the door." tell-line
+		else place :line property upstairs-line = if
+			"""I'm...I really have some business to do in my room. I'll speak
+			to you later,"" George says. He starts off toward his room." tell-line
+		else
+			"""I've...got to be going now. I'll see you later,"" George says.
+			He starts to leave." tell-line
+		then then
+	then
+	place :george-room = not if :george :george-room true establish-goal then
+	true :george-sequence state!
+	:i-george-hack -1 queue enable ;
+
+' george-hurries embodies george-hack
+
+: george-hurries-later ( context -- result )
+	drop
+	george-hurries
+	1 ;
+
+' george-hurries-later :george-hack handles
+
+\ the will read or given up: Coates leaves
+: will-concluded ( -- )
+	:coates :south-lawn true establish-goal
+	present-time :will-time state!
+	true :post-will state!
+	:i-will-reading 0 queue drop
+	:g-calendar state if george-hack then ;
+
+: will-reading ( context -- result )
+	drop
+	[ :mrs-robner :dunbar :baxter :george ] ( person | person :living-room inside? not ) find-first null? not to someone-missing
+	present-time 760 < someone-missing and if
+		true :will-hold state!
+		:i-will-reading -1 queue drop
+		here :living-room = not if 0 exit then
+		70 probability if 0 exit then
+		50 probability if
+			"Mr. Coates asks everyone to be patient, as not everyone is present." tell-line
+		else
+			"Mr. Coates appears distracted, looking frequently toward the door." tell-line
+		then
+		1 exit
+	then
+	here :living-room = not if
+		:will-wait state 1+ dup :will-wait state! 15 > if
+			:i-will-missed -1 queue enable
+			will-concluded
+			0 exit
+		then
+		:i-will-reading -1 queue drop
+		0 exit
+	then
+	true :at-reading state!
+	present-time 720 > :will-wait state 3 > and if
+		"The people present turn to look at you. Mrs. Robner glares at you. ""You
+		might at least have the courtesy to be here on time! Haven't you caused enough
+		disruption already? We should have started without you. Mr. Coates, please
+		proceed.""" tell-line
+	else present-time 760 > if
+		"""It's late, so let's begin!"" Coates says." tell-line
+	else :will-hold state if
+		"""Ah!"" Mr. Coates says, ""Everybody's here now.""" tell-line
+	then then then
+	"Mr. Coates begins: ""This is an awkward situation. Mr. Robner told me five
+	days ago that he wanted to execute a new will, and promised to call me when
+	it was completed. As I never heard from him, I must assume that he either
+	changed his mind or did not complete the new will. Therefore, the one in my
+	possession must be considered the most recent testament.""" tell-line
+	:g-calendar state if
+		"You notice that George, who was not initially paying close attention, now
+		perks up and begins to look about anxiously." tell-line
+	else
+		"From the corner of your eye, you catch George nodding his head, as
+		if in approval, and smiling broadly." tell-line
+	then
+	"Continuing, Mr. Coates says: ""Naturally, should a more recent will exist
+	and be found within a reasonable period, the present one will be voided.
+	I will proceed with reading the will here in my hands, which was executed
+	three years ago last month."" He reads the will, simply written and direct,
+	leaving equal parts of the estate to his son, George Arthur Robner, and
+	his wife, Mrs. Leslie Phillips Robner." tell-line
+	"There is some discussion, understated congratulations and overstated
+	sympathy, which Mr. Coates cuts short by clearing his throat. ""I must
+	leave now, I'm afraid. If you have any questions, I can be contacted
+	tomorrow."" He picks up the phone, dials his office, and asks to be
+	picked up at the Robner estate." tell-line
+	:g-calendar state if
+		"George, now looking quite upset, starts for the door." tell-line
+	then
+	will-concluded
+	1 ;
+
+' will-reading :i-will-reading handles
+
+\ Mrs. Robner or Mr. Coates remarks on the inspector's absence from the reading
+: will-missed ( context -- result )
+	drop
+	:mrs-robner here inside? if
+		"Mrs. Robner turns to you. ""I don't understand why you missed the will
+		reading. You seem so interested in everything else that goes on around
+		here.""" tell-line
+		:i-will-missed 0 queue drop
+		1 exit
+	then
+	:coates here inside? if
+		"Mr. Coates says, in passing, ""To tell you the truth, Inspector, my
+		suspicions about this case are not quite allayed. I wish you had been
+		at the will reading. Good day.""" tell-line
+		:i-will-missed 0 queue drop
+		1 exit
+	then
+	0 ;
+
+' will-missed :i-will-missed handles
+
+\ === George and the new will ===
+
+\ George in his room, waiting to be alone; every minute until he gets into the library
+: george-waits-alone ( context -- result )
+	drop
+	:george location-of to place
+	:george goal-of to goal
+	:george-ready state if
+		here place = if
+			false :george-ready state!
+			false :george-scream state!
+			1 :george-wait state!
+			"""I don't understand you, Inspector. I asked to be alone so I can take care
+			of some business. I...I don't see why you have to snoop around here like I was
+			some sort of suspect.""" tell-line
+			:george-scream state if
+				"""I said to close that door and not to come in! You must be deaf as well as
+				stupid!""" tell-line
+			then
+			1 exit
+		then
+		:george-door :open flag? :george-scream state not and if
+			"As the door opens, you hear George say ""Close that door! I'm working!""" tell-line
+			true :george-scream state!
+			1 exit
+		then
+		0 exit
+	then
+	:george-wait state if
+		here place = if
+			"George paces around the room, awaiting your departure with ill-concealed
+			impatience." tell-line
+			:george-wait state 1+ dup :george-wait state! 12 > if
+				"""I can't take this. You get on my nerves. I'm leaving.""" tell-line
+				here goal@queued = if :living-room goal!queued then
+				:george unprioritize
+				false :george-wait state!
+				:i-george-hack 0 queue drop
+				:george-hack 30 queue enable
+			then
+			1 exit
+		then
+		false :george-wait state!
+		:george-door :open clear-flag
+		[ :library :corridor-4 :corridor-3 ] here position-of 0 >= if
+			"You hear George's door close." tell-line
+			1 exit
+		then
+		0 exit
+	then
+	place :george-room = if
+		here place = if
+			"""I have business to attend to. Would you mind leaving?""" tell-line
+			1 :george-wait state!
+			1 exit
+		then
+		:i-george-hack-2 5 queue enable
+		true :george-ready state!
+		false to door-heard
+		[ :corridor-4 :corridor-3 ] here position-of 0 >= :george-door :open flag? and if
+			:george-door :open clear-flag
+			true to door-heard
+			"You hear George's door close." tell-line
+		then
+		:george-door :open clear-flag
+		door-heard if 1 else 0 then exit
+	then
+	here place = if
+		:george-follow state not if
+			true :george-follow state!
+			0 exit
+		then
+		50 probability if
+			"""Please stop following me around like this. Can I have no privacy? I'm
+			simply trying to take care of something personal.""" tell-line
+		else
+			"""Stop following me. My business is private.""" tell-line
+		then
+		1 exit
+	then
+	place :corridor-4 = if
+		here corridor-bits 1 bit-and 1 = if
+			"George glances in your direction, then enters his room." tell-line
+			:george :george-room move-to
+			1 exit
+		then
+		0 exit
+	then
+	[ :corridor-3 :corridor-2 ] place position-of 0 >= [ :corridor-1 :stair-top ] here position-of 0 >= and if
+		"George glances back at you briefly, then continues on his way." tell-line
+		1 exit
+	then
+	0 ;
+
+' george-waits-alone :i-george-hack handles
+
+\ George looks out for a clear hallway, and crosses to the library when there is one
+: george-peeks-out ( context -- result )
+	drop
+	:george-ready state not if
+		:i-george-hack-2 9 random-below 1+ queue drop
+		0 exit
+	then
+	here corridor-bits 1 bit-and 1 = here :library = or if
+		:i-george-hack-2 9 random-below 1+ queue drop
+		[ :corridor-2 :corridor-1 :stair-top ] here position-of 0 >= if
+			30 probability if
+				"A door opens down the hall. George steps out, spots you, and looks briefly
+				toward the window. After a moment he steps back into his room and shuts the
+				door." tell-line
+			else
+				"You faintly hear a door open and then close near the end of the hall." tell-line
+			then
+			1 exit
+		then
+		[ :corridor-4 :library ] here position-of 0 >= if
+			"You hear George's door open and " tell
+			30 probability if
+				"you catch a brief glimpse of his
+				head darting back into the doorway. You watch as the door closes again." tell-line
+			else
+				"close again immediately." tell-line
+			then
+			1 exit
+		then
+		:george-door :open flag? if
+			:george-door :open clear-flag
+			"George walks up to his door and slams it in your face." tell-line
+			1 exit
+		then
+		here :corridor-3 = if
+			"George opens his door and peeks out. He is startled by your presence,
+			excuses himself, and closes the door sharply in your face before you can
+			utter a word." tell-line
+			1 exit
+		then
+		0 exit
+	then
+	:i-george-hack 0 queue drop
+	:george :library move-to
+	:george-door :open set-flag
+	:i-george-hack-2 0 queue drop
+	:i-george-hack-3 -1 queue enable
+	here :upstairs-closet = if
+		"You hear George's door open and you see his head poke out briefly, scanning
+		the hallway. He apparently didn't see you, and darts across the hall to the
+		library." tell-line
+		1 exit
+	then
+	here :library-balcony = if
+		"You see George through the doorway, looking down the hallway, then darting
+		into the library." tell-line
+		1 exit
+	then
+	0 ;
+
+' george-peeks-out :i-george-hack-2 handles
+
+\ George in the hidden closet, minute by minute: in, the shelf closed, the safe opened, out with the new will
+: george-searches ( context -- result )
+	drop
+	false to seen
+	:george-search state to minute
+	minute 0 = if
+		here :library-balcony = if
+			"George walks purposefully toward the bookshelves. He looks around, but you
+			react before he can see you. When you peek out again, George is fiddling with
+			the shelves. His right arm reaches into the shelf and, to your amazement, the
+			unit of bookshelves on the left rotates away from the wall, revealing a
+			darkened room behind. George enters it, trembling with barely controlled fear
+			and excitement." tell-line
+			true to seen
+			true :books-moved state!
+			true :george-moves-books state!
+			:george :hidden-closet move-to
+		else here :library = if
+			"George hears you walk through the balcony doors and recoils in horror. He
+			runs across the hall to his own bedroom, slamming his door shut." tell-line
+			true to seen
+			false :george-ready state!
+			false :george-wait state!
+			:george-door :open clear-flag
+			:george :george-room move-to
+			:i-george-hack-3 0 queue drop
+			:i-george-hack-2 10 queue drop
+		else
+			:george :hidden-closet move-to
+			true :books-moved state!
+		then then
+	else minute 1 = if
+		[ :library :library-balcony ] here position-of 0 >= if
+			"A dim light in the hidden closet comes on. In the faint light, you can see
+			George motioning with his right hand. All at once, the shelf swings shut!" tell-line
+			true to seen
+		then
+	else minute 10 < if
+		:hidden-door-l :open flag? if
+			"As the bookshelf swings open, you see George carefully dialing a combination
+			into a large wall safe. He turns in panic and, with an exclamation, knocks you
+			down and bolts out of the library." tell-line
+			true to seen
+			true :safe-seen state!
+			0 :george-search state!
+			:i-george-hack-3 0 queue drop
+			:george :corridor-1 move-to
+			:george :east-lawn true establish-goal
+		then
+	else minute 16 < if
+		:hidden-door-l :open flag? if
+			:safe :open set-flag
+			true :safe-seen state!
+			"As the shelf swings open, George spins to face you. His expression, first
+			seemingly wild with happiness, changes to one of panic and horror. He jerks
+			around, trying feebly to conceal a piece of paper in his hands. He jumps
+			toward you, then recoils in fear. Finally, sobbing, he crumples to the floor,
+			clutching the paper beneath him. A large combination safe, imbedded in a wall,
+			is lying open. You enter the hidden closet." tell-line
+			true to seen
+			:i-george-hack-3 0 queue drop
+			:new-will :george move-to
+			:hidden-closet true goto
+			:i-george-leave-closet 10 queue enable
+			true :new-will-seen state!
+		then
+	else minute 16 = if
+		:safe :open clear-flag
+		here :library = if
+			"Suddenly, the bookshelves swing out, forming an opening to a dark area
+			behind. George starts to emerge but stops suddenly as he notices you! With
+			jack-rabbit reflexes, he darts back inside.  Before you can act, the
+			shelves close again." tell-line
+			true to seen
+			:george :north-lawn move-to
+			:soggy-will :lake move-to
+			:new-will remove-thing
+			:i-george-hack-3 0 queue drop
+			present-time :george-run state!
+		else
+			:george :library move-to
+			:i-george-hack-3 0 queue drop
+			:george unprioritize
+			:george :north-lawn true establish-goal
+			here :library-balcony = if
+				"Suddenly, the shelf swings out, and George emerges. He walks over to a
+				special place in the shelves and reaches behind some books. The bookshelves
+				silently assume their normal position." tell-line
+				true to seen
+			then
+		then
+	then then then then then
+	:george-search state 1+ :george-search state!
+	seen if 1 else 0 then ;
+
+' george-searches :i-george-hack-3 handles
+
+: george-leaves-closet ( context -- result )
+	drop
+	:george :hidden-closet inside? if :george :george-room false establish-goal then
+	0 ;
+
+' george-leaves-closet :i-george-leave-closet handles
+
+\ === the telephone call ===
+
+\ Mrs. Robner goes up to take the call in her bedroom
+: call-from-bedroom ( -- )
+	:mrs-robner location-of :robner-old-location state!
+	:mrs-robner :master-bedroom true establish-goal
+	true :call-move state!
+	:i-call -1 queue drop ;
+
+\ Mrs. Robner shuts herself in with the phone
+: call-in-private ( -- )
+	false :call-move state!
+	1 :call-in-progress state!
+	:master-bedroom-door :open clear-flag
+	here :corridor-1 = if
+		"Mrs. Robner shuts the door to the master bedroom." tell-line
+	else [ :corridor-2 :stair-top ] here position-of 0 >= if
+		"You hear the master bedroom door shut." tell-line
+	then then ;
+
+\ the phone rings for Mrs. Robner, who calls back from her bedroom when she can be alone
+: telephone-rings ( context -- result )
+	drop
+	:mrs-robner location-of to robner-place
+	:call-ring state if
+		robner-place :living-room = if
+			false :call-ring state!
+			here :living-room = if
+				"Mrs. Robner picks up the phone. ""Oh, hi. Look, I can't talk now. I'll call
+				you later, okay? Bye, then."" She hangs up the phone." tell-line
+				call-from-bedroom
+				1 exit
+			then
+			call-from-bedroom
+			0 exit
+		then
+		"The phone rings again." tell-line
+		:telephone here global-in? if :telephone this-is-it then
+		1 exit
+	then
+	:call-in-progress state if
+		:call-in-progress state 1+ dup :call-in-progress state! 15 > if
+			false :call-in-progress state!
+			:i-call 0 queue drop
+			:mrs-robner unprioritize
+			0 exit
+		then
+		:master-bedroom-door :open flag? here :master-bedroom = or if
+			"Mrs. Robner speaks quietly into the phone and hangs up." tell-line
+			false :call-in-progress state!
+			:i-call 0 queue drop
+			:mrs-robner unprioritize
+			1 exit
+		then
+		0 exit
+	then
+	:call-waiting state if
+		[ robner-place :master-bath :bedroom-balcony ] here position-of 0 < if
+			call-in-private
+			0 exit
+		then
+		:call-waiting state 1+ dup :call-waiting state! 3 > not if
+			"Mrs. Robner glares at you, holding the phone in one hand. ""Would you
+			mind terribly?"", she asks." tell-line
+			1 exit
+		then
+		:call-move state if
+			"""I can't understand why you won't let me use the phone. Can't I talk to
+			my best friend? Hummph...I suppose it can wait, since you are being
+			so...uh...unhelpful."" She puts down the receiver, rises from her bed, and
+			starts to leave." tell-line
+			false :call-move state!
+			false :call-waiting state!
+		else
+			"""I give up. What IS your problem, anyway?,"" Mrs. Robner asks, in a
+			barely controllable rage. ""I'll call you back,"" she says, and slams down
+			the receiver." tell-line
+			false :call-move state!
+		then
+		:i-call 0 queue drop
+		:mrs-robner unprioritize
+		1 exit
+	then
+	:call-move state if
+		robner-place :master-bedroom = not if 0 exit then
+		[ :bedroom-balcony :master-bath :master-bedroom ] here position-of 0 < if
+			call-in-private
+			0 exit
+		then
+		here :master-bedroom = not if
+			"Mrs. Robner enters her bedroom and spots you." tell-line
+		then
+		"""I'd like to make a private phone call, if you have no objection,"" she
+		says. She motions toward the door." tell-line
+		1 :call-waiting state!
+		1 exit
+	then
+	[ :library :living-room :master-bedroom ] here position-of 0 >= if
+		"The telephone rings." tell-line
+		:telephone this-is-it
+		:mrs-robner :living-room true establish-goal
+		true :call-ring state!
+		:i-call -1 queue drop
+		1 exit
+	then
+	here robner-place = if
+		"You can hear a telephone ringing in a nearby room. Mrs. Robner
+		says ""Pardon me"" and starts for the door." tell-line
+		true :call-ring state!
+		:i-call -1 queue drop
+		:mrs-robner :living-room true establish-goal
+		1 exit
+	then
+	here :line property outside-line = not if
+		"You hear a phone ringing in a nearby room." tell-line
+		true :call-ring state!
+		:i-call -1 queue drop
+		:mrs-robner :living-room true establish-goal
+		1 exit
+	then
+	50 probability if
+		"You notice a very faint ringing sound coming from the house." tell-line
+		call-from-bedroom
+		1 exit
+	then
+	0 ;
+
+' telephone-rings :i-call handles
+
+\ === Sergeant Duffy and the laboratory ===
+
+\ Duffy takes the direct object to the laboratory, for fingerprints or, with analysis?, for a chemical analysis against the indirect object if one is named
+: send-to-laboratory ( analysis? -- result )
+	| analysis? |
+	:fingerprint-object state if
+		"Sergeant Duffy is already at the lab running a previous errand.
+		You will have to wait for him to return." tell-line
+		1 exit
+	then
+	analysis? not if
+		"You look at the " tell object tell-name " closely. It appears to have good
+		fingerprints on it, so you call for Sergeant Duffy." tell-line
+	then
+	analysis? indirect null? not and if indirect else false then :analysis-goal state!
+	object :fingerprint-object state!
+	analysis? :analysis-object state!
+	object :ladder = if
+		present-time 720 > if
+			"Sergeant Duffy arrives and shakes his head sadly. ""I'm sorry, sir, but
+			the Ladder Analysis Department closes at noon."" He leaves." tell-line
+			false :fingerprint-object state!
+			0 exit
+		then
+		false :ladder-flag state!
+		false :ladder-flag-2 state!
+		:ladder :undescribed clear-flag
+	then
+	:i-fingerprint 15 random-below 1+ 15 + queue enable
+	object remove-thing
+	object :touched set-flag
+	"Sergeant Duffy walks up as quietly as a mouse. He takes the " tell object tell-name " from
+	you. ""I'll return soon with the results,"" he says, and leaves as silently as
+	he entered." tell-line
+	1 ;
+
+( true send-to-laboratory ) embodies analyze-in-laboratory
+
+\ Duffy returns with the results and the evidence
+: laboratory-results ( context -- result )
+	drop
+	:fingerprint-object state to evidence
+	"Sergeant Duffy " tell
+	evidence :ladder = if
+		"comes onto the scene. " tell
+	else 30 probability if
+		"appears before you, holding the " tell evidence tell-name
+		" carefully in his hands. His quiet efficiency and youthful vigor impress you
+		quite a bit. " tell
+	else 50 probability if
+		"seems to arrive from nowhere, holding the " tell evidence tell-name
+		" in his hands. " tell
+	else
+		"returns with the " tell evidence tell-name ".  For a moment you muse on his almost
+		magical entrances. " tell
+	then then then
+	:analysis-goal state to compared-with
+	:analysis-object state not if
+		"""The fingerprints,"" he begins,
+		""belong to " tell
+		evidence :cup = if
+			"Mr. Robner" tell
+		else [ :saucer :sugar-bowl ] evidence position-of 0 >= if
+			"Mr. Robner and Ms. Dunbar" tell
+		then then
+	else compared-with if
+		evidence :fragment = [ :loblo :loblo-bottle :global-loblo ] compared-with position-of 0 >= and if
+			"""The fragment did contain LoBlo. Here is the full report.""
+			He hands you a slip of paper, and departs." tell-line
+			:lab-report :player move-to
+			:lab-report :touched set-flag
+			evidence :player move-to
+			false :fingerprint-object state!
+			1 exit
+		then
+		"""The " tell evidence tell-name " analysis yielded nothing useful" tell
+	else evidence :fragment = if
+		"""The fragment,"" he begins,
+		""contains traces of tea and sugar." tell
+		" In addition, there seems to be some other chemical
+		present that is not a common medication. It could take weeks to determine
+		exactly what it is. It is definitely not Amitraxin (Ebullion), though. There
+		are no clear fingerprints" tell
+	else evidence :cup = if
+		"""The cup,"" he begins,
+		""contains a trace of tea. The fingerprints are those of Mr. Robner" tell
+	else evidence :saucer = if
+		"""The saucer,"" he begins,
+		""contains traces of tea and sugar. The fingerprints are
+		those of Mr. Robner and Ms. Dunbar" tell
+	else evidence :sugar-bowl = if
+		"""The bowl,"" he begins,
+		""has the fingerprints of Mr. Robner and Ms. Dunbar. The bowl
+		contains common table sugar only." tell
+	else
+		"""I am sorry,"" he begins,
+		"" but the lab found nothing of interest." tell
+	then then then then then then
+	evidence :ladder = here :line property outside-line = not and if
+		" In the interests of
+		civility, I have left the ladder outside the house."" He leaves." tell-line
+		:ladder :front-path move-to
+	else
+		""".
+		With that, he leaves, handing you the " tell evidence tell-name
+		" as he whisks away." tell-line
+		evidence :player move-to
+	then
+	false :fingerprint-object state!
+	1 ;
+
+' laboratory-results :i-fingerprint handles
+
+\ === Ms. Dunbar's meeting with Baxter ===
+
+\ accused, Ms. Dunbar goes to find Baxter
+: dunbar-seeks-baxter ( -- )
+	:baxter location-of to baxter-place
+	:dunbar-accused state if exit then
+	:dunbar baxter-place inside? not if :dunbar baxter-place true establish-goal then
+	true :dunbar-accused state!
+	baxter-place :dunbar-sequence-baxter-location state!
+	:i-dunbar-seq -1 queue enable ;
+
+' dunbar-seeks-baxter embodies dunbar-sequence
+
+\ whether a person is here or in sight along a corridor
+: followed? ( person -- flag )
+	| person |
+	person location-of to place
+	place here = if true exit then
+	here :guest-room = if false exit then
+	place corridor-bits here corridor-bits bit-and 0 = not ;
+
+\ Ms. Dunbar reaches Baxter and has a word with him out of the inspector's hearing
+: dunbar-finds-baxter ( context -- result )
+	drop
+	:baxter location-of to baxter-place
+	:baxter goal-of to baxter-goal
+	baxter-place :dunbar-sequence-baxter-location state = not if
+		dunbar-sequence
+		0 exit
+	then
+	:dunbar location-of baxter-place = not if 0 exit then
+	false baxter-goal!enabled
+	here baxter-place = if
+		"Ms. Dunbar glances at Baxter and then at you." tell-line
+		1 exit
+	then
+	true :dunbar-baxter-meet state!
+	true baxter-goal!enabled
+	:i-dunbar-seq 0 queue drop
+	:i-dunbar-seq-2 5 queue enable
+	0 ;
+
+' dunbar-finds-baxter :i-dunbar-seq handles
+
+: dunbar-heads-for-shed ( context -- result )
+	drop
+	false :dunbar-baxter-meet state!
+	:dunbar :shed-room true establish-goal
+	:i-dunbar-seq-d -1 queue enable
+	:i-dunbar-seq-3 10 queue enable
+	0 ;
+
+' dunbar-heads-for-shed :i-dunbar-seq-2 handles
+
+: baxter-heads-for-lawn ( context -- result )
+	drop
+	:baxter :north-lawn true establish-goal
+	:i-dunbar-seq-b -1 queue enable
+	0 ;
+
+' baxter-heads-for-lawn :i-dunbar-seq-3 handles
+
+\ Ms. Dunbar on her way to the shed, wary of being followed, and waiting there for Baxter
+: dunbar-walks-to-shed ( context -- result )
+	drop
+	:dunbar goal-of to dunbar-goal
+	:dunbar :shed-room inside? if
+		:baxter :shed-room inside? if
+			:i-dunbar-seq-4 -1 queue enable
+			:i-dunbar-seq-d 0 queue drop
+			0 exit
+		then
+		here :shed-room = if
+			50 probability if
+				"Dunbar paces around the shed nervously. If she was looking for something,
+				she would have found it by now." tell-line
+			else
+				"Ms. Dunbar seems to be looking around for something." tell-line
+			then
+			1 exit
+		then
+		0 exit
+	then
+	here :line property outside-line = :dunbar followed? and not if
+		true dunbar-goal!enabled
+		0 exit
+	then
+	dunbar-goal@enabled if
+		false dunbar-goal!enabled
+	else 28 probability if
+		"Ms. Dunbar eyes you nervously." tell-line
+		1 exit
+	else 50 probability if
+		"Ms. Dunbar stares off toward the south." tell-line
+		1 exit
+	else
+		"Ms. Dunbar seems to be deep in thought." tell-line
+		1 exit
+	then then then
+	:stub-dropped state not here :line property outside-line = and if
+		"Ms. Dunbar spots you and stops. She reaches into her pocket and pulls out a
+		cigarette. As she does so, what appears to be a ticket stub falls out of her
+		pocket and floats to the ground. She checks her pocket again, apparently for
+		a match, but finds none and puts the cigarette back in her pocket." tell-line
+		:stub :dunbar location-of move-to
+		true :stub-dropped state!
+		1 exit
+	then
+	15 probability if
+		"Ms. Dunbar glances around as she walks. She takes a quick glance in your
+		direction, but it doesn't seem like she noticed you." tell-line
+		true dunbar-goal!enabled
+		1 exit
+	then
+	50 probability if
+		"Ms. Dunbar looks around as she walks and does a brief double-take
+		when she looks in your direction. She slows down and stops." tell-line
+		1 exit
+	then
+	"Ms. Dunbar, who has been looking from side to side as she goes,
+	comes to a stop. She spins around, looking in all directions." tell-line
+	1 ;
+
+' dunbar-walks-to-shed :i-dunbar-seq-d handles
+
+: baxter-heads-for-shed ( context -- result )
+	drop
+	:baxter :north-lawn inside? here :line property upstairs-line = or if
+		:i-dunbar-seq-b 0 queue drop
+		:baxter :shed-room true establish-goal
+		:i-dunbar-seq-b-2 -1 queue enable
+	then
+	0 ;
+
+' baxter-heads-for-shed :i-dunbar-seq-b handles
+
+\ Baxter on his way to the shed, pausing when he is followed
+: baxter-walks-to-shed ( context -- result )
+	drop
+	:baxter goal-of to baxter-goal
+	:baxter :shed-room inside? if
+		:i-dunbar-seq-b-2 0 queue drop
+		0 exit
+	then
+	:baxter followed? not if
+		true baxter-goal!enabled
+		0 exit
+	then
+	baxter-goal@enabled if
+		false baxter-goal!enabled
+		0 exit
+	then
+	50 probability if
+		"Baxter draws a deep breath and looks about contentedly." tell-line
+	else
+		"Baxter stares out over the lake." tell-line
+	then
+	1 ;
+
+' baxter-walks-to-shed :i-dunbar-seq-b-2 handles
+
+\ the meeting over, Ms. Dunbar goes to her room and Baxter to the north lawn
+: meeting-ends ( -- )
+	[ :east-lawn :east-side :east-of-door ] here position-of 0 >= if
+		"Baxter and Dunbar both leave the shed, heading off in
+		different directions." tell-line
+	else here :behind-shed = if
+		"The voices stop and you hear sets of footsteps leaving the shed." tell-line
+	then then
+	:dunbar :dunbar-room true establish-goal
+	:baxter :north-lawn true establish-goal
+	:i-baxter-seq -1 queue enable
+	:i-dunbar-seq-4 0 queue drop
+	:secret-meeting state :meeting-interrupted state!
+	0 :secret-meeting state! ;
+
+\ Ms. Dunbar and Baxter argue in the shed until the inspector walks in or the argument ends
+: shed-meeting ( context -- result )
+	drop
+	here :shed-room = if
+		:secret-meeting state to meeting
+		meeting 2 < meeting 5 > or if
+			"You seem to have walked in on some sort of get-together, although from the
+			look on Ms. Dunbar's face, you are not the guest of honor. She is aghast, and
+			she continually looks back and forth between Mr. Baxter and yourself." tell-line
+		else
+			"As you enter the shed, Mr. Baxter and Ms. Dunbar, who were in the midst of a
+			quiet but heated argument, stop at once. Ms. Dunbar is quite upset and
+			clutches Mr. Baxter. Baxter, who has retained his composure throughout,
+			attempts to comfort Dunbar. She pushes him away and runs out of the shed." tell-line
+			:dunbar :east-lawn move-to
+			:dunbar :character property to dunbar-number
+			last-seen dunbar-number @i present-time 0 !i drop
+			last-seen 0 @i present-time dunbar-number !i drop
+		then
+		meeting-ends
+		1 exit
+	then
+	:baxter :shed-room inside? if
+		:secret-meeting state 1+ dup :secret-meeting state! 5 > if meeting-ends then
+	then
+	0 ;
+
+' shed-meeting :i-dunbar-seq-4 handles
+
+\ === Baxter kills Ms. Dunbar ===
+
+\ the household runs to Ms. Dunbar's room
+: shot-heard ( -- )
+	:mrs-robner :dunbar-room true establish-goal
+	:rourke :corridor-1 true establish-goal
+	:george :dunbar-room true establish-goal
+	:i-shot -1 queue enable ;
+
+\ Baxter climbs the ladder to the bedroom balcony, crosses to Ms. Dunbar's room unseen, and shoots her
+: baxter-strikes ( context -- result )
+	drop
+	:baxter-seq-loc state to stage
+	stage :master-bedroom = if
+		here corridor-bits 1 bit-and 1 = not
+		[ :stairs :stair-bottom :dunbar-room ] here position-of 0 < and if
+			:bedroom-balcony :baxter-seq-loc state!
+			:baxter :bedroom-balcony move-to
+			:dunbar remove-thing
+			true :dunbar-dead state!
+			:i-dunbar interrupt disable
+			:pistol :dunbar-room move-to
+			:suicide-note :dunbar-room move-to
+			:corpse :dunbar-room move-to
+			:i-baxter-seq 0 queue drop
+			:i-baxter-escape -1 queue enable
+			here :line property upstairs-line = if
+				true :shot-fired state!
+				"You hear a pistol shot close by." tell-line
+			else here :line property outside-line = if
+				"You hear what sounds like a pistol shot from inside the house." tell-line
+			else
+				"From upstairs, you hear a single explosion like a pistol shot." tell-line
+			then then
+			shot-heard
+			1 exit
+		then
+		0 exit
+	then
+	stage :bedroom-balcony = if
+		here :master-bedroom = not :mrs-robner location-of :master-bedroom = not and if
+			:baxter :master-bedroom move-to
+			:master-bedroom :baxter-seq-loc state!
+		then
+		0 exit
+	then
+	stage :north-lawn = if
+		:dunbar :dunbar-room inside? here :line property outside-line = not and here :bedroom-balcony = not and if
+			true :ladder-flag-2 state!
+			false :ladder-flag state!
+			:ladder :orchard move-to
+			:ladder :undescribed clear-flag
+			:ladder :touched set-flag
+			:baxter :bedroom-balcony move-to
+			:bedroom-balcony :baxter-seq-loc state!
+		then
+		0 exit
+	then
+	:baxter :north-lawn inside? if :north-lawn :baxter-seq-loc state! then
+	0 ;
+
+' baxter-strikes :i-baxter-seq handles
+
+\ Baxter runs back to the balcony and down the ladder, glimpsed if the inspector is near
+: baxter-escapes ( context -- result )
+	drop
+	false to seen
+	:shot-fired state if
+		false :shot-fired state!
+		[ :corridor-4 :corridor-3 ] here position-of 0 >= if
+			"As you enter the hallway, you catch a glimpse of someone running across the
+			eastern end of the hallway from south to north." tell-line
+			true to seen
+		else here :master-bedroom = if
+			"As you walk into the bedroom, you see Baxter running past you to the balcony.
+			He doesn't seem to have noticed you." tell-line
+			true to seen
+			true :baxter-seen state!
+		else here corridor-bits 1 bit-and 1 = if
+			"As you enter the hallway, you see Baxter running from Dunbar's
+			room across the hall to the master bedroom." tell-line
+			true to seen
+			true :baxter-seen state!
+		then then then
+	then
+	:bedroom-balcony :baxter-seq-loc state!
+	[ :orchard :east-lawn :north-lawn ] here position-of 0 < if
+		:baxter :in-orchard move-to
+		false :ladder-flag-2 state!
+		:baxter :dunbar-room true establish-goal
+		:i-baxter-escape 0 queue drop
+		false :baxter-seq-loc state!
+	then
+	seen if 1 else 0 then ;
+
+' baxter-escapes :i-baxter-escape handles
+
+: baxter-resumes ( context -- result )
+	drop
+	:baxter unprioritize
+	0 ;
+
+' baxter-resumes :i-baxter-end-1 handles
+
+\ the household gathers at Ms. Dunbar's room and disperses
+: household-gathers ( context -- result )
+	drop
+	false to seen
+	:mrs-robner :dunbar-room inside? if
+		here :dunbar-room = if
+			"Mrs. Robner, standing quietly by the body, starts sobbing and
+			leaves the room." tell-line
+		then
+		:mrs-robner unprioritize
+		:mrs-robner :corridor-1 move-to
+		true to seen
+	else :george :dunbar-room inside? if
+		here :dunbar-room = if
+			"George says something like ""My God"" under his breath." tell-line
+		then
+		:george unprioritize
+	else :rourke :corridor-1 inside? if
+		here :corridor-1 = if
+			"Mrs. Rourke peeks in the door and looks sick. ""I'm leaving this
+			house,"" she says, and pops out again." tell-line
+		then
+		:rourke :stair-top move-to
+		:rourke :rourke-room true establish-goal
+		true to seen
+	then then then
+	:shot-count state 1+ dup :shot-count state! 20 > if :i-shot 0 queue drop then
+	seen if 1 else 0 then ;
+
+' household-gathers :i-shot handles

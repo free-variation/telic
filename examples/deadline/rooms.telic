@@ -1,0 +1,892 @@
+\ Deadline: the rooms, each a frame placed in the world under its name. The
+\ keys are those the world model reads (world.telic); an exit is a room name,
+\ a refusal string, or a frame naming the room with the door or state flag
+\ that must be open or set, and the refusal otherwise.
+
+\ ---- South Lawn ----
+
+{ :name "South Lawn"
+  :description "You are on a wide lawn just north of the entrance to the
+                Robner estate. Directly north at the end of a pebbled path is
+                the Robner house, flanked to the northeast and northwest by a
+                vast expanse of well-kept lawn. Beyond the house can be seen
+                the lakefront."
+  :synonyms [ "lawn" ]
+  :adjectives [ "south" ]
+  :flags [< :room :lit >]
+  :globals [ :lawn :house ]
+  :line 2
+  :station :front-path
+  :corridor 64
+  :exits { :north     :front-path
+           :south     "Leaving the estate would mean quitting the case and,
+                       most probably, your job."
+           :northwest :west-lawn
+           :northeast :east-lawn
+         }
+} :south-lawn :rooms place
+
+\ ---- X ----
+
+{ :name "X"
+  :initial-description "FROB"
+  :size 10
+  :capacity 10
+} :xxx :rooms place
+
+\ ---- George's Bedroom ----
+
+{ :name "George's Bedroom"
+  :synonyms [ "bedroom" "room" ]
+  :adjectives [ "george" ]
+  :flags [< :room :lit >]
+  :action :george-room
+  :globals [ :george-door :george-bath-door :end-table :chair :bed ]
+  :line 0
+  :station :corridor-3
+  :exits { :north { :to :corridor-3 :door :george-door }
+           :east  { :to :george-bath :door :george-bath-door }
+         }
+} :george-room :rooms place
+
+\ ---- George's Bathroom ----
+
+{ :name "George's Bathroom"
+  :synonyms [ "bathroom" "room" ]
+  :adjectives [ "george" ]
+  :flags [< :room :lit >]
+  :action :george-bath
+  :globals [ :george-bath-door :toilet :shower :sink ]
+  :line 0
+  :station :corridor-3
+  :exits { :west { :to :george-room :door :george-bath-door }
+         }
+} :george-bath :rooms place
+
+\ ---- Dunbar's Bedroom ----
+
+{ :name "Dunbar's Bedroom"
+  :synonyms [ "bedroom" "room" ]
+  :adjectives [ "dunbar" ]
+  :flags [< :room :lit >]
+  :action :dunbar-room
+  :globals [ :dunbar-door :end-table :chair :bed ]
+  :line 0
+  :station :corridor-1
+  :exits { :north { :to :corridor-1 :door :dunbar-door }
+         }
+} :dunbar-room :rooms place
+
+\ ---- Dunbar's Bathroom ----
+
+{ :name "Dunbar's Bathroom"
+  :synonyms [ "bathroom" "bath" ]
+  :adjectives [ "dunbar" ]
+  :flags [< :room :lit >]
+  :action :dunbar-bath
+  :globals [ :dunbar-bath-door :shower :toilet :sink ]
+  :pseudo [ [ "polish" :random-pseudo ] [ "nailpolish" :random-pseudo ] ]
+  :line 0
+  :station :shall-11
+  :exits { :north { :to :shall-11 :door :dunbar-bath-door }
+         }
+} :dunbar-bath :rooms place
+
+\ ---- Closet ----
+
+{ :name "Closet"
+  :description "This large closet has many shelves containing various cleaning
+                equipment and supplies."
+  :flags [< :room :lit >]
+  :globals [ :closet ]
+  :exits { :out   :shall-12
+           :north :shall-12
+         }
+} :closet-11 :rooms place
+
+\ ---- End of South Hall ----
+
+{ :name "End of South Hall"
+  :description "The hall ends here. To the south is a walk-in closet."
+  :flags [< :room :lit >]
+  :line 0
+  :station :shall-12
+  :corridor 4
+  :exits { :west  :shall-11
+           :south :closet-11
+           :in    :closet-11
+         }
+} :shall-12 :rooms place
+
+\ ---- South Upstairs Hall ----
+
+{ :name "South Upstairs Hall"
+  :flags [< :room :lit >]
+  :action :shall-11
+  :globals [ :dunbar-bath-door ]
+  :line 0
+  :station :shall-11
+  :corridor 6
+  :exits { :north :stair-top
+           :east  :shall-12
+           :south { :to :dunbar-bath :door :dunbar-bath-door }
+         }
+} :shall-11 :rooms place
+
+\ ---- Guest Room ----
+
+{ :name "Guest Room"
+  :description "This room contains the bare essentials for a guest room: bed,
+                tables, and a chair. A window looks out toward the east."
+  :flags [< :room :lit >]
+  :globals [ :end-table :chair :bed ]
+  :line 0
+  :station :stair-top
+  :corridor 0
+  :exits { :west :north-hall
+         }
+} :guest-room :rooms place
+
+\ ---- North Upstairs Hall ----
+
+{ :name "North Upstairs Hall"
+  :description "This is the end of a short north-south hallway. To the east is
+                a small room."
+  :flags [< :room :lit >]
+  :line 0
+  :station :stair-top
+  :exits { :east  :guest-room
+           :south :stair-top
+         }
+} :north-hall :rooms place
+
+\ ---- Bedroom Balcony ----
+
+{ :name "Bedroom Balcony"
+  :synonyms [ "balcony" ]
+  :adjectives [ "bedroom" ]
+  :flags [< :room :lit >]
+  :action :bedroom-balcony
+  :globals [ :bedroom-balcony-door ]
+  :exits { :south { :to :master-bedroom :door :bedroom-balcony-door }
+           :down  { :to :in-orchard :if :ladder-flag-2 :else "The jump is
+                                                           inadvisable." }
+         }
+} :bedroom-balcony :rooms place
+
+\ ---- Master Bathroom ----
+
+{ :name "Master Bathroom"
+  :description "This is Mr. and Mrs. Robner's private bathroom, accessible
+                only from the bedroom through a door to the west. On one wall
+                is a mirror over a long counter containing two sinks, and in
+                addition to the usual bathroom fixtures is a jacuzzi. Hanging
+                plants give the room an almost tropical atmosphere."
+  :synonyms [ "bath" "bathroom" ]
+  :adjectives [ "master" ]
+  :flags [< :room :lit >]
+  :globals [ :shower :toilet :sink ]
+  :pseudo [ [ "toothpaste" :random-pseudo ] ]
+  :exits { :west :master-bedroom
+           :out  :master-bedroom
+         }
+} :master-bath :rooms place
+
+\ ---- Master Bedroom ----
+
+{ :name "Master Bedroom"
+  :synonyms [ "bedroom" "room" ]
+  :adjectives [ "master" "robner" ]
+  :flags [< :room :lit >]
+  :action :master-bedroom
+  :globals [ :hidden-door-b :bedroom-balcony-door :master-bedroom-door :end-table :chair :telephone ]
+  :line 0
+  :station :corridor-1
+  :exits { :west  { :to :hidden-closet :door :hidden-door-b }
+           :north { :to :bedroom-balcony :door :bedroom-balcony-door }
+           :south { :to :corridor-1 :door :master-bedroom-door }
+           :east  :master-bath
+         }
+} :master-bedroom :rooms place
+
+\ ---- Hidden Closet ----
+
+{ :name "Hidden Closet"
+  :synonyms [ "closet" ]
+  :adjectives [ "hidden" ]
+  :flags [< :room :lit >]
+  :action :hidden-closet
+  :globals [ :hidden-door-b :hidden-door-l :closet ]
+  :line 0
+  :station :library
+  :exits { :east { :to :master-bedroom :door :hidden-door-b }
+           :west { :to :library :door :hidden-door-l }
+         }
+} :hidden-closet :rooms place
+
+\ ---- Upstairs Closet ----
+
+{ :name "Upstairs Closet"
+  :description "The closet is rather shallow and has some shelves full of
+                assorted linens, towels, and uninteresting toilet articles."
+  :synonyms [ "closet" ]
+  :adjectives [ "upstairs" ]
+  :flags [< :room :lit >]
+  :globals [ :closet ]
+  :line 0
+  :station :corridor-2
+  :corridor 1024
+  :exits { :out   :corridor-2
+           :south :corridor-2
+         }
+} :upstairs-closet :rooms place
+
+\ ---- Library Balcony ----
+
+{ :name "Library Balcony"
+  :synonyms [ "balcony" ]
+  :adjectives [ "library" ]
+  :flags [< :room :lit >]
+  :action :library-balcony
+  :globals [ :library-balcony-door ]
+  :line 0
+  :station :library-balcony
+  :exits { :south { :to :library :door :library-balcony-door }
+           :down  { :to :in-roses :if :ladder-flag :else "The fall would
+                                                           probably kill you." }
+         }
+} :library-balcony :rooms place
+
+\ ---- Library ----
+
+{ :name "Library"
+  :synonyms [ "library" ]
+  :flags [< :room :lit >]
+  :action :library
+  :globals [ :hidden-door-l :library-balcony-door :telephone :library-door ]
+  :line 0
+  :station :library
+  :exits { :east  { :to :hidden-closet :door :hidden-door-l }
+           :south :corridor-4
+           :north { :to :library-balcony :door :library-balcony-door }
+         }
+} :library :rooms place
+
+\ ---- End of Hallway ----
+
+{ :name "End of Hallway"
+  :flags [< :room :lit >]
+  :action :corridor-4
+  :globals [ :library-door ]
+  :line 0
+  :station :corridor-4
+  :corridor 1
+  :exits { :east  :corridor-3
+           :west  "The hall ends here."
+           :north :library
+         }
+} :corridor-4 :rooms place
+
+\ ---- Hallway ----
+
+{ :name "Hallway"
+  :flags [< :room :lit >]
+  :action :corridor-1
+  :globals [ :dunbar-door :master-bedroom-door ]
+  :line 0
+  :station :corridor-1
+  :corridor 1
+  :exits { :east  :stair-top
+           :west  :corridor-2
+           :south { :to :dunbar-room :door :dunbar-door }
+           :north { :to :master-bedroom :door :master-bedroom-door }
+         }
+} :corridor-1 :rooms place
+
+\ ---- Hallway ----
+
+{ :name "Hallway"
+  :description "This is approximately the middle of the corridor, a convenient
+                place for a closet full of linens. Stairs to the east and a
+                window to the west are about equidistant. The closet, to the
+                north, is open and rather shallow."
+  :flags [< :room :lit >]
+  :globals [ :closet ]
+  :line 0
+  :station :corridor-2
+  :corridor 1025
+  :exits { :north :upstairs-closet
+           :east  :corridor-1
+           :west  :corridor-3
+         }
+} :corridor-2 :rooms place
+
+\ ---- Hallway ----
+
+{ :name "Hallway"
+  :flags [< :room :lit >]
+  :action :corridor-3
+  :globals [ :george-door ]
+  :line 0
+  :station :corridor-3
+  :corridor 1
+  :exits { :east  :corridor-2
+           :west  :corridor-4
+           :south { :to :george-room :door :george-door }
+         }
+} :corridor-3 :rooms place
+
+\ ---- Top of Stairs ----
+
+{ :name "Top of Stairs"
+  :description "You are at the top of the staircase where short hallways run
+                north and south and a corridor the length of the house heads
+                west."
+  :flags [< :room :lit >]
+  :globals [ :stairs ]
+  :line 0
+  :station :stair-top
+  :corridor 3
+  :exits { :down  :stairs
+           :north :north-hall
+           :south :shall-11
+           :west  :corridor-1
+         }
+} :stair-top :rooms place
+
+\ ---- Stairs ----
+
+{ :name "Stairs"
+  :description "You are on a landing halfway up the flight of stairs. You
+                notice that the stairs do indeed make quite a noise when
+                stepped upon."
+  :synonyms [ "stairs" ]
+  :flags [< :room :lit >]
+  :globals [ :stairs ]
+  :line 1
+  :station :stairs
+  :corridor 256
+  :exits { :up   :stair-top
+           :down :stair-bottom
+         }
+} :stairs :rooms place
+
+\ ---- Pantry ----
+
+{ :name "Pantry"
+  :description "This is the pantry with shelves containing a large selection
+                of canned and packaged foods, such as fruits, vegetables, and
+                dry goods."
+  :synonyms [ "pantry" ]
+  :flags [< :room :lit >]
+  :line 3
+  :station :pantry
+  :exits { :west :kitchen
+         }
+} :pantry :rooms place
+
+\ ---- Kitchen ----
+
+{ :name "Kitchen"
+  :description "This is the Robner kitchen, quite large and with a full
+                complement of appliances and labor-saving devices. On one wall,
+                a beautifully-crafted shelf unit contains rare china, a unique
+                hand-painted family heirloom depicting scenes from Greek
+                mythology. The china consists of many place settings of plates,
+                teacups, and saucers. There are several cabinets which likely
+                contain silverware, glasses, and the like. To the east is a
+                pantry."
+  :synonyms [ "kitchen" ]
+  :flags [< :room :lit >]
+  :globals [ :kitchen-window :sink ]
+  :line 3
+  :station :kitchen
+  :exits { :south :corner
+           :east  :pantry
+         }
+} :kitchen :rooms place
+
+\ ---- Dining Room ----
+
+{ :name "Dining Room"
+  :description "You have entered the dining room. A long table seating twelve
+                is in the center of the room and a large trestle table is
+                against the south wall. A large picture window to the north
+                allows a view of the rose garden. Hanging on the wall are
+                several cheerful paintings, including one by Seurat which
+                appears to be an original."
+  :synonyms [ "room" ]
+  :adjectives [ "dining" ]
+  :flags [< :room :lit >]
+  :globals [ :dining-room-window ]
+  :line 3
+  :station :dining-room
+  :exits { :east :corner
+           :out  :corner
+         }
+} :dining-room :rooms place
+
+\ ---- Corner ----
+
+{ :name "Corner"
+  :description "You are at the corner of two halls, one a short hallway to the
+                west ending with a set of doors, and the other a long hall
+                leading south toward the front door. To the north are swinging
+                double doors leading into the kitchen."
+  :flags [< :room :lit >]
+  :line 3
+  :station :corner
+  :corridor 8
+  :exits { :south :nfoyer
+           :west  :dining-room
+           :north :kitchen
+         }
+} :corner :rooms place
+
+\ ---- Living Room ----
+
+{ :name "Living Room"
+  :synonyms [ "room" ]
+  :adjectives [ "living" ]
+  :flags [< :room :lit >]
+  :action :living-room
+  :globals [ :bay-window :telephone :sofa :chair :lgtable ]
+  :line 1
+  :station :nfoyer
+  :exits { :east  :nfoyer
+           :out   :nfoyer
+           :south { :to :west-of-door :door :bay-window }
+         }
+} :living-room :rooms place
+
+\ ---- Bottom of Stairs ----
+
+{ :name "Bottom of Stairs"
+  :description "You are at the foot of the stairs to the second floor. Open
+                archways lead west and south."
+  :flags [< :room :lit >]
+  :globals [ :stairs ]
+  :line 1
+  :station :stair-bottom
+  :corridor 272
+  :exits { :up    :stairs
+           :south :shall-1
+           :west  :nfoyer
+         }
+} :stair-bottom :rooms place
+
+\ ---- South Closet ----
+
+{ :name "South Closet"
+  :description "This is a little-used storage closet containing odds and ends
+                of no interest whatsoever. The exit is to the north."
+  :synonyms [ "closet" ]
+  :adjectives [ "south" ]
+  :flags [< :room :lit >]
+  :size 1
+  :globals [ :south-closet-door :closet ]
+  :line 1
+  :station :shall-2
+  :exits { :north { :to :shall-2 :door :south-closet-door }
+           :out   { :to :shall-2 :door :south-closet-door }
+         }
+} :south-closet :rooms place
+
+\ ---- Mrs. Rourke's Bathroom ----
+
+{ :name "Mrs. Rourke's Bathroom"
+  :flags [< :room :lit >]
+  :action :rourke-bath
+  :globals [ :rourke-bath-door :toilet :shower :sink ]
+  :line 1
+  :station :shall-2
+  :exits { :west { :to :shall-2 :door :rourke-bath-door }
+         }
+} :rourke-bath :rooms place
+
+\ ---- Mrs. Rourke's Room ----
+
+{ :name "Mrs. Rourke's Room"
+  :synonyms [ "bedroom" "room" ]
+  :adjectives [ "rourke" ]
+  :flags [< :room :lit >]
+  :action :rourke-room
+  :globals [ :rourke-door :end-table :chair :bed :window ]
+  :line 1
+  :station :shall-1
+  :exits { :north { :to :shall-1 :door :rourke-door }
+           :out   { :to :shall-1 :door :rourke-door }
+         }
+} :rourke-room :rooms place
+
+\ ---- South Hallway ----
+
+{ :name "South Hallway"
+  :flags [< :room :lit >]
+  :action :shall-1
+  :globals [ :rourke-door ]
+  :line 1
+  :station :shall-1
+  :corridor 16
+  :exits { :east  :shall-2
+           :north :stair-bottom
+           :south { :to :rourke-room :door :rourke-door }
+         }
+} :shall-1 :rooms place
+
+\ ---- South Hallway ----
+
+{ :name "South Hallway"
+  :flags [< :room :lit >]
+  :action :shall-2
+  :globals [ :rourke-bath-door :south-closet-door ]
+  :line 1
+  :station :shall-2
+  :exits { :east  { :to :rourke-bath :door :rourke-bath-door }
+           :west  :shall-1
+           :south { :to :south-closet :door :south-closet-door }
+         }
+} :shall-2 :rooms place
+
+\ ---- North of Foyer ----
+
+{ :name "North of Foyer"
+  :description "This is a hallway north of the foyer. To the west is an open
+                doorway, and to the east is the foot of a staircase. The hall
+                continues north."
+  :flags [< :room :lit >]
+  :line 1
+  :station :nfoyer
+  :corridor 264
+  :exits { :south :foyer
+           :west  :living-room
+           :east  :stair-bottom
+           :north :corner
+         }
+} :nfoyer :rooms place
+
+\ ---- Foyer ----
+
+{ :name "Foyer"
+  :synonyms [ "foyer" ]
+  :flags [< :room :lit >]
+  :action :foyer
+  :globals [ :front-door ]
+  :line 1
+  :station :foyer
+  :corridor 8
+  :exits { :south { :to :front-path :door :front-door }
+           :north :nfoyer
+           :out   { :to :front-path :door :front-door }
+         }
+} :foyer :rooms place
+
+\ ---- North Lawn ----
+
+{ :name "North Lawn"
+  :description "This idyllic spot lies on a jut of land well north of the
+                house and is surrounded on three sides by lake shore.  Its
+                charm includes the sweet smell of roses blown on a southwest
+                breeze from the rose garden and by the sound of the leaves
+                rustling in the orchard to the southeast."
+  :synonyms [ "lawn" ]
+  :adjectives [ "north" ]
+  :flags [< :room :lit >]
+  :globals [ :lawn :house :lake ]
+  :line 2
+  :station :north-lawn
+  :corridor 128
+  :exits { :northeast "You can't go into the lake."
+           :northwest "You can't go into the lake."
+           :north     "You can't go into the lake."
+           :east      "You can't go into the lake."
+           :west      "You can't go into the lake."
+           :southwest :rose-garden
+           :southeast :orchard
+           :south     :rose-garden
+         }
+} :north-lawn :rooms place
+
+\ ---- In the Orchard ----
+
+{ :name "In the Orchard"
+  :flags [< :room :lit >]
+  :action :in-orchard
+  :globals [ :kitchen-window :house :fruit-trees :balcony ]
+  :line 2
+  :station :orchard
+  :exits { :north     :orchard
+           :west      :in-roses
+           :northwest :orchard
+           :northeast :orchard
+           :up        { :to :bedroom-balcony :if :ladder-flag-2 }
+           :south     :east-side
+         }
+} :in-orchard :rooms place
+
+\ ---- Orchard Path ----
+
+{ :name "Orchard Path"
+  :description "You are on a path at the edge of a small orchard of fruit
+                trees which abuts the eastern side of the back of the house.
+                The orchard is obviously intended more to display the beauty of
+                the blossoms in spring than to produce significant amounts of
+                fruit. The windows of the kitchen look out onto the orchard,
+                although your view of them is blocked by the trees and a small
+                grape arbor.  To the west is a path along a rose garden, and
+                lawns sweep out to the north and east."
+  :synonyms [ "path" ]
+  :adjectives [ "orchard" ]
+  :flags [< :room :lit >]
+  :globals [ :kitchen-window :house :fruit-trees ]
+  :line 2
+  :station :orchard
+  :corridor 2176
+  :exits { :east      :east-lawn
+           :southeast :east-lawn
+           :north     :north-lawn
+           :northwest :north-lawn
+           :northeast :north-lawn
+           :west      :rose-garden
+           :south     :in-orchard
+           :southwest :in-orchard
+         }
+} :orchard :rooms place
+
+\ ---- Among the Roses ----
+
+{ :name "Among the Roses"
+  :flags [< :room :lit >]
+  :action :in-roses
+  :globals [ :dining-room-window :house :rose :balcony ]
+  :line 2
+  :station :rose-garden
+  :exits { :up        { :to :library-balcony :if :ladder-flag }
+           :north     :rose-garden
+           :northeast :rose-garden
+           :northwest :rose-garden
+           :west      :west-lawn
+           :east      :in-orchard
+           :south     "You can't enter the house here."
+         }
+} :in-roses :rooms place
+
+\ ---- Garden Path ----
+
+{ :name "Garden Path"
+  :synonyms [ "path" ]
+  :adjectives [ "garden" "rose" "flower" ]
+  :flags [< :room :lit >]
+  :action :rose-garden
+  :globals [ :rose :house :dining-room-window ]
+  :line 2
+  :station :rose-garden
+  :corridor 2048
+  :exits { :north     :north-lawn
+           :northeast :north-lawn
+           :northwest :north-lawn
+           :southwest :west-lawn
+           :west      :west-lawn
+           :east      :orchard
+           :south     :in-roses
+           :southeast :in-roses
+         }
+} :rose-garden :rooms place
+
+\ ---- Behind the Shed ----
+
+{ :name "Behind the Shed"
+  :description "You are now between the shed and the lake, a position
+                invisible from the house or the adjacent lawns. There are no
+                windows here, but you can easily enter the shed via the door
+                around the corner."
+  :flags [< :room :lit >]
+  :globals [ :shed ]
+  :line 2
+  :station :east-lawn
+  :exits { :out   :east-lawn
+           :in    :shed-room
+           :east  "You can't go into the lake."
+           :west  :east-lawn
+           :north :east-lawn
+           :south :south-lawn
+         }
+} :behind-shed :rooms place
+
+\ ---- Shed ----
+
+{ :name "Shed"
+  :description "This small garden shed is filled with implements of gardening
+                and lawn care. Shelves filled with various tools line the walls
+                and a filthy window looks out on the lawn."
+  :synonyms [ "shed" "cabin" ]
+  :adjectives [ "tool" "garden" "wooden" ]
+  :flags [< :room :lit >]
+  :globals [ :shed :shed-window ]
+  :line 2
+  :station :east-lawn
+  :exits { :out       :east-lawn
+           :north     :east-lawn
+           :northwest :east-lawn
+         }
+} :shed-room :rooms place
+
+\ ---- West Side of House ----
+
+{ :name "West Side of House"
+  :description "There are no doors or windows at ground level here on the west
+                side of the house. A beautiful rose garden, separated by a tall
+                fence, lies to the north, and the front of the house is to your
+                south. A large lawn bordering the lake lies to the west."
+  :flags [< :room :lit >]
+  :globals [ :house ]
+  :pseudo [ [ "fence" :random-pseudo ] ]
+  :line 2
+  :station :west-side
+  :exits { :southwest :west-lawn
+           :west      :west-lawn
+           :northwest :west-lawn
+           :north     "A fence prevents your mucking up the rose garden."
+           :southeast :west-of-door
+           :south     :west-of-door
+           :east      "You can't enter the house here."
+         }
+} :west-side :rooms place
+
+\ ---- East Side of House ----
+
+{ :name "East Side of House"
+  :description "There are no windows or entries of any kind here at the east
+                side of the house. To the north is the orchard, and the front
+                lawn lies to the south. A lawn also slopes down toward the
+                shore of a lake to the east."
+  :flags [< :room :lit >]
+  :globals [ :house ]
+  :line 2
+  :station :east-side
+  :corridor 64
+  :exits { :north     :orchard
+           :northeast :east-lawn
+           :south     :east-of-door
+           :southeast :east-lawn
+           :east      :east-lawn
+           :west      "You can't enter the house here."
+         }
+} :east-side :rooms place
+
+\ ---- East Lawn ----
+
+{ :name "East Lawn"
+  :description "You are on a neatly manicured lawn, east of the house, which
+                extends north and east to the shore of a lake. To the northwest
+                is a peaceful orchard, and toward the south another wide lawn.
+                Southeast, beside the lake, is a small shed with a solitary
+                dirty window."
+  :synonyms [ "lawn" ]
+  :adjectives [ "east" ]
+  :flags [< :room :lit >]
+  :globals [ :house :lawn :shed :lake :shed-window ]
+  :line 2
+  :station :east-lawn
+  :corridor 672
+  :exits { :north     "You can't go into the lake."
+           :northeast "You can't go into the lake."
+           :east      "You can't go into the lake."
+           :northwest :orchard
+           :west      :east-side
+           :southwest :east-of-door
+           :south     :south-lawn
+           :southeast :shed-room
+           :in        :shed-room
+         }
+} :east-lawn :rooms place
+
+\ ---- West Lawn ----
+
+{ :name "West Lawn"
+  :description "This is a sprawling lawn west of the Robner house. To the west
+                and north is the lake shore.  To the northeast is a rose
+                garden, and to the south another wide lawn."
+  :synonyms [ "lawn" ]
+  :adjectives [ "west" ]
+  :flags [< :room :lit >]
+  :globals [ :lawn :house :lake ]
+  :line 2
+  :station :west-lawn
+  :corridor 32
+  :exits { :north     "You can't go into the lake."
+           :northwest "You can't go into the lake."
+           :west      "You can't go into the lake."
+           :northeast :rose-garden
+           :east      :west-side
+           :southeast :west-of-door
+           :south     :south-lawn
+         }
+} :west-lawn :rooms place
+
+\ ---- East of Front Door ----
+
+{ :name "East of Front Door"
+  :description "You are in front of the Robner house just east of the front
+                door.  A small window, closed and securely locked, is the only
+                thing of note here. To the northeast is the east side of the
+                house."
+  :flags [< :room :lit >]
+  :globals [ :window :house ]
+  :line 2
+  :station :east-of-door
+  :corridor 96
+  :exits { :north     "The window is closed and locked."
+           :west      :front-path
+           :east      :east-lawn
+           :south     :south-lawn
+           :southeast :south-lawn
+           :southwest :south-lawn
+           :northeast :east-side
+         }
+} :east-of-door :rooms place
+
+\ ---- West of Front Door ----
+
+{ :name "West of Front Door"
+  :description "You are in front of the Robner house just west of the front
+                door.  To the north is a large bay window through which can be
+                seen part of the living room.  To the northwest is the west
+                side of the house."
+  :flags [< :room :lit >]
+  :action :west-door
+  :globals [ :bay-window :house ]
+  :line 2
+  :station :west-of-door
+  :corridor 32
+  :exits { :north     { :to :living-room :door :bay-window }
+           :northeast { :to :living-room :door :bay-window }
+           :east      :front-path
+           :west      :west-lawn
+           :south     :south-lawn
+           :southeast :south-lawn
+           :southwest :south-lawn
+           :northwest :west-side
+         }
+} :west-of-door :rooms place
+
+\ ---- Front Path ----
+
+{ :name "Front Path"
+  :synonyms [ "path" ]
+  :adjectives [ "front" ]
+  :flags [< :room :lit >]
+  :action :front-path
+  :globals [ :house :front-door ]
+  :line 2
+  :station :front-path
+  :corridor 32
+  :exits { :in        { :to :foyer :door :front-door }
+           :north     { :to :foyer :door :front-door }
+           :south     :south-lawn
+           :southeast :south-lawn
+           :southwest :south-lawn
+           :west      :west-of-door
+           :east      :east-of-door
+         }
+} :front-path :rooms place
