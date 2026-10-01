@@ -1,5 +1,8 @@
 #include "telic.h"
 #include "lib_embed.h"
+#ifdef TELIC_BUNDLE
+#include "bundle_embed.h"
+#endif
 
 
 Vocabulary vocab;
@@ -4181,7 +4184,69 @@ void p_evaluate(DISPATCH_ARGS) {
 	DISPATCH(interp);
 }
 
+static void run_loaded_contents(Interpreter *interp, char *contents, size_t bytes_read, const char *resolved) {
+	if (bytes_read >= 2 && contents[0] == '#' && contents[1] == '!')
+		for (size_t i = 0; i < bytes_read && contents[i] != '\n'; i++)
+			contents[i] = ' ';
+
+	char resolved_dir[PATH_MAX];
+	const char *last_slash = strrchr(resolved, '/');
+	if (last_slash) {
+		size_t dir_len = (size_t)(last_slash - resolved);
+		memcpy(resolved_dir, resolved, dir_len);
+		resolved_dir[dir_len] = 0;
+	} else {
+		resolved_dir[0] = '.';
+		resolved_dir[1] = 0;
+	}
+
+	int saved_unit = current_unit;
+	current_unit = next_unit++;
+	const char *saved_load_dir = compiler.current_load_dir;
+	compiler.current_load_dir = resolved_dir;
+	compiler.load_depth++;
+
+	run_input_text(interp, contents, (int)bytes_read, resolved);
+
+	compiler.load_depth--;
+	compiler.current_load_dir = saved_load_dir;
+	current_unit = saved_unit;
+	free(contents);
+}
+
+#ifdef TELIC_BUNDLE
+const BundledFile *find_bundled_path(const char *path) {
+	while (strncmp(path, "./", 2) == 0)
+		path += 2;
+	for (int i = 0; i < n_bundled_files; i++)
+		if (strcmp(bundled_files[i].path, path) == 0)
+			return &bundled_files[i];
+	return NULL;
+}
+
+static const BundledFile *find_bundled_file(const char *filename) {
+	const BundledFile *bundled = find_bundled_path(filename);
+	if (bundled || filename[0] == '/' || !compiler.current_load_dir)
+		return bundled;
+
+	char joined_path[PATH_MAX];
+	snprintf(joined_path, sizeof joined_path, "%s/%s", compiler.current_load_dir, filename);
+	return find_bundled_path(joined_path);
+}
+#endif
+
 void load_file(Interpreter *interp, const char *filename) {
+#ifdef TELIC_BUNDLE
+	const BundledFile *bundled = find_bundled_file(filename);
+	if (bundled) {
+		char *bundled_contents = xmalloc((size_t)bundled->n_bytes + 1);
+		memcpy(bundled_contents, bundled->bytes, (size_t)bundled->n_bytes);
+		bundled_contents[bundled->n_bytes] = 0;
+		run_loaded_contents(interp, bundled_contents, (size_t)bundled->n_bytes, bundled->path);
+		return;
+	}
+#endif
+
 	char resolved_path[PATH_MAX];
 	const char *resolved = filename;
 
@@ -4212,33 +4277,7 @@ void load_file(Interpreter *interp, const char *filename) {
 	fclose(file);
 	contents[bytes_read] = 0;
 
-	if (bytes_read >= 2 && contents[0] == '#' && contents[1] == '!')
-		for (size_t i = 0; i < bytes_read && contents[i] != '\n'; i++)
-			contents[i] = ' ';
-
-	char resolved_dir[PATH_MAX];
-	const char *last_slash = strrchr(resolved, '/');
-	if (last_slash) {
-		size_t dir_len = (size_t)(last_slash - resolved);
-		memcpy(resolved_dir, resolved, dir_len);
-		resolved_dir[dir_len] = 0;
-	} else {
-		resolved_dir[0] = '.';
-		resolved_dir[1] = 0;
-	}
-
-	int saved_unit = current_unit;
-	current_unit = next_unit++;
-	const char *saved_load_dir = compiler.current_load_dir;
-	compiler.current_load_dir = resolved_dir;
-	compiler.load_depth++;
-
-	run_input_text(interp, contents, (int)bytes_read, resolved);
-
-	compiler.load_depth--;
-	compiler.current_load_dir = saved_load_dir;
-	current_unit = saved_unit;
-	free(contents);
+	run_loaded_contents(interp, contents, bytes_read, resolved);
 }
 
 void p_load(DISPATCH_ARGS) {
@@ -6458,6 +6497,7 @@ static void run_program_text(Interpreter *interp, const char *text) {
 	inbuf_reset();
 }
 
+#ifndef TELIC_BUNDLE
 static void print_usage(void) {
 	printf("usage: telic [options] [file.telic [args ...]]\n"
 		"\n"
@@ -6475,6 +6515,7 @@ static void print_usage(void) {
 		"  -w, --words         print the word listing, then exit\n"
 		"  -h, --help          print this help, then exit\n");
 }
+#endif
 
 static void recover_from_error(Interpreter *interp, int lvar_top, int bind_trail_top) {
 	rollback_partial_definition();
@@ -6510,6 +6551,12 @@ static int telic_main(int argc, char **argv) {
 	const char *program_items[argc];
 	unsigned char program_item_is_code[argc];
 	int n_program_items = 0;
+#ifdef TELIC_BUNDLE
+	program_items[n_program_items] = bundle_entry;
+	program_item_is_code[n_program_items] = 0;
+	n_program_items++;
+	set_script_args(argv + 1, argc - 1);
+#else
 	for (int i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
 			print_usage();
@@ -6577,6 +6624,7 @@ static int telic_main(int argc, char **argv) {
 			break;
 		}
 	}
+#endif
 
 	if (n_program_items > 0 && !interactive_set)
 		interactive = 0;

@@ -3,9 +3,13 @@
 \ are metres east (x), up (y) and north (z), and the camera turns (yaw) and
 \ tilts (pitch) from looking north. Lines are anti-aliased and add their light
 \ to what is already drawn, so crossings glow; a line fades with its distance
-\ from the camera. Surfaces are filled black, or with a light of their own,
-\ before their edges are drawn, so nearer things hide farther ones when they
-\ are drawn after them. Details that look random (book spines, wicker) come
+\ from the camera. Surfaces are filled black, or with a light of their own.
+\ Each pixel keeps the inverse depth of the nearest surface filled over it and
+\ of the nearest line lit in it, so a line behind a surface is not drawn and a
+\ surface behind a line does not cover it, whichever is drawn first; a line
+\ or surface within a few percent of a surface's depth counts as on it, so a
+\ surface's own edges and the panels drawn on it show. Glows are light in the
+\ air and are not hidden. Details that look random (book spines, wicker) come
 \ from a hash of their position, not from the game's random numbers, so
 \ drawing a picture changes nothing in the story.
 
@@ -20,6 +24,15 @@ picture-height picture-width 0-matrix to canvas
 \ the part of the canvas's light that comes from glows and filled areas rather than lines, so a daytime picture can draw it as shade
 variable wash
 picture-height picture-width 0-matrix to wash
+\ for each pixel, one over the depth of the nearest surface filled over it and of the nearest line lit in it, 0 where there is none
+variable surface-nearness
+picture-height picture-width 0-matrix to surface-nearness
+variable line-nearness
+picture-height picture-width 0-matrix to line-nearness
+\ how far behind a surface, as a fraction of its depth, a line or another surface may lie and still count as on it
+0.03 constant depth-tolerance
+\ and how many pixels across the picture a surface is moved back by, so a line's anti-aliased pixels beside an edge of a surface seen at a slant count as on it
+2 constant edge-pixels
 \ whether the finished picture is drawn as ink on paper, for the daytime, or as light on black
 variable daylight
 false to daylight
@@ -41,9 +54,11 @@ variable fade
 
 \ begin a picture: all black, the camera where it stands
 : new-picture ( x y z yaw pitch focal -- )
-	| x y z yaw pitch focal ^canvas ^wash ^view ^nearest-depth |
+	| x y z yaw pitch focal ^canvas ^wash ^surface-nearness ^line-nearness ^view ^nearest-depth |
 	picture-height picture-width 0-matrix to canvas
 	picture-height picture-width 0-matrix to wash
+	picture-height picture-width 0-matrix to surface-nearness
+	picture-height picture-width 0-matrix to line-nearness
 	{ :x x :y y :z z :cos-yaw yaw cos :sin-yaw yaw sin
 	  :cos-pitch pitch cos :sin-pitch pitch sin :focal focal :lens-shift 0
 	} to view
@@ -92,9 +107,18 @@ variable fade
 	y picture-width * x + to index
 	canvas canvas index @e amount + index !e drop ;
 
-\ an anti-aliased line between two picture points, its light going from one end's to the other's; the far end is left out, so lines meeting at a corner light it once
-: light-line ( x0 y0 light0 x1 y1 light1 -- )
-	| x0 y0 light0 x1 y1 light1 |
+\ add a line's light to one pixel, at one over its depth there, unless a surface nearer than it covers the pixel
+: add-line-light ( x y amount nearness -- )
+	| x y amount nearness |
+	x 0 < x picture-width >= or y 0 < or y picture-height >= or if exit then
+	y picture-width * x + to index
+	nearness 1 depth-tolerance + * surface-nearness index @e < if exit then
+	canvas canvas index @e amount + index !e drop
+	line-nearness index @e nearness < if line-nearness nearness index !e drop then ;
+
+\ an anti-aliased line between two picture points, its light and one over its depth going from one end's to the other's; the far end is left out, so lines meeting at a corner light it once
+: light-line ( x0 y0 light0 nearness0 x1 y1 light1 nearness1 -- )
+	| x0 y0 light0 nearness0 x1 y1 light1 nearness1 |
 	y1 y0 - abs x1 x0 - abs > to steep
 	steep if
 		y0 x0 to y0 to x0
@@ -105,6 +129,7 @@ variable fade
 		x1 x0 to x1 to x0
 		y1 y0 to y1 to y0
 		light1 light0 to light1 to light0
+		nearness1 nearness0 to nearness1 to nearness0
 	then
 	x1 x0 - to run
 	run 0.001 < if 0 else y1 y0 - run / then to gradient
@@ -118,12 +143,13 @@ variable fade
 		y lower - to fraction
 		run 0.001 < if 0 else offset run / 0 1 clamp then to along
 		light0 light1 light0 - along * + to light
+		nearness0 nearness1 nearness0 - along * + to nearness
 		steep if
-			lower column 1 fraction - light * add-light
-			lower 1 + column fraction light * add-light
+			lower column 1 fraction - light * nearness add-line-light
+			lower 1 + column fraction light * nearness add-line-light
 		else
-			column lower 1 fraction - light * add-light
-			column lower 1 + fraction light * add-light
+			column lower 1 fraction - light * nearness add-line-light
+			column lower 1 + fraction light * nearness add-line-light
 		then
 	loop ;
 
@@ -145,8 +171,8 @@ variable fade
 		up-b up-a up-b - cut * + to up-b
 		nearest-depth to depth-b
 	then
-	right-a up-a depth-a to-screen depth-a light-at
-	right-b up-b depth-b to-screen depth-b light-at
+	right-a up-a depth-a to-screen depth-a light-at 1 depth-a /
+	right-b up-b depth-b to-screen depth-b light-at 1 depth-b /
 	light-line ;
 
 \ a line given by its two ends' coordinates
@@ -186,9 +212,37 @@ variable fade
 
 \ === surfaces ===
 
-\ fill a polygon given by picture points with a light, replacing what is there
-: fill-screen-polygon ( xs ys light -- )
-	| xs ys light |
+\ the plane of a polygon given by points in the camera's coordinates, as [ a b c ] giving one over its depth at the picture point sx sy as a sx * b sy * + c +
+: polygon-plane ( corners -- plane )
+	| corners |
+	0 to normal-right
+	0 to normal-up
+	0 to normal-depth
+	0 corners size 1 do k
+		corners k @i spread to depth-k to up-k to right-k
+		corners k 1 + corners size mod @i spread to depth-j to up-j to right-j
+		normal-right up-k up-j - depth-k depth-j + * + to normal-right
+		normal-up depth-k depth-j - right-k right-j + * + to normal-up
+		normal-depth right-k right-j - up-k up-j + * + to normal-depth
+	loop
+	corners first spread to depth-0 to up-0 to right-0
+	normal-right right-0 * normal-up up-0 * + normal-depth depth-0 * + to offset
+	normal-right sq normal-up sq + normal-depth sq + sqrt to normal-length
+	offset abs normal-length 1e-6 * <= if
+		[ 0 0 corners ( corner | 1 corner 2 @i / ) map ' max2 0 swap reduce ] exit
+	then
+	view@focal offset * to scale
+	[ normal-right scale /
+	  normal-up negate scale /
+	  normal-depth normal-right picture-width 2 / * view@focal / -
+	  normal-up picture-height 2 / view@lens-shift + * view@focal / + offset / ] ;
+
+\ fill a polygon given by picture points with a light where it is nearer than the surfaces already filled, replacing the lines there unless they are nearer; one over its depth across the picture is given by a plane [ a b c ]
+: fill-screen-polygon ( xs ys light plane -- )
+	| xs ys light plane |
+	plane spread to plane-c to plane-b to plane-a
+	1 depth-tolerance + to tolerance
+	plane-a sq plane-b sq + sqrt edge-pixels * to slant
 	xs size to n-corners
 	ys ' min2 ys first swap reduce round-down 0 max2 to top
 	ys ' max2 ys first swap reduce round-up picture-height 1 - min2 to bottom
@@ -210,9 +264,20 @@ variable fade
 			crossings p 2 * @i round-up 0 max2 to first-filled
 			crossings p 2 * 1 + @i round-up 1 - picture-width 1 - min2 to last-filled
 			row picture-width * to row-start
+			plane-b row * plane-c + to row-nearness
 			first-filled last-filled 1 + 1 do column
-				canvas light row-start column + !e drop
-				wash light row-start column + !e drop
+				row-start column + to index
+				plane-a column * row-nearness + to nearness
+				nearness tolerance * to reach
+				reach surface-nearness index @e >= if
+					line-nearness index @e reach <= if
+						canvas light index !e drop
+						wash light index !e drop
+						line-nearness 0 index !e drop
+					then
+					nearness slant - to kept-nearness
+				surface-nearness index @e kept-nearness < if surface-nearness kept-nearness index !e drop then
+				then
 			loop
 		loop
 	loop ;
@@ -240,7 +305,7 @@ variable fade
 		xs sx add-last! drop
 		ys sy add-last! drop
 	) each
-	xs ys light fill-screen-polygon ;
+	xs ys light kept polygon-plane fill-screen-polygon ;
 
 \ the eight corners of a box between two opposite corners
 : box-corners ( x0 y0 z0 x1 y1 z1 -- corners )

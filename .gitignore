@@ -70,6 +70,10 @@ bench*.md
 .telic_history
 telic.wasm
 
+# single-program executables and their embedded files (make bundle)
+bundles/
+src/c/bundle_embed.h
+
 # transient benchmark run reports / logs
 bench/results/
 *__pycache_*
@@ -87,3 +91,4 @@ generated
 
 # python venv for tools/run-acceptance.py (anthropic SDK)
 .venv
+*.save

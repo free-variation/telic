@@ -8,8 +8,8 @@
 \ ROBNER ABOUT THE WILL, WAIT UNTIL 11:30, SAVE, QUIT; GRAMMAR lists every
 \ verb and the sentences it takes, and every synonym. The game runs in a
 \ window: the status line, a picture of the room with the people in it, and
-\ the story below; up and down recall commands, page up and page down scroll,
-\ escape ends. text runs it in the terminal instead. seed=N fixes the random
+\ the story below; up and down scroll the story, as page up and page down do
+\ by half a screen, shift with up and down recalls commands, escape ends. text runs it in the terminal instead. seed=N fixes the random
 \ numbers, so the same commands replay the same story; width=N wraps the
 \ terminal's text at N columns (0 does not wrap); save=path names the file
 \ SAVE and RESTORE use (deadline.save by default). frotz=N draws the random

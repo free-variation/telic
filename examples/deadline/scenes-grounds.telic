@@ -56,7 +56,7 @@
 	[ ] to xs
 	[ ] to ys
 	kept ( corner | corner spread to-screen to sy to sx xs sx add-last! drop ys sy add-last! drop ) each
-	xs ys light fill-screen-polygon ;
+	xs ys light kept polygon-plane fill-screen-polygon ;
 
 \ whether a flat face of a solid, its corners and outward normal, is turned toward the camera
 : face-seen? ( points normal -- flag )
@@ -355,7 +355,7 @@
 : south-lawn-picture ( -- )
 	0 1.65 -24 0 0.04 300 outdoor-view
 	[ [ [ -2.2 0 -17 ] PI 0.1 + ] [ [ 2.6 0 -16 ] PI 0.15 - ] [ [ -5 0 -13 ] PI 0.3 + ] [ [ 5.5 0 -12 ] PI 0.35 - ] ] spots!
-	-60 60 20 34 0 1 far-shore
+	-60 60 40 4 1 far-shore
 	-60 -12 14 40 90 11 lake-ripples
 	12 60 14 40 90 23 lake-ripples
 	0.06 pen!

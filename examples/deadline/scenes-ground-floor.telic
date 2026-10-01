@@ -639,6 +639,8 @@
 	[ 0 2 -5 ] lamp!
 	[ [ -2.4 0.9 ] [ -0.3 -2.3 ] [ 1.6 0.4 ] [ -3.6 -2.5 ] ]
 	( place | place spread to spot-z to spot-x [ [ spot-x 0 spot-z ] spot-x spot-z 5.3 2.9 heading-toward ] ) map spots!
+	{ :dunbar { :sitting [ [ -1.52 0 -1.4 ] PI 2 / ] } :baxter { :sitting [ [ -0.5 0 -3.12 ] 0 ] }
+	  :mrs-robner { :sitting [ [ -4.28 0 -1.52 ] 0.25 ] } } seats!
 	0.09 pen!
 	[ -6 0 -4 ] [ 6 0 -4 ] [ 6 0 4 ] [ -6 0 4 ] 24 16 grid
 	[ [ -2 0 -4 ] [ -1.2 0 -5 ] [ 1.2 0 -5 ] [ 2 0 -4 ] ] 0.02 fill
@@ -822,7 +824,7 @@
 		u 0.66 - abs 0.045 < v 0.56 < and to second-figure
 		u 0.66 - sq 0.012 / v 0.58 - sq 0.0016 / + 1 < to parasol
 		first-figure second-figure or parasol or if 0.12 to band then
-		band shimmer 0.6 * 0.8 + * frame-light 1.3 * pen!
+		band shimmer 0.6 * 0.8 + * frame-light 1.3 * * pen!
 		corner along u width 0.92 * * width 0.04 * + v height 0.9 * * height 0.05 * + wall-at to dot
 		dot corner along u width 0.92 * * width 0.04 * + 0.018 + v height 0.9 * * height 0.05 * + 0.012 + wall-at segment
 	loop
@@ -872,6 +874,7 @@
 	[ 0 2.3 0 ] lamp!
 	[ [ 1.2 2.4 ] [ -1 -1.7 ] [ -3.9 1.8 ] ]
 	( place | place spread to spot-z to spot-x [ [ spot-x 0 spot-z ] spot-x spot-z 4.3 -0.5 heading-toward ] ) map spots!
+	{ :george { :sitting [ [ -0.9 0 1.0 ] PI ] } :mrs-robner { :sitting [ [ 0.9 0 -1.0 ] 0 ] } } seats!
 	0.1 pen!
 	-4.6 4.6 -3 3 0.25 false plank-floor
 	0.08 pen!

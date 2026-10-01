@@ -13,22 +13,77 @@ variable standing-spots
 	| spots ^standing-spots |
 	spots to standing-spots ;
 
+\ where people sit or lie in the room last drawn, for those the story has sitting or lying there: a frame from each person to a frame from :sitting or :lying to [ spot heading ], the spot on the floor under the hips or, lying, on the bed under the feet; a picture word sets it
+variable seats
+{ } to seats
+
+: seats! ( new-seats -- )
+	| new-seats ^seats |
+	new-seats to seats ;
+
+\ whether a person is sitting, lying or standing, as the story describes them where they are
+: posture-of ( person -- posture )
+	| person |
+	person in-motion? if :standing exit then
+	:post-will state to after-will
+	person :george = if
+		:george :george-room inside? :george-wait state not and if :tune-on state if :lying else :sitting then exit then
+		:george :dining-room inside? if :sitting exit then
+	then
+	person :mrs-robner = if
+		:call-waiting state if :standing exit then
+		:mrs-robner :dining-room inside? if :sitting exit then
+		:mrs-robner :living-room inside? after-will not and if :sitting exit then
+		:mrs-robner :master-bedroom inside? if :sitting exit then
+	then
+	:baxter :shed inside? :secret-meeting state 0 = not and if :standing exit then
+	:dunbar-baxter-meet state if :standing exit then
+	person :dunbar = if
+		:dunbar :dunbar-room inside? if :lying exit then
+		:dunbar :living-room inside? after-will not and if :sitting exit then
+	then
+	person :baxter = if
+		:baxter :living-room inside? after-will not and if :sitting exit then
+	then
+	:standing ;
+
 \ the people with figures who are in a room, in the order of the character table
 : people-in ( room -- people )
 	| room |
 	character-table ( person | person room inside? person-figures person has? and ) filter ;
 
-\ the people present on the room's spots, the farthest from the camera drawn first so nearer ones hide them
+\ the people present, each as [ person spot heading posture ]: on their seat when the story seats them or lays them down and the picture has one for them, the rest on the room's standing spots in turn
+: placements ( room -- placements )
+	| room |
+	[ ] to placed-people
+	[ ] to standing-people
+	room people-in ( person |
+		person posture-of to person-posture
+		seats person { } @or person-posture null @or to seat
+		person-posture :standing = not seat null? not and if
+			placed-people [ person seat first seat second person-posture ] add-last! drop
+		else
+			standing-people person add-last! drop
+		then
+	) each
+	standing-people size standing-spots size min2 to n-standing
+	0 n-standing 1 do k
+		standing-spots k @i to spot
+		placed-people [ standing-people k @i spot first spot second :standing ] add-last! drop
+	loop
+	placed-people ;
+
+\ the people present, the farthest from the camera drawn first so nearer ones hide them
 : draw-people ( room -- )
 	| room |
-	room people-in to present
-	present size standing-spots size min2 to n-placed
 	[ view@x view@y view@z ] to eye
-	[ 0 n-placed 1 do k [ present k @i standing-spots k @i ] loop ]
-	( placement | placement second first eye vector- dup dot negate ) sort-by
+	room placements
+	( placement | placement second eye vector- dup dot negate ) sort-by
 	( placement |
-		placement second spread to heading to spot
-		spot heading person-figures placement first @ execute
+		placement spread to person-posture to heading to spot to person
+		person-posture posture!
+		spot heading person-figures person @ execute
+		:standing posture!
 	) each ;
 
 \ === pieces shared by several rooms ===
@@ -319,6 +374,7 @@ variable standing-spots
 : draw-room ( room -- )
 	| room |
 	[ ] spots!
+	{ } seats!
 	room-pictures room null @or to picture-word
 	picture-word null? if 0 1.6 0 0 0 290 new-picture exit then
 	picture-word execute

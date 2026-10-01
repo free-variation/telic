@@ -335,6 +335,21 @@ test-wasm: telic.wasm docs-tests
 bench:
 	@sh bench/run-benchmarks.sh
 
+# A single executable carrying one program, its directory of .telic files and
+# the files in ASSETS (tools/gen-bundle.py): make bundle GAME=examples/deadline.telic
+# builds bundles/deadline, which runs the program with every argument as its
+# args; make bundle GAME=examples/hobbit.telic ASSETS=data/hobbit.tzx carries
+# the tape too. Built without -march=native, so it runs on other machines of
+# the same architecture.
+GAME       ?= examples/deadline.telic
+ASSETS     ?=
+BUNDLE_BIN  = bundles/$(basename $(notdir $(GAME)))
+
+bundle: $(SRCS) $(HDRS) $(TELIC_DEPS) tools/gen-bundle.py
+	python3 tools/gen-bundle.py $(GAME) $(ASSETS)
+	mkdir -p bundles
+	$(CC) $(filter-out -march=native,$(CFLAGS)) -DTELIC_BUNDLE $(TELIC_INCS) -o $(BUNDLE_BIN) $(SRCS) $(TELIC_DEPS) $(LDLIBS) $(LDLIBS_CC)
+
 # Installation. The three binary-dir paths the language computes at run time —
 # "/lib/<name>" (load-library), "/external/lapacke/liblapacke_telic.so"
 # (lib/statistics.telic), and "/telic" (lib/mcp.telic) — fix the layout: the
@@ -355,6 +370,7 @@ install: all pack
 	ln -sf $(TELIC_HOME)/telic $(DESTDIR)$(BINDIR)/telic
 
 clean:
+	rm -rf bundles src/c/bundle_embed.h
 	rm -f telic telic.wasm $(PCRE2_OBJS) $(PCRE2_LIB) $(WASM_PCRE2_OBJS) $(WASM_PCRE2_LIB) $(SQLITE_OBJ) $(WASM_SQLITE_OBJ) $(SQLITE_VEC_OBJ) $(WASM_SQLITE_VEC_OBJ) $(NANOARROW_OBJS) $(WASM_NANOARROW_OBJS) $(POCKETFFT_OBJ) $(WASM_POCKETFFT_OBJ) $(TIGR_OBJ) $(MINIAUDIO_OBJ) $(ISOCLINE_OBJ) $(LAPACKE_OBJS) $(LAPACKE_LIB) $(LAPACKE_SHARED) $(LAPACKE_DIR)/exports.map
 
-.PHONY: all clean install test test-libs test-synth test-examples test-wasm bench wasm vendor-pcre2 vendor-sqlite vendor-isocline vendor-lapacke lapacke editors
+.PHONY: all clean install test test-libs test-synth test-examples test-wasm bench bundle wasm vendor-pcre2 vendor-sqlite vendor-isocline vendor-lapacke lapacke editors

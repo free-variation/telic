@@ -738,6 +738,12 @@ typedef struct {
 	const char *output;
 } HelpExample;
 
+typedef struct {
+	const char *path;
+	const unsigned char *bytes;
+	int n_bytes;
+} BundledFile;
+
 extern const HelpEntry help_entries[];
 extern const int help_entry_count;
 extern const char *const help_section_names[];
@@ -979,6 +985,7 @@ void execute_cfa(Interpreter *interp, int cfa);
 void execute_xt(Interpreter *interp, int cfa);
 void fail(Interpreter *interp, const char *fmt, ...);
 int find(const char *name);
+const BundledFile *find_bundled_path(const char *path);
 int find_local(const char *token, int *depth_out, int *slot_out);
 void forget_user(Interpreter *interp);
 void free_one_object(Object *obj);

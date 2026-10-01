@@ -5,9 +5,10 @@
 \ shows who is in the room then: before 6:00 pm as ink on paper, from then
 \ on as light on black. The text is wrapped to the window by the
 \ widths of the font's characters, measured once when the window opens.
-\ Return enters the line, backspace takes back a letter, up and down recall
-\ earlier commands, page up and page down scroll the story, and escape ends
-\ the game.
+\ Return enters the line, backspace takes back a letter, up and down scroll
+\ the story three rows and page up and page down half a screen, shift with up
+\ and down recalls earlier commands, and escape ends the game. Backspace, up
+\ and down repeat while held.
 
 640 480 screen-size
 2 screen-zoom
@@ -100,11 +101,36 @@
 ' window-write embodies write-out
 
 \ the rows to show: the story's, then the current line with what is being typed
-: visible-rows ( -- rows )
+\ every row of the story, the line being typed last
+: all-story-rows ( -- rows )
 	window :current @ window :typed @ + "_" + wrap-to-width to open-rows
-	window :rows @ open-rows concat to all-rows
+	window :rows @ open-rows concat ;
+
+\ the rows to show: while text waits behind a [MORE], a screenful from the first row not yet shown; otherwise the last screenful, scrolled back by page up
+: visible-rows ( -- rows )
+	all-story-rows to all-rows
+	window :more-at null @or to more-at
+	more-at null? not if all-rows more-at skip text-rows 1 - take [ "[MORE]" ] concat exit then
 	all-rows size text-rows - window :scrolled @ - 0 max2 to first-shown
 	all-rows first-shown skip text-rows take ;
+
+\ when the text since the last command would not fit on the screen with the line being typed, hold it behind a [MORE] from its first row
+: begin-more ( -- )
+	window :seen 0 @or to seen
+	all-story-rows size seen - text-rows > if window seen :more-at ! 0 :scrolled ! drop then ;
+
+\ a key shows the next screenful, and the last one ends the [MORE]; escape shows the end at once; the key is not typed into the command
+: more-keys ( -- )
+	typed-text to typed
+	:escape key-pressed? if window null :more-at ! drop exit then
+	typed size 0 > :return key-pressed? or :down key-pressed? or if
+		window :more-at @ text-rows 1 - + to next-row
+		all-story-rows size next-row - text-rows <= if null to next-row then
+		window next-row :more-at ! drop
+	then ;
+
+\ whether text is waiting behind a [MORE]
+: more-waiting? ( -- flag ) window :more-at null @or null? not ;
 
 \ === drawing ===
 
@@ -155,21 +181,53 @@ defer between-frames
 	recalled 0 = if "" else history history size recalled - @i then to line
 	window line :typed ! drop ;
 
-\ read the keys for the line being typed
+\ seconds a key is held before it repeats, and between repeats
+0.45 constant repeat-delay
+0.05 constant repeat-interval
+
+\ whether a key acts this frame: when it goes down, then repeatedly while it is held; one key repeats at a time
+: repeating? ( key -- flag )
+	| key |
+	window :held-key null @or to held
+	key key-pressed? if
+		window key :held-key ! now :held-since ! now :repeated-at ! drop
+		true exit
+	then
+	key key-down? not if
+		held key = if window null :held-key ! drop then
+		false exit
+	then
+	held key = not if false exit then
+	now window :held-since @ - repeat-delay < if false exit then
+	now window :repeated-at @ - repeat-interval < if false exit then
+	window now :repeated-at ! drop
+	true ;
+
+\ scroll the story back by some rows, or forward by a negative number, no further than its first row or its end
+: scroll-by ( rows -- )
+	| rows |
+	all-story-rows size text-rows - 0 max2 to furthest
+	window window :scrolled @ rows + 0 max2 furthest min2 :scrolled ! drop ;
+
+\ read the keys for the line being typed: up and down scroll the story three rows, shift with them recalls earlier commands
 : read-keys ( -- )
 	:escape key-pressed? if window :end-of-input :entered ! drop exit then
-	:page-up key-pressed? if window window :scrolled @ text-rows 2 / + :scrolled ! drop then
-	:page-down key-pressed? if window window :scrolled @ text-rows 2 / - 0 max2 :scrolled ! drop then
-	:up key-pressed? if 1 recall-command then
-	:down key-pressed? if -1 recall-command then
+	:page-up key-pressed? if text-rows 2 / scroll-by then
+	:page-down key-pressed? if text-rows 2 / negate scroll-by then
+	:shift key-down? to shifted
+	:up repeating? if shifted if 1 recall-command else 3 scroll-by then then
+	:down repeating? if shifted if -1 recall-command else -3 scroll-by then then
 	window :typed @ to line
 	typed-text string>chars to letters
 	0 letters size 1 do k
 		letters k @i to letter
 		letter 0 codepoint-at to code
-		code 32 >= code 127 < and line size 120 < and if line letter + to line then
+		code 32 >= code 127 < and line size 120 < and if
+			line letter + to line
+			window 0 :scrolled ! drop
+		then
 	loop
-	:backspace key-pressed? line size 0 > and if line 0 line size 1 - substring to line then
+	:backspace repeating? line size 0 > and if line 0 line size 1 - substring to line then
 	window line :typed ! drop
 	:return key-pressed? if window line :entered ! 0 :scrolled ! drop then ;
 
@@ -220,9 +278,14 @@ defer between-frames
 : window-read-line ( -- line )
 	refresh-picture
 	window "" :typed ! null :entered ! 0 :recalled ! drop
+	begin-more
 	begin
 		between-frames
-		( window :grammar-pages null @or null? if read-keys draw-window else grammar-keys draw-grammar then ) screen-frame
+		( window :grammar-pages null @or null? if
+			more-waiting? if more-keys else read-keys then draw-window
+		else
+			grammar-keys draw-grammar
+		then ) screen-frame
 		window :entered @ null? not
 	until
 	window :entered @ to line
@@ -230,16 +293,24 @@ defer between-frames
 	line "{0}{nl}" format window-write
 	line "" = not if window :history @ line add-last! drop then
 	window "" :typed ! drop
+	window window :rows @ size :seen ! drop
 	line ;
 
 ' window-read-line embodies read-command-line
 
 \ after the game ends, keep the window until a key is pressed
 : wait-for-a-key ( -- )
+	begin-more
+	window false :closing ! drop
 	begin
 		between-frames
-		( draw-window ) screen-frame
-		typed-text size 0 > :escape key-pressed? or :return key-pressed? or
+		( more-waiting? if
+			more-keys
+		else
+			typed-text size 0 > :escape key-pressed? or :return key-pressed? or if window true :closing ! drop then
+		then
+		draw-window ) screen-frame
+		window :closing @
 	until ;
 
 ' wait-for-a-key embodies close-display

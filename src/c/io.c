@@ -148,8 +148,15 @@ void p_file_exists(DISPATCH_ARGS) {
 	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
 	Val path_val = chain_sp[-1];
 	REQUIRE_CHAIN_TAG(path_val, T_STRING, "file-exists?", "a string");
+	const char *path = OBJECT_AT(VAL_DATA(path_val))->bytes;
 
-	chain_sp[-1] = make_bool(access(OBJECT_AT(VAL_DATA(path_val))->bytes, F_OK) == 0);
+#ifdef TELIC_BUNDLE
+	if (find_bundled_path(path)) {
+		chain_sp[-1] = make_bool(1);
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+	}
+#endif
+	chain_sp[-1] = make_bool(access(path, F_OK) == 0);
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
@@ -179,6 +186,16 @@ void p_read_file(DISPATCH_ARGS) {
 	Val path_val = chain_sp[-1];
 	REQUIRE_CHAIN_TAG(path_val, T_STRING, "read-file", "a string");
 
+#ifdef TELIC_BUNDLE
+	const BundledFile *bundled = find_bundled_path(OBJECT_AT(VAL_DATA(path_val))->bytes);
+	if (bundled) {
+		int bundled_handle = object_new_string(interp, (const char *)bundled->bytes, bundled->n_bytes);
+		if (interp->error_flag)
+			return;
+		chain_sp[-1] = make_string(bundled_handle);
+		DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+	}
+#endif
 	long size;
 	FILE *file = open_sized_read(interp, OBJECT_AT(VAL_DATA(path_val))->bytes, &size);
 	if (!file)

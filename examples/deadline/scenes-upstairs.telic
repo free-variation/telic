@@ -149,30 +149,43 @@
 	:george-door :open flag? if -7.5 -1 -1 hall-door-beyond then
 	:dunbar-door :open flag? if -1.5 -1 -1 hall-door-beyond then
 	:master-bedroom-door :open flag? if -1.5 1 1 hall-door-beyond then
+	\ the short halls off the Top of Stairs: the end wall and its doorway, the floor, then the side walls solid, so from any camera the nearer hides the farther
 	[ 1 -1 ] ( side |
-		0.2 pen!
-		0.3 0 side 0.3 0 side 4 * edge
-		1.8 0 side 1.8 0 side 4 * edge
-		0.3 2.8 side 0.3 2.8 side 4 * edge
-		1.8 2.8 side 1.8 2.8 side 4 * edge
-		0.12 pen!
-		0.3 0.9 side 0.3 0.9 side 4 * edge
-		1.8 0.9 side 1.8 0.9 side 4 * edge
+		side 4 * to far
+		[ [ 0.3 0 far ] [ 1.8 0 far ] [ 1.8 2.8 far ] [ 0.3 2.8 far ] ] 0 fill
 		0.15 pen!
-		[ [ 0.3 0 side 4 * ] [ 1.8 0 side 4 * ] [ 1.8 2.8 side 4 * ] [ 0.3 2.8 side 4 * ] ] outline
-		0.3 pen!
-		[ [ 0.65 0 side 4 * ] [ 0.65 2.05 side 4 * ] [ 1.45 2.05 side 4 * ] [ 1.45 0 side 4 * ] ] path
-		[ 1.05 2.6 side 2.5 * ] 0.6 0.1 glow
-		0.06 pen!
-		0.45 1.8 0.15 do x x 0 side x 0 side 4 * edge loop
+		[ [ 0.3 0 far ] [ 1.8 0 far ] [ 1.8 2.8 far ] [ 0.3 2.8 far ] ] outline
+		[ [ 0.65 0 far ] [ 0.65 2.05 far ] [ 1.45 2.05 far ] [ 1.45 0 far ] ] 0 fill
+		0.55 pen!
+		[ [ 0.65 0 far ] [ 0.65 2.05 far ] [ 1.45 2.05 far ] [ 1.45 0 far ] ] path
+		[ 1.05 2.6 side 2.5 * ] 0.9 0.22 glow
+		[ 1.05 0.2 side 2.5 * ] 1.2 0.08 glow
+		0.14 pen!
+		0.45 1.8 0.15 do x x 0 side x 0 far edge loop
 		0.14 pen!
 		[ [ 0.6 0 side ] [ 1.5 0 side ] [ 1.5 0 side 3.9 * ] [ 0.6 0 side 3.9 * ] ] outline
+		[ 0.3 1.8 ] ( wall-x |
+			[ [ wall-x 0 side ] [ wall-x 0 far ] [ wall-x 2.8 far ] [ wall-x 2.8 side ] ] 0 fill
+		) each
+		0.2 pen!
+		0.3 0 side 0.3 0 far edge
+		1.8 0 side 1.8 0 far edge
+		0.3 2.8 side 0.3 2.8 far edge
+		1.8 2.8 side 1.8 2.8 far edge
+		0.3 0 far 0.3 2.8 far edge
+		1.8 0 far 1.8 2.8 far edge
+		0.12 pen!
+		0.3 0.9 side 0.3 0.9 far edge
+		1.8 0.9 side 1.8 0.9 far edge
 	) each
 	\ then the side walls, solid, and the hall in front of them
 	[ [ -11.2 -10.2 2.2 ] [ -5.2 -3.8 2.2 ] [ -1.95 -1.05 2.1 ] [ 0.3 1.8 2.8 ] ] to north-gaps
 	[ [ -7.95 -7.05 2.1 ] [ -1.95 -1.05 2.1 ] [ 0.3 1.8 2.8 ] ] to south-gaps
 	1 north-gaps hall-wall-fill
 	-1 south-gaps hall-wall-fill
+	\ the stairwell's side walls, carrying the hall's walls on down to the foot of the stairs
+	2.4 6.2 -2.2 2.8 1 hall-wall-strips
+	2.4 6.2 -2.2 2.8 -1 hall-wall-strips
 	0.05 pen!
 	-0.9 0.95 0.15 do z -12 0 z 2.4 0 z edge loop
 	-11.7 2.3 hall-runner
@@ -237,9 +250,17 @@
 		tread height -0.85 tread height 0.85 edge
 	loop
 	[ 1 -1 ] ( side |
+		side 0.9 * to rail-z
+		0.3 pen!
+		0 12 1 do step
+			step 0.28 * 2.54 + to baluster
+			step 0.18 * negate to foot
+			baluster 2.4 - 3.36 / 2.16 * negate 0.95 + to top
+			baluster foot rail-z baluster top rail-z edge
+		loop
 		0.55 pen!
-		2.4 0.95 side 0.9 * 5.76 -1.21 side 0.9 * edge
-		2.35 0 side 0.9 * 0.06 - 2.47 1.05 side 0.9 * 0.06 + solid-box
+		2.4 0.95 rail-z 5.76 -1.21 rail-z edge
+		2.35 0 rail-z 0.06 - 2.47 1.05 rail-z 0.06 + solid-box
 	) each
 	0.42 pen!
 	2.4 2.8 1 6.2 2.8 1 edge
@@ -250,12 +271,12 @@
 
 \ === the hall ===
 
-\ looking west from the head of the stairs down the whole length of the hall
+\ from the head of the stairs, looking west along the hall and north down the short hall off it
 : stair-top-picture ( -- )
-	3.1 1.7 -0.65 -0.95 -0.07 230 new-picture
+	2.2 1.7 -0.8 -0.5 -0.07 230 new-picture
 	level-camera!
 	[ 1.05 2.6 0 ] lamp!
-	[ [ [ 1.0 0 0.2 ] 2.6 ] [ [ -0.6 0 -0.2 ] 1.9 ] [ [ 1.1 0 2.4 ] 2.8 ] ] spots!
+	[ [ [ -0.4 0 0.6 ] 2.07 ] [ [ 0.9 0 0.8 ] 2.46 ] [ [ 1.05 0 2.7 ] 2.82 ] ] spots!
 	upstairs-hall ;
 
 \ just west of the stairs, between Ms. Dunbar's door and the master bedroom door
@@ -666,6 +687,7 @@
 	level-camera!
 	[ -0.2 1.6 6.4 ] lamp!
 	[ [ 0.8 0 3.0 ] 2.6 0.4 upper-heading [ -0.9 0 4.3 ] 2.6 0.4 upper-heading [ 1.6 0 4.4 ] 2.6 0.4 upper-heading ] spots!
+	{ :mrs-robner { :sitting [ [ -0.55 0.1 1.4 ] PI 2 / ] } } seats!
 	0.06 pen!
 	[ -3 0 0 ] [ 3 0 0 ] [ 3 0 6 ] [ -3 0 6 ] 12 12 grid
 	\ light falling through the balcony door's blinds across the floor

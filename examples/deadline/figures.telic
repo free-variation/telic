@@ -3,9 +3,15 @@
 \ forward of the spot they stand on, turned to face a heading (0 faces north,
 \ PI south). Three settings shape the whole figure: stature scales heights,
 \ girth scales widths, and recline tips the figure back about its hips' line
-\ (PI/2 lays it on its back). A body hides what is behind it; only the lines
-\ on its near side are drawn, as bright as its surface is turned toward the
-\ lamp. Clothes are filled black and skin pale grey.
+\ (PI/2 lays it on its back). A posture, set before a figure is drawn,
+\ seats it or lays it down: seated, everything above the hips comes down to
+\ the knees' height, the thighs turn to run forward from the hips, and the
+\ shins hang straight down from the knees; lying, the figure is tipped onto
+\ its back as recline does, its feet at the spot and its head away from its
+\ heading. A body hides what is
+\ behind it; only the lines on its near side are drawn, as bright as its
+\ surface is turned toward the lamp. Clothes are filled black and skin pale
+\ grey.
 
 12 constant points-around
 
@@ -16,6 +22,14 @@ variable girth
 variable recline
 0 to recline
 
+\ how the next figure is posed: :standing, :sitting or :lying
+variable posture
+:standing to posture
+
+\ in a person's measure before stature scales it, the height of the hips and of the knees
+0.9 constant hip-line
+0.5 constant knee-line
+
 \ set the shape of the next figure
 : figure-shape! ( stature girth recline -- )
 	| new-stature new-girth new-recline ^stature ^girth ^recline |
@@ -23,12 +37,35 @@ variable recline
 	new-girth to girth
 	new-recline to recline ;
 
+: posture! ( new-posture -- )
+	| new-posture ^posture |
+	new-posture to posture ;
+
+\ a point in a person's measure as it is when seated: the body above the hips lowered to the knees' height, the thighs turned forward, the shins moved forward under the knees
+: seated ( local -- local' )
+	| local |
+	local spread to forward to up to right
+	up hip-line >= if [ right up hip-line knee-line - - forward ] exit then
+	up knee-line >= if [ right knee-line forward + hip-line up - ] exit then
+	[ right up forward hip-line knee-line - + ] ;
+
+\ an outward normal of a cross-section at a height, turned with the thigh when seated
+: seated-normal ( normal up -- normal' )
+	| normal up |
+	posture :sitting = not if normal exit then
+	up hip-line >= up knee-line < or if normal exit then
+	normal spread to forward to rising to right
+	[ right forward rising ] ;
+
+\ the figure's tilt back from upright: its recline, and a quarter turn more when it lies down
+: tilt ( -- angle ) posture :lying = if recline PI -2 / + else recline then ;
+
 \ a direction in a person's measure, tipped back by recline and turned to face a heading
 : turned ( direction heading -- direction' )
 	| direction heading |
 	direction spread to forward to up to right
-	recline cos to upright
-	recline sin to tipped
+	tilt cos to upright
+	tilt sin to tipped
 	up upright * forward tipped * - to raised
 	up tipped * forward upright * + to advanced
 	heading cos to cosine
@@ -38,7 +75,7 @@ variable recline
 \ a point in a person's measure placed at their spot, scaled by stature and girth
 : placed ( local spot heading -- point )
 	| local spot heading |
-	local spread to forward to up to right
+	posture :sitting = if local seated else local then spread to forward to up to right
 	[ right girth * up stature * forward girth * ] heading turned spot ' + 2 nmap ;
 
 \ the points of a cross-section [ right up forward half-width half-depth ] and their outward normals
@@ -52,7 +89,7 @@ variable recline
 		angle cos to across
 		angle sin to ahead
 		points [ right across half-width * + up forward ahead half-depth * + ] spot heading placed add-last! drop
-		normals [ across half-width / 0 ahead half-depth / ] heading turned add-last! drop
+		normals [ across half-width / 0 ahead half-depth / ] up seated-normal heading turned add-last! drop
 	loop
 	points normals ;
 
