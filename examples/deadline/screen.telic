@@ -135,9 +135,13 @@
 \ === drawing ===
 
 \ the room's picture as it stands now, or black in the dark
+\ whether every picture is drawn as light on black, whatever the hour: the argument dark
+variable always-dark
+args "dark" position-of 0 >= to always-dark
+
 : refresh-picture ( -- )
 	| ^daylight |
-	lit present-time 1080 < and to daylight
+	lit present-time 1080 < and always-dark not and to daylight
 	lit if here draw-room else 0 1.6 0 0 0 290 new-picture then
 	window picture>bitmap :picture ! drop ;
 

@@ -1,6 +1,6 @@
 \ Deadline (Infocom, 1982), translated from its ZIL source into telic.
 \
-\   ./telic examples/deadline.telic [text] [seed=N] [width=N] [save=path] [frotz=N]
+\   ./telic examples/deadline.telic [text] [dark] [seed=N] [width=N] [save=path] [frotz=N]
 \
 \ You are the inspector called to the Robner estate at 8:00 am to look into
 \ the death of Marshall Robner; you have until 8:00 pm. Type commands as in
@@ -9,7 +9,10 @@
 \ verb and the sentences it takes, and every synonym. The game runs in a
 \ window: the status line, a picture of the room with the people in it, and
 \ the story below; up and down scroll the story, as page up and page down do
-\ by half a screen, shift with up and down recalls commands, escape ends. text runs it in the terminal instead. seed=N fixes the random
+\ by half a screen, shift with up and down recalls commands, escape ends. The
+\ pictures are ink on paper before 6:00 pm and light on black after; dark
+\ draws them all as light on black. text runs it in the terminal instead.
+\ seed=N fixes the random
 \ numbers, so the same commands replay the same story; width=N wraps the
 \ terminal's text at N columns (0 does not wrap); save=path names the file
 \ SAVE and RESTORE use (deadline.save by default). frotz=N draws the random
