@@ -1,0 +1,73 @@
+\ Spitfire: points and directions in the ground frame, as arrays of three:
+\ metres east (x), up (y) and north (z). An attitude is a frame of three unit
+\ directions at right angles, :right, :up and :forward, the axes of whatever
+\ it belongs to, the aircraft or the eye.
+
+\ arithmetic on points and directions
+: v+ ( a b -- a+b ) ' + 2 nmap ;
+: v- ( a b -- a-b ) ' - 2 nmap ;
+: v* ( a k -- a*k )
+	| a k |
+	a ( k * ) map ;
+: v-dot ( a b -- product )
+	| a b |
+	a first b first * a second b second * + a 2 @i b 2 @i * + ;
+: v-cross ( a b -- a×b )
+	| a b |
+	a spread to az to ay to ax
+	b spread to bz to by to bx
+	[ ay bz * az by * -  az bx * ax bz * -  ax by * ay bx * - ] ;
+: v-length ( a -- length ) dup v-dot sqrt ;
+: v-unit ( a -- a' )
+	| a |
+	a a v-length 1e-9 max2 1 swap / v* ;
+
+\ the point a fraction of the way from one point to another
+: v-between ( a b t -- point )
+	| a b t |
+	a b a v- t v* v+ ;
+
+\ a direction turned by an angle about a unit axis (Rodrigues' formula)
+: v-rotate ( v axis angle -- v' )
+	| v axis angle |
+	angle cos to c
+	angle sin to s
+	v c v*  axis v v-cross s v* v+  axis axis v v-dot 1 c - * v* v+ ;
+
+\ a level attitude facing a compass heading in degrees, 0 north and 90 east
+: heading-attitude ( degrees -- attitude )
+	| degrees |
+	degrees PI 180 / * to bearing
+	[ bearing sin 0 bearing cos ] to forward
+	{ :forward forward :up [ 0 1 0 ] :right [ 0 1 0 ] forward v-cross } ;
+
+\ an attitude turned about one of its own axes; the other two axes turn with it
+: turn-attitude ( attitude axis-key angle -- attitude' )
+	| attitude axis-key angle |
+	attitude axis-key @ to axis
+	{ :right attitude@right axis angle v-rotate
+	  :up attitude@up axis angle v-rotate
+	  :forward attitude@forward axis angle v-rotate } ;
+
+\ an attitude made square again after many small turns: forward kept, up made perpendicular to it, right from the two
+: square-attitude ( attitude -- attitude' )
+	| attitude |
+	attitude@forward v-unit to forward
+	attitude@up forward attitude@up forward v-dot v* v- v-unit to up
+	{ :forward forward :up up :right up forward v-cross } ;
+
+\ a direction in an attitude's own terms (right, up, forward) as a ground direction
+: attitude>ground ( attitude local -- direction )
+	| attitude local |
+	local spread to ahead to rising to across
+	attitude@right across v*  attitude@up rising v* v+  attitude@forward ahead v* v+ ;
+
+\ a ground direction in an attitude's own terms
+: ground>attitude ( attitude direction -- local )
+	| attitude direction |
+	[ attitude@right direction v-dot attitude@up direction v-dot attitude@forward direction v-dot ] ;
+
+\ the compass heading of a direction in degrees, 0 north and 90 east
+: heading-of ( direction -- degrees )
+	| direction |
+	direction first direction 2 @i atan2 180 PI / * 360 + 360 mod ;

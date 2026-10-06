@@ -1,0 +1,505 @@
+\ Spitfire: the cockpit, laid out as a Mk I's. Below the windscreen the
+\ instrument panel stands on the cockpit's green wall. In its middle is the
+\ black blind-flying panel, six dials in two rows: the airspeed indicator,
+\ the artificial horizon and the rate of climb above; the altimeter, the
+\ directional gyro and the turn and slip indicator below. To its right are
+\ the engine's revolutions and boost, the oil and radiator temperatures and
+\ the fuel contents; to its left the clock, the undercarriage lights, the
+\ flaps' indicator, the brakes' air pressure and the magneto switches.
+\ Beneath the panel are the throttle lever and the control column's spade
+\ grip, which moves with the stick. The dials read in the RAF's units of
+\ 1940: miles an hour, feet, feet a minute, revolutions a minute, pounds a
+\ square inch of boost, degrees Celsius and gallons; the oil and radiator
+\ dials read the engine model of flight.telic, the radiator's red mark at
+\ the Merlin's published 120°C, and the brake reading is an estimate. The faces are
+\ marked as the surviving panels' are: the airspeed in tens of miles an
+\ hour, the altimeter and the revolution counter 0 to 9 with a long and a
+\ short hand, the rate of climb 1, 2 and 4 either side of the zero with UP
+\ above it, the directional gyro's card in tens of degrees through a
+\ window, the turn and slip's slip needle above and turn needle below its
+\ rate marks, L and R, and the boost gauge's red rim. The reflector
+\ sight hangs in the windscreen, the GM2's ring and cross. Everything is
+\ drawn through the view's deferred words, the labels and numerals in the
+\ stroke lettering of lettering.telic, 6 pixels high.
+
+defer draw-text
+\ fill a disc in a packed colour
+defer fill-disc
+\ a circle's outline in a packed colour
+defer draw-circle
+
+\ the game's state: what is shown, the message, the score
+variable game
+{ } to game
+
+: game! ( value key -- )
+	| value key ^game |
+	game value key ! drop ;
+
+: game@ ( key -- value ) game swap @ ;
+
+\ a message across the top of the view for a few seconds
+: say ( text -- )
+	| text |
+	text :message game!
+	4 :message-left game! ;
+
+480 constant screen-height
+view-height constant panel-top
+0x3a4632 constant wall-colour
+0x1a1a17 constant board-colour
+0x060606 constant blind-panel-colour
+0x14160f constant dial-colour
+0xd8d4c0 constant dial-ink
+0xf0c040 constant needle-colour
+0xd8963a constant sight-colour
+0x56606a constant sight-frame-colour
+0x707860 constant edge-colour
+0x2a2a26 constant grip-colour
+0x8a8a80 constant grip-edge-colour
+0xc09040 constant brass-colour
+0x9cc4a4 constant pedal-colour
+38 constant large-radius
+26 constant medium-radius
+17 constant small-radius
+panel-top 52 + constant upper-row
+panel-top 140 + constant lower-row
+panel-top 42 + constant side-row
+panel-top 112 + constant small-row
+panel-top 188 + constant floor-top
+
+
+\ a rectangle's outline
+: outline ( x y width height colour -- )
+	| x y width height colour |
+	x y x width + y colour draw-segment
+	x width + y x width + y height + colour draw-segment
+	x width + y height + x y height + colour draw-segment
+	x y height + x y colour draw-segment ;
+
+\ the heights of the panel's lettering and of its dials' numerals, pixels
+6 constant label-height
+6 constant numeral-height
+
+\ text in the window's font centred across a point, its top at y, for the messages and the title
+: centred-print ( x y text colour -- )
+	| x y text colour |
+	x text text-width 2 / - round y text colour draw-text ;
+
+\ a panel label in stroke lettering centred across a point, its top at y
+: centred-text ( x y text colour -- )
+	| x y text colour |
+	x y text label-height colour centred-lettering ;
+
+\ a hand from a dial's centre at an angle, 0 straight up and clockwise, reaching a fraction of the radius
+: hand ( cx cy radius angle reach colour -- )
+	| cx cy radius angle reach colour |
+	radius reach * to length
+	cx cy cx angle sin length * + cy angle cos length * - colour draw-segment ;
+
+\ the angle of a reading on a scale that sweeps 270° clockwise from the lower left
+: sweep ( value low high -- angle )
+	| value low high |
+	value low high clamp low - high low - / 1.5 * 0.75 - PI * ;
+
+\ one tick at a dial's rim
+: tick ( cx cy radius angle -- )
+	| cx cy radius angle |
+	cx angle sin radius 0.8 * * + cy angle cos radius 0.8 * * -
+	cx angle sin radius * + cy angle cos radius * -
+	dial-ink draw-segment ;
+
+\ n ticks evenly round the whole rim
+: dial-ticks ( cx cy radius n -- )
+	| cx cy radius n |
+	0 n 1 do k
+		cx cy radius k n / TAU * tick
+	loop ;
+
+\ n spaces of ticks along a sweep's scale, end to end
+: sweep-ticks ( cx cy radius n -- )
+	| cx cy radius n |
+	0 n 1+ 1 do k
+		cx cy radius k n / 1.5 * 0.75 - PI * tick
+	loop ;
+
+\ a dial's face and rim
+: dial-face ( cx cy radius -- )
+	| cx cy radius |
+	cx cy radius dial-colour fill-disc
+	cx cy radius dial-ink draw-circle ;
+
+\ a numeral or word on a dial's face, centred on a point at an angle and a fraction of the radius out
+: face-text ( cx cy radius angle reach text -- )
+	| cx cy radius angle reach text |
+	radius reach * to distance
+	cx angle sin distance * + cy angle cos distance * - numeral-height 2 / - text numeral-height dial-ink centred-lettering ;
+
+\ numerals evenly round a whole face, the first at the top
+: face-numerals ( cx cy radius numerals -- )
+	| cx cy radius numerals |
+	numerals size to n-numerals
+	0 n-numerals 1 do k
+		cx cy radius k n-numerals / TAU * 0.64 numerals k @i face-text
+	loop ;
+
+\ numerals at readings along a sweep scale, each [ value text ]
+: sweep-numerals ( cx cy radius low high marks -- )
+	| cx cy radius low high marks |
+	marks ( mark | cx cy radius mark first low high sweep 0.6 mark second face-text ) each ;
+
+\ a dial on a sweep scale with one hand, numerals at readings, and its label under it
+: sweep-dial ( cx cy radius value low high n-spaces marks label -- )
+	| cx cy radius value low high n-spaces marks label |
+	cx cy radius dial-face
+	cx cy radius n-spaces sweep-ticks
+	cx cy radius low high marks sweep-numerals
+	cx cy radius value low high sweep 0.85 needle-colour hand
+	cx cy radius + 3 + label dial-ink centred-text ;
+
+\ === the blind-flying panel ===
+
+\ the airspeed indicator: 0 to 480 mph once round, numbered in tens of miles an hour
+: draw-airspeed ( cx cy -- )
+	| cx cy |
+	cx cy large-radius dial-face
+	cx cy large-radius 12 dial-ticks
+	[ [ 100 "10" ] [ 200 "20" ] [ 300 "30" ] [ 400 "40" ] ] ( mark |
+		cx cy large-radius mark first 480 / TAU * 0.64 mark second face-text
+	) each
+	cx cy 4 + "M.P.H." dial-ink centred-text
+	cx cy large-radius plane indicated-speed 2.23694 * 480 / TAU * 0.85 needle-colour hand ;
+
+\ the artificial horizon: a line that tilts with the bank and moves with the pitch, kept inside the dial; the bank scale's marks at 0, 30 and 60 degrees round the bottom and the pointer turning against them
+: draw-horizon ( cx cy -- )
+	| cx cy |
+	cx cy large-radius dial-face
+	plane@attitude to attitude
+	attitude@forward second asin to pitch
+	attitude@right second asin negate to bank
+	pitch large-radius 2.2 * * to rise
+	bank cos to along-x
+	bank sin negate to along-y
+	large-radius 0.9 * to reach
+	rise along-y * to centre-along
+	centre-along sq rise sq - reach sq + to room
+	room 0 > if
+		room sqrt to half
+		centre-along negate half - to start
+		centre-along negate half + to finish
+		cx along-x start * + cy rise + along-y start * +
+		cx along-x finish * + cy rise + along-y finish * +
+		needle-colour draw-segment
+	then
+	cx 14 - cy cx 5 - cy dial-ink draw-segment
+	cx 5 + cy cx 14 + cy dial-ink draw-segment
+	cx cy 3 - cx cy dial-ink draw-segment
+	[ -60 -30 0 30 60 ] ( degrees | cx cy large-radius 180 degrees + PI 180 / * tick ) each
+	PI bank - to pointer
+	cx pointer sin large-radius 0.7 * * + cy pointer cos large-radius 0.7 * * -
+	cx pointer sin large-radius 0.92 * * + cy pointer cos large-radius 0.92 * * -
+	needle-colour draw-segment ;
+
+\ the rate of climb: thousands of feet a minute, UP above and down below the zero at nine o'clock, marked 1, 2 and 4
+: draw-climb ( cx cy -- )
+	| cx cy |
+	cx cy large-radius dial-face
+	cx cy large-radius 8 dial-ticks
+	[ -4000 -2000 -1000 0 1000 2000 4000 ] ( rate |
+		cx cy large-radius rate 4000 / PI 0.85 * * PI 2 / - 0.66 rate abs 1000 / round "{0:.0f}" format face-text
+	) each
+	cx 6 + cy 16 - "UP" dial-ink centred-text
+	plane@velocity second 196.85 * -4000 4000 clamp to feet-per-minute
+	cx cy large-radius feet-per-minute 4000 / PI 0.85 * * PI 2 / - 0.85 needle-colour hand ;
+
+\ the altimeter, numbered 0 to 9: the long hand once round a thousand feet, the short one ten thousand
+: draw-altimeter ( cx cy -- )
+	| cx cy |
+	cx cy large-radius dial-face
+	cx cy large-radius 10 dial-ticks
+	cx cy large-radius [ "0" "1" "2" "3" "4" "5" "6" "7" "8" "9" ] face-numerals
+	cx cy 6 + "ALT" dial-ink centred-text
+	plane@position second 3.28084 * to feet
+	cx cy large-radius feet 1000 / TAU * 0.85 needle-colour hand
+	cx cy large-radius feet 10000 / TAU * 0.5 dial-ink hand ;
+
+\ the directional gyro: its card seen through a window, marked every 5 degrees and numbered every 30 in tens of degrees with N, E, S and W, under the lubber line, in the middle the spade grip's ring leaves clear
+: draw-gyro ( cx cy -- )
+	| cx cy |
+	cx cy large-radius dial-face
+	cx 22 - cy 9 - 44 18 0x050505 fill-span
+	cx 22 - cy 9 - 44 18 dial-ink outline
+	plane@attitude@forward heading-of to heading
+	heading 20 - 5 / round-up 5 * to first-mark
+	first-mark heading 21 + 5 do degrees
+		cx degrees heading - + round to x
+		x cy 4 + x cy 8 + dial-ink draw-segment
+		degrees 360 + 360 mod round to bearing
+		bearing 30 mod 0 = if
+			[ [ 0 "N" ] [ 90 "E" ] [ 180 "S" ] [ 270 "W" ] ] ( cardinal | cardinal first bearing = ) filter to named
+			named size 0 > if named first second else bearing 10 / "{0:.0f}" format then to mark
+			x cy 8 - mark dial-ink centred-text
+		then
+	loop
+	cx cy 10 - cx cy 9 + needle-colour draw-segment ;
+
+\ the turn and slip indicator: the slip needle upward from the centre, out with the sideslip; the turn needle downward, against the rate marks 1 to 4 along the bottom (rate one 3° a second), L and R either side
+: draw-turn-and-slip ( cx cy -- )
+	| cx cy |
+	cx cy large-radius dial-face
+	[ -4 -3 -2 -1 0 1 2 3 4 ] ( rate | cx cy large-radius 180 rate 15 * + PI 180 / * tick ) each
+	[ -2 -1 0 1 2 ] ( mark | cx cy large-radius mark 12 * PI 180 / * tick ) each
+	cx 24 - cy 6 - "L" dial-ink centred-text
+	cx 24 + cy 6 - "R" dial-ink centred-text
+	plane@attitude plane@velocity ground>attitude spread to ahead drop to across
+	across ahead abs 1 max2 / 2 * -0.5 0.5 clamp to slip
+	cx cy large-radius slip 0.8 dial-ink hand
+	cx cy large-radius PI plane@turn-rate 3 / 15 * -60 60 clamp PI 180 / * - 0.8 needle-colour hand ;
+
+\ === the engine's instruments, right of the blind-flying panel ===
+
+0xb03020 constant boost-rim-colour
+0xd04030 constant warning-colour
+
+\ the revolution counter, numbered 0 to 9 like the altimeter, R.P.M. under it (the real face carries it, too small here beside the numerals): the long hand once round a thousand revolutions a minute, the short one ten thousand
+: draw-revolutions ( cx cy -- )
+	| cx cy |
+	cx cy medium-radius dial-face
+	cx cy medium-radius 10 dial-ticks
+	cx cy medium-radius [ "0" "1" "2" "3" "4" "5" "6" "7" "8" "9" ] face-numerals
+	cx cy medium-radius + 3 + "R.P.M." dial-ink centred-text
+	plane@revolutions 3000 * to rpm
+	cx cy medium-radius rpm 1000 / TAU * 0.85 needle-colour hand
+	cx cy medium-radius rpm 10000 / TAU * 0.5 dial-ink hand ;
+
+\ the boost gauge in its red rim, BOOST under it (the real face carries it, too small here beside the numerals)
+: draw-boost ( cx cy -- )
+	| cx cy |
+	cx cy medium-radius dial-face
+	cx cy medium-radius 9 sweep-ticks
+	cx cy medium-radius -6 12 [ [ -4 "-4" ] [ 0 "0" ] [ 4 "4" ] [ 8 "8" ] [ 12 "12" ] ] sweep-numerals
+	cx cy medium-radius + 3 + "BOOST" dial-ink centred-text
+	cx cy medium-radius plane@boost -6 12 sweep 0.85 needle-colour hand
+	cx cy medium-radius boost-rim-colour draw-circle
+	cx cy medium-radius 1 + boost-rim-colour draw-circle ;
+
+\ the oil pressure's upright strip gauge, OIL above and PSI below, 0 to 120 lb a square inch
+: draw-oil-pressure ( x top -- )
+	| x top |
+	x 6 - top 12 44 dial-colour fill-span
+	x 6 - top 12 44 dial-ink outline
+	0 5 1 do k
+		x 6 - top 4 + k 9 * + x 2 - top 4 + k 9 * + dial-ink draw-segment
+	loop
+	top 40 + plane@oil-pressure 120 / 0 1 clamp 36 * - to level
+	x 4 - level x 6 + level needle-colour draw-segment
+	x top 13 - "OIL" dial-ink centred-text
+	x top 46 + "PSI" dial-ink centred-text ;
+
+\ a small temperature dial, 0 to 140°C, with its name on its face, °C under it, and a red mark at its limit when it has one
+: draw-temperature ( cx cy celsius name limit -- )
+	| cx cy celsius name limit |
+	cx cy small-radius dial-face
+	cx cy small-radius 7 sweep-ticks
+	limit null? not if
+		limit 0 140 sweep to angle
+		cx angle sin small-radius 0.7 * * + cy angle cos small-radius 0.7 * * -
+		cx angle sin small-radius * + cy angle cos small-radius * -
+		warning-colour draw-segment
+	then
+	cx cy 2 + name dial-ink centred-text
+	cx cy small-radius celsius 0 140 sweep 0.85 needle-colour hand
+	cx cy small-radius + 3 + "°C" dial-ink centred-text ;
+
+\ the fuel contents in gallons, GALLONS FUEL on its face; the bottom tank's push button beside it
+: draw-fuel ( cx cy -- )
+	| cx cy |
+	cx cy medium-radius dial-face
+	cx cy medium-radius 8 sweep-ticks
+	cx cy 2 - "GALLONS" dial-ink centred-text
+	cx cy 9 + "FUEL" dial-ink centred-text
+	cx cy medium-radius plane@fuel 0 plane@fuel-capacity sweep 0.85 needle-colour hand
+	cx 56 + cy 8 - 5 dial-ink fill-disc
+	cx 56 + cy "BOTT." dial-ink centred-text
+	cx 56 + cy 12 + "TANK" dial-ink centred-text ;
+
+\ the right of the panel, as on the surviving panels: the revolution counter and the boost gauge; the oil pressure, the oil and radiator temperatures; the fuel contents
+: draw-engine-instruments ( -- )
+	483 side-row draw-revolutions
+	565 side-row draw-boost
+	470 side-row 54 + draw-oil-pressure
+	512 side-row 53 + plane@oil-temperature "OIL" null draw-temperature
+	562 side-row 53 + plane@coolant-temperature "RAD" coolant-limit draw-temperature
+	530 lower-row 21 + draw-fuel ;
+
+\ === the left of the panel ===
+
+\ the flaps' selector lever, its knob up or down, marked UP and DOWN; beside it the flaps' warning plate, worded as on the photographed panel
+: draw-flaps ( x top -- )
+	| x top |
+	x top "UP" dial-ink centred-text
+	x 4 - top 14 + 8 22 dial-ink outline
+	x top plane@flaps if 32 else 18 then + 5 needle-colour fill-disc
+	x top 38 + "DOWN" dial-ink centred-text
+	x 22 + top 2 + 116 52 0x050505 fill-span
+	x 22 + top 2 + 116 52 dial-ink outline
+	x 80 + top 5 + "WARNING" warning-colour centred-text
+	x 80 + top 17 + "FLAPS MUST NOT" dial-ink centred-text
+	x 80 + top 29 + "BE LOWERED" dial-ink centred-text
+	x 80 + top 41 + "ABOVE 140 IAS" dial-ink centred-text ;
+
+\ the oxygen regulator's delivery dial, set for the height above 10,000 ft
+: draw-oxygen ( row -- )
+	| row |
+	62 row 30 - "OXYGEN" dial-ink centred-text
+	plane@position second 3.28084 * 1000 / to thousands
+	thousands 10 < if 0 else thousands then to delivery
+	62 row small-radius dial-face
+	62 row small-radius 6 sweep-ticks
+	62 row small-radius delivery 0 40 sweep 0.85 needle-colour hand
+	62 row small-radius + 3 + "DELIVERY" dial-ink centred-text ;
+
+\ the elevator trim's indicator: its pointer from nose-down (DN) to nose-up (UP)
+: draw-trim ( cx cy -- )
+	| cx cy |
+	cx cy small-radius plane@trim -1 1 4 [ [ -1 "DN" ] [ 1 "UP" ] ] "TRIM" sweep-dial ;
+
+\ the brakes' air pressure: the supply, and the pressure at the wheels while the brakes are on
+: draw-brakes ( cx cy -- )
+	| cx cy |
+	cx cy small-radius dial-face
+	cx cy small-radius 6 sweep-ticks
+	cx cy small-radius controls@brakes if 100 else 0 then 0 300 sweep 0.85 needle-colour hand
+	cx cy small-radius 200 0 300 sweep 0.85 dial-ink hand
+	cx cy small-radius + 3 + "BRAKES" dial-ink centred-text ;
+
+\ the undercarriage's lights, red while up and green while down
+: draw-undercarriage ( cx cy -- )
+	| cx cy |
+	plane@gear to gear
+	cx cy 20 - "U/C" dial-ink centred-text
+	cx 13 - cy 6 gear if 0x401010 else 0xe04030 then fill-disc
+	cx 13 + cy 6 gear if 0x40e040 else 0x103010 then fill-disc
+	cx 13 - cy 9 + "UP" dial-ink centred-text
+	cx 13 + cy 9 + "DOWN" dial-ink centred-text ;
+
+\ the left of the panel, as on the surviving panels: the flaps' lever and warning plate; the oxygen delivery and the elevator trim's indicator; the brakes' pressure and the undercarriage's lights
+: draw-left-panel ( -- )
+	48 panel-top 10 + draw-flaps
+	panel-top 98 + draw-oxygen
+	134 panel-top 98 + draw-trim
+	62 lower-row 14 + draw-brakes
+	134 lower-row 12 + draw-undercarriage ;
+
+\ === beneath the panel ===
+
+\ the throttle lever in its quadrant on the left wall, forward for open, the boost cut-out's red lever lit when pushed forward; beside it the propeller's pitch lever, forward for fine pitch or the most revolutions
+: draw-throttle-lever ( -- )
+	14 floor-top 4 + 12 36 edge-colour outline
+	20 floor-top 6 + 20 floor-top 38 + edge-colour draw-segment
+	20 floor-top 34 + plane@throttle 26 * - 6 needle-colour fill-disc
+	30 floor-top 4 + 4 plane@boost-cut-out if warning-colour else 0x502018 then fill-disc
+	plane@propeller :constant-speed = if
+		plane@revolution-setting lowest-revolutions - rated-revolutions lowest-revolutions - /
+	else
+		plane@fine if 1 else 0 then
+	then to pitch
+	44 floor-top 4 + 12 36 edge-colour outline
+	50 floor-top 6 + 50 floor-top 38 + edge-colour draw-segment
+	50 floor-top 34 + pitch 26 * - 5 dial-ink fill-disc ;
+
+\ the rudder pedals on the floor, each a frame narrowing forward with two bars across it; the pedal on the rudder's side pushed forward and the other drawn back
+: draw-pedals ( -- )
+	controls@yaw 8 * to push
+	[ [ 250 push ] [ 390 push negate ] ] to pedals
+	0 2 1 do k
+		pedals k @i spread to offset to x
+		floor-top 8 + offset + to top
+		top 28 + to bottom
+		x 24 - top x 24 + top pedal-colour draw-segment
+		x 24 + top x 30 + bottom pedal-colour draw-segment
+		x 30 + bottom x 30 - bottom pedal-colour draw-segment
+		x 30 - bottom x 24 - top pedal-colour draw-segment
+		x 26 - top 9 + x 26 + top 9 + pedal-colour draw-segment
+		x 28 - top 19 + x 28 + top 19 + pedal-colour draw-segment
+	loop ;
+
+\ the control column and its spade grip, a ring with the gun button on it, standing over the directional gyro: the ring moves right and left with the roll and toward the pilot when pulled back; the button red while firing
+: draw-column ( -- )
+	320 controls@roll 14 * + to grip-x
+	lower-row controls@pitch 10 * + to grip-y
+	grip-y 42 + to shaft-top
+	-5 6 1 do k
+		320 k + 480 grip-x k + shaft-top grip-colour draw-segment
+	loop
+	314 480 grip-x 6 - shaft-top grip-edge-colour draw-segment
+	326 480 grip-x 6 + shaft-top grip-edge-colour draw-segment
+	60 85 1 do k
+		grip-x grip-y k 2 / grip-colour draw-circle
+	loop
+	grip-x grip-y 42 grip-edge-colour draw-circle
+	grip-x grip-y 30 grip-edge-colour draw-circle
+	grip-x 25 - grip-y 25 - 7 :firing game@ if 0xff4030 else brass-colour then fill-disc ;
+
+\ the GM2's ring, 59 mils in radius, and the range at which the range bars are set, 300 yards
+0.059 constant sight-ring-angle
+274 constant sight-range
+\ the wingspan the range bars are set for, the raid's bomber's
+variable sight-span
+20.08 to sight-span
+
+\ a line of the sight's reticle, one pixel wide
+: sight-line ( x0 y0 x1 y1 -- )
+	| x0 y0 x1 y1 |
+	x0 y0 x1 y1 sight-colour draw-segment ;
+
+\ the sight itself, in faint lines: the reflector glass, a plate standing over the panel's coaming with its upper corners cut, the reticle in the middle of it; the two posts holding it; the housing of the lamp and lens below it on the coaming
+: draw-sight-outline ( cx cy -- )
+	| cx cy |
+	sight-frame-colour lighting dimmed to colour
+	[ [ -66 -62 ] [ -54 -74 ] [ 54 -74 ] [ 66 -62 ] [ 66 58 ] [ -66 58 ] ] ( corner | [ cx corner first + cy corner second + ] ) map to glass
+	0 glass size 1 do k
+		glass k @i spread glass k 1+ glass size mod @i spread colour draw-clipped
+	loop
+	[ -1 1 ] ( side |
+		cx side 60 * + cy 58 + cx side 30 * + view-height 1 - colour draw-clipped
+	) each
+	cx 30 - view-height 18 - cx 30 + view-height 18 - colour draw-clipped
+	cx 30 - view-height 18 - cx 30 - view-height 1 - colour draw-clipped
+	cx 30 + view-height 18 - cx 30 + view-height 1 - colour draw-clipped ;
+
+\ the reflector sight in the windscreen, centred on the guns' line: the sight's own faint outline; the ring with the centre spot; a cross whose four arms stand outside the ring, each as long as the ring's radius; and inside the ring the horizontal range bars, broken by a gap that the target's wingspan fills at the set range
+: draw-sight ( -- )
+	view-centre-x to cx
+	view-centre-y to cy
+	focal-length sight-ring-angle * round to radius
+	focal-length sight-span 2 / * sight-range / round to gap
+	cx cy draw-sight-outline
+	cx cy radius sight-colour draw-circle
+	cx cy 1 sight-colour fill-disc
+	cx cy radius 2 * - cx cy radius - sight-line
+	cx cy radius + cx cy radius 2 * + sight-line
+	cx radius 2 * - cy cx radius - cy sight-line
+	cx radius + cy cx radius 2 * + cy sight-line
+	cx radius - cy cx gap - cy sight-line
+	cx gap + cy cx radius + cy sight-line ;
+
+\ the whole cockpit below the windscreen
+: draw-panel ( -- )
+	0 panel-top view-width screen-height panel-top - wall-colour fill-span
+	0 panel-top view-width panel-top edge-colour draw-segment
+	30 panel-top 6 + 580 182 board-colour fill-span
+	30 panel-top 6 + 580 182 edge-colour outline
+	188 panel-top 8 + 264 176 blind-panel-colour fill-span
+	188 panel-top 8 + 264 176 edge-colour outline
+	236 upper-row draw-airspeed
+	320 upper-row draw-horizon
+	404 upper-row draw-climb
+	236 lower-row draw-altimeter
+	320 lower-row draw-gyro
+	404 lower-row draw-turn-and-slip
+	draw-engine-instruments
+	draw-left-panel
+	draw-throttle-lever
+	draw-pedals
+	draw-column ;

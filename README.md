@@ -447,9 +447,10 @@ Embedded relational storage via the vendored SQLite amalgamation — built into 
 
 ### Graphics
 
-- **A screen that is simply there** — `plot`, `line`, `rect`, `fill-rect`, `circle`, `fill-circle`, `print-at` and `cls` draw into a window the first of them opens, with no setup and no event loop; `ink` and `paper` take a hex color or one of 157 X11 color names, the same names `format` and `print-at` accept as `{name}` color tags, `screen-size` sets the dimensions in virtual pixels and `screen-zoom` how large each one is displayed, `screen-shader` and `screen-effect` present the window through a GLSL shader, `screen-frame` presents what a quotation draws as one frame, and `screen-frames` counts the frames presented.
+- **A screen that is simply there** — `plot`, `line`, `rect`, `fill-rect`, `circle`, `fill-circle`, `print-at` and `cls` draw into a window the first of them opens, with no setup and no event loop; `ink` and `paper` take a hex color or one of 157 X11 color names, the same names `format` and `print-at` accept as `{name}` color tags, `text-width` measures text in the window's font, `screen-size` sets the dimensions in virtual pixels and `screen-zoom` how large each one is displayed, `screen-shader` and `screen-effect` present the window through a GLSL shader, `screen-frame` presents what a quotation draws as one frame, and `screen-frames` counts the frames presented.
 - **Sprites** — bitmaps are matrices of packed colors with per-pixel transparency, made from text art (`art>bitmap`), sprite sheets (`sheet>bitmaps`), the canvas (`capture-bitmap`) or image files through ffmpeg (`read-bitmap`, `write-bitmap`), turned by `rotate-bitmap` and `rotate-bitmap-angle` and composited by `draw-bitmap` and `blit`; a sprite is a frame of named animations that `play-animation`, `advance-sprite` and `animation-finished?` drive, drawn by `draw-sprite` and `draw-sprites` in depth order, and tested with `sprites-overlap?`, `sprites-collide?` and `colliding-sprites`.
 - **Keyboard** — `key-down?` and `key-pressed?` read keys by US position from a state fixed per frame, and `typed-text` returns the characters typed.
+- **Gamepads** — `gamepads`, `gamepad-down?`, `gamepad-pressed?` and `gamepad-axis` read buttons by position and sticks and triggers as numbers from a state fixed per frame.
 
 ### Audio
 
@@ -562,7 +563,8 @@ src/c/foreign.c        — FFI (libffi), pointer registry, matrix/segment bridge
 src/c/platform_posix.c — POSIX platform: arena mmap, isocline REPL, subprocesses
 src/c/platform_wasi.c  — WASI platform: allocator + erroring stubs for FFI/subprocess
 src/c/arrow.c          — Arrow IPC files via nanoarrow: read-arrow/write-arrow
-src/c/graphics.c       — the Tigr window, drawing, bitmap compositing, keyboard, and the thread-0 event pump
+src/c/graphics.c       — the Tigr window, drawing, bitmap compositing, keyboard, gamepads, and the thread-0 event pump
+src/c/gamepads.c       — gamepad input: GameController on macOS, evdev on Linux
 src/c/help_table.c     — generated help/man text (from docs/reference.md)
 src/forth/*.telic        — standard library (concatenated in Makefile order, embedded)
 lib/                   — loadable libraries: statistics.telic, plot.telic, http.telic, claude.telic, mcp.telic
@@ -571,7 +573,7 @@ tests/                 — golden-output test files; tests/lib/ the loadable-lib
 bench/                 — benchmark suite (Telic vs CPython) and inventory
 docs/                  — the word reference (reference.md, reference-libraries.md), idioms.md,
                          and the primers: continuations, logic, tracing, synthesizer
-examples/              — graphics demos (primitives, shader), a Bach chorale on the synthesizer with a live spectrum analyzer, and Space Invaders (sprites, keyboard, synthesized music and effects; CC0 art in examples/assets), also in 3D through a GPU shader that reads the game state from the canvas, and Ms. Pac-Man with the arcade's four mazes and fruit routes, also in 3D through her eyes, and Star Raiders with the cartridge's galaxy, hyperwarp, docking and Zylon fleet, and The Hobbit running the ZX Spectrum tape's own data (read from a user-supplied .tzx) with its independent characters, redrawn vector pictures, new pictures for the 57 rooms the tape leaves without one, and new sound, and Infocom's Deadline translated from its ZIL source, with its parser, its timed plot and seven people keeping their own schedules, played in a window with a noir wireframe picture of every room and the people in it
+examples/              — graphics demos (primitives, shader), a Bach chorale on the synthesizer with a live spectrum analyzer, and Space Invaders (sprites, keyboard, synthesized music and effects; CC0 art in examples/assets), also in 3D through a GPU shader that reads the game state from the canvas, and Ms. Pac-Man with the arcade's four mazes and fruit routes, also in 3D through her eyes, and Star Raiders with the cartridge's galaxy, hyperwarp, docking and Zylon fleet, and The Hobbit running the ZX Spectrum tape's own data (read from a user-supplied .tzx) with its independent characters, redrawn vector pictures, new pictures for the 57 rooms the tape leaves without one, and new sound, and Infocom's Deadline translated from its ZIL source, with its parser, its timed plot and seven people keeping their own schedules, played in a window with a noir wireframe picture of every room and the people in it, and a Spitfire Mk I over central Scotland in wireframe, its flight model built to the published figures, with missions against the Ju 88 raid on the Forth of October 1939 and the night raids on Clydebank and Greenock of 1941, a photographic reconnaissance sortie in the unarmed PR Spitfire from Wick to photograph the Tirpitz at Trondheim, its film developed and reviewed after landing, a flying lesson with an instructor in the back seat from the take-off to the landing, free flight, and landing practice in clear air and in fog, under cumulus that hides what lies behind it
 PLAN.md                — future work
 ```
 

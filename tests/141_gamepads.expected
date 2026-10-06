@@ -1,0 +1,19 @@
+0 
+0 0 0 0 
+0 0 0 0 
+0 0 0 0 
+0 0 
+error: unknown gamepad button :shift
+in gamepad-down?
+error: expected a gamepad button name (a symbol such as :south); got a string
+in gamepad-down?
+error: expected a gamepad number (an integer from 0); got -1
+in gamepad-pressed?
+error: expected a gamepad number (an integer from 0); got 0.5
+in gamepad-down?
+error: expected a gamepad number; got a string
+in gamepad-down?
+error: unknown gamepad axis :up
+in gamepad-axis
+error: unknown gamepad axis :south
+in gamepad-axis

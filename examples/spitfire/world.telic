@@ -1,0 +1,341 @@
+\ Spitfire: the scenery that stays put. The coasts, lochs and rivers come
+\ from geography.telic; the hills are the real summits it names, with ridges
+\ of lesser tops either side of them laid along the ranges' directions (the
+\ Pentlands south-west to north-east, the Ochils and Campsies west to east)
+\ and Highland hills along both sides of Loch Ness, whose heights are
+\ representative rather than surveyed. The towns are their landmarks at the
+\ map's positions, built to their published heights where a figure exists
+\ (the Forth Bridge's towers 110 m above high water and its rail 46 m, the
+\ Scott Monument 61 m, the University's tower 85 m), with streets of
+\ tenements, shops and New Town terraces between them; the airfields are the
+\ RAF stations of 1940: Turnhouse and Drem for Edinburgh, Abbotsinch for
+\ Glasgow, Dalcross for Inverness. Everything is built once into objects and
+\ gathered into the collection the view culls.
+
+0xb8c8e0 constant coast-colour
+0x6a9ad0 constant bank-colour
+0x7c9a5a constant hill-colour
+0xc8c0b0 constant stone-colour
+0xa09080 constant town-colour
+0xd04030 constant bridge-colour
+0xe8e8e0 constant runway-colour
+0x90a070 constant field-colour
+0x5a8040 constant tree-colour
+
+variable scenery
+[ ] to scenery
+\ every hill as [ x z radius height ], for the ground's height under the aircraft
+variable hill-cones
+[ ] to hill-cones
+
+\ the ground's height at a point: the tallest hill's cone over it, else sea level
+: ground-height ( x z -- height )
+	| x z |
+	hill-cones 0 ( highest cone |
+		cone spread to peak to reach to cone-z to cone-x
+		cone-x x - sq cone-z z - sq + sqrt reach / 1 swap - peak * highest max2
+	) reduce ;
+
+\ the water's rings, gathered as the scenery is built: the map's frame, the land's outlines, the lochs, the islands and the rivers' strips across the land
+variable water-rings
+[ ] to water-rings
+
+\ add a ring to the water's
+: keep-water-ring ( ring -- )
+	| ring ^water-rings |
+	water-rings ring add-last! drop ;
+
+\ add a finished sketch to the scenery
+: keep ( sketch colour -- )
+	| sketch colour ^scenery |
+	scenery sketch colour sketch>object add-last! drop ;
+
+\ a landmark's ground point, [ x 0 z ]
+: landmark-ground ( key -- point )
+	| key |
+	landmarks key @ spread drop to z to x
+	[ x 0 z ] ;
+
+\ a landmark's height from the map
+: landmark-height ( key -- metres ) landmarks swap @ 2 @i ;
+
+\ the heading from one landmark to another, degrees
+: landmark-heading ( from to -- degrees )
+	| origin destination |
+	destination landmark-ground origin landmark-ground v- heading-of ;
+
+\ === lines on the ground ===
+
+\ a path as objects of at most twelve points each, so each piece culls on its own
+: keep-path ( points colour -- )
+	| points colour |
+	0 points size 1- 11 do start
+		points start skip 12 take to piece
+		piece size 2 >= if
+			new-sketch to sketch
+			sketch piece sketch-path
+			sketch colour keep
+		then
+	loop ;
+
+\ a closed shore as a path back to its start
+: keep-shore ( points colour -- )
+	| points colour |
+	points [ points first ] concat colour keep-path ;
+
+\ a stretch of river as a ring of [ x z ] points: one bank downstream, the other back up
+: river-ring ( course half-width -- ring )
+	| course half-width |
+	course half-width offset-path course half-width negate offset-path reverse concat
+	( point | [ point first point 2 @i ] ) map ;
+
+\ a river as its two banks either side of its course, and its strips of water where its course crosses land: runs of the segments whose middles are not already water
+: keep-river ( course half-width -- )
+	| course half-width |
+	course half-width offset-path bank-colour keep-path
+	course half-width negate offset-path bank-colour keep-path
+	[ ] to run
+	0 course size 1- 1 do k
+		course k @i to start
+		course k 1+ @i to finish
+		start first finish first + 2 / start second finish second + 2 / water-at? if
+			run size 2 >= if run half-width river-ring keep-water-ring then
+			[ ] to run
+		else
+			run size 0 = if run start add-last! drop then
+			run finish add-last! drop
+		then
+	loop
+	run size 2 >= if run half-width river-ring keep-water-ring then ;
+
+\ an island too small for the map's land: a ring of eight points round its landmark, as land amid the water
+: keep-island ( key radius -- )
+	| key radius |
+	key landmark-ground to centre
+	[ 0 8 1 do k
+		k 8 / TAU * to angle
+		[ centre first angle sin radius * + centre 2 @i angle cos radius * + ]
+	loop ] keep-water-ring ;
+
+: build-waters ( -- )
+	| ^water-rings |
+	land-outlines [ south-land ] concat to water-rings
+	lochs values ( loch | loch@shores ( shore | shore keep-water-ring ) each ) each
+	water-rings water-rings!
+	coastlines ( coast | coast 0 ground-path coast-colour keep-path ) each
+	lochs values ( loch |
+		loch@shores ( shore | shore loch@height ground-path bank-colour keep-shore ) each
+	) each
+	rivers@clyde 90 keep-river
+	rivers@forth 70 keep-river
+	rivers@kelvin 12 keep-river
+	rivers@ness ( course | course 25 keep-river ) each
+	[ [ :inchkeith 500 ] [ :inchcolm 300 ] [ :cramond-island 300 ] [ :bass-rock 200 ] ] ( island | island spread keep-island ) each
+	norway-shores ( shore | shore 0 ground-path coast-colour keep-path ) each
+	:faettenfjord landmark-ground to norway-centre
+	[ [ 0 130000 water-rings rings>edge-set ]
+	  [ norway-centre first norway-centre 2 @i norway-outlines norway-bands concat rings>edge-set ] ] water-regions!
+	[ 0 0 0 ] use-water-near ;
+
+\ === hills ===
+
+\ a cone of ground for the ground's height alone, where a model draws the hill itself
+: keep-cone ( centre radius height -- )
+	| centre radius height ^hill-cones |
+	hill-cones [ centre first centre 2 @i radius height ] add-last! drop ;
+
+\ a hill at a point
+: keep-hill ( centre radius height seed -- )
+	| centre radius height seed |
+	centre radius height keep-cone
+	new-sketch to sketch
+	sketch centre radius height seed sketch-hill
+	sketch hill-colour keep ;
+
+\ a range: its highest summit at a point and lesser tops either side along a heading, a spacing apart
+: keep-range ( centre heading spacing heights radius -- )
+	| centre heading spacing heights radius |
+	heights 0 ' max2 reduce to highest
+	heights highest position-of to peak-index
+	0 heights size 1 do k
+		centre heading 0 0 k peak-index - spacing * placed radius heights k @i k 1.7 * keep-hill
+	loop ;
+
+: build-hills ( -- )
+	:arthurs-seat landmark-ground 700 :arthurs-seat landmark-height 1 keep-hill
+	:calton-hill landmark-ground 250 :calton-hill landmark-height 2 keep-hill
+	:st-margarets-chapel landmark-ground 160 78 keep-cone
+	:scald-law landmark-ground 40 2800 [ 420 510 :scald-law landmark-height 520 480 ] 1500 keep-range
+	:ben-cleuch landmark-ground 75 3200 [ 520 610 :ben-cleuch landmark-height 650 580 500 ] 1700 keep-range
+	:west-lomond landmark-ground 1600 :west-lomond landmark-height 4 keep-hill
+	:earls-seat landmark-ground 80 2600 [ 480 :earls-seat landmark-height 540 500 ] 1500 keep-range
+	:ben-lomond landmark-ground 2600 :ben-lomond landmark-height 5 keep-hill
+	:tinto landmark-ground 2200 :tinto landmark-height 6 keep-hill
+	:north-berwick-law landmark-ground 400 :north-berwick-law landmark-height 7 keep-hill
+	:bass-rock landmark-ground 200 :bass-rock landmark-height 8 keep-hill
+	:craig-phadrig landmark-ground 600 172 9 keep-hill
+	:inchkeith landmark-ground 500 60 10 keep-hill
+	:inchcolm landmark-ground 300 30 11 keep-hill
+	:cramond-island landmark-ground 300 :cramond-island landmark-height 12 keep-hill
+	:stirling-castle landmark-ground 300 75 13 keep-hill
+	:wallace-monument landmark-ground 400 90 14 keep-hill
+	:dumbarton-castle landmark-ground 200 73 15 keep-hill
+	\ the Highland hills either side of Loch Ness, along the Great Glen
+	:urquhart-castle landmark-ground to glen-centre
+	-20000 20001 4000 do along
+		[ -1 1 ] ( side |
+			glen-centre 40 side 4500 * 0 along placed
+			2200 along side + 0.37 * sin 150 * 600 + 20 along 1000 / + side + keep-hill
+		) each
+	loop ;
+
+\ === airfields ===
+
+\ an RAF airfield of 1940: the landing ground's boundary, a runway with dashes down it, hangars and the watch office, beside a point on a heading
+: keep-airfield ( centre heading -- )
+	| centre heading |
+	new-sketch to field
+	field centre heading 1600 1600 0 rectangle-corners sketch-loop
+	field field-colour keep
+	new-sketch to runway
+	runway centre heading 46 1250 0 rectangle-corners sketch-loop
+	-560 561 80 do along
+		runway [ centre heading 0 0 along placed centre heading 0 0 along 40 + placed ] sketch-path
+	loop
+	runway runway-colour keep
+	new-sketch to hangars
+	[ -260 -130 0 ] ( along | hangars centre heading 520 0 along placed heading 40 60 12 15 sketch-house ) each
+	hangars centre heading 470 0 160 placed heading 14 10 8 sketch-box
+	hangars centre heading 470 0 230 placed 0 3 3 10 sketch-box
+	hangars town-colour keep ;
+
+: build-airfields ( -- )
+	:turnhouse landmark-ground 60 keep-airfield
+	:drem landmark-ground 90 keep-airfield
+	:abbotsinch landmark-ground 50 keep-airfield
+	:dalcross landmark-ground 60 keep-airfield
+	:wick landmark-ground 130 keep-airfield ;
+
+\ === streets ===
+
+\ whether any of a block's ends or its middle stands on water
+: block-in-water? ( start heading across along length -- flag )
+	| start heading across along length |
+	[ length -2 / 0 length 2 / ] ( offset |
+		start heading across 0 along offset + placed to point
+		point first point 2 @i water-at?
+	) any? ;
+
+\ a row of tenements along a street: blocks a length long and a height high, either side or one side, leaving out any block that would stand in water
+: keep-street ( start heading n-blocks length gap height sides -- )
+	| start heading n-blocks length gap height sides |
+	new-sketch to street
+	0 n-blocks 1 do k
+		k length gap + * length 2 / + to along
+		sides ( side |
+			start heading side 22 * along length block-in-water? not if
+				street start heading side 22 * 0 along placed heading 14 length height sketch-box
+			then
+		) each
+	loop
+	street@points size 0 > if street town-colour keep then ;
+
+\ === the Forth Bridge ===
+
+\ one double cantilever: a tower 110 m high on its pier and an arm reaching each way to its tip at the rail, its sides leaning in from 18 m apart at the water to 5 m at the top
+: keep-cantilever ( origin heading along -- )
+	| origin heading along |
+	new-sketch to cantilever
+	[ -1 1 ] ( side |
+		[ -1 1 ] ( way |
+			origin heading side 18 * 0 along way 40 * + placed to foot
+			origin heading side 5 * 110 along way 22 * + placed to tower-top
+			origin heading side 8 * 46 along way 247 * + placed to tip
+			origin heading side 14 * 26 along way 150 * + placed to bow
+			cantilever [ foot tower-top tip bow foot ] sketch-path
+			cantilever [ bow foot tower-top bow ] sketch-path
+			foot tower-top 0.5 v-between to tower-middle
+			cantilever [ tower-middle bow tower-top tip 0.5 v-between bow ] sketch-path
+		) each
+		cantilever [ origin heading side 18 * 0 along 40 - placed origin heading side 18 * 0 along 40 + placed ] sketch-path
+		cantilever [ origin heading side 5 * 110 along 22 - placed origin heading side 5 * 110 along 22 + placed ] sketch-path
+	) each
+	[ -22 22 ] ( at | cantilever [ origin heading -5 110 along at + placed origin heading 5 110 along at + placed ] sketch-path ) each
+	cantilever bridge-colour keep ;
+
+: build-forth-bridge ( -- )
+	:inchgarvie :north-queensferry landmark-heading to bridge-heading
+	:inchgarvie landmark-ground to bridge-centre
+	[ -600 0 600 ] ( along | bridge-centre bridge-heading along keep-cantilever ) each
+	new-sketch to deck
+	[ -6 6 ] ( side |
+		deck [ bridge-centre bridge-heading side 46 -1437 placed bridge-centre bridge-heading side 46 1030 placed ] sketch-path
+	) each
+	[ -353 353 ] ( middle |
+		[ -6 6 ] ( side |
+			deck [ bridge-centre bridge-heading side 46 middle 53 - placed bridge-centre bridge-heading side 60 middle placed
+			       bridge-centre bridge-heading side 46 middle 53 + placed ] sketch-path
+		) each
+	) each
+	-1437 -846 50 do along
+		deck [ bridge-centre bridge-heading 0 0 along placed bridge-centre bridge-heading 0 46 along placed ] sketch-path
+	loop
+	847 1031 50 do along
+		deck [ bridge-centre bridge-heading 0 0 along placed bridge-centre bridge-heading 0 46 along placed ] sketch-path
+	loop
+	deck bridge-colour keep ;
+
+\ === shipyards ===
+
+\ a shipyard crane: a tower and its hammerhead jib
+: sketch-crane ( sketch foot heading -- )
+	| sketch foot heading |
+	sketch foot heading 8 8 46 sketch-box
+	sketch [ foot heading 0 46 -25 placed foot heading 0 46 45 placed foot heading 0 52 0 placed foot heading 0 46 -25 placed ] sketch-path ;
+
+\ a ship's hull on a slipway: its deck outline and keel line
+: sketch-hull ( sketch centre heading length -- )
+	| sketch centre heading length |
+	length 2 / to half
+	sketch [ centre heading 0 0 half negate placed centre heading -11 12 half negate 20 + placed centre heading -11 12 half placed
+	         centre heading 0 14 half 15 + placed centre heading 11 12 half placed centre heading 11 12 half negate 20 + placed ] sketch-loop
+	sketch [ centre heading 0 0 half negate placed centre heading 0 0 half placed centre heading 0 14 half 15 + placed ] sketch-path ;
+
+\ === Stirling and Urquhart ===
+
+: build-stirling ( -- )
+	:stirling-castle landmark-ground [ 0 75 0 ] v+ to castle-top
+	new-sketch to stirling
+	stirling castle-top 70 50 80 14 20 sketch-house
+	stirling castle-top 70 60 0 0 placed 70 40 50 14 sketch-box
+	stirling stone-colour keep
+	new-sketch to monument
+	monument :wallace-monument landmark-ground [ 0 90 0 ] v+ 10 55 12 sketch-spire
+	monument stone-colour keep ;
+
+: build-urquhart ( -- )
+	new-sketch to urquhart
+	urquhart :urquhart-castle landmark-ground [ 0 16 0 ] v+ 0 12 12 22 sketch-box
+	urquhart :urquhart-castle landmark-ground [ 0 16 0 ] v+ 70 60 0 0 placed 70 40 30 6 sketch-box
+	urquhart stone-colour keep ;
+
+\ === the cruisers in the Forth ===
+
+\ a cruiser at anchor: the hull's outline at the waterline and the deck, the bridge and superstructure, two funnels, four turrets
+: keep-cruiser ( centre heading -- )
+	| centre heading |
+	new-sketch to ship
+	ship [ centre heading 0 0 -90 placed centre heading -10 0 -70 placed centre heading -10 0 75 placed centre heading 0 0 95 placed
+	       centre heading 10 0 75 placed centre heading 10 0 -70 placed ] sketch-loop
+	ship [ centre heading 0 8 -90 placed centre heading -10 8 -70 placed centre heading -10 8 75 placed centre heading 0 9 95 placed
+	       centre heading 10 8 75 placed centre heading 10 8 -70 placed ] sketch-loop
+	ship centre heading 0 8 15 placed heading 12 30 10 sketch-box
+	ship centre heading 0 18 25 placed heading 8 10 12 sketch-box
+	[ -5 12 ] ( along | ship centre heading 0 18 along placed 0 5 5 12 sketch-box ) each
+	[ -60 -45 45 60 ] ( along | ship centre heading 0 8 along placed heading 7 8 4 sketch-box ) each
+	ship stone-colour keep ;
+
+: build-ships ( -- )
+	:inchgarvie :north-queensferry landmark-heading to bridge-heading
+	:inchgarvie landmark-ground bridge-heading 90 + 0 0 1800 placed bridge-heading 60 + keep-cruiser
+	:inchgarvie landmark-ground bridge-heading 90 + 300 0 2300 placed bridge-heading 70 + keep-cruiser ;

@@ -948,24 +948,41 @@ heroine-right ( 3 rotate-bitmap ) map to heroine-up
 	then
 	ghost distance move-in-maze ;
 
-\ the arrow keys relative to her heading, read once per screen frame: left and right ask for a
-\ quarter turn at each press, up keeps the heading and drops a pending turn, down turns her around
+\ a key, or a button of the first gamepad, went down this frame
+: key-or-pad-pressed? ( key button -- flag ) 0 gamepad-pressed? swap key-pressed? or ;
+
+\ a key, or a button of the first gamepad, is held
+: key-or-pad-down? ( key button -- flag ) 0 gamepad-down? swap key-down? or ;
+
+\ the arrow keys or the first gamepad's d-pad relative to her heading, read once per screen frame:
+\ left and right ask for a quarter turn at each press, up keeps the heading and drops a pending
+\ turn, down turns her around
 : read-view-arrows ( -- )
 	:heroine game@ to heroine
 	heroine :dir @ to direction
-	:left key-pressed? if heroine direction 1+ 4 mod :want ! drop then
-	:right key-pressed? if heroine direction 3 + 4 mod :want ! drop then
-	:up key-down? if heroine direction :want ! drop then
-	:down key-pressed? if heroine direction reverse-of :want ! drop then ;
+	:left :dpad-left key-or-pad-pressed? if heroine direction 1+ 4 mod :want ! drop then
+	:right :dpad-right key-or-pad-pressed? if heroine direction 3 + 4 mod :want ! drop then
+	:up :dpad-up key-or-pad-down? if heroine direction :want ! drop then
+	:down :dpad-down key-or-pad-pressed? if heroine direction reverse-of :want ! drop then ;
 
-\ Ms. Pac-Man's direction from the arrow keys held, else the last one asked for; nothing here when steering by the view
+\ the first gamepad's left stick held past half way: up, left, down or right, or null
+: stick-direction ( -- direction )
+	:left-x 0 gamepad-axis to across
+	:left-y 0 gamepad-axis to along
+	across abs along abs max2 0.5 <= if null exit then
+	across abs along abs > if across 0 < if 1 else 3 then else along 0 < if 0 else 2 then then ;
+
+\ Ms. Pac-Man's direction from the arrow keys, the first gamepad's d-pad or its left stick held,
+\ else the last one asked for; nothing here when steering by the view
 : read-arrows ( -- )
 	:steering game@ :view = if exit then
 	:heroine game@ to heroine
-	:up key-down? if heroine 0 :want ! drop then
-	:left key-down? if heroine 1 :want ! drop then
-	:down key-down? if heroine 2 :want ! drop then
-	:right key-down? if heroine 3 :want ! drop then ;
+	stick-direction to pushed
+	pushed null? not if heroine pushed :want ! drop then
+	:up :dpad-up key-or-pad-down? if heroine 0 :want ! drop then
+	:left :dpad-left key-or-pad-down? if heroine 1 :want ! drop then
+	:down :dpad-down key-or-pad-down? if heroine 2 :want ! drop then
+	:right :dpad-right key-or-pad-down? if heroine 3 :want ! drop then ;
 
 \ add points to the score, with the extra life at 10000
 : add-score ( points -- )
@@ -1262,8 +1279,8 @@ starting-level to first-level
 	:escape key-pressed? if 0 :running game! exit then
 	run-due-events
 	:mode game@ to mode
-	mode :title = if :return key-pressed? if start-game then exit then
-	:p key-pressed? mode :playing = and if :paused game@ 0= :paused game! then
+	mode :title = if :return :start key-or-pad-pressed? if start-game then exit then
+	:p :start key-or-pad-pressed? mode :playing = and if :paused game@ 0= :paused game! then
 	update-background
 	:paused game@ if exit then
 	:popups game@ ( dup :life @ elapsed - :life ! drop ) each

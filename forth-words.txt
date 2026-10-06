@@ -351,6 +351,10 @@ fsqrt
 ftan
 ftanh
 ftruncate
+gamepad-axis
+gamepad-down?
+gamepad-pressed?
+gamepads
 gauges
 gauges-publication-path
 gauges-view
@@ -729,6 +733,7 @@ telic-version
 test
 test-report
 text-anchor
+text-width
 then
 throw
 tick-every

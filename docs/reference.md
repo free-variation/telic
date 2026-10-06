@@ -6030,6 +6030,7 @@ Every shape draws in the current `ink`; `cls` fills with the current `paper`.
 | `circle` | `( x y r -- )` | The outline of the circle of radius `r` centred on `x y` | n | none | O(r) |
 | `fill-circle` | `( x y r -- )` | The filled circle of radius `r` centred on `x y` | r² | none | O(r²) |
 | `print-at` | `( x y str -- )` | Draw `str` with its top-left corner at `x y`, starting in the current `ink`, in Tigr's built-in font: a proportional bitmap font 12 pixels tall covering Windows-1252. A `{name}` directive for any color in `colors` switches the pen for the text after it and `{plain}` returns to the starting ink, so `8 8 "{red}warm {dodgerblue}cool" print-at` draws in two colors; the terminal escapes `format` emits for those directives are read the same way, while `{bold}` and `{dim}` are skipped and an unknown `{…}` draws literally. A newline byte returns to `x` one line down; a code point the font lacks draws as its placeholder glyph. `screen-zoom` enlarges it with everything else | n | none | O(n) |
+| `text-width` | `( str -- n )` | The width in pixels `print-at` gives `str`: the sum of its glyphs' widths in Tigr's proportional font, the widest line's when it holds newlines; `{name}` directives and terminal escapes take none. Opens no window | n | none | O(n) |
 | `cls` | `( -- )` | Fill the whole bitmap with the current `paper` | w·h | the bitmap, once | O(w·h) |
 | `ink` | `( color -- )` | graphics.telic: the color every later shape draws in. Default white | 3 | none | O(1) |
 | `paper` | `( color -- )` | graphics.telic: the color `cls` fills with, and the color a new bitmap starts at. Default black | 3 | none | O(1) |
@@ -6143,6 +6144,13 @@ screen-frames  1 sleep  screen-frames swap - . cr
 ```output
 ```
 
+```forth-noexec text-width
+"M.P.H." text-width . "{red}AB" text-width . cr
+```
+```output
+31 14
+```
+
 ```forth colors
 colors :dodgerblue @ . colors size . cr
 ```
@@ -6189,6 +6197,21 @@ per window update and fixed when the outermost `screen-frame` starts its
 the keyboard layout instead. Without a window nothing is held, pressed or
 typed. The wasm build has no window system, and these words error there.
 
+Gamepads (read through Apple's GameController framework on macOS, which
+knows each pad's layout, and evdev on Linux) are numbered from 0 in the
+order the system lists them, at most 4. Buttons
+are named by position on an Xbox-style pad: `:south` `:east` `:west` `:north`
+(A B X Y on an Xbox pad) `:back` `:guide` `:start` `:left-stick`
+`:right-stick` `:left-shoulder` `:right-shoulder` `:dpad-left` `:dpad-right`
+`:dpad-up` `:dpad-down` `:left-trigger` `:right-trigger`; axes are `:left-x`
+`:left-y` `:right-x` `:right-y`, a stick in [-1, 1] with x negative pushed
+left and y negative pushed up, and `:left-trigger` `:right-trigger` in [0, 1]. The gamepad state is read
+once per update of the event loop and fixed with the key state when the
+outermost `screen-frame` starts its `xt`. Gamepads are looked for once a
+window opens or a gamepad word is first used, so a gamepad is seen from a
+later frame on; a gamepad number past the connected ones reads as nothing
+held and every axis 0.
+
 | Word | Stack effect | Behavior | Ops | Alloc | O |
 |------|-------------|----------|-----|-------|---|
 | `draw-bitmap` | `( bitmap x y -- )` | graphics.telic: draw `bitmap` with its top-left corner at `x y`, at scale 1, clipped to the canvas | w·h | none | O(w·h) |
@@ -6214,6 +6237,10 @@ typed. The wasm build has no window system, and these words error there.
 | `key-down?` | `( key -- flag )` | `1` while the key is held in the current frame's key state. A key name not in the list above errors | 3 | none | O(1) |
 | `key-pressed?` | `( key -- flag )` | `1` when the key went down since the previous frame's key state, so a tap shorter than a frame still counts once | 3 | none | O(1) |
 | `typed-text` | `( -- string )` | The characters typed since the last call, as the keyboard layout produces them, and clear them; at most one character per window update is kept, and 256 bytes between calls | 3 | `1o` | O(n) |
+| `gamepads` | `( -- n )` | The number of gamepads connected in the current frame's gamepad state | 3 | none | O(1) |
+| `gamepad-down?` | `( button pad -- flag )` | `1` while the button of gamepad number `pad` is held in the current frame's gamepad state. A button name not in the list above, or a pad that is not an integer from 0, errors | 4 | none | O(1) |
+| `gamepad-pressed?` | `( button pad -- flag )` | `1` when the button of gamepad number `pad` went down since the previous frame's gamepad state | 4 | none | O(1) |
+| `gamepad-axis` | `( axis pad -- value )` | The position of an axis of gamepad number `pad` in the current frame's gamepad state: a stick in [-1, 1], a trigger in [0, 1] | 4 | none | O(1) |
 
 ```forth draw-bitmap
 [ "#" ] { "#" string>symbol :red } art>bitmap  2 2 blank-bitmap  1 1 blit matrix>array . cr
@@ -6369,6 +6396,34 @@ hero [ hero copy 1 :x ! hero copy 5 :x ! ] ' sprites-overlap? colliding-sprites 
 ( typed-text dup size if . cr else drop then ) screen-frame
 ```
 ```output
+```
+
+```forth gamepads
+gamepads 0 >= . cr
+```
+```output
+1
+```
+
+```forth gamepad-down?
+:south 3 gamepad-down? . cr
+```
+```output
+0
+```
+
+```forth gamepad-pressed?
+:start 3 gamepad-pressed? . cr
+```
+```output
+0
+```
+
+```forth gamepad-axis
+:left-x 3 gamepad-axis . cr
+```
+```output
+0
 ```
 
 ---

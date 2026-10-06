@@ -17,7 +17,8 @@
 \ turns smoothly through each corner she takes. The arrow keys steer
 \ relative to her heading: left and right ask for a quarter turn at each
 \ press, taken at the next opening; up holds the heading and drops a pending
-\ turn; down turns her around. A map in the top right corner shows the whole maze, the ghosts and her,
+\ turn; down turns her around. A gamepad's d-pad does the same, and its start
+\ button begins a game and pauses it. A map in the top right corner shows the whole maze, the ghosts and her,
 \ since the corridors hide everything behind.
 \
 \ The shader's only inputs are the canvas, as a texture, and four numbers

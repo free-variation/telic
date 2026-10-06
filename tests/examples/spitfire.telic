@@ -1,0 +1,53 @@
+\ examples/spitfire.telic's flight model against the Spitfire Mk I's published
+\ figures, without a window: the level speed at full throttle at 5,669 m (582
+\ km/h published), the climb at full throttle from 300 m holding 75 m/s (770
+\ m/min published), and a take-off from Turnhouse with the stick eased back
+\ from 45 m/s. Each line gives the model's figure, rounded.
+
+[ "geography" "space" "shapes" "render" "world" "cities" "flight" ] ( name | "examples/spitfire/" name + ".telic" + load ) each
+build-scenery drop
+
+\ === level speed: the nose held so the height stays put ===
+: level-speed ( height -- km/h )
+	| height |
+	[ 0 height 0 ] 0 120 false new-plane to aircraft
+	aircraft 1 :throttle ! 1 :revolutions ! drop
+	0 3000 1 do k
+		aircraft@velocity second negate 0.05 * aircraft@angle-of-attack 0.3 * + -1 1 clamp controls swap :pitch ! drop
+		aircraft 0.05 fly
+	loop
+	aircraft@velocity v-length 3.6 * round ;
+5669 level-speed . cr                                      \ 579
+300 level-speed . cr                                       \ 477
+clear
+
+\ === climb: the nose held so the speed stays at 75 m/s ===
+: climb-rate ( -- m/min )
+	[ 0 300 0 ] 0 80 false new-plane to climber
+	climber 1 :throttle ! 1 :revolutions ! drop
+	0 1200 1 do k
+		climber@velocity v-length 75 - 0.05 * climber@angle-of-attack 0.2 * - -1 1 clamp controls swap :pitch ! drop
+		climber 0.05 fly
+	loop
+	climber@velocity second 60 * round ;
+climb-rate . cr                                            \ 716
+clear
+
+\ === take-off from Turnhouse ===
+: take-off ( -- seconds km/h metres )
+	:turnhouse landmark-ground [ 0 wheel-height 0 ] v+ 60 0 true new-plane to runner
+	runner 1 :throttle ! drop
+	runner@position to start
+	0 to lifted-at
+	0 1200 1 do k
+		runner@velocity v-length 45 > if 0.6 else 0 then controls swap :pitch ! drop
+		runner 0.05 fly
+		lifted-at 0 = runner@on-ground not and if
+			k 0.05 * to lifted-at
+			runner@velocity v-length 3.6 * round to lift-off-speed
+			runner@position start v- v-length round to run
+			leave
+		then
+	loop
+	lifted-at lift-off-speed run ;
+take-off . . . cr                                          \ 335 167 14.7

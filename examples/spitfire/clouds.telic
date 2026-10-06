@@ -1,0 +1,149 @@
+\ Spitfire: the clouds. Cumulus stand on a common base, each a cluster of
+\ spheres in a 3 km square of the sky chosen by a hash of the square's
+\ position, so the same clouds are there whenever the aircraft returns; the
+\ mission sets the share of squares that hold one and the base's height.
+\ The spheres within 15 km of the aircraft are gathered again only when it
+\ crosses into another square. Each frame every sphere in view is drawn as
+\ a filled disc, the upper spheres lighter than the lower, faded into the
+\ sky with distance; the discs and the bombers are drawn together from the
+\ farthest to the nearest, so a bomber in front of a cloud shows and one
+\ behind it is hidden. With the eye inside a sphere the whole view is the
+\ cloud's colour, and only the instruments tell which way is up.
+
+3000 constant cloud-square
+5 constant cloud-reach
+
+variable cloud-cover
+0 to cloud-cover
+variable cloud-base
+1500 to cloud-base
+variable cloud-squares
+{ } to cloud-squares
+variable cloud-square-at
+[ null null ] to cloud-square-at
+variable cloud-centres
+0 4 0-matrix to cloud-centres
+variable cloud-radii
+0 1 0-matrix to cloud-radii
+variable cloud-shades
+0 1 0-matrix to cloud-shades
+variable in-cloud
+false to in-cloud
+
+\ the weather's clouds: the share of squares holding one and the height of their base; the clouds gathered before are forgotten
+: use-clouds ( cover base -- )
+	| cover base ^cloud-cover ^cloud-base ^cloud-squares ^cloud-square-at |
+	cover to cloud-cover
+	base to cloud-base
+	{ } to cloud-squares
+	[ null null ] to cloud-square-at ;
+
+\ one square's cloud as spheres [ x y z radius shade ], the shade 0 at the base and near 1 at the top; none when the hash leaves the square clear
+: square-cloud ( column row -- spheres )
+	| column row |
+	column 7.31 * row 13.17 * + 101 + to seed
+	seed hash-fraction cloud-cover >= if [ ] exit then
+	column 0.2 + seed 1.1 + hash-fraction 0.6 * + cloud-square * to x
+	row 0.2 + seed 2.3 + hash-fraction 0.6 * + cloud-square * to z
+	250 seed 3.7 + hash-fraction 450 * + to size
+	5 seed 4.9 + hash-fraction 4 * truncate + to n-spheres
+	[ 0 n-spheres 1 do k
+		seed k 1.3 * + 5.1 + to puff
+		size 0.45 puff hash-fraction 0.35 * + * to radius
+		puff 0.7 + hash-fraction 0.5 - 2.2 * size * to across
+		puff 1.9 + hash-fraction 0.5 - 1.4 * size * to along
+		puff 2.6 + hash-fraction 0.6 * size * to rise
+		[ x across + cloud-base radius 0.5 * + rise + z along + radius rise size 0.6 * / ]
+	loop ] ;
+
+\ the clouds near a point: their spheres' centres, radii and shades as columns, gathered when the point crosses into another square
+: refresh-clouds ( position -- )
+	| position ^cloud-squares ^cloud-square-at ^cloud-centres ^cloud-radii ^cloud-shades |
+	position first cloud-square / round-down to column
+	position 2 @i cloud-square / round-down to row
+	cloud-square-at [ column row ] = if exit then
+	[ column row ] to cloud-square-at
+	[ ] to near-spheres
+	column cloud-reach - column cloud-reach + 1 + 1 do c
+		row cloud-reach - row cloud-reach + 1 + 1 do r
+			c r "{1}/{0}" format string>symbol to key
+			cloud-squares key has? not if
+				cloud-squares c r square-cloud key ! drop
+			then
+			near-spheres cloud-squares key @ concat to near-spheres
+		loop
+	loop
+	near-spheres size to n-spheres
+	n-spheres 0 = if
+		0 4 0-matrix to cloud-centres
+		0 1 0-matrix to cloud-radii
+		0 1 0-matrix to cloud-shades
+		exit
+	then
+	near-spheres ( sphere | [ sphere first sphere second sphere 2 @i 1 ] ) map flatten n-spheres 4 matrix to cloud-centres
+	near-spheres ( sphere | sphere 3 @i ) map vector to cloud-radii
+	near-spheres ( sphere | sphere 4 @i ) map vector to cloud-shades ;
+
+\ a disc of cloud in the view: a small one by the window's own disc, a large one in rows cut to the view
+: cloud-disc ( x y radius colour -- )
+	| x y radius colour |
+	radius 40 < if x y radius colour fill-disc exit then
+	y radius - 0 max2 round to top
+	y radius + view-height min2 round to bottom
+	top bottom 2 do row
+		radius sq row 1 + y - sq - to room
+		room 0 > if
+			room sqrt to half
+			x half - 0 max2 round to left
+			x half + view-width min2 round to right
+			right left > if left row right left - 2 colour fill-span then
+		then
+	loop ;
+
+\ the clouds and the raid, from the farthest to the nearest, each sphere in view a disc; the whole view the cloud's colour when the eye is inside a sphere
+: draw-sky ( -- )
+	| ^in-cloud |
+	false to in-cloud
+	cloud-radii num-elements to n-spheres
+	[ ] to items
+	n-spheres 0 > if
+		cloud-centres camera matmul to viewed
+		viewed 0 @j to across
+		viewed 1 @j to rising
+		viewed 2 @j to ahead
+		across sq rising sq + ahead sq + to distance-squared
+		distance-squared cloud-radii sq < sum 0 > to in-cloud
+		ahead near-plane > to in-front
+		ahead in-front * 1 in-front - + to safe-ahead
+		focal-length across * safe-ahead / view-centre-x + to xs
+		view-centre-y focal-length rising * safe-ahead / - to ys
+		focal-length cloud-radii * safe-ahead / to rs
+		in-front
+		xs rs + 0 > *
+		xs rs - view-width < *
+		ys rs + 0 > *
+		ys rs - view-height < *
+		distance-squared sqrt cloud-radii - visibility < *
+		where to shown
+		0 shown num-elements 1 do k
+			shown k @e to i
+			items [ ahead i @e 0 i ] add-last! drop
+		loop
+	then
+	0 bombers size 1 do k
+		bombers k @i to bomber
+		bomber@position eye@position v- eye@attitude@forward v-dot to depth
+		items [ depth 1 k ] add-last! drop
+	loop
+	items ( item | item first negate ) sort-by to ordered
+	0 ordered size 1 do k
+		ordered k @i spread to index to kind to depth
+		kind 1 = if
+			bombers index @i draw-bomber
+		else
+			cloud-top-colour cloud-base-colour cloud-shades index @e blended to colour
+			colour sky-colour distance-squared index @e sqrt depth-light blended to colour
+			xs index @e ys index @e rs index @e colour cloud-disc
+		then
+	loop
+	in-cloud if 0 0 view-width view-height cloud-top-colour cloud-base-colour 0.6 blended fill-span then ;

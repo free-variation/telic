@@ -516,7 +516,8 @@ sign-glyphs ( entry | font entry 1 @i glyph-runs entry 0 @i string>symbol ! drop
 	"ARROWS STEER   SPACE FIRES   0-9 SPEED" 320 280 2 0 8 atari draw-centred
 	"F A L G VIEWS   S SHIELDS   C COMPUTER" 320 300 2 0 8 atari draw-centred
 	"T TRACKING   H HYPERWARP   M TARGET   P PAUSE" 320 320 2 0 8 atari draw-centred
-	"BACKSPACE ABORTS   ESCAPE QUITS" 320 340 2 0 8 atari draw-centred ;
+	"BACKSPACE ABORTS   ESCAPE QUITS" 320 340 2 0 8 atari draw-centred
+	"GAMEPAD: START BEGINS   BACK CHANGES THE MISSION" 320 360 2 0 8 atari draw-centred ;
 
 \ one screen frame of the picture
 : draw ( -- )

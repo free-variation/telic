@@ -1,0 +1,101 @@
+\ Spitfire: the flying lesson, as if in a two-seater with an instructor in
+\ the back seat, in a Mk I with the two-pitch propeller. The lesson is a
+\ script of steps, each what the instructor says and a test of what the
+\ pupil has done; the next step comes when the test passes, and not before
+\ the instruction has been up for 6 seconds, so it can be read. The steps
+\ follow the pilot's notes' use of the two-pitch propeller: started in
+\ coarse, fine before the take-off, coarse after the safety speed with the
+\ boost reduced, fine again for the landing; and their approach, 140 mph
+\ with the wheels and flaps lowered, 85 mph on the final approach (as quoted
+\ by historylearningsite.co.uk and a2asimulations.com's Spitfire I
+\ reference section). Between
+\ the take-off and the landing come the climb, cruise power, trim, turns,
+\ and the stall and its recovery. The speeds the instructor gives for the
+\ lift-off (90 mph) and the stall (80 mph clean) are the flight model's.
+\ The Turnhouse line under the panel gives the field's bearing and
+\ distance.
+
+6 constant least-step-time
+
+\ the aircraft's heading, its bank and its height
+: heading-now ( -- degrees ) plane@attitude@forward heading-of ;
+: bank-now ( -- degrees ) plane@attitude@right second asin negate 180 * PI / ;
+: height-now ( -- metres ) plane@position second ;
+
+\ how far a heading is from another, degrees either way
+: heading-off ( heading wanted -- degrees ) - 540 + 360 mod 180 - abs ;
+
+\ the indicated airspeed in miles an hour
+: indicated-mph ( -- mph ) plane indicated-speed 2.23694 * ;
+
+\ the distance to Turnhouse over the ground, metres
+: home-distance ( -- metres )
+	:target game@ plane@position v- spread to dz drop to dx
+	dx sq dz sq + sqrt ;
+
+\ the lesson's steps: what the instructor says, the test that ends the step, and for the trim a condition that must hold for 6 seconds
+: lesson-steps ( -- steps )
+	[ { :say "THIS IS YOUR INSTRUCTOR, IN THE BACK SEAT. WE'RE ON THE RUNWAY AT TURNHOUSE, WHEELS DOWN - THE GREEN LIGHT UNDER U/C, LEFT OF THE PANEL - AND FLAPS UP. THE PROPELLER IS IN COARSE PITCH, AS FOR WARMING UP. SELECT FINE PITCH FOR THE TAKE-OFF: W (RIGHT STICK CLICK). THE PITCH LEVER BESIDE THE THROTTLE GOES FORWARD."
+	    :done ( plane@fine ) }
+	  { :say "FINE PITCH: THE ENGINE CAN TURN FAST AND GIVE ITS FULL POWER. NOW OPEN THE THROTTLE SMOOTHLY ALL THE WAY: HOLD Q (RIGHT STICK UP). THE BOOST GAUGE WITH THE RED RIM, RIGHT OF THE PANEL, COMES UP TO +6."
+	    :done ( plane@throttle 0.98 >= ) }
+	  { :say "KEEP HER STRAIGHT DOWN THE RUNWAY WITH THE RUDDER, Z AND X (THE SHOULDERS). WHEN THE AIRSPEED PASSES 90 MPH, EASE THE STICK BACK - THE DOWN ARROW - AND SHE'LL LIFT OFF."
+	    :done ( plane@on-ground not height-now 20 > and ) }
+	  { :say "WE'RE FLYING. WHEELS UP NOW, BEFORE WE GATHER SPEED: G (Y). THE RED LIGHT SAYS THEY'RE UP."
+	    :done ( plane@gear not ) }
+	  { :say "PAST THE SAFETY SPEED, THROTTLE BACK A LITTLE FROM FULL WITH A (RIGHT STICK DOWN), THEN SELECT COARSE PITCH: S (LEFT STICK CLICK). IN FINE PITCH SHE'D OVER-REV AS THE SPEED GROWS; THE REVOLUTION COUNTER, RIGHT OF THE PANEL, DROPS."
+	    :done ( plane@fine not plane@throttle 0.95 < and ) }
+	  { :say "CLIMB AWAY AT ABOUT 160 MPH: IF THE SPEED FALLS, LOWER THE NOSE; IF IT RISES, RAISE IT. TAKE HER UP TO 3,000 FEET - THE ALTIMETER'S LONG HAND GOES ROUND ONCE EVERY THOUSAND FEET, THE SHORT ONE COUNTS THE THOUSANDS."
+	    :done ( height-now 914 > ) }
+	  { :say "LEVEL OFF AT 3,000, AND SET CRUISE POWER: THROTTLE BACK TO ABOUT +2 BOOST. LESS NOISE, LESS FUEL, LESS HEAT - KEEP AN EYE ON THE RAD AND OIL TEMPERATURES, BOTTOM RIGHT."
+	    :done ( plane@boost 3 <= plane@velocity second abs 3 < and ) }
+	  { :say "AS THE SPEED SETTLES SHE'LL WANT TO CLIMB OR SINK. TRIM IT OUT: ] WINDS IN NOSE-UP, [ NOSE-DOWN (RIGHT STICK RIGHT AND LEFT); THE TRIM INDICATOR, LEFT OF THE PANEL, SHOWS WHERE IT IS. TRIM UNTIL SHE HOLDS HER HEIGHT WITH YOUR HANDS OFF THE STICK, THE CLIMB NEEDLE STEADY ON ITS ZERO."
+	    :done ( :hold-time game@ 6 >= ) :hold ( controls@pitch 0 = plane@velocity second abs 1.5 < and ) }
+	  { :say "NICELY TRIMMED. NOW A TURN. ROLL LEFT WITH THE LEFT ARROW TO ABOUT 30 DEGREES OF BANK - THE HORIZON BAR TILTS WITH YOU - THEN HOLD A LITTLE BACK STICK SO THE NOSE DOESN'T DROP. TURN UNTIL THE GYRO READS 240, AND ROLL LEVEL."
+	    :done ( heading-now 240 heading-off 10 < bank-now abs 10 < and ) }
+	  { :say "GOOD. NOW TURN RIGHT, ONTO 060, THE SAME WAY. KEEP YOUR HEIGHT: WATCH THE ALTIMETER AS WELL AS THE GYRO."
+	    :done ( heading-now 60 heading-off 10 < bank-now abs 10 < and ) }
+	  { :say "NOW THE STALL, SO YOU KNOW IT WHEN IT COMES. CLOSE THE THROTTLE (A) AND KEEP THE NOSE UP WITH BACK STICK AS SHE SLOWS. AT ABOUT 80 MPH THE WING STOPS LIFTING AND THE NOSE DROPS: THAT'S THE STALL."
+	    :done ( plane@angle-of-attack stall-angle > ) }
+	  { :say "SHE'S STALLED. RECOVER: STICK FORWARD TO GET THE AIR FLOWING OVER THE WING AGAIN, THEN THROTTLE OPEN (Q), AND EASE HER OUT OF THE DIVE. DON'T PULL TOO HARD, OR SHE'LL STALL AGAIN."
+	    :done ( indicated-mph 150 > plane@velocity second -2 > and ) }
+	  { :say "WELL RECOVERED. NOW HOME TO LAND. THE TURNHOUSE LINE UNDER THE PANEL GIVES THE FIELD'S BEARING AND DISTANCE: TURN ONTO THAT BEARING ON THE GYRO, THROTTLE BACK, AND COME DOWN TO 1,000 FEET AS WE GO."
+	    :done ( home-distance 8000 < height-now 400 < and ) }
+	  { :say "THROTTLE BACK AND SLOW TO 140 MPH. THEN THE DRILL BEFORE LANDING: UNDERCARRIAGE DOWN, G (Y), AND LOOK FOR THE GREEN LIGHT; PROPELLER TO FINE PITCH, W, SO THE FULL POWER IS THERE IF WE HAVE TO GO ROUND."
+	    :done ( plane@gear plane@fine and ) }
+	  { :say "NOW FLAPS DOWN: F (X). NEVER ABOVE 140 MPH - THE PLATE ON THE LEFT SAYS SO, AND THE AIR WOULD BLOW THEM BACK UP. THE NOSE DROPS AS THEY COME DOWN: WIND ON NOSE-UP TRIM WITH ] TO HOLD IT."
+	    :done ( plane@flap-setting 0.9 > ) }
+	  { :say "THE RUNWAY RUNS 060 AND 240. LINE UP WITH IT AND COME DOWN STEADILY, SLOWING TO 85 MPH ON THE FINAL APPROACH, THE NOSE A LITTLE HIGH: THE THROTTLE FOR THE SPEED, THE STICK FOR THE DESCENT. OVER THE END OF THE RUNWAY CLOSE THE THROTTLE AND HOLD HER OFF UNTIL SHE SETTLES."
+	    :done ( plane@on-ground ) }
+	  { :say "WE'RE DOWN. BRAKES, B (B), AND LET HER ROLL TO A STOP. FLAPS UP ONCE WE'RE STOPPED."
+	    :done ( plane@velocity v-length 3 < ) }
+	  { :say "THAT'S THE LESSON. WELL FLOWN. R TO FLY IT AGAIN, ESCAPE FOR THE MISSIONS."
+	    :done ( false ) } ] ;
+
+\ the lesson's step: its time runs, and while the step's hold holds, its hold time; once the instruction has been up its least time and the test passes, the next step and its instruction, shown until that step ends
+: run-lesson ( dt -- )
+	| dt |
+	plane@crashed if exit then
+	lesson-steps to steps
+	steps :lesson-step game@ @i to step
+	:step-time game@ dt + :step-time game!
+	step :hold null @or to hold
+	hold null? not if
+		hold execute if :hold-time game@ dt + else 0 then :hold-time game!
+	then
+	:step-time game@ least-step-time < if exit then
+	step@done execute not if exit then
+	:lesson-step game@ 1+ steps size 1- min2 :lesson-step game!
+	0 :step-time game!
+	0 :hold-time game!
+	steps :lesson-step game@ @i to next-step
+	next-step@say :instruction game! ;
+
+\ the lesson's lines in the strip below the panel: the step, and Turnhouse's bearing and distance over the ground
+: draw-lesson-panel ( -- )
+	436 to x
+	lesson-steps size :lesson-step game@ 1+ "LESSON, STEP {0} OF {1}" format to step-line
+	x floor-top 4 + step-line 0xffe080 draw-text
+	:target game@ plane@position v- spread to dz drop to dx
+	home-distance 1609.34 / [ dx 0 dz ] heading-of "TURNHOUSE {0:03.0f} {1:.1f} MI" format to target-line
+	x floor-top 17 + target-line dial-ink draw-text ;

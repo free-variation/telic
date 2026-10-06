@@ -13,7 +13,8 @@
 \ arithmetic on the packed colors.
 \
 \ Keys: left and right arrows move, space fires, p pauses, return starts,
-\ escape quits.
+\ escape quits. On a gamepad the d-pad or the left stick moves, A or the
+\ right trigger fires, and start begins a game and pauses it.
 \
 \ The game: five rows of eleven invaders step sideways and drop a row at each
 \ wall, faster as their number falls; the lowest invader in a column fires,

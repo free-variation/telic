@@ -1,0 +1,256 @@
+\ Spitfire: wireframe shapes. A sketch gathers points and the edges between
+\ them; finished, it becomes an object: its points as the rows of an n×4
+\ matrix, x y z and a 1, so one matrix product carries them all into the
+\ eye's terms; its edges as a flat array of point indices in pairs; its
+\ colour; and the centre and radius of a sphere around it, for leaving out
+\ what is too far or behind the eye. Lengths are metres, angles degrees.
+
+\ a number in [0, 1) that depends only on k, for scattering things the same way every time
+: hash-fraction ( k -- f ) 12.9898 * sin 43758.5453 * dup round-down - ;
+
+\ a new, empty sketch
+: new-sketch ( -- sketch ) { :points [ ] :edges [ ] } ;
+
+\ add a point to a sketch and answer its index
+: sketch-point ( sketch point -- index )
+	| sketch point |
+	sketch@points point add-last! size 1- ;
+
+\ join two points of a sketch by an edge
+: sketch-edge ( sketch i j -- )
+	| sketch i j |
+	sketch@edges i add-last! j add-last! drop ;
+
+\ add points to a sketch and answer their indices
+: sketch-points ( sketch points -- indices )
+	| sketch points |
+	points ( point | sketch point sketch-point ) map ;
+
+\ edges between points already in a sketch, in turn
+: join-path ( sketch indices -- )
+	| sketch indices |
+	0 indices size 1- 1 do k
+		sketch indices k @i indices k 1+ @i sketch-edge
+	loop ;
+
+\ edges between points already in a sketch, in turn and back to the first
+: join-loop ( sketch indices -- )
+	| sketch indices |
+	0 indices size 1 do k
+		sketch indices k @i indices k 1+ indices size mod @i sketch-edge
+	loop ;
+
+\ lines through points in turn
+: sketch-path ( sketch points -- )
+	| sketch points |
+	sketch sketch points sketch-points join-path ;
+
+\ lines through points in turn and back to the first
+: sketch-loop ( sketch points -- )
+	| sketch points |
+	sketch sketch points sketch-points join-loop ;
+
+\ the finished object: points as an n×4 matrix, edges, colour, and the sphere around the points
+: sketch>object ( sketch colour -- object )
+	| sketch colour |
+	sketch@points to points
+	points [ 0 0 0 ] ' v+ reduce points size 1 max2 1 swap / v* to centre
+	points 0 ( far point | far point centre v- v-length max2 ) reduce to radius
+	points ( point | point spread 1 4 array ) map flatten points size 4 matrix to point-matrix
+	{ :points point-matrix :edges sketch@edges :colour colour :centre centre :radius radius } ;
+
+\ === placing shapes ===
+
+\ a point given across, up and along a heading from an origin
+: placed ( origin heading across up along -- point )
+	| origin heading across up along |
+	heading PI 180 / * to bearing
+	[ origin first across bearing cos * + along bearing sin * +
+	  origin second up +
+	  origin 2 @i across bearing sin * - along bearing cos * + ] ;
+
+\ the four corners of a rectangle centred on a point, at a height, turned to a heading
+: rectangle-corners ( centre heading width length height -- corners )
+	| centre heading width length height |
+	width 2 / to half-width
+	length 2 / to half-length
+	[ centre heading half-width negate height half-length negate placed
+	  centre heading half-width height half-length negate placed
+	  centre heading half-width height half-length placed
+	  centre heading half-width negate height half-length placed ] ;
+
+\ a box: its base centred on a point, turned to a heading
+: sketch-box ( sketch centre heading width length height -- )
+	| sketch centre heading width length height |
+	sketch centre heading width length 0 rectangle-corners sketch-points to floor
+	sketch centre heading width length height rectangle-corners sketch-points to roof
+	sketch floor join-loop
+	sketch roof join-loop
+	0 4 1 do k
+		sketch floor k @i roof k @i sketch-edge
+	loop ;
+
+\ a house: walls to the eaves, then a pitched roof along its length
+: sketch-house ( sketch centre heading width length eaves ridge -- )
+	| sketch centre heading width length eaves ridge |
+	sketch centre heading width length eaves sketch-box
+	length 2 / to half-length
+	centre heading 0 ridge half-length negate placed to front-ridge
+	centre heading 0 ridge half-length placed to back-ridge
+	centre heading width length eaves rectangle-corners to eaves-corners
+	sketch [ eaves-corners first front-ridge eaves-corners second ] sketch-path
+	sketch [ eaves-corners 3 @i back-ridge eaves-corners 2 @i ] sketch-path
+	sketch [ front-ridge back-ridge ] sketch-path ;
+
+\ a ring of points about a centre at a height
+: ring-points ( centre radius height count -- points )
+	| centre radius height count |
+	[ 0 count 1 do k
+		k count / TAU * to angle
+		[ centre first angle sin radius * + centre second height + centre 2 @i angle cos radius * + ]
+	loop ] ;
+
+\ a hill: a ring at its foot, a smaller one part way up, and lines from the foot to the top; the seed turns it and varies its shoulders
+: sketch-hill ( sketch centre radius height seed -- )
+	| sketch centre radius height seed |
+	7 to count
+	[ 0 count 1 do k
+		k count / TAU * seed + to angle
+		seed k + 3.7 * sin 0.25 * 1 + radius * to reach
+		[ centre first angle sin reach * + centre second centre 2 @i angle cos reach * + ]
+	loop ] to foot
+	foot ( point | point centre 0.45 v-between [ 0 height 0.55 * 0 ] v+ ) map to shoulder
+	sketch foot sketch-points to foot-indices
+	sketch shoulder sketch-points to shoulder-indices
+	sketch centre [ 0 height 0 ] v+ sketch-point to summit
+	sketch foot-indices join-loop
+	sketch shoulder-indices join-loop
+	0 count 1 do k
+		sketch [ foot-indices k @i shoulder-indices k @i summit ] join-path
+	loop ;
+
+\ a ridge of hills along a line, each summit the height given
+: sketch-ridge ( sketch summits radius -- )
+	| sketch summits radius |
+	0 summits size 1 do k
+		summits k @i spread to height to z to x
+		sketch [ x 0 z ] radius height k 1.3 * sketch-hill
+	loop ;
+
+\ a tower with a pointed spire on it
+: sketch-spire ( sketch centre width tower-height spire-height -- )
+	| sketch centre width tower-height spire-height |
+	sketch centre 0 width width tower-height sketch-box
+	sketch centre 0 width width tower-height rectangle-corners sketch-points to eaves
+	sketch centre [ 0 tower-height spire-height + 0 ] v+ sketch-point to tip
+	eaves ( corner | sketch corner tip sketch-edge ) each ;
+
+\ === a building's own terms ===
+
+\ the place a building is laid out from, and the heading its "along" runs on
+variable site
+[ 0 0 0 ] to site
+variable site-heading
+0 to site-heading
+
+: site! ( origin heading -- )
+	| origin heading ^site ^site-heading |
+	origin to site
+	heading to site-heading ;
+
+\ a point along the site's heading, across to its right, and up
+: at ( along across up -- point )
+	| along across up |
+	site site-heading across up along placed ;
+
+\ points from [ along across ] pairs at one height
+: outline-at ( pairs up -- points )
+	| pairs up |
+	pairs ( pair | pair first pair second up at ) map ;
+
+\ a solid standing on an outline: the outline at its foot and again a height above, joined at every corner
+: sketch-prism ( sketch outline height -- )
+	| sketch outline height |
+	sketch outline sketch-points to foot
+	sketch outline ( point | point [ 0 height 0 ] v+ ) map sketch-points to top
+	sketch foot join-loop
+	sketch top join-loop
+	0 foot size 1 do k
+		sketch foot k @i top k @i sketch-edge
+	loop ;
+
+\ a drum: a ring of sides from one height to another about a centre
+: sketch-drum ( sketch centre radius bottom top n-sides -- )
+	| sketch centre radius bottom top n-sides |
+	sketch centre [ 0 bottom 0 ] v+ radius 0 n-sides ring-points top bottom - sketch-prism ;
+
+\ a spire from a square top to a tip, with a pinnacle at each corner
+: sketch-pinnacled-spire ( sketch centre width base tip pinnacle -- )
+	| sketch centre width base tip pinnacle |
+	sketch centre 0 width width base rectangle-corners sketch-points to corners
+	sketch centre [ 0 tip 0 ] v+ sketch-point to apex
+	corners ( corner | sketch corner apex sketch-edge ) each
+	centre 0 width width base rectangle-corners ( corner |
+		sketch [ corner corner [ 0 pinnacle 0 ] v+ ] sketch-path
+	) each ;
+
+\ a crown steeple: arches from the tower's corners and the middles of its sides rising to a lantern at the centre, and a pinnacle on the lantern
+: sketch-crown ( sketch centre width base crown tip -- )
+	| sketch centre width base crown tip |
+	width 2 / to half
+	centre [ 0 crown 0 ] v+ to lantern
+	[ [ -1 -1 ] [ 0 -1 ] [ 1 -1 ] [ 1 0 ] [ 1 1 ] [ 0 1 ] [ -1 1 ] [ -1 0 ] ] ( corner |
+		centre 0 corner first half * base corner second half * placed to spring
+		sketch [ spring spring lantern 0.5 v-between [ 0 crown base - 0.45 * 0 ] v+ lantern ] sketch-path
+	) each
+	sketch [ lantern centre [ 0 tip 0 ] v+ ] sketch-path ;
+
+\ a row of columns, upright lines a spacing apart from a first one along a heading
+: sketch-colonnade ( sketch start heading n-columns spacing base top -- )
+	| sketch start heading n-columns spacing base top |
+	0 n-columns 1 do k
+		sketch [ start heading 0 base k spacing * placed start heading 0 top k spacing * placed ] sketch-path
+	loop ;
+
+\ a hammerhead crane: a lattice tower and the long jib across its top, the counterweight end shorter
+: sketch-hammerhead ( sketch foot heading height jib -- )
+	| sketch foot heading height jib |
+	sketch foot heading 10 10 height sketch-box
+	sketch [ foot heading -5 0 -5 placed foot heading 5 height -5 placed ] sketch-path
+	sketch [ foot heading 5 0 -5 placed foot heading -5 height -5 placed ] sketch-path
+	sketch [ foot heading 0 height jib 0.35 * negate placed foot heading 0 height jib placed
+	         foot heading 0 height 8 + jib 0.6 * placed foot heading 0 height 12 + 0 placed
+	         foot heading 0 height jib 0.35 * negate placed ] sketch-loop
+	sketch foot heading 0 height 4 - jib 0.3 * negate placed heading 6 8 4 sketch-box ;
+
+\ a tree: a trunk and a crown of three lines meeting at the top
+: sketch-tree ( sketch base height -- )
+	| sketch base height |
+	base [ 0 height 0.35 * 0 ] v+ to crown-foot
+	sketch base sketch-point to root
+	sketch crown-foot sketch-point to crown
+	sketch base [ 0 height 0 ] v+ sketch-point to top
+	sketch crown-foot height 0.3 * 0 3 ring-points sketch-points to spread-points
+	sketch root crown sketch-edge
+	sketch spread-points join-loop
+	spread-points ( corner | sketch corner top sketch-edge ) each ;
+
+\ a line on the ground offset to one side of a path by a distance, for a river's two banks
+: offset-path ( points distance -- points' )
+	| points distance |
+	points size to n-points
+	[ 0 n-points 1 do k
+		points k 1- 0 max2 @i to before
+		points k 1+ n-points 1- min2 @i to after
+		after spread to after-z to after-x
+		before spread to before-z to before-x
+		[ after-z before-z - after-x before-x - negate ] to across
+		across first sq across second sq + sqrt 1e-9 max2 to across-length
+		points k @i spread to z to x
+		[ x across first across-length / distance * + 0 z across second across-length / distance * + ]
+	loop ] ;
+
+\ a ground path's [ x z ] points as [ x height z ]
+: ground-path ( points height -- points' )
+	| points height |
+	points ( point | point spread to z to x [ x height z ] ) map ;

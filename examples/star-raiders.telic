@@ -17,6 +17,14 @@
 \ Zylon ship, P pause, backspace aborts the mission, escape quits. On the
 \ title screen return starts the mission and tab changes it.
 \
+\ A gamepad works too: the left stick steers (up lifts the nose), A or the
+\ right trigger fires, d-pad up and down change the speed, X the front view
+\ and pressed again the aft view, Y the Galactic Chart and the left shoulder
+\ the long-range scan (each pressed again for the front view), B hyperwarp, back the shields, the left stick's
+\ button the attack computer, the right stick's the tracking computer, the
+\ right shoulder the other Zylon ship, start pauses. On the title screen
+\ start begins the mission and back changes it.
+\
 \ The rules and numbers, and their source, are in
 \ examples/starraiders/universe.telic; the flight in flight.telic; the
 \ picture and the sound in screen.telic.
@@ -29,14 +37,14 @@
 \ mission and tab changes it; in a mission P pauses and the cockpit keys act
 : read-control-keys ( -- )
 	:demo game@ if
-		:return key-pressed? if :mission game@ 0 new-game exit then
-		:tab key-pressed? if
+		:return key-pressed? :start pad-pressed? or if :mission game@ 0 new-game exit then
+		:tab key-pressed? :back pad-pressed? or if
 			:mission game@ 1+ 4 mod 1 new-game
 			[ "NOVICE MISSION" "PILOT MISSION" "WARRIOR MISSION" "COMMANDER MISSION" ] :mission game@ @i 1 array-of say
 		then
 		exit
 	then
-	:p key-pressed? if :paused game@ 0= :paused game! then
+	:p key-pressed? :start pad-pressed? or if :paused game@ 0= :paused game! then
 	:paused game@ 0= if read-keys then ;
 
 \ one screen frame: the keys, the game loops due, the sound, the picture

@@ -78,6 +78,12 @@ static int application_drain_events(void) { return 1; }
 #define SCREEN_KEY_CAPACITY 256
 #define SCREEN_TYPED_CAPACITY 256
 
+typedef struct {
+	unsigned char held[GAMEPAD_BUTTON_COUNT];
+	unsigned char pressed[GAMEPAD_BUTTON_COUNT];
+	float axes[GAMEPAD_AXIS_COUNT];
+} GamepadState;
+
 static struct {
 	pthread_mutex_t lock;
 	Tigr *canvas;
@@ -110,11 +116,17 @@ static struct {
 	unsigned char frame_keys_pressed[SCREEN_KEY_CAPACITY];
 	char typed[SCREEN_TYPED_CAPACITY];
 	int n_typed;
+	int gamepads_wanted;
+	int n_gamepads;
+	int frame_n_gamepads;
+	GamepadState gamepads[GAMEPAD_CAPACITY];
+	GamepadState frame_gamepads[GAMEPAD_CAPACITY];
 } screen = {
 	PTHREAD_MUTEX_INITIALIZER, NULL, SCREEN_DEFAULT_WIDTH, SCREEN_DEFAULT_HEIGHT, 1,
 	{255, 255, 255, 255}, {0, 0, 0, 255}, 0, 0, 0, NULL, 0, 0, {0, 0, 0, 1}, 0, 0, 0, 0, 0,
 	PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER, NULL, 0, 0, 0,
-	{0}, {0}, {0}, {0}, {0}, 0
+	{0}, {0}, {0}, {0}, {0}, 0,
+	0, 0, 0, {{{0}, {0}, {0}}}, {{{0}, {0}, {0}}}
 };
 
 static Tigr *canvas_for_drawing(Interpreter *interp) {
@@ -155,10 +167,15 @@ static Tigr *canvas_for_drawing(Interpreter *interp) {
 		DISPATCH_REGISTERS(interp, chain_ip, chain_sp - (n_operands)); \
 	}
 
+static void line_with_ends(Tigr *canvas, int x0, int y0, int x1, int y1, TPixel ink) {
+	tigrLine(canvas, x0, y0, x1, y1, ink);
+	tigrPlot(canvas, x1, y1, ink);
+}
+
 DRAW_WORD(p_plot, "plot", 2,
 		tigrPlot(canvas, (int)operand[0], (int)operand[1], ink))
 DRAW_WORD(p_line, "line", 4,
-		tigrLine(canvas, (int)operand[0], (int)operand[1], (int)operand[2], (int)operand[3], ink))
+		line_with_ends(canvas, (int)operand[0], (int)operand[1], (int)operand[2], (int)operand[3], ink))
 DRAW_WORD(p_rect, "rect", 4,
 		tigrRect(canvas, (int)operand[0], (int)operand[1], (int)operand[2], (int)operand[3], ink))
 DRAW_WORD(p_fill_rect, "fill-rect", 4,
@@ -275,11 +292,12 @@ static TigrGlyph *glyph_for(TigrFont *font, int code) {
 	return &font->glyphs[low - 1];
 }
 
-static void draw_text(Tigr *canvas, int x, int y, const char *text, int n_bytes, TPixel start_ink) {
+static int lay_out_text(Tigr *canvas, int x, int y, const char *text, int n_bytes, TPixel start_ink) {
 	int line_height = tigrTextHeight(tfont, "");
 	TPixel pen = start_ink;
 	int pen_x = x;
 	int pen_y = y;
+	int widest = 0;
 	const char *cursor = text;
 	const char *end = text + n_bytes;
 
@@ -311,10 +329,14 @@ static void draw_text(Tigr *canvas, int x, int y, const char *text, int n_bytes,
 		if (next <= cursor || next > end)
 			next = cursor + 1;
 		TigrGlyph *glyph = glyph_for(tfont, code);
-		tigrBlitTint(canvas, tfont->bitmap, pen_x, pen_y, glyph->x, glyph->y, glyph->w, glyph->h, pen);
+		if (canvas)
+			tigrBlitTint(canvas, tfont->bitmap, pen_x, pen_y, glyph->x, glyph->y, glyph->w, glyph->h, pen);
 		pen_x += glyph->w;
+		if (pen_x - x > widest)
+			widest = pen_x - x;
 		cursor = next;
 	}
+	return widest;
 }
 
 void p_print_at(DISPATCH_ARGS) {
@@ -330,7 +352,7 @@ void p_print_at(DISPATCH_ARGS) {
 	pthread_mutex_lock(&screen.lock);
 	Tigr *canvas = canvas_for_drawing(interp);
 	if (canvas) {
-		draw_text(canvas, (int)VAL_NUMBER(x_val), (int)VAL_NUMBER(y_val), text->bytes, text->len, screen.ink);
+		lay_out_text(canvas, (int)VAL_NUMBER(x_val), (int)VAL_NUMBER(y_val), text->bytes, text->len, screen.ink);
 		screen.requested = 1;
 		screen.dirty = 1;
 	}
@@ -339,6 +361,20 @@ void p_print_at(DISPATCH_ARGS) {
 		return;
 
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 3);
+}
+
+void p_text_width(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val text_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(text_val, T_STRING, "text-width", "a string");
+	Object *text = OBJECT_AT(VAL_DATA(text_val));
+
+	pthread_mutex_lock(&screen.lock);
+	int width = lay_out_text(NULL, 0, 0, text->bytes, text->len, screen.ink);
+	pthread_mutex_unlock(&screen.lock);
+
+	chain_sp[-1] = make_float((double)width);
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
 
 void p_cls(DISPATCH_ARGS) {
@@ -523,6 +559,10 @@ void p_screen_frame(DISPATCH_ARGS) {
 		memcpy(screen.frame_keys_held, screen.keys_held, sizeof screen.keys_held);
 		memcpy(screen.frame_keys_pressed, screen.keys_pressed, sizeof screen.keys_pressed);
 		memset(screen.keys_pressed, 0, sizeof screen.keys_pressed);
+		memcpy(screen.frame_gamepads, screen.gamepads, sizeof screen.gamepads);
+		screen.frame_n_gamepads = screen.n_gamepads;
+		for (int pad = 0; pad < GAMEPAD_CAPACITY; pad++)
+			memset(screen.gamepads[pad].pressed, 0, sizeof screen.gamepads[pad].pressed);
 	}
 	pthread_mutex_unlock(&screen.lock);
 
@@ -913,6 +953,132 @@ void p_typed_text(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
 }
 
+typedef struct {
+	const char *name;
+	int index;
+} GamepadName;
+
+static const GamepadName gamepad_buttons[] = {
+	{"south", GAMEPAD_SOUTH}, {"east", GAMEPAD_EAST}, {"west", GAMEPAD_WEST}, {"north", GAMEPAD_NORTH},
+	{"back", GAMEPAD_BACK}, {"guide", GAMEPAD_GUIDE}, {"start", GAMEPAD_START},
+	{"left-stick", GAMEPAD_LEFT_STICK}, {"right-stick", GAMEPAD_RIGHT_STICK},
+	{"left-shoulder", GAMEPAD_LEFT_SHOULDER}, {"right-shoulder", GAMEPAD_RIGHT_SHOULDER},
+	{"dpad-left", GAMEPAD_DPAD_LEFT}, {"dpad-right", GAMEPAD_DPAD_RIGHT},
+	{"dpad-up", GAMEPAD_DPAD_UP}, {"dpad-down", GAMEPAD_DPAD_DOWN},
+	{"left-trigger", GAMEPAD_LEFT_TRIGGER}, {"right-trigger", GAMEPAD_RIGHT_TRIGGER},
+	{NULL, 0}
+};
+
+static const GamepadName gamepad_axes[] = {
+	{"left-x", GAMEPAD_LEFT_X}, {"left-y", GAMEPAD_LEFT_Y}, {"right-x", GAMEPAD_RIGHT_X}, {"right-y", GAMEPAD_RIGHT_Y},
+	{"left-trigger", GAMEPAD_LEFT_TRIGGER_AXIS}, {"right-trigger", GAMEPAD_RIGHT_TRIGGER_AXIS},
+	{NULL, 0}
+};
+
+static void want_gamepads(void) {
+	pthread_mutex_lock(&screen.lock);
+	if (!screen.gamepads_wanted) {
+		screen.gamepads_wanted = 1;
+		pthread_cond_signal(&screen.wake);
+	}
+	pthread_mutex_unlock(&screen.lock);
+}
+
+static int gamepad_name_index(Interpreter *interp, Val name_val, const GamepadName *names, const char *kind) {
+	if (VAL_TAG(name_val) != T_SYMBOL) {
+		fail(interp, "expected a gamepad %s name (a symbol such as :%s); got %s", kind, names[0].name, tag_name(VAL_TAG(name_val)));
+		return -1;
+	}
+	const char *name = &vocab.symbol_pool[VAL_DATA(name_val)];
+	for (int i = 0; names[i].name; i++)
+		if (strcmp(names[i].name, name) == 0)
+			return names[i].index;
+	fail(interp, "unknown gamepad %s :%s", kind, name);
+	return -1;
+}
+
+static int gamepad_number(Interpreter *interp, Val pad_val) {
+	if (VAL_TAG(pad_val) != T_FLOAT) {
+		fail(interp, "expected a gamepad number; got %s", tag_name(VAL_TAG(pad_val)));
+		return -1;
+	}
+	double pad = VAL_NUMBER(pad_val);
+	if (pad < 0 || pad != (double)(int)pad) {
+		fail(interp, "expected a gamepad number (an integer from 0); got %g", pad);
+		return -1;
+	}
+	return (int)pad;
+}
+
+void p_gamepads(DISPATCH_ARGS) {
+	REQUIRE_STACK_ROOM(interp, chain_ip, chain_sp, 1);
+	want_gamepads();
+
+	pthread_mutex_lock(&screen.lock);
+	int n_gamepads = screen.frame_n_gamepads;
+	pthread_mutex_unlock(&screen.lock);
+
+	chain_sp[0] = make_float((double)n_gamepads);
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp + 1);
+}
+
+static int gamepad_button_state(Interpreter *interp, Val *chain_sp, int pressed) {
+	int button = gamepad_name_index(interp, chain_sp[-2], gamepad_buttons, "button");
+	if (button < 0)
+		return -1;
+	int pad = gamepad_number(interp, chain_sp[-1]);
+	if (pad < 0)
+		return -1;
+	want_gamepads();
+
+	pthread_mutex_lock(&screen.lock);
+	int state = 0;
+	if (pad < screen.frame_n_gamepads) {
+		GamepadState *gamepad = &screen.frame_gamepads[pad];
+		state = pressed ? gamepad->pressed[button] : gamepad->held[button];
+	}
+	pthread_mutex_unlock(&screen.lock);
+	return state;
+}
+
+void p_gamepad_down(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
+	int down = gamepad_button_state(interp, chain_sp, 0);
+	if (down < 0)
+		return;
+
+	chain_sp[-2] = make_float(down ? 1.0 : 0.0);
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+}
+
+void p_gamepad_pressed(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
+	int pressed = gamepad_button_state(interp, chain_sp, 1);
+	if (pressed < 0)
+		return;
+
+	chain_sp[-2] = make_float(pressed ? 1.0 : 0.0);
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+}
+
+void p_gamepad_axis(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 2);
+	int axis = gamepad_name_index(interp, chain_sp[-2], gamepad_axes, "axis");
+	if (axis < 0)
+		return;
+	int pad = gamepad_number(interp, chain_sp[-1]);
+	if (pad < 0)
+		return;
+	want_gamepads();
+
+	pthread_mutex_lock(&screen.lock);
+	double value = pad < screen.frame_n_gamepads ? (double)screen.frame_gamepads[pad].axes[axis] : 0.0;
+	pthread_mutex_unlock(&screen.lock);
+
+	chain_sp[-2] = make_float(value);
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
+}
+
 static void keyboard_collect(Tigr *source) {
 	for (int key = 0; key < SCREEN_KEY_CAPACITY; key++) {
 		screen.keys_held[key] = (unsigned char)(tigrKeyHeld(source, key) != 0);
@@ -950,6 +1116,34 @@ static int interpreter_thread_started = 0;
 static int window_needs_front = 0;
 static int window_blitted_width = 0;
 static int window_blitted_height = 0;
+static int gamepads_opened = 0;
+
+static void gamepads_collect(void) {
+	pthread_mutex_lock(&screen.lock);
+	int wanted = screen.gamepads_wanted;
+	pthread_mutex_unlock(&screen.lock);
+	if (!wanted && !window)
+		return;
+
+	GamepadReading readings[GAMEPAD_CAPACITY];
+	memset(readings, 0, sizeof readings);
+	int n_gamepads = gamepads_read(readings, GAMEPAD_CAPACITY);
+	gamepads_opened = 1;
+
+	pthread_mutex_lock(&screen.lock);
+	for (int pad = 0; pad < GAMEPAD_CAPACITY; pad++) {
+		GamepadState *state = &screen.gamepads[pad];
+		GamepadReading *reading = &readings[pad];
+		for (int button = 0; button < GAMEPAD_BUTTON_COUNT; button++) {
+			if (reading->held[button] && !state->held[button])
+				state->pressed[button] = 1;
+			state->held[button] = reading->held[button];
+		}
+		memcpy(state->axes, reading->axes, sizeof state->axes);
+	}
+	screen.n_gamepads = n_gamepads;
+	pthread_mutex_unlock(&screen.lock);
+}
 
 static void blit_zoomed(Tigr *target, const Tigr *canvas) {
 	int zoom = MAX(1, MIN(target->w / canvas->w, target->h / canvas->h));
@@ -976,6 +1170,8 @@ static int screen_step(void) {
 	int geometry_changed = screen.geometry_changed;
 	screen.geometry_changed = 0;
 	pthread_mutex_unlock(&screen.lock);
+
+	gamepads_collect();
 
 	if (geometry_changed && window) {
 		tigrFree(window);
@@ -1177,6 +1373,10 @@ int platform_run_main(int argc, char **argv, MainBody body) {
 	if (screen.presented) {
 		tigrFree(screen.presented);
 		screen.presented = NULL;
+	}
+	if (gamepads_opened) {
+		gamepads_close();
+		gamepads_opened = 0;
 	}
 
 	return screen.interpreter_status;

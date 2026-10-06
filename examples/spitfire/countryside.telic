@@ -1,0 +1,98 @@
+\ Spitfire: the countryside near the aircraft. Each kilometre of land within
+\ 3 km is divided by hedges into fields, with trees along the hedges and now
+\ and then a farmhouse; the layout comes from a hash of the kilometre's
+\ position, so the same fields are there whenever the aircraft returns. A
+\ kilometre of water has ripples instead, short strokes on the surface.
+\ Kilometres within reach of a town or an airfield are left clear for their
+\ own buildings. The objects of the kilometres near the aircraft are kept and
+\ gathered again only when the aircraft crosses into another kilometre.
+
+3 constant countryside-reach
+
+variable countryside-objects
+{ } to countryside-objects
+variable countryside-collection
+{ :objects [ ] :centres 0 4 0-matrix :radii 0 1 0-matrix } to countryside-collection
+variable countryside-cell
+[ null null ] to countryside-cell
+
+\ the places whose surroundings stay clear of fields, with how far
+[ [ :edinburgh-castle 3500 ] [ :leith 1500 ] [ :glasgow-cathedral 4500 ] [ :govan 2000 ] [ :clydebank 1500 ]
+  [ :inverness-castle 2000 ] [ :stirling-castle 1500 ] [ :turnhouse 1200 ] [ :drem 1200 ]
+  [ :abbotsinch 1200 ] [ :dalcross 1200 ] ] to clear-places
+
+\ whether a kilometre's centre lies within a clear place's reach
+: clear-cell? ( x z -- flag )
+	| x z |
+	clear-places ( place |
+		place first landmark-ground to centre
+		centre first x - sq centre 2 @i z - sq + sqrt place second <
+	) any? ;
+
+\ a kilometre of water's ripples: a dozen strokes 60 m long running east and west, those that fall on water; null when none does
+: ripples ( column row -- object )
+	| column row |
+	land-origin-x column land-cell * + to west
+	land-origin-z row land-cell * + to south
+	column 7.31 * row 13.17 * + to seed
+	new-sketch to waves
+	0 to n-strokes
+	0 12 1 do k
+		seed k 2.3 * + hash-fraction land-cell * west + to x
+		seed k 4.7 * + 0.5 + hash-fraction land-cell * south + to z
+		x z water-at? if
+			waves [ [ x 30 - 0 z ] [ x 30 + 0 z ] ] sketch-path
+			++ n-strokes
+		then
+	loop
+	n-strokes 0 = if null exit then
+	waves bank-colour sketch>object ;
+
+\ one kilometre's fields, trees and farmhouse, as one object; ripples on water; null in a town
+: cell-object ( column row -- object )
+	| column row |
+	land-origin-x column land-cell * + to west
+	land-origin-z row land-cell * + to south
+	west land-cell 2 / + south land-cell 2 / + water-at? if column row ripples exit then
+	west land-cell 2 / + south land-cell 2 / + clear-cell? if null exit then
+	column 7.31 * row 13.17 * + to seed
+	new-sketch to fields
+	fields [ [ west 0 south ] [ west land-cell + 0 south ] ] sketch-path
+	fields [ [ west 0 south ] [ west 0 south land-cell + ] ] sketch-path
+	seed hash-fraction 0.5 * 0.25 + land-cell * west + to hedge-x
+	seed 1.7 + hash-fraction 0.5 * 0.25 + land-cell * south + to hedge-z
+	fields [ [ hedge-x 0 south ] [ hedge-x 0 south land-cell + ] ] sketch-path
+	fields [ [ west 0 hedge-z ] [ west land-cell + 0 hedge-z ] ] sketch-path
+	0 5 1 do k
+		seed k 3.1 * + hash-fraction to t
+		k 2 mod 0 = if
+			[ hedge-x 0 south t land-cell * + ]
+		else
+			[ west t land-cell * + 0 hedge-z ]
+		then
+		seed k 5.3 * + hash-fraction 6 * 8 + fields -rot sketch-tree
+	loop
+	seed 4.2 + hash-fraction 0.3 < if
+		fields [ hedge-x 40 + 0 hedge-z 40 + ] seed 90 * 10 16 6 9 sketch-house
+	then
+	fields field-colour sketch>object ;
+
+\ the kilometres near a point: their objects, built once each and kept
+: refresh-countryside ( position -- )
+	| position ^countryside-collection ^countryside-cell |
+	position first land-origin-x - land-cell / round-down to column
+	position 2 @i land-origin-z - land-cell / round-down to row
+	countryside-cell [ column row ] = if exit then
+	[ column row ] to countryside-cell
+	[ ] to near-objects
+	column countryside-reach - column countryside-reach + 1 + 1 do c
+		row countryside-reach - row countryside-reach + 1 + 1 do r
+			c r "{1}/{0}" format string>symbol to key
+			countryside-objects key has? not if
+				countryside-objects c r cell-object key ! drop
+			then
+			countryside-objects key @ to object
+			object null? not if near-objects object add-last! drop then
+		loop
+	loop
+	near-objects collect-objects to countryside-collection ;

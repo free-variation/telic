@@ -835,6 +835,7 @@
 \ a speed key: the speeds 0-9 of 0 to 112 km per loop and their drain, at most speed 5 with damaged engines; during a hyperwarp it aborts it
 : set-speed ( key -- )
 	| key |
+	key :speed-key game!
 	:warp game@ :none = not if abort-hyperwarp exit then
 	:engines subsystem@ :ok = not if key 5 min2 to key then
 	[ 0 4 6 8 10 12 14 30 45 60 ] key @i :engine-drain game!
@@ -849,30 +850,55 @@
 	if on-text else off-text then 1 array-of say
 	:acknowledge cue ;
 
+\ a button of the first gamepad went down this frame
+: pad-pressed? ( button -- flag ) 0 gamepad-pressed? ;
+
+\ a view, or the front view when it is showing already
+: view-or-front ( view -- )
+	| view |
+	view :view game@ = if :front else view then set-view ;
+
 \ the keys of the cartridge, read once a screen frame: 0-9 speeds, F A G L
 \ views, S shields, C attack computer, T tracking, H hyperwarp, M the other
-\ Zylon ship, P pause, backspace aborts the mission
+\ Zylon ship, P pause, backspace aborts the mission; on the first gamepad,
+\ d-pad up and down step the speed, Y the Galactic Chart, X the long-range
+\ scan and the left shoulder the aft view, each pressed again for the front
+\ view, B hyperwarp, back the shields, the left stick's button the attack
+\ computer, the right stick's the tracking, the right shoulder the other
+\ Zylon ship
 : read-keys ( -- )
 	0 10 1 do k
 		[ :0 :1 :2 :3 :4 :5 :6 :7 :8 :9 ] k @i key-pressed? if k set-speed then
 	loop
+	:dpad-up pad-pressed? if :speed-key game@ 1+ 9 min2 set-speed then
+	:dpad-down pad-pressed? if :speed-key game@ 1- 0 max2 set-speed then
 	:f key-pressed? if :front set-view then
 	:a key-pressed? if :aft set-view then
 	:l key-pressed? if :scan set-view then
 	:g key-pressed? if :chart set-view then
-	:s key-pressed? if :shields-on "SHIELDS ON" "SHIELDS OFF" toggle then
-	:c key-pressed? if :computer-on "ATTACK COMPUTER ON" "ATTACK COMPUTER OFF" toggle then
-	:t key-pressed? if :tracking-on "COMPUTER TRACKING ON" "TRACKING OFF" toggle then
-	:h key-pressed? if engage-hyperwarp then
-	:m key-pressed? if :track game@ 1 bit-xor 1 bit-and :track game! then
+	:north pad-pressed? if :chart view-or-front then
+	:west pad-pressed? if :scan view-or-front then
+	:left-shoulder pad-pressed? if :aft view-or-front then
+	:s key-pressed? :back pad-pressed? or if :shields-on "SHIELDS ON" "SHIELDS OFF" toggle then
+	:c key-pressed? :left-stick pad-pressed? or if :computer-on "ATTACK COMPUTER ON" "ATTACK COMPUTER OFF" toggle then
+	:t key-pressed? :right-stick pad-pressed? or if :tracking-on "COMPUTER TRACKING ON" "TRACKING OFF" toggle then
+	:h key-pressed? :east pad-pressed? or if engage-hyperwarp then
+	:m key-pressed? :right-shoulder pad-pressed? or if :track game@ 1 bit-xor 1 bit-and :track game! then
 	:backspace key-pressed? if
 		[ " " "STAR FLEET TO" "STAR CRUISER 7" "MISSION ABORTED" "NEW RANK IS" ] :aborted [ "CONGRATULATIONS" ] end-mission
 	then ;
 
-\ the joystick: the arrow keys, right and up +1
+\ an analogue stick's axis as the cartridge's joystick reads it: -1, 0 or 1, past half way
+: axis-step ( value -- step ) dup 0.5 > swap -0.5 < - ;
+
+\ the joystick: the arrow keys or the first gamepad's left stick, right and up +1
 : stick ( -- stick-x stick-y )
 	:demo game@ if 0 0 exit then
-	:right key-down? :left key-down? - :up key-down? :down key-down? - ;
+	:right key-down? :left key-down? - :left-x 0 gamepad-axis axis-step + -1 1 clamp
+	:up key-down? :down key-down? - :left-y 0 gamepad-axis negate axis-step + -1 1 clamp ;
+
+\ the fire button: space, or the first gamepad's A or right trigger
+: fire-held? ( -- flag ) :space key-down? :south 0 gamepad-down? or :right-trigger 0 gamepad-down? or ;
 
 \ === a game ===
 
@@ -892,7 +918,7 @@
 	9999 :energy game! 0 :energy-count game!
 	0 :score game! 0 :kills game!
 	0 :shields-on game! 0 :shields-up game! 0 :computer-on game! 0 :tracking-on game!
-	0 :velocity game! 32 :new-velocity game! 14 :engine-drain game! 0 :warp-boost game!
+	0 :velocity game! 32 :new-velocity game! 14 :engine-drain game! 0 :warp-boost game! 6 :speed-key game!
 	:front :view game!
 	:none :warp game! 0 :warp-left game! 0 :trail-delay game! 43 :trail-index game! 0 :veer game!
 	0 :warp-column game! 0 :warp-row game! 125 :marker-column game! 119 :marker-row game!
@@ -940,7 +966,7 @@
 	:red-alert game@ 0 > if :red-alert game@ 1- :red-alert game! then
 	:demo game@ 0= if
 		collide
-		:space key-down? trigger
+		fire-held? trigger
 	then
 	update-tracking
 	dock

@@ -1,0 +1,22 @@
+\ ==== text-width ====
+
+\ text-width ( str -- n ): the width in pixels that print-at gives str in
+\ Tigr's proportional built-in font, its widest line when it has several;
+\ {name} colour directives and terminal escapes take no width. No window is
+\ opened.
+
+\ === single lines ===
+"W" text-width . "i" text-width . "" text-width . cr       \ 8 3 0
+"M.P.H." text-width . "AB" text-width . cr                 \ 31 14
+clear
+
+\ === directives take no width ===
+"{red}AB" text-width . "A{dodgerblue}B{plain}" text-width . cr \ 14 14
+clear
+
+\ === the widest line ===
+"AB{nl}ABCD" format text-width . "ABCD{nl}AB" format text-width . "{nl}" format text-width . cr \ 28 28 0
+clear
+
+\ errors
+42 text-width                                              \ (not a string)

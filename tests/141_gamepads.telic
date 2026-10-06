@@ -1,0 +1,30 @@
+\ ==== gamepads, outside any frame ====
+
+\ gamepads ( -- n ), gamepad-down? ( button pad -- flag ),
+\ gamepad-pressed? ( button pad -- flag ), gamepad-axis ( axis pad -- value ):
+\ the gamepad state is fixed when the outermost screen-frame starts, so
+\ outside a frame no gamepad is connected, whatever is plugged in; a gamepad
+\ number past the connected ones reads as nothing held and every axis 0.
+
+\ === gamepads ===
+gamepads . cr                                              \ 0
+clear
+
+\ === buttons of a gamepad not connected ===
+:south 0 gamepad-down? . :east 0 gamepad-pressed? . :dpad-up 1 gamepad-down? . :right-trigger 3 gamepad-pressed? . cr \ 0 0 0 0
+:back 7 gamepad-down? . :guide 0 gamepad-down? . :start 0 gamepad-pressed? . :north 2 gamepad-down? . cr \ 0 0 0 0
+clear
+
+\ === axes of a gamepad not connected ===
+:left-x 0 gamepad-axis . :left-y 0 gamepad-axis . :right-x 1 gamepad-axis . :right-y 1 gamepad-axis . cr \ 0 0 0 0
+:left-trigger 0 gamepad-axis . :right-trigger 5 gamepad-axis . cr \ 0 0
+clear
+
+\ errors
+:shift 0 gamepad-down?                                     \ (unknown button)
+"south" 0 gamepad-down?                                    \ (button is not a symbol)
+:south -1 gamepad-pressed?                                 \ (negative gamepad number)
+:south 0.5 gamepad-down?                                   \ (gamepad number not an integer)
+:south "0" gamepad-down?                                   \ (gamepad number not a number)
+:up 0 gamepad-axis                                         \ (unknown axis)
+:south 0 gamepad-axis                                      \ (a button is not an axis)

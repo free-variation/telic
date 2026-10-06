@@ -411,6 +411,10 @@ const HelpEntry help_entries[] = {
 	{ "ftan", "( a -- tan a ) ⚠", "tangent (radians), in place", "1", "none", "O(1)", 1 },
 	{ "ftanh", "( a -- tanh a ) ⚠", "hyperbolic tangent, in place", "1", "none", "O(1)", 1 },
 	{ "ftruncate", "( a -- trunc a ) ⚠", "toward zero, in place", "1", "none", "O(1)", 1 },
+	{ "gamepad-axis", "( axis pad -- value )", "The position of an axis of gamepad number pad in the current frame's gamepad state: a stick in [-1, 1], a trigger in [0, 1]", "4", "none", "O(1)", 35 },
+	{ "gamepad-down?", "( button pad -- flag )", "1 while the button of gamepad number pad is held in the current frame's gamepad state. A button name not in the list above, or a pad that is not an integer from 0, errors", "4", "none", "O(1)", 35 },
+	{ "gamepad-pressed?", "( button pad -- flag )", "1 when the button of gamepad number pad went down since the previous frame's gamepad state", "4", "none", "O(1)", 35 },
+	{ "gamepads", "( -- n )", "The number of gamepads connected in the current frame's gamepad state", "3", "none", "O(1)", 35 },
 	{ "gauges", "( -- fr )", "repl.telic: the interpreter's resource readings as a frame of six frames; memory is in MiB (dictionary pools in KiB), processor time in s, counts are floats, and a [ used capacity ] pair is an array. :dictionary: :cells, :name-pool, :source-pool, :symbol-pool, :quotations, :word-locations, :cell-lines, :loaded-files as pairs, plus :words, :session-words (defined since the embedded library), :symbols. :heap: :arena [ used reserved ], :live (matrix, segment and continuation payload bytes, the ones that drive the collection trigger), :gc-threshold, :memory-headroom (until the next collection), :objects [ live table-size ] (live is claimed handles minus the free list), :handles-claimed [ claimed table-size ] (the high-water mark; a collection refills the free list rather than lowering it), :max-objects, :free-handles, :handle-headroom [ unclaimed trigger ] (inside a parallel region a worker requests a collection when unclaimed falls under trigger; the main thread collects at the ceiling), :pairs [ live table-size ], :collections. :stacks: :data, :return, :side, :calls, :trail, :logic-vars, :roots, each [ depth capacity ]. :resources: :databases, :regex-cache, :workers, each [ in-use capacity ]. :computer: :cpu-count, :physical-memory, the load averages :load-1 :load-5 :load-15, and this process's :user-time, :system-time, :max-rss (peak resident memory), :minor-faults, :major-faults, :voluntary-switches, :involuntary-switches — null under wasm, which has no such calls. :session: :line, :interactive, :load-depth, :gc-disabled, :tracing", "dict walk + symbol scan", "1fr × 6 + pairs", "O(words + symbols)", 30 },
 	{ "gauges-publication-path", "( -- path )", "TELIC_GAUGES_FILE when set, else /tmp/telic-gauges.bin — the file the publisher writes and the viewer reads", NULL, NULL, NULL, 49 },
 	{ "gauges-view", "( -- )", "gauges-view-once every half second until interrupted", NULL, NULL, NULL, 49 },
@@ -789,6 +793,7 @@ const HelpEntry help_entries[] = {
 	{ "test", "( name xt -- )", "test.telic: run xt under catch; print ok <name> or FAIL <name>: <reason> (a runtime error's :message, else the thrown value), tally it, restore the stack, continue past a failure", "—", "prints", "O(xt)", 26 },
 	{ "test-report", "( -- )", "test.telic: print <n> passed, <m> failed; throw when any failed so a program-file run exits nonzero", "—", "prints", "O(1)", 26 },
 	{ "text-anchor", "( anchor -- )", "Set the current text anchor: \"start\", \"middle\", or \"end\"", NULL, NULL, NULL, 48 },
+	{ "text-width", "( str -- n )", "The width in pixels print-at gives str: the sum of its glyphs' widths in Tigr's proportional font, the widest line's when it holds newlines; {name} directives and terminal escapes take none. Opens no window", "n", "none", "O(n)", 34 },
 	{ "then", "—", "Close an if/if…else; patches the forward branch", NULL, NULL, NULL, 10 },
 	{ "throw", "( exc -- )", "Unwind to the nearest catch or reset, leaving exc 1 (what catch consumes); with no enclosing prompt it is an interpreter error, uncaught exception: <value>, the trace captured at the throw site. The prompt search skips locals regions, so local slots are never read as prompts", "L", "none", "O(L)", 26 },
 	{ "tick-every", "( seconds -- )", "repl.telic: arm a periodic timer (setitimer; 0 disarms, a negative interval errors): every seconds the running code is interrupted at its next op boundary — or inside a sleep, which then resumes for its remaining time — to run on-tick once. Nothing ticks until armed; wasm has no timer, so the word does nothing there", "2", "none", "O(1)", 30 },
@@ -886,7 +891,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, arrays element-wise with a trailing rest pattern taking the remaining elements, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails", "n", "none", "O(n)", 28 },
 };
 
-const int help_entry_count = 826;
+const int help_entry_count = 831;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -1244,6 +1249,10 @@ const HelpExample help_examples[] = {
 	{ "ftan", "PI 4 f/ ftan . cr", "1" },
 	{ "ftanh", "0 ftanh . cr", "0" },
 	{ "ftruncate", "2.9 ftruncate . cr", "2" },
+	{ "gamepad-axis", ":left-x 3 gamepad-axis . cr", "0" },
+	{ "gamepad-down?", ":south 3 gamepad-down? . cr", "0" },
+	{ "gamepad-pressed?", ":start 3 gamepad-pressed? . cr", "0" },
+	{ "gamepads", "gamepads 0 >= . cr", "1" },
 	{ "gauges", "gauges dup keys ( \"{0}\" format ) sort-by . :stacks @ :data @ . cr", "[ :computer :dictionary :heap :resources :session :stacks ] [ 0 65536 ]" },
 	{ "gauges-publication-path", "\"gauges-view\" load-library\n\"/tmp/docs-gauges.bin\" \"TELIC_GAUGES_FILE\" env! gauges-publication-path . cr", "/tmp/docs-gauges.bin" },
 	{ "gauges-view", "gauges-view", "" },
@@ -1623,6 +1632,7 @@ const HelpExample help_examples[] = {
 	{ "test", "new-tests \"adds\" ( 3 4 + 7 expect= ) test test-report", "ok adds\n1 passed, 0 failed" },
 	{ "test-report", "new-tests \"adds\" ( 3 4 + 7 expect= ) test test-report", "ok adds\n1 passed, 0 failed" },
 	{ "text-anchor", "\"plot\" load-library\n320 240 figure \"middle\" text-anchor 10 10 \"hi\" svg-text figure>svg \"middle\" has? . cr", "1" },
+	{ "text-width", "\"M.P.H.\" text-width . \"{red}AB\" text-width . cr", "31 14" },
 	{ "then", ": past-ten ( n -- ) 10 > if \"big\" . then \"done\" . cr ; 42 past-ten", "big done" },
 	{ "throw", ": catch-demo ( -- ) ( \"boom\" throw ) catch if \"caught\" . . cr then ; catch-demo", "caught boom" },
 	{ "tick-every", "variable ticks 0 to ticks\n: count-tick ( -- )\n  | ^ticks |\n  ++ ticks ;\n' count-tick embodies on-tick\n1 tick-every 2.5 sleep 0 tick-every\nticks . cr", "2" },
@@ -1720,4 +1730,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 829;
+const int help_example_count = 834;

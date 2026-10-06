@@ -7,7 +7,8 @@
 \ Run it from the repository root, as examples/space-invaders.telic. The game
 \ is examples/invaders/game.telic unchanged: the rules, the keys, the sound.
 \ Only the picture differs. You are the cannon: its barrel shows at the
-\ bottom of the view, the arrow keys move you sideways, and the formation
+\ bottom of the view, the arrow keys (or a gamepad's d-pad or left stick)
+\ move you sideways, and the formation
 \ hangs ahead and above, rank behind rank, each rank higher than the one in
 \ front, so you see the invaders' fronts and undersides. The game's vertical
 \ axis becomes distance: a formation step down brings the invaders nearer,

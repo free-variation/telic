@@ -1,0 +1,50 @@
+\ Spitfire: the sound. The Merlin is two tones under one note: the exhaust at
+\ the firing rate of its twelve cylinders, six firings a revolution, 300 Hz
+\ at 3,000 rpm, and the propeller's three blades passing through the
+\ reduction gear at 0.477 of the crankshaft's speed; both follow the
+\ engine's revolutions by retuning the sounding oscillators, through a filter
+\ that opens with the throttle. The wind is pink noise whose filter and level
+\ rise with the airspeed; the eight Brownings are white noise chopped by a
+\ square wave at their combined rate while the trigger is held.
+
+110 constant engine-base-hz
+
+: define-sounds ( -- )
+	{ :oscillators [ { :wave :saw :ratio 1 :level 0.8 :attack 0.5 :release 1 }
+	                 { :wave :pulse :width 0.3 :ratio 0.4 :level 0.6 :attack 0.5 :release 1 }
+	                 { :wave :brown :level 0.4 :attack 0.5 :release 1 } ]
+	  :carriers [ 0 1 2 ] :cutoff 600 :resonance 0.3 :level 0.22 } :merlin instrument-patch!
+	{ :oscillators [ { :wave :pink :attack 0.5 :release 1 } ] :cutoff 300 :level 0.0 } :wind instrument-patch!
+	{ :oscillators [ { :wave :white :attack 0.002 :release 0.05 :lfo-level 1 } ]
+	  :lfo { :shape :square :rate 22 } :cutoff 2500 :resonance 0.6 :level 0.5 } :guns instrument-patch! ;
+
+\ the effects under the whole flight: a little room on everything
+: settle-sound ( -- )
+	0.12 :wet :reverb effect! 0.5 :decay :reverb effect!
+	0 :wet :delay effect! 0 :wet :chorus effect!
+	0.9 :level :master effect! ;
+
+\ start the engine and the wind sounding
+: start-sounds ( -- )
+	:a2 1 :merlin note-on
+	:a2 1 :wind note-on ;
+
+\ retune and reshape the engine and the wind to the aircraft's state
+: update-sounds ( plane -- )
+	| plane |
+	plane@revolutions 3000 * 400 max2 to revolutions-per-minute
+	revolutions-per-minute 60 / 6 * engine-base-hz / to firing-ratio
+	revolutions-per-minute 60 / 0.477 * 3 * engine-base-hz / to blade-ratio
+	firing-ratio 0.1 8 clamp :ratio 0 :merlin oscillator!
+	blade-ratio 0.1 8 clamp :ratio 1 :merlin oscillator!
+	plane@throttle 1500 * 400 + :cutoff :merlin instrument!
+	plane@velocity v-length to speed
+	speed 12 * 200 + 20 8000 clamp :cutoff :wind instrument!
+	speed 160 / 0 1 clamp 0.25 * :level :wind instrument! ;
+
+\ the guns sounding while the trigger is held
+: guns-sound ( firing -- )
+	| firing |
+	firing if :c4 1 :guns note-on else :c4 :guns note-off then ;
+
+: stop-sounds ( -- ) silence-audio ;

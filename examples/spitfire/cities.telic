@@ -1,0 +1,553 @@
+\ Spitfire: Edinburgh and Glasgow, and the whole scenery's assembly. Each
+\ landmark stands at its Wikidata position. Published heights are used
+\ where found: the castle rock 80 m above its surroundings, the Great Hall
+\ 29 m by 12.5 m, the Half Moon Battery's wall 80 ft on its south side, the
+\ six-storey New Barracks, St Giles' crown spire 44 m and the church 60 m by
+\ 38 m, the Hub's spire 73 m, the Tron Kirk 52 m, the Balmoral Hotel 52 m,
+\ the Scott Monument 61 m, the Nelson Monument 32 m, the National
+\ Monument's twelve columns, St Mary's Cathedral 90 m, Fettes College 60 m;
+\ in Glasgow the University's tower 85 m and its south front 160 m, the
+\ Cathedral 87 m by 20 m, 32 m to its ridge and 69 m to its spire's tip,
+\ the City Chambers' tower 73 m, Kelvingrove's roof 36 m and towers 51 m,
+\ Trinity College's west tower over 50 m with two smaller ones east of it,
+\ the Finnieston Crane 53 m and the Titan at Clydebank 46 m. The castle's
+\ plan (where each building stands on the rock), the buildings' footprints
+\ where no figure was found, and the National Monument's column height are
+\ estimates.
+
+\ a landmark's point on the ground beneath it, hills included
+: on-ground ( key -- point )
+	| key |
+	key landmark-ground to point
+	[ point first point first point 2 @i ground-height point 2 @i ] ;
+
+\ === the cities' streets, squares, stations and railways, from OpenStreetMap ===
+
+0x8a7a6a constant rail-colour
+0xc8745c constant sandstone-colour
+0x8fbf70 constant park-colour
+
+\ tenements along a street's centre line, a block's height high, a row of blocks on the given sides of every stretch long enough for one; the sides :north for the north side alone, where gardens face the street
+: keep-street-line ( line height sides -- )
+	| line height sides |
+	0 line size 1- 1 do k
+		line k @i to start
+		line k 1+ @i to finish
+		[ finish first start first - 0 finish second start second - ] to run
+		run heading-of to heading
+		sides :north = if
+			heading PI 180 / * sin 0 > if [ -1 ] else [ 1 ] then
+		else
+			sides
+		then to row-sides
+		run v-length 102 / round-down to n-blocks
+		n-blocks 0 > if
+			[ start first 0 start second ] heading n-blocks 90 12 height row-sides keep-street
+		then
+	loop ;
+
+\ a street's line begun where it first passes a distance from a point, for a street that starts inside a landmark's grounds
+: line-beyond ( line point distance -- line' )
+	| line point distance |
+	line first to start
+	line second to finish
+	0 101 1 do k
+		start finish k 100 / v-between to probe
+		probe point v- spread to dz to dx
+		dx sq dz sq + sqrt distance >= if
+			[ probe ] line 1 skip concat exit
+		then
+	loop
+	line 1 skip ;
+
+\ a square: its outline and the paths across it corner to corner
+: keep-square ( outline -- )
+	| outline |
+	new-sketch to square
+	square outline 0 ground-path sketch-loop
+	outline size 2 / round-down to half
+	square [ outline first outline half @i ] 0 ground-path sketch-path
+	square [ outline second outline half 1+ outline size mod @i ] 0 ground-path sketch-path
+	square park-colour keep ;
+
+\ a city's OpenStreetMap features: tenements along its streets, each street's height and sides from styles keyed like the streets; its squares; its stations' train sheds, each its height from shed-heights; its railways on the ground, each run of track once
+: keep-city ( streets styles squares stations shed-heights railways -- )
+	| streets styles squares stations shed-heights railways |
+	streets keys ( key | streets key @ styles key @ spread keep-street-line ) each
+	squares values ( outline | outline keep-square ) each
+	new-sketch to sheds
+	stations keys ( key | sheds stations key @ 0 ground-path shed-heights key @ sketch-prism ) each
+	sheds stone-colour keep
+	railways ( line | line 1 ground-path rail-colour keep-path ) each ;
+
+\ the middle of an outline, the mean of its points
+: outline-middle ( outline -- point )
+	| outline |
+	outline [ 0 0 ] ' v+ reduce outline size 1 swap / v* ;
+
+\ === Edinburgh Castle ===
+
+\ the rock's top above the town, metres
+78 constant castle-rock
+
+\ the castle rock: its top, a ledge 40% of the way up and close in under the top, so the crags above it stand nearly sheer over the slope to the foot; the curtain wall round the top
+: build-castle-rock ( -- )
+	[ [ -95 25 ] [ -80 -15 ] [ -45 -38 ] [ 10 -35 ] [ 60 -30 ] [ 100 -15 ] [ 125 0 ]
+	  [ 125 35 ] [ 95 62 ] [ 40 85 ] [ -20 84 ] [ -70 70 ] [ -95 48 ] ] to top
+	[ [ -175 30 ] [ -155 -55 ] [ -85 -115 ] [ 10 -115 ] [ 85 -105 ] [ 150 -60 ] [ 190 -15 ]
+	  [ 190 55 ] [ 140 120 ] [ 45 155 ] [ -40 155 ] [ -125 135 ] [ -175 85 ] ] to foot
+	top size to n-points
+	[ 0 n-points 1 do k
+		top k @i to upper
+		foot k @i to lower
+		[ upper first 0.88 * lower first 0.12 * + upper second 0.88 * lower second 0.12 * + ]
+	loop ] to ledge
+	new-sketch to rock
+	rock top castle-rock outline-at sketch-points to top-indices
+	rock ledge castle-rock 0.4 * outline-at sketch-points to ledge-indices
+	rock foot 0 outline-at sketch-points to foot-indices
+	rock top-indices join-loop
+	rock ledge-indices join-loop
+	rock foot-indices join-loop
+	0 n-points 1 do k
+		rock [ top-indices k @i ledge-indices k @i foot-indices k @i ] join-path
+	loop
+	rock hill-colour keep
+	new-sketch to wall
+	wall top castle-rock outline-at 8 sketch-prism
+	wall stone-colour keep ;
+
+\ the castle's buildings about Crown Square, the batteries and gates to the east, the barracks to the south-west, the esplanade and Castlehill running down to the Royal Mile
+: build-castle-buildings ( -- )
+	site-heading to heading
+	new-sketch to castle
+	castle 0 0 castle-rock at heading 6 11 5 8 sketch-house
+	castle 19 25 castle-rock at heading 14 40 13 19 sketch-house
+	castle 19 14 castle-rock at heading 10 10 16 sketch-box
+	castle [ [ 4 33 ] [ 34 33 ] [ 34 63 ] [ 4 63 ] ] castle-rock 0.2 + outline-at sketch-loop
+	castle 19 70 castle-rock at heading 12.5 29 12 18 sketch-house
+	castle 47 48 castle-rock at heading 90 + 14 40 18 24 sketch-house
+	castle 47 26 castle-rock at heading 8 8 30 sketch-box
+	castle 47 26 castle-rock at 8 30 36 4 sketch-pinnacled-spire
+	castle -10 48 castle-rock at heading 90 + 12 36 12 17 sketch-house
+	castle -40 30 castle-rock at heading 12 20 12 17 sketch-house
+	castle -75 40 castle-rock at heading 90 + 12 30 12 16 sketch-house
+	castle -45 70 castle-rock 8 - at heading 16 60 30 sketch-box
+	[ -90 -60 -30 0 30 60 90 ] ( angle |
+		angle PI 180 / * to bearing
+		[ 78 bearing cos 24 * + 45 bearing sin 24 * + ]
+	) map to battery
+	castle battery castle-rock 22 - outline-at 28 sketch-prism
+	castle 95 18 castle-rock 10 - at heading 12 10 22 sketch-box
+	castle 130 18 castle-rock 6 - at heading 22 10 14 sketch-box
+	[ -9 9 ] ( side | castle 130 18 side + castle-rock 6 - at heading 4 4 18 sketch-box ) each
+	castle [ [ 135 -5 ] [ 230 -5 ] [ 230 45 ] [ 135 45 ] ] castle-rock 4 - outline-at sketch-loop
+	castle [ 230 -5 castle-rock 12 - at 420 0 0 at ] sketch-path
+	castle [ 230 45 castle-rock 12 - at 420 40 0 at ] sketch-path
+	castle stone-colour keep ;
+
+: build-castle ( -- )
+	:st-margarets-chapel landmark-ground :edinburgh-castle :holyrood landmark-heading site!
+	build-castle-rock
+	build-castle-buildings ;
+
+\ === the Old Town ===
+
+\ the Royal Mile's tenements, St Giles' with its crown spire, the Hub's spire, the Tron Kirk
+: build-old-town ( -- royal-mile )
+	:edinburgh-castle :holyrood landmark-heading to royal-mile
+	new-sketch to churches
+	:st-giles landmark-ground royal-mile site!
+	churches 0 0 0 at royal-mile 38 60 16 22 sketch-house
+	churches 5 0 0 at royal-mile 9 9 30 sketch-box
+	churches 5 0 0 at 9 30 38 44 sketch-crown
+	:the-hub landmark-ground royal-mile site!
+	churches 10 0 0 at royal-mile 18 30 14 20 sketch-house
+	churches -10 0 0 at royal-mile 9 9 34 sketch-box
+	churches -10 0 0 at 9 34 73 6 sketch-pinnacled-spire
+	:tron-kirk landmark-ground royal-mile site!
+	churches 0 0 0 at royal-mile 20 24 12 18 sketch-house
+	churches -14 0 0 at 6 30 22 sketch-spire
+	churches stone-colour keep
+	royal-mile ;
+
+\ === the New Town and Calton Hill ===
+
+\ the Scott Monument: four stages narrowing upward, pinnacles at the corners of the lowest, a spire on the top
+: build-scott-monument ( royal-mile -- )
+	| royal-mile |
+	:scott-monument landmark-ground royal-mile site!
+	new-sketch to scott
+	[ [ 16 0 18 ] [ 11 18 32 ] [ 8 32 46 ] [ 5 46 55 ] ] ( stage |
+		stage spread to top to bottom to width
+		scott 0 0 bottom at royal-mile width width top bottom - sketch-box
+	) each
+	scott 0 0 0 at 16 18 18 6 sketch-pinnacled-spire
+	scott 0 0 0 at 5 55 61 0 sketch-pinnacled-spire
+	scott stone-colour keep ;
+
+\ Edinburgh's main streets lined with tenements: the Royal Mile's tall lands, 26 m (an estimate), begun past the castle's esplanade; Princes Street and Queen Street on their north sides only, facing their gardens; George Street, South Bridge, Leith Walk and Lothian Road; St Andrew and Charlotte Squares; Waverley's and Haymarket's train sheds, an estimated 12 and 10 m high; the main-line railways through Princes Street Gardens
+: build-edinburgh-streets ( -- )
+	edinburgh-streets@royal-mile :st-margarets-chapel landmark-ground to chapel [ chapel first chapel 2 @i ] 420 line-beyond to royal-mile-line
+	edinburgh-streets { :royal-mile royal-mile-line } merge to streets
+	{ :royal-mile [ 26 [ -1 1 ] ] :princes-street [ 16 :north ] :queen-street [ 16 :north ]
+	  :george-street [ 18 [ -1 1 ] ] :south-bridge [ 22 [ -1 1 ] ] :leith-walk [ 16 [ -1 1 ] ]
+	  :lothian-road [ 18 [ -1 1 ] ] } to styles
+	streets styles edinburgh-squares edinburgh-stations { :edinburgh-waverley 12 :haymarket 10 } edinburgh-railways keep-city ;
+
+\ the Balmoral Hotel's clock tower and the North Bridge over Waverley
+: build-new-town ( royal-mile -- )
+	| royal-mile |
+	new-sketch to centre
+	:balmoral-hotel landmark-ground royal-mile site!
+	centre 0 0 0 at royal-mile 45 60 25 sketch-box
+	centre -20 -15 0 at royal-mile 10 10 42 sketch-box
+	centre -20 -15 0 at 10 42 52 4 sketch-pinnacled-spire
+	:north-bridge landmark-ground royal-mile 90 + site!
+	[ -8 8 ] ( across | centre [ -150 across 22 at 150 across 22 at ] sketch-path ) each
+	[ -75 0 75 ] ( along | centre along 0 0 at royal-mile 90 + 16 8 22 sketch-box ) each
+	centre stone-colour keep ;
+
+\ St Mary's Cathedral's three spires, the tallest over the crossing; Fettes College's tower
+: build-west-end ( -- )
+	new-sketch to west
+	:st-marys-cathedral landmark-ground 90 site!
+	west 0 0 0 at 90 24 80 20 28 sketch-house
+	west 0 0 0 at 90 14 14 45 sketch-box
+	west 0 0 0 at 14 45 90 6 sketch-pinnacled-spire
+	[ -9 9 ] ( across |
+		west -38 across 0 at 90 8 8 35 sketch-box
+		west -38 across 0 at 8 35 60 3 sketch-pinnacled-spire
+	) each
+	:fettes-college landmark-ground 90 site!
+	west 0 0 0 at 90 18 110 16 24 sketch-house
+	west 0 0 0 at 90 12 12 40 sketch-box
+	west 0 0 0 at 12 40 60 5 sketch-pinnacled-spire
+	[ -55 55 ] ( along | west along 0 0 at 90 20 18 22 sketch-box ) each
+	west stone-colour keep ;
+
+\ Calton Hill: the Nelson Monument, a telescope on a five-sided base; the National Monument's twelve columns facing west; the Dugald Stewart Monument's ring of columns under its dome
+: build-calton-hill ( -- )
+	new-sketch to calton
+	:nelson-monument on-ground to nelson
+	calton nelson 11 0 6 5 sketch-drum
+	[ [ 4.5 6 18 ] [ 3.6 18 26 ] [ 2.8 26 32 ] ] ( drum |
+		drum spread to top to bottom to radius
+		calton nelson radius bottom top 8 sketch-drum
+	) each
+	:national-monument on-ground 0 site!
+	calton [ [ -17 -2 ] [ 17 -2 ] [ 17 11 ] [ -17 11 ] ] 0 outline-at 2 sketch-prism
+	calton -14.7 0 0 at 0 8 4.2 2 15 sketch-colonnade
+	[ -14.7 14.7 ] ( along |
+		calton along 4.2 0 at 90 2 4.2 2 15 sketch-colonnade
+	) each
+	calton [ [ -14.7 0 ] [ 14.7 0 ] [ 14.7 8.4 ] [ -14.7 8.4 ] ] 15 outline-at 2 sketch-prism
+	:dugald-stewart on-ground to temple
+	calton temple 6 0 4 9 sketch-drum
+	temple [ 0 4 0 ] v+ 4.5 0 9 ring-points ( base |
+		calton [ base base [ 0 8 0 ] v+ ] sketch-path
+	) each
+	calton temple 4.5 12 13 9 sketch-drum
+	temple [ 0 13 0 ] v+ 4.5 0 9 ring-points ( rim | calton [ rim temple [ 0 16 0 ] v+ ] sketch-path ) each
+	calton stone-colour keep ;
+
+\ Holyrood's palace and Leith's docks
+: build-holyrood-and-leith ( royal-mile -- )
+	| royal-mile |
+	:holyrood landmark-ground to palace
+	new-sketch to holyrood
+	holyrood palace royal-mile 70 70 18 sketch-box
+	holyrood palace royal-mile -40 0 -40 placed royal-mile 18 18 26 sketch-box
+	holyrood palace royal-mile 40 0 -40 placed royal-mile 18 18 26 sketch-box
+	holyrood stone-colour keep
+	:leith landmark-ground to docks
+	new-sketch to leith
+	leith docks 10 400 600 0 rectangle-corners sketch-loop
+	leith docks 10 200 300 0 rectangle-corners sketch-loop
+	[ -150 -50 50 150 ] ( along |
+		docks 10 210 0 along placed to crane-foot
+		leith [ crane-foot crane-foot [ 0 30 0 ] v+ crane-foot 10 -20 30 0 placed ] sketch-path
+	) each
+	leith town-colour keep ;
+
+: build-edinburgh ( -- )
+	build-castle
+	build-edinburgh-streets
+	build-old-town to royal-mile
+	royal-mile build-scott-monument
+	royal-mile build-new-town
+	build-west-end
+	build-calton-hill
+	royal-mile build-holyrood-and-leith ;
+
+\ === Glasgow ===
+
+\ Gilmorehill's height above the Clyde, an estimate beside Woodlands Hill's published 47 m
+40 constant university-hill
+
+\ the University on Gilmorehill: the hill, and on its top ranges round two quadrangles behind the south front, the tower over the front's middle, its open spire and pinnacles, turrets at the front's ends
+: build-university ( -- )
+	:glasgow-university landmark-ground 350 university-hill 22 keep-hill
+	:glasgow-university on-ground 90 site!
+	new-sketch to university
+	university 0 45 0 at 90 14 160 18 25 sketch-house
+	university 0 -45 0 at 90 14 160 16 23 sketch-house
+	[ -73 0 73 ] ( along | university along 0 0 at 0 14 90 16 23 sketch-house ) each
+	university 0 45 0 at 90 14 14 52 sketch-box
+	university 0 45 52 at 90 11 11 10 sketch-box
+	university 0 45 0 at 11 62 85 6 sketch-pinnacled-spire
+	[ -80 80 ] ( along |
+		university along 45 0 at 5 24 6 sketch-spire
+	) each
+	university stone-colour keep ;
+
+
+\ Kelvingrove Art Gallery and Museum in its red sandstone, its north entrance to the park and the Kelvin; the Kelvin traced through Wikidata places passes within a few metres of the museum's own point, so the building is set 75 m south of it, and its 90 m by 110 m plan is an estimate: the central hall up to its 36 m roof between two long gallery wings, ranges closing the north and south ends, the two 51 m towers flanking the entrance, a smaller tower at each corner
+: build-kelvingrove-museum ( -- )
+	:kelvingrove landmark-ground 0 0 0 -75 placed 0 site!
+	new-sketch to museum
+	museum 0 0 0 at 0 25 80 26 36 sketch-house
+	[ -40 40 ] ( across | museum 0 across 0 at 0 30 90 20 24 sketch-house ) each
+	[ -45 45 ] ( along | museum along 0 0 at 90 14 110 20 sketch-box ) each
+	[ -12 12 ] ( across |
+		museum 47 across 0 at 0 9 9 40 sketch-box
+		museum 47 across 0 at 9 40 51 4 sketch-pinnacled-spire
+	) each
+	[ [ -45 -55 ] [ -45 55 ] [ 45 -55 ] [ 45 55 ] ] ( corner |
+		museum corner first corner second 0 at 8 26 4 sketch-spire
+	) each
+	museum sandstone-colour keep ;
+
+\ whether a point [ x z ] lies inside a closed outline of [ x z ] points: an odd number of its edges crossed by a line due east from the point
+: inside-outline? ( point outline -- flag )
+	| point outline |
+	point spread to z to x
+	outline size to n-points
+	0 to crossings
+	0 n-points 1 do k
+		outline k @i spread to start-z to start-x
+		outline k 1+ n-points mod @i spread to end-z to end-x
+		start-z z > end-z z > = not if
+			z start-z - end-x start-x - * end-z start-z - / start-x + x > if ++ crossings then
+		then
+	loop
+	crossings 2 mod 1 = ;
+
+\ Kelvingrove Park along the Kelvin between the museum, Gilmorehill and Woodlands Hill: its boundary, a walk along each bank, and clumps of trees off the water; the outline is an estimate
+: build-kelvingrove-park ( -- )
+	[ [ -42930 -14470 ] [ -42780 -14300 ] [ -42480 -14150 ] [ -42380 -14020 ]
+	  [ -42250 -14400 ] [ -42400 -14620 ] [ -42700 -14650 ] [ -42930 -14580 ] ] to boundary
+	new-sketch to park
+	park boundary 0 ground-path sketch-loop
+	rivers@kelvin 1 skip 3 take to reach
+	[ -30 30 ] ( side | park reach side offset-path sketch-path ) each
+	park park-colour keep
+	new-sketch to trees
+	0 40 1 do k
+		k 3.17 * 11 + hash-fraction 680 * -42930 + to x
+		k 5.41 * 7 + hash-fraction 630 * -14650 + to z
+		x z water-at? not [ x z ] boundary inside-outline? and if
+			trees [ x 0 z ] k 2.3 * hash-fraction 6 * 9 + sketch-tree
+		then
+	loop
+	trees tree-colour keep ;
+
+\ Kelvingrove's museum and park; Trinity College's three towers on Woodlands Hill, 47 m
+: build-west-end-glasgow ( -- )
+	build-kelvingrove-museum
+	build-kelvingrove-park
+	new-sketch to west
+	:trinity-college landmark-ground 300 47 23 keep-hill
+	:trinity-college on-ground 90 site!
+	west 0 0 0 at 90 20 40 15 20 sketch-house
+	west -25 0 0 at 9 44 8 sketch-spire
+	[ -7 7 ] ( across | west 22 across 0 at 6 30 5 sketch-spire ) each
+	west stone-colour keep ;
+
+\ the Cathedral with its central spire, the Necropolis on its hill with John Knox's column; the City Chambers' tower and corner domes; the Tolbooth Steeple's crown
+: build-city ( -- )
+	new-sketch to city
+	:glasgow-cathedral landmark-ground 90 site!
+	city 0 0 0 at 90 20 87 22 32 sketch-house
+	city 10 0 0 at 90 11 11 42 sketch-box
+	city 10 0 0 at 11 42 69 4 sketch-pinnacled-spire
+	:glasgow-necropolis landmark-ground 250 45 21 keep-hill
+	city :glasgow-necropolis landmark-ground 1.5 45 63 8 sketch-drum
+	:glasgow-city-chambers landmark-ground 0 site!
+	city 0 0 0 at 0 75 65 24 sketch-box
+	[ [ -33 -28 ] [ 33 -28 ] [ 33 28 ] [ -33 28 ] ] ( corner |
+		corner first corner second 0 at to dome
+		city dome 4 24 30 8 sketch-drum
+		dome [ 0 30 0 ] v+ 4 0 8 ring-points ( rim | city [ rim dome [ 0 34 0 ] v+ ] sketch-path ) each
+	) each
+	city 0 -28 0 at 0 12 12 50 sketch-box
+	city 0 -28 0 at 5 50 62 8 sketch-drum
+	city 0 -28 0 at 8 62 73 0 sketch-pinnacled-spire
+	:tolbooth-steeple landmark-ground 0 site!
+	city 0 0 0 at 0 8 8 30 sketch-box
+	city 0 0 0 at 8 30 34 38 sketch-crown
+	city stone-colour keep ;
+
+\ Glasgow's main streets, Great Western Road, Argyle Street, Buchanan Street and Sauchiehall Street, lined with tenements 18 m high; George Square with Walter Scott's 80 ft column at its centre; Central and Queen Street stations, their train sheds an estimated 15 and 18 m high; the main-line railways
+: build-city-centre ( -- )
+	{ :great-western-road [ 18 [ -1 1 ] ] :argyle-street [ 18 [ -1 1 ] ]
+	  :buchanan-street [ 18 [ -1 1 ] ] :sauchiehall-street [ 18 [ -1 1 ] ] } to styles
+	glasgow-streets styles glasgow-squares glasgow-stations { :glasgow-central 15 :glasgow-queen-street 18 } glasgow-railways keep-city
+	glasgow-squares@george-square outline-middle to middle
+	new-sketch to column
+	column [ middle first 0 middle second ] 1.5 0 24.4 8 sketch-drum
+	column [ middle first 0 middle second ] 0 4 4 3 sketch-box
+	column stone-colour keep ;
+
+\ the Clyde's cranes and shipyards: the Finnieston Crane, the Titan at Clydebank, the yards at Govan and Clydebank
+: build-river ( -- )
+	new-sketch to cranes
+	cranes :finnieston-crane landmark-ground 90 41 75 sketch-hammerhead
+	cranes :titan-crane landmark-ground 120 34 45 sketch-hammerhead
+	cranes town-colour keep
+	[ :govan :clydebank ] ( yard |
+		yard landmark-ground to quay
+		new-sketch to shipyard
+		[ -300 -100 100 300 ] ( along | shipyard quay 30 80 0 along placed 120 sketch-crane ) each
+		shipyard quay 30 -60 0 -150 placed 120 140 sketch-hull
+		shipyard quay 30 -60 0 150 placed 120 120 sketch-hull
+		shipyard town-colour keep
+	) each ;
+
+: build-glasgow ( -- )
+	build-university
+	build-west-end-glasgow
+	build-city
+	build-city-centre
+	build-river ;
+
+\ === Inverness ===
+
+\ Inverness: its main streets lined with buildings an estimated 14 m high; the station's shed, an estimated 10 m; the railways. The castle, the red sandstone of 1836, on its OpenStreetMap footprint on Castle Hill above the Ness: walls an estimated 14 m with a parapet and a round tower at a corner, the hill an estimated 20 m. The cathedral of 1869: its nave, and the two west towers, 30 m, flat-topped with pinnacles because their spires were never built. The Town House of 1882 on its footprint, an estimated 16 m
+: build-inverness ( -- )
+	{ :academy-street [ 14 [ -1 1 ] ] :high-street [ 14 [ -1 1 ] ] :church-street [ 14 [ -1 1 ] ]
+	  :castle-street [ 14 [ -1 1 ] ] :bridge-street [ 14 [ -1 1 ] ] :union-street [ 14 [ -1 1 ] ]
+	  :tomnahurich-street [ 14 [ -1 1 ] ] :huntly-street [ 14 [ -1 1 ] ] } to styles
+	inverness-streets styles inverness-squares inverness-stations { :inverness 10 } inverness-railways keep-city
+	:inverness-castle landmark-ground 150 20 24 keep-hill
+	:inverness-castle on-ground second to hill-top
+	inverness-buildings@inverness-castle hill-top ground-path to footprint
+	new-sketch to castle
+	castle footprint 14 sketch-prism
+	castle footprint ( point | point [ 0 14 0 ] v+ ) map 2 sketch-prism
+	castle footprint first 4 0 22 8 sketch-drum
+	castle sandstone-colour keep
+	new-sketch to churches
+	:inverness-cathedral landmark-ground 0 site!
+	churches 0 0 0 at 0 20 50 14 22 sketch-house
+	[ -6 6 ] ( across |
+		churches -28 across 0 at 0 7 7 30 sketch-box
+		churches -28 across 0 at 7 30 30 3 sketch-pinnacled-spire
+	) each
+	inverness-buildings@inverness-town-house 0 ground-path 16 churches -rot sketch-prism
+	churches stone-colour keep
+	build-urquhart ;
+
+\ === Trondheim and the Tirpitz ===
+
+0x8a9096 constant warship-colour
+\ where the Tirpitz lies, [ x 0 z ], and her heading, for the cameras and the flak
+variable tirpitz-berth
+[ 0 0 0 ] to tirpitz-berth
+variable tirpitz-heading
+0 to tirpitz-heading
+
+\ the battleship Tirpitz, 251 m long and 36 m in the beam (published), her deck an estimated 8 m above the water: the hull at the waterline and the deck; the four twin turrets, Anton and Bruno forward, Caesar and Dora aft, Bruno and Caesar superfiring, each with its two barrels; the superstructure, the bridge tower, the funnel, the masts; trees cut and laid on her deck as camouflage, and the anti-torpedo nets round her (both reported); the heights above the deck are estimates
+: sketch-tirpitz ( sketch centre heading -- )
+	| sketch centre heading |
+	centre heading site!
+	[ [ 125.5 0 ] [ 100 9 ] [ 60 17 ] [ 20 18 ] [ -60 18 ] [ -100 15 ] [ -118 9 ] [ -125.5 0 ]
+	  [ -118 -9 ] [ -100 -15 ] [ -60 -18 ] [ 20 -18 ] [ 60 -17 ] [ 100 -9 ] ] to hull
+	sketch hull 0 outline-at 8 sketch-prism
+	[ [ 75 8 ] [ 55 12 ] [ -55 12 ] [ -75 8 ] ] ( turret |
+		turret spread to base to along
+		sketch along 0 base at heading 12 14 4 sketch-box
+		along 0 > if 1 else -1 then to forward
+		[ -2 2 ] ( across |
+			sketch [ along forward 7 * + across base 2 + at along forward 23 * + across base 2.5 + at ] sketch-path
+		) each
+	) each
+	sketch 10 0 8 at heading 16 30 10 sketch-box
+	sketch 30 0 8 at heading 8 8 22 sketch-box
+	sketch -5 0 18 at heading 8 12 12 sketch-box
+	sketch [ 30 0 30 at 30 0 45 at ] sketch-path
+	sketch [ -22 0 18 at -22 0 40 at ] sketch-path
+	[ [ 95 0 ] [ 40 -10 ] [ -30 10 ] [ -90 -6 ] [ -110 4 ] ] ( tree |
+		sketch tree first tree second 8 at 6 sketch-tree
+	) each
+	sketch [ [ 150 45 ] [ -150 45 ] [ -150 -45 ] [ 150 -45 ] ] 0.5 outline-at sketch-loop ;
+
+\ the Tirpitz in Fættenfjord, along the shore nearest the fjord's point, 15 m off it, her side to the cliff that sheltered her from the south-west; the cliff an estimated 150 m hill behind her
+: build-tirpitz ( -- )
+	| ^tirpitz-berth ^tirpitz-heading |
+	:faettenfjord landmark-ground to fjord
+	fjord use-water-near
+	1e30 to nearest
+	0 to shore-bearing
+	0 72 1 do k
+		k 5 * to bearing
+		20 1001 20 do reach
+			fjord bearing 0 0 reach placed to probe
+			probe first probe 2 @i water-at? not reach nearest < and if
+				reach to nearest
+				bearing to shore-bearing
+			then
+		loop
+	loop
+	fjord shore-bearing 0 0 nearest 18 - 15 - 0 max2 placed to berth
+	berth to tirpitz-berth
+	shore-bearing 90 + to tirpitz-heading
+	fjord shore-bearing 0 0 nearest 450 + placed 450 150 31 keep-hill
+	new-sketch to ship
+	ship berth shore-bearing 90 + sketch-tirpitz
+	ship warship-colour keep
+	[ 0 0 0 ] use-water-near ;
+
+\ Trondheim: its streets lined with buildings an estimated 12 m high, the station's shed an estimated 10 m, the railways; Nidaros Cathedral, 102 m by 50 m across the transepts and 21 m high, its central spire's tip 87 m (published), the west front's towers an estimated 40 m; Munkholmen's fort on its islet; the Luftwaffe's airfield at Værnes
+: build-trondheim ( -- )
+	:faettenfjord landmark-ground use-water-near
+	{ :munkegata [ 12 [ -1 1 ] ] :kongens-gate [ 12 [ -1 1 ] ] :olav-tryggvasons-gate [ 12 [ -1 1 ] ]
+	  :prinsens-gate [ 12 [ -1 1 ] ] } to styles
+	trondheim-streets styles trondheim-squares trondheim-stations { :trondheim-s 10 } trondheim-railways keep-city
+	new-sketch to church
+	:nidaros landmark-ground 90 site!
+	church 0 0 0 at 90 24 102 21 28 sketch-house
+	church 10 0 0 at 0 20 50 21 28 sketch-house
+	church 10 0 0 at 90 14 14 40 sketch-box
+	church 10 0 0 at 14 40 87 6 sketch-pinnacled-spire
+	[ -12 12 ] ( across |
+		church -48 across 0 at 90 10 10 40 sketch-box
+		church -48 across 0 at 10 40 46 3 sketch-pinnacled-spire
+	) each
+	church stone-colour keep
+	new-sketch to fort
+	fort :munkholmen landmark-ground 15 0 12 12 sketch-drum
+	fort :munkholmen landmark-ground 6 12 22 8 sketch-drum
+	fort stone-colour keep
+	:vaernes landmark-ground 90 keep-airfield
+	[ 0 0 0 ] use-water-near ;
+
+\ === the whole scenery ===
+
+\ build the whole scenery once
+: build-scenery ( -- collection )
+	| ^scenery ^hill-cones |
+	[ ] to scenery
+	[ ] to hill-cones
+	build-waters
+	build-hills
+	build-airfields
+	build-edinburgh
+	build-forth-bridge
+	build-ships
+	build-glasgow
+	build-stirling
+	build-inverness
+	build-trondheim
+	build-tirpitz
+	scenery collect-objects ;

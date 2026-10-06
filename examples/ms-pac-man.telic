@@ -4,7 +4,9 @@
 \   ./telic examples/ms-pac-man.telic --level 6
 \
 \ Keys: the arrows steer, p pauses, return starts, escape quits. A direction
-\ pressed before a turn is taken at the turn, cutting the corner.
+\ pressed before a turn is taken at the turn, cutting the corner. On a
+\ gamepad the d-pad or the left stick steers and start begins a game and
+\ pauses it.
 \
 \ The arcade's four mazes, each in its own colors, change with the acts:
 \ levels 1-2, 3-5, then four levels each, the last two mazes alternating.

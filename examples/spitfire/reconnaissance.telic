@@ -1,0 +1,196 @@
+\ Spitfire: photographic reconnaissance. The PR IV carried two F24 cameras
+\ behind the pilot as a split vertical pair: both look down, each tilted to
+\ its own side of the track so their frames overlap and together cover a
+\ strip twice as wide. Each F24 here has the 20-inch lens and makes 5-inch
+\ square exposures, 125 to a magazine (published), so a frame covers
+\ 2 × atan(2.5 / 20), 14.25°, across; the tilt of 6° each way is an
+\ estimate. The pilot opens the mud flaps over the lenses and starts the
+\ intervalometer (C), which exposes a pair at the interval that gives 60%
+\ overlap along the track at the height and speed, an estimate of the
+\ setting, until the magazines are spent. Each exposure records where the
+\ aircraft was and how it lay. After landing the film is developed (V): the
+\ review draws each frame from that place, looking down through the lens,
+\ in grey, and names the frames that caught the Tirpitz.
+\
+\ Heavy flak defends the Tirpitz, Trondheim, Munkholmen and Værnes: within
+\ 10 km of them and below an estimated 7,500 m it bursts near the aircraft
+\ twice a second, and a burst within 60 m damages it as the gunners' hits
+\ do, sometimes holing the radiator or the oil system. Time can run four or
+\ sixteen times as fast (T) for the long crossing.
+
+2.5 20 / atan 2 * constant lens-angle
+6 PI 180 / * constant split-angle
+125 constant magazine-exposures
+0.6 constant photo-overlap
+7500 constant flak-ceiling
+10000 constant flak-reach
+60 constant flak-lethal-distance
+0x303030 constant flak-colour
+
+variable photos
+[ ] to photos
+variable flak-bursts
+[ ] to flak-bursts
+
+\ the photographs and the flak forgotten, for a new flight
+: reset-reconnaissance ( -- )
+	| ^photos ^flak-bursts |
+	[ ] to photos
+	[ ] to flak-bursts ;
+
+\ a camera's attitude: the aircraft's turned to look straight down, the top of the frame toward the nose, then tilted to one side, -1 left and 1 right
+: camera-attitude ( attitude side -- attitude' )
+	| attitude side |
+	attitude :right PI 2 / turn-attitude :up side split-angle * turn-attitude ;
+
+\ whether a point shows in a camera's frame from a position: in front of the lens and inside its angle both ways
+: in-frame? ( point position attitude -- flag )
+	| point position attitude |
+	attitude point position v- ground>attitude spread to ahead to rising to across
+	lens-angle 2 / tan to edge
+	ahead 0 > across abs ahead edge * < and rising abs ahead edge * < and ;
+
+\ whether a photograph caught the Tirpitz: her bow, centre or stern in either camera's frame
+: shows-tirpitz? ( photo -- flag )
+	| photo |
+	tirpitz-berth tirpitz-heading 0 0 120 placed to bow
+	tirpitz-berth tirpitz-heading 0 0 -120 placed to stern
+	[ -1 1 ] ( side |
+		photo@attitude side camera-attitude to attitude
+		[ bow tirpitz-berth stern ] ( point | point photo@position attitude in-frame? ) any?
+	) any? ;
+
+\ the intervalometer's step: when the interval has run, a pair exposed and its place recorded, the next interval set for 60% overlap at the height and the speed over the ground
+: run-cameras ( elapsed -- )
+	| elapsed ^photos |
+	:cameras-running game@ not if exit then
+	:exposures-left game@ 0 <= if
+		false :cameras-running game!
+		"THE MAGAZINES ARE SPENT" say
+		exit
+	then
+	:exposure-timer game@ elapsed - :exposure-timer game!
+	:exposure-timer game@ 0 > if exit then
+	plane@position second 0 max2 to height
+	plane@velocity spread to vz drop to vx
+	vx sq vz sq + sqrt 30 max2 to ground-speed
+	height lens-angle 2 / tan 2 * * 1 photo-overlap - * ground-speed / 1 max2 :exposure-timer game!
+	photos { :position plane@position :attitude plane@attitude :time :flight-time game@ } add-last! drop
+	:exposures-left game@ 1- :exposures-left game! ;
+
+\ === the flak ===
+
+\ the places the flak defends
+: flak-sites ( -- sites )
+	[ tirpitz-berth :munkholmen landmark-ground :vaernes landmark-ground :nidaros landmark-ground ] ;
+
+\ the flak's step: twice a second while the aircraft is within reach of a defended place and below the ceiling, a burst near it, which damages it when close; the bursts fade over 4 s
+: run-flak ( dt -- )
+	| dt ^flak-bursts |
+	flak-bursts ( burst | [ burst first burst second dt - ] ) map ( burst | burst second 0 > ) filter to flak-bursts
+	plane@position to aircraft
+	aircraft second flak-ceiling < flak-sites ( site | site aircraft v- spread to dz drop to dx dx sq dz sq + sqrt flak-reach < ) any? and not if exit then
+	random dt 2 * < not if exit then
+	aircraft [ random 0.5 - 300 * random 0.5 - 120 * random 0.5 - 300 * ] v+ plane@velocity 1.5 v* v+ to burst
+	flak-bursts [ burst 4 ] add-last! drop
+	burst aircraft v- v-length flak-lethal-distance < if
+		plane@damage 15 + plane!damage
+		"HIT BY FLAK" say
+		random 0.3 < if
+			plane@coolant-leak 0.01 + plane!coolant-leak
+			"FLAK IN THE RADIATOR  -  GLYCOL LEAKING, WATCH THE TEMPERATURE" say
+		then
+		random 0.15 < if
+			plane@oil-leak 0.005 + plane!oil-leak
+			"FLAK IN THE OIL SYSTEM  -  WATCH THE OIL PRESSURE" say
+		then
+	then ;
+
+\ each burst a dark star of six arms, 20 m long, fading as it ages
+: draw-flak ( -- )
+	flak-bursts ( burst |
+		burst first to centre
+		new-sketch to puff
+		[ [ 20 0 0 ] [ -20 0 0 ] [ 0 20 0 ] [ 0 -20 0 ] [ 0 0 20 ] [ 0 0 -20 ] ] ( arm |
+			puff [ centre centre arm v+ ] sketch-path
+		) each
+		puff flak-colour sky-colour burst second 4 / blended sketch>object draw-object
+	) each ;
+
+\ === the review of the film ===
+
+\ the palette of a print: greys
+: use-photograph ( -- )
+	| ^sky-colour ^ground-colour ^water-colour ^lighting ^cloud-top-colour ^cloud-base-colour ^stars-showing |
+	0x9a9a9a to sky-colour
+	0x6c6c6c to ground-colour
+	0x2a2a2a to water-colour
+	1 to lighting
+	0xf0f0f0 to cloud-top-colour
+	0xb0b0b0 to cloud-base-colour
+	false to stars-showing ;
+
+\ the frames that caught the Tirpitz, numbered from 1
+: tirpitz-frames ( -- numbers )
+	[ 0 photos size 1 do k
+		photos k @i shows-tirpitz? if k 1+ then
+	loop ] ;
+
+\ one frame of the film: drawn from where it was exposed, through the camera's lens, a square print in grey in the middle of the view; under it the frame's number, the camera, the height and the time into the flight, and the frames that caught the Tirpitz
+: draw-review ( scenery -- )
+	| scenery ^focal-length ^monochrome |
+	photos :review-index game@ @i to photo
+	:review-side game@ to side
+	photo@position to place
+	place use-water-near
+	place refresh-countryside
+	place refresh-clouds
+	use-photograph
+	clear-visibility use-visibility
+	view-height 2 / lens-angle 2 / tan / to focal-length
+	true to monochrome
+	place photo@attitude side camera-attitude look-from
+	[ scenery countryside-collection ] draw-view
+	draw-sky
+	false to monochrome
+	420 to focal-length
+	view-centre-x view-height 2 / - to left
+	0 0 left view-height 0 fill-span
+	left view-height + 0 view-width left - view-height - view-height 0 fill-span
+	0 panel-top view-width screen-height panel-top - 0x101010 fill-span
+	photo shows-tirpitz? if "TIRPITZ" else "" then to caught
+	:review-index game@ 1+ photos size side 0 < if "LEFT" else "RIGHT" then place second 3.28084 * photo@time 60 / caught
+	"FRAME {5} OF {4}   {3} CAMERA   {2:.0f} FT   {1:.0f} MIN   {0}" format to caption
+	view-centre-x panel-top 20 + caption 0xffffff centred-print
+	tirpitz-frames to caught-frames
+	caught-frames size 0 = if
+		"THE TIRPITZ IS IN NONE OF THE FRAMES"
+	else
+		caught-frames ( n | n "{0:.0f}" format ) map ", " join "THE TIRPITZ IS IN FRAMES {0}" format
+	then to summary
+	view-centre-x panel-top 50 + summary 0xffe080 centred-print
+	view-centre-x panel-top 90 + "LEFT AND RIGHT: FRAMES   UP AND DOWN: CAMERA   ESC: DONE" dial-ink centred-print ;
+
+\ a frame of the review: the keys and the d-pad move through the frames and between the cameras, escape ends it
+: review-frame ( scenery -- )
+	| scenery |
+	photos size to n-photos
+	:right key-pressed? :dpad-right 0 gamepad-pressed? or if :review-index game@ 1+ n-photos 1- min2 :review-index game! then
+	:left key-pressed? :dpad-left 0 gamepad-pressed? or if :review-index game@ 1- 0 max2 :review-index game! then
+	:up key-pressed? :dpad-up 0 gamepad-pressed? or if -1 :review-side game! then
+	:down key-pressed? :dpad-down 0 gamepad-pressed? or if 1 :review-side game! then
+	:escape key-pressed? :back 0 gamepad-pressed? or if false :reviewing game! exit then
+	scenery draw-review ;
+
+\ the panel's reconnaissance lines in the strip below it: the cameras, the target's bearing and its distance over the ground, in tenths of a mile within 10 miles, the time's pace
+: draw-reconnaissance-panel ( target -- )
+	| target |
+	436 to x
+	:cameras-running game@ if "CAMERAS RUNNING" else "CAMERAS OFF" then :exposures-left game@ "{1}  {0:.0f} LEFT" format to camera-line
+	x floor-top 4 + camera-line :cameras-running game@ if 0xffe080 else dial-ink then draw-text
+	target plane@position v- spread to dz drop to dx
+	dx sq dz sq + sqrt 1609.34 / to miles
+	miles [ dx 0 dz ] heading-of
+	miles 10 < if "TARGET {0:03.0f} {1:.1f} MI" else "TARGET {0:03.0f} {1:.0f} MI" then format to target-line
+	x floor-top 17 + target-line dial-ink draw-text
+	:time-scale game@ 1 > if x floor-top 30 + :time-scale game@ "TIME x{0:.0f}" format 0xff9040 draw-text then ;

@@ -480,7 +480,13 @@ live here instead. File and function name each invariant's home.
   window events, because Cocoa requires the process's first thread and telic's
   REPL would otherwise block it inside isocline. Every Tigr call — window
   creation included — therefore happens in `screen_step` on thread 0, never in
-  a word; `plot` writes into telic's own buffer and the pump blits it. The
+  a word; `plot` writes into telic's own buffer and the pump blits it.
+  `gamepads_read` (gamepads.c) is called there too, from `gamepads_collect`:
+  on macOS GameController updates its controllers through the main run loop,
+  which the pump runs, and it lists a controller to a process only once
+  `NSApplication` exists and, for a process in the background,
+  `shouldMonitorBackgroundEvents` is set; the gamepad words only set
+  `screen.gamepads_wanted` and read the per-frame copy. The
   spawned thread takes `RLIMIT_STACK` rather than a pthread's 512 KB default,
   which is too small for the interpreter and shows up as SIGBUS on the first
   word. `SIGALRM`, `SIGINT`, `SIGWINCH` and `SIGUSR1` are blocked on thread 0

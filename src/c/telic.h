@@ -744,6 +744,44 @@ typedef struct {
 	int n_bytes;
 } BundledFile;
 
+#define GAMEPAD_CAPACITY 4
+
+typedef enum {
+	GAMEPAD_SOUTH,
+	GAMEPAD_EAST,
+	GAMEPAD_WEST,
+	GAMEPAD_NORTH,
+	GAMEPAD_BACK,
+	GAMEPAD_GUIDE,
+	GAMEPAD_START,
+	GAMEPAD_LEFT_STICK,
+	GAMEPAD_RIGHT_STICK,
+	GAMEPAD_LEFT_SHOULDER,
+	GAMEPAD_RIGHT_SHOULDER,
+	GAMEPAD_DPAD_LEFT,
+	GAMEPAD_DPAD_RIGHT,
+	GAMEPAD_DPAD_UP,
+	GAMEPAD_DPAD_DOWN,
+	GAMEPAD_LEFT_TRIGGER,
+	GAMEPAD_RIGHT_TRIGGER,
+	GAMEPAD_BUTTON_COUNT
+} GamepadButton;
+
+typedef enum {
+	GAMEPAD_LEFT_X,
+	GAMEPAD_LEFT_Y,
+	GAMEPAD_RIGHT_X,
+	GAMEPAD_RIGHT_Y,
+	GAMEPAD_LEFT_TRIGGER_AXIS,
+	GAMEPAD_RIGHT_TRIGGER_AXIS,
+	GAMEPAD_AXIS_COUNT
+} GamepadAxis;
+
+typedef struct {
+	unsigned char held[GAMEPAD_BUTTON_COUNT];
+	float axes[GAMEPAD_AXIS_COUNT];
+} GamepadReading;
+
 extern const HelpEntry help_entries[];
 extern const int help_entry_count;
 extern const char *const help_section_names[];
@@ -1221,6 +1259,10 @@ int unit_multiply_ratio(Interpreter *interp, int left, int right, long long *num
 int unit_pow(Interpreter *interp, int unit, int numerator, int denominator);
 void unit_scale_ratio(int unit, long long *numerator, long long *denominator);
 double unit_scale_value(int unit);
+
+// gamepads.c
+void gamepads_close(void);
+int gamepads_read(GamepadReading *readings, int capacity);
 
 // dispatch handlers and p_* words, by owning file in SRCS order
 // core.c
@@ -1849,6 +1891,10 @@ void p_cls(DISPATCH_ARGS);
 void p_draw_bitmap_ext(DISPATCH_ARGS);
 void p_fill_circle(DISPATCH_ARGS);
 void p_fill_rect(DISPATCH_ARGS);
+void p_gamepad_axis(DISPATCH_ARGS);
+void p_gamepad_down(DISPATCH_ARGS);
+void p_gamepad_pressed(DISPATCH_ARGS);
+void p_gamepads(DISPATCH_ARGS);
 void p_ink(DISPATCH_ARGS);
 void p_key_down(DISPATCH_ARGS);
 void p_key_pressed(DISPATCH_ARGS);
@@ -1865,6 +1911,7 @@ void p_screen_frames(DISPATCH_ARGS);
 void p_screen_shader(DISPATCH_ARGS);
 void p_screen_size(DISPATCH_ARGS);
 void p_screen_zoom(DISPATCH_ARGS);
+void p_text_width(DISPATCH_ARGS);
 void p_typed_text(DISPATCH_ARGS);
 
 // inline functions whose bodies call the declarations above

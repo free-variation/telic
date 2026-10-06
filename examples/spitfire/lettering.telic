@@ -1,0 +1,97 @@
+\ Spitfire: lettering drawn in strokes, for the instrument panel's labels
+\ and the numerals on its dials. Each character is a few strokes on a grid
+\ four units wide and six high, the capital's height, scaled to a height in
+\ pixels and drawn through draw-segment, so it can be as small as the
+\ dials need and has the panel's wireframe look. A character advances five
+\ units: four for itself, one between. Small letters are drawn as capitals;
+\ a character with no strokes is a space.
+
+\ each character's strokes, every stroke a flat array of x y points on the grid, y downward
+[ [ "0" [ [ 1 0 3 0 4 1 4 5 3 6 1 6 0 5 0 1 1 0 ] ] ]
+  [ "1" [ [ 1 1 2 0 2 6 ] [ 1 6 3 6 ] ] ]
+  [ "2" [ [ 0 1 1 0 3 0 4 1 4 2 0 6 4 6 ] ] ]
+  [ "3" [ [ 0 0 4 0 2 2 3 2 4 3 4 5 3 6 1 6 0 5 ] ] ]
+  [ "4" [ [ 3 6 3 0 0 4 4 4 ] ] ]
+  [ "5" [ [ 4 0 0 0 0 3 3 3 4 4 4 5 3 6 0 6 ] ] ]
+  [ "6" [ [ 3 0 1 0 0 1 0 5 1 6 3 6 4 5 4 4 3 3 0 3 ] ] ]
+  [ "7" [ [ 0 0 4 0 1 6 ] ] ]
+  [ "8" [ [ 1 0 3 0 4 1 4 2 3 3 1 3 0 2 0 1 1 0 ] [ 1 3 0 4 0 5 1 6 3 6 4 5 4 4 3 3 ] ] ]
+  [ "9" [ [ 4 3 1 3 0 2 0 1 1 0 3 0 4 1 4 5 3 6 1 6 ] ] ]
+  [ "A" [ [ 0 6 0 2 2 0 4 2 4 6 ] [ 0 3 4 3 ] ] ]
+  [ "B" [ [ 0 0 0 6 3 6 4 5 4 4 3 3 0 3 ] [ 0 0 3 0 4 1 4 2 3 3 ] ] ]
+  [ "C" [ [ 4 1 3 0 1 0 0 1 0 5 1 6 3 6 4 5 ] ] ]
+  [ "D" [ [ 0 0 0 6 3 6 4 5 4 1 3 0 0 0 ] ] ]
+  [ "E" [ [ 4 0 0 0 0 6 4 6 ] [ 0 3 3 3 ] ] ]
+  [ "F" [ [ 4 0 0 0 0 6 ] [ 0 3 3 3 ] ] ]
+  [ "G" [ [ 4 1 3 0 1 0 0 1 0 5 1 6 3 6 4 5 4 3 2 3 ] ] ]
+  [ "H" [ [ 0 0 0 6 ] [ 4 0 4 6 ] [ 0 3 4 3 ] ] ]
+  [ "I" [ [ 1 0 3 0 ] [ 2 0 2 6 ] [ 1 6 3 6 ] ] ]
+  [ "J" [ [ 4 0 4 5 3 6 1 6 0 5 ] ] ]
+  [ "K" [ [ 0 0 0 6 ] [ 4 0 0 4 ] [ 1 3 4 6 ] ] ]
+  [ "L" [ [ 0 0 0 6 4 6 ] ] ]
+  [ "M" [ [ 0 6 0 0 2 2 4 0 4 6 ] ] ]
+  [ "N" [ [ 0 6 0 0 4 6 4 0 ] ] ]
+  [ "O" [ [ 1 0 3 0 4 1 4 5 3 6 1 6 0 5 0 1 1 0 ] ] ]
+  [ "P" [ [ 0 6 0 0 3 0 4 1 4 2 3 3 0 3 ] ] ]
+  [ "Q" [ [ 1 0 3 0 4 1 4 5 3 6 1 6 0 5 0 1 1 0 ] [ 2 4 4 6 ] ] ]
+  [ "R" [ [ 0 6 0 0 3 0 4 1 4 2 3 3 0 3 ] [ 2 3 4 6 ] ] ]
+  [ "S" [ [ 4 1 3 0 1 0 0 1 0 2 1 3 3 3 4 4 4 5 3 6 1 6 0 5 ] ] ]
+  [ "T" [ [ 0 0 4 0 ] [ 2 0 2 6 ] ] ]
+  [ "U" [ [ 0 0 0 5 1 6 3 6 4 5 4 0 ] ] ]
+  [ "V" [ [ 0 0 2 6 4 0 ] ] ]
+  [ "W" [ [ 0 0 0 6 2 4 4 6 4 0 ] ] ]
+  [ "X" [ [ 0 0 4 6 ] [ 4 0 0 6 ] ] ]
+  [ "Y" [ [ 0 0 2 3 4 0 ] [ 2 3 2 6 ] ] ]
+  [ "Z" [ [ 0 0 4 0 0 6 4 6 ] ] ]
+  [ "." [ [ 2 5 2 6 ] ] ]
+  [ "," [ [ 2 5 1 7 ] ] ]
+  [ "/" [ [ 0 6 4 0 ] ] ]
+  [ "-" [ [ 1 3 3 3 ] ] ]
+  [ "+" [ [ 0 3 4 3 ] [ 2 1 2 5 ] ] ]
+  [ "=" [ [ 0 2 4 2 ] [ 0 4 4 4 ] ] ]
+  [ "°" [ [ 1 0 2 0 2 1 1 1 1 0 ] ] ]
+  [ "½" [ [ 0 1 1 0 1 3 ] [ 4 0 0 6 ] [ 2 4 3 3 4 4 2 6 4 6 ] ] ]
+  [ "%" [ [ 0 0 1 0 1 1 0 1 0 0 ] [ 4 0 0 6 ] [ 3 5 4 5 4 6 3 6 3 5 ] ] ]
+  [ ":" [ [ 2 1 2 2 ] [ 2 4 2 5 ] ] ]
+  [ "'" [ [ 2 0 2 2 ] ] ]
+  [ "!" [ [ 2 0 2 4 ] [ 2 5 2 6 ] ] ]
+  [ "?" [ [ 0 1 1 0 3 0 4 1 4 2 2 3 2 4 ] [ 2 5 2 6 ] ] ]
+  [ ">" [ [ 0 0 4 3 0 6 ] ] ]
+  [ "(" [ [ 3 0 1 2 1 4 3 6 ] ] ]
+  [ ")" [ [ 1 0 3 2 3 4 1 6 ] ] ] ] to stroke-table
+
+\ the strokes by character, a frame keyed by the character as a symbol
+variable stroke-glyphs
+{ } to stroke-glyphs
+stroke-table ( entry | stroke-glyphs entry second entry first string>symbol ! drop ) each
+
+\ the width of lettering at a capital height, pixels: five units a character, less the last one's gap
+: lettering-width ( text height -- width )
+	| text height |
+	text size 5 * 1 - 0 max2 height 6 / * ;
+
+\ lettering with its top-left corner at a point, its capitals a height in pixels; the corner is rounded to a whole pixel, so at 6 pixels every stroke falls on whole pixels
+: draw-lettering ( x y text height colour -- )
+	| x y text height colour |
+	height 6 / to unit
+	y round to top
+	text upper-case string>chars to characters
+	0 characters size 1 do k
+		stroke-glyphs characters k @i string>symbol null @or to strokes
+		x round k 5 * unit * + to left
+		strokes null? not if
+			0 strokes size 1 do s
+				strokes s @i to stroke
+				0 stroke size 2 - 2 do p
+					left stroke p @i unit * + top stroke p 1+ @i unit * +
+					left stroke p 2 + @i unit * + top stroke p 3 + @i unit * +
+					colour draw-segment
+				loop
+			loop
+		then
+	loop ;
+
+\ lettering centred across a point, its top at y
+: centred-lettering ( x y text height colour -- )
+	| x y text height colour |
+	x text height lettering-width 2 / - y text height colour draw-lettering ;

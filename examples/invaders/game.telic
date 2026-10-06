@@ -556,19 +556,25 @@ starting-level to start-level
 
 \ === the cannon ===
 
-\ move the cannon by the arrow keys held
+\ a button of the first gamepad went down this frame
+: pad-pressed? ( button -- flag ) 0 gamepad-pressed? ;
+
+\ move the cannon by the arrow keys, the first gamepad's d-pad or its left stick pushed past half way
 : move-cannon ( elapsed -- )
 	| elapsed |
 	:player game@ to cannon
+	:left-x 0 gamepad-axis to pushed
+	:left key-down? :dpad-left 0 gamepad-down? or pushed -0.5 < or to leftward
+	:right key-down? :dpad-right 0 gamepad-down? or pushed 0.5 > or to rightward
 	0 to motion
-	:left key-down? if motion 1- to motion then
-	:right key-down? if motion 1+ to motion then
+	leftward if motion 1- to motion then
+	rightward if motion 1+ to motion then
 	cannon cannon :x @ motion 72 * elapsed * + 10 214 clamp :x ! drop ;
 
-\ fire while space is held and no shot of the cannon's is in flight
+\ fire while space, or the first gamepad's A or right trigger, is held and no shot of the cannon's is in flight
 : fire-cannon ( -- )
 	:player-shot game@ null? not if exit then
-	:space key-down? not if exit then
+	:space key-down? :south 0 gamepad-down? or :right-trigger 0 gamepad-down? or not if exit then
 	laser-bitmaps :player game@ :x @ 212 make-sprite :player-shot game!
 	:c6 0.9 :laser 0.15 sound ;
 
@@ -776,7 +782,7 @@ starting-level to start-level
 \ one frame of play
 : update-playing ( elapsed -- )
 	| elapsed |
-	:p key-pressed? if :paused game@ 0= :paused game! then
+	:p key-pressed? :start pad-pressed? or if :paused game@ 0= :paused game! then
 	:paused game@ if release-drone exit then
 	elapsed move-cannon
 	fire-cannon
@@ -820,9 +826,9 @@ starting-level to start-level
 	then
 	enter-title ;
 
-\ the title screen: return starts, the theme repeats
+\ the title screen: return, or the first gamepad's start, starts; the theme repeats
 : update-title ( -- )
-	:return key-pressed? if start-game exit then
+	:return key-pressed? :start pad-pressed? or if start-game exit then
 	sequence-end 1 < if queue-theme then ;
 
 \ === drawing ===

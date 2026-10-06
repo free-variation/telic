@@ -6203,6 +6203,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "fill-circle", p_fill_circle, 0);
 	define_primitive(interp, "cls", p_cls, 0);
 	define_primitive(interp, "print-at", p_print_at, 0);
+	define_primitive(interp, "text-width", p_text_width, 0);
 	define_primitive(interp, "screen-size", p_screen_size, 0);
 	define_primitive(interp, "screen-zoom", p_screen_zoom, 0);
 	define_primitive(interp, "screen-shader", p_screen_shader, 0);
@@ -6220,6 +6221,10 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "key-down?", p_key_down, 0);
 	define_primitive(interp, "key-pressed?", p_key_pressed, 0);
 	define_primitive(interp, "typed-text", p_typed_text, 0);
+	define_primitive(interp, "gamepads", p_gamepads, 0);
+	define_primitive(interp, "gamepad-down?", p_gamepad_down, 0);
+	define_primitive(interp, "gamepad-pressed?", p_gamepad_pressed, 0);
+	define_primitive(interp, "gamepad-axis", p_gamepad_axis, 0);
 
 	define_primitive(interp, "read-arrow", p_read_arrow, 0);
 	define_primitive(interp, "write-arrow", p_write_arrow, 0);

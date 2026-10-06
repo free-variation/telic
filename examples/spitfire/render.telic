@@ -1,0 +1,413 @@
+\ Spitfire: the view through the windscreen. An eye has a position and an
+\ attitude; one matrix product takes every point of an object into the eye's
+\ terms (right, up, ahead), an edge with both ends behind the near plane is
+\ left out and one with one end behind it is cut there, and what remains is
+\ projected onto the view: the picture's centre plus the focal length times
+\ right/ahead and up/ahead. A line is not drawn beyond the visibility, and
+\ fades into the sky's colour with its distance, as haze fades it. Day and
+\ night each set the sky's and the ground's colours, the lines' light, the
+\ bombers' colour and whether stars show: by day a blue sky over green
+\ ground and the bombers dark against it, by night a black sky with stars,
+\ the lines at half their light and the bombers pale. The sky is the
+\ background. The ground is filled below the horizon a pair of rows at a
+\ time, at any bank: each pair of rows sees the ground along a straight
+\ line, divided into land and water where the water's rings cross it. A
+\ point of the ground is water when it lies inside an odd number of those
+\ rings: the map's edges, the land's outlines, the lochs, the islands and
+\ the rivers' strips. Every line is cut to the view's rectangle before it
+\ is drawn, so an end close to the near plane, projected far outside the
+\ view, is never drawn out. Drawing goes through deferred words, so the
+\ window draws with its own line and rectangle words and a test draws into
+\ a matrix.
+
+640 constant view-width
+250 constant view-height
+view-width 2 / constant view-centre-x
+view-height 2 / constant view-centre-y
+\ the view's focal length, pixels: the windscreen's 420, or a camera lens's when a photograph is drawn
+variable focal-length
+420 to focal-length
+\ drawing a photograph: every colour turned to its grey
+variable monochrome
+false to monochrome
+2 constant near-plane
+30000 constant clear-visibility
+250 constant n-stars
+
+variable sky-colour
+variable ground-colour
+variable water-colour
+\ the fraction of its light every line is drawn with
+variable lighting
+variable bomber-ink
+variable stars-showing
+variable cloud-top-colour
+variable cloud-base-colour
+variable fog-colour
+\ how far anything can be seen, metres, and the share of a thing's colour the haze takes at that distance
+variable visibility
+variable haze
+
+\ broad daylight
+: use-day ( -- )
+	| ^sky-colour ^ground-colour ^water-colour ^lighting ^bomber-ink ^stars-showing ^cloud-top-colour ^cloud-base-colour ^fog-colour |
+	0x5a7eb0 to sky-colour
+	0x2c4a24 to ground-colour
+	0x30527e to water-colour
+	1 to lighting
+	0x161a20 to bomber-ink
+	false to stars-showing
+	0xeef0f4 to cloud-top-colour
+	0x9ca2ac to cloud-base-colour
+	0x949ca6 to fog-colour ;
+
+\ a dark night
+: use-night ( -- )
+	| ^sky-colour ^ground-colour ^water-colour ^lighting ^bomber-ink ^stars-showing ^cloud-top-colour ^cloud-base-colour ^fog-colour |
+	0x060912 to sky-colour
+	0x0a0d08 to ground-colour
+	0x0c1628 to water-colour
+	0.5 to lighting
+	0xd0d0d0 to bomber-ink
+	true to stars-showing
+	0x3a3e4a to cloud-top-colour
+	0x1c2028 to cloud-base-colour
+	0x14181e to fog-colour ;
+
+\ the air: clear to the full distance with a light haze, or fog closing in to a distance, the sky its colour and no stars through it
+: use-visibility ( metres -- )
+	| metres ^visibility ^haze ^sky-colour ^stars-showing |
+	metres to visibility
+	metres clear-visibility < if
+		1 to haze
+		fog-colour to sky-colour
+		false to stars-showing
+	else
+		0.8 to haze
+	then ;
+
+use-day
+clear-visibility use-visibility
+
+\ draw one line of the view in a packed colour
+defer draw-segment
+\ fill a rectangle of the view in a packed colour
+defer fill-span
+
+variable eye
+{ :position [ 0 100 0 ] :attitude 0 heading-attitude } to eye
+variable camera
+4 3 0-matrix to camera
+
+\ set the eye and the matrix that takes [ x y z 1 ] rows into its terms
+: look-from ( position attitude -- )
+	| position attitude ^eye ^camera |
+	{ :position position :attitude attitude } to eye
+	attitude@right to right
+	attitude@up to up
+	attitude@forward to forward
+	[ right first up first forward first
+	  right second up second forward second
+	  right 2 @i up 2 @i forward 2 @i
+	  position right v-dot negate position up v-dot negate position forward v-dot negate
+	] 4 3 matrix to camera ;
+
+\ a packed colour dimmed to a fraction of its light
+: dimmed ( colour fraction -- colour' )
+	| colour fraction |
+	colour 16 rshift 255 bit-and fraction * truncate 65536 *
+	colour 8 rshift 255 bit-and fraction * truncate 256 * +
+	colour 255 bit-and fraction * truncate + ;
+
+\ a packed colour's grey, its luminance in all three channels
+: grey-of ( colour -- colour' )
+	| colour |
+	colour 16 rshift 255 bit-and 0.3 * colour 8 rshift 255 bit-and 0.59 * + colour 255 bit-and 0.11 * + truncate to level
+	level 65536 * level 256 * + level + ;
+
+\ two packed colours mixed, a fraction of the first and the rest of the second
+: blended ( colour other fraction -- colour' )
+	| colour other fraction |
+	colour fraction dimmed other 1 fraction - dimmed + ;
+
+\ the share of its own colour a thing keeps at a depth, the rest the sky's: all of it to a twentieth of the visibility, then less, losing the haze's share at the visibility
+: depth-light ( depth -- fraction )
+	| depth |
+	visibility 20 / to clear-depth
+	depth clear-depth - visibility clear-depth - / 0 1 clamp haze * 1 swap - ;
+
+\ the stars as directions [ x y z 0 ] above the horizon, spread over the sky by the golden angle with a little scatter
+: star-directions ( -- matrix )
+	[ 0 n-stars 1 do k
+		k 12.9898 * sin 43758.5 * 1 mod abs to scatter
+		k n-stars / 0.97 * 0.02 + scatter 0.01 * + asin to elevation
+		k 2.39996 * scatter + to azimuth
+		azimuth sin elevation cos * elevation sin azimuth cos elevation cos * 0
+	loop ] n-stars 4 matrix ;
+star-directions constant stars
+
+\ the stars in the eye's view, a point each, every third one brighter
+: draw-stars ( -- )
+	stars camera matmul to viewed
+	0 n-stars 1 do k
+		viewed k 2 @i,j to ahead
+		ahead 0.05 < if continue then
+		view-centre-x focal-length viewed k 0 @i,j * ahead / + round to x
+		view-centre-y focal-length viewed k 1 @i,j * ahead / - round to y
+		x y 1 1 k 3 mod 0 = if 0xc8ccd8 else 0x6c7080 then fill-span
+	loop ;
+
+\ draw a line cut to the view's rectangle (Liang and Barsky's clipping), so an end projected from close to the near plane, far outside the view, is never drawn out
+: draw-clipped ( x0 y0 x1 y1 colour -- )
+	| x0 y0 x1 y1 colour |
+	x1 x0 - to dx
+	y1 y0 - to dy
+	0 to entering
+	1 to leaving
+	[ [ dx negate x0 ] [ dx view-width x0 - ] [ dy negate y0 ] [ dy view-height y0 - ] ] to sides
+	0 4 1 do k
+		sides k @i spread to room to step
+		step 0 = if
+			room 0 < if 2 to entering then
+		else
+			room step / to ratio
+			step 0 < if ratio entering max2 to entering else ratio leaving min2 to leaving then
+		then
+	loop
+	entering leaving > if exit then
+	x0 dx entering * + y0 dy entering * + x0 dx leaving * + y0 dy leaving * + colour draw-segment ;
+
+\ draw the edges of an object whose points are already in the eye's terms
+: draw-edges ( viewed edges colour -- )
+	| viewed edges colour |
+	0 edges size 2 do k
+		edges k @i to i
+		edges k 1+ @i to j
+		viewed i 2 @i,j to depth-a
+		viewed j 2 @i,j to depth-b
+		depth-a near-plane < depth-b near-plane < and if continue then
+		depth-a depth-b min2 to nearest
+		nearest visibility > if continue then
+		viewed i 0 @i,j to right-a
+		viewed i 1 @i,j to up-a
+		viewed j 0 @i,j to right-b
+		viewed j 1 @i,j to up-b
+		depth-a near-plane < if
+			near-plane depth-a - depth-b depth-a - / to cut
+			right-b right-a - cut * right-a + to right-a
+			up-b up-a - cut * up-a + to up-a
+			near-plane to depth-a
+		then
+		depth-b near-plane < if
+			near-plane depth-b - depth-a depth-b - / to cut
+			right-a right-b - cut * right-b + to right-b
+			up-a up-b - cut * up-b + to up-b
+			near-plane to depth-b
+		then
+		focal-length right-a * depth-a / view-centre-x +
+		view-centre-y focal-length up-a * depth-a / -
+		focal-length right-b * depth-b / view-centre-x +
+		view-centre-y focal-length up-b * depth-b / -
+		colour lighting dimmed sky-colour nearest near-plane max2 depth-light blended
+		monochrome if grey-of then draw-clipped
+	loop ;
+
+\ draw one object
+: draw-object ( object -- )
+	| object |
+	object@points camera matmul object@edges object@colour draw-edges ;
+
+\ the indices of the objects the eye can see: in front of it, within the visibility and inside the view's sides, by their spheres
+: visible-objects ( centres radii -- indices )
+	| centres radii |
+	centres camera matmul to viewed-centres
+	viewed-centres 0 @j to across
+	viewed-centres 1 @j to rising
+	viewed-centres 2 @j to ahead
+	ahead radii + 0 >
+	across sq rising sq + ahead sq + sqrt radii - visibility < *
+	across abs radii - ahead 1.6 * <= *
+	rising abs radii - ahead 0.8 * <= *
+	where ;
+
+\ === water ===
+
+\ the edges of the land's rings, a column each of their starts' and ends' x and z; a ground point is water when it lies inside an even number of the rings: none for the open sea, one for land, two for a loch or river on land, three for an island in a loch
+variable edge-start-x
+variable edge-start-z
+variable edge-end-x
+variable edge-end-z
+
+\ rings of [ x z ] points as a matrix of edges, a row [ x0 z0 x1 z1 ] for each, every ring closed back to its first point
+: rings>edges ( rings -- edges )
+	| rings |
+	[ 0 rings size 1 do r
+		rings r @i to ring
+		ring size to n-points
+		0 n-points 1 do k
+			ring k @i spread
+			ring k 1+ n-points mod @i spread
+		loop
+	loop ] to numbers
+	numbers numbers size 4 / 4 matrix ;
+
+\ a set of rings as their edges' columns
+: rings>edge-set ( rings -- set )
+	| rings |
+	rings rings>edges to edges
+	{ :start-x edges 0 @j :start-z edges 1 @j :end-x edges 2 @j :end-z edges 3 @j } ;
+
+\ take a set of edges as the land's
+: use-edge-set ( set -- )
+	| set ^edge-start-x ^edge-start-z ^edge-end-x ^edge-end-z |
+	set@start-x to edge-start-x
+	set@start-z to edge-start-z
+	set@end-x to edge-end-x
+	set@end-z to edge-end-z ;
+
+\ take a set of rings as the land's
+: water-rings! ( rings -- ) rings>edge-set use-edge-set ;
+
+\ the regions of land, each [ centre-x centre-z edge-set ]; the one in use, the nearest to the eye, so a far region's edges cost nothing
+variable water-regions
+[ ] to water-regions
+variable region-in-use
+-1 to region-in-use
+
+: water-regions! ( regions -- )
+	| regions ^water-regions ^region-in-use |
+	regions to water-regions
+	-1 to region-in-use ;
+
+\ use the edges of the region nearest a point
+: use-water-near ( position -- )
+	| position ^region-in-use |
+	water-regions size 0 = if exit then
+	0 to nearest
+	1e30 to least
+	0 water-regions size 1 do k
+		water-regions k @i to region
+		region first position first - sq region second position 2 @i - sq + to distance
+		distance least < if
+			distance to least
+			k to nearest
+		then
+	loop
+	nearest region-in-use = if exit then
+	nearest to region-in-use
+	water-regions nearest @i 2 @i use-edge-set ;
+
+\ whether a ground point is water: an even number of the land's edges crossed by a line due east from it
+: water-at? ( x z -- flag )
+	| x z |
+	edge-start-z z > edge-end-z z > - abs to straddling
+	edge-end-z edge-start-z - straddling * 1 straddling - + to rise
+	z edge-start-z - edge-end-x edge-start-x - * rise / edge-start-x + to crossing-x
+	crossing-x x > straddling * sum round 2 mod 0 = ;
+
+land-outlines [ south-land ] concat water-rings!
+
+\ the colour of the ground seen along a line of sight from a height, faded into the sky with its distance
+: seen-ground ( colour sight height -- colour' )
+	| colour sight height |
+	height sight second negate / sight v-length * to distance
+	colour sky-colour distance depth-light blended ;
+
+\ one row of the view's ground, two pixels deep, from one reach across it to another (right/ahead), in a colour
+: fill-reaches ( row low high colour -- )
+	| row low high colour |
+	view-centre-x focal-length low * + round to left
+	view-centre-x focal-length high * + round to right
+	right left > if left row right left - 2 colour fill-span then ;
+
+\ fill the ground below the horizon, the water in its own colour. Each pair of rows sees the ground along a straight line; the rings' edges that cross that line in front of the eye divide the row into land and water, and which the row begins with is settled by water-at? at its end on the view's side
+: fill-ground ( -- )
+	eye@position to eye-point
+	eye@attitude to attitude
+	attitude@right to right
+	attitude@up to up
+	attitude@forward to forward
+	eye-point second to height
+	eye-point first to eye-x
+	eye-point 2 @i to eye-z
+	edge-start-x eye-x - to start-x
+	edge-start-z eye-z - to start-z
+	edge-end-x eye-x - to end-x
+	edge-end-z eye-z - to end-z
+	right second to right-rise
+	view-centre-x negate focal-length / to left-reach
+	view-width view-centre-x - focal-length / to right-reach
+	0 view-height 2 do row
+		up view-centre-y row - 1 - focal-length / v* forward v+ to centre-sight
+		centre-sight second to centre-rise
+		right-rise abs 0.000001 < if
+			centre-rise 0 >= if continue then
+			left-reach to low
+			right-reach to high
+		else
+			centre-rise negate right-rise / to level
+			right-rise 0 > if
+				left-reach to low
+				level right-reach min2 to high
+			else
+				level left-reach max2 to low
+				right-reach to high
+			then
+		then
+		low high >= if continue then
+		right-rise 0 < if high else low then to reference
+		centre-sight right reference v* v+ to sight
+		height sight second negate / to distance
+		eye-x sight first distance * + eye-z sight 2 @i distance * + water-at? to water
+		right centre-sight v-cross to normal
+		normal second height * negate to offset
+		start-x normal first * start-z normal 2 @i * + offset + to start-side
+		end-x normal first * end-z normal 2 @i * + offset + to end-side
+		start-side end-side * 0 < where to crossing-indices
+		[ ] to crossings
+		0 crossing-indices num-elements 1 do k
+			crossing-indices k @e to i
+			start-side i @e to side-a
+			side-a side-a end-side i @e - / to along
+			start-x i @e to ax
+			start-z i @e to az
+			[ end-x i @e ax - along * ax + height negate end-z i @e az - along * az + ] to crossing
+			crossing forward v-dot to ahead
+			ahead 0 > if
+				crossing right v-dot ahead / to across
+				across low > across high < and if crossings across add-last! drop then
+			then
+		loop
+		crossings sort to crossings
+		right-rise 0 < crossings size 2 mod 1 = and if water not to water then
+		low to cursor
+		0 crossings size 1 do k
+			crossings k @i to across
+			row cursor across water if water-colour else ground-colour then centre-sight right cursor across + 2 / v* v+ height seen-ground fill-reaches
+			water not to water
+			across to cursor
+		loop
+		row cursor high water if water-colour else ground-colour then centre-sight right cursor high + 2 / v* v+ height seen-ground fill-reaches
+	loop ;
+
+\ the whole view: sky, ground, then every visible object of each collection
+: draw-view ( collections -- )
+	| collections |
+	0 0 view-width view-height sky-colour fill-span
+	stars-showing if draw-stars then
+	fill-ground
+	collections ( collection |
+		collection@objects to objects
+		collection@centres collection@radii visible-objects to shown
+		0 shown num-elements 1 do k
+			objects shown k @e @i draw-object
+		loop
+	) each ;
+
+\ a collection of objects with their spheres gathered for culling
+: collect-objects ( objects -- collection )
+	| objects |
+	objects size 0 = if { :objects objects :centres 0 4 0-matrix :radii 0 1 0-matrix } exit then
+	objects ( object | object@centre spread 1 4 array ) map flatten objects size 4 matrix to centres
+	objects ( object | object@radius ) map vector to radii
+	{ :objects objects :centres centres :radii radii } ;

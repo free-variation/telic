@@ -1,0 +1,409 @@
+\ Spitfire: the flight model of a Mk I, in SI units. The published figures
+\ are the loaded weight, 2,624 kg; the wing, 11.23 m across and 22.48 m²;
+\ the Merlin III's 1,030 hp (768 kW), held to its full-throttle height of
+\ about 5,500 m and falling with the air's density above it. The lift
+\ slope, the drag polar and the propeller's efficiency (0.8 from 120 m/s,
+\ less when slower) are estimates chosen so the model reaches the published
+\ 582 km/h at 5,669 m and climbs near the published 770 m/min. Each step sums
+\ the forces — lift at right angles to the airflow, drag against it, the
+\ propeller's thrust along the nose, the weight — and moves the aircraft by
+\ them; the controls turn its attitude, more firmly the faster it flies,
+\ and the airflow turns the nose into the wind as the tailplane and fin do.
+\ Past about 15° the wing stalls and lift falls away.
+\
+\ The fuel is the Spitfire II pilot's notes' 85 gallons, 48 in the upper
+\ tank and 37 in the lower, taken as the Mk I's too. The engine burns it in
+\ proportion to its power, 86 gallons an hour at full power: an estimate
+\ from an assumed 0.6 lb a horsepower-hour at 1,030 hp and 7.2 lb a gallon,
+\ not a published figure. With the tanks empty the engine stops.
+\
+\ The flaps are split flaps worked by air, up or down and nothing between
+\ (the pilot's notes); they travel in an estimated 2 seconds, adding lift
+\ and drag as far as they are down and bringing the nose down, the notes'
+\ "strongly nose down" change of trim, which the stick must hold. The notes
+\ limit them to 140 mph indicated; above an estimated 170 mph indicated the
+\ air blows them back up. The airspeed indicator, like the real one, shows
+\ the indicated speed: the true speed scaled by the square root of the
+\ air's density over sea level's. The elevator trim, from full nose-down
+\ to full nose-up, adds a steady share of the stick, up to 0.4 of it (an
+\ estimate), so the stick can rest in the middle at a chosen attitude.
+\
+\ The engine heats its coolant with its power, and the radiator cools it
+\ by the air through it, the airspeed and the propeller's wash, against
+\ the air's temperature, which falls with height; below 75°C a thermostat
+\ (estimated) closes the radiator, shut at 60°C, so the engine stays warm in
+\ the cold of 30,000 ft. The coolant settles near
+\ 75°C cruising at 1,000 m, reaches 113°C after three minutes' climb at
+\ full power, short of the published limit of 120°C, and idling on the
+\ ground it passes the limit after about six minutes and boils before ten,
+\ as Spitfires overheated taxiing; with the radiator holed it boils within
+\ two minutes. The oil's temperature follows the
+\ coolant's; its pressure rises with the revolutions and falls as the oil
+\ warms. A hit can hole the glycol radiator or the oil system: as the
+\ coolant leaks the radiator cools less, and as the oil leaks the pressure
+\ falls. Running above 120°C or short of oil pressure wears the engine,
+\ and worn out it seizes. Every figure but the 120°C limit is an estimate.
+\
+\ The throttle sets the boost, from -4 lb closed to the published +6 lb
+\ open; the boost cut-out, on 100-octane fuel from 1940, raises it to the
+\ published +12 lb for a published five minutes, past which the engine
+\ wears. The supercharger holds the boost only up to its ceiling at the
+\ height, the rated boost's at the full-throttle height and less above;
+\ above it the closed throttle's pressure falls in the same proportion.
+\ The pressure at the closed throttle is taken as the engine's friction, so
+\ the power is the throttle's opening times the open manifold's pressure
+\ over the rated boost's times the revolutions over the rated 3,000: none
+\ closed, 1,030 hp open at +6 lb and 1,328 hp at +12 lb, against the
+\ published 1,310. The 1939 Spitfire's two-pitch
+\ propeller turns at revolutions that follow the boost and the airspeed,
+\ fine for taking off and climbing, coarse for speed, and over-revs past
+\ 3,000 at speed in fine pitch; the constant-speed propeller fitted from
+\ June 1940 holds the revolutions the pilot sets, 1,800 to 3,000 rpm.
+\
+\ On the ground the aircraft rolls on its wheels: it sits level with the
+\ tail free to come up, the stick lifting the nose no more than 12°, until
+\ the wing carries its weight. Touching down with the wheels up, too fast
+\ downward, or not level, or touching water or a hill, is a crash.
+
+2624 constant mass
+22.48 constant wing-area
+768000 constant engine-power
+0.8 constant propeller-efficiency
+10500 constant static-thrust
+9.81 constant gravity
+4.8 constant lift-slope
+0.12 constant zero-lift-coefficient
+0.26 constant stall-angle
+0.019 constant parasite-drag
+0.063 constant induced-drag
+0.012 constant gear-drag
+0.03 constant flap-drag
+0.35 constant flap-lift
+\ the flaps: their travel, seconds; the nose-down pitch they bring, radians a second at full control authority; the indicated speeds, m/s, of the 140 mph limit and of the estimated 170 mph above which the air blows them back up
+\ the engine's heat and cooling: the coolant's heating at full power over the cooling's coefficient, °C × m/s; the propeller's wash as airspeed at full revolutions, m/s; the coolant's capacity over the cooling's coefficient, seconds × m/s; the published coolant limit and the estimated temperature at which the glycol boils away, °C
+12400 constant engine-heat
+30 constant propeller-wash
+11160 constant coolant-capacity
+120 constant coolant-limit
+135 constant coolant-boiling
+\ the oil: its temperature following the coolant's over 120 s; its pressure, lb a square inch, at full revolutions when cool, and the pressure below which the bearings wear
+120 constant oil-lag
+80 constant oil-full-pressure
+20 constant oil-low-pressure
+\ the elevator trim: the share of full stick it gives at either end of its travel
+0.4 constant trim-range
+2 constant flap-travel-time
+0.15 constant flap-pitch
+140 2.23694 / constant flap-limit-speed
+170 2.23694 / constant flap-blow-speed
+1.6 constant wheel-height
+5500 constant full-throttle-height
+\ the boost, lb a square inch above the standard atmosphere's 14.7: with the throttle closed (an estimate), open, and open with the boost cut-out pushed forward on 100-octane fuel (the published +6 and +12); the emergency boost's published limit, seconds
+-4 constant idle-boost
+6 constant rated-boost
+12 constant emergency-boost
+300 constant emergency-limit
+14.7 constant atmosphere
+\ the propeller's revolutions a minute: the rated 3,000; the two-pitch propeller's at full throttle standing still, fine and coarse, and the airspeed, m/s, that adds as much again (estimates); the constant-speed propeller's lowest setting
+3000 constant rated-revolutions
+2650 constant fine-revolutions
+2100 constant coarse-revolutions
+568 constant windmill-speed
+1800 constant lowest-revolutions
+85 constant fuel-capacity
+\ a gallon of petrol's mass, kg: 7.2 lb
+3.27 constant fuel-mass
+86 constant full-power-flow
+
+variable plane
+variable controls
+{ :pitch 0 :roll 0 :yaw 0 :brakes false } to controls
+
+\ the aircraft's mass, kg: empty, with the pilot, guns or cameras, and the fuel left
+: aircraft-mass ( plane -- kg )
+	| plane |
+	plane@empty-mass plane@fuel fuel-mass * + ;
+
+\ the air's density at a height, kg/m³
+: air-density ( height -- density ) -8500 / exp 1.225 * ;
+
+\ the most absolute pressure the supercharger can hold in the manifold at a height, lb a square inch: the rated boost at the full-throttle height, more below it and less above, with the air's density
+: manifold-ceiling ( height rated-height -- pressure )
+	| height rated-height |
+	atmosphere rated-boost + height air-density rated-height air-density / * ;
+
+\ a new aircraft: where it is, which way it faces, how fast it goes along its nose
+: new-plane ( position heading speed on-ground -- plane )
+	| position heading speed on-ground |
+	heading heading-attitude to attitude
+	{ :position position
+	  :velocity attitude@forward speed v*
+	  :attitude attitude
+	  :throttle on-ground if 0 else 0.8 then
+	  :revolutions on-ground if 0.2 else 0.8 then
+	  :propeller :constant-speed
+	  :fine true
+	  :revolution-setting rated-revolutions
+	  :boost-cut-out false
+	  :emergency-allowed true
+	  :emergency-time 0
+	  :boost 0
+	  :power 0
+	  :flaps false
+	  :flap-setting 0
+	  :flaps-blown false
+	  :trim 0
+	  :coolant-temperature on-ground if 60 else 90 then
+	  :oil-temperature on-ground if 50 else 70 then
+	  :oil-pressure 60
+	  :coolant-left 1
+	  :oil-left 1
+	  :coolant-leak 0
+	  :oil-leak 0
+	  :engine-wear 0
+	  :engine-failure ""
+	  :gear on-ground
+	  :on-ground on-ground
+	  :crashed false
+	  :crash-reason ""
+	  :angle-of-attack 0
+	  :g-load 1
+	  :turn-rate 0
+	  :fuel fuel-capacity
+	  :fuel-capacity fuel-capacity
+	  :empty-mass mass fuel-capacity fuel-mass * -
+	  :rated-power engine-power
+	  :full-throttle-height full-throttle-height
+	  :armed true
+	  :ammunition 15.6
+	  :damage 0
+	  :engine-dead false
+	} ;
+
+\ the lift coefficient at an angle of attack, the flaps adding to it as far as they are down (0 up to 1 down); beyond the stall it falls away
+: lift-coefficient ( angle flap-setting -- coefficient )
+	| angle flap-setting |
+	flap-lift flap-setting * to flap-boost
+	angle abs stall-angle <= if
+		lift-slope angle * zero-lift-coefficient + flap-boost + exit
+	then
+	angle 0 > if 1 else -1 then to sign
+	lift-slope stall-angle * zero-lift-coefficient + flap-boost + to peak
+	peak angle abs stall-angle - 3 * - 0.5 max2 sign * ;
+
+\ how firmly the controls bite at an airspeed: little when slow, full from 70 m/s, and the ailerons stiffening past 130 m/s
+: control-authority ( speed -- authority ) 70 / 0.1 1 clamp ;
+: aileron-authority ( speed -- authority )
+	| speed |
+	speed control-authority speed 130 - 0 max2 120 / 1 + / ;
+
+\ the forces on the aircraft, ground frame, newtons
+: aerodynamic-force ( plane -- force )
+	| plane |
+	plane@velocity to velocity
+	velocity v-length to speed
+	plane@attitude to attitude
+	plane@position second to height
+	height air-density to density
+	0.5 density * speed sq * to dynamic-pressure
+	attitude velocity ground>attitude spread to ahead to rising to across
+	rising negate ahead 0.1 max2 atan2 to angle
+	angle plane!angle-of-attack
+	angle plane@flap-setting lift-coefficient to lift-factor
+	speed 0.5 > if
+		velocity v-unit to airflow
+		attitude@up airflow attitude@up airflow v-dot v* v- v-unit to lift-direction
+		lift-direction dynamic-pressure wing-area * lift-factor * v* to lift
+		parasite-drag induced-drag lift-factor sq * +
+		plane@gear if gear-drag + then
+		flap-drag plane@flap-setting * + to drag-factor
+		airflow dynamic-pressure wing-area * drag-factor * negate v* to drag
+		attitude@right across ahead 0.1 max2 / dynamic-pressure * wing-area * -0.6 * v* to sideways
+	else
+		[ 0 0 0 ] to lift
+		[ 0 0 0 ] to drag
+		[ 0 0 0 ] to sideways
+	then
+	plane@power plane@rated-power * to power
+	speed 120 / 1 min2 0.01 max2 0.4 ^ propeller-efficiency * to efficiency
+	power efficiency * speed 1 max2 / static-thrust plane@revolutions * min2 to thrust
+	attitude@forward thrust v* to pull
+	lift drag v+ sideways v+ pull v+ [ 0 plane aircraft-mass gravity * negate 0 ] v+ ;
+
+\ the throttle, the propeller and the power: the throttle sets the manifold's pressure between the closed throttle's and the open's, and the boost cut-out raises the open boost to the emergency's; the supercharger holds the open pressure only up to its ceiling at the height, and the closed pressure falls with it above the full-throttle height. The constant-speed propeller's governor holds the revolutions at their setting, idling below a tenth of the throttle; the two-pitch propeller's revolutions follow the boost and the airspeed in fine or coarse pitch. The power, as a share of the rated, is the throttle's opening times the open manifold's pressure over the rated boost's times the revolutions over the rated. Running over the rated revolutions, or on emergency boost past its five minutes, wears the engine
+: run-propeller ( plane dt -- )
+	| plane dt |
+	plane@velocity v-length to speed
+	plane@position second to height
+	plane@boost-cut-out if emergency-boost else rated-boost then to open-boost
+	plane@engine-dead if
+		atmosphere height air-density 1.225 / * to manifold
+		0 to target
+	else
+		height plane@full-throttle-height manifold-ceiling to ceiling
+		atmosphere open-boost + ceiling min2 to open-manifold
+		atmosphere idle-boost + ceiling atmosphere rated-boost + / 1 min2 * to closed-manifold
+		open-manifold closed-manifold - plane@throttle * closed-manifold + to manifold
+		plane@propeller :constant-speed = if
+			plane@throttle 0.1 < if 0.2 else plane@revolution-setting rated-revolutions / then to target
+		else
+			plane@fine if fine-revolutions else coarse-revolutions then speed windmill-speed / 1 + *
+			manifold atmosphere rated-boost + / 0.6 * 0.4 + * rated-revolutions / to target
+		then
+	then
+	manifold atmosphere - plane!boost
+	plane@revolutions target over - dt 0.8 * * + plane!revolutions
+	plane@engine-dead if 0 else plane@throttle open-manifold * atmosphere rated-boost + / plane@revolutions * then plane!power
+	plane@engine-dead if exit then
+	plane@revolutions 1 > if
+		plane@engine-wear plane@revolutions 1 - 0.2 / dt * 60 / + plane!engine-wear
+	then
+	plane@boost-cut-out plane@throttle 0.9 > and if
+		plane@emergency-time dt + plane!emergency-time
+		plane@emergency-time emergency-limit > if plane@engine-wear dt 120 / + plane!engine-wear then
+	then ;
+
+\ the photographic reconnaissance Spitfire, the PR IV: the Merlin 46's published 1,415 hp at 14,000 ft; the leading edges' 66.5 gallons a side with the 85 behind the engine, 218 in all; no guns, the cameras in their place, an estimated 100 kg lighter for it
+1055000 constant reconnaissance-power
+4267 constant reconnaissance-rated-height
+218 constant reconnaissance-fuel
+100 constant reconnaissance-mass-saved
+
+: make-reconnaissance ( plane -- )
+	| plane |
+	reconnaissance-power plane!rated-power
+	reconnaissance-rated-height plane!full-throttle-height
+	reconnaissance-fuel plane!fuel-capacity
+	reconnaissance-fuel plane!fuel
+	plane@empty-mass reconnaissance-mass-saved - plane!empty-mass
+	false plane!armed
+	0 plane!ammunition ;
+
+\ the speed the airspeed indicator shows: the true speed scaled by the square root of the air's density over sea level's, m/s
+: indicated-speed ( plane -- speed )
+	| plane |
+	plane@velocity v-length plane@position second air-density 1.225 / sqrt * ;
+
+\ the flaps moving toward the selector's position over their travel time; blown back up when the indicated speed passes the blow-back speed
+: move-flaps ( plane dt -- )
+	| plane dt |
+	plane@flaps plane indicated-speed flap-blow-speed > and if
+		false plane!flaps
+		true plane!flaps-blown
+	then
+	plane@flaps if 1 else 0 then to target
+	dt flap-travel-time / to step
+	plane@flap-setting target - abs step <= if
+		target plane!flap-setting
+	else
+		plane@flap-setting target plane@flap-setting > if step else step negate then + plane!flap-setting
+	then ;
+
+\ the air's temperature at a height, °C: 15 at sea level, falling 6.5 a kilometre
+: air-temperature ( height -- celsius ) 0.0065 * 15 swap - ;
+
+\ the engine's step: the coolant heated by the power and cooled by the air through the radiator, less as the glycol leaks away; the oil's temperature following it, the oil's pressure with the revolutions, less as the oil warms and leaks; the wear of running hot or short of oil, the engine seizing when it is worn out
+: run-engine ( plane dt -- )
+	| plane dt |
+	plane@power to power
+	plane@position second air-temperature to outside
+	plane@velocity v-length plane@revolutions propeller-wash * + to airflow
+	plane@coolant-left plane@coolant-leak dt * - 0 max2 plane!coolant-left
+	plane@oil-left plane@oil-leak dt * - 0 max2 plane!oil-left
+	plane@coolant-left to coolant
+	plane@coolant-temperature to temperature
+	temperature 60 - 15 / 0 1 clamp to thermostat
+	engine-heat power * airflow coolant * thermostat * temperature outside - * - coolant-capacity coolant 0.1 max2 * / dt * temperature + to temperature
+	temperature plane!coolant-temperature
+	plane@oil-temperature temperature 0.75 * plane@oil-temperature - dt * oil-lag / + to oil
+	oil plane!oil-temperature
+	plane@engine-dead if 0 else
+		oil-full-pressure plane@revolutions sqrt * oil 70 - 0.3 * - 0 max2 plane@oil-left 3 * 1 min2 *
+	then to pressure
+	pressure plane!oil-pressure
+	plane@engine-dead if exit then
+	temperature coolant-limit > if
+		plane@engine-wear temperature coolant-limit - coolant-boiling coolant-limit - / dt * 60 / + plane!engine-wear
+	then
+	temperature coolant-boiling > if plane@engine-wear dt 10 / + plane!engine-wear then
+	pressure oil-low-pressure < plane@revolutions 0.1 > and if
+		plane@engine-wear oil-low-pressure pressure - oil-low-pressure / dt * 30 / + plane!engine-wear
+	then
+	plane@engine-wear 1 >= if
+		true plane!engine-dead
+		temperature coolant-limit > if "THE GLYCOL HAS BOILED AND THE ENGINE HAS SEIZED" else "THE OIL PRESSURE HAS GONE AND THE ENGINE HAS SEIZED" then plane!engine-failure
+	then ;
+
+\ turn the aircraft by the controls and the airflow over its tail, the elevator trim adding to the stick, the flaps bringing the nose down
+: steer ( plane dt -- )
+	| plane dt |
+	plane@velocity v-length to speed
+	speed control-authority to authority
+	plane@attitude to attitude
+	plane@angle-of-attack to angle
+	attitude plane@velocity ground>attitude spread to ahead drop to across
+	across ahead abs 1 max2 atan2 to slip
+	controls@pitch plane@trim trim-range * + 1.1 * authority * angle 2.2 * authority * - flap-pitch plane@flap-setting * authority * - to pitch-rate
+	controls@roll 1.7 * speed aileron-authority * to roll-rate
+	controls@yaw 0.35 * authority * slip 1.5 * authority * + to yaw-rate
+	plane@on-ground if
+		0 to roll-rate
+		attitude@forward second asin to nose-angle
+		nose-angle 0.21 >= pitch-rate 0 > and if 0 to pitch-rate then
+		nose-angle 0 <= pitch-rate 0 < and if 0 to pitch-rate then
+	then
+	attitude :right pitch-rate dt * negate turn-attitude
+	:forward roll-rate dt * negate turn-attitude
+	:up yaw-rate dt * turn-attitude
+	square-attitude to attitude
+	plane attitude :attitude ! drop ;
+
+\ the aircraft touching the ground: a landing if level, slow downward and on its wheels over land, a crash otherwise
+: touch-ground ( plane -- )
+	| plane |
+	plane@position to position
+	position first position 2 @i ground-height to ground
+	position second ground wheel-height + > if plane false :on-ground ! drop exit then
+	plane@velocity second to sinking
+	plane@attitude@up second to level
+	position first position 2 @i water-at? if plane true :crashed ! "ditched in the sea" :crash-reason ! drop exit then
+	ground 0 > if plane true :crashed ! "flew into the hillside" :crash-reason ! drop exit then
+	plane@gear not if plane true :crashed ! "landed with the wheels up" :crash-reason ! drop exit then
+	sinking -4 < level 0.93 < or if plane true :crashed ! "struck the ground" :crash-reason ! drop exit then
+	plane true :on-ground ! [ position first ground wheel-height + position 2 @i ] :position ! drop
+	plane@velocity to velocity
+	[ velocity first 0 velocity 2 @i ] to rolling
+	rolling v-length to rolling-speed
+	controls@brakes if 0.45 else 0.04 then gravity * to deceleration
+	rolling-speed 0.05 > if
+		rolling rolling-speed deceleration plane :dt @ * - 0 max2 rolling-speed / v* to rolling
+	then
+	plane rolling :velocity ! drop
+	plane@attitude to attitude
+	attitude@forward to forward
+	forward second 0 < if
+		[ forward first 0 forward 2 @i ] v-unit to level-forward
+		plane { :forward level-forward :up attitude@up :right attitude@right } square-attitude :attitude ! drop
+	then ;
+
+\ one step of flight, dt seconds
+: fly ( plane dt -- )
+	| plane dt |
+	plane@crashed if exit then
+	plane dt :dt ! drop
+	plane@fuel plane@power full-power-flow * 3600 / dt * - 0 max2 plane!fuel
+	plane@fuel 0 <= if true plane!engine-dead then
+	plane@engine-dead if 0 plane!throttle then
+	plane dt run-propeller
+	plane aerodynamic-force to force
+	force plane aircraft-mass 1 swap / v* to acceleration
+	plane@velocity acceleration dt v* v+ to velocity
+	plane velocity :velocity ! drop
+	plane plane@position velocity dt v* v+ :position ! drop
+	acceleration [ 0 gravity 0 ] v+ plane@attitude@up v-dot gravity / plane!g-load
+	plane@attitude@forward heading-of to old-heading
+	plane dt move-flaps
+	plane dt run-engine
+	plane dt steer
+	plane@attitude@forward heading-of old-heading - 540 + 360 mod 180 - dt / plane!turn-rate
+	plane touch-ground ;
