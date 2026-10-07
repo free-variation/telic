@@ -6,16 +6,19 @@
 \ right roll), Z and X the rudder, Q and A the throttle, [ and ] the
 \ elevator trim nose-down and nose-up, W and S the propeller finer and
 \ coarser, E the boost cut-out, F the flaps, G the
-\ undercarriage, B the brakes, space the guns, 1 to 4 the views ahead, left,
-\ right and behind, P pauses, R flies the mission again, escape returns to
+\ undercarriage, B the brakes, space the guns, J bails out, 1 to 4 the views ahead, left,
+\ right and behind, P pauses, escape returns to
 \ the missions. A gamepad: the left stick is the stick, the shoulders the
 \ rudder, the right stick's up and down the throttle and its left and right
 \ the trim, the stick clicks the propeller (right finer, left coarser), the
 \ left trigger the boost cut-out, A or the right trigger
 \ the guns, X the flaps, Y the undercarriage, B the brakes, the d-pad left
 \ and right turns the view, start pauses and back returns to the missions.
-\ On the title, up and down or the d-pad choose a mission, return, start or
-\ A flies it, and escape quits.
+\ On the title, the missions are listed under their groups, scrolling to
+\ keep the chosen one in view: up and down or the d-pad choose a mission,
+\ return, start or A opens its briefing, H or Y shows the keys, and escape
+\ quits; on the briefing, return, start or A flies the mission and escape,
+\ back or B returns to the list.
 
 1 60 / constant step-time
 0.12 constant stick-dead-zone
@@ -32,6 +35,15 @@ variable scenery-collection
 \ a button of the first gamepad went down this frame
 : pad-pressed? ( button -- flag ) 0 gamepad-pressed? ;
 
+\ the view keys: 1 to 4 ahead, left, right and behind, the d-pad's left and right turning through them
+: read-view-keys ( -- )
+	[ :front :left :right :back ] to views
+	0 4 1 do k
+		[ :1 :2 :3 :4 ] k @i key-pressed? if views k @i :view game! then
+	loop
+	:dpad-right pad-pressed? if views views :view game@ position-of 1+ 4 mod @i :view game! then
+	:dpad-left pad-pressed? if views views :view game@ position-of 3 + 4 mod @i :view game! then ;
+
 \ the controls from the keys and the pad
 : read-controls ( elapsed -- )
 	| elapsed ^controls |
@@ -43,6 +55,14 @@ variable scenery-collection
 	plane@throttle throttle-move 0.5 * elapsed * + 0 1 clamp plane!throttle
 	:right-bracket key-down? :left-bracket key-down? - :right-x stick-axis + -1 1 clamp to trim-move
 	plane@trim trim-move 0.4 * elapsed * + -1 1 clamp plane!trim
+	plane@type@rudder-bias if
+		:period key-down? :comma key-down? - to bias-move
+		plane@rudder-trim bias-move 0.4 * elapsed * + -1 1 clamp plane!rudder-trim
+	then
+	plane@type@reserve-capacity 0 > :r key-pressed? and if
+		plane@fuel-cock :main = if :reserve else :main then plane!fuel-cock
+		plane@fuel-cock :main = if "FUEL COCK TO THE MAIN TANKS" else "FUEL COCK TO THE RESERVE TANK" then say
+	then
 	plane@propeller :constant-speed = if
 		:w key-down? :s key-down? - to pitch-move
 		:right-stick pad-pressed? if 300 else 0 then :left-stick pad-pressed? if 300 else 0 then - to pitch-step
@@ -59,17 +79,22 @@ variable scenery-collection
 			"NO EMERGENCY BOOST ON 87-OCTANE FUEL" say
 		then
 	then
+	plane :selector-left 0 @or elapsed - 0 max2 plane!selector-left
 	:f key-pressed? :west pad-pressed? or if
 		plane@flaps not plane!flaps
 		false plane!flaps-blown
-		plane@flaps plane indicated-speed flap-limit-speed > and if
-			"FLAPS DOWN ABOVE 140 MPH  -  THE AIR MAY BLOW THEM BACK UP" say
+		:flaps plane!selector-slot
+		selector-hold plane!selector-left
+		plane@flaps plane indicated-speed plane flap-limit-speed > and if
+			plane@type@flap-limit "FLAPS DOWN ABOVE {0} MPH  -  THE AIR MAY BLOW THEM BACK UP" format say
 		else
 			plane@flaps if "FLAPS DOWN" else "FLAPS UP" then say
 		then
 	then
 	:g key-pressed? :north pad-pressed? or if
 		plane@gear not plane!gear
+		:wheels plane!selector-slot
+		selector-hold plane!selector-left
 		plane@gear if "UNDERCARRIAGE DOWN" else "UNDERCARRIAGE UP" then say
 	then
 	plane@armed if
@@ -85,33 +110,29 @@ variable scenery-collection
 		:time-scale game@ 1 = if 4 else :time-scale game@ 4 = if 16 else 1 then then :time-scale game!
 		:time-scale game@ "TIME x{0:.0f}" format say
 	then
-	[ :front :left :right :back ] to views
-	0 4 1 do k
-		[ :1 :2 :3 :4 ] k @i key-pressed? if views k @i :view game! then
-	loop
-	:dpad-right pad-pressed? if views views :view game@ position-of 1+ 4 mod @i :view game! then
-	:dpad-left pad-pressed? if views views :view game@ position-of 3 + 4 mod @i :view game! then ;
+	read-view-keys ;
+
+\ the falling pilot's gaze: the arrows and the left stick turn it, left and right and up and down, 60° a second, up and down no more than 89°; until first turned it follows the aircraft
+: look-around ( elapsed -- )
+	| elapsed |
+	:pilot game@ to pilot
+	:right key-down? :left key-down? - :left-x stick-axis + -1 1 clamp to turning
+	:up key-down? :down key-down? - :left-y stick-axis - -1 1 clamp to tilting
+	turning 0 = tilting 0 = and pilot@look-heading null? and if exit then
+	pilot@look-heading null? if
+		pilot-attitude to looking
+		looking@forward to gaze
+		gaze heading-of pilot!look-heading
+		gaze second asin 180 * PI / pilot!look-pitch
+	then
+	pilot@look-heading turning 60 * elapsed * + 360 + 360 mod pilot!look-heading
+	pilot@look-pitch tilting 60 * elapsed * + -89 89 clamp pilot!look-pitch ;
 
 \ the most characters a message line holds
 view-width 40 - constant message-line-width
 
 \ a message broken at spaces into lines that fit the view
-: message-lines ( text -- lines )
-	| text |
-	[ ] to lines
-	"" to filling
-	text " +" split to words
-	0 words size 1 do k
-		words k @i to word
-		filling "" = if word else filling " " + word + then to candidate
-		candidate text-width message-line-width > filling "" = not and if
-			lines filling add-last! drop
-			word to filling
-		else
-			candidate to filling
-		then
-	loop
-	lines filling add-last! ;
+: message-lines ( text -- lines ) message-line-width wrapped-lines ;
 
 \ a text's lines centred across the view from a top line down; the line below the last
 : draw-message-lines ( text top colour -- next-top )
@@ -131,7 +152,7 @@ view-width 40 - constant message-line-width
 
 \ the eye's attitude for the chosen view, turned from the aircraft's
 : view-attitude ( -- attitude )
-	plane@attitude to attitude
+	:pilot game@ null? if plane@attitude else pilot-attitude then to attitude
 	:view game@ to view
 	view :left = if attitude :up PI -2 / turn-attitude exit then
 	view :right = if attitude :up PI 2 / turn-attitude exit then
@@ -140,37 +161,55 @@ view-width 40 - constant message-line-width
 
 \ the frame's picture
 : draw-frame ( -- )
-	plane@position plane@attitude@up 1.2 v* v+ view-attitude look-from
-	plane@position use-water-near
-	plane@position refresh-countryside
-	plane@position refresh-clouds
-	[ scenery-collection countryside-collection ] draw-view
-	draw-sky
+	:pilot game@ to pilot
+	pilot null? if panel-top else screen-height then view-rows!
+	pilot null? if plane@position plane@attitude@up 1.2 v* v+ else pilot@position [ 0 1.7 0 ] v+ then to eye-point
+	eye-point view-attitude look-from
+	eye-point use-water-near
+	eye-point refresh-countryside
+	eye-point refresh-clouds
+	bombers wingmen concat to crafts
+	pilot null? not plane@crashed not and if
+		crafts { :kind plane@gear if plane@type@model-down else plane@type@kind then :position plane@position :attitude plane@attitude :state :flying :smoke [ ] } add-last! drop
+	then
+	[ scenery-collection countryside-collection ] crafts draw-scene
 	draw-flak
-	:firing game@ draw-tracers
-	:view game@ :front = plane@armed and if draw-sight then
+	draw-battle
+	:air-firing game@ if draw-tow-cable then
+	:view game@ :front = pilot null? and plane@type@kind :hurricane = and if draw-hurricane-windscreen then
+	:view game@ :front = plane@armed and pilot null? and if draw-sight then
 	:view game@ :front = not if 8 8 :view game@ "{0} VIEW" format upper-case 0xd8d4c0 draw-text then
 	draw-message
 	:paused game@ if view-centre-x 24 - view-centre-y "PAUSED" 0xffffff draw-text then
+	pilot null? not if
+		draw-parachute-panel
+		exit
+	then
 	draw-panel
-	:lesson game@ if
+	:air-firing game@ if
+		draw-air-firing-panel
+	else :lesson game@ if
 		draw-lesson-panel
 	else
 		plane@armed if draw-raid-panel else :target game@ draw-reconnaissance-panel then
-	then ;
+	then then ;
 
 \ a new flight of the chosen mission: the Spitfire at its start, the raid formed up, day or night
 : new-flight ( choice -- )
-	| choice ^plane ^game |
+	| choice ^plane ^game ^moon-sky |
 	missions choice @i to mission
+	game :aircraft-choice :spitfire @or to aircraft-choice
 	mission@start spread new-plane to plane
 	mission :aircraft :fighter @or :reconnaissance = if plane make-reconnaissance then
+	aircraft-choice :hurricane = mission aircraft-choosable? and if plane hurricane-mk-i use-type then
 	mission@propeller plane!propeller
 	mission@emergency plane!emergency-allowed
 	mission :lesson false @or to lesson
-	lesson if false plane!fine then
-	lesson-steps first to opening-step
+	mission :air-firing false @or to air-firing
+	lesson air-firing not and if false plane!fine then
+	air-firing if air-firing-steps else lesson-steps then first to opening-step
 	reset-reconnaissance
+	reset-gunnery
 	mission@landing if
 		true plane!gear
 		true plane!flaps
@@ -180,16 +219,18 @@ view-width 40 - constant message-line-width
 		0.6 plane!revolutions
 	then
 	mission@night if use-night else use-day then
+	mission :moon null @or to moon-sky
 	mission@visibility use-visibility
 	mission@cover mission@base use-clouds
-	{ :running true :title false :choice choice :paused false :view :front :message "" :message-left 0
+	{ :running true :title false :choice choice :aircraft-choice aircraft-choice :paused false :view :front :message "" :message-left 0
 	  :firing false :was-firing false :crash-said false :airborne false :landed-said false :fuel-said false :failure-said false :over-revving false
-	  :accumulated 0 :flight-time 0 :time-scale 1
-	  :lesson lesson :lesson-step 0 :step-time 0 :hold-time 0 :instruction opening-step@say
+	  :hood-open false :pilot null :accumulated 0 :flight-time 0 :time-scale 1
+	  :lesson lesson :air-firing air-firing :lesson-step 0 :step-time 0 :hold-time 0 :instruction opening-step@say
 	  :cameras-running false :exposure-timer 0 :exposures-left magazine-exposures :reviewing false :review-index 0 :review-side -1
 	  :target mission :target null @or null? if [ 0 0 0 ] else mission@target landmark-ground then
 	  :kills 0 :bombed false :raid-over mission@raid null? } to game
 	mission start-raid
+	air-firing if mission start-air-firing then
 	silence-audio
 	start-sounds
 	mission@message say
@@ -208,6 +249,7 @@ view-width 40 - constant message-line-width
 	repeat
 	:accumulated game@ step-time min2 :accumulated game!
 	plane@on-ground not if true :airborne game! then
+	:pilot game@ null? not if exit then
 	plane@engine-failure "" = not :failure-said game@ not and if
 		plane@engine-failure "  -  GLIDE DOWN" + say
 		12 :message-left game!
@@ -219,7 +261,7 @@ view-width 40 - constant message-line-width
 	then
 	plane@revolutions 1.02 > :over-revving game!
 	plane@flaps-blown if
-		"THE AIR HAS BLOWN THE FLAPS BACK UP  -  SLOW BELOW 140 MPH" say
+		plane@type@flap-limit "THE AIR HAS BLOWN THE FLAPS BACK UP  -  SLOW BELOW {0} MPH" format say
 		false plane!flaps-blown
 	then
 	plane@fuel 0 <= :fuel-said game@ not and if
@@ -227,8 +269,13 @@ view-width 40 - constant message-line-width
 		12 :message-left game!
 		true :fuel-said game!
 	then
+	plane@fuel-starved plane@fuel 0 > and game :starved-said false @or not and if
+		plane@fuel-cock :main = if "THE MAIN TANKS ARE DRY AND THE ENGINE HAS STOPPED  -  R FOR THE RESERVE" else "THE RESERVE IS DRY AND THE ENGINE HAS STOPPED  -  R FOR THE MAIN TANKS" then say
+		12 :message-left game!
+	then
+	plane@fuel-starved :starved-said game!
 	plane@crashed :crash-said game@ not and if
-		plane@crash-reason upper-case "  -  R TO FLY AGAIN" + say
+		plane@crash-reason upper-case "  -  ESCAPE FOR THE MISSIONS" + say
 		100 :message-left game!
 		true :crash-said game!
 	then
@@ -236,7 +283,7 @@ view-width 40 - constant message-line-width
 		photos size 0 > if
 			"LANDED  -  V TO DEVELOP THE FILM AND REVIEW IT" say
 		else
-			"LANDED  -  R TO FLY AGAIN, ESCAPE FOR THE MISSIONS" say
+			"LANDED  -  ESCAPE FOR THE MISSIONS" say
 		then
 		100 :message-left game!
 		true :landed-said game!
@@ -255,66 +302,203 @@ view-width 40 - constant message-line-width
   [ "C T V" "RIGHT TRIGGER" "CAMERAS (PR), TIME x4 x16, DEVELOP FILM" ]
   [ "SPACE" "A, TRIGGER" "GUNS" ]
   [ "F G B" "X Y B" "FLAPS, WHEELS, BRAKES" ]
+  [ "J" "" "BAIL OUT: HOOD BACK, OVER THE SIDE, RIPCORD" ]
   [ "1 2 3 4" "D-PAD" "LOOK AHEAD, LEFT, RIGHT, BACK" ]
   [ "P" "START" "PAUSE" ]
-  [ "R" "" "FLY THE MISSION AGAIN" ]
-  [ "ESC" "BACK" "BACK TO THE MISSIONS; HERE, ESC QUITS" ] ] to control-rows
+  [ "ESC" "BACK" "BACK TO THE MISSIONS; ON THE LIST, ESC QUITS" ]
+  [ ", ." "" "RUDDER BIAS LEFT, RIGHT (HURRICANE)" ]
+  [ "R" "" "FUEL COCK, MAIN OR RESERVE (HURRICANE)" ]
+  [ "H" "Y" "THESE KEYS, FROM THE LIST OF MISSIONS" ] ] to control-rows
 
-\ the title: the Forth Bridge from an eye circling it slowly, lit as the chosen mission is, its story and the missions above, the controls below
-: draw-title ( missions -- )
+\ the groups the title lists the missions under, in order, each [ group heading ]
+: mission-groups ( -- groups )
+	[ [ :battle "BATTLES" ] [ :reconnaissance "RECONNAISSANCE" ] [ :training "TRAINING" ] [ :free "FREE FLIGHT" ] ] ;
+
+\ the list's rows, each [ text mission ]: each group's heading, its mission null, then the group's missions by their indices
+: menu-rows ( missions -- rows )
 	| all-missions |
+	mission-groups to groups
+	[ ] to rows
+	0 groups size 1 do g
+		groups g @i to group
+		rows [ group second null ] add-last! drop
+		0 all-missions size 1 do k
+			all-missions k @i to listed
+			listed :group :free @or group first = if rows [ listed@name k ] add-last! drop then
+		loop
+	loop
+	rows ;
+
+\ the row a mission is listed in
+: mission-row ( rows choice -- row )
+	| rows choice |
+	0 to row
+	0 rows size 1 do k
+		rows k @i second choice = if k to row then
+	loop
+	row ;
+
+\ the mission a step up (-1) or down (1) the list from the chosen one, the ends joined
+: step-choice ( rows choice direction -- choice' )
+	| rows choice direction |
+	rows ( row | row second null? not ) filter ( row | row second ) map to order
+	0 to position
+	0 order size 1 do k
+		order k @i choice = if k to position then
+	loop
+	order position direction + order size + order size mod @i ;
+
+\ the list's box: its top, the first row's top, the rows' spacing and how many show at once
+106 constant list-top
+112 constant list-first-row
+14 constant list-row-height
+23 constant list-rows
+
+\ the list scrolled so the chosen row shows, with the row above it when scrolling up
+: scroll-to ( rows choice -- )
+	| rows choice |
+	rows choice mission-row to row
+	:scroll game@ to scroll
+	row 1- 0 max2 scroll < if row 1- 0 max2 to scroll then
+	row scroll list-rows + >= if row list-rows - 1+ to scroll then
+	scroll :scroll game! ;
+
+\ the list in its box: the headings, the missions indented, the chosen one marked; a triangle at the box's top or foot where rows lie beyond it
+: draw-mission-list ( rows -- )
+	| rows |
+	rows ( row | row first text-width ) map 0 ' max2 reduce 16 + to list-width
+	view-centre-x list-width 2 / - 16 - round to box-left
+	list-width 32 + to box-width
+	list-rows rows size min2 to n-shown
+	n-shown list-row-height * 12 + to box-height
+	box-left list-top box-width box-height board-colour fill-span
+	box-left list-top box-width box-height edge-colour outline
+	box-left 16 + to x
+	:scroll game@ to scroll
+	0 n-shown 1 do k
+		rows scroll k + @i to row
+		list-first-row k list-row-height * + to y
+		row second null? if
+			x y row first heading-colour draw-text
+		else row second :choice game@ = if
+			x 4 + y "> " row first + 0xffffff draw-text
+		else
+			x 16 + y row first dial-ink draw-text
+		then then
+	loop
+	box-left box-width + 14 - to arrow-x
+	scroll 0 > if arrow-x list-top 12 + arrow-x 8 + list-top 12 + arrow-x 4 + list-top 4 + dial-ink fill-face then
+	scroll list-rows + rows size < if
+		list-top box-height + to foot
+		arrow-x foot 12 - arrow-x 8 + foot 12 - arrow-x 4 + foot 4 - dial-ink fill-face
+	then ;
+
+\ the keys screen: the keyboard's keys and the gamepad's controls, a line each
+: draw-keys ( -- )
+	0 0 view-width screen-height wall-colour fill-span
+	view-centre-x 20 "KEYS AND GAMEPAD" 0xffffff centred-print
+	0 control-rows size 1 do k
+		control-rows k @i to row
+		60 k 18 * + to y
+		k 0 = if heading-colour else dial-ink then to colour
+		20 y row first colour draw-text
+		110 y row second colour draw-text
+		240 y row 2 @i colour draw-text
+	loop
+	view-centre-x 456 "ESCAPE OR H: BACK TO THE MISSIONS" 0xffffff centred-print ;
+
+\ the title: the Forth Bridge from an eye circling it slowly, across the whole screen, lit as the chosen mission is; its story; the list of missions; what the keys do
+: draw-title ( rows missions -- )
+	| rows all-missions ^moon-sky |
+	screen-height view-rows!
 	all-missions :choice game@ @i to chosen
 	chosen@night if use-night else use-day then
+	chosen :moon null @or to moon-sky
 	chosen@visibility use-visibility
 	:title-time game@ 0.04 * to angle
 	:inchgarvie landmark-ground to bridge
 	bridge [ angle sin 1700 * 120 angle cos 1700 * ] v+ to eye-point
 	bridge eye-point v- heading-of heading-attitude to attitude
 	eye-point attitude look-from
-	[ scenery-collection ] draw-view
+	[ scenery-collection ] [ ] draw-scene
 	view-centre-x 20 "SPITFIRE" 0xffffff centred-print
 	chosen@story to story-lines
 	0 story-lines size 1 do k
 		story-lines k @i to shown
 		view-centre-x 50 k 16 * + shown 0xffe080 centred-print
 	loop
-	all-missions ( entry | "> " entry@name + text-width ) map 0 ' max2 reduce to list-width
-	0 all-missions size 1 do k
-		all-missions k @i to listed
-		k :choice game@ = if "> " else "  " then listed@name + to shown
-		k :choice game@ = if 0xffffff else dial-ink then to colour
-		view-centre-x list-width 2 / - round 102 k 16 * + shown colour draw-text
-	loop
-	0 panel-top view-width screen-height panel-top - wall-colour fill-span
-	0 control-rows size 1 do k
-		control-rows k @i to row
-		panel-top 10 + k 15 * + to y
-		k 0 = if 0xffe080 else dial-ink then to colour
-		20 y row first colour draw-text
-		110 y row second colour draw-text
-		240 y row 2 @i colour draw-text
-	loop
+	rows draw-mission-list
 	:title-time game@ 1.5 * truncate 2 mod 0 = if
-		view-centre-x view-height 22 - "UP AND DOWN CHOOSE  -  RETURN OR START FLIES" 0xffffff centred-print
+		view-centre-x 456 "UP AND DOWN CHOOSE  -  RETURN: BRIEFING  -  H: KEYS  -  ESCAPE QUITS" 0xffffff centred-print
 	then ;
 
-\ a frame of the title: escape quits, up and down choose a mission, return or start flies it
+\ the chosen mission's briefing opened: its map's frame and shore lines worked out once
+: open-briefing ( missions -- )
+	| all-missions |
+	all-missions :choice game@ @i map-frame to frame
+	frame :briefing-frame game!
+	frame map-lines :briefing-lines game!
+	:briefing :screen game! ;
+
+\ a frame of the title. On the list: escape quits, up and down choose a mission, return or start opens its briefing, H or Y the keys. On the keys: escape, H, Y or back returns to the list. On the briefing: left and right choose the Spitfire or the Hurricane where the mission allows, return or start flies the mission, escape or back returns to the list
 : title-frame ( elapsed -- )
 	| elapsed |
 	:title-time game@ elapsed + :title-time game!
-	:escape key-pressed? if false :running game! exit then
 	missions to all-missions
-	all-missions size to n-missions
-	:up key-pressed? :dpad-up pad-pressed? or if :choice game@ n-missions + 1- n-missions mod :choice game! then
-	:down key-pressed? :dpad-down pad-pressed? or if :choice game@ 1+ n-missions mod :choice game! then
-	:return key-pressed? :start pad-pressed? or :south pad-pressed? or if :choice game@ new-flight exit then
-	all-missions draw-title ;
+	all-missions menu-rows to rows
+	:screen game@ to title-screen
+	title-screen :keys = if
+		:escape key-pressed? :h key-pressed? or :north pad-pressed? or :back pad-pressed? or :east pad-pressed? or if :list :screen game! then
+		draw-keys
+		exit
+	then
+	title-screen :briefing = if
+		:escape key-pressed? :back pad-pressed? or :east pad-pressed? or if :list :screen game! exit then
+		:return key-pressed? :start pad-pressed? or :south pad-pressed? or if :choice game@ new-flight exit then
+		all-missions :choice game@ @i to mission
+		:left key-pressed? :right key-pressed? or :dpad-left pad-pressed? or :dpad-right pad-pressed? or mission aircraft-choosable? and if
+			:aircraft-choice game@ :hurricane = if :spitfire else :hurricane then :aircraft-choice game!
+		then
+		mission :briefing-frame game@ :briefing-lines game@ :aircraft-choice game@ draw-briefing
+		exit
+	then
+	:escape key-pressed? if false :running game! exit then
+	:up key-pressed? :dpad-up pad-pressed? or if rows :choice game@ -1 step-choice :choice game! then
+	:down key-pressed? :dpad-down pad-pressed? or if rows :choice game@ 1 step-choice :choice game! then
+	rows :choice game@ scroll-to
+	:return key-pressed? :start pad-pressed? or :south pad-pressed? or if all-missions open-briefing exit then
+	:h key-pressed? :north pad-pressed? or if :keys :screen game! exit then
+	rows all-missions draw-title ;
 
-\ the title showing with a mission chosen, the flight not yet begun, the engine silent
+\ the title showing its list with a mission chosen, the flight not yet begun, the engine silent
 : show-title ( choice -- )
 	| choice ^game |
 	silence-audio
-	{ :running true :title true :title-time 0 :choice choice } to game ;
+	game :aircraft-choice :spitfire @or to aircraft-choice
+	{ :running true :title true :title-time 0 :choice choice :screen :list :scroll 0
+	  :briefing-frame null :briefing-lines [ ] :aircraft-choice aircraft-choice } to game ;
+
+\ the frames a second, each frame's real time folded into a running average over about ten frames
+variable frame-rate
+0 to frame-rate
+
+: frame-took ( seconds -- )
+	| seconds ^frame-rate |
+	seconds 0 <= if exit then
+	frame-rate 0.9 * 1 seconds / 0.1 * + to frame-rate ;
+
+\ the milliseconds a frame's work takes, without the wait for the display, averaged the same way
+variable frame-work
+0 to frame-work
+
+: frame-worked ( seconds -- )
+	| seconds ^frame-work |
+	frame-work 0.9 * seconds 1000 * 0.1 * + to frame-work ;
+
+\ the frames a second and the milliseconds of work a frame, in the top right corner
+: draw-frame-rate ( -- )
+	frame-work frame-rate round "{0} FPS  {1:.1f} MS" format to rate-line
+	view-width rate-line text-width - 8 - 8 rate-line 0xd8d4c0 draw-text ;
 
 \ one frame: keys, the flight, the sound, the picture
 : frame ( elapsed -- )
@@ -326,7 +510,6 @@ view-width 40 - constant message-line-width
 		exit
 	then
 	:escape key-pressed? :back pad-pressed? or if :choice game@ show-title exit then
-	:r key-pressed? if :choice game@ new-flight exit then
 	:v key-pressed? :landed-said game@ and photos size 0 > and if
 		true :reviewing game!
 		0 :review-index game!
@@ -336,16 +519,33 @@ view-width 40 - constant message-line-width
 	:p key-pressed? :start pad-pressed? or if :paused game@ not :paused game! then
 	:message-left game@ elapsed - :message-left game!
 	elapsed :time-scale game@ * to scaled
+	:j key-pressed? :paused game@ not and if bail-out-key then
 	:paused game@ not if
-		elapsed read-controls
+		:pilot game@ null? if
+			elapsed read-controls
+		else
+			centre-controls
+			elapsed look-around
+			read-view-keys
+		then
+		scaled run-pilot
 		plane@crashed not if elapsed advance else false :firing game! then
-		:firing game@ if scaled fire-guns then
 		scaled advance-raid
+		scaled advance-gunnery
 		check-raid-over
 		scaled run-cameras
 		scaled run-flak
-		:lesson game@ if scaled run-lesson then
+		:air-firing game@ if scaled run-air-firing then
+		:lesson game@ if :air-firing game@ if air-firing-steps else lesson-steps then scaled run-lesson then
 	then
 	plane update-sounds
 	:firing game@ :was-firing game@ = not if :firing game@ guns-sound :firing game@ :was-firing game! then
 	draw-frame ;
+
+\ one frame, the frames a second and its work's time over it
+: frame-with-rate ( elapsed -- )
+	| elapsed |
+	now to started
+	elapsed frame
+	now started - frame-worked
+	draw-frame-rate ;

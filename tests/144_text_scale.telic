@@ -1,0 +1,85 @@
+\ ==== text-scale ( n -- ), offline ====
+
+\ text-scale draws every later print-at with each pixel of the font as an
+\ n×n block: the glyphs, the line height and text-width grow n times. The
+\ default is 1; an integer in [1, 16]. Drawing needs no window, so
+\ capture-bitmap reads the canvas back.
+
+: show-rows ( bitmap -- )
+	| bitmap |
+	bitmap dim to n-columns to n-rows
+	0 n-rows 1 do row
+		"" 0 n-columns 1 do column
+			bitmap row column @i,j 0 = if "." else "#" then +
+		loop . cr
+	loop ;
+
+: blank ( -- ) 0 ink 0 0 30 30 fill-rect 0xffffff ink ;
+
+\ === "!" at the default scale: the font's pixels, its shadow included ===
+blank
+0 0 "!" print-at
+0 0 4 10 capture-bitmap show-rows
+\ ##..
+\ ##..
+\ ##..
+\ ##..
+\ ##..
+\ ..#.
+\ ##..
+\ ##..
+\ ..#.
+\ ....
+clear
+
+\ === "!" at scale 2: each of those pixels a 2×2 block ===
+blank
+2 text-scale
+0 0 "!" print-at
+1 text-scale
+0 0 8 18 capture-bitmap show-rows
+\ ####....
+\ ####....
+\ ####....
+\ ####....
+\ ####....
+\ ####....
+\ ####....
+\ ####....
+\ ####....
+\ ####....
+\ ....##..
+\ ....##..
+\ ####....
+\ ####....
+\ ####....
+\ ####....
+\ ....##..
+\ ....##..
+clear
+
+\ === text-width grows with the scale ===
+"AB" text-width .                                           \ 14
+3 text-scale
+"AB" text-width .                                           \ 42
+1 text-scale
+cr
+clear
+
+\ === a newline moves down the scaled line height: 12 rows at scale 1, 24 at scale 2 ===
+blank
+2 text-scale
+0 0 "{nl}!" format print-at
+1 text-scale
+0 22 4 4 capture-bitmap show-rows
+\ ....
+\ ....
+\ ####
+\ ####
+clear
+
+\ === errors ===
+0 text-scale                                                \ (below 1)
+1.5 text-scale                                              \ (not an integer)
+17 text-scale                                               \ (above 16)
+"2" text-scale                                              \ (not a number)

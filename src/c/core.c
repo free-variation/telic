@@ -6199,11 +6199,13 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "line", p_line, 0);
 	define_primitive(interp, "rect", p_rect, 0);
 	define_primitive(interp, "fill-rect", p_fill_rect, 0);
+	define_primitive(interp, "fill-triangle", p_fill_triangle, 0);
 	define_primitive(interp, "circle", p_circle, 0);
 	define_primitive(interp, "fill-circle", p_fill_circle, 0);
 	define_primitive(interp, "cls", p_cls, 0);
 	define_primitive(interp, "print-at", p_print_at, 0);
 	define_primitive(interp, "text-width", p_text_width, 0);
+	define_primitive(interp, "text-scale", p_text_scale, 0);
 	define_primitive(interp, "screen-size", p_screen_size, 0);
 	define_primitive(interp, "screen-zoom", p_screen_zoom, 0);
 	define_primitive(interp, "screen-shader", p_screen_shader, 0);

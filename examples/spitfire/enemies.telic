@@ -2,98 +2,173 @@
 \ metres right, up and forward of its centre — drawn by carrying its points
 \ through one more matrix product, from its own terms into the ground's, on
 \ their way into the eye's. The Ju 88 A-1 and the He 111 H are built to their
-\ published spans and lengths (20.08 m by 14.36 m, 22.60 m by 16.40 m).
+\ published spans and lengths (20.08 m by 14.36 m, 22.60 m by 16.40 m), the
+\ rest of their proportions estimated from drawings: fuselages of eight-sided
+\ rings, the glazing, the gun positions and gondolas, tapered wings with
+\ their hinge lines, round nacelles with three-blade propellers, the tail
+\ surfaces with theirs, and the crosses.
 \
 \ A raid is bombers in vics of three, each following the one ahead of it: the
 \ leader of each vic flies to the target at its speed and height, the others
 \ station off its wings and behind; over the target they bomb, then turn for
-\ home. A bomber's rear gunner fires at a fighter sitting behind it within
-\ 500 m. The Spitfire's eight Brownings carry 300 rounds each at about 1,150
-\ rounds a minute, some 15.6 seconds of fire: a bomber inside the sight's
-\ cone and within 650 m takes hits for as long as the guns bear, more the
-\ closer it is, and with its strength gone it smokes, rolls over and falls.
+\ home. An escort of Bf 110s fights until the bombers have bombed: each
+\ takes the nearest Spitfire, the player's or the squadron's, breaks toward
+\ it when it is behind, turns onto it within 3 km with the lead its rounds
+\ need, and otherwise rejoins the bombers. The squadron's other Spitfires
+\ break hard from a Bf 110 behind them and otherwise attack the nearest of
+\ the raid. The turns are the Spitfire Mk I's 360° in 19 s at 12,000 ft
+\ (RAE, published) and the Bf 110 C's 23.2 s, derived from it by the square
+\ root of the wing loadings (175 kg/m² against 117), the wings taken to
+\ reach the same greatest lift. Everything about the guns is gunnery.telic's;
+\ an aircraft whose hits pass its strength smokes, rolls over and falls.
 
 0xd0d0d0 constant bomber-colour
-0xffe070 constant tracer-colour
 0x908070 constant smoke-colour
-15.6 constant ammunition-seconds
-650 constant gun-range
 
-\ one ring of a fuselage, six points about the centre line: [ along half-width half-height lift ]
-: fuselage-ring ( ring -- points )
-	| ring |
-	ring spread to lift to half-height to half-width to along
-	[ 0 6 1 do k
-		k 6 / TAU * to angle
-		[ angle sin half-width * angle cos half-height * lift + along ]
-	loop ] ;
-
-\ a fuselage as rings of six points along its length, joined ring to ring
-: sketch-fuselage ( sketch rings -- )
-	| sketch rings |
-	rings ( ring | sketch ring fuselage-ring sketch-points ) map to ring-indices
-	ring-indices ( indices | sketch indices join-loop ) each
-	0 ring-indices size 1- 1 do k
-		0 6 1 do corner
-			sketch ring-indices k @i corner @i ring-indices k 1+ @i corner @i sketch-edge
-		loop
-	loop ;
-
-\ a box centred on a point rather than standing on it
-: sketch-box-centred ( sketch centre heading width length height -- )
-	| sketch centre heading width length height |
-	sketch centre [ 0 height 2 / negate 0 ] v+ heading width length height sketch-box ;
-
-\ a wing's outline on both sides: from the root's leading and trailing edges to the tip's, rising to the tip by the dihedral
-: sketch-wings ( sketch root-x root-front root-back tip-x tip-front tip-back dihedral -- )
-	| sketch root-x root-front root-back tip-x tip-front tip-back dihedral |
+\ an engine on each wing: the nacelle as rings of six from its round cowling back past the wing, the propeller and its disc before it, six exhaust stubs down each side of the cowling; the stations are [ along radius ] from the cowling's face
+: sketch-engines ( sketch out lift face stations propeller-radius -- )
+	| sketch out lift face stations propeller-radius |
+	stations ( station | [ station first face + station second station second lift ] ) map to rings
+	stations second second to cowling
 	[ -1 1 ] ( side |
-		sketch [ [ root-x side * 0 root-front ] [ tip-x side * dihedral tip-front ]
-		         [ tip-x side * dihedral tip-back ] [ root-x side * 0 root-back ] ] sketch-loop
+		[ out side * 0 0 ] to centre
+		sketch rings centre 6 sketch-body
+		centre [ 0 lift face 0.15 + ] v+ to hub
+		sketch hub propeller-radius sketch-propeller
+		sketch hub propeller-radius sketch-propeller-disc
+		[ -1 1 ] ( flank |
+			0 6 1 do stub
+				face 0.3 - stub 0.22 * - to along
+				[ out side * flank cowling * + lift 0.15 + along ] to root
+				sketch [ root root [ flank 0.1 * -0.03 -0.1 ] v+ ] sketch-path
+			loop
+		) each
 	) each ;
 
-\ an engine nacelle on each wing: a box a distance out
-: sketch-nacelles ( sketch out front back size -- )
-	| sketch out front back size |
+\ the Balkenkreuz's outline: a cross of four arms, each a quarter as wide as the whole is long, on a plane given by two directions
+: sketch-cross ( sketch centre across up size -- )
+	| sketch centre across up size |
+	size 2 / to reach
+	reach 4 / to bar
+	[ [ bar reach ] [ bar bar ] [ reach bar ] [ reach bar negate ] [ bar bar negate ] [ bar reach negate ]
+	  [ bar negate reach negate ] [ bar negate bar negate ] [ reach negate bar negate ] [ reach negate bar ] [ bar negate bar ] [ bar negate reach ] ]
+	( pair | centre across pair first v* v+ up pair second v* v+ ) map to corners
+	sketch corners sketch-loop ;
+
+\ the crosses: on each upper wing at a distance out, and on each side of the fuselage at a station
+: sketch-crosses ( sketch wing-out wing-along wing-height wing-size side-out side-along side-height side-size -- )
+	| sketch wing-out wing-along wing-height wing-size side-out side-along side-height side-size |
 	[ -1 1 ] ( side |
-		sketch [ out side * 0 front back + 2 / ] 0 size front back - size sketch-box-centred
+		sketch [ wing-out side * wing-height wing-along ] [ 1 0 0 ] [ 0 0 1 ] wing-size sketch-cross
+		sketch [ side-out side * side-height side-along ] [ 0 0 1 ] [ 0 1 0 ] side-size sketch-cross
 	) each ;
 
-\ a fin standing on the tail: its root from one point to another along the centre line, its tip at a height
-: sketch-fin ( sketch out root-front root-back top-front top-back height -- )
-	| sketch out root-front root-back top-front top-back height |
-	sketch [ [ out 0 root-front ] [ out height top-front ] [ out height top-back ] [ out 0 root-back ] ] sketch-loop ;
-
+\ the Ju 88 A-1: a fuselage of nine rings; the glazed canopy raised over the crew's compartment with its frames and the two rear guns; the ventral gondola offset to starboard under the cockpit with its gun; tapered wings with rounded tips and the flaps' and ailerons' hinge line; the Jumo 211s in round cowlings with three-blade propellers; the tailplane, elevators, fin and rudder; the crosses. The span and length are published; every other figure is an estimate from drawings
 : junkers-88 ( -- model )
 	new-sketch to model
-	model [ [ 7.0 0.25 0.3 0 ] [ 5.6 0.85 1.0 0.1 ] [ 3.8 0.95 1.25 0.25 ] [ 0.5 0.85 1.0 0 ] [ -4 0.55 0.65 0 ] [ -7.2 0.2 0.3 0.15 ] ] sketch-fuselage
-	model 0.9 2.0 -1.8 10.04 0.4 -0.9 0.6 sketch-wings
-	model 3.6 3.6 -2.0 1.3 sketch-nacelles
-	model [ [ 0.6 0.2 -6.0 ] [ 3.6 0.2 -6.8 ] [ 3.6 0.2 -7.4 ] [ 0.6 0.2 -7.4 ] ] sketch-loop
-	model [ [ -0.6 0.2 -6.0 ] [ -3.6 0.2 -6.8 ] [ -3.6 0.2 -7.4 ] [ -0.6 0.2 -7.4 ] ] sketch-loop
-	model 0 -5.2 -7.5 -6.6 -7.6 3.0 sketch-fin
+	model [ [ 7.1 0.15 0.15 0.05 ] [ 6.6 0.6 0.7 0.05 ] [ 5.6 0.85 1.0 0.1 ] [ 3.8 0.95 1.15 0.15 ] [ 1.5 0.9 1.05 0.05 ]
+	        [ -1.5 0.8 0.9 0 ] [ -4 0.55 0.65 0.05 ] [ -6.6 0.3 0.4 0.15 ] [ -7.2 0.12 0.15 0.2 ] ] [ 0 0 0 ] 8 sketch-body
+	model [ [ -0.75 1.05 5.9 ] [ 0.75 1.05 5.9 ] [ 0.8 1.15 3.0 ] [ -0.8 1.15 3.0 ] ] sketch-loop
+	model [ [ -0.5 1.75 5.2 ] [ 0.5 1.75 5.2 ] [ 0.55 1.8 3.3 ] [ -0.55 1.8 3.3 ] ] sketch-loop
+	[ [ 0.75 1.05 5.9 0.5 1.75 5.2 ] [ 0.8 1.12 4.3 0.55 1.8 4.3 ] [ 0.8 1.15 3.0 0.55 1.8 3.3 ] ] ( bar |
+		bar spread to top-along to top-up to top-out to foot-along to foot-up to foot-out
+		[ -1 1 ] ( side |
+			model [ [ foot-out side * foot-up foot-along ] [ top-out side * top-up top-along ] ] sketch-path
+		) each
+	) each
+	model [ [ 0 1.75 5.2 ] [ 0 1.8 3.3 ] ] sketch-path
+	model [ [ 0.25 1.65 3.2 ] [ 0.3 1.55 2.3 ] ] sketch-path
+	model [ [ -0.25 1.65 3.2 ] [ -0.3 1.55 2.3 ] ] sketch-path
+	model [ 0.3 -0.95 4.0 ] 0 0.7 2.4 0.5 sketch-box-centred
+	model [ [ 0.3 -1.0 2.8 ] [ 0.3 -1.1 2.0 ] ] sketch-path
+	model [ [ 0.9 2.0 ] [ 3.0 1.85 ] [ 8.5 0.9 ] [ 9.7 0.55 ] [ 10.04 0.0 ] [ 9.8 -0.6 ] [ 8.5 -0.95 ] [ 3.0 -1.5 ] [ 0.9 -1.8 ] ]
+		[ [ [ 3.2 -1.15 ] [ 8.4 -0.6 ] ] [ [ 6.0 -1.2 ] [ 6.0 -0.82 ] ] ] 0.06 0 sketch-surface
+	model 3.6 -0.05 3.7 [ [ 0 0.62 ] [ -0.7 0.7 ] [ -3.2 0.6 ] [ -4.7 0.45 ] [ -6.0 0 ] ] 1.7 sketch-engines
+	model [ [ 0.5 -5.9 ] [ 3.0 -6.4 ] [ 3.7 -6.9 ] [ 3.5 -7.35 ] [ 0.5 -7.4 ] ] [ [ [ 0.5 -6.9 ] [ 3.6 -6.95 ] ] ] 0 0.2 sketch-surface
+	model 0 [ [ -5.0 0.6 ] [ -6.3 2.9 ] [ -6.8 3.2 ] [ -7.5 3.0 ] [ -7.6 0.4 ] ] [ [ -6.9 3.1 ] [ -7.0 0.5 ] ] sketch-fin
+	model [ [ 0 1.75 2.4 ] [ 0 2.15 2.2 ] [ 0 3.0 -6.8 ] ] sketch-path
+	model 6.0 0.05 0.5 1.6 0.6 -3.5 0.05 1.2 sketch-crosses
 	model bomber-colour sketch>object ;
 
+\ the He 111 H: a fuselage of nine rings ending in the stepless glazed nose, its rear frame and the offset nose gun; the open dorsal gun position and its gun; the ventral gondola and its gun; wings with a swept leading edge, rounded tips and the hinge line; the Jumo 211s with three-blade propellers; the tail; the crosses. The span and length are published; every other figure is an estimate from drawings
 : heinkel-111 ( -- model )
 	new-sketch to model
-	model [ [ 8.2 0.25 0.3 0 ] [ 7.2 0.9 1.0 0 ] [ 5.5 1.0 1.25 0.1 ] [ 1.5 0.95 1.15 0.1 ] [ -4 0.6 0.75 0.1 ] [ -8.2 0.2 0.3 0.25 ] ] sketch-fuselage
-	model 1.0 2.4 -2.6 11.3 0.2 -1.0 0.5 sketch-wings
-	model 3.8 4.0 -1.8 1.4 sketch-nacelles
-	model [ [ 0.6 0.3 -6.8 ] [ 4.2 0.3 -7.6 ] [ 4.2 0.3 -8.4 ] [ 0.6 0.3 -8.6 ] ] sketch-loop
-	model [ [ -0.6 0.3 -6.8 ] [ -4.2 0.3 -7.6 ] [ -4.2 0.3 -8.4 ] [ -0.6 0.3 -8.6 ] ] sketch-loop
-	model 0 -6.3 -8.6 -7.6 -8.7 3.2 sketch-fin
+	model [ [ 8.2 0.2 0.2 0 ] [ 7.8 0.65 0.7 0 ] [ 7.0 0.9 1.0 0.05 ] [ 5.5 1.0 1.2 0.1 ] [ 2.5 0.95 1.2 0.1 ]
+	        [ -1.0 0.85 1.0 0.1 ] [ -4.0 0.6 0.75 0.1 ] [ -6.8 0.35 0.45 0.2 ] [ -8.2 0.15 0.2 0.25 ] ] [ 0 0 0 ] 8 sketch-body
+	model [ 6.4 0.95 1.1 0.07 ] [ 0 0 0 ] 8 body-ring sketch-loop
+	model [ [ 0.2 0.2 8.0 ] [ 0.25 0.15 8.7 ] ] sketch-path
+	model [ [ -0.35 1.05 -0.4 ] [ 0.35 1.05 -0.4 ] [ 0.35 1.0 -2.0 ] [ -0.35 1.0 -2.0 ] ] sketch-loop
+	model [ [ 0 1.2 -1.2 ] [ 0 1.3 -2.6 ] ] sketch-path
+	model [ 0 -1.3 1.5 ] 0 0.8 3.0 0.45 sketch-box-centred
+	model [ [ 0 -1.3 0 ] [ 0 -1.45 -0.9 ] ] sketch-path
+	model [ [ 1.0 2.4 ] [ 3.8 2.2 ] [ 8.0 1.2 ] [ 10.4 0.55 ] [ 11.3 -0.1 ] [ 10.8 -0.8 ] [ 8.0 -1.2 ] [ 3.8 -2.0 ] [ 1.0 -2.6 ] ]
+		[ [ [ 4.0 -1.55 ] [ 10.4 -0.6 ] ] [ [ 7.2 -1.35 ] [ 7.2 -0.95 ] ] ] 0.044 0 sketch-surface
+	model 3.8 -0.05 4.3 [ [ 0 0.62 ] [ -0.7 0.72 ] [ -3.8 0.62 ] [ -5.5 0.42 ] [ -6.6 0 ] ] 1.75 sketch-engines
+	model [ [ 0.5 -6.6 ] [ 3.4 -7.2 ] [ 4.2 -7.8 ] [ 4.0 -8.4 ] [ 0.5 -8.6 ] ] [ [ [ 0.5 -8.0 ] [ 4.1 -8.05 ] ] ] 0 0.3 sketch-surface
+	model 0 [ [ -6.1 0.6 ] [ -7.3 2.8 ] [ -7.9 3.3 ] [ -8.6 3.1 ] [ -8.7 0.5 ] ] [ [ -8.0 3.2 ] [ -8.1 0.6 ] ] sketch-fin
+	model [ [ 0 1.2 -2.8 ] [ 0 1.65 -3.0 ] [ 0 3.2 -7.8 ] ] sketch-path
+	model 7.5 0.0 0.45 1.8 0.58 -4.5 0.1 1.3 sketch-crosses
+	model bomber-colour sketch>object ;
+
+\ the Bf 110 C: a slim fuselage of eight rings; the long glazed canopy over the pilot and the gunner, its frames and the gunner's MG 15; the four MG 17s in the nose and the two MG FF cannon under it; tapered wings with the hinge line; the DB 601s in slim nacelles with three-blade propellers; the tailplane and the twin fins at its tips; the crosses. The span, length and height are published (16.25 m, 12.1 m, 3.5 m); every other figure is an estimate from drawings
+: messerschmitt-110 ( -- model )
+	new-sketch to model
+	model [ [ 5.6 0.15 0.2 0 ] [ 5.3 0.45 0.55 0 ] [ 4.3 0.6 0.75 0.05 ] [ 2.5 0.62 0.85 0.15 ]
+	        [ 0.0 0.6 0.85 0.15 ] [ -2.5 0.45 0.6 0.1 ] [ -5.0 0.25 0.35 0.15 ] [ -6.4 0.12 0.15 0.2 ] ] [ 0 0 0 ] 8 sketch-body
+	model [ [ -0.45 0.85 3.4 ] [ 0.45 0.85 3.4 ] [ 0.5 0.95 -1.2 ] [ -0.5 0.95 -1.2 ] ] sketch-loop
+	model [ [ -0.32 1.45 2.8 ] [ 0.32 1.45 2.8 ] [ 0.32 1.4 -0.9 ] [ -0.32 1.4 -0.9 ] ] sketch-loop
+	[ [ 0.45 0.85 3.4 0.32 1.45 2.8 ] [ 0.5 0.9 1.8 0.32 1.45 1.8 ] [ 0.5 0.92 0.6 0.32 1.42 0.6 ] [ 0.5 0.95 -1.2 0.32 1.4 -0.9 ] ] ( bar |
+		bar spread to top-along to top-up to top-out to foot-along to foot-up to foot-out
+		[ -1 1 ] ( side |
+			model [ [ foot-out side * foot-up foot-along ] [ top-out side * top-up top-along ] ] sketch-path
+		) each
+	) each
+	model [ [ 0 1.35 -1.0 ] [ 0 1.3 -2.0 ] ] sketch-path
+	[ [ 0.12 0.35 ] [ -0.12 0.35 ] [ 0.12 0.15 ] [ -0.12 0.15 ] ] ( muzzle |
+		model [ [ muzzle first muzzle second 5.4 ] [ muzzle first muzzle second 6.2 ] ] sketch-path
+	) each
+	[ -1 1 ] ( side |
+		model [ [ side 0.15 * -0.55 3.8 ] [ side 0.15 * -0.6 4.8 ] ] sketch-path
+	) each
+	model [ [ 0.6 1.7 ] [ 3.0 1.55 ] [ 7.4 0.8 ] [ 8.0 0.55 ] [ 8.125 0.1 ] [ 8.0 -0.4 ] [ 7.4 -0.55 ] [ 3.0 -1.15 ] [ 0.6 -1.4 ] ]
+		[ [ [ 3.2 -0.85 ] [ 7.4 -0.3 ] ] [ [ 5.3 -0.84 ] [ 5.3 -0.6 ] ] ] 0.05 0 sketch-surface
+	model 2.4 -0.05 3.4 [ [ 0 0.45 ] [ -0.6 0.55 ] [ -2.8 0.48 ] [ -4.2 0.3 ] [ -5.0 0 ] ] 1.65 sketch-engines
+	model [ [ 0.3 -5.0 ] [ 2.8 -5.3 ] [ 3.2 -5.6 ] [ 3.2 -6.3 ] [ 0.3 -6.4 ] ] [ [ [ 0.3 -5.9 ] [ 3.2 -5.95 ] ] ] 0 0.25 sketch-surface
+	[ -3.15 3.15 ] ( out |
+		model out [ [ -5.2 -0.8 ] [ -5.0 0.9 ] [ -5.4 1.4 ] [ -6.2 1.45 ] [ -6.6 0.9 ] [ -6.5 -0.7 ] ] [ [ -6.0 1.4 ] [ -6.0 -0.7 ] ] sketch-fin
+	) each
+	model [ [ 0 1.42 -1.3 ] [ 0 1.8 -1.5 ] [ 3.15 1.4 -5.9 ] ] sketch-path
+	model 5.5 0.0 0.4 1.2 0.42 -3.0 0.12 1.0 sketch-crosses
 	model bomber-colour sketch>object ;
 
 variable models
 { } to models
 variable bombers
 [ ] to bombers
-variable tracers
-[ ] to tracers
 
+variable far-models
+{ } to far-models
+
+\ the drogue: a cloth sleeve 6 m long, 1 m across at its mouth and 0.7 m at its tail (estimates), on a bridle of four lines meeting 2 m ahead of the mouth
+: drogue-model ( -- model )
+	new-sketch to model
+	model [ [ 3 0.5 0.5 0 ] [ -3 0.35 0.35 0 ] ] [ 0 0 0 ] 8 sketch-body
+	[ [ 0.5 0 3 ] [ -0.5 0 3 ] [ 0 0.5 3 ] [ 0 -0.5 3 ] ] ( corner | model [ corner [ 0 0 5 ] ] sketch-path ) each
+	model bomber-colour sketch>object ;
+
+\ each type's model near and from afar, the far ones from the published spans and lengths and the engines' distance out; the Spitfire's and the Hurricane's with wheels up and down; the Lysander target tug's from afar only, its published 50 ft span and 30 ft 6 in length
 : build-models ( -- )
-	| ^models |
-	{ :ju-88 junkers-88 :he-111 heinkel-111 } to models ;
+	| ^models ^far-models |
+	{ :ju-88 junkers-88 :he-111 heinkel-111 :bf-110 messerschmitt-110
+	  :spitfire false spitfire-model :spitfire-down true spitfire-model
+	  :hurricane false hurricane-model :hurricane-down true hurricane-model
+	  :lysander 15.24 9.3 0 bomber-colour far-model :drogue drogue-model } to models
+	{ :ju-88 20.08 14.36 3.6 bomber-colour far-model :he-111 22.6 16.4 3.8 bomber-colour far-model
+	  :bf-110 16.25 12.1 2.4 bomber-colour far-model :spitfire 11.23 9.12 0 spitfire-colour far-model
+	  :hurricane 12.19 9.55 0 spitfire-colour far-model
+	  :lysander models@lysander :drogue models@drogue } to far-models
+	far-models far-models@spitfire :spitfire-down ! drop
+	far-models far-models@hurricane :hurricane-down ! drop ;
 
 \ === moving models ===
 
@@ -130,8 +205,8 @@ variable tracers
 			bombers
 			{ :kind kind :position position :heading course :pitch 0 :bank 0 :speed speed
 			  :attitude course 0 0 flying-attitude
-			  :height height vic 40 * + :target target :state :inbound :health 100
-			  :smoke [ ] :smoke-left 0 :gun-left 0 }
+			  :height height vic 40 * + :target target :state :inbound :hits 0
+			  :smoke [ ] :smoke-left 0 }
 			add-last! drop
 		loop
 	loop ;
@@ -153,15 +228,136 @@ variable tracers
 	bomber@heading turn + 360 + 360 mod bomber!heading
 	turn dt / 10 * -30 30 clamp bomber!bank ;
 
-\ one bomber's step: fly its course, bomb the target, turn for home, or fall
+\ the escort fighters: the most they turn, degrees a second, 360° in the derived 23.2 s; the most they pitch, degrees a second, and the speed they cruise at, m/s (estimates); the speed they fight at, the published 349 mph at 7,000 m
+360 23.2 / constant fighter-turn-rate
+20 constant fighter-pitch-rate
+130 constant fighter-cruise-speed
+156 constant fighter-top-speed
+
+\ the squadron's other Spitfires: the most they turn, degrees a second, 360° in the RAE's 19 s; the speed they fight at, m/s (an estimate, above the Bf 110's as the Rechlin trial found)
+360 19 / constant wingman-turn-rate
+160 constant wingman-top-speed
+
+variable wingmen
+[ ] to wingmen
+
+\ whether one of the raid is an escort fighter
+: fighter? ( bomber -- flag ) :role :bomber @or :fighter = ;
+
+\ whether an aircraft is the air-firing exercise's tug or drogue, flown by air-firing.telic and never brought down
+: practice-target? ( craft -- flag )
+	:role :bomber @or to role
+	role :tug = role :drogue = or ;
+
+\ whether an aircraft of the raid or the squadron is still in the air and fighting
+: flying? ( craft -- flag )
+	| craft |
+	craft@state to state
+	state :inbound = state :outbound = or state :flying = or ;
+
+\ an aircraft's velocity, from its attitude and speed
+: craft-velocity ( craft -- velocity )
+	| craft |
+	craft@attitude@forward craft@speed v* ;
+
+\ the Spitfires the escort can attack: the player's and the squadron's still flying, each [ position velocity wingman ], the wingman null for the player's
+: spitfire-targets ( -- targets )
+	[ [ plane@position plane@velocity null ] ]
+	wingmen ( wingman | wingman flying? ) filter ( wingman | [ wingman@position wingman craft-velocity wingman ] ) map concat ;
+
+\ how a point lies from an aircraft: ahead along its nose, and off that line as a share of the distance ahead
+: bearing-from ( craft point -- ahead off-line )
+	| craft point |
+	craft@attitude point craft@position v- ground>attitude spread to ahead to rising to across
+	ahead
+	across sq rising sq + sqrt ahead abs 1 max2 / ;
+
+\ fly an aircraft toward a heading, a pitch and a speed: turning at no more than its rate and banking with the turn, pitching at no more than 20° a second, gaining speed diving and losing it climbing
+: fly-at ( craft wanted-heading wanted-pitch wanted-speed turn-rate dt -- )
+	| craft wanted-heading wanted-pitch wanted-speed turn-rate dt |
+	craft@position second 400 < if wanted-pitch 20 max2 to wanted-pitch then
+	wanted-heading craft@heading - 540 + 360 mod 180 - to error
+	error turn-rate dt * negate turn-rate dt * clamp to turn
+	craft@heading turn + 360 + 360 mod craft!heading
+	turn dt / PI 180 / * craft@speed * gravity / atan 180 PI / * -75 75 clamp craft!bank
+	wanted-pitch craft@pitch - fighter-pitch-rate dt * negate fighter-pitch-rate dt * clamp craft@pitch + craft!pitch
+	wanted-speed craft@speed - 0.15 * craft@pitch PI 180 / * sin gravity * - dt * craft@speed + 60 200 clamp craft!speed ;
+
+\ the heading and pitch toward an offset, the pitch held within limits
+: heading-and-pitch ( towards lowest highest -- heading pitch )
+	| towards lowest highest |
+	towards heading-of
+	towards second towards v-length 1 max2 / -1 1 clamp asin 180 PI / * lowest highest clamp ;
+
+\ one escort fighter's choice and turn: it takes the nearest Spitfire; with that Spitfire behind it within 700 m it breaks toward it, diving; within 3 km it turns onto the Spitfire's course ahead, leading it by the rounds' flight; both at its top speed; farther off it rejoins the bombers, 400 m above the first still inbound, at its cruising speed; it climbs away from the ground under 400 m. With every bomber bombed or down it turns for home
+: steer-fighter ( fighter dt -- )
+	| fighter dt |
+	bombers ( other | other fighter? not other@state :inbound = and ) filter to escorted
+	escorted size 0 = if
+		:outbound fighter!state
+		exit
+	then
+	spitfire-targets ( target | target first fighter@position v- v-length ) sort-by first to chosen
+	chosen first fighter@position v- to offset
+	offset v-length to range
+	fighter chosen first bearing-from drop to ahead
+	range 3000 < if fighter-top-speed else fighter-cruise-speed then to wanted-speed
+	range 700 < ahead 0 < and if
+		offset heading-of to wanted-heading
+		-15 to wanted-pitch
+	else
+		range 3000 < if
+			chosen first chosen second range 800 / v* v+ fighter@position v- -35 35 heading-and-pitch to wanted-pitch to wanted-heading
+		else
+			escorted first to leader
+			leader@position [ 0 400 0 ] v+ fighter@position v- -20 20 heading-and-pitch to wanted-pitch to wanted-heading
+		then
+	then
+	fighter wanted-heading wanted-pitch wanted-speed fighter-turn-rate dt fly-at ;
+
+\ whether an escort fighter's nose points within 15° of an aircraft within a distance (15° an estimate)
+: points-at? ( enemy craft distance -- flag )
+	| enemy craft distance |
+	enemy fighter? not if false exit then
+	enemy craft@position bearing-from to off-line to ahead
+	ahead 0 > ahead distance < and off-line 0.27 < and ;
+
+\ one of the squadron's Spitfires: with a Bf 110's nose pointing within 15° of it inside 1,000 m, from behind or ahead, it breaks, turning hard to the Bf 110's side 90° off its heading and diving, a turn the Bf 110 cannot follow; otherwise it turns onto the nearest of the raid not pointing at it within 3 km, leading it by the rounds' flight; with the raid gone it flies on level
+: steer-spitfire ( wingman dt -- )
+	| wingman dt |
+	bombers ( enemy | enemy flying? ) filter to enemies
+	enemies size 0 = if
+		wingman wingman@heading 0 wingman-top-speed wingman-turn-rate dt fly-at
+		exit
+	then
+	enemies ( enemy | enemy wingman 1000 points-at? ) filter to threats
+	enemies ( enemy | enemy wingman 3000 points-at? not ) filter to quarries
+	threats size 0 > quarries size 0 = or if
+		enemies ( enemy | enemy@position wingman@position v- v-length ) sort-by first to threat
+		wingman@attitude threat@position wingman@position v- ground>attitude first to across
+		wingman@heading across 0 < if -90 else 90 then + to wanted-heading
+		-10 to wanted-pitch
+	else
+		quarries ( enemy | enemy@position wingman@position v- v-length ) sort-by first to quarry
+		quarry@position wingman@position v- v-length to range
+		quarry@position quarry craft-velocity range 800 / v* v+ wingman@position v- -35 35 heading-and-pitch to wanted-pitch to wanted-heading
+	then
+	wingman wanted-heading wanted-pitch wingman-top-speed wingman-turn-rate dt fly-at ;
+
+\ one bomber's step: fly its course, bomb the target, turn for home, or fall; an escort fighter fights until the bombers have bombed
 : move-bomber ( bomber dt -- )
 	| bomber dt |
+	bomber practice-target? if exit then
 	bomber@state to state
 	state :down = if exit then
 	state :falling = if
 		bomber@pitch dt 12 * - -70 max2 bomber!pitch
 		bomber@bank dt 40 * + bomber!bank
 		bomber@speed dt 6 * + 160 min2 bomber!speed
+	else bomber fighter? state :inbound = and if
+		bomber dt steer-fighter
+	else bomber :role :bomber @or :spitfire = if
+		bomber dt steer-spitfire
 	else
 		bomber@target bomber@position v- to to-target
 		[ to-target first 0 to-target 2 @i ] v-length to remaining
@@ -172,7 +368,7 @@ variable tracers
 			bomber 80 dt steer-bomber
 		then
 		bomber@height bomber@position second - 0.05 * -0.3 0.3 clamp asin 180 PI / * bomber!pitch
-	then
+	then then then
 	bomber@heading bomber@pitch bomber@bank flying-attitude to attitude
 	bomber attitude :attitude ! drop
 	bomber bomber@position attitude@forward bomber@speed dt * v* v+ :position ! drop
@@ -184,65 +380,9 @@ variable tracers
 		then
 		bomber@position first bomber@position 2 @i ground-height bomber@position second >= if
 			:down bomber!state
-			"A RAIDER HAS CRASHED" say
+			bomber :role :bomber @or :spitfire = if "A SPITFIRE HAS CRASHED" else "A RAIDER HAS CRASHED" then say
 		then
 	then ;
-
-\ === the guns ===
-
-\ the guns firing for dt seconds: rounds spent, and every bomber in the cone and range takes hits
-: fire-guns ( dt -- )
-	| dt |
-	plane@ammunition 0 <= if exit then
-	plane@ammunition dt - 0 max2 plane!ammunition
-	plane@position to muzzle
-	plane@attitude to attitude
-	bombers ( bomber |
-		bomber@state :inbound = bomber@state :outbound = or if
-			attitude bomber@position muzzle v- ground>attitude spread to ahead to rising to across
-			ahead 40 > ahead gun-range < and if
-				across sq rising sq + sqrt ahead / to off-line
-				off-line 9 ahead / 0.012 + < if
-					bomber@health dt 60 * 1 ahead gun-range / - * - bomber!health
-					bomber@health 0 <= if
-						:falling bomber!state
-						:kills game@ 1+ :kills game!
-						"RAIDER DESTROYED" say
-					then
-				then
-			then
-		then
-	) each ;
-
-\ the rear gunners: a fighter behind a bomber within 500 m draws fire, and is hit now and then; a hit holes the glycol radiator three times in ten and the oil system three times in twenty (estimates), each starting a leak
-: gunners-fire ( dt -- )
-	| dt |
-	plane@position to fighter
-	bombers ( bomber |
-		bomber@state :inbound = bomber@state :outbound = or if
-			bomber@attitude fighter bomber@position v- ground>attitude spread to ahead drop drop
-			fighter bomber@position v- v-length to range
-			ahead 0 < range 500 < and if
-				bomber@gun-left dt - bomber!gun-left
-				bomber@gun-left 0 <= if
-					0.6 bomber!gun-left
-					tracers [ bomber@position fighter 2 ] add-last! drop
-					random 500 range - 500 / 0.5 * < if
-						plane@damage 12 + plane!damage
-						"HIT BY RETURN FIRE" say
-						random 0.3 < if
-							plane@coolant-leak 0.01 + plane!coolant-leak
-							"HIT IN THE RADIATOR  -  GLYCOL LEAKING, WATCH THE TEMPERATURE" say
-						then
-						random 0.15 < if
-							plane@oil-leak 0.005 + plane!oil-leak
-							"HIT IN THE OIL SYSTEM  -  WATCH THE OIL PRESSURE" say
-						then
-					then
-				then
-			then
-		then
-	) each ;
 
 \ the damage taking hold: past 100 the engine stops
 : suffer-damage ( -- )
@@ -254,37 +394,12 @@ variable tracers
 
 \ === drawing ===
 
-\ the tracer lines, bright by night as by day: the guns' streams converging ahead, and each gunner's round a 25 m streak travelling from the bomber to where the fighter was when it fired
-: draw-tracers ( firing -- )
-	| firing ^lighting |
-	lighting to scene-lighting
-	1 to lighting
-	firing plane@ammunition 0 > and if
-		plane@attitude to attitude
-		plane@position to muzzle
-		[ -1 1 ] ( side |
-			muzzle attitude [ side 3 * -0.4 3 ] attitude>ground v+ to from
-			muzzle attitude [ 0 0 250 random 200 * + ] attitude>ground v+ to onto
-			new-sketch to stream
-			stream [ from onto ] sketch-path
-			stream tracer-colour sketch>object draw-object
-		) each
-	then
-	tracers ( tracer |
-		tracer spread to life to target to origin
-		target origin v- to flight
-		origin flight 1 life 2 / - v* v+ to head
-		new-sketch to streak
-		streak [ head head flight v-unit -25 v* v+ ] sketch-path
-		streak 0xff7050 sketch>object draw-object
-	) each
-	scene-lighting to lighting ;
-
 \ one bomber and its smoke
 : draw-bomber ( bomber -- )
 	| bomber |
 	bomber@state :down = not if
-		models bomber@kind @ bomber@position bomber@attitude draw-model
+		bomber@position eye@position v- v-length far-distance > if far-models else models then
+		bomber@kind @ bomber@position bomber@attitude draw-model
 	then
 	bomber@smoke size 1 > if
 		new-sketch to trail
@@ -295,13 +410,12 @@ variable tracers
 \ every bomber and its smoke
 : draw-raid ( -- ) bombers ( bomber | bomber draw-bomber ) each ;
 
-\ the raid's step: bombers, return fire, the tracers' lives
+\ the raid's step: the bombers, the escort and the squadron fly, and the damage takes hold; the guns are gunnery.telic's
 : advance-raid ( dt -- )
-	| dt ^tracers |
+	| dt |
+	dt 0 <= if exit then
 	bombers ( bomber | bomber dt move-bomber ) each
-	dt gunners-fire
-	tracers ( tracer | tracer 2 @i dt 6 * - 0 > ) filter to tracers
-	tracers ( tracer | [ tracer first tracer second tracer 2 @i dt 6 * - ] ) map to tracers
+	wingmen ( wingman | wingman dt move-bomber ) each
 	suffer-damage ;
 
 \ === the missions ===
@@ -316,13 +430,17 @@ variable tracers
 	:inchgarvie :north-queensferry landmark-heading 90 + to east-of-bridge
 	:inchgarvie landmark-ground east-of-bridge 0 0 2000 placed ;
 
-\ the missions, each a name, three lines of story, the Spitfire's start as [ position heading speed on-ground ], the raid's plan or null, night or day, whether it begins on the approach with wheels and flaps down, the propeller (the two-pitch in 1939, the constant-speed fitted from June 1940) and whether 100-octane fuel allows emergency boost (from 1940), the weather (the visibility in metres, the share of the sky's squares holding a cloud and the clouds' base), and the opening message
+\ the missions, each a name, three lines of story, the Spitfire's start as [ position heading speed on-ground ], the raid's plan or null, night or day, whether it begins on the approach with wheels and flaps down, the propeller (the two-pitch in 1939, the constant-speed fitted from June 1940) and whether 100-octane fuel allows emergency boost (from 1940), the weather (the visibility in metres, the share of the sky's squares holding a cloud and the clouds' base), the opening message, the group the title lists it under, and the briefing's text
 : missions ( -- missions )
 	:turnhouse landmark-ground 60 0 wheel-height -580 placed to turnhouse-runway
 	:abbotsinch :greenock landmark-heading to west-from-abbotsinch
 	:dumbarton-castle :greenock landmark-heading to west-from-dumbarton
 	:greenock landmark-ground to greenock
 	forth-anchorage to anchorage
+	:farne-islands landmark-ground 90 0 5200 8000 placed to farne-fight
+	farne-fight 70 0 -600 2500 placed to heinkels
+	:inchkeith :bass-rock landmark-heading to firing-course
+	:inchkeith landmark-ground firing-course 0 1524 3000 placed to tug-start
 	[ { :name "THE FORTH, 16 OCTOBER 1939"
 	    :story [ "16 OCTOBER 1939. TWELVE JU 88s ARE CROSSING THE NORTH"
 	             "SEA FOR THE CRUISERS LYING BY THE FORTH BRIDGE."
@@ -331,25 +449,45 @@ variable tracers
 	    :raid :ju-88 4 anchorage [ 45000 0 9000 ] v+ anchorage 3000 100 raid-plan
 	    :night false :landing false :visibility clear-visibility :cover 0.25 :base 1500
 	    :propeller :two-pitch :emergency false
-	    :message "SCRAMBLE! 12 BANDITS, ANGELS 10, OVER THE FORTH  -  Q FOR THROTTLE, PULL BACK AT 100 MPH" }
+	    :message "SCRAMBLE! 12 BANDITS, ANGELS 10, OVER THE FORTH  -  Q FOR THROTTLE, PULL BACK AT 100 MPH"
+	    :group :battle
+	    :briefing "INTERCEPT THE JU 88s BEFORE THEY BOMB THE CRUISERS BY THE FORTH BRIDGE. THE CONTROLLER'S BEARING AND DISTANCE TO THE NEAREST OF THEM IS IN THE STRIP BELOW THE PANEL. TAKE OFF: FINE PITCH (W), FULL THROTTLE (Q), EASE BACK PAST 90 MPH, WHEELS UP (G), THEN COARSE PITCH (S) AS THE SPEED GROWS. ATTACK FROM ASTERN OR THE QUARTER AND OPEN FIRE AT 250 YARDS, WHEN THE SPAN FILLS THE SIGHT'S RANGE BARS, IN BURSTS OF 1 TO 2 SECONDS: YOU HAVE ABOUT 15 SECONDS OF FIRE. THEIR REAR GUNNERS FIRE BACK INSIDE 650 YARDS. LAND AT TURNHOUSE WHEN THE RAID IS OVER." }
+	  { :name "FARNE ISLANDS, 15 AUGUST 1940"
+	    :story [ "15 AUGUST 1940. KG 26'S HE 111s AND ZG 76'S BF 110s"
+	             "HAVE CROSSED FROM NORWAY FOR TYNESIDE. 72 SQUADRON"
+	             "MEETS THEM OFF THE FARNE ISLANDS: A DOGFIGHT." ]
+	    :start [ farne-fight 70 125 false ]
+	    :raid :he-111 4 heinkels :tynemouth landmark-ground 4600 100 raid-plan
+	    :escort [ [ 60 40 700 70 ] [ -470 140 -800 0 ] [ 350 -80 700 190 ] [ -500 180 350 -100 ] [ 550 150 -250 120 ] [ 150 -250 950 30 ] ]
+	    :wingmen [ [ -60 10 -90 0 ] [ 70 -10 -100 0 ] [ -450 120 -350 0 ] [ 350 160 -450 0 ] [ 40 -220 -700 0 ] ]
+	    :sight-span 16.25
+	    :night false :landing false :visibility clear-visibility :cover 0.3 :base 1500
+	    :propeller :constant-speed :emergency true
+	    :message "BF 110s ALL ROUND, HE 111s BELOW AHEAD  -  72 SQUADRON IS WITH YOU, PICK ONE"
+	    :group :battle
+	    :briefing "BREAK UP THE RAID ON TYNESIDE. YOU START IN THE FIGHT, FIVE MORE OF 72 SQUADRON'S SPITFIRES ROUND YOU, THE BF 110s ALL ROUND AND THE HE 111s BELOW AHEAD. A BF 110 WITH ITS NOSE ON YOU IS DANGEROUS - FOUR MACHINE GUNS AND TWO CANNON - BUT IT TURNS WIDER THAN YOU: TURN HARD AND IT CANNOT FOLLOW. WHEN YOU ARE WARNED OF ONE ON YOUR TAIL, BREAK. THE SIGHT'S RANGE BARS ARE SET FOR THE BF 110'S SPAN. THE BOOST CUT-OUT (E) GIVES +12 LB IN AN EMERGENCY. J BAILS OUT." }
 	  { :name "CLYDEBANK, 13 MARCH 1941"
 	    :story [ "13 MARCH 1941, NIGHT. GERMAN BOMBERS ARE COMING"
 	             "UP THE FIRTH OF CLYDE FOR THE SHIPYARDS AND"
 	             "TENEMENTS OF CLYDEBANK. YOU ARE ON PATROL." ]
 	    :start [ :abbotsinch landmark-ground west-from-abbotsinch 0 3000 0 placed west-from-abbotsinch 110 false ]
 	    :raid :he-111 5 greenock [ -20000 0 -12000 ] v+ :clydebank landmark-ground 4000 110 raid-plan
-	    :night true :landing false :visibility clear-visibility :cover 0 :base 1500
+	    :night true :landing false :visibility clear-visibility :cover 0 :base 1500 :moon [ 108.7 11.9 0.276 ]
 	    :propeller :constant-speed :emergency true
-	    :message "BANDITS COMING UP THE CLYDE FROM THE WEST, ANGELS 13  -  FOLLOW THE RAID BEARING" }
+	    :message "BANDITS COMING UP THE CLYDE FROM THE WEST, ANGELS 13  -  FOLLOW THE RAID BEARING"
+	    :group :battle
+	    :briefing "FIND AND ATTACK THE HE 111s COMING UP THE FIRTH OF CLYDE FROM THE WEST FOR CLYDEBANK. AT NIGHT THEY ARE HARD TO SEE: FOLLOW THE RAID'S BEARING AND DISTANCE IN THE STRIP BELOW THE PANEL, CLIMB TO THEIR HEIGHT, AND LOOK FOR THEM AGAINST THE SKY. CLOSE IN FROM ASTERN BEFORE YOU FIRE, IN BURSTS OF 1 TO 2 SECONDS. THE SIGHT'S RANGE BARS ARE SET FOR THE HE 111'S SPAN." }
 	  { :name "GREENOCK, 6 MAY 1941"
 	    :story [ "6 MAY 1941, NIGHT. THE BOMBERS ARE OUT FOR"
 	             "GREENOCK, ITS SHIPYARDS AND THE SHIPS"
 	             "BERTHED THERE. YOU ARE OVER DUMBARTON." ]
 	    :start [ :dumbarton-castle landmark-ground west-from-dumbarton 0 2500 0 placed west-from-dumbarton 110 false ]
 	    :raid :he-111 5 greenock [ -22000 0 -15000 ] v+ greenock 3500 110 raid-plan
-	    :night true :landing false :visibility clear-visibility :cover 0.15 :base 1800
+	    :night true :landing false :visibility clear-visibility :cover 0.15 :base 1800 :moon [ 212.5 33.3 0.270 ]
 	    :propeller :constant-speed :emergency true
-	    :message "BANDITS SOUTH-WEST OF GREENOCK, ANGELS 11  -  FOLLOW THE RAID BEARING" }
+	    :message "BANDITS SOUTH-WEST OF GREENOCK, ANGELS 11  -  FOLLOW THE RAID BEARING"
+	    :group :battle
+	    :briefing "STOP THE HE 111s BOUND FOR GREENOCK'S SHIPYARDS, COMING IN FROM THE SOUTH-WEST. FOLLOW THE RAID'S BEARING AND DISTANCE IN THE STRIP BELOW THE PANEL, CLIMB TO THEIR HEIGHT, AND LOOK FOR THEM AGAINST THE MOONLIT SKY. CLOSE IN FROM ASTERN BEFORE YOU FIRE, IN BURSTS OF 1 TO 2 SECONDS. THE SIGHT'S RANGE BARS ARE SET FOR THE HE 111'S SPAN." }
 	  { :name "TIRPITZ AT TRONDHEIM, 5 MARCH 1942"
 	    :story [ "5 MARCH 1942. THE TIRPITZ LIES IN FAETTENFJORD BY TRONDHEIM."
 	             "FLY THE UNARMED PR SPITFIRE 580 MILES FROM WICK, PHOTOGRAPH"
@@ -359,7 +497,9 @@ variable tracers
 	    :night false :landing false :visibility clear-visibility :cover 0.3 :base 1200
 	    :propeller :constant-speed :emergency true
 	    :aircraft :reconnaissance :target :faettenfjord
-	    :message "30,000 FT OVER THE TRONDHEIMSFJORD  -  THE TIRPITZ IS 4 MILES AHEAD, C RUNS THE CAMERAS" }
+	    :message "30,000 FT OVER THE TRONDHEIMSFJORD  -  THE TIRPITZ IS 4 MILES AHEAD, C RUNS THE CAMERAS"
+	    :group :reconnaissance
+	    :briefing "PHOTOGRAPH THE TIRPITZ IN FAETTENFJORD FROM 30,000 FT AND LAND WITH THE FILM. YOU ARE UNARMED. THE TARGET'S BEARING AND DISTANCE ARE IN THE STRIP BELOW THE PANEL. RUN THE CAMERAS (C) OVER HER: THE SPLIT PAIR TAKES OVERLAPPING FRAMES, 125 TO A MAGAZINE. THE HEAVY FLAK REACHES ABOUT 26,000 FT AND CANNOT FOLLOW AN AIRCRAFT CROSSING THE SKY FAST; THE LIGHT FLAK IS DANGEROUS LOW DOWN. T RUNS TIME FASTER. ONCE LANDED, V DEVELOPS THE FILM FOR REVIEW." }
 	  { :name "FLYING LESSON AT TURNHOUSE"
 	    :story [ "AN INSTRUCTOR IN THE BACK SEAT TALKS YOU THROUGH"
 	             "THE TAKE-OFF, PITCH, TRIM, TURNS, THE STALL,"
@@ -368,7 +508,20 @@ variable tracers
 	    :raid null
 	    :night false :landing false :visibility clear-visibility :cover 0.2 :base 1500
 	    :propeller :two-pitch :emergency false :lesson true :target :turnhouse
-	    :message "" }
+	    :message ""
+	    :group :training
+	    :briefing "THE INSTRUCTOR'S EACH STEP SHOWS AT THE TOP OF THE SCREEN, AND THE NEXT COMES WHEN YOU HAVE DONE IT: THE TAKE-OFF, THE CLIMB, CRUISE POWER, TRIM, TURNS, THE STALL AND ITS RECOVERY, THE RETURN AND THE LANDING. THE TURNHOUSE LINE BELOW THE PANEL GIVES THE FIELD'S BEARING AND DISTANCE FOR THE RETURN." }
+	  { :name "AIR FIRING OVER THE FORTH"
+	    :story [ "AN OPERATIONAL TRAINING UNIT'S AIR FIRING: A LYSANDER"
+	             "TOWS A DROGUE DOWN THE FIRTH. RANGE, ASTERN AND"
+	             "QUARTER ATTACKS, A TURNING TARGET; EVERY BURST ASSESSED." ]
+	    :start [ tug-start firing-course 150 300 -1500 placed firing-course 70 false ]
+	    :raid null :tug-start tug-start :tug-course firing-course
+	    :night false :landing false :visibility clear-visibility :cover 0.15 :base 2600
+	    :propeller :constant-speed :emergency true :lesson true :air-firing true
+	    :message ""
+	    :group :training
+	    :briefing "FIVE STEPS: RANGING ON THE TUG WITH THE SIGHT'S BARS, AN ASTERN ATTACK ON THE DROGUE, A QUARTER ATTACK, A TURNING TARGET, AND YOUR TOTALS. A SECOND AFTER YOU LET GO OF THE TRIGGER THE INSTRUCTOR ASSESSES THE BURST: ITS RANGE, ANGLE OFF AND HITS, THE LEAD IT NEEDED AND THE LEAD YOU GAVE, AND WHERE YOUR AIM WAS. THE DROGUE'S RANGE IS IN THE STRIP BELOW THE PANEL. THE GUNS ARE FILLED FOR EACH EXERCISE. NEVER FIRE WITH THE TUG NEAR YOUR SIGHT." }
 	  { :name "FREE FLIGHT FROM TURNHOUSE"
 	    :story [ "NO RAID: FLY WHERE YOU LIKE, FROM THE CLYDE"
 	             "TO THE FORTH AND UP THE GREAT GLEN"
@@ -377,7 +530,9 @@ variable tracers
 	    :raid null
 	    :night false :landing false :visibility clear-visibility :cover 0.35 :base 1200
 	    :propeller :constant-speed :emergency true
-	    :message "FREE FLIGHT  -  Q FOR THROTTLE, PULL BACK AT 100 MPH" }
+	    :message "FREE FLIGHT  -  Q FOR THROTTLE, PULL BACK AT 100 MPH"
+	    :group :free
+	    :briefing "NO RAID AND NO TARGET. THE MAP RUNS FROM THE CLYDE TO THE FORTH, SOUTH-EAST TO THE FARNE ISLANDS AND TYNESIDE, AND NORTH UP THE GREAT GLEN TO INVERNESS AND ON TO WICK. T RUNS TIME FASTER." }
 	  { :name "LANDING AT ABBOTSINCH"
 	    :story [ "LANDING PRACTICE: ON THE APPROACH TO"
 	             "ABBOTSINCH, WHEELS AND FLAPS DOWN."
@@ -386,7 +541,9 @@ variable tracers
 	    :raid null
 	    :night false :landing true :visibility clear-visibility :cover 0 :base 1500
 	    :propeller :constant-speed :emergency true
-	    :message "FINALS FOR ABBOTSINCH  -  HOLD 120 MPH, LAND ON THE RUNWAY AHEAD" }
+	    :message "FINALS FOR ABBOTSINCH  -  HOLD 120 MPH, LAND ON THE RUNWAY AHEAD"
+	    :group :training
+	    :briefing "LAND ON THE RUNWAY AHEAD. YOU ARE ON THE APPROACH, WHEELS AND FLAPS DOWN: HOLD 120 MPH WITH THE THROTTLE AND THE DESCENT WITH THE STICK, SLOW TO 85 MPH ON THE FINAL APPROACH, CLOSE THE THROTTLE OVER THE END OF THE RUNWAY AND HOLD HER OFF UNTIL SHE SETTLES. BRAKES (B) ONCE DOWN." }
 	  { :name "FOG AT ABBOTSINCH"
 	    :story [ "LANDING PRACTICE IN FOG: A MILE'S VISIBILITY,"
 	             "WHEELS AND FLAPS DOWN. HOLD THE HEADING"
@@ -395,15 +552,43 @@ variable tracers
 	    :raid null
 	    :night false :landing true :visibility 1600 :cover 0 :base 1500
 	    :propeller :constant-speed :emergency true
-	    :message "FOG AT ABBOTSINCH  -  HOLD 050 AND 120 MPH, THE RUNWAY IS AHEAD" } ] ;
+	    :message "FOG AT ABBOTSINCH  -  HOLD 050 AND 120 MPH, THE RUNWAY IS AHEAD"
+	    :group :training
+	    :briefing "LAND IN FOG WITH A MILE'S VISIBILITY. THE RUNWAY IS AHEAD ON 050 BUT OUT OF SIGHT: HOLD THE HEADING ON THE GYRO, 120 MPH, AND A STEADY DESCENT ON THE CLIMB INDICATOR UNTIL THE RUNWAY SHOWS, THEN LAND AS IN CLEAR AIR." } ] ;
 
 \ the mission's raid, or none
 : start-raid ( mission -- )
-	| mission ^bombers ^sight-span |
+	| mission ^bombers ^sight-span ^wingmen |
+	[ ] to wingmen
+	mission :wingmen [ ] @or ( placement |
+		placement spread to turned to along to up to across
+		mission@start first mission@start second across up along placed to position
+		mission@start second turned + 360 + 360 mod to heading
+		wingmen
+		{ :kind :spitfire :role :spitfire :position position :heading heading :pitch 0 :bank 0 :speed mission@start 2 @i
+		  :attitude heading 0 0 flying-attitude :height position second :target [ 0 0 0 ] :state :flying :hits 0
+		  :smoke [ ] :smoke-left 0 }
+		add-last! drop
+	) each
 	mission@raid to plan
 	plan null? if [ ] to bombers exit then
 	plan@kind :ju-88 = if 20.08 else 22.6 then to sight-span
-	plan@kind plan@n-vics plan@start plan@target plan@height plan@speed new-raid ;
+	mission :sight-span sight-span @or to sight-span
+	plan@kind plan@n-vics plan@start plan@target plan@height plan@speed new-raid
+	mission :escort [ ] @or to escort
+	mission@start first to origin
+	mission@start second to start-heading
+	escort ( placement |
+		placement spread to turned to along to up to across
+		origin start-heading across up along placed to position
+		start-heading turned + 360 + 360 mod to heading
+		bombers
+		{ :kind :bf-110 :role :fighter :position position :heading heading :pitch 0 :bank 0 :speed fighter-cruise-speed
+		  :attitude heading 0 0 flying-attitude
+		  :height position second :target plan@target :state :inbound :hits 0
+		  :smoke [ ] :smoke-left 0 }
+		add-last! drop
+	) each ;
 
 \ the raid's end: every bomber down or gone home past 50 km
 : check-raid-over ( -- )
@@ -413,7 +598,7 @@ variable tracers
 		bomber@state :outbound = bomber@position bomber@target v- v-length 50000 > and or
 	) all? if
 		true :raid-over game!
-		:kills game@ "THE RAID IS OVER: {0} DESTROYED  -  LAND, OR R TO FLY AGAIN" format say
+		:kills game@ "THE RAID IS OVER: {0} DESTROYED  -  LAND, OR ESCAPE FOR THE MISSIONS" format say
 		12 :message-left game!
 	then ;
 
@@ -423,6 +608,6 @@ variable tracers
 	plane@position raid-vector to distance to bearing
 	bearing null? if "RAID -" else distance 1609.34 / bearing "RAID {0:03.0f} {1:.0f} MI" format then to vector-line
 	x floor-top 4 + vector-line 0xffe080 draw-text
-	:kills game@ plane@ammunition ammunition-seconds / 300 * round "ROUNDS {0:.0f} KILLS {1}" format to score-line
+	:kills game@ plane@ammunition plane@type@fire-seconds / plane@type@rounds-per-gun * round "ROUNDS {0:.0f} KILLS {1}" format to score-line
 	x floor-top 17 + score-line dial-ink draw-text
 	plane@damage 0 > if x floor-top 30 + plane@damage round "DAMAGE {0}%" format 0xff6040 draw-text then ;

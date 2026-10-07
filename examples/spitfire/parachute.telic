@@ -1,0 +1,126 @@
+\ Spitfire: bailing out. J slides the hood back and undoes the harness, the
+\ oxygen and the R/T leads; J again takes the pilot over the side, and J
+\ once more pulls the ripcord. Out of the aircraft the pilot falls with a
+\ falling man's drag, about 55 m/s at the bottom of the fall in sea-level
+\ air, more in the thin air above; once the ripcord is pulled the canopy
+\ takes 1.5 s to leave the pack and stretch its lines, adding no drag, then
+\ inflates over 1 s, and lets him down at about 6.5 m/s (estimates). Reaching the ground faster than
+\ 10 m/s kills him; slower, he is down safe, or in the sea afloat in his
+\ Mae West. The Spitfire flies on with its controls left central.
+
+55 constant falling-speed
+6.5 constant canopy-speed
+2.5 constant canopy-opening-time
+0.6 constant canopy-deployed
+10 constant fatal-landing-speed
+
+\ the drag on the pilot over the air's density, per metre a second of speed: what balances his weight at the speed given
+: drag-for ( speed -- factor ) sq gravity swap / ;
+
+\ the pilot out of the aircraft: where he is, his velocity, the canopy's opening from 0 to 1, whether the ripcord is pulled, and his state: falling, down, in the sea or killed
+: leave-aircraft ( -- )
+	plane@position plane@attitude [ 0 1.5 0 ] attitude>ground v+ to position
+	{ :position position :velocity plane@velocity [ 0 4 0 ] v+ :heading plane@attitude@forward heading-of
+	  :canopy 0 :ripcord false :state :falling :look-heading null :look-pitch 0 }
+	:pilot game!
+	"OVER THE SIDE AND FALLING CLEAR  -  J PULLS THE RIPCORD" say
+	6 :message-left game! ;
+
+\ the controls left central and the guns silent, the pilot gone
+: centre-controls ( -- )
+	| ^controls |
+	{ :pitch 0 :roll 0 :yaw 0 :brakes false } to controls
+	false :firing game! ;
+
+\ the J key: the hood and harness, then over the side, then the ripcord; nothing on the ground or after a crash
+: bail-out-key ( -- )
+	:pilot game@ to pilot
+	pilot null? not if
+		pilot@state :falling = pilot@ripcord not and if
+			true pilot!ripcord
+			"RIPCORD PULLED" say
+		then
+		exit
+	then
+	plane@on-ground plane@crashed or if exit then
+	:hood-open game@ if
+		leave-aircraft
+		exit
+	then
+	true :hood-open game!
+	"HOOD BACK, HARNESS UNDONE, OXYGEN AND R/T OUT  -  J AGAIN TO GO OVER THE SIDE" say
+	6 :message-left game! ;
+
+\ one step of the pilot's fall: the canopy opening once the ripcord is pulled, gravity and the drag of the man or the canopy, and the ground: safe if slow enough, in the sea if on water
+: pilot-step ( pilot dt -- )
+	| pilot dt |
+	pilot@state :falling = not if exit then
+	pilot@ripcord if pilot@canopy dt canopy-opening-time / + 1 min2 pilot!canopy then
+	pilot@position second air-density to density
+	pilot@canopy canopy-deployed - 1 canopy-deployed - / 0 max2 to inflation
+	falling-speed drag-for canopy-speed drag-for falling-speed drag-for - inflation * + density 1.225 / * to drag
+	pilot@velocity to velocity
+	velocity v-length to speed
+	velocity [ 0 gravity negate 0 ] velocity drag speed * v* v- dt v* v+ to velocity
+	velocity pilot!velocity
+	pilot@position velocity dt v* v+ to position
+	position first position 2 @i ground-height to ground
+	position second ground > if
+		position pilot!position
+		exit
+	then
+	[ position first ground position 2 @i ] pilot!position
+	[ 0 0 0 ] pilot!velocity
+	speed fatal-landing-speed > if
+		:killed pilot!state
+		pilot@canopy canopy-deployed <= if "THE PARACHUTE NEVER OPENED" else "THE PARACHUTE HAD NOT SLOWED YOU ENOUGH" then
+	else
+		position first position 2 @i water-at? if
+			:in-sea pilot!state
+			"DOWN IN THE SEA  -  YOUR MAE WEST KEEPS YOU AFLOAT UNTIL A BOAT PICKS YOU UP"
+		else
+			:down pilot!state
+			"DOWN SAFE ON THE GROUND"
+		then
+	then
+	"  -  ESCAPE FOR THE MISSIONS" + say
+	100 :message-left game! ;
+
+\ the pilot's fall over elapsed seconds, in steps of at most 1/60 s
+: run-pilot ( elapsed -- )
+	| elapsed |
+	:pilot game@ to pilot
+	pilot null? if exit then
+	elapsed 60 * round-up 1 max2 to n-steps
+	0 n-steps 1 do k
+		pilot elapsed n-steps / pilot-step
+	loop ;
+
+\ the pilot's eye: where he has turned it, once he has; until then on the aircraft while it is within 1,500 m and flying, then facing the way it was going, looking down 30° while falling and 15° under the canopy
+: pilot-attitude ( -- attitude )
+	:pilot game@ to pilot
+	pilot@look-heading null? not if
+		pilot@look-heading heading-attitude :right pilot@look-pitch PI 180 / * negate turn-attitude exit
+	then
+	plane@position pilot@position v- to towards
+	towards v-length to distance
+	plane@crashed not distance 1500 < and distance 1 > and if
+		towards heading-of heading-attitude :right towards second distance / asin negate turn-attitude exit
+	then
+	pilot@heading heading-attitude :right pilot@canopy 0.5 > if 0.26 else 0.52 then turn-attitude ;
+
+\ two lines over the foot of the view: the height, the rate of descent and what J does next
+: draw-parachute-panel ( -- )
+	:pilot game@ to pilot
+	pilot@position second 3.28084 * to feet
+	pilot@velocity second negate 3.28084 * to descent
+	pilot@state :falling = not if
+		""
+	else pilot@ripcord if
+		pilot@canopy 1 < if "THE CANOPY IS OPENING" else "UNDER THE CANOPY" then
+	else
+		"FALLING  -  J PULLS THE RIPCORD"
+	then then to line
+	descent feet "HEIGHT {0:.0f} FT   DESCENDING {1:.0f} FT/S" format to figures
+	view-centre-x screen-height 50 - figures 0xffe080 centred-print
+	view-centre-x screen-height 30 - line 0xffffff centred-print ;

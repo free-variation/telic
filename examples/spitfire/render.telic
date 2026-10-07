@@ -21,9 +21,17 @@
 \ a matrix.
 
 640 constant view-width
-250 constant view-height
 view-width 2 / constant view-centre-x
-view-height 2 / constant view-centre-y
+\ the view's height and its centre's row, pixels: above the panel in the cockpit, the whole screen once the pilot is out
+variable view-height
+250 to view-height
+variable view-centre-y
+125 to view-centre-y
+
+: view-rows! ( rows -- )
+	| rows ^view-height ^view-centre-y |
+	rows to view-height
+	rows 2 / to view-centre-y ;
 \ the view's focal length, pixels: the windscreen's 420, or a camera lens's when a photograph is drawn
 variable focal-length
 420 to focal-length
@@ -37,6 +45,8 @@ false to monochrome
 variable sky-colour
 variable ground-colour
 variable water-colour
+\ the colour the filled hills lighten toward at their tops
+variable hill-top-colour
 \ the fraction of its light every line is drawn with
 variable lighting
 variable bomber-ink
@@ -50,9 +60,10 @@ variable haze
 
 \ broad daylight
 : use-day ( -- )
-	| ^sky-colour ^ground-colour ^water-colour ^lighting ^bomber-ink ^stars-showing ^cloud-top-colour ^cloud-base-colour ^fog-colour |
+	| ^sky-colour ^ground-colour ^water-colour ^lighting ^bomber-ink ^stars-showing ^cloud-top-colour ^cloud-base-colour ^fog-colour ^hill-top-colour |
 	0x5a7eb0 to sky-colour
 	0x2c4a24 to ground-colour
+	0x9ab878 to hill-top-colour
 	0x30527e to water-colour
 	1 to lighting
 	0x161a20 to bomber-ink
@@ -63,9 +74,10 @@ variable haze
 
 \ a dark night
 : use-night ( -- )
-	| ^sky-colour ^ground-colour ^water-colour ^lighting ^bomber-ink ^stars-showing ^cloud-top-colour ^cloud-base-colour ^fog-colour |
+	| ^sky-colour ^ground-colour ^water-colour ^lighting ^bomber-ink ^stars-showing ^cloud-top-colour ^cloud-base-colour ^fog-colour ^hill-top-colour |
 	0x060912 to sky-colour
 	0x0a0d08 to ground-colour
+	0x262c1e to hill-top-colour
 	0x0c1628 to water-colour
 	0.5 to lighting
 	0xd0d0d0 to bomber-ink
@@ -93,6 +105,10 @@ clear-visibility use-visibility
 defer draw-segment
 \ fill a rectangle of the view in a packed colour
 defer fill-span
+\ fill a disc in a packed colour
+defer fill-disc
+\ fill a triangle of the view in a packed colour
+defer fill-face
 
 variable eye
 { :position [ 0 100 0 ] :attitude 0 heading-attitude } to eye
@@ -390,19 +406,120 @@ land-outlines [ south-land ] concat water-rings!
 		row cursor high water if water-colour else ground-colour then centre-sight right cursor high + 2 / v* v+ height seen-ground fill-reaches
 	loop ;
 
-\ the whole view: sky, ground, then every visible object of each collection
-: draw-view ( collections -- )
-	| collections |
+\ the sun by day, due south 45° up, a midday sun of August at 56°N: its true radius, 0.27°, about 2 px, in a pale halo of 7 px
+45 PI 180 / * constant sun-elevation
+[ 0 sun-elevation sin sun-elevation cos negate ] constant sun-direction
+0xfff8e0 constant sun-colour
+
+: draw-sun ( -- )
+	eye@attitude to attitude
+	sun-direction attitude@forward v-dot to ahead
+	ahead 0.05 < if exit then
+	view-centre-x focal-length sun-direction attitude@right v-dot * ahead / + to x
+	view-centre-y focal-length sun-direction attitude@up v-dot * ahead / - to y
+	x y 7 sun-colour sky-colour 0.35 blended fill-disc
+	x y 0.0046 focal-length * 2 max2 sun-colour fill-disc ;
+
+\ the moon at night, where tools/moon-for-missions.py places it for the mission's time and place, [ azimuth altitude radius ] in degrees, or null: its true radius, about 2 px, in a pale halo of 6 px
+variable moon-sky
+null to moon-sky
+0xf0ecd8 constant moon-colour
+
+: draw-moon ( -- )
+	moon-sky null? if exit then
+	moon-sky spread to radius to altitude to azimuth
+	azimuth PI 180 / * to bearing
+	altitude PI 180 / * to rise
+	[ bearing sin rise cos * rise sin bearing cos rise cos * ] to direction
+	eye@attitude to attitude
+	direction attitude@forward v-dot to ahead
+	ahead 0.05 < if exit then
+	view-centre-x focal-length direction attitude@right v-dot * ahead / + to x
+	view-centre-y focal-length direction attitude@up v-dot * ahead / - to y
+	x y 6 moon-colour sky-colour 0.3 blended fill-disc
+	x y radius PI 180 / * focal-length * 2 max2 moon-colour fill-disc ;
+
+\ marks drawn on the ground after its fill and before the objects: the clouds' shadows
+variable ground-marks
+( ) to ground-marks
+
+\ a point in the eye's terms, [ right up ahead ], projected to [ x y ]
+: projected ( point -- xy )
+	| point |
+	[ view-centre-x focal-length point first * point 2 @i / +
+	  view-centre-y focal-length point second * point 2 @i / - ] ;
+
+\ a triangle in the eye's terms that crosses the near plane: the part in front of it, cut where its edges cross the plane, filled as one triangle or two
+: fill-clipped-face ( p q r colour -- )
+	| p q r colour |
+	[ p q r ] to corners
+	[ 0 3 1 do k
+		corners k @i to here
+		corners k 1+ 3 mod @i to next
+		here 2 @i near-plane >= if here then
+		here 2 @i near-plane >= next 2 @i near-plane >= = not if
+			near-plane here 2 @i - next 2 @i here 2 @i - / to share
+			here next share v-between
+		then
+	loop ] to kept
+	kept size 3 < if exit then
+	kept ( point | point projected ) map to points
+	1 kept size 1- 1 do k
+		points first spread points k @i spread points k 1+ @i spread colour fill-face
+	loop ;
+
+\ a mesh of filled triangles: its points as an n×4 matrix of [ x y z 1 ] rows, its triangles' corners as three arrays of point indices, its triangles' centres as an m×4 matrix; drawn with a colour for each triangle, from the farthest triangle to the nearest; a triangle wholly behind the near plane left out, one crossing it cut there
+: draw-filled-mesh ( mesh colours -- )
+	| mesh colours |
+	mesh@points camera matmul to viewed
+	viewed 0 @j to across
+	viewed 1 @j to rising
+	viewed 2 @j to ahead
+	ahead 1e-9 + to safe-ahead
+	focal-length across * safe-ahead / view-centre-x + to xs
+	view-centre-y focal-length rising * safe-ahead / - to ys
+	mesh@centroids camera matmul 2 @j -1 * argsort to order
+	mesh@first-corners to as
+	mesh@second-corners to bs
+	mesh@third-corners to cs
+	0 order num-elements 1 do k
+		order k @e truncate to t
+		as t @i to a
+		bs t @i to b
+		cs t @i to c
+		ahead a @e to depth-a
+		ahead b @e to depth-b
+		ahead c @e to depth-c
+		depth-a near-plane > depth-b near-plane > and depth-c near-plane > and if
+			xs a @e ys a @e xs b @e ys b @e xs c @e ys c @e colours t @i fill-face
+		else
+			depth-a near-plane > depth-b near-plane > or depth-c near-plane > or if
+				[ across a @e rising a @e depth-a ] [ across b @e rising b @e depth-b ] [ across c @e rising c @e depth-c ] colours t @i fill-clipped-face
+			then
+		then
+	loop ;
+
+\ what lies behind everything: the sky, the sun or the stars, the ground and its marks
+: draw-background ( -- )
 	0 0 view-width view-height sky-colour fill-span
-	stars-showing if draw-stars then
+	stars-showing if draw-stars draw-moon else draw-sun then
 	fill-ground
+	ground-marks execute ;
+
+\ every visible object of each collection as an item to draw in order of depth, [ depth :object object ], the depth its sphere's centre's distance along the line of sight
+: object-items ( collections -- items )
+	| collections |
 	collections ( collection |
 		collection@objects to objects
 		collection@centres collection@radii visible-objects to shown
-		0 shown num-elements 1 do k
-			objects shown k @e @i draw-object
-		loop
-	) each ;
+		shown num-elements 0 = if [ ] else
+			collection@centres camera matmul 2 @j to depths
+			[ 0 shown num-elements 1 do k
+				shown k @e to index
+				[ depths index @e :object objects index @i ]
+			loop ]
+		then
+	) map [ ] ' concat reduce ;
 
 \ a collection of objects with their spheres gathered for culling
 : collect-objects ( objects -- collection )

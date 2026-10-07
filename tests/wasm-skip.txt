@@ -31,5 +31,7 @@
 138_sprites        sprites, bitmaps, keyboard: no window system in the wasm build
 141_gamepads       gamepads: no window system in the wasm build
 142_text_width     text-width: Tigr's font, no window system in the wasm build
+143_fill_triangle  fill-triangle: no window system in the wasm build
+144_text_scale     text-scale: Tigr's font, no window system in the wasm build
 139_bitmap_files   read-bitmap/write-bitmap: an ffmpeg subprocess, no fork/exec on WASI
 900_docs_sprites_and_bitmaps          sprites, bitmaps, keyboard: no window system in the wasm build

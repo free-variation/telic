@@ -1,0 +1,332 @@
+\ Spitfire: the aircraft's wireframe models, each a sketch in its own terms,
+\ metres right, up and forward of its centre: bodies as rings along their
+\ length, flat surfaces on both sides with their hinge lines, fins,
+\ propellers; and the Spitfire Mk I and the Hurricane Mk I, wheels up or
+\ down.
+\
+\ The Spitfire is built to its published span and length (11.23 m,
+\ 9.12 m), wing area (22.48 m², as in flight.telic) and dihedral (6°). Its
+\ wing is an ellipse: a chord at each distance out of the root chord times
+\ √(1 − (out ÷ half-span)²), the root chord 2.55 m being what an ellipse of
+\ that span and area has, the leading edge 30% of the chord ahead of a
+\ straight spar line and the trailing edge 70% behind it. Every other
+\ figure is an estimate from drawings: the fuselage's rings, the hood, the
+\ tail surfaces, the radiator under the starboard wing and the oil cooler
+\ under the port, the propeller's 1.64 m radius, the undercarriage's track.
+
+0xd0d0d0 constant spitfire-colour
+
+\ one ring of a body, points about its centre line: the ring is [ along half-width half-height lift ], the centre where the line runs
+: body-ring ( ring centre n-sides -- points )
+	| ring centre n-sides |
+	ring spread to lift to half-height to half-width to along
+	[ 0 n-sides 1 do k
+		k n-sides / TAU * to angle
+		centre [ angle sin half-width * angle cos half-height * lift + along ] v+
+	loop ] ;
+
+\ a body as rings along its length, joined ring to ring: a fuselage, a nacelle
+: sketch-body ( sketch rings centre n-sides -- )
+	| sketch rings centre n-sides |
+	rings ( ring | sketch ring centre n-sides body-ring sketch-points ) map to ring-indices
+	ring-indices ( indices | sketch indices join-loop ) each
+	0 ring-indices size 1- 1 do k
+		0 n-sides 1 do corner
+			sketch ring-indices k @i corner @i ring-indices k 1+ @i corner @i sketch-edge
+		loop
+	loop ;
+
+\ a box centred on a point rather than standing on it
+: sketch-box-centred ( sketch centre heading width length height -- )
+	| sketch centre heading width length height |
+	sketch centre [ 0 height 2 / negate 0 ] v+ heading width length height sketch-box ;
+
+\ [ out along ] points of a surface's right half, on the side given, rising by a slope from a height
+: surface-points ( outline side slope height -- points )
+	| outline side slope height |
+	outline ( pair | [ pair first side * pair first slope * height + pair second ] ) map ;
+
+\ a flat surface on both sides, wings or tailplanes: its outline closed, and its hinge lines
+: sketch-surface ( sketch outline hinges slope height -- )
+	| sketch outline hinges slope height |
+	[ -1 1 ] ( side |
+		sketch outline side slope height surface-points sketch-loop
+		hinges ( hinge | sketch hinge side slope height surface-points sketch-path ) each
+	) each ;
+
+\ a fin a distance out from the centre line: its outline and its rudder's hinge, as [ along up ] points
+: sketch-fin ( sketch out outline hinge -- )
+	| sketch out outline hinge |
+	sketch outline ( pair | [ out pair second pair first ] ) map sketch-loop
+	sketch hinge ( pair | [ out pair second pair first ] ) map sketch-path ;
+
+\ a propeller: the spinner's line forward from the hub and three blades of a radius
+: sketch-propeller ( sketch hub radius -- )
+	| sketch hub radius |
+	sketch [ hub hub [ 0 0 0.6 ] v+ ] sketch-path
+	0 3 1 do k
+		k 3 / TAU * 0.35 + to angle
+		sketch [ hub hub [ angle sin radius * angle cos radius * 0 ] v+ ] sketch-path
+	loop ;
+
+\ a circle of points about a centre in the plane of two directions
+: sketch-ring ( sketch centre across up radius n-points -- )
+	| sketch centre across up radius n-points |
+	[ 0 n-points 1 do k
+		k n-points / TAU * to angle
+		centre across angle cos radius * v* v+ up angle sin radius * v* v+
+	loop ] to points
+	sketch points sketch-loop ;
+
+\ a propeller's disc as the turning blades show it: a ring of their radius about the hub, square to the line of flight
+: sketch-propeller-disc ( sketch hub radius -- )
+	| sketch hub radius |
+	sketch hub [ 1 0 0 ] [ 0 1 0 ] radius 16 sketch-ring ;
+
+\ beyond this distance an aircraft is drawn by its distant model, where a metre is a third of a pixel
+1200 constant far-distance
+
+\ an aircraft as it shows from afar: a four-sided body along its length, the wings' and the tailplane's outlines, the fin, a line for each engine out on the wing
+: far-model ( span length engine-out colour -- model )
+	| span length engine-out colour |
+	new-sketch to model
+	length 2 / to half-length
+	model [ [ half-length 0.1 0.1 0 ] [ half-length 0.4 * length 0.05 * length 0.06 * 0 ] [ half-length -1 * 0.05 0.05 0.2 ] ] [ 0 0 0 ] 4 sketch-body
+	span 2 / to half-span
+	length 0.14 * to chord
+	[ -1 1 ] ( side |
+		model [ [ 0 0 chord ] [ half-span side * span 0.03 * chord 0.3 * ] [ half-span side * span 0.03 * chord -0.4 * ] [ 0 0 chord -1 * ] ] sketch-loop
+		model [ [ 0 0.1 half-length -0.8 * ] [ span 0.12 * side * 0.1 half-length -0.9 * ] [ span 0.12 * side * 0.1 half-length -1 * ] [ 0 0.1 half-length -1 * ] ] sketch-loop
+		engine-out 0 > if model [ [ engine-out side * 0 chord 1.2 * ] [ engine-out side * 0 chord -1.5 * ] ] sketch-path then
+	) each
+	model [ [ 0 0.1 half-length -0.75 * ] [ 0 length 0.18 * half-length -0.95 * ] [ 0 length 0.18 * half-length -1 * ] [ 0 0.1 half-length -1 * ] ] sketch-loop
+	model colour sketch>object ;
+
+\ === the Spitfire ===
+
+\ the elliptical surfaces' chord at a distance out
+: elliptical-chord ( out half-span root-chord -- chord )
+	| out half-span root-chord |
+	1 out half-span / sq - 0 max2 sqrt root-chord * ;
+
+\ an elliptical surface's right half as [ out along ] points: the leading edge out through the stations to the tip, then the trailing edge back; the spar line at an along, the leading edge a share of the chord ahead of it
+: elliptical-outline ( stations half-span root-chord spar lead -- pairs )
+	| stations half-span root-chord spar lead |
+	stations ( out | [ out out half-span root-chord elliptical-chord lead * spar + ] ) map to leading
+	stations reverse ( out | [ out out half-span root-chord elliptical-chord 1 lead - * spar swap - ] ) map to trailing
+	leading [ [ half-span spar ] ] concat trailing concat ;
+
+\ a hinge line across an elliptical surface, a share of the chord ahead of the trailing edge, through stations
+: elliptical-hinge ( stations half-span root-chord spar lead share -- pairs )
+	| stations half-span root-chord spar lead share |
+	stations ( out | [ out out half-span root-chord elliptical-chord 1 lead - share - * spar swap - ] ) map ;
+
+5.615 constant spitfire-half-span
+2.55 constant spitfire-root-chord
+0.235 constant spitfire-spar
+6 PI 180 / * tan constant spitfire-dihedral
+-0.483 constant spitfire-wing-height
+
+\ the wing's height above the centre line at a distance out
+: wing-height-at ( out -- up ) abs spitfire-dihedral * spitfire-wing-height + ;
+
+\ the wing's leading and trailing edges at a distance out
+: wing-leading-at ( out -- along ) abs spitfire-half-span spitfire-root-chord elliptical-chord 0.3 * spitfire-spar + ;
+: wing-trailing-at ( out -- along ) abs spitfire-half-span spitfire-root-chord elliptical-chord 0.7 * spitfire-spar swap - ;
+
+\ the wings: the ellipse with its dihedral, the split flaps' and the ailerons' hinge lines and their ends, the four Browning ports in each leading edge
+: sketch-spitfire-wings ( sketch -- )
+	| sketch |
+	[ 0.6 1.5 2.5 3.5 4.3 4.9 5.3 5.5 5.6 ] to stations
+	stations spitfire-half-span spitfire-root-chord spitfire-spar 0.3 elliptical-outline to outline
+	[ 0.6 1.6 2.6 3.1 ] spitfire-half-span spitfire-root-chord spitfire-spar 0.3 0.18 elliptical-hinge to flap
+	[ 3.3 4.2 5.1 ] spitfire-half-span spitfire-root-chord spitfire-spar 0.3 0.25 elliptical-hinge to aileron
+	[ 3.1 3.3 5.1 ] ( out | [ [ out out wing-trailing-at ] [ out flap aileron concat ( pair | pair first out = ) filter first second ] ] ) map to ends
+	sketch outline [ flap aileron ] ends concat spitfire-dihedral spitfire-wing-height sketch-surface
+	[ 1.9 2.15 2.9 3.15 ] ( out |
+		[ -1 1 ] ( side |
+			sketch [ [ out side * out wing-height-at out wing-leading-at ] [ out side * out wing-height-at out wing-leading-at 0.14 + ] ] sketch-path
+		) each
+	) each ;
+
+\ the hood: the windscreen's frame and its two posts, the sliding hood's three hoops joined along its top and rails, and the fairing behind it down to the spine
+: sketch-hood ( sketch -- )
+	| sketch |
+	sketch [ [ -0.42 0.70 1.0 ] [ 0.42 0.70 1.0 ] [ 0.27 1.05 0.55 ] [ -0.27 1.05 0.55 ] ] sketch-loop
+	[ -1 1 ] ( side | sketch [ [ side 0.17 * 0.72 0.98 ] [ side 0.13 * 1.07 0.56 ] ] sketch-path ) each
+	[ -80 -50 -25 0 25 50 80 ] ( degrees | degrees PI 180 / * to angle [ angle sin 0.38 * angle cos 0.40 * 0.72 + ] ) map to arc
+	[ 0.55 -0.1 -0.8 ] ( along | arc ( point | [ point first point second along ] ) map ) map to hoops
+	hoops ( hoop | sketch hoop sketch-path ) each
+	[ 0 3 6 ] ( index | sketch hoops ( hoop | hoop index @i ) map sketch-path ) each
+	sketch [ [ 0 1.12 -0.8 ] [ 0 0.62 -2.4 ] ] sketch-path
+	[ -1 1 ] ( side | sketch [ [ side 0.374 * 0.789 -0.8 ] [ 0 0.62 -2.4 ] ] sketch-path ) each ;
+
+\ the undercarriage, down: each leg from the wing's underside out to its wheel, the leg's door beside it, the wheel; the tailwheel and its leg
+: sketch-undercarriage ( sketch -- )
+	| sketch |
+	[ -1 1 ] ( side |
+		[ side 0.92 * -1.85 0.75 ] to axle
+		sketch [ [ side 0.95 * -0.55 0.55 ] axle ] sketch-path
+		sketch [ [ side 1.05 * -0.58 0.62 ] [ side 1.13 * -1.55 0.8 ] [ side 1.13 * -1.55 0.48 ] [ side 1.05 * -0.58 0.36 ] ] sketch-loop
+		sketch axle [ 0 0 1 ] [ 0 1 0 ] 0.32 12 sketch-ring
+	) each
+	sketch [ [ 0 -0.12 -4.3 ] [ 0 -0.55 -4.42 ] ] sketch-path
+	sketch [ 0 -0.55 -4.42 ] [ 0 0 1 ] [ 0 1 0 ] 0.1 8 sketch-ring ;
+
+\ the Spitfire Mk I: the fuselage of ten-sided rings from the cowling to the tail, the spinner and the three-blade propeller, six exhaust stubs a side, the hood, the wings, the radiator and the oil cooler, the elliptical tailplane and elevators, the fin and rudder, the aerial mast and its wire, the roundels on the upper wings and the fuselage; the undercarriage when down
+: spitfire-model ( wheels-down -- model )
+	| wheels-down |
+	new-sketch to model
+	model [ [ 3.42 0.40 0.40 0 ] [ 3.0 0.44 0.52 -0.03 ] [ 2.2 0.48 0.62 0 ] [ 1.3 0.50 0.70 0.05 ] [ 0.6 0.51 0.73 0.06 ]
+	        [ -0.4 0.48 0.72 0.08 ] [ -1.4 0.40 0.62 0.08 ] [ -2.6 0.30 0.48 0.10 ] [ -3.7 0.20 0.34 0.14 ]
+	        [ -4.6 0.10 0.18 0.18 ] [ -5.0 0.04 0.06 0.2 ] ] [ 0 0 0 ] 10 sketch-body
+	model [ [ 4.05 0.02 0.02 0 ] [ 3.85 0.24 0.24 0 ] [ 3.45 0.40 0.40 0 ] ] [ 0 0 0 ] 8 sketch-body
+	[ 0 1 2 ] ( blade |
+		blade 3 / TAU * 0.35 + to angle
+		[ angle cos angle sin negate 0 ] to across
+		[ angle sin angle cos 0 ] to outward
+		[ 0 0 3.62 ] to hub
+		model [ hub outward 0.3 v* v+ across 0.09 v* v+  hub outward 1.64 v* v+ across 0.05 v* v+
+		        hub outward 1.64 v* v+ across -0.05 v* v+  hub outward 0.3 v* v+ across -0.09 v* v+ ] sketch-loop
+	) each
+	model [ 0 0 3.62 ] 1.64 sketch-propeller-disc
+	[ -1 1 ] ( side |
+		0 6 1 do stub
+			2.95 stub 0.24 * - to along
+			model [ [ side 0.47 * 0.18 along ] [ side 0.58 * 0.14 along 0.12 - ] ] sketch-path
+		loop
+	) each
+	model sketch-hood
+	model sketch-spitfire-wings
+	model [ 1.55 -0.68 -0.55 ] 0 0.5 1.2 0.32 sketch-box-centred
+	model [ -1.4 -0.62 -0.2 ] 0 0.26 0.7 0.22 sketch-box-centred
+	[ 0.15 0.6 1.0 1.3 1.5 1.58 ] to tail-stations
+	tail-stations 1.6 1.15 -4.35 0.35 elliptical-outline to tailplane
+	[ 0.15 0.8 1.5 ] 1.6 1.15 -4.35 0.35 0.3 elliptical-hinge to elevator
+	model tailplane [ elevator ] 0 0.12 sketch-surface
+	model 0 [ [ -3.55 0.35 ] [ -3.85 0.85 ] [ -4.15 1.25 ] [ -4.45 1.52 ] [ -4.75 1.6 ] [ -4.98 1.45 ] [ -5.1 1.05 ]
+	          [ -5.12 0.5 ] [ -5.04 -0.05 ] [ -4.85 -0.2 ] [ -4.6 -0.15 ] ] [ [ -4.68 1.6 ] [ -4.68 -0.18 ] ] sketch-fin
+	model [ [ 0 0.66 -1.3 ] [ 0 1.1 -1.45 ] [ 0 1.6 -4.75 ] ] sketch-path
+	[ -1 1 ] ( side |
+		side 3.7 * to out
+		[ out out wing-height-at 0.01 + out wing-leading-at out wing-trailing-at + 2 / ] to centre
+		[ 0.9 0.36 ] ( radius | model centre [ 1 0 0 ] [ 0 0 1 ] radius 16 sketch-ring ) each
+		[ 0.5 0.35 0.15 ] ( radius | model [ side 0.33 * 0.1 -2.3 ] [ 0 0 1 ] [ 0 1 0 ] radius 16 sketch-ring ) each
+	) each
+	wheels-down if model sketch-undercarriage then
+	model spitfire-colour sketch>object ;
+
+\ === the Hurricane ===
+
+\ The Hurricane Mk I is built to its published span and length (12.19 m,
+\ 9.55 m) and wing area (23.92 m²). Every other figure is an estimate from
+\ drawings: the wing's flat centre section 3.2 m across at a chord of
+\ 2.45 m, the outer panels tapering on the leading edge to 1.15 m at
+\ rounded tips with a straight trailing edge, 3.5° of dihedral outboard;
+\ the deep fuselage and the raised spine behind the hood; the radiator
+\ under the fuselage; the tall fin and big rudder; the tailplane; the
+\ wide-track undercarriage folding inward; the propeller's 1.64 m radius.
+
+1.6 constant hurricane-centre-half-span
+6.095 constant hurricane-half-span
+2.45 constant hurricane-root-chord
+0.85 constant hurricane-root-leading
+-1.6 constant hurricane-trailing
+-0.45 constant hurricane-wing-height
+3.5 PI 180 / * tan constant hurricane-dihedral
+
+\ the leading edge's place along the fuselage at a distance out: straight across the centre section, then tapering to the tip's 1.15 m chord
+: hurricane-leading-at ( out -- along )
+	| out |
+	out abs hurricane-centre-half-span - 0 max2 hurricane-half-span hurricane-centre-half-span - / to share
+	hurricane-root-leading share 1.3 * - ;
+
+\ the wing's height at a distance out: level across the centre section, rising at the dihedral beyond
+: hurricane-height-at ( out -- up ) abs hurricane-centre-half-span - 0 max2 hurricane-dihedral * hurricane-wing-height + ;
+
+\ the wings: the centre section's outline and flaps level, the outer panels' outlines, flaps and ailerons at their dihedral, the tips rounded; the four gun ports in each wing's leading edge
+: sketch-hurricane-wings ( sketch -- )
+	| sketch |
+	hurricane-centre-half-span to inner
+	[ [ 0 hurricane-root-leading ] [ inner hurricane-root-leading ] [ inner hurricane-trailing ] [ 0 hurricane-trailing ] ] to centre-outline
+	sketch centre-outline [ [ [ 0.5 -1.25 ] [ inner -1.25 ] ] ] 0 hurricane-wing-height sketch-surface
+	[ inner 2.5 3.5 4.5 5.3 5.8 ] ( out | [ out out hurricane-leading-at ] ) map to leading
+	[ [ 6.02 -0.6 ] [ 6.095 -0.85 ] [ 6.05 -1.12 ] [ 5.85 -1.35 ] [ 5.4 -1.5 ] ] to tip
+	[ [ 5.0 hurricane-trailing ] [ inner hurricane-trailing ] ] to trailing
+	leading tip concat trailing concat to outline
+	inner hurricane-dihedral * hurricane-wing-height swap - to outer-height
+	[ [ [ inner -1.25 ] [ 3.3 -1.25 ] ] [ [ 3.3 -1.25 ] [ 5.0 -1.22 ] ] [ [ 3.3 -1.6 ] [ 3.3 -1.25 ] ] ] to hinges
+	sketch outline hinges hurricane-dihedral outer-height sketch-surface
+	[ 2.2 2.4 2.6 2.8 ] ( out |
+		[ -1 1 ] ( side |
+			sketch [ [ out side * out hurricane-height-at out hurricane-leading-at ] [ out side * out hurricane-height-at out hurricane-leading-at 0.12 + ] ] sketch-path
+		) each
+	) each ;
+
+\ the hood: the windscreen's frame, the sliding hood's hoops and the raised spine behind it running back toward the fin
+: sketch-hurricane-hood ( sketch -- )
+	| sketch |
+	sketch [ [ -0.4 0.78 -0.15 ] [ 0.4 0.78 -0.15 ] [ 0.26 1.12 -0.5 ] [ -0.26 1.12 -0.5 ] ] sketch-loop
+	[ -80 -50 -25 0 25 50 80 ] ( degrees | degrees PI 180 / * to angle [ angle sin 0.36 * angle cos 0.36 * 0.78 + ] ) map to arc
+	[ -0.5 -1.0 -1.5 ] ( along | arc ( point | [ point first point second along ] ) map ) map to hoops
+	hoops ( hoop | sketch hoop sketch-path ) each
+	[ 0 3 6 ] ( index | sketch hoops ( hoop | hoop index @i ) map sketch-path ) each
+	sketch [ [ 0 1.14 -1.5 ] [ 0 1.02 -2.6 ] [ 0 0.86 -4.0 ] [ 0 0.66 -5.2 ] ] sketch-path
+	[ -1 1 ] ( side | sketch [ [ side 0.34 * 0.92 -1.5 ] [ side 0.22 * 0.86 -2.6 ] [ side 0.12 * 0.74 -4.0 ] ] sketch-path ) each ;
+
+\ the undercarriage: each leg from the centre section down and out to its wheel, the door beside it, the wheel; the tail wheel
+: sketch-hurricane-undercarriage ( sketch -- )
+	| sketch |
+	[ -1 1 ] ( side |
+		[ side 1.18 * -1.9 0.6 ] to axle
+		sketch [ [ side 1.0 * -0.5 0.55 ] axle ] sketch-path
+		sketch [ [ side 1.06 * -0.52 0.72 ] [ side 1.24 * -1.6 0.78 ] [ side 1.24 * -1.6 0.42 ] [ side 1.06 * -0.52 0.38 ] ] sketch-loop
+		sketch axle [ 0 0 1 ] [ 0 1 0 ] 0.36 12 sketch-ring
+	) each
+	sketch [ [ 0 0.08 -5.7 ] [ 0 -0.42 -5.8 ] ] sketch-path
+	sketch [ 0 -0.42 -5.8 ] [ 0 0 1 ] [ 0 1 0 ] 0.1 8 sketch-ring ;
+
+\ the Hurricane's tailplane, its right half as [ out along ] points, and its elevator's hinge; the fin and rudder as [ along up ] points, and the rudder's hinge
+: hurricane-tailplane ( -- pairs )
+	[ [ 0.15 -4.75 ] [ 0.8 -4.82 ] [ 1.3 -4.93 ] [ 1.6 -5.08 ] [ 1.68 -5.28 ] [ 1.58 -5.55 ] [ 1.0 -5.82 ] [ 0.15 -5.95 ] ] ;
+: hurricane-elevator ( -- pairs ) [ [ 0.15 -5.45 ] [ 1.0 -5.42 ] [ 1.55 -5.4 ] ] ;
+: hurricane-fin ( -- pairs )
+	[ [ -4.7 0.55 ] [ -5.1 0.95 ] [ -5.5 1.4 ] [ -5.85 1.72 ] [ -6.15 1.85 ] [ -6.4 1.72 ] [ -6.52 1.25 ] [ -6.48 0.6 ] [ -6.32 0.12 ] [ -6.05 0.15 ] ] ;
+: hurricane-rudder ( -- pairs ) [ [ -5.92 1.8 ] [ -5.92 0.15 ] ] ;
+
+\ the Hurricane Mk I: the fuselage of ten-sided rings from the cowling to the tail, the spinner and the three-blade propeller, six exhaust stubs a side, the hood and spine, the wings, the radiator under the fuselage, the tailplane and elevators, the fin and rudder, the aerial mast and its wire, the roundels on the upper wings; the undercarriage when down
+: hurricane-model ( wheels-down -- model )
+	| wheels-down |
+	new-sketch to model
+	model [ [ 2.95 0.38 0.40 0.05 ] [ 2.6 0.45 0.55 0.05 ] [ 1.8 0.50 0.66 0.06 ] [ 1.0 0.52 0.74 0.10 ] [ 0.2 0.52 0.79 0.12 ]
+	        [ -0.8 0.50 0.79 0.15 ] [ -1.8 0.44 0.71 0.18 ] [ -3.0 0.34 0.58 0.22 ] [ -4.2 0.24 0.45 0.28 ]
+	        [ -5.4 0.12 0.30 0.35 ] [ -6.25 0.04 0.10 0.42 ] ] [ 0 0 0 ] 10 sketch-body
+	model [ [ 3.3 0.02 0.02 0.05 ] [ 3.15 0.2 0.2 0.05 ] [ 2.95 0.36 0.36 0.05 ] ] [ 0 0 0 ] 8 sketch-body
+	[ 0 1 2 ] ( blade |
+		blade 3 / TAU * 0.35 + to angle
+		[ angle cos angle sin negate 0 ] to across
+		[ angle sin angle cos 0 ] to outward
+		[ 0 0.05 3.05 ] to hub
+		model [ hub outward 0.3 v* v+ across 0.1 v* v+  hub outward 1.64 v* v+ across 0.06 v* v+
+		        hub outward 1.64 v* v+ across -0.06 v* v+  hub outward 0.3 v* v+ across -0.1 v* v+ ] sketch-loop
+	) each
+	model [ 0 0.05 3.05 ] 1.64 sketch-propeller-disc
+	[ -1 1 ] ( side |
+		0 6 1 do stub
+			2.6 stub 0.22 * - to along
+			model [ [ side 0.48 * 0.28 along ] [ side 0.6 * 0.24 along 0.12 - ] ] sketch-path
+		loop
+	) each
+	model sketch-hurricane-hood
+	model sketch-hurricane-wings
+	model [ 0 -1.0 -0.75 ] 0 0.62 1.3 0.36 sketch-box-centred
+	model hurricane-tailplane [ hurricane-elevator ] 0 0.45 sketch-surface
+	model 0 hurricane-fin hurricane-rudder sketch-fin
+	model [ [ 0 1.12 -0.9 ] [ 0 1.45 -1.1 ] [ 0 1.85 -6.15 ] ] sketch-path
+	[ -1 1 ] ( side |
+		side 4.2 * to out
+		[ out out hurricane-height-at 0.01 + out hurricane-leading-at hurricane-trailing + 2 / ] to centre
+		[ 0.85 0.34 ] ( radius | model centre [ 1 0 0 ] [ 0 0 1 ] radius 16 sketch-ring ) each
+	) each
+	wheels-down if model sketch-hurricane-undercarriage then
+	model spitfire-colour sketch>object ;

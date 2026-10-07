@@ -121,12 +121,14 @@ static struct {
 	int frame_n_gamepads;
 	GamepadState gamepads[GAMEPAD_CAPACITY];
 	GamepadState frame_gamepads[GAMEPAD_CAPACITY];
+	int text_scale;
 } screen = {
 	PTHREAD_MUTEX_INITIALIZER, NULL, SCREEN_DEFAULT_WIDTH, SCREEN_DEFAULT_HEIGHT, 1,
 	{255, 255, 255, 255}, {0, 0, 0, 255}, 0, 0, 0, NULL, 0, 0, {0, 0, 0, 1}, 0, 0, 0, 0, 0,
 	PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER, NULL, 0, 0, 0,
 	{0}, {0}, {0}, {0}, {0}, 0,
-	0, 0, 0, {{{0}, {0}, {0}}}, {{{0}, {0}, {0}}}
+	0, 0, 0, {{{0}, {0}, {0}}}, {{{0}, {0}, {0}}},
+	1
 };
 
 static Tigr *canvas_for_drawing(Interpreter *interp) {
@@ -180,6 +182,49 @@ DRAW_WORD(p_rect, "rect", 4,
 		tigrRect(canvas, (int)operand[0], (int)operand[1], (int)operand[2], (int)operand[3], ink))
 DRAW_WORD(p_fill_rect, "fill-rect", 4,
 		tigrFillRect(canvas, (int)operand[0] - 1, (int)operand[1] - 1, (int)operand[2] + 2, (int)operand[3] + 2, ink))
+static void fill_triangle(Tigr *canvas, double x0, double y0, double x1, double y1, double x2, double y2, TPixel ink) {
+	double xs[3] = { x0, x1, x2 };
+	double ys[3] = { y0, y1, y2 };
+	double top = fmin(y0, fmin(y1, y2));
+	double bottom = fmax(y0, fmax(y1, y2));
+	int first_row = (int)ceil(top - 0.5);
+	int last_row = (int)ceil(bottom - 0.5) - 1;
+	if (first_row < 0)
+		first_row = 0;
+	if (last_row > canvas->h - 1)
+		last_row = canvas->h - 1;
+
+	for (int row = first_row; row <= last_row; row++) {
+		double centre = row + 0.5;
+		double left = INFINITY;
+		double right = -INFINITY;
+		for (int edge = 0; edge < 3; edge++) {
+			double ay = ys[edge];
+			double by = ys[(edge + 1) % 3];
+			if ((ay <= centre) == (by <= centre))
+				continue;
+			double ax = xs[edge];
+			double bx = xs[(edge + 1) % 3];
+			double crossing = ax + (centre - ay) * (bx - ax) / (by - ay);
+			left = fmin(left, crossing);
+			right = fmax(right, crossing);
+		}
+		if (left > right)
+			continue;
+		int first_column = (int)ceil(left - 0.5);
+		int last_column = (int)ceil(right - 0.5) - 1;
+		if (first_column < 0)
+			first_column = 0;
+		if (last_column > canvas->w - 1)
+			last_column = canvas->w - 1;
+		if (last_column < first_column)
+			continue;
+		tigrFillRect(canvas, first_column - 1, row - 1, last_column - first_column + 3, 3, ink);
+	}
+}
+
+DRAW_WORD(p_fill_triangle, "fill-triangle", 6,
+		fill_triangle(canvas, operand[0], operand[1], operand[2], operand[3], operand[4], operand[5], ink))
 DRAW_WORD(p_circle, "circle", 3,
 		tigrCircle(canvas, (int)operand[0], (int)operand[1], (int)operand[2], ink))
 DRAW_WORD(p_fill_circle, "fill-circle", 3,
@@ -292,8 +337,30 @@ static TigrGlyph *glyph_for(TigrFont *font, int code) {
 	return &font->glyphs[low - 1];
 }
 
+static void blit_glyph_scaled(Tigr *canvas, TigrGlyph *glyph, int x, int y, TPixel tint, int scale) {
+	Tigr *font_bitmap = tfont->bitmap;
+	for (int row = 0; row < glyph->h; row++) {
+		for (int column = 0; column < glyph->w; column++) {
+			TPixel source = tigrGet(font_bitmap, glyph->x + column, glyph->y + row);
+			TPixel tinted = tigrRGBA(
+				(unsigned char)(tint.r * source.r / 255),
+				(unsigned char)(tint.g * source.g / 255),
+				(unsigned char)(tint.b * source.b / 255),
+				(unsigned char)(tint.a * source.a / 255));
+			if (tinted.a == 0)
+				continue;
+			int block_x = x + column * scale;
+			int block_y = y + row * scale;
+			for (int dy = 0; dy < scale; dy++)
+				for (int dx = 0; dx < scale; dx++)
+					tigrPlot(canvas, block_x + dx, block_y + dy, tinted);
+		}
+	}
+}
+
 static int lay_out_text(Tigr *canvas, int x, int y, const char *text, int n_bytes, TPixel start_ink) {
-	int line_height = tigrTextHeight(tfont, "");
+	int scale = screen.text_scale;
+	int line_height = tigrTextHeight(tfont, "") * scale;
 	TPixel pen = start_ink;
 	int pen_x = x;
 	int pen_y = y;
@@ -329,9 +396,11 @@ static int lay_out_text(Tigr *canvas, int x, int y, const char *text, int n_byte
 		if (next <= cursor || next > end)
 			next = cursor + 1;
 		TigrGlyph *glyph = glyph_for(tfont, code);
-		if (canvas)
+		if (canvas && scale == 1)
 			tigrBlitTint(canvas, tfont->bitmap, pen_x, pen_y, glyph->x, glyph->y, glyph->w, glyph->h, pen);
-		pen_x += glyph->w;
+		else if (canvas)
+			blit_glyph_scaled(canvas, glyph, pen_x, pen_y, pen, scale);
+		pen_x += glyph->w * scale;
 		if (pen_x - x > widest)
 			widest = pen_x - x;
 		cursor = next;
@@ -375,6 +444,24 @@ void p_text_width(DISPATCH_ARGS) {
 
 	chain_sp[-1] = make_float((double)width);
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
+}
+
+void p_text_scale(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 1);
+	Val scale_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(scale_val, T_FLOAT, "text-scale", "a scale");
+	double scale = VAL_NUMBER(scale_val);
+
+	if (scale < 1 || scale > SCREEN_MAX_ZOOM || scale != (double)(int)scale) {
+		fail(interp, "text scale must be an integer in [1, %d]; got %g", SCREEN_MAX_ZOOM, scale);
+		return;
+	}
+
+	pthread_mutex_lock(&screen.lock);
+	screen.text_scale = (int)scale;
+	pthread_mutex_unlock(&screen.lock);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 1);
 }
 
 void p_cls(DISPATCH_ARGS) {

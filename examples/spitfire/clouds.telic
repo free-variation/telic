@@ -8,7 +8,10 @@
 \ sky with distance; the discs and the bombers are drawn together from the
 \ farthest to the nearest, so a bomber in front of a cloud shows and one
 \ behind it is hidden. With the eye inside a sphere the whole view is the
-\ cloud's colour, and only the instruments tell which way is up.
+\ cloud's colour, and only the instruments tell which way is up. Each cloud
+\ casts its shadow on the ground, its footprint moved north by the base's
+\ height over the tangent of the sun's elevation, a darker polygon drawn
+\ after the ground's fill.
 
 3000 constant cloud-square
 5 constant cloud-reach
@@ -46,24 +49,39 @@ false to in-cloud
 	column 0.2 + seed 1.1 + hash-fraction 0.6 * + cloud-square * to x
 	row 0.2 + seed 2.3 + hash-fraction 0.6 * + cloud-square * to z
 	250 seed 3.7 + hash-fraction 450 * + to size
-	5 seed 4.9 + hash-fraction 4 * truncate + to n-spheres
+	8 seed 4.9 + hash-fraction 6 * truncate + to n-spheres
 	[ 0 n-spheres 1 do k
 		seed k 1.3 * + 5.1 + to puff
-		size 0.45 puff hash-fraction 0.35 * + * to radius
+		size 0.35 puff hash-fraction 0.3 * + * to radius
 		puff 0.7 + hash-fraction 0.5 - 2.2 * size * to across
 		puff 1.9 + hash-fraction 0.5 - 1.4 * size * to along
 		puff 2.6 + hash-fraction 0.6 * size * to rise
 		[ x across + cloud-base radius 0.5 * + rise + z along + radius rise size 0.6 * / ]
 	loop ] ;
 
-\ the clouds near a point: their spheres' centres, radii and shades as columns, gathered when the point crosses into another square
+\ one square's cloud's shadow on the ground, [ x z radius ]: its footprint, a circle 1.1 times its size, moved from under it away from the sun, due north, by the base's height over the tangent of the sun's elevation; null when the square is clear
+: square-shadow ( column row -- shadow )
+	| column row |
+	column 7.31 * row 13.17 * + 101 + to seed
+	seed hash-fraction cloud-cover >= if null exit then
+	column 0.2 + seed 1.1 + hash-fraction 0.6 * + cloud-square * to x
+	row 0.2 + seed 2.3 + hash-fraction 0.6 * + cloud-square * to z
+	250 seed 3.7 + hash-fraction 450 * + to size
+	cloud-base sun-elevation tan / to shift
+	[ x z shift + size 1.1 * ] ;
+
+variable cloud-shadows
+[ ] to cloud-shadows
+
+\ the clouds near a point: their spheres' centres, radii and shades as columns, and their shadows, gathered when the point crosses into another square
 : refresh-clouds ( position -- )
-	| position ^cloud-squares ^cloud-square-at ^cloud-centres ^cloud-radii ^cloud-shades |
+	| position ^cloud-squares ^cloud-square-at ^cloud-centres ^cloud-radii ^cloud-shades ^cloud-shadows |
 	position first cloud-square / round-down to column
 	position 2 @i cloud-square / round-down to row
 	cloud-square-at [ column row ] = if exit then
 	[ column row ] to cloud-square-at
 	[ ] to near-spheres
+	[ ] to cloud-shadows
 	column cloud-reach - column cloud-reach + 1 + 1 do c
 		row cloud-reach - row cloud-reach + 1 + 1 do r
 			c r "{1}/{0}" format string>symbol to key
@@ -71,6 +89,8 @@ false to in-cloud
 				cloud-squares c r square-cloud key ! drop
 			then
 			near-spheres cloud-squares key @ concat to near-spheres
+			c r square-shadow to shadow
+			shadow null? not if cloud-shadows shadow add-last! drop then
 		loop
 	loop
 	near-spheres size to n-spheres
@@ -100,12 +120,63 @@ false to in-cloud
 		then
 	loop ;
 
-\ the clouds and the raid, from the farthest to the nearest, each sphere in view a disc; the whole view the cloud's colour when the eye is inside a sphere
-: draw-sky ( -- )
-	| ^in-cloud |
+\ a polygon in the view filled in rows two pixels high, cut to the view: its points [ x y ], in order round it, convex
+: fill-polygon ( corners colour -- )
+	| corners colour |
+	corners ( corner | corner second ) map to ys
+	ys 0 ' min2 reduce 0 max2 round to top
+	ys -1e9 ' max2 reduce view-height min2 round to bottom
+	corners size to n-corners
+	top bottom 2 do row
+		row 1 + to y
+		[ ] to crossings
+		0 n-corners 1 do k
+			corners k @i to a
+			corners k 1+ n-corners mod @i to b
+			a second y > b second y > = not if
+				crossings y a second - b first a first - * b second a second - / a first + add-last! drop
+			then
+		loop
+		crossings size 2 >= if
+			crossings 1e9 ' min2 reduce 0 max2 round to left
+			crossings -1e9 ' max2 reduce view-width min2 round to right
+			right left > if left row right left - 2 colour fill-span then
+		then
+	loop ;
+
+\ the clouds' shadows within 10 km and wholly in front of the eye, each its circle on the ground at sea level projected as a sixteen-sided polygon, the ground's or the water's colour three quarters as light, faded with distance as the ground is
+: draw-cloud-shadows ( -- )
+	eye@position to eye-point
+	eye@attitude to attitude
+	cloud-shadows ( shadow |
+		shadow spread to radius to z to x
+		x eye-point first - sq z eye-point 2 @i - sq + sqrt to distance
+		distance 10000 < if
+			[ 0 16 1 do k
+				k 16 / TAU * to angle
+				[ x angle sin radius * + 0 z angle cos radius * + ] eye-point v- to offset
+				offset attitude@forward v-dot to ahead
+				[ view-centre-x focal-length offset attitude@right v-dot * ahead / +
+				  view-centre-y focal-length offset attitude@up v-dot * ahead / -
+				  ahead ]
+			loop ] to corners
+			corners ( corner | corner 2 @i near-plane > ) all? if
+				x z water-at? if water-colour else ground-colour then 0.75 dimmed to shade
+				shade sky-colour distance depth-light blended to shade
+				corners shade fill-polygon
+			then
+		then
+	) each ;
+
+( draw-cloud-shadows ) to ground-marks
+
+\ the whole scene in one pass from the farthest to the nearest, so that what is filled covers what lies behind it: behind everything the sky, the sun or stars, the ground and the clouds' shadows; then the visible objects of the collections, the hills' slices, the clouds' spheres in view as discs, and the aircraft given with their smoke, each by its distance along the line of sight; the whole view the cloud's colour when the eye is inside a sphere
+: draw-scene ( collections crafts -- )
+	| collections crafts ^in-cloud |
+	draw-background
 	false to in-cloud
 	cloud-radii num-elements to n-spheres
-	[ ] to items
+	collections object-items terrain-items concat to items
 	n-spheres 0 > if
 		cloud-centres camera matmul to viewed
 		viewed 0 @j to across
@@ -127,23 +198,20 @@ false to in-cloud
 		where to shown
 		0 shown num-elements 1 do k
 			shown k @e to i
-			items [ ahead i @e 0 i ] add-last! drop
+			items [ ahead i @e :cloud i ] add-last! drop
 		loop
 	then
-	0 bombers size 1 do k
-		bombers k @i to bomber
-		bomber@position eye@position v- eye@attitude@forward v-dot to depth
-		items [ depth 1 k ] add-last! drop
-	loop
+	crafts ( craft |
+		items [ craft@position eye@position v- eye@attitude@forward v-dot :craft craft ] add-last! drop
+	) each
 	items ( item | item first negate ) sort-by to ordered
 	0 ordered size 1 do k
-		ordered k @i spread to index to kind to depth
-		kind 1 = if
-			bombers index @i draw-bomber
-		else
-			cloud-top-colour cloud-base-colour cloud-shades index @e blended to colour
-			colour sky-colour distance-squared index @e sqrt depth-light blended to colour
-			xs index @e ys index @e rs index @e colour cloud-disc
-		then
+		ordered k @i spread to payload to kind drop
+		kind :object = if payload draw-object continue then
+		kind :terrain = if payload draw-terrain-tile continue then
+		kind :craft = if payload draw-bomber continue then
+		cloud-top-colour cloud-base-colour cloud-shades payload @e blended to colour
+		colour sky-colour distance-squared payload @e sqrt depth-light blended to colour
+		xs payload @e ys payload @e rs payload @e colour cloud-disc
 	loop
 	in-cloud if 0 0 view-width view-height cloud-top-colour cloud-base-colour 0.6 blended fill-span then ;

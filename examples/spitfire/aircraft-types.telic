@@ -1,0 +1,199 @@
+\ Spitfire: the aircraft types the player flies, each a frame of figures
+\ that flight.telic's forces and moments read. A type gives its loaded
+\ mass, wing, engine, drag polar and lift; its tail's areas and arms; the
+\ centre of gravity's margin ahead of the neutral point; the ailerons' lift,
+\ how stiff each control is to move against the air, and the speed at
+\ which the wing's twist reverses the ailerons; and its masses, each at a
+\ place on the model, from which the moments of inertia are summed.
+\
+\ The Spitfire Mk I's published figures: the loaded weight, 2,624 kg; the
+\ wing, 11.23 m and 22.48 m²; the Merlin III, 1,030 hp and 1,335 lb; the
+\ Brownings, 21 lb 14 oz each; the dihedral, 6°; the centre of gravity's
+\ permissible range, 2.7% of the mean chord; the steady rates of roll of
+\ fabric-covered Frise ailerons, 92°/s at 168 mph, 75 at 200, 56 at 250,
+\ 40 at 300 and 21 at 378, and the Mk I's 14°/s at 400 mph (Flight, 26
+\ December 1946, from J. Smith's paper to the Royal Aeronautical Society);
+\ the stick force, about 5 lb a g, is a later Spitfire's (the
+\ Mk XVI's) taken for the Mk I. Measured from the model: the mean chord,
+\ 2.165 m; the tailplane, 2.89 m², 4.55 m behind the centre of gravity;
+\ the fin and rudder, 1.47 m² of the 1.84 m² outline standing clear of
+\ the fuselage, 4.8 m behind. Estimates: the margin, 3% of the chord; the
+\ tail's and fin's lift slopes, efficiency and the downwash; the
+\ elevator's and rudder's effectiveness and travel; the flaps' pitching
+\ moment; the pilot's greatest force on the stick sideways (50 lb), fore
+\ and aft (30 lb) and on the rudder bar (150 lb); the masses not named as
+\ published and where every mass sits. The ailerons' lift, their stiffness
+\ and the speed at which the wing's twist would reverse them are fitted to
+\ those measured rates of roll: 480 mph, where the paper gives 580 mph as
+\ the earlier wings' theoretical reversal speed.
+
+\ the tail's lift slope, per radian; the fin's; the share of the free stream's dynamic pressure at the tail; the downwash, as a share of the angle of attack; the elevator's and rudder's effectiveness, the share of a whole surface's lift a deflection gives; their travel, radians; the fuselage's yawing moment against the fin's, per radian of sideslip; the allowance for the downwash's lag in pitch damping; all estimates
+3.5 constant tail-lift-slope
+3.0 constant fin-lift-slope
+0.9 constant tail-efficiency
+0.45 constant downwash
+0.45 constant elevator-effectiveness
+0.5 constant rudder-effectiveness
+0.436 constant elevator-travel
+0.436 constant rudder-travel
+-0.02 constant fuselage-yaw
+1.45 constant pitch-lag
+
+\ the pilot's greatest forces, lb: the stick sideways, fore and aft, the rudder bar (estimates); the airspeed, m/s, up to which full rudder takes no more than the greatest force (an estimate, 200 mph)
+50 constant aileron-force
+30 constant elevator-force
+150 constant rudder-force
+89.4 constant full-rudder-speed
+
+\ the Brownings' rounds a minute, for a type's seconds of fire
+1150 constant browning-rate
+
+\ the air's dynamic pressure at sea level for an airspeed, Pa
+: sea-level-pressure ( speed -- pascals ) sq 0.6125 * ;
+
+\ a mass at a place on the model, [ out up along ] metres, its own radii of gyration about the three axes, and whether it is fuel, burned away as the tanks empty
+: component ( mass place spread fuel? -- component )
+	| mass place spread fuel? |
+	{ :mass mass :place place :spread spread :fuel fuel? } ;
+
+\ components at points
+: point-mass ( mass place -- component ) [ 0 0 0 ] false component ;
+: fuel-mass-at ( mass place -- component ) [ 0 0 0 ] true component ;
+
+\ the centre of gravity of components, [ out up along ]
+: centre-of-gravity ( components -- point )
+	| components |
+	components ( part | part@mass ) map 0 ' + reduce to total
+	components ( part | part@place part@mass v* ) map [ 0 0 0 ] ' v+ reduce total 1 swap / v* ;
+
+\ the moments of inertia of components about a point, [ roll pitch yaw ] kg m²: about the line of flight, the span and the vertical
+: moments-of-inertia ( components centre -- inertia )
+	| components centre |
+	components ( part |
+		part@place centre v- spread to along to up to out
+		part@spread spread to spread-along to spread-up to spread-out
+		part@mass to m
+		[ out sq up sq + spread-out sq + spread-up sq + m *
+		  up sq along sq + spread-up sq + spread-along sq + m *
+		  out sq along sq + spread-out sq + spread-along sq + m * ]
+	) map [ 0 0 0 ] ' v+ reduce ;
+
+\ a type from its figures: the centre of gravity and the moments of inertia dry and of the fuel when full; the tail's and fin's volumes; the pitching moment's terms, the wing's lift about the centre of gravity, the tail's restoring slope, the offset that trims at the trim lift, the damping and the elevator's power; the yawing moment's stability, damping and the rudder's power; each control's stiffness, lb of stick force at full deflection for each pascal of dynamic pressure, the elevator's from the stick force for each g of a steady pull-up at sea level, whose elevator holds both the extra lift against the margin and the pitch damping of the pull's rotation; the dynamic pressure at the ailerons' reversal; the arm of each wing half's lift, the centroid of a half ellipse
+: aircraft-type ( figures -- type )
+	| figures |
+	figures@components to parts
+	parts centre-of-gravity to centre
+	parts ( part | part@fuel not ) filter centre moments-of-inertia to dry-inertia
+	parts ( part | part@fuel ) filter centre moments-of-inertia to fuel-inertia
+	figures@wing-area to area
+	figures@chord to chord
+	figures@span to span
+	figures@tailplane-area figures@tail-arm * area chord * / to tail-volume
+	figures@fin-area figures@fin-arm * area span * / to fin-volume
+	tail-volume tail-efficiency * tail-lift-slope * 1 downwash - * to tail-slope
+	tail-slope figures@lift-slope / figures@static-margin - to wing-arm
+	figures@trim-lift figures@zero-lift-coefficient - figures@lift-slope / to trim-angle
+	tail-slope trim-angle * wing-arm figures@trim-lift * - to pitch-offset
+	-2 tail-volume * tail-efficiency * tail-lift-slope * figures@tail-arm chord / * pitch-lag * to pitch-damping
+	tail-volume tail-efficiency * tail-lift-slope * elevator-effectiveness * elevator-travel * to elevator-power
+	fin-volume tail-efficiency * fin-lift-slope * fuselage-yaw + to yaw-stability
+	-2 fin-volume * tail-efficiency * fin-lift-slope * figures@fin-arm span / * to yaw-damping
+	fin-volume tail-efficiency * fin-lift-slope * rudder-effectiveness * rudder-travel * to rudder-power
+	figures@mass 9.81 * area / to wing-loading
+	figures@static-margin wing-loading * pitch-damping chord * 9.81 * 1.225 * 4 / - to pull-moment
+	figures@stick-force-per-g elevator-power * pull-moment / to elevator-stiffness
+	rudder-force full-rudder-speed sea-level-pressure / to rudder-stiffness
+	figures
+	{ :centre centre :dry-inertia dry-inertia :fuel-inertia fuel-inertia
+	  :tail-slope tail-slope :wing-arm wing-arm :pitch-offset pitch-offset :pitch-damping pitch-damping
+	  :elevator-power elevator-power :yaw-stability yaw-stability :yaw-damping yaw-damping :rudder-power rudder-power
+	  :elevator-stiffness elevator-stiffness :rudder-stiffness rudder-stiffness
+	  :reversal-pressure figures@reversal-speed sea-level-pressure
+	  :panel-arm span 2 / 4 3 PI * / * } merge ;
+
+\ the Spitfire's masses but the guns: the published Merlin III (1,335 lb), and estimates of the propeller, the radiator and coolant, the pilot with his parachute, the fuel tanks' 85 gallons full, the wing's structure spread over its span as an ellipse is, and the tail
+: airframe-parts ( -- components )
+	[ 606 [ 0 0.1 2.3 ] point-mass
+	  160 [ 0 0 3.6 ] point-mass
+	  90 [ 0 -0.6 0 ] point-mass
+	  90 [ 0 0.3 -0.5 ] point-mass
+	  278 [ 0 0.2 1.1 ] fuel-mass-at
+	  420 [ 0 -0.3 0.1 ] [ 2.81 0.1 0.6 ] false component
+	  55 [ 0 0.4 -4.4 ] [ 0.6 0.4 0.3 ] false component ] ;
+
+\ the eight Brownings, the published 21 lb 14 oz each, with an estimated 7.6 kg of their 300 rounds, where the model's gun ports are
+: gun-parts ( -- components )
+	[ 1.9 2.15 2.9 3.15 ] ( out | [ out negate out ] ) map [ ] ' concat reduce
+	( out | 17.52 [ out -0.3 0.4 ] point-mass ) map ;
+
+\ the fuselage: the Mk I's loaded weight less every other mass, spread along its length
+: fuselage-part ( -- component )
+	airframe-parts gun-parts concat ( part | part@mass ) map 0 ' + reduce to named
+	2624 named - [ 0 0 -1.2 ] [ 0.35 0.4 1.88 ] false component ;
+
+\ the Spitfire Mk I's masses
+: spitfire-components ( -- components )
+	airframe-parts gun-parts concat [ fuselage-part ] concat ;
+
+\ the Spitfire Mk I's figures
+: spitfire-mk-i-figures ( -- figures )
+	{ :name "SPITFIRE MK I" :kind :spitfire :model-down :spitfire-down
+	  :rounds-per-gun 300 :fire-seconds 300 60 * browning-rate / :stick-force-per-g 5
+	  :mass 2624 :span 11.23 :wing-area 22.48 :chord 2.165
+	  :engine-power 768000 :full-throttle-height 5500 :fuel-capacity 85
+	  :lift-slope 4.8 :zero-lift-coefficient 0.12 :stall-angle 0.26 :parasite-drag 0.019 :induced-drag 0.063
+	  :static-thrust 10500 :propeller-efficiency 0.8
+	  :dihedral 6 PI 180 / * :tailplane-area 2.89 :tail-arm 4.55 :fin-area 1.47 :fin-arm 4.8
+	  :static-margin 0.03 :trim-lift 0.25 :flap-moment -0.07 :flap-limit 140 :rudder-bias false :reserve-capacity 0
+	  :aileron-lift 0.32 :aileron-stiffness aileron-force 75.1 sea-level-pressure / :reversal-speed 214.6
+	  :components spitfire-components } ;
+
+\ the photographic reconnaissance Spitfire, the PR IV: the Merlin 46's published 1,415 hp at 14,000 ft; the leading edges' 66.5 gallons a side with the 85 behind the engine, 218 in all; no guns, the cameras in their place, an estimated 100 kg lighter for it; the leading edges' fuel, 1.8 m out (an estimate), a tenth more inertia in roll when full
+: pr-iv-figures ( -- figures )
+	airframe-parts [ fuselage-part
+	                 40 [ 0 0 -1.8 ] point-mass
+	                 217.5 [ -1.8 -0.2 0.9 ] fuel-mass-at
+	                 217.5 [ 1.8 -0.2 0.9 ] fuel-mass-at ] concat to parts
+	spitfire-mk-i-figures
+	{ :name "SPITFIRE PR IV" :mass 2959 :engine-power 1055000 :full-throttle-height 4267 :fuel-capacity 218
+	  :components parts } merge ;
+
+\ the Hurricane Mk I's masses: the published Merlin III; estimates of the propeller, the radiator under the fuselage with its coolant, the pilot, the wing's structure (its thick wing heavier than the Spitfire's), the tail; the published 97 gallons, 34.5 in each tank between the centre section's spars and 28 in the reserve tank ahead of the cockpit; the eight Brownings, four in each wing outboard of the undercarriage, the inner pairs with the published 334 rounds each and the outer with 287 (an estimated 25.4 g a round with its link); the fuselage the remainder of the loaded weight
+: hurricane-components ( -- components )
+	[ 606 [ 0 0.15 1.9 ] point-mass
+	  160 [ 0 0.05 3.05 ] point-mass
+	  90 [ 0 -0.85 -0.7 ] point-mass
+	  90 [ 0 0.5 -0.9 ] point-mass
+	  112.8 [ -1.0 -0.3 0.3 ] fuel-mass-at
+	  112.8 [ 1.0 -0.3 0.3 ] fuel-mass-at
+	  91.6 [ 0 0.3 1.0 ] fuel-mass-at
+	  540 [ 0 -0.4 -0.3 ] [ 2.7 0.15 0.6 ] false component
+	  70 [ 0 0.6 -5.4 ] [ 0.7 0.5 0.3 ] false component ] to parts
+	[ [ 2.2 334 ] [ 2.4 334 ] [ 2.6 287 ] [ 2.8 287 ] ] ( gun |
+		gun first to out
+		gun second 0.0254 * 9.92 + to gun-mass
+		[ gun-mass [ out negate -0.35 0.2 ] point-mass gun-mass [ out -0.35 0.2 ] point-mass ]
+	) map [ ] ' concat reduce to guns
+	parts guns concat to named
+	2994 named ( part | part@mass ) map 0 ' + reduce - to remainder
+	named [ remainder [ 0 0.1 -1.3 ] [ 0.4 0.5 2.0 ] false component ] concat ;
+
+\ the Hurricane Mk I's figures. Published: the loaded weight, 6,600 lb (the-battle-of-britain.co.uk); the span, 40 ft, and wing area, 257.5 sq ft; the Merlin III; 97 gallons; the guns' rounds; the flaps' 120 mph limit, from the placard in the Smithsonian's Mk IIC cockpit; the rudder bias wheel and the fuel cock between the main tanks and the 28-gallon reserve, seen in that cockpit. Measured from the model: the tailplane, 2.75 m², its quarter chord 5.1 m aft of the model's origin; the fin and rudder, 1.6 m² of the 1.87 m² outline standing clear of the fuselage, centred 5.83 m aft; the arms from the centre of gravity the masses give. Estimates: the lift slope, the thicker wing's higher aspect ratio's (Helmbold's formula, 3% above the Spitfire's); the induced drag, an efficiency of 0.8 for its tapered wing; the dihedral, 3.5°; the margin, 8% of the chord, more than the Spitfire's, as its steadiness as a gun platform was reported; the stick force, 8 lb a g; the ailerons the Spitfire's, with no published rate of roll found, and its thick wing's reversal speed 700 mph. The parasite drag is set so the model reaches the A&AEE's 316 mph at 20,000 ft for L.2026 with the Rotol constant-speed propeller (June 1940)
+: hurricane-mk-i-figures ( -- figures )
+	{ :name "HURRICANE MK I" :kind :hurricane :model-down :hurricane-down
+	  :rounds-per-gun 310.5 :fire-seconds 310.5 60 * browning-rate / :stick-force-per-g 8
+	  :mass 2994 :span 12.19 :wing-area 23.92 :chord 1.96
+	  :engine-power 768000 :full-throttle-height 5500 :fuel-capacity 97
+	  :lift-slope 4.96 :zero-lift-coefficient 0.12 :stall-angle 0.26 :parasite-drag 0.0253 :induced-drag 0.064
+	  :static-thrust 10500 :propeller-efficiency 0.8
+	  :dihedral 3.5 PI 180 / * :tailplane-area 2.75 :tail-arm 5.06 :fin-area 1.6 :fin-arm 5.79
+	  :static-margin 0.08 :trim-lift 0.25 :flap-moment -0.07 :flap-limit 120 :rudder-bias true :reserve-capacity 28
+	  :aileron-lift 0.32 :aileron-stiffness aileron-force 75.1 sea-level-pressure / :reversal-speed 313
+	  :components hurricane-components } ;
+
+variable spitfire-mk-i
+spitfire-mk-i-figures aircraft-type to spitfire-mk-i
+variable hurricane-mk-i
+hurricane-mk-i-figures aircraft-type to hurricane-mk-i
+variable spitfire-pr-iv
+pr-iv-figures aircraft-type to spitfire-pr-iv

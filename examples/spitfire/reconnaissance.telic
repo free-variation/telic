@@ -12,19 +12,33 @@
 \ review draws each frame from that place, looking down through the lens,
 \ in grey, and names the frames that caught the Tirpitz.
 \
-\ Heavy flak defends the Tirpitz, Trondheim, Munkholmen and Værnes: within
-\ 10 km of them and below an estimated 7,500 m it bursts near the aircraft
-\ twice a second, and a burst within 60 m damages it as the gunners' hits
-\ do, sometimes holing the radiator or the oil system. Time can run four or
-\ sixteen times as fast (T) for the long crossing.
+\ Flak defends the Tirpitz, Trondheim, Munkholmen and Værnes. Nothing fires
+\ at an aircraft on the ground, nor from a site whose line to it the hills
+\ cut. Each site's heavy battery, the 8.8 cm Flak 36 with its published
+\ effective ceiling of 8,000 m, engages within an estimated 10 km while its
+\ crews can follow the aircraft across the sky, at most an estimated 10° a
+\ second: a burst a second, four guns at the published 15 to 20 rounds a
+\ minute (four an estimate), near the aircraft; a burst within 60 m damages
+\ it (an estimate), sometimes holing the radiator or the oil system. Low and
+\ close, an aircraft crosses the sky faster than that and the heavy guns
+\ lose it. Each site's light guns, the 2 cm Flak 38, engage within its
+\ published 2,200 m at its published practical 180 rounds a minute and
+\ 900 m/s, twelve aboard the Tirpitz and four at each other site
+\ (estimates), aimed at the aircraft's lead to within 0.01 rad (as a rear
+\ gunner's, an estimate); their rounds fly and hit as gunnery.telic's do.
+\ Time can run four or sixteen times as fast (T) for the long crossing.
 
 2.5 20 / atan 2 * constant lens-angle
 6 PI 180 / * constant split-angle
 125 constant magazine-exposures
 0.6 constant photo-overlap
-7500 constant flak-ceiling
+8000 constant flak-ceiling
 10000 constant flak-reach
+10 constant flak-tracking-rate
 60 constant flak-lethal-distance
+2200 constant light-flak-reach
+180 constant light-flak-rate
+900 constant light-flak-velocity
 0x303030 constant flak-colour
 
 variable photos
@@ -80,38 +94,82 @@ variable flak-bursts
 
 \ === the flak ===
 
-\ the places the flak defends
+\ the places the flak defends, each [ position light-guns ]
 : flak-sites ( -- sites )
-	[ tirpitz-berth :munkholmen landmark-ground :vaernes landmark-ground :nidaros landmark-ground ] ;
+	[ [ tirpitz-berth 12 ] [ :munkholmen landmark-ground 4 ] [ :vaernes landmark-ground 4 ] [ :nidaros landmark-ground 4 ] ] ;
 
-\ the flak's step: twice a second while the aircraft is within reach of a defended place and below the ceiling, a burst near it, which damages it when close; the bursts fade over 4 s
+\ whether a site's guns, 5 m above the ground, see a point: no hill rises above the line between them at eleven points along it
+: in-sight? ( site point -- flag )
+	| site point |
+	site first site 2 @i ground-height 5 + site second max2 to gun-height
+	[ site first gun-height site 2 @i ] to gun
+	[ 1 12 1 do k
+		gun point k 12 / v-between to along
+		along first along 2 @i ground-height along second <
+	loop ] ( clear | clear ) all? ;
+
+\ how fast, degrees a second, an aircraft crosses the sky as a site sees it: its speed across the line of sight over its distance
+: crossing-rate ( site -- degrees )
+	| site |
+	plane@position site v- to offset
+	offset v-length to range
+	offset 1 range / v* to line
+	plane@velocity line plane@velocity line v-dot v* v- v-length range 1 max2 / 180 * PI / ;
+
+\ a heavy burst near the aircraft, which damages it when close
+: heavy-burst ( -- )
+	| ^flak-bursts |
+	plane@position to aircraft
+	aircraft [ random 0.5 - 300 * random 0.5 - 120 * random 0.5 - 300 * ] v+ plane@velocity 1.5 v* v+ to burst
+	flak-bursts [ burst 4 ] add-last! drop
+	burst aircraft v- v-length flak-lethal-distance < not if exit then
+	plane@damage 15 + 100 min2 plane!damage
+	"HIT BY FLAK" say
+	random 0.3 < if
+		plane@coolant-leak 0.01 + plane!coolant-leak
+		"FLAK IN THE RADIATOR  -  GLYCOL LEAKING, WATCH THE TEMPERATURE" say
+	then
+	random 0.15 < if
+		plane@oil-leak 0.005 + plane!oil-leak
+		"FLAK IN THE OIL SYSTEM  -  WATCH THE OIL PRESSURE" say
+	then ;
+
+\ a site's light guns' rounds for a step: a salvo from the site at the aircraft's lead point
+: light-salvo ( site guns dt -- )
+	| site guns dt |
+	{ :kind :flak :position site :attitude 0 heading-attitude :speed 0 } to battery
+	battery plane light-flak-velocity lead-point site v- v-unit to direction
+	salvos
+	{ :position site :velocity direction light-flak-velocity v*
+	  :rounds guns light-flak-rate * 60 / dt * :weight cannon-weight :spread rear-spread :travel 0 :age 0 :life 3
+	  :target plane :credit :german :source "HIT BY LIGHT FLAK" }
+	add-last! drop ;
+
+\ the flak's step: the bursts fade over 4 s; nothing fires at an aircraft on the ground or crashed; each site that sees the aircraft fires its light guns within their reach, and its heavy battery, a burst a second, within its reach and under its ceiling while the aircraft crosses the sky no faster than the crews can follow
 : run-flak ( dt -- )
 	| dt ^flak-bursts |
 	flak-bursts ( burst | [ burst first burst second dt - ] ) map ( burst | burst second 0 > ) filter to flak-bursts
+	plane@on-ground plane@crashed or if exit then
 	plane@position to aircraft
-	aircraft second flak-ceiling < flak-sites ( site | site aircraft v- spread to dz drop to dx dx sq dz sq + sqrt flak-reach < ) any? and not if exit then
-	random dt 2 * < not if exit then
-	aircraft [ random 0.5 - 300 * random 0.5 - 120 * random 0.5 - 300 * ] v+ plane@velocity 1.5 v* v+ to burst
-	flak-bursts [ burst 4 ] add-last! drop
-	burst aircraft v- v-length flak-lethal-distance < if
-		plane@damage 15 + plane!damage
-		"HIT BY FLAK" say
-		random 0.3 < if
-			plane@coolant-leak 0.01 + plane!coolant-leak
-			"FLAK IN THE RADIATOR  -  GLYCOL LEAKING, WATCH THE TEMPERATURE" say
+	flak-sites ( site |
+		site spread to guns to place
+		[ place first place first place 2 @i ground-height 5 + place 2 @i ] to gun
+		aircraft gun v- v-length to range
+		range flak-reach < if
+			gun aircraft in-sight? if
+				range light-flak-reach < if gun guns dt light-salvo then
+				aircraft second flak-ceiling < gun crossing-rate flak-tracking-rate < and random dt < and if heavy-burst then
+			then
 		then
-		random 0.15 < if
-			plane@oil-leak 0.005 + plane!oil-leak
-			"FLAK IN THE OIL SYSTEM  -  WATCH THE OIL PRESSURE" say
-		then
-	then ;
+	) each ;
 
-\ each burst a dark star of six arms, 20 m long, fading as it ages
+\ each burst a dark star of fourteen arms, six along the axes 20 m long and eight toward a cube's corners 14 m long, fading as it ages
 : draw-flak ( -- )
 	flak-bursts ( burst |
 		burst first to centre
 		new-sketch to puff
-		[ [ 20 0 0 ] [ -20 0 0 ] [ 0 20 0 ] [ 0 -20 0 ] [ 0 0 20 ] [ 0 0 -20 ] ] ( arm |
+		[ [ 20 0 0 ] [ -20 0 0 ] [ 0 20 0 ] [ 0 -20 0 ] [ 0 0 20 ] [ 0 0 -20 ]
+		  [ 8 8 8 ] [ 8 8 -8 ] [ 8 -8 8 ] [ 8 -8 -8 ] [ -8 8 8 ] [ -8 8 -8 ] [ -8 -8 8 ] [ -8 -8 -8 ] ] ( arm |
 			puff [ centre centre arm v+ ] sketch-path
 		) each
 		puff flak-colour sky-colour burst second 4 / blended sketch>object draw-object
@@ -121,9 +179,10 @@ variable flak-bursts
 
 \ the palette of a print: greys
 : use-photograph ( -- )
-	| ^sky-colour ^ground-colour ^water-colour ^lighting ^cloud-top-colour ^cloud-base-colour ^stars-showing |
+	| ^sky-colour ^ground-colour ^water-colour ^lighting ^cloud-top-colour ^cloud-base-colour ^stars-showing ^hill-top-colour |
 	0x9a9a9a to sky-colour
 	0x6c6c6c to ground-colour
+	0x9a9a9a to hill-top-colour
 	0x2a2a2a to water-colour
 	1 to lighting
 	0xf0f0f0 to cloud-top-colour
@@ -150,8 +209,7 @@ variable flak-bursts
 	view-height 2 / lens-angle 2 / tan / to focal-length
 	true to monochrome
 	place photo@attitude side camera-attitude look-from
-	[ scenery countryside-collection ] draw-view
-	draw-sky
+	[ scenery countryside-collection ] bombers draw-scene
 	false to monochrome
 	420 to focal-length
 	view-centre-x view-height 2 / - to left

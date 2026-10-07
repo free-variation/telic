@@ -457,32 +457,125 @@ variable tirpitz-berth
 variable tirpitz-heading
 0 to tirpitz-heading
 
-\ the battleship Tirpitz, 251 m long and 36 m in the beam (published), her deck an estimated 8 m above the water: the hull at the waterline and the deck; the four twin turrets, Anton and Bruno forward, Caesar and Dora aft, Bruno and Caesar superfiring, each with its two barrels; the superstructure, the bridge tower, the funnel, the masts; trees cut and laid on her deck as camouflage, and the anti-torpedo nets round her (both reported); the heights above the deck are estimates
+\ the Tirpitz's deck above the water at a distance along her from amidships: 12 m at the bow, 8 m amidships, 7 m at the stern (estimates)
+: tirpitz-deck ( along -- up )
+	| along |
+	along 60 > if along 60 - 65.5 / 4 * 8 + exit then
+	along -90 < if along 90 + 35.5 / 8 + exit then
+	8 ;
+
+\ a gun house on a ship's deck, its centre at an along and across, standing on the deck there and raised by a base, turned to face forward or aft, its pair of barrels a length long from its face
+: sketch-gun-house ( sketch along across base width length height barrel facing -- )
+	| sketch along across base width length height barrel facing |
+	along tirpitz-deck base + to foot
+	sketch along across foot at site-heading width length height sketch-box
+	along facing length 2 / * + to face
+	[ -1 1 ] ( side |
+		sketch [ face across side width 0.18 * * + foot height 0.5 * + at
+		         face facing barrel * + across side width 0.18 * * + foot height 0.55 * + at ] sketch-path
+	) each ;
+
+\ the battleship Tirpitz in March 1942, 251 m long overall, 241.6 m at the waterline, 36 m in the beam (published): the hull from the waterline to the deck with its sheer; the four twin 38 cm turrets, Anton and Bruno forward, Caesar and Dora aft, Bruno and Caesar superfiring, their barrels 17.9 m (47 calibres, published); the six twin 15 cm turrets, three a side, barrels 8.3 m (55 calibres); the eight twin 10.5 cm mounts, barrels 6.8 m (65 calibres); the conning tower and the tower mast with the main rangefinder across its top; the funnel and its cap; the four SL-8 directors' domes; the hangars and the double-ended catapult across the deck with an Arado on it (published as fitted), the boat cranes; the mainmast and the after superstructure with its rangefinder; trees cut and laid on her deck as camouflage (reported). Every position and every height above the deck is an estimate from drawings
 : sketch-tirpitz ( sketch centre heading -- )
 	| sketch centre heading |
 	centre heading site!
-	[ [ 125.5 0 ] [ 100 9 ] [ 60 17 ] [ 20 18 ] [ -60 18 ] [ -100 15 ] [ -118 9 ] [ -125.5 0 ]
-	  [ -118 -9 ] [ -100 -15 ] [ -60 -18 ] [ 20 -18 ] [ 60 -17 ] [ 100 -9 ] ] to hull
-	sketch hull 0 outline-at 8 sketch-prism
-	[ [ 75 8 ] [ 55 12 ] [ -55 12 ] [ -75 8 ] ] ( turret |
-		turret spread to base to along
-		sketch along 0 base at heading 12 14 4 sketch-box
-		along 0 > if 1 else -1 then to forward
-		[ -2 2 ] ( across |
-			sketch [ along forward 7 * + across base 2 + at along forward 23 * + across base 2.5 + at ] sketch-path
-		) each
+	[ [ 125.5 0 ] [ 110 6 ] [ 90 12 ] [ 60 17 ] [ 20 18 ] [ -60 18 ] [ -100 15 ] [ -118 9 ] [ -125.5 0 ]
+	  [ -118 -9 ] [ -100 -15 ] [ -60 -18 ] [ 20 -18 ] [ 60 -17 ] [ 90 -12 ] [ 110 -6 ] ] to hull
+	sketch hull 0 outline-at sketch-points to waterline
+	sketch hull ( pair | pair first pair second pair first tirpitz-deck at ) map sketch-points to deck
+	sketch waterline join-loop
+	sketch deck join-loop
+	0 hull size 1 do k
+		sketch waterline k @i deck k @i sketch-edge
+	loop
+	[ [ 82 0 1 ] [ 62 4 1 ] [ -62 4 -1 ] [ -82 0 -1 ] ] ( turret |
+		turret spread to facing to base to along
+		sketch along 0 base 12 15 4 17.9 facing sketch-gun-house
 	) each
-	sketch 10 0 8 at heading 16 30 10 sketch-box
-	sketch 30 0 8 at heading 8 8 22 sketch-box
-	sketch -5 0 18 at heading 8 12 12 sketch-box
-	sketch [ 30 0 30 at 30 0 45 at ] sketch-path
-	sketch [ -22 0 18 at -22 0 40 at ] sketch-path
-	[ [ 95 0 ] [ 40 -10 ] [ -30 10 ] [ -90 -6 ] [ -110 4 ] ] ( tree |
-		sketch tree first tree second 8 at 6 sketch-tree
+	[ 34 18 -28 ] ( along |
+		along 0 > if 1 else -1 then to facing
+		[ -12 12 ] ( across | sketch along across 2 7 9 3 8.3 facing sketch-gun-house ) each
 	) each
-	sketch [ [ 150 45 ] [ -150 45 ] [ -150 -45 ] [ 150 -45 ] ] 0.5 outline-at sketch-loop ;
+	[ 22 10 -6 -16 ] ( along |
+		along 5 > if 1 else -1 then to facing
+		[ -14.5 14.5 ] ( across | sketch along across 1 4 4 2.5 6.8 facing sketch-gun-house ) each
+	) each
+	sketch 40 0 40 tirpitz-deck at site-heading 10 10 9 sketch-box
+	sketch 32 0 32 tirpitz-deck at site-heading 9 12 14 sketch-box
+	sketch 32 0 32 tirpitz-deck 14 + at site-heading 5 5 16 sketch-box
+	sketch [ 32 -5.25 32 tirpitz-deck 31 + at 32 5.25 32 tirpitz-deck 31 + at ] sketch-path
+	sketch [ 32 0 32 tirpitz-deck 30 + at 32 0 32 tirpitz-deck 40 + at ] sketch-path
+	sketch 2 0 8 at site-heading 10 16 10 sketch-box
+	sketch 2 0 18 at 4.5 0 12 10 sketch-drum
+	sketch 2 0 30 at 5 0 1.5 10 sketch-drum
+	[ [ 26 18 ] [ -38 14 ] ] ( director |
+		director spread to rise to along
+		[ -7 7 ] ( across | sketch along across along tirpitz-deck rise + at 1.8 0 2.5 8 sketch-drum ) each
+	) each
+	[ -1 1 ] ( side | sketch -10 side 13 * 8 at site-heading 7 12 6 sketch-box ) each
+	sketch [ -6 -16 17 at -6 16 17 at ] sketch-path
+	sketch [ -10 0 17.5 at -2 0 17.5 at ] sketch-path
+	sketch [ -6 -6 17.5 at -6 6 17.5 at ] sketch-path
+	[ -1 1 ] ( side |
+		sketch [ -2 side 9 * 8 at -2 side 9 * 22 at 6 side 13 * 24 at ] sketch-path
+	) each
+	sketch [ -22 0 8 at -22 0 38 at ] sketch-path
+	sketch [ -22 -6 30 at -22 6 30 at ] sketch-path
+	sketch -40 0 8 at site-heading 10 14 8 sketch-box
+	sketch [ -40 -4.5 19 at -40 4.5 19 at ] sketch-path
+	[ [ 105 0 ] [ 45 -10 ] [ -30 10 ] [ -95 -6 ] [ -112 4 ] [ 72 9 ] [ -70 -9 ] ] ( tree |
+		sketch tree first tree second tree first tirpitz-deck at 6 sketch-tree
+	) each ;
 
-\ the Tirpitz in Fættenfjord, along the shore nearest the fjord's point, 15 m off it, her side to the cliff that sheltered her from the south-west; the cliff an estimated 150 m hill behind her
+\ a destroyer of the Tirpitz's escort, a Type 1934 like Z4 Richard Beitzen, 119 m long overall and 11.3 m in the beam (published), her deck an estimated 5 m above the water: the hull, five single 12.7 cm guns (published) in shields with 5.8 m barrels (45 calibres), the bridge, two funnels and the mast (estimates from drawings)
+: sketch-destroyer ( sketch centre heading -- )
+	| sketch centre heading |
+	centre heading site!
+	[ [ 59.5 0 ] [ 45 4.5 ] [ 10 5.65 ] [ -45 5.4 ] [ -59.5 3 ] [ -59.5 -3 ] [ -45 -5.4 ] [ 10 -5.65 ] [ 45 -4.5 ] ] to hull
+	sketch hull 0 outline-at 5 sketch-prism
+	[ [ 44 1 ] [ 34 1 ] [ -30 -1 ] [ -42 -1 ] [ -52 -1 ] ] ( gun |
+		gun spread to facing to along
+		sketch along 0 5 at site-heading 3 4 2.5 sketch-box
+		sketch [ along facing 2 * + 0 6.5 at along facing 7.8 * + 0 6.8 at ] sketch-path
+	) each
+	sketch 24 0 5 at site-heading 6 8 9 sketch-box
+	[ 10 -6 ] ( along | sketch along 0 5 at 1.8 0 9 8 sketch-drum ) each
+	sketch [ 18 0 14 at 18 0 26 at ] sketch-path ;
+
+\ a point on the shore along and across from the site, at the ground's height there
+: shore-at ( along across -- point )
+	| along across |
+	along across 0 at to point
+	[ point first point first point 2 @i ground-height point 2 @i ] ;
+
+\ the anchorage in Fættenfjord in March 1942: the Tirpitz and two destroyers of her escort moored ahead of and astern of her behind the anti-torpedo nets, the nets running from the shore round the seaward side of all three, a float every 15 m; the smoke generators that hid the ship in artificial fog, drums along the shore behind her; four light flak positions on the shore above her, each a ring of sandbags round a gun pointing over the water (the nets, the fog, the flak and the escort reported; the layout an estimate). The shore is on her left, the side she lies against
+: sketch-anchorage ( sketch centre heading -- )
+	| sketch centre heading |
+	sketch centre heading sketch-tirpitz
+	[ 200 -200 ] ( along | sketch centre heading 0 0 along placed heading sketch-destroyer ) each
+	centre heading site!
+	[ [ 275 -28 ] [ 275 40 ] [ -275 40 ] [ -275 -28 ] ] to net
+	sketch net 0.5 outline-at sketch-path
+	0 3 1 do k
+		net k @i to from
+		net k 1+ @i to onto
+		from first onto first - sq from second onto second - sq + sqrt 15 / round to n-floats
+		0 n-floats 1+ 1 do f
+			from onto f n-floats / v-between to float
+			sketch [ float first float second 0.5 at float first float second 2 at ] sketch-path
+		loop
+	loop
+	-250 251 50 do along
+		sketch along -60 shore-at 1 0 3 6 sketch-drum
+	loop
+	[ -150 -50 50 150 ] ( along |
+		along -100 shore-at to pit
+		sketch pit 4 0 1.2 10 sketch-drum
+		along -96 0 at along -100 0 at v- v-unit 4 v* [ 0 2 0 ] v+ pit [ 0 1 0 ] v+ v+ to muzzle
+		sketch [ pit [ 0 1 0 ] v+ muzzle ] sketch-path
+	) each ;
+
+\ the Tirpitz in Fættenfjord, along the shore nearest the fjord's point, 15 m off it, her side to the cliff that sheltered her from the south-west; the cliff is norway-terrain.telic's
 : build-tirpitz ( -- )
 	| ^tirpitz-berth ^tirpitz-heading |
 	:faettenfjord landmark-ground to fjord
@@ -502,11 +595,54 @@ variable tirpitz-heading
 	fjord shore-bearing 0 0 nearest 18 - 15 - 0 max2 placed to berth
 	berth to tirpitz-berth
 	shore-bearing 90 + to tirpitz-heading
-	fjord shore-bearing 0 0 nearest 450 + placed 450 150 31 keep-hill
 	new-sketch to ship
-	ship berth shore-bearing 90 + sketch-tirpitz
+	ship berth shore-bearing 90 + sketch-anchorage
 	ship warship-colour keep
 	[ 0 0 0 ] use-water-near ;
+
+\ a portal crane on a quay: four legs from a gantry 20 m up, its jib reaching 12 m out over the water toward a heading (estimates)
+: sketch-portal-crane ( sketch foot heading -- )
+	| sketch foot heading |
+	[ [ -3 -3 ] [ 3 -3 ] [ 3 3 ] [ -3 3 ] ] ( corner |
+		sketch [ foot heading corner first 0 corner second placed foot heading corner first 20 corner second placed ] sketch-path
+	) each
+	sketch foot heading 0 20 0 placed heading 7 7 4 sketch-box
+	sketch [ foot heading 0 23 0 placed foot heading 0 26 12 placed ] sketch-path ;
+
+\ Trondheim's harbour in March 1942: the piers, quays and breakwaters (today's, from the map), each its edge 2 m above the water and a parallel edge 8 m in; on each quay 150 m or longer a portal crane every 80 m with a warehouse behind it, 40 m long, 15 m deep, 8 m to the eaves; the U-boat bunker Dora I, building since the autumn of 1941 and handed over in June 1943 (published), its walls up to 10 m with no roof, two tower cranes over it (heights and crane spacing estimates)
+: build-harbour ( -- )
+	new-sketch to quays
+	new-sketch to sheds
+	harbour-piers ( pier |
+		pier 2 ground-path to edge
+		quays edge sketch-path
+		quays pier 8 offset-path ( point | [ point first 2 point 2 @i ] ) map sketch-path
+		1 pier size 1 do k
+			pier k 1- @i to a
+			pier k @i to b
+			b first a first - sq b second a second - sq + sqrt to stretch
+			stretch 150 >= if
+				[ b first a first - b second a second - ] to direction
+				direction first direction second atan2 180 * PI / to bearing
+				[ a first 0 a second ] to start
+				0 stretch 80 / round-down 1 do c
+					start bearing 0 0 c 80 * 40 + placed to foot
+					quays foot bearing 90 - sketch-portal-crane
+					sheds foot bearing 90 + 0 0 25 placed bearing 15 40 8 11 sketch-house
+				loop
+			then
+		loop
+	) each
+	quays warship-colour keep
+	sheds town-colour keep
+	dora-outline size 0 > if
+		new-sketch to bunker
+		bunker dora-outline 0 ground-path 10 sketch-prism
+		[ dora-outline first dora-outline dora-outline size 2 / round-down @i ] ( corner |
+			bunker [ corner first 0 corner second ] 0 40 25 sketch-hammerhead
+		) each
+		bunker stone-colour keep
+	then ;
 
 \ Trondheim: its streets lined with buildings an estimated 12 m high, the station's shed an estimated 10 m, the railways; Nidaros Cathedral, 102 m by 50 m across the transepts and 21 m high, its central spire's tip 87 m (published), the west front's towers an estimated 40 m; Munkholmen's fort on its islet; the Luftwaffe's airfield at Værnes
 : build-trondheim ( -- )
@@ -529,6 +665,7 @@ variable tirpitz-heading
 	fort :munkholmen landmark-ground 15 0 12 12 sketch-drum
 	fort :munkholmen landmark-ground 6 12 22 8 sketch-drum
 	fort stone-colour keep
+	build-harbour
 	:vaernes landmark-ground 90 keep-airfield
 	[ 0 0 0 ] use-water-near ;
 
@@ -536,11 +673,13 @@ variable tirpitz-heading
 
 \ build the whole scenery once
 : build-scenery ( -- collection )
-	| ^scenery ^hill-cones |
+	| ^scenery ^hill-cones ^terrain-tiles |
 	[ ] to scenery
 	[ ] to hill-cones
+	[ ] to terrain-tiles
 	build-waters
 	build-hills
+	build-norway-terrain
 	build-airfields
 	build-edinburgh
 	build-forth-bridge
@@ -550,4 +689,5 @@ variable tirpitz-heading
 	build-inverness
 	build-trondheim
 	build-tirpitz
+	gather-terrain
 	scenery collect-objects ;

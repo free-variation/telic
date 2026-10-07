@@ -4,33 +4,41 @@
 \ m/min published), and a take-off from Turnhouse with the stick eased back
 \ from 45 m/s. Each line gives the model's figure, rounded.
 
-[ "geography" "space" "shapes" "render" "world" "cities" "flight" ] ( name | "examples/spitfire/" name + ".telic" + load ) each
+[ "geography" "norway-terrain" "space" "shapes" "render" "world" "cities" "aircraft-types" "flight" ] ( name | "examples/spitfire/" name + ".telic" + load ) each
 build-scenery drop
 
-\ === level speed: the nose held so the height stays put ===
+\ === level speed: the nose held so the height stays put, the stick against the climb and the pitch rate, the trim wound against the climb ===
 : level-speed ( height -- km/h )
 	| height |
 	[ 0 height 0 ] 0 120 false new-plane to aircraft
 	aircraft 1 :throttle ! 1 :revolutions ! drop
 	0 3000 1 do k
-		aircraft@velocity second negate 0.05 * aircraft@angle-of-attack 0.3 * + -1 1 clamp controls swap :pitch ! drop
+		aircraft@velocity second to climb
+		climb -0.02 * aircraft@rates second 0.6 * - -1 1 clamp controls swap :pitch ! drop
+		aircraft@trim climb 0.001 * - -1 1 clamp aircraft!trim
 		aircraft 0.05 fly
 	loop
 	aircraft@velocity v-length 3.6 * round ;
-5669 level-speed . cr                                      \ 579
-300 level-speed . cr                                       \ 477
+5669 level-speed . cr                                      \ 578
+300 level-speed . cr                                       \ 478
 clear
 
-\ === climb: the nose held so the speed stays at 75 m/s ===
+\ === climb: the nose held so the speed stays at 75 m/s, the stick against the speed's excess, its growth and the pitch rate, the trim wound slowly against the excess ===
 : climb-rate ( -- m/min )
 	[ 0 300 0 ] 0 80 false new-plane to climber
 	climber 1 :throttle ! 1 :revolutions ! drop
+	80 to previous
 	0 1200 1 do k
-		climber@velocity v-length 75 - 0.05 * climber@angle-of-attack 0.2 * - -1 1 clamp controls swap :pitch ! drop
+		climber@velocity v-length to speed
+		speed 75 - to excess
+		speed previous - 0.05 / to growth
+		speed to previous
+		excess 0.03 * growth 0.08 * + climber@rates second 0.6 * - -1 1 clamp controls swap :pitch ! drop
+		climber@trim excess 0.0002 * + -1 1 clamp climber!trim
 		climber 0.05 fly
 	loop
 	climber@velocity second 60 * round ;
-climb-rate . cr                                            \ 716
+climb-rate . cr                                            \ 861
 clear
 
 \ === take-off from Turnhouse ===
@@ -50,4 +58,4 @@ clear
 		then
 	loop
 	lifted-at lift-off-speed run ;
-take-off . . . cr                                          \ 335 167 14.7
+take-off . . . cr                                          \ 346 169 14.95

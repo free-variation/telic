@@ -1,0 +1,448 @@
+\ Spitfire: the guns, from first principles. Each gun fires its published
+\ rounds a minute at its published muzzle velocity; a frame's rounds from
+\ one group of guns fly together as a salvo, from the gun with the
+\ shooter's velocity added, falling under gravity (the air's drag left out).
+\ A salvo spreads in a cone: the Spitfire's guns, harmonised on one point
+\ 250 yards ahead, put a cone 6 ft across at 200 yards (published), taken
+\ as four standard deviations, 0.0025 rad; the Bf 110's nose guns, close
+\ together and parallel, are given the same; a rear gunner's MG 15 on its
+\ moving mount aims to within 0.01 rad (an estimate). The target is a disc
+\ of the area it presents along the line of fire: its frontal, wing and side
+\ areas, each in proportion to how squarely it faces the salvo (the wing
+\ areas published, the frontal and side areas measured from the models).
+\ A salvo passing the disc's centre at b, spread s at that distance, disc
+\ radius a, lands the share a² ÷ (a² + 2s²) × e^(−b² ÷ (a² + 2s²)) of its
+\ rounds: a round Gaussian spread falling on a round soft-edged target.
+\
+\ A rifle-calibre round's hit counts 1 and a 20 mm shell's 22.2, from the
+\ rule that a single-engined fighter falls to about 100 rifle-calibre hits
+\ or 4 to 5 of 20 mm. An aircraft falls when its hits reach its strength,
+\ 100 × (empty mass ÷ 2,184 kg)^0.7396: the fighter's 100 at the Spitfire's
+\ empty mass, and the B-17's 20 hits of 20 mm, the German figure, at its
+\ 16,391 kg. The Bf 110 C (4,500 kg) takes 171, the He 111 (6,900 kg) 234,
+\ the Ju 88 (8,050 kg, the A-4's) 263. The air-firing exercise's Lysander
+\ tug (1,887 kg, 24.15 m² of wing, published; its frontal and side areas
+\ estimates) and drogue (estimates) count their hits and never fall. The
+\ player's aircraft takes its
+\ hits as damage, 100 stopping the engine; a round hit holes the radiator
+\ 4.3% of the time and the oil cooler 1.5%, their shares of the frontal
+\ area (estimates from the model).
+\
+\ The guns and their rounds: the Spitfire's eight Brownings, 1,150 rounds a
+\ minute at 811 m/s, 300 each; the Hurricane's eight, the inner pairs' 334
+\ rounds and the outer pairs' 287 taken as 310.5 each, its empty mass
+\ (2,260 kg) and presented areas estimates; the Bf 110's four MG 17s, 1,100 at 895 m/s,
+\ 1,000 each, two MG FF, 530 at 600 m/s, 180 each, and its rear MG 15; the
+\ bombers' rear MG 15, 1,025 at 755 m/s from 75-round drums, 4 s to change
+\ a drum (an estimate). Computer-flown shooters fire when their aim, with
+\ the lead and drop their rounds need, puts the target within the spread,
+\ inside 600 m (an estimate), the raid's gunners after 3 s to take aim
+\ (an estimate); whether they hit is the salvo's flight alone.
+\
+\ The battle shows: each salvo a tracer streak; each hit a flash; an
+\ aircraft past half its strength trails smoke, past three quarters fire;
+\ and an aircraft in air colder than -40 °C leaves a contrail.
+
+0xffe070 constant tracer-colour
+0xff7050 constant german-tracer-colour
+22.2 constant cannon-weight
+0.0025 constant fixed-spread
+0.01 constant rear-spread
+600 constant opening-range
+3 constant gunner-aim-time
+4 constant drum-change-time
+1.5 constant salvo-life
+0.043 constant radiator-share
+0.015 constant oil-cooler-share
+20 cannon-weight * 100 / ln 16391 2184 / ln / constant strength-exponent
+
+\ each type's guns, in groups that fire together: how many, rounds a minute, muzzle velocity, the weight of a hit, the spread, rounds each (or in a drum), fixed forward or the rear gunner's
+variable gun-table
+{ :spitfire [ { :guns 8 :rate 1150 :velocity 811 :weight 1 :spread fixed-spread :rounds 300 :mount :fixed } ]
+  :hurricane [ { :guns 8 :rate 1150 :velocity 811 :weight 1 :spread fixed-spread :rounds 310.5 :mount :fixed } ]
+  :bf-110 [ { :guns 4 :rate 1100 :velocity 895 :weight 1 :spread fixed-spread :rounds 1000 :mount :fixed }
+            { :guns 2 :rate 530 :velocity 600 :weight cannon-weight :spread fixed-spread :rounds 180 :mount :fixed }
+            { :guns 1 :rate 1025 :velocity 755 :weight 1 :spread rear-spread :rounds 75 :mount :rear } ]
+  :he-111 [ { :guns 1 :rate 1025 :velocity 755 :weight 1 :spread rear-spread :rounds 75 :mount :rear } ]
+  :ju-88 [ { :guns 1 :rate 1025 :velocity 755 :weight 1 :spread rear-spread :rounds 75 :mount :rear } ] } to gun-table
+
+\ each type's empty mass, kg, and the areas it presents, m²: from ahead, from above (the wing's published area) and from the side
+variable aircraft-figures
+{ :spitfire { :empty 2184 :frontal 3.7 :planform 22.48 :side 7.5 }
+  :hurricane { :empty 2260 :frontal 4.2 :planform 23.92 :side 9.5 }
+  :bf-110 { :empty 4500 :frontal 7.9 :planform 38.5 :side 14 }
+  :he-111 { :empty 6900 :frontal 14.9 :planform 87.6 :side 30 }
+  :ju-88 { :empty 8050 :frontal 12.3 :planform 54.5 :side 26 }
+  :lysander { :empty 1887 :frontal 4.5 :planform 24.15 :side 11 }
+  :drogue { :empty 2184 :frontal 0.79 :planform 5.1 :side 5.1 } } to aircraft-figures
+
+\ the salvos in flight, and the flashes of hits, each [ position age ]
+variable salvos
+[ ] to salvos
+variable flashes
+[ ] to flashes
+0.12 constant flash-life
+0xfff0a0 constant flash-colour
+0xff9030 constant fire-colour
+
+\ the salvos and flashes forgotten, for a new flight
+: reset-gunnery ( -- )
+	| ^salvos ^flashes |
+	[ ] to salvos
+	[ ] to flashes ;
+
+\ whether an aircraft is the player's, and its type
+: player? ( craft -- flag ) :kind null @or null? ;
+: kind-of ( craft -- kind )
+	| craft |
+	craft player? if craft@type@kind exit then
+	craft :kind :spitfire @or ;
+
+\ an aircraft's velocity: the player's its own, the others' from their attitude and speed
+: velocity-of ( craft -- velocity )
+	| craft |
+	craft player? if craft@velocity exit then
+	craft craft-velocity ;
+
+\ whether an aircraft can still be hit: the player's until it crashes, the others while flying
+: hittable? ( craft -- flag )
+	| craft |
+	craft player? if plane@crashed not exit then
+	craft flying? ;
+
+\ the hits that bring a type down, in rifle-calibre rounds
+: strength ( kind -- hits )
+	| kind |
+	aircraft-figures kind @ to figures
+	figures@empty 2184 / strength-exponent ^ 100 * ;
+
+\ the radius of the disc an aircraft presents to a point
+: presented-radius ( target from -- radius )
+	| target from |
+	aircraft-figures target kind-of @ to figures
+	target@position from v- v-unit to sight
+	target@attitude to attitude
+	figures@frontal attitude@forward sight v-dot abs *
+	figures@planform attitude@up sight v-dot abs * +
+	figures@side attitude@right sight v-dot abs * +
+	PI / sqrt ;
+
+\ how the squadron names an aircraft it shot down
+: kind-name ( kind -- text )
+	| kind |
+	kind :bf-110 = if "A BF 110" exit then
+	kind :he-111 = if "AN HE 111" exit then
+	"A JU 88" ;
+
+\ an aircraft's rounds left in each group, its rear gunner's drum change and aim still to come, set from its type the first time asked
+: rounds-left ( craft -- rounds )
+	| craft |
+	craft :rounds-left null @or to rounds
+	rounds null? not if rounds exit then
+	gun-table craft kind-of @ ( group | group@mount :rear = if group@rounds else group@rounds group@guns * then ) map to rounds
+	rounds craft!rounds-left
+	0 craft!reload-left
+	gunner-aim-time craft!aim-left
+	rounds ;
+
+\ where to aim to hit a target with rounds of a muzzle velocity: where it will be when they arrive, moved as the shooter's velocity carries them, and above it by their drop
+: lead-point ( shooter target muzzle-velocity -- point )
+	| shooter target muzzle-velocity |
+	target@position shooter@position v- v-length muzzle-velocity / to flight-time
+	target velocity-of shooter velocity-of v- flight-time v* target@position v+
+	[ 0 gravity flight-time sq * 2 / 0 ] v+ ;
+
+\ a frame's rounds from one group of a shooter's guns, a salvo along a direction at a target: rounds spent from the group's store, the player's from its seconds of fire
+: fire-group ( shooter index direction target credit source dt -- )
+	| shooter index direction target credit source dt |
+	gun-table shooter kind-of @ index @i to group
+	group@guns group@rate * 60 / dt * to rounds
+	shooter player? not if
+		shooter rounds-left to store
+		rounds store index @i min2 to rounds
+		store store index @i rounds - index !i drop
+	then
+	rounds 0 <= if exit then
+	salvos
+	{ :position shooter@position direction 4 v* v+
+	  :velocity shooter velocity-of direction group@velocity v* v+
+	  :rounds rounds :weight group@weight :spread group@spread :travel 0 :age 0
+	  :target target :credit credit :source source }
+	add-last! drop ;
+
+\ of some aircraft, the one nearest a shooter's line of fire, ahead of it within 1,200 m, or null
+: nearest-on-line ( shooter candidates -- target )
+	| shooter candidates |
+	candidates ( craft |
+		shooter craft@position bearing-from drop to ahead
+		craft hittable? ahead 0 > and ahead 1200 < and
+	) filter to ahead-of
+	ahead-of size 0 = if null exit then
+	ahead-of ( craft | shooter craft@position bearing-from swap drop ) sort-by first ;
+
+\ whether a shooter's fixed guns bear on a target: within the opening range, the lead point within the spread and the target's disc of the line of fire
+: guns-bear? ( shooter target group -- flag )
+	| shooter target group |
+	shooter target group@velocity lead-point to aim
+	aim shooter@position v- v-length to range
+	range opening-range > if false exit then
+	shooter aim bearing-from to off-line to ahead
+	ahead 0 > off-line group@spread 2 * target shooter@position presented-radius range 1 max2 / + < and ;
+
+\ hits on an aircraft: the player's takes them as damage, with leaks from the radiator's and the oil cooler's shares of the rounds and what hit it named; another falls when its hits reach its strength, the player's kills counted
+: apply-hits ( target hit-rounds weight credit source -- )
+	| target hit-rounds weight credit source |
+	hit-rounds weight * to weighted
+	target player? if
+		plane@damage weighted + 100 min2 plane!damage
+		source say
+		1 1 radiator-share - hit-rounds ^ - random > if
+			plane@coolant-leak 0.01 + plane!coolant-leak
+			"HIT IN THE RADIATOR  -  GLYCOL LEAKING, WATCH THE TEMPERATURE" say
+		then
+		1 1 oil-cooler-share - hit-rounds ^ - random > if
+			plane@oil-leak 0.005 + plane!oil-leak
+			"HIT IN THE OIL SYSTEM  -  WATCH THE OIL PRESSURE" say
+		then
+		exit
+	then
+	target@hits weighted + target!hits
+	weighted 1 >= if flashes [ target@position 0 ] add-last! drop then
+	target practice-target? if exit then
+	target@hits target kind-of strength < if exit then
+	target flying? not if exit then
+	:falling target!state
+	target :role :bomber @or :spitfire = if "A SPITFIRE IS GOING DOWN" say exit then
+	credit :player = if
+		:kills game@ 1+ :kills game!
+		"RAIDER DESTROYED" say
+		exit
+	then
+	target@kind kind-name "A SPITFIRE HAS SHOT DOWN {0}" format say ;
+
+\ one salvo's step: it flies and falls; if its target is in its reach, at the step where it passes nearest, the share of its rounds that hit are spent on it
+: move-salvo ( salvo dt -- )
+	| salvo dt |
+	salvo@position to start
+	salvo@velocity [ 0 gravity dt * 0 ] v- to velocity
+	start salvo@velocity velocity v+ 0.5 v* dt v* v+ to finish
+	velocity salvo!velocity
+	finish salvo!position
+	salvo@travel finish start v- v-length + salvo!travel
+	salvo@age dt + salvo!age
+	salvo@target to target
+	target null? if exit then
+	target hittable? not if exit then
+	target@position to centre
+	start centre target velocity-of dt v* v- v- to near
+	finish centre v- to far
+	far near v- to path
+	path path v-dot to path-length
+	path-length 0 = if exit then
+	near path v-dot negate path-length / to along
+	along 0 <= along 1 > or if exit then
+	near path along v* v+ v-length to miss
+	salvo@spread salvo@travel * to spread
+	target start presented-radius to radius
+	radius sq 2 spread sq * + to width
+	radius sq width / miss sq negate width / exp * to share
+	salvo@rounds share * to hit-rounds
+	salvo@rounds hit-rounds - salvo!rounds
+	target hit-rounds salvo@weight salvo@credit salvo@source apply-hits ;
+
+\ the salvos' step: each flies, and those older than their life or spent are dropped
+: advance-salvos ( dt -- )
+	| dt ^salvos |
+	salvos ( salvo | salvo dt move-salvo ) each
+	salvos ( salvo | salvo@age salvo :life salvo-life @or < salvo@rounds 0.01 > and ) filter to salvos ;
+
+\ the Spitfires the raid can fire at: the player's, unless crashed, and the squadron's still flying
+: spitfires ( -- crafts )
+	plane@crashed if [ ] else [ plane ] then
+	wingmen ( wingman | wingman flying? ) filter concat ;
+
+\ the raid still flying
+: raiders ( -- crafts ) bombers ( bomber | bomber flying? ) filter ;
+
+\ the player's guns while the trigger is held and rounds last, at the raider nearest the line of fire
+: player-fire ( dt -- )
+	| dt |
+	:firing game@ plane@ammunition 0 > and not if exit then
+	plane@ammunition dt - 0 max2 plane!ammunition
+	plane raiders nearest-on-line to target
+	plane 0 plane@attitude@forward target :player "" dt fire-group ;
+
+\ the squadron's guns: each Spitfire still flying fires when they bear on the raider nearest its line of fire
+: wingmen-fire ( dt -- )
+	| dt |
+	raiders to targets
+	wingmen ( wingman |
+		wingman flying? if
+			wingman targets nearest-on-line to target
+			target null? not if
+				gun-table :spitfire @ first to group
+				wingman target group guns-bear? if
+					wingman 0 wingman@attitude@forward target :wingman "" dt fire-group
+				then
+			then
+		then
+	) each ;
+
+\ the escort's nose guns, the MG 17s and the MG FFs together, when they bear on the Spitfire nearest the line of fire; and a warning, at most every 6 s, of a Bf 110 behind the player within 800 m
+: escort-fire ( dt -- )
+	| dt |
+	spitfires to targets
+	game :tail-warning-left 0 @or dt - :tail-warning-left game!
+	bombers ( fighter |
+		fighter fighter? fighter@state :inbound = and if
+			fighter targets nearest-on-line to target
+			target null? not if
+				gun-table :bf-110 @ first to group
+				fighter target group guns-bear? if
+					fighter 0 fighter@attitude@forward target :german "HIT BY A BF 110'S GUNS" dt fire-group
+					fighter 1 fighter@attitude@forward target :german "HIT BY A BF 110'S CANNON" dt fire-group
+				then
+			then
+			plane fighter@position bearing-from drop 0 < fighter@position plane@position v- v-length 800 < and :tail-warning-left game@ 0 <= and if
+				"A BF 110 IS ON YOUR TAIL  -  BREAK" say
+				6 :tail-warning-left game!
+			then
+		then
+	) each ;
+
+\ the rear gunners: after taking aim, each fires at the nearest Spitfire behind it within the opening range, aiming at its lead point; an empty drum is changed
+: gunners-fire ( dt -- )
+	| dt |
+	spitfires to targets
+	bombers ( gunner |
+		gunner flying? gun-table gunner kind-of null @or null? not and if
+			gunner rounds-left to store
+			store size 1- to index
+			gunner@aim-left dt - 0 max2 gunner!aim-left
+			gunner@reload-left 0 > if
+				gunner@reload-left dt - gunner!reload-left
+				gunner@reload-left 0 <= if
+					gun-table gunner kind-of @ last to drum-group
+					store drum-group@rounds index !i drop
+				then
+			else
+				targets ( craft |
+					gunner craft@position bearing-from drop 0 < craft@position gunner@position v- v-length opening-range < and
+				) filter ( craft | craft@position gunner@position v- v-length ) sort-by to behind
+				behind size 0 > gunner@aim-left 0 <= and if
+					behind first to target
+					gun-table gunner kind-of @ last to group
+					gunner target group@velocity lead-point gunner@position v- v-unit to direction
+					gunner index direction target :german "HIT BY RETURN FIRE" dt fire-group
+					store index @i 0 <= if drum-change-time gunner!reload-left then
+				then
+			then
+		then
+	) each ;
+
+\ the damage showing: an aircraft past half its strength trails smoke, a point every 0.25 s, the last 40 kept
+: trail-damage ( dt -- )
+	| dt |
+	bombers wingmen concat ( craft |
+		craft flying? craft practice-target? not and craft@hits craft kind-of strength 0.5 * >= and if
+			craft@smoke-left dt - craft!smoke-left
+			craft@smoke-left 0 <= if
+				craft@smoke craft@position add-last! drop
+				craft@smoke size 40 > if craft@smoke 1 skip craft!smoke then
+				0.25 craft!smoke-left
+			then
+		then
+	) each ;
+
+\ lines in the view, each [ from to ], in one colour
+: draw-lines ( lines colour -- )
+	| lines colour |
+	lines size 0 = if exit then
+	[ 0 lines size 1 do k
+		lines k @i to line
+		line first
+		line second
+	loop ] to ends
+	ends ( point | point spread 1 4 array ) map flatten ends size 4 matrix to points
+	[ 0 ends size 1 do k k loop ] to edges
+	points camera matmul edges colour draw-edges ;
+
+\ contrails: an aircraft in air colder than -40 °C (an estimate of where engine exhaust freezes) leaves a point every 0.5 s, each kept 60 s; the trails as [ position time ] points per aircraft, the clock running with the guns' steps
+-40 constant contrail-temperature
+60 constant contrail-life
+variable battle-clock
+0 to battle-clock
+
+: lay-contrails ( dt -- )
+	| dt ^battle-clock |
+	battle-clock dt + to battle-clock
+	bombers wingmen concat plane@crashed if [ ] else [ plane ] then concat ( craft |
+		craft :contrail [ ] @or ( point | battle-clock point second - contrail-life < ) filter to trail
+		craft hittable? craft@position second air-temperature contrail-temperature < and if
+			craft :contrail-left 0 @or dt - to left
+			left 0 <= if
+				trail [ craft@position battle-clock ] add-last! drop
+				0.5 to left
+			then
+			left craft!contrail-left
+		then
+		trail craft!contrail
+	) each ;
+
+\ the contrails as lines between each trail's points 0.5 s apart, white
+: draw-contrails ( -- )
+	bombers wingmen concat [ plane ] concat ( craft |
+		craft :contrail [ ] @or to trail
+		[ 1 trail size 1 do k
+			trail k 1- @i to earlier
+			trail k @i to later
+			later second earlier second - 0.6 < if [ earlier first later first ] then
+		loop ]
+	) map [ ] ' concat reduce cloud-top-colour draw-lines ;
+
+\ the flashes' ages, those past their life dropped
+: age-flashes ( dt -- )
+	| dt ^flashes |
+	flashes ( flash | [ flash first flash second dt + ] ) map ( flash | flash second flash-life < ) filter to flashes ;
+
+\ the guns' step: every shooter's guns, the salvos' flight, the flashes, the smoke of the damaged
+: advance-gunnery ( dt -- )
+	| dt |
+	dt 0 <= if exit then
+	dt player-fire
+	dt wingmen-fire
+	dt escort-fire
+	dt gunners-fire
+	dt advance-salvos
+	dt age-flashes
+	dt trail-damage
+	dt lay-contrails ;
+
+\ the battle's light: the salvos' tracers, a 20 m streak behind each, the Spitfires' yellow and the raid's red; each hit's flash, a star of six arms 3 m long; the fire of an aircraft past three quarters of its strength, five flickering strokes trailing up to 12 m behind it; bright by night as by day
+: draw-battle ( -- )
+	| ^lighting |
+	draw-contrails
+	lighting to scene-lighting
+	1 to lighting
+	flashes ( flash |
+		flash first to centre
+		[ [ 3 0 0 ] [ 0 3 0 ] [ 0 0 3 ] ] ( arm | [ centre arm v+ centre arm v- ] ) map
+	) map [ ] ' concat reduce to flash-lines
+	flash-lines flash-colour draw-lines
+	bombers wingmen concat ( craft |
+		craft flying? craft practice-target? not and craft@hits craft kind-of strength 0.75 * >= and
+	) filter to burning
+	burning ( craft |
+		craft@position to centre
+		craft@attitude@forward to backward-axis
+		[ 0 5 1 do k
+			[ centre centre backward-axis random 12 * negate v* v+ [ random 0.5 - 2 * random 2 * random 0.5 - 2 * ] v+ ]
+		loop ]
+	) map [ ] ' concat reduce to fire-lines
+	fire-lines fire-colour draw-lines
+	[ :german :british ] ( side |
+		salvos ( salvo | salvo@credit :german = side :german = = ) filter
+		( salvo | [ salvo@position salvo@position salvo@velocity v-unit -20 v* v+ ] ) map
+		side :german = if german-tracer-colour else tracer-colour then draw-lines
+	) each
+	scene-lighting to lighting ;

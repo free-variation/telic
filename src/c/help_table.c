@@ -359,6 +359,7 @@ const HelpEntry help_entries[] = {
 	{ "fill", "( color -- )", "Set the current fill color", NULL, NULL, NULL, 48 },
 	{ "fill-circle", "( x y r -- )", "The filled circle of radius r centred on x y", "r²", "none", "O(r²)", 34 },
 	{ "fill-rect", "( x y w h -- )", "The filled w×h rectangle with its top-left corner at x y", "w·h", "none", "O(w·h)", 34 },
+	{ "fill-triangle", "( x0 y0 x1 y1 x2 y2 -- )", "The filled triangle with corners at the three points, which may be fractional and lie off the canvas: every pixel whose centre lies inside it. Each row's span runs between the edges' crossings of the row's centre line, so triangles sharing an edge leave no gap and no overlap", "n", "none", "O(n)", 34 },
 	{ "filter", "( arr/set xt -- arr ) or ( dataset xt -- dataset )", "Keep elements where xt is truthy. datasets.telic extends it to a dataset: xt sees each row as a frame keyed by column name and answers a bool (1.0/0.0); the kept rows come back as a dataset, so every column keeps its representation", "2 + n·xt", "malloc(n) flags + 1a(k); dataset rows + mask + one column each", "O(n·xt)", 25 },
 	{ "filter-columns", "( dataset pred -- dataset )", "datasets.telic: the columns whose name and values satisfy pred ( column-name column -- binary ), in dataset order, as a fresh frame sharing the column values; every column is offered, so selecting by name is the predicate's job. Non-mutating", "c·(pred + log c)", "kept-key array + 1o", "O(c·(pred + log c))", 24 },
 	{ "find-executable", "( name -- path|null )", "io.telic: the absolute path of name on $PATH (first directory holding it), or null if unset or not found; a name containing / answers null (it names a path, not a command); existence is tested, not the executable bit", "split + probe", "1o per candidate", "O(dirs)", 32 },
@@ -793,6 +794,7 @@ const HelpEntry help_entries[] = {
 	{ "test", "( name xt -- )", "test.telic: run xt under catch; print ok <name> or FAIL <name>: <reason> (a runtime error's :message, else the thrown value), tally it, restore the stack, continue past a failure", "—", "prints", "O(xt)", 26 },
 	{ "test-report", "( -- )", "test.telic: print <n> passed, <m> failed; throw when any failed so a program-file run exits nonzero", "—", "prints", "O(1)", 26 },
 	{ "text-anchor", "( anchor -- )", "Set the current text anchor: \"start\", \"middle\", or \"end\"", NULL, NULL, NULL, 48 },
+	{ "text-scale", "( n -- )", "Draw every later print-at with each pixel of the font as an n×n block, so its glyphs, its line height and its text-width grow n times while every other shape stays the same size; default 1. Opens no window. An integer in [1, 16]; anything else errors", "2", "none", "O(1)", 34 },
 	{ "text-width", "( str -- n )", "The width in pixels print-at gives str: the sum of its glyphs' widths in Tigr's proportional font, the widest line's when it holds newlines; {name} directives and terminal escapes take none. Opens no window", "n", "none", "O(n)", 34 },
 	{ "then", "—", "Close an if/if…else; patches the forward branch", NULL, NULL, NULL, 10 },
 	{ "throw", "( exc -- )", "Unwind to the nearest catch or reset, leaving exc 1 (what catch consumes); with no enclosing prompt it is an interpreter error, uncaught exception: <value>, the trace captured at the throw site. The prompt search skips locals regions, so local slots are never read as prompts", "L", "none", "O(L)", 26 },
@@ -891,7 +893,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, arrays element-wise with a trailing rest pattern taking the remaining elements, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails", "n", "none", "O(n)", 28 },
 };
 
-const int help_entry_count = 831;
+const int help_entry_count = 833;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -1197,6 +1199,7 @@ const HelpExample help_examples[] = {
 	{ "fill", "\"plot\" load-library\n320 240 figure \"blue\" fill 1 1 5 5 svg-rect figure>svg \"blue\" has? . cr", "1" },
 	{ "fill-circle", ":springgreen ink  400 200 60 fill-circle", "" },
 	{ "fill-rect", ":gold ink  50 50 250 150 fill-rect", "" },
+	{ "fill-triangle", "0xffffff ink 0 0 6 0 0 6 fill-triangle 0 0 6 1 capture-bitmap matrix>array . cr", "[ 16777215 16777215 16777215 16777215 16777215 0 ]" },
 	{ "filter", "[ 1 2 3 4 ] ( 2 mod 0= ) filter . cr", "[ 2 4 ]" },
 	{ "filter-columns", "{ :a [ 1 2 ] vector :b [ 0 0 ] vector :c [ 3 4 ] vector :d [ \"p\" \"q\" ] } to cols\ncols ( nip dup matrix? if sum 0 eq not else drop 1 then ) filter-columns keys . cr\ncols ( drop dup :b = swap :d = or ) filter-columns keys . cr", "[ :a :c :d ]\n[ :b :d ]" },
 	{ "find-executable", "\"sh\" find-executable null? 0= . cr", "1" },
@@ -1632,6 +1635,7 @@ const HelpExample help_examples[] = {
 	{ "test", "new-tests \"adds\" ( 3 4 + 7 expect= ) test test-report", "ok adds\n1 passed, 0 failed" },
 	{ "test-report", "new-tests \"adds\" ( 3 4 + 7 expect= ) test test-report", "ok adds\n1 passed, 0 failed" },
 	{ "text-anchor", "\"plot\" load-library\n320 240 figure \"middle\" text-anchor 10 10 \"hi\" svg-text figure>svg \"middle\" has? . cr", "1" },
+	{ "text-scale", "\"AB\" text-width . 2 text-scale \"AB\" text-width . 1 text-scale cr", "14 28" },
 	{ "text-width", "\"M.P.H.\" text-width . \"{red}AB\" text-width . cr", "31 14" },
 	{ "then", ": past-ten ( n -- ) 10 > if \"big\" . then \"done\" . cr ; 42 past-ten", "big done" },
 	{ "throw", ": catch-demo ( -- ) ( \"boom\" throw ) catch if \"caught\" . . cr then ; catch-demo", "caught boom" },
@@ -1730,4 +1734,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 834;
+const int help_example_count = 836;

@@ -111,18 +111,25 @@
 	loop ] ;
 
 \ a hill: a ring at its foot, a smaller one part way up, and lines from the foot to the top; the seed turns it and varies its shoulders
-: sketch-hill ( sketch centre radius height seed -- )
-	| sketch centre radius height seed |
+: hill-rings ( centre radius height seed -- foot shoulder summit )
+	| centre radius height seed |
 	7 to count
 	[ 0 count 1 do k
 		k count / TAU * seed + to angle
 		seed k + 3.7 * sin 0.25 * 1 + radius * to reach
 		[ centre first angle sin reach * + centre second centre 2 @i angle cos reach * + ]
 	loop ] to foot
-	foot ( point | point centre 0.45 v-between [ 0 height 0.55 * 0 ] v+ ) map to shoulder
+	foot
+	foot ( point | point centre 0.45 v-between [ 0 height 0.55 * 0 ] v+ ) map
+	centre [ 0 height 0 ] v+ ;
+
+: sketch-hill ( sketch centre radius height seed -- )
+	| sketch centre radius height seed |
+	7 to count
+	centre radius height seed hill-rings to summit-point to shoulder to foot
 	sketch foot sketch-points to foot-indices
 	sketch shoulder sketch-points to shoulder-indices
-	sketch centre [ 0 height 0 ] v+ sketch-point to summit
+	sketch summit-point sketch-point to summit
 	sketch foot-indices join-loop
 	sketch shoulder-indices join-loop
 	0 count 1 do k

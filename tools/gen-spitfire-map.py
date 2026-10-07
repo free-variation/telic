@@ -6,8 +6,9 @@ game needs no network. It downloads Natural Earth's 1:10m vectors (public
 domain) and asks Wikidata (CC0) for the coordinates and heights of the
 landmarks, then writes them in the game's ground frame: metres east (x) and
 north (z) of 56°N 3.6°W, from an equirectangular projection about that point,
-which over the 250 km of the map stays within a few hundred metres of the
-true distances.
+54.9-58.7°N, 5.2-1.3°W. Its east-west distances from 3.6°W are true at 56°N
+and off by the cosine of the latitude elsewhere: 3.4 km long at Tynemouth,
+4 km at the map's south-east corner, 10 km short at its north-east corner.
 
   python3 tools/gen-spitfire-map.py
 
@@ -70,7 +71,7 @@ LAT0 = 56.0
 LON0 = -3.6
 METRES_PER_DEGREE_NORTH = 110574.0
 METRES_PER_DEGREE_EAST = 111320.0 * math.cos(math.radians(LAT0))
-LAT_MIN, LAT_MAX, LON_MIN, LON_MAX = 55.45, 58.7, -5.2, -2.4
+LAT_MIN, LAT_MAX, LON_MIN, LON_MAX = 54.9, 58.7, -5.2, -1.3
 SIMPLIFY_METRES = 150.0
 CELL_METRES = 1000.0
 
@@ -104,6 +105,8 @@ LANDMARKS = [
     ("tolbooth-steeple", "Glasgow Tolbooth"), ("glasgow-necropolis", "Glasgow Necropolis"),
     ("trinity-college", "Trinity College, Glasgow"),
     ("finnieston-crane", "Finnieston Crane"), ("titan-crane", "Titan Clydebank"),
+    ("farne-islands", "Farne Islands"), ("acklington", "RAF Acklington"), ("tynemouth", "Tynemouth"),
+    ("bamburgh-castle", "Bamburgh Castle"), ("lindisfarne-castle", "Lindisfarne Castle"),
 ]
 
 CLYDE = ["Greenock", "Port Glasgow", "Bowling, West Dunbartonshire", "Old Kilpatrick", "Erskine Bridge",

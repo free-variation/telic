@@ -6027,10 +6027,12 @@ Every shape draws in the current `ink`; `cls` fills with the current `paper`.
 | `line` | `( x0 y0 x1 y1 -- )` | A one-pixel line between the endpoints, both included | n | none | O(n) |
 | `rect` | `( x y w h -- )` | The outline of the `w`×`h` rectangle with its top-left corner at `x y` | n | none | O(n) |
 | `fill-rect` | `( x y w h -- )` | The filled `w`×`h` rectangle with its top-left corner at `x y` | w·h | none | O(w·h) |
+| `fill-triangle` | `( x0 y0 x1 y1 x2 y2 -- )` | The filled triangle with corners at the three points, which may be fractional and lie off the canvas: every pixel whose centre lies inside it. Each row's span runs between the edges' crossings of the row's centre line, so triangles sharing an edge leave no gap and no overlap | n | none | O(n) |
 | `circle` | `( x y r -- )` | The outline of the circle of radius `r` centred on `x y` | n | none | O(r) |
 | `fill-circle` | `( x y r -- )` | The filled circle of radius `r` centred on `x y` | r² | none | O(r²) |
 | `print-at` | `( x y str -- )` | Draw `str` with its top-left corner at `x y`, starting in the current `ink`, in Tigr's built-in font: a proportional bitmap font 12 pixels tall covering Windows-1252. A `{name}` directive for any color in `colors` switches the pen for the text after it and `{plain}` returns to the starting ink, so `8 8 "{red}warm {dodgerblue}cool" print-at` draws in two colors; the terminal escapes `format` emits for those directives are read the same way, while `{bold}` and `{dim}` are skipped and an unknown `{…}` draws literally. A newline byte returns to `x` one line down; a code point the font lacks draws as its placeholder glyph. `screen-zoom` enlarges it with everything else | n | none | O(n) |
 | `text-width` | `( str -- n )` | The width in pixels `print-at` gives `str`: the sum of its glyphs' widths in Tigr's proportional font, the widest line's when it holds newlines; `{name}` directives and terminal escapes take none. Opens no window | n | none | O(n) |
+| `text-scale` | `( n -- )` | Draw every later `print-at` with each pixel of the font as an `n`×`n` block, so its glyphs, its line height and its `text-width` grow `n` times while every other shape stays the same size; default 1. Opens no window. An integer in [1, 16]; anything else errors | 2 | none | O(1) |
 | `cls` | `( -- )` | Fill the whole bitmap with the current `paper` | w·h | the bitmap, once | O(w·h) |
 | `ink` | `( color -- )` | graphics.telic: the color every later shape draws in. Default white | 3 | none | O(1) |
 | `paper` | `( color -- )` | graphics.telic: the color `cls` fills with, and the color a new bitmap starts at. Default black | 3 | none | O(1) |
@@ -6149,6 +6151,20 @@ screen-frames  1 sleep  screen-frames swap - . cr
 ```
 ```output
 31 14
+```
+
+```forth-noexec text-scale
+"AB" text-width . 2 text-scale "AB" text-width . 1 text-scale cr
+```
+```output
+14 28
+```
+
+```forth-noexec fill-triangle
+0xffffff ink 0 0 6 0 0 6 fill-triangle 0 0 6 1 capture-bitmap matrix>array . cr
+```
+```output
+[ 16777215 16777215 16777215 16777215 16777215 0 ]
 ```
 
 ```forth colors

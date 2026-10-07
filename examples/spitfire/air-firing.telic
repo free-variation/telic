@@ -1,0 +1,264 @@
+\ Spitfire: air firing, as an Operational Training Unit taught it: live
+\ rounds at a drogue, a cloth sleeve towed on a cable behind a target tug,
+\ a Lysander at about 110 mph (the tow speed and the Lysander's use as a
+\ tug as historyrise.com gives them). The instructor, on the R/T, takes the
+\ pupil through ranging with the sight's bars on the tug's published 50 ft
+\ span, an astern attack, a quarter attack aimed off by the ring, whose
+\ radius is the lead for a target crossing at 100 mph (429sqn.ca's account
+\ of the reflector sight), and a turning target; bursts of 1 to 2 seconds,
+\ fired only when the sight is on, are Malan's first rule. The steps run
+\ as the flying lesson's do. Each burst is assessed a second after the
+\ trigger is let go, when its rounds have arrived: the range it opened at,
+\ the angle off the drogue's tail, the hits, the lead the burst needed and
+\ the lead given, both in miles an hour of crossing speed as the ring
+\ measures them, and where the guns' line passed the point the rounds had
+\ to be aimed at, in feet. The guns are filled again for each exercise.
+\ The cable's 450 m, the drogue's 30 m sag below the tug's track, the
+\ racetrack's 150 s legs are estimates; the turns are rate one, 3° a
+\ second.
+
+49.2 constant tug-speed
+450 constant cable-length
+30 constant drogue-sag
+3 constant tug-turn-rate
+150 constant tug-leg-time
+60 constant tug-turn-time
+1 constant assessment-delay
+3 constant turning-step
+tug-speed tug-turn-rate PI 180 / * * gravity / atan 180 PI / * constant rate-one-bank
+
+\ the tug's path, each [ position heading ], newest last, kept back as far as the drogue
+variable tug-track
+[ ] to tug-track
+
+\ the tug and the drogue among the raid's aircraft
+: tug ( -- craft ) bombers ( craft | craft :role :bomber @or :tug = ) filter first ;
+: drogue ( -- craft ) bombers ( craft | craft :role :bomber @or :drogue = ) filter first ;
+
+\ metres as yards
+: yards ( metres -- yards ) 0.9144 / ;
+
+\ an aircraft's distance from the Spitfire
+: range-of ( craft -- metres ) :position @ plane@position v- v-length ;
+
+\ the angle between an aircraft's line of flight and the Spitfire's line of sight to it: 0 dead astern, degrees
+: angle-off ( craft -- degrees )
+	| craft |
+	craft@position plane@position v- v-unit to sight
+	craft craft-velocity v-unit sight v-dot -1 1 clamp acos 180 PI / * ;
+
+\ the tug and the drogue at the mission's start, the drogue its cable's length behind on the tug's course; the range bars set for the tug's span; the exercise's tallies
+: start-air-firing ( mission -- )
+	| mission ^bombers ^tug-track ^sight-span |
+	mission@tug-start to start
+	mission@tug-course to course
+	[ ] to tug-track
+	15.24 to sight-span
+	[ { :kind :lysander :role :tug :position start :heading course :pitch 0 :bank 0 :speed tug-speed
+	    :attitude course 0 0 flying-attitude :height start second :target [ 0 0 0 ] :state :flying :hits 0
+	    :smoke [ ] :smoke-left 0 :leg-time 0 :turning false }
+	  { :kind :drogue :role :drogue :position start course 0 drogue-sag negate cable-length negate placed :heading course :pitch 0 :bank 0 :speed tug-speed
+	    :attitude course 0 0 flying-attitude :height start second :target [ 0 0 0 ] :state :flying :hits 0
+	    :smoke [ ] :smoke-left 0 } ] to bombers
+	0 :bursts game!
+	0 :rounds-fired game!
+	0 :drogue-hits game!
+	null :burst game!
+	null :pending game!
+	0 :qualifying game!
+	-1 :seen-step game! ;
+
+\ the tug's step: straight legs and left turns at rate one round a racetrack, and turning all through the turning exercise; its path kept
+: fly-tug ( dt -- )
+	| dt |
+	tug to towing
+	towing@leg-time dt + towing!leg-time
+	:lesson-step game@ turning-step = towing@leg-time tug-leg-time tug-turn-time + mod tug-leg-time > or to turning
+	turning towing@turning not and if "THE TUG IS TURNING LEFT" say then
+	turning towing!turning
+	towing@heading turning if tug-turn-rate dt * else 0 then - 360 + 360 mod towing!heading
+	turning if rate-one-bank negate else 0 then towing!bank
+	towing@heading 0 towing@bank flying-attitude to attitude
+	attitude towing!attitude
+	towing@position attitude@forward tug-speed dt * v* v+ towing!position
+	tug-track [ towing@position towing@heading ] add-last! drop ;
+
+\ the drogue a cable's length back along the tug's path and below it, facing the way the path went there; the path older than that forgotten
+: place-drogue ( -- )
+	| ^tug-track |
+	tug to towing
+	tug-track size to n-points
+	cable-length to remaining
+	towing@position to point
+	towing@heading to heading
+	0 to first-kept
+	0 n-points 1 do k
+		remaining 0 > if
+			tug-track n-points 1- k - @i to entry
+			entry first point v- v-length to step-length
+			step-length remaining >= if
+				point entry first point v- remaining step-length / v* v+ to point
+				0 to remaining
+				entry second to heading
+				n-points 1- k - to first-kept
+			else
+				remaining step-length - to remaining
+				entry first to point
+				entry second to heading
+			then
+		then
+	loop
+	tug-track first-kept skip to tug-track
+	drogue to sleeve
+	point heading 0 drogue-sag negate remaining negate placed sleeve!position
+	heading sleeve!heading
+	heading 0 0 flying-attitude sleeve!attitude ;
+
+\ the burst's aim this frame against the drogue: where the guns' line passed the point the rounds had to be aimed at, across and up in feet, and the lead given and the lead needed along the drogue's crossing, in miles an hour as the ring measures them
+: aim-sample ( -- across up given needed )
+	drogue to sleeve
+	gun-table :spitfire @ first @velocity to muzzle-velocity
+	plane sleeve muzzle-velocity lead-point to aim
+	aim plane@position v- to to-aim
+	to-aim v-length to aim-range
+	plane@position plane@attitude@forward aim-range v* v+ aim v- to miss
+	plane@attitude miss ground>attitude to local
+	sleeve@position plane@position v- v-unit to sight
+	to-aim v-unit sight v- to lead-needed
+	lead-needed v-length to needed
+	needed 0.000001 > if plane@attitude@forward sight v- lead-needed v-dot needed / else 0 then to given
+	local first 3.28084 *
+	local second 3.28084 *
+	given sight-ring-angle / 100 *
+	needed sight-ring-angle / 100 * ;
+
+\ the exercises: what the instructor says, the test that ends each, and for the firing exercises which bursts count toward it
+: air-firing-steps ( -- steps )
+	[ { :say "INSTRUCTOR HERE, ON THE R/T. AHEAD AND BELOW YOU IS THE LYSANDER TUG AT 110 MPH, AND 500 YARDS BEHIND IT ON ITS CABLE THE DROGUE, THE SLEEVE YOU WILL SHOOT AT. FIRST THE SIGHT: ITS RANGE BARS ARE SET FOR THE LYSANDER'S 50 FT SPAN. WHEN THE SPAN JUST FILLS THE GAP BETWEEN THE BARS, IT IS 300 YARDS AWAY. THROTTLE BACK - YOU ARE MUCH FASTER - AND HOLD THE TUG IN THE BARS AT 300 YARDS, DEAD AHEAD, FOR 3 SECONDS. DON'T FIRE."
+	    :done ( :hold-time game@ 3 >= )
+	    :hold ( tug range-of dup 240 > swap 310 < and plane tug :position @ bearing-from 0.1 < swap 0 > and and ) }
+	  { :say "THAT IS WHAT 300 YARDS LOOKS LIKE. NOW THE DROGUE: DROP BACK AND CLOSE ON IT FROM DEAD ASTERN, THE CENTRE SPOT ON IT. FROM ASTERN IT HARDLY CROSSES YOUR SIGHT, SO IT NEEDS NO LEAD. OPEN FIRE AT 250 YARDS - THE RANGE IS IN THE STRIP BELOW THE PANEL - IN BURSTS OF 1 TO 2 SECONDS, ONLY WHEN THE SIGHT IS ON. I'LL ASSESS EACH BURST. THREE BURSTS WITH HITS."
+	    :done ( :qualifying game@ 3 >= )
+	    :burst-test ( burst | burst@hits 0.5 >= ) }
+	  { :say "NOW A QUARTER ATTACK, AS ON A BOMBER. CLIMB TO 1,000 FT ABOVE THE DROGUE AND 1,000 YARDS OUT TO ONE SIDE, LEVEL WITH IT, THEN TURN IN AND DIVE ONTO IT FROM 30 TO 45 DEGREES OFF ITS TAIL. NOW IT CROSSES YOUR SIGHT AND YOU MUST AIM AHEAD OF IT: THE RING'S RADIUS IS THE LEAD FOR 100 MPH OF CROSSING. AT 45 DEGREES OFF IT CROSSES AT ABOUT 80 MPH, SO HOLD IT THREE QUARTERS OF THE WAY OUT TO THE RING, THE CENTRE SPOT AHEAD OF IT ON ITS PATH. FIRE AT 250 YARDS, BREAK AWAY UNDER IT. TWO BURSTS WITH HITS FROM 20 DEGREES OFF OR MORE."
+	    :done ( :qualifying game@ 2 >= )
+	    :burst-test ( burst | burst@hits 0.5 >= burst@angle-off 20 >= and ) }
+	  { :say "LAST, A TURNING TARGET. THE TUG IS GOING ROUND TO THE LEFT AT RATE ONE, 3 DEGREES A SECOND. FOLLOW THE DROGUE ROUND FROM BEHIND AND INSIDE ITS TURN. IT IS ALWAYS CROSSING YOUR SIGHT, SO PULL THE NOSE THROUGH UNTIL THE CENTRE SPOT IS AHEAD OF IT ALONG ITS CURVE, BY THE LEAD THE ANGLE OFF CALLS FOR. TWO BURSTS WITH HITS."
+	    :done ( :qualifying game@ 2 >= )
+	    :burst-test ( burst | burst@hits 0.5 >= ) }
+	  { :say ""
+	    :done ( false ) } ] ;
+
+\ a burst begun: its range, angle off, the hits on the drogue and the tug so far, and its aim's sums
+: start-burst ( -- )
+	drogue to sleeve
+	tug to towing
+	:bursts game@ 1+ :bursts game!
+	{ :number :bursts game@ :range sleeve range-of :angle-off sleeve angle-off
+	  :drogue-hits sleeve@hits :tug-hits towing@hits :time 0 :n-samples 0
+	  :across 0 :up 0 :given 0 :needed 0 } :burst game! ;
+
+\ the burst's frame: its time, and its aim added to the sums
+: sample-burst ( dt -- )
+	| dt |
+	:burst game@ to burst
+	burst@time dt + burst!time
+	aim-sample to needed to given to up to across
+	burst@n-samples 1+ burst!n-samples
+	burst@across across + burst!across
+	burst@up up + burst!up
+	burst@given given + burst!given
+	burst@needed needed + burst!needed ;
+
+\ the assessment of a burst, once its rounds have arrived: the instructor's words on it, the tallies, and whether it counts toward the exercise
+: assess-burst ( burst -- )
+	| burst |
+	drogue to sleeve
+	tug to towing
+	sleeve@hits burst@drogue-hits - to hits
+	towing@hits burst@tug-hits - to tug-hits
+	burst@time 8 * 1150 * 60 / to rounds
+	:rounds-fired game@ rounds + :rounds-fired game!
+	:drogue-hits game@ hits + :drogue-hits game!
+	burst@n-samples 1 max2 to n-samples
+	burst@across n-samples / to across
+	burst@up n-samples / to up
+	burst@given n-samples / to given
+	burst@needed n-samples / to needed
+	hits round burst@time burst@angle-off burst@range yards burst@number
+	"BURST {0}: {1:.0f} YD, {2:.0f} DEG OFF, {3:.1f} S, {4} HITS" format to report
+	needed 10 >= if
+		report given 0 max2 needed "  -  LEAD NEEDED {0:.0f} MPH, YOU GAVE {1:.0f}" format + to report
+	then
+	across abs 1.5 < up abs 1.5 < and if
+		report "  -  AIM ON" + to report
+	else
+		across 0 < if "LEFT" else "RIGHT" then across abs up 0 < if "LOW" else "HIGH" then up abs
+		"  -  AIM {0:.0f} FT {1}, {2:.0f} FT {3} OF WHERE IT HAD TO BE" format report swap + to report
+	then
+	burst@range yards 400 > if report "  -  TOO FAR: OPEN FIRE AT 250 YD" + to report then
+	burst@range yards 100 < if report "  -  TOO CLOSE: BREAK AWAY SOONER" + to report then
+	burst@time 2.5 > if report "  -  SHORTER BURSTS: 1 TO 2 SECONDS" + to report then
+	tug-hits 0 > if "YOU HIT THE TUG! NEVER FIRE WITH IT ANYWHERE NEAR YOUR SIGHT.  " report + to report then
+	report say
+	10 :message-left game!
+	hits burst!hits
+	air-firing-steps :lesson-step game@ @i :burst-test null @or to burst-test
+	burst-test null? if exit then
+	burst burst-test execute if :qualifying game@ 1+ :qualifying game! then ;
+
+\ an exercise begun: its tally cleared, the guns filled; at the end, the exercise's totals in the instruction
+: begin-exercise ( -- )
+	:lesson-step game@ :seen-step game!
+	0 :qualifying game!
+	plane@type@fire-seconds plane!ammunition
+	:lesson-step game@ air-firing-steps size 1- = not if exit then
+	:rounds-fired game@ 1 max2 to rounds
+	:drogue-hits game@ rounds / 100 * :drogue-hits game@ round :rounds-fired game@ :bursts game@
+	"EXERCISE COMPLETE: {0} BURSTS, {1:.0f} ROUNDS, {2} HITS ON THE DROGUE - {3:.1f} PER 100 ROUNDS. ESCAPE FOR THE MISSIONS." format :instruction game! ;
+
+\ the exercise's step: the tug flies and the drogue follows; a burst begins when the trigger is pressed, is sampled while it is held, and is assessed a second after it is let go, or at once if another begins first
+: run-air-firing ( dt -- )
+	| dt |
+	dt 0 <= if exit then
+	:lesson-step game@ :seen-step game@ = not if begin-exercise then
+	dt fly-tug
+	place-drogue
+	:firing game@ plane@ammunition 0 > and to firing
+	firing :burst game@ null? and if
+		:pending game@ null? not if
+			:pending game@ assess-burst
+			null :pending game!
+		then
+		start-burst
+	then
+	firing if dt sample-burst then
+	firing not :burst game@ null? not and if
+		:burst game@ to burst
+		assessment-delay burst!assess-left
+		burst :pending game!
+		null :burst game!
+	then
+	:pending game@ to pending
+	pending null? if exit then
+	pending@assess-left dt - pending!assess-left
+	pending@assess-left 0 > if exit then
+	pending assess-burst
+	null :pending game! ;
+
+\ the cable from the tug to the drogue's bridle
+: draw-tow-cable ( -- )
+	drogue to sleeve
+	tug to towing
+	[ [ towing@position sleeve@position sleeve@attitude@forward 5 v* v+ ] ] bomber-ink draw-lines ;
+
+\ the exercise's lines in the strip below the panel: the step, the drogue's range and angle off, the bursts and the hits
+: draw-air-firing-panel ( -- )
+	436 to x
+	air-firing-steps size :lesson-step game@ 1+ "AIR FIRING, STEP {0} OF {1}" format to step-line
+	x floor-top 4 + step-line 0xffe080 draw-text
+	drogue to sleeve
+	sleeve angle-off sleeve range-of yards "DROGUE {0:.0f} YD  {1:.0f} DEG OFF" format to range-line
+	x floor-top 17 + range-line dial-ink draw-text
+	:drogue-hits game@ round :bursts game@ "BURSTS {0}  HITS {1}" format to tally-line
+	x floor-top 30 + tally-line dial-ink draw-text ;

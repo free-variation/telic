@@ -1,0 +1,78 @@
+\ ==== fill-triangle ( x0 y0 x1 y1 x2 y2 -- ), offline ====
+
+\ fill-triangle fills, in the current ink, every pixel whose centre lies
+\ inside the triangle: each row from its centre's crossings with the edges,
+\ a pixel filled when its centre lies between them; clipped to the canvas.
+\ Drawing needs no window, so capture-bitmap reads the canvas back.
+
+: show-rows ( bitmap -- )
+	| bitmap |
+	bitmap dim to n-columns to n-rows
+	0 n-rows 1 do row
+		"" 0 n-columns 1 do column
+			bitmap row column @i,j 0 = if "." else "#" then +
+		loop . cr
+	loop ;
+
+: blank ( -- ) 0 ink 0 0 12 12 fill-rect 0xffffff ink ;
+
+\ === a right triangle, its corners on pixel corners: row 0's centre, y 0.5, meets the long edge at x 5.5, so pixels 0 to 4 ===
+blank
+0 0 6 0 0 6 fill-triangle
+0 0 7 7 capture-bitmap show-rows
+\ #####..
+\ ####...
+\ ###....
+\ ##.....
+\ #......
+\ .......
+\ .......
+clear
+
+\ === the same corners in another order fill the same pixels ===
+blank
+0 6 6 0 0 0 fill-triangle
+0 0 7 7 capture-bitmap show-rows
+\ #####..
+\ ####...
+\ ###....
+\ ##.....
+\ #......
+\ .......
+\ .......
+clear
+
+\ === a thin sliver: row 1's centre, y 1.5, meets the upper edge at x 5.83, so pixels 0 to 5; rows 0 and 2 have their centres outside ===
+blank
+0 1 7 1.6 0 2 fill-triangle
+0 0 7 3 capture-bitmap show-rows
+\ .......
+\ ######.
+\ .......
+clear
+
+\ === clipped to the canvas: corners off it draw the part on it; row 0's centre meets the long edge at x 4.5 ===
+blank
+-5 -5 10 -5 -5 10 fill-triangle
+0 0 6 6 capture-bitmap show-rows
+\ ####..
+\ ###...
+\ ##....
+\ #.....
+\ ......
+\ ......
+clear
+
+\ === corners in a line fill nothing ===
+blank
+0 0 3 3 6 6 fill-triangle
+0 0 4 4 capture-bitmap show-rows
+\ ....
+\ ....
+\ ....
+\ ....
+clear
+
+\ === errors ===
+0 0 1 1 2 "a" fill-triangle                                 \ (a coordinate that is not a number)
+0 0 1 1 fill-triangle                                       \ (too few coordinates)

@@ -56,7 +56,7 @@
 	  { :say "GOOD. NOW TURN RIGHT, ONTO 060, THE SAME WAY. KEEP YOUR HEIGHT: WATCH THE ALTIMETER AS WELL AS THE GYRO."
 	    :done ( heading-now 60 heading-off 10 < bank-now abs 10 < and ) }
 	  { :say "NOW THE STALL, SO YOU KNOW IT WHEN IT COMES. CLOSE THE THROTTLE (A) AND KEEP THE NOSE UP WITH BACK STICK AS SHE SLOWS. AT ABOUT 80 MPH THE WING STOPS LIFTING AND THE NOSE DROPS: THAT'S THE STALL."
-	    :done ( plane@angle-of-attack stall-angle > ) }
+	    :done ( plane@angle-of-attack plane@type@stall-angle > ) }
 	  { :say "SHE'S STALLED. RECOVER: STICK FORWARD TO GET THE AIR FLOWING OVER THE WING AGAIN, THEN THROTTLE OPEN (Q), AND EASE HER OUT OF THE DIVE. DON'T PULL TOO HARD, OR SHE'LL STALL AGAIN."
 	    :done ( indicated-mph 150 > plane@velocity second -2 > and ) }
 	  { :say "WELL RECOVERED. NOW HOME TO LAND. THE TURNHOUSE LINE UNDER THE PANEL GIVES THE FIELD'S BEARING AND DISTANCE: TURN ONTO THAT BEARING ON THE GYRO, THROTTLE BACK, AND COME DOWN TO 1,000 FEET AS WE GO."
@@ -69,14 +69,13 @@
 	    :done ( plane@on-ground ) }
 	  { :say "WE'RE DOWN. BRAKES, B (B), AND LET HER ROLL TO A STOP. FLAPS UP ONCE WE'RE STOPPED."
 	    :done ( plane@velocity v-length 3 < ) }
-	  { :say "THAT'S THE LESSON. WELL FLOWN. R TO FLY IT AGAIN, ESCAPE FOR THE MISSIONS."
+	  { :say "THAT'S THE LESSON. WELL FLOWN. ESCAPE FOR THE MISSIONS."
 	    :done ( false ) } ] ;
 
-\ the lesson's step: its time runs, and while the step's hold holds, its hold time; once the instruction has been up its least time and the test passes, the next step and its instruction, shown until that step ends
-: run-lesson ( dt -- )
-	| dt |
+\ a lesson's step, of the steps given: its time runs, and while the step's hold holds, its hold time; once the instruction has been up its least time and the test passes, the next step and its instruction, shown until that step ends
+: run-lesson ( steps dt -- )
+	| steps dt |
 	plane@crashed if exit then
-	lesson-steps to steps
 	steps :lesson-step game@ @i to step
 	:step-time game@ dt + :step-time game!
 	step :hold null @or to hold

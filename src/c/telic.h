@@ -1891,6 +1891,7 @@ void p_cls(DISPATCH_ARGS);
 void p_draw_bitmap_ext(DISPATCH_ARGS);
 void p_fill_circle(DISPATCH_ARGS);
 void p_fill_rect(DISPATCH_ARGS);
+void p_fill_triangle(DISPATCH_ARGS);
 void p_gamepad_axis(DISPATCH_ARGS);
 void p_gamepad_down(DISPATCH_ARGS);
 void p_gamepad_pressed(DISPATCH_ARGS);
@@ -1911,6 +1912,7 @@ void p_screen_frames(DISPATCH_ARGS);
 void p_screen_shader(DISPATCH_ARGS);
 void p_screen_size(DISPATCH_ARGS);
 void p_screen_zoom(DISPATCH_ARGS);
+void p_text_scale(DISPATCH_ARGS);
 void p_text_width(DISPATCH_ARGS);
 void p_typed_text(DISPATCH_ARGS);
 

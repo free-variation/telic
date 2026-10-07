@@ -299,6 +299,7 @@ file-info
 fill
 fill-circle
 fill-rect
+fill-triangle
 filter
 filter-columns
 find-executable
@@ -733,6 +734,7 @@ telic-version
 test
 test-report
 text-anchor
+text-scale
 text-width
 then
 throw
