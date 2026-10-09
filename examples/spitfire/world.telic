@@ -1,20 +1,26 @@
 \ Spitfire: the scenery that stays put. The coasts, lochs and rivers come
-\ from geography.telic; the hills are the real summits it names, with ridges
-\ of lesser tops either side of them laid along the ranges' directions (the
-\ Pentlands south-west to north-east, the Ochils and Campsies west to east)
-\ and Highland hills along both sides of Loch Ness, whose heights are
-\ representative rather than surveyed. The towns are their landmarks at the
+\ from geography.telic; the ground over Scotland is scotland-terrain.telic's
+\ surveyed heights every 800 m, which round the summits down (Ben Lomond's
+\ 974 m to 778), with cones for the hills too narrow for that grid: Arthur's
+\ Seat, Calton Hill, the castle rocks of Edinburgh, Stirling and Dumbarton,
+\ the Abbey Craig, North Berwick Law, Craig Phadrig and the Forth's islands.
+\ The towns and airfields stand on level ground at sea level, the surveyed
+\ ground rising or falling to it over 2 km round them. The towns are their landmarks at the
 \ map's positions, built to their published heights where a figure exists
 \ (the Forth Bridge's towers 110 m above high water and its rail 46 m, the
 \ Scott Monument 61 m, the University's tower 85 m), with streets of
 \ tenements, shops and New Town terraces between them; the airfields are the
 \ RAF stations of 1940: Turnhouse and Drem for Edinburgh, Abbotsinch for
-\ Glasgow, Dalcross for Inverness. Round the Trondheimsfjord the ground is
-\ norway-terrain.telic's surveyed heights, drawn as a wireframe and taken
-\ as level where the scenery stands at sea level. Everything is built once
+\ Glasgow, Dalcross for Inverness, Dyce for Aberdeen, Montrose, Wick and
+\ Castletown in Caithness, Hatston and Skeabrae in Orkney, Sumburgh in
+\ Shetland. Over Orkney and Shetland the ground is scotland-terrain.telic's
+\ second grid. Round the Trondheimsfjord the ground is
+\ norway-terrain.telic's surveyed heights, round Narvik and Bardufoss
+\ narvik.telic's, filled in the colours of its land cover by height and
+\ slope, farmland, forest, heath, rock and snow, and taken as level where
+\ the scenery stands on it. Everything is built once
 \ into objects and gathered into the collection the view culls.
 
-0xb8c8e0 constant coast-colour
 0x6a9ad0 constant bank-colour
 0x7c9a5a constant hill-colour
 0xc8c0b0 constant stone-colour
@@ -30,13 +36,78 @@ variable scenery
 variable hill-cones
 [ ] to hill-cones
 
-\ the places round the Trondheimsfjord drawn at sea level, where the ground is taken as level: Trondheim within 2,500 m of Nidaros, Værnes within 1,500 m, Munkholmen within 400 m; each [ x z radius ]
-[ [ :nidaros 2500 ] [ :vaernes 1500 ] [ :munkholmen 400 ] ] ( pair |
-	landmarks pair first @ to place
-	[ place first place second pair second ]
+\ the places where the ground is taken as level at a height, the scenery standing on it, each [ x z radius height ]. In Scotland, where the scenery is built at sea level, the towns and airfields at 0 out to the reach the countryside leaves clear of fields, Aberdeen within 2,500 m of Marischal College, so Old Aberdeen is in it, Dyce at its height, 66 m, Dumbarton's rock and the Abbey Craig under their cones; in Norway Trondheim within 2,500 m of Nidaros, Værnes within 1,500 m and Munkholmen within 400 m at sea level, Narvik's centre within 800 m at sea level, Bardufoss within 1,500 m at its height
+[ [ :edinburgh-castle 3500 0 ] [ :leith 1500 0 ] [ :glasgow-cathedral 4500 0 ] [ :govan 2000 0 ] [ :clydebank 1500 0 ]
+  [ :inverness-castle 2000 0 ] [ :stirling-castle 1500 0 ] [ :dumbarton-castle 600 0 ] [ :wallace-monument 500 0 ]
+  [ :turnhouse 1200 0 ] [ :drem 1200 0 ] [ :abbotsinch 1200 0 ] [ :dalcross 1200 0 ] [ :wick 1200 0 ]
+  [ :marischal-college 2500 0 ] [ :peterhead 1000 0 ] [ :montrose 1000 0 ] [ :kirkwall 1000 0 ] [ :lerwick 800 0 ]
+  [ :hatston 1200 0 ] [ :skeabrae 1200 0 ] [ :castletown 1200 0 ] [ :sumburgh 1200 0 ] [ :montrose-air-station 1200 0 ]
+  [ :dyce 1200 landmarks :dyce @ 2 @i ]
+  [ :nidaros 2500 0 ] [ :vaernes 1500 0 ] [ :munkholmen 400 0 ] [ :narvik 800 0 ] [ :bardufoss 1500 landmarks :bardufoss @ 2 @i ] ] ( place |
+	place spread to height to radius to key
+	landmarks key @ to point
+	[ point first point second radius height ]
 ) map constant level-places
 
-\ the height at a point in one of norway-terrain.telic's grids: the sea where the nearest corner is below 2 m, so the sea stays level up to the shore within half a corner's spacing; elsewhere between the four nearest corners; null outside the grid
+\ the surveyed grids, each a frame of its south-west corner, spacing, size and heights, and the grid steps a far tile's triangles span: over Scotland and over Orkney and Shetland 2, 1.6 km; round the Trondheimsfjord 4, 1.6 km; round Narvik and Bardufoss 2, 800 m, so the narrower fjords stay open at a distance
+{ :west scotland-terrain-west :south scotland-terrain-south :spacing scotland-terrain-spacing :columns scotland-terrain-columns
+  :rows scotland-terrain-rows :heights scotland-terrain-heights :far-step 2 } constant scotland-grid
+{ :west isles-terrain-west :south isles-terrain-south :spacing isles-terrain-spacing :columns isles-terrain-columns
+  :rows isles-terrain-rows :heights isles-terrain-heights :far-step 2 } constant isles-grid
+{ :west terrain-west :south terrain-south :spacing terrain-spacing :columns terrain-columns :rows terrain-rows :heights terrain-heights
+  :far-step 4 :land-cover :trondelag } constant trondheim-grid
+{ :west narvik-terrain-west :south narvik-terrain-south :spacing narvik-terrain-spacing :columns narvik-terrain-columns
+  :rows narvik-terrain-rows :heights narvik-terrain-heights :far-step 2 :land-cover :ofoten } constant narvik-grid
+[ scotland-grid isles-grid trondheim-grid narvik-grid ] constant terrain-grids
+
+\ whether a point lies within a grid or a margin outside it
+: near-grid? ( x z grid margin -- flag )
+	| x z grid margin |
+	x grid@west margin - > x grid@west grid@columns grid@spacing * + margin + < and
+	z grid@south margin - > and z grid@south grid@rows grid@spacing * + margin + < and ;
+
+\ === Norway's land cover ===
+
+\ the land cover of Norway's grids, as aerial photographs of Trøndelag and Ofoten show it (colours and heights estimates read from the photographs; Narvik's tree line below the mountain plateau's 650 m, ut.no): farmland on the level ground below 150 m; above it spruce in Trøndelag, nearly black-green, to 700 m, birch round Narvik, lighter, to 450 m; heath for 150 m above the trees, then bare rock; snow above the snow line on all but the steepest faces, the spruce keeping most of its dark under it
+150 constant farmland-height
+0.99 constant farmland-upright
+0.6 constant snow-upright
+0x5e7c3c constant farmland-colour
+0x22331e constant spruce-colour
+0x4a6e30 constant birch-colour
+0x6a6450 constant heath-colour
+0x787268 constant rock-colour
+0xe6eaee constant snow-colour
+0.15 constant snow-on-forest
+100000 constant no-snow
+
+\ the height the snow lies down to, set by each flight
+variable snow-line
+no-snow to snow-line
+
+\ the land cover of the grid a point lies in, :trondelag or :ofoten, or null outside Norway's grids
+: land-cover-at ( x z -- cover )
+	| x z |
+	terrain-grids ( grid | x z grid 0 near-grid? grid :land-cover null @or null? not and ) filter to holding
+	holding size 0 = if null else holding first :land-cover @ then ;
+
+\ the ground's colour in a land cover at a height, its uprightness the cosine of its slope: farmland, forest, heath or rock by height and slope, whitened above the snow line
+: cover-colour ( cover height upright -- colour )
+	| cover height upright |
+	cover :trondelag = if spruce-colour 700 else birch-colour 450 then to tree-line to forest
+	height farmland-height < upright farmland-upright > and if farmland-colour to colour false to wooded
+	else height tree-line < if forest to colour true to wooded
+	else height tree-line 150 + < if heath-colour else rock-colour then to colour false to wooded then then
+	height snow-line < upright snow-upright < or if colour exit then
+	wooded if snow-colour colour snow-on-forest blended else snow-colour then ;
+
+\ the level ground's colour for a point of view: the ground's, or over Norway's grids the land cover's on level ground at sea level
+: use-level-ground ( position -- )
+	| position ^level-ground-colour |
+	position first position 2 @i land-cover-at to cover
+	cover null? if ground-colour else cover 0 1 cover-colour monochrome if grey-of then then to level-ground-colour ;
+
+\ the height at a point in one of the grids: the sea where the nearest corner is below 2 m, so the sea stays level up to the shore within half a corner's spacing; elsewhere between the four nearest corners; null outside the grid
 : grid-height ( x z west south spacing columns rows heights -- height )
 	| x z west south spacing columns rows heights |
 	x west - spacing / to across
@@ -50,15 +121,43 @@ variable hill-cones
 	heights row column @i,j 1 east-share - * heights row column 1+ @i,j east-share * + 1 north-share - *
 	heights row 1+ column @i,j 1 east-share - * heights row 1+ column 1+ @i,j east-share * + north-share * + ;
 
-\ the ground's height round the Trondheimsfjord: 0 in the level places; else the 50 m grid round Fættenfjord where it reaches, the 400 m grid elsewhere; 0 outside both
-: terrain-height ( x z -- height )
+\ the level place a point lies in, or null
+: level-place-at ( x z -- place )
 	| x z |
-	x terrain-west < z terrain-south < or if 0 exit then
-	level-places ( place | place first x - sq place second z - sq + place 2 @i sq < ) any? if 0 exit then
+	level-places ( place | place first x - sq place second z - sq + place 2 @i sq < ) filter to levels
+	levels size 0 > if levels first else null then ;
+
+\ the ground's height as surveyed: the 50 m grid round Fættenfjord where it reaches, else the first grid holding the point; 0 outside them
+: surveyed-height ( x z -- height )
+	| x z |
 	x z fine-terrain-west fine-terrain-south fine-terrain-spacing fine-terrain-count fine-terrain-count fine-terrain-heights grid-height to fine
 	fine null? not if fine exit then
-	x z terrain-west terrain-south terrain-spacing terrain-columns terrain-rows terrain-heights grid-height to coarse
-	coarse null? if 0 else coarse then ;
+	0 terrain-grids size 1 do k
+		terrain-grids k @i to grid
+		x z grid@west grid@south grid@spacing grid@columns grid@rows grid@heights grid-height to coarse
+		coarse null? not if coarse exit then
+	loop
+	0 ;
+
+\ the metres outside a level place over which the ground rises or falls from its height to the surveyed
+2000 constant level-ramp
+
+\ the ground's height: a level place's height within it; across the ramp round it the level's height blended into the surveyed, the nearer the more; elsewhere the surveyed
+: terrain-height ( x z -- height )
+	| x z |
+	0 to level-share
+	0 to level-height
+	0 level-places size 1 do k
+		level-places k @i to place
+		place first x - sq place second z - sq + sqrt place 2 @i - level-ramp / 1 swap - 0 1 clamp to share
+		share level-share > if
+			share to level-share
+			place 3 @i to level-height
+		then
+	loop
+	level-share 1 = if level-height exit then
+	x z surveyed-height to surveyed
+	level-height surveyed - level-share * surveyed + ;
 
 \ the ground's height at a point under a set of hill cones: the tallest cone over it, or the terrain, else sea level
 : ground-height-under ( x z cones -- height )
@@ -78,7 +177,7 @@ variable hill-cones
 \ the share of a hillside's light it keeps facing away from the sun (an estimate), the rest falling with the cosine of its slope to the sun
 0.55 constant hill-shadow
 
-\ a mesh of filled triangles from a list of points [ x y z ] and a list of triangles [ a b c ] of their indices: the points as rows [ x y z 1 ], the corners as three arrays, the triangles' centres as rows; for each triangle its shade from its slope facing the sun and its height's share of 900 m; colours cached per palette and haze; null when there are no triangles
+\ a mesh of filled triangles from a list of points [ x y z ] and a list of triangles [ a b c ] of their indices: the points as rows [ x y z 1 ], the corners as three arrays, the triangles' centres as rows; for each triangle its shade from its slope facing the sun, its mean height, that height's share of 900 m and its uprightness, the cosine of its slope; colours cached per palette and haze; null when there are no triangles
 : filled-mesh ( points triangles -- mesh )
 	| points triangles |
 	triangles size 0 = if null exit then
@@ -94,29 +193,38 @@ variable hill-cones
 		normal v-length 1e-9 max2 to length
 		normal sun-direction v-dot length / 0 max2 1 hill-shadow - * hill-shadow +
 	) map to shades
-	triangles ( triangle | triangle ( corner | points corner @i second ) map 0 ' + reduce 3 / 900 / 0 1 clamp ) map to fractions
+	triangles ( triangle |
+		triangle spread to c to b to a
+		points b @i points a @i v- points c @i points a @i v- v-cross to normal
+		normal second abs normal v-length 1e-9 max2 /
+	) map to uprights
+	triangles ( triangle | triangle ( corner | points corner @i second ) map 0 ' + reduce 3 / ) map to heights
+	heights ( height | height 900 / 0 1 clamp ) map to fractions
 	{ :points point-rows :centroids centre-rows
 	  :first-corners triangles ( triangle | triangle first ) map
 	  :second-corners triangles ( triangle | triangle second ) map
 	  :third-corners triangles ( triangle | triangle 2 @i ) map
-	  :shades shades :fractions fractions :colours { } } ;
+	  :shades shades :fractions fractions :heights heights :uprights uprights :colours { } } ;
 
-\ a mesh's triangles' colours at a haze, a share of their light from 0 to 1 in sixteenths: the ground's colour lightened toward the hilltops', darkened by each slope's shade, faded into the sky; grey in a photograph; made once for each palette and haze and kept
+\ a mesh's triangles' colours at a haze, a share of their light from 0 to 1 in sixteenths: the ground's colour lightened toward the hilltops', or in Norway its land cover's, darkened by each slope's shade, faded into the sky; grey in a photograph; made once for each palette, snow line and haze and kept
 : mesh-colours ( mesh haze -- colours )
 	| mesh haze |
 	haze 16 * round to level
-	sky-colour ground-colour hill-top-colour level monochrome "{0}/{1}/{2}/{3}/{4}" format string>symbol to key
+	mesh :land-cover null @or to cover
+	sky-colour ground-colour hill-top-colour level monochrome cover snow-line "{0}/{1}/{2}/{3}/{4}/{5}/{6}" format string>symbol to key
 	mesh@colours key has? if mesh@colours key @ exit then
 	level 16 / to light
 	[ 0 mesh@shades size 1 do k
-		hill-top-colour ground-colour mesh@fractions k @i blended mesh@shades k @i dimmed
+		cover null? if hill-top-colour ground-colour mesh@fractions k @i blended
+		else cover mesh@heights k @i mesh@uprights k @i cover-colour then
+		mesh@shades k @i dimmed
 		sky-colour light blended
 		monochrome if grey-of then
 	loop ] to colours
 	mesh@colours colours key ! drop
 	colours ;
 
-\ the filled ground: the Norwegian terrain's tiles, each 8 grid steps square, 3.2 km, and the Scottish hills, each [ :centre :radius :near :far :lines ]; their spheres for culling, gathered once the scenery is built
+\ the filled ground: the surveyed terrain's tiles, each 8 grid steps square, and the hills kept as cones, each [ :centre :radius :near :far ]; their spheres for culling, gathered once the scenery is built
 variable terrain-tiles
 [ ] to terrain-tiles
 variable terrain-tile-centres
@@ -146,7 +254,7 @@ variable terrain-tile-radii
 	terrain-tiles ( tile | tile@centre spread 1 4 array ) map flatten terrain-tiles size 4 matrix to terrain-tile-centres
 	terrain-tiles ( tile | tile@radius ) map vector to terrain-tile-radii ;
 
-\ the water's rings, gathered as the scenery is built: the map's frame, the land's outlines, the lochs, the islands and the rivers' strips across the land
+\ the water's rings, gathered as the scenery is built: the map's frame, the land's outlines, the lochs, the islands, the rivers' strips across the land and Leith's wet docks; with them, as the mainland's region, Orkney and Shetland coarsely, and the islands in detail with the mainland's outlines as a region of their own, the nearer of the two in use, so Glasgow's frames do not pay for Shetland's coast; the Trondheimsfjord's region with the Nidelva through the town
 variable water-rings
 [ ] to water-rings
 
@@ -188,22 +296,15 @@ variable water-rings
 		then
 	loop ;
 
-\ a closed shore as a path back to its start
-: keep-shore ( points colour -- )
-	| points colour |
-	points [ points first ] concat colour keep-path ;
-
 \ a stretch of river as a ring of [ x z ] points: one bank downstream, the other back up
 : river-ring ( course half-width -- ring )
 	| course half-width |
 	course half-width offset-path course half-width negate offset-path reverse concat
 	( point | [ point first point 2 @i ] ) map ;
 
-\ a river as its two banks either side of its course, and its strips of water where its course crosses land: runs of the segments whose middles are not already water
+\ a river as its strips of water where its course crosses land: runs of the segments whose middles are not already water, as wide as the river
 : keep-river ( course half-width -- )
 	| course half-width |
-	course half-width offset-path bank-colour keep-path
-	course half-width negate offset-path bank-colour keep-path
 	[ ] to run
 	0 course size 1- 1 do k
 		course k @i to start
@@ -232,19 +333,18 @@ variable water-rings
 	land-outlines [ south-land ] concat to water-rings
 	lochs values ( loch | loch@shores ( shore | shore keep-water-ring ) each ) each
 	water-rings water-rings!
-	coastlines ( coast | coast 0 ground-path coast-colour keep-path ) each
-	lochs values ( loch |
-		loch@shores ( shore | shore loch@height ground-path bank-colour keep-shore ) each
-	) each
+	leith-wet-docks ( dock | dock outline-middle spread water-at? not if dock keep-water-ring then ) each
 	rivers@clyde 90 keep-river
 	rivers@forth 70 keep-river
 	rivers@kelvin 12 keep-river
 	rivers@ness ( course | course 25 keep-river ) each
 	[ [ :inchkeith 500 ] [ :inchcolm 300 ] [ :cramond-island 300 ] [ :bass-rock 200 ] ] ( island | island spread keep-island ) each
-	norway-shores ( shore | shore 0 ground-path coast-colour keep-path ) each
 	:faettenfjord landmark-ground to norway-centre
-	[ [ 0 130000 water-rings rings>edge-set ]
-	  [ norway-centre first norway-centre 2 @i norway-outlines norway-bands concat rings>edge-set ] ] water-regions!
+	:narvik landmark-ground to narvik-centre
+	[ [ 0 130000 water-rings isles-coarse-outlines concat rings>edge-set ]
+	  [ 0 470000 land-outlines isles-outlines concat rings>edge-set ]
+	  [ norway-centre first norway-centre 2 @i norway-outlines norway-bands concat nidelva-water concat rings>edge-set ]
+	  [ narvik-centre first narvik-centre 2 @i narvik-outlines narvik-bands concat rings>edge-set ] ] water-regions!
 	[ 0 0 0 ] use-water-near ;
 
 \ === hills ===
@@ -254,35 +354,23 @@ variable water-rings
 	| centre radius height ^hill-cones |
 	hill-cones [ centre first centre 2 @i radius height ] add-last! drop ;
 
-\ a hill at a point: its cone for the ground's height, and its filled mesh with its wireframe over it among the filled ground
+\ a hill at a point: its cone for the ground's height, and its filled mesh among the filled ground
 : keep-hill ( centre radius height seed -- )
 	| centre radius height seed |
 	centre radius height keep-cone
-	new-sketch to sketch
-	sketch centre radius height seed sketch-hill
 	centre radius height seed hill-mesh to mesh
 	terrain-tiles
-	{ :centre centre [ 0 height 2 / 0 ] v+ :radius radius 1.3 * height max2
-	  :near mesh :far mesh :lines sketch hill-colour sketch>object }
+	{ :centre centre [ 0 height 2 / 0 ] v+ :radius radius 1.3 * height max2 :near mesh :far mesh }
 	add-last! drop ;
 
-\ a range: its highest summit at a point and lesser tops either side along a heading, a spacing apart
-: keep-range ( centre heading spacing heights radius -- )
-	| centre heading spacing heights radius |
-	heights 0 ' max2 reduce to highest
-	heights highest position-of to peak-index
-	0 heights size 1 do k
-		centre heading 0 0 k peak-index - spacing * placed radius heights k @i k 1.7 * keep-hill
-	loop ;
-
 \ a tile's mesh from a corner of the grid, cells to a side, taken a step at a time: each cell two triangles, a triangle left out when any of its corners is sea, so no slope reaches out over the water; the corners' heights the ground's
-: tile-mesh ( row column n-cells step -- mesh )
-	| row column n-cells step |
+: tile-mesh ( grid row column n-cells step -- mesh )
+	| grid row column n-cells step |
 	n-cells step / round 1+ to count
 	[ 0 count 1 do r
 		0 count 1 do c
-			terrain-west column c step * + terrain-spacing * + to x
-			terrain-south row r step * + terrain-spacing * + to z
+			grid@west column c step * + grid@spacing * + to x
+			grid@south row r step * + grid@spacing * + to z
 			[ x x z terrain-height z ]
 		loop
 	loop ] to points
@@ -299,58 +387,45 @@ variable water-rings
 	loop ] to triangles
 	points triangles filled-mesh ;
 
-\ the ground round the Trondheimsfjord in tiles of 8 grid steps, 3.2 km: each tile filled by triangles, 400 m ones near and 1.6 km ones far, and drawn over in a wireframe, lines along every fourth row and column, 1.6 km apart, sampled every second corner, 800 m, a stretch drawn where both its ends stand 20 m or more above the sea, so none reaches out over the water; a tile all sea left out
-: build-norway-terrain ( -- )
-	0 terrain-rows 1- 8 do tile-row
-		0 terrain-columns 1- 8 do tile-column
-			tile-row 8 terrain-rows 1- tile-row - min2 to n-tile-rows
-			tile-column 8 terrain-columns 1- tile-column - min2 to n-tile-columns
-			terrain-west tile-column terrain-spacing * + to tile-west
-			terrain-south tile-row terrain-spacing * + to tile-south
-			tile-west 8 terrain-spacing * + fine-terrain-west > tile-west fine-terrain-west fine-terrain-count fine-terrain-spacing * + < and
-			tile-south 8 terrain-spacing * + fine-terrain-south > and tile-south fine-terrain-south fine-terrain-count fine-terrain-spacing * + < and
+\ the ground of one of the grids in tiles of 8 grid steps (3.2 km in Norway, 6.4 km in Scotland), its sphere for culling 6 steps across: each tile filled by triangles, a grid step's near and the grid's far step's far, in Norway each carrying its grid's land cover; a tile all sea left out
+: build-grid-terrain ( grid -- )
+	| grid |
+	grid@west to west
+	grid@south to south
+	grid@spacing to spacing
+	grid@columns to n-columns
+	grid@rows to n-rows
+	0 n-rows 1- 8 do tile-row
+		0 n-columns 1- 8 do tile-column
+			8 n-rows 1- tile-row - min2 to n-tile-rows
+			8 n-columns 1- tile-column - min2 to n-tile-columns
+			west tile-column spacing * + to tile-west
+			south tile-row spacing * + to tile-south
+			tile-west 8 spacing * + fine-terrain-west > tile-west fine-terrain-west fine-terrain-count fine-terrain-spacing * + < and
+			tile-south 8 spacing * + fine-terrain-south > and tile-south fine-terrain-south fine-terrain-count fine-terrain-spacing * + < and
 			if 0.5 else 1 then to near-step
-			tile-row tile-column n-tile-rows n-tile-columns min2 near-step tile-mesh to near-mesh
-			tile-row tile-column n-tile-rows n-tile-columns min2 4 tile-mesh to far-mesh
-			new-sketch to mesh
-			0 to n-stretches
-			tile-row tile-row 8 + terrain-rows 1- min2 4 do row
-				tile-column tile-column 8 + terrain-columns 1- min2 2 do column
-					column 2 + terrain-columns 1- min2 to next
-					terrain-heights row column @i,j to low-end
-					terrain-heights row next @i,j to high-end
-					low-end 20 >= high-end 20 >= and if
-						mesh [ [ terrain-west column terrain-spacing * + low-end terrain-south row terrain-spacing * + ]
-						       [ terrain-west next terrain-spacing * + high-end terrain-south row terrain-spacing * + ] ] sketch-path
-						++ n-stretches
-					then
-				loop
-			loop
-			tile-column tile-column 8 + terrain-columns 1- min2 4 do column
-				tile-row tile-row 8 + terrain-rows 1- min2 2 do row
-					row 2 + terrain-rows 1- min2 to next
-					terrain-heights row column @i,j to low-end
-					terrain-heights next column @i,j to high-end
-					low-end 20 >= high-end 20 >= and if
-						mesh [ [ terrain-west column terrain-spacing * + low-end terrain-south row terrain-spacing * + ]
-						       [ terrain-west column terrain-spacing * + high-end terrain-south next terrain-spacing * + ] ] sketch-path
-						++ n-stretches
-					then
-				loop
-			loop
+			grid tile-row tile-column n-tile-rows n-tile-columns min2 near-step tile-mesh to near-mesh
+			grid tile-row tile-column n-tile-rows n-tile-columns min2 grid@far-step tile-mesh to far-mesh
+			grid :land-cover null @or to cover
+			cover null? not near-mesh null? not and if near-mesh cover :land-cover ! to near-mesh then
+			cover null? not far-mesh null? not and if far-mesh cover :land-cover ! to far-mesh then
 			near-mesh null? not if
-				terrain-west tile-column 4 + terrain-spacing * + to centre-x
-				terrain-south tile-row 4 + terrain-spacing * + to centre-z
+				west tile-column 4 + spacing * + to centre-x
+				south tile-row 4 + spacing * + to centre-z
 				terrain-tiles
-				{ :centre [ centre-x centre-x centre-z terrain-height centre-z ] :radius 2400
-				  :near near-mesh :far far-mesh
-				  :lines n-stretches 0 > if mesh hill-colour sketch>object else null then }
+				{ :centre [ centre-x centre-x centre-z terrain-height centre-z ] :radius spacing 6 * :near near-mesh :far far-mesh }
 				add-last! drop
 			then
 		loop
 	loop ;
 
-\ the visible tiles as items to draw in order of depth, [ depth :terrain tile ]
+\ the ground of every grid
+: build-norway-terrain ( -- ) terrain-grids ( grid | grid build-grid-terrain ) each ;
+
+\ how much farther than its centre a tile is sorted: a surveyed grid's tile, 2 km or more round, by its radius, so it is drawn before whatever stands on it; a hill's own tile not at all, so a hill hides what lies behind it
+: ground-tile-reach ( tile -- metres ) | tile | tile@radius 2000 >= if tile@radius else 0 then ;
+
+\ the visible tiles as items to draw in order of depth, [ depth :terrain tile ], a grid's tile by its far side
 : terrain-items ( -- items )
 	terrain-tiles size 0 = if [ ] exit then
 	terrain-tile-centres terrain-tile-radii visible-objects to shown
@@ -358,29 +433,23 @@ variable water-rings
 	terrain-tile-centres camera matmul 2 @j to depths
 	[ 0 shown num-elements 1 do k
 		shown k @e to index
-		[ depths index @e :terrain terrain-tiles index @i ]
+		terrain-tiles index @i to tile
+		[ depths index @e tile ground-tile-reach + :terrain tile ]
 	loop ] ;
 
-\ one tile: its near or far mesh by its distance, its colours at its haze, then its wireframe over it
+\ one tile: its near or far mesh by its distance, its colours at its haze
 : draw-terrain-tile ( tile -- )
 	| tile |
 	tile@centre eye@position v- v-length to distance
 	distance terrain-near < if tile@near else tile@far then to mesh
 	mesh null? not if
 		mesh mesh distance depth-light mesh-colours draw-filled-mesh
-	then
-	tile@lines null? not if tile@lines draw-object then ;
+	then ;
 
 : build-hills ( -- )
 	:arthurs-seat landmark-ground 700 :arthurs-seat landmark-height 1 keep-hill
 	:calton-hill landmark-ground 250 :calton-hill landmark-height 2 keep-hill
 	:st-margarets-chapel landmark-ground 160 78 keep-cone
-	:scald-law landmark-ground 40 2800 [ 420 510 :scald-law landmark-height 520 480 ] 1500 keep-range
-	:ben-cleuch landmark-ground 75 3200 [ 520 610 :ben-cleuch landmark-height 650 580 500 ] 1700 keep-range
-	:west-lomond landmark-ground 1600 :west-lomond landmark-height 4 keep-hill
-	:earls-seat landmark-ground 80 2600 [ 480 :earls-seat landmark-height 540 500 ] 1500 keep-range
-	:ben-lomond landmark-ground 2600 :ben-lomond landmark-height 5 keep-hill
-	:tinto landmark-ground 2200 :tinto landmark-height 6 keep-hill
 	:north-berwick-law landmark-ground 400 :north-berwick-law landmark-height 7 keep-hill
 	:bass-rock landmark-ground 200 :bass-rock landmark-height 8 keep-hill
 	:craig-phadrig landmark-ground 600 172 9 keep-hill
@@ -389,15 +458,7 @@ variable water-rings
 	:cramond-island landmark-ground 300 :cramond-island landmark-height 12 keep-hill
 	:stirling-castle landmark-ground 300 75 13 keep-hill
 	:wallace-monument landmark-ground 400 90 14 keep-hill
-	:dumbarton-castle landmark-ground 200 73 15 keep-hill
-	\ the Highland hills either side of Loch Ness, along the Great Glen
-	:urquhart-castle landmark-ground to glen-centre
-	-20000 20001 4000 do along
-		[ -1 1 ] ( side |
-			glen-centre 40 side 4500 * 0 along placed
-			2200 along side + 0.37 * sin 150 * 600 + 20 along 1000 / + side + keep-hill
-		) each
-	loop ;
+	:dumbarton-castle landmark-ground 200 73 15 keep-hill ;
 
 \ === airfields ===
 
@@ -419,12 +480,19 @@ variable water-rings
 	hangars centre heading 470 0 230 placed 0 3 3 10 sketch-box
 	hangars town-colour keep ;
 
+\ the airfields on their headings: Dyce on today's 16/34 and Sumburgh on today's 09/27, both at their Wikidata points; the other headings estimates
 : build-airfields ( -- )
 	:turnhouse landmark-ground 60 keep-airfield
 	:drem landmark-ground 90 keep-airfield
 	:abbotsinch landmark-ground 50 keep-airfield
 	:dalcross landmark-ground 60 keep-airfield
-	:wick landmark-ground 130 keep-airfield ;
+	:wick landmark-ground 130 keep-airfield
+	:castletown landmark-ground 90 keep-airfield
+	:hatston landmark-ground 90 keep-airfield
+	:skeabrae landmark-ground 90 keep-airfield
+	:sumburgh landmark-ground 90 keep-airfield
+	:dyce landmark-ground [ 0 :dyce landmark-height 0 ] v+ 160 keep-airfield
+	:montrose-air-station landmark-ground 50 keep-airfield ;
 
 \ === streets ===
 
@@ -500,7 +568,7 @@ variable water-rings
 \ a shipyard crane: a tower and its hammerhead jib
 : sketch-crane ( sketch foot heading -- )
 	| sketch foot heading |
-	sketch foot heading 8 8 46 sketch-box
+	sketch foot heading 8 8 46 sketch-open-box
 	sketch [ foot heading 0 46 -25 placed foot heading 0 46 45 placed foot heading 0 52 0 placed foot heading 0 46 -25 placed ] sketch-path ;
 
 \ a ship's hull on a slipway: its deck outline and keel line

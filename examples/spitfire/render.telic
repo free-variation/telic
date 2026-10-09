@@ -44,6 +44,8 @@ false to monochrome
 
 variable sky-colour
 variable ground-colour
+\ the colour of the ground filled below the horizon where no terrain is drawn: the ground's, or in Norway its land cover's at sea level, set each frame
+variable level-ground-colour
 variable water-colour
 \ the colour the filled hills lighten toward at their tops
 variable hill-top-colour
@@ -60,9 +62,10 @@ variable haze
 
 \ broad daylight
 : use-day ( -- )
-	| ^sky-colour ^ground-colour ^water-colour ^lighting ^bomber-ink ^stars-showing ^cloud-top-colour ^cloud-base-colour ^fog-colour ^hill-top-colour |
+	| ^sky-colour ^ground-colour ^level-ground-colour ^water-colour ^lighting ^bomber-ink ^stars-showing ^cloud-top-colour ^cloud-base-colour ^fog-colour ^hill-top-colour |
 	0x5a7eb0 to sky-colour
 	0x2c4a24 to ground-colour
+	ground-colour to level-ground-colour
 	0x9ab878 to hill-top-colour
 	0x30527e to water-colour
 	1 to lighting
@@ -74,9 +77,10 @@ variable haze
 
 \ a dark night
 : use-night ( -- )
-	| ^sky-colour ^ground-colour ^water-colour ^lighting ^bomber-ink ^stars-showing ^cloud-top-colour ^cloud-base-colour ^fog-colour ^hill-top-colour |
+	| ^sky-colour ^ground-colour ^level-ground-colour ^water-colour ^lighting ^bomber-ink ^stars-showing ^cloud-top-colour ^cloud-base-colour ^fog-colour ^hill-top-colour |
 	0x060912 to sky-colour
 	0x0a0d08 to ground-colour
+	ground-colour to level-ground-colour
 	0x262c1e to hill-top-colour
 	0x0c1628 to water-colour
 	0.5 to lighting
@@ -109,6 +113,10 @@ defer fill-span
 defer fill-disc
 \ fill a triangle of the view in a packed colour
 defer fill-face
+\ the whole view as a bitmap; a bitmap laid over the view with its top-left corner at a window pixel; the window's pixels to the view's on each axis
+defer capture-view
+defer draw-view
+defer view-pixels
 
 variable eye
 { :position [ 0 100 0 ] :attitude 0 heading-attitude } to eye
@@ -228,10 +236,56 @@ star-directions constant stars
 		monochrome if grey-of then draw-clipped
 	loop ;
 
-\ draw one object
+\ the sun by day, due south 45° up, a midday sun of August at 56°N
+45 PI 180 / * constant sun-elevation
+[ 0 sun-elevation sin sun-elevation cos negate ] constant sun-direction
+
+\ a face's light: its own colour's share kept facing away from the sun, the rest by how squarely it meets the sun; its outline a darker shade of the same, so the walls, roofs and towers stay readable once filled (the shares estimates)
+0.55 constant face-shadow
+0.6 constant face-outline-share
+
+\ an object's faces, each turned toward the eye, from the farthest to the nearest: filled in the object's colour by its light and the day's, faded into the sky at the object's distance, then outlined in a darker shade; a face with a corner behind the near plane left out
+: draw-faces ( object viewed -- )
+	| object viewed |
+	object@face-normals to normals
+	object@face-centres to centres
+	eye@position spread to eye-z to eye-y to eye-x
+	eye-x centres 0 @j - normals 0 @j * eye-y centres 1 @j - normals 1 @j * + eye-z centres 2 @j - normals 2 @j * + 0 > where to facing
+	facing num-elements 0 = if exit then
+	centres camera matmul 2 @j to depths
+	facing matrix>array ( index | depths index @e negate ) sort-by to order
+	normals 0 @j sun-direction first * normals 1 @j sun-direction second * + normals 2 @j sun-direction 2 @i * + to lights
+	object@centre eye@position v- v-length depth-light to kept-light
+	viewed 0 @j to across
+	viewed 1 @j to rising
+	viewed 2 @j to ahead
+	object@faces to faces
+	object@colour to colour
+	0 order size 1 do k
+		order k @i truncate to f
+		faces f @i to corners
+		corners ( corner | ahead corner @e near-plane < ) any? not if
+			corners ( corner | [ focal-length across corner @e * ahead corner @e / view-centre-x + view-centre-y focal-length rising corner @e * ahead corner @e / - ] ) map to places
+			lights f @e 0 max2 1 face-shadow - * face-shadow + lighting * to light
+			colour light dimmed sky-colour kept-light blended to fill
+			colour light face-outline-share * dimmed sky-colour kept-light blended to edge
+			monochrome if fill grey-of to fill edge grey-of to edge then
+			1 places size 1- 1 do t
+				places first spread places t @i spread places t 1+ @i spread fill fill-face
+			loop
+			0 places size 1 do t
+				places t @i spread places t 1+ places size mod @i spread edge draw-clipped
+			loop
+		then
+	loop ;
+
+\ draw one object: its faces filled where it has them, then its lines on no face; else all its lines
 : draw-object ( object -- )
 	| object |
-	object@points camera matmul object@edges object@colour draw-edges ;
+	object@points camera matmul to viewed
+	object :faces null @or null? if viewed object@edges object@colour draw-edges exit then
+	object viewed draw-faces
+	viewed object@loose-edges object@colour draw-edges ;
 
 \ the indices of the objects the eye can see: in front of it, within the visibility and inside the view's sides, by their spheres
 : visible-objects ( centres radii -- indices )
@@ -248,11 +302,9 @@ star-directions constant stars
 
 \ === water ===
 
-\ the edges of the land's rings, a column each of their starts' and ends' x and z; a ground point is water when it lies inside an even number of the rings: none for the open sea, one for land, two for a loch or river on land, three for an island in a loch
-variable edge-start-x
-variable edge-start-z
-variable edge-end-x
-variable edge-end-z
+\ the edges of the land's rings, a row [ x0 z0 x1 z1 ] each; a ground point is water when it lies inside an even number of the rings: none for the open sea, one for land, two for a loch or river on land, three for an island in a loch
+variable land-edges
+0 4 0-matrix to land-edges
 
 \ rings of [ x z ] points as a matrix of edges, a row [ x0 z0 x1 z1 ] for each, every ring closed back to its first point
 : rings>edges ( rings -- edges )
@@ -267,19 +319,13 @@ variable edge-end-z
 	loop ] to numbers
 	numbers numbers size 4 / 4 matrix ;
 
-\ a set of rings as their edges' columns
-: rings>edge-set ( rings -- set )
-	| rings |
-	rings rings>edges to edges
-	{ :start-x edges 0 @j :start-z edges 1 @j :end-x edges 2 @j :end-z edges 3 @j } ;
+\ a set of rings as the matrix of their edges
+: rings>edge-set ( rings -- edges ) rings>edges ;
 
 \ take a set of edges as the land's
-: use-edge-set ( set -- )
-	| set ^edge-start-x ^edge-start-z ^edge-end-x ^edge-end-z |
-	set@start-x to edge-start-x
-	set@start-z to edge-start-z
-	set@end-x to edge-end-x
-	set@end-z to edge-end-z ;
+: use-edge-set ( edges -- )
+	| edges ^land-edges |
+	edges to land-edges ;
 
 \ take a set of rings as the land's
 : water-rings! ( rings -- ) rings>edge-set use-edge-set ;
@@ -316,10 +362,7 @@ variable region-in-use
 \ whether a ground point is water: an even number of the land's edges crossed by a line due east from it
 : water-at? ( x z -- flag )
 	| x z |
-	edge-start-z z > edge-end-z z > - abs to straddling
-	edge-end-z edge-start-z - straddling * 1 straddling - + to rise
-	z edge-start-z - edge-end-x edge-start-x - * rise / edge-start-x + to crossing-x
-	crossing-x x > straddling * sum round 2 mod 0 = ;
+	land-edges x z 1 0 segment-crossings 0 > sum round 2 mod 0 = ;
 
 land-outlines [ south-land ] concat water-rings!
 
@@ -336,7 +379,7 @@ land-outlines [ south-land ] concat water-rings!
 	view-centre-x focal-length high * + round to right
 	right left > if left row right left - 2 colour fill-span then ;
 
-\ fill the ground below the horizon, the water in its own colour. Each pair of rows sees the ground along a straight line; the rings' edges that cross that line in front of the eye divide the row into land and water, and which the row begins with is settled by water-at? at its end on the view's side
+\ fill the ground below the horizon, the water in its own colour. Each pair of rows sees the ground along a straight line; the rings' edges that cross that line in front of the eye, found by segment-crossings, divide the row into land and water, and which the row begins with is settled by water-at? at its end on the view's side
 : fill-ground ( -- )
 	eye@position to eye-point
 	eye@attitude to attitude
@@ -346,10 +389,6 @@ land-outlines [ south-land ] concat water-rings!
 	eye-point second to height
 	eye-point first to eye-x
 	eye-point 2 @i to eye-z
-	edge-start-x eye-x - to start-x
-	edge-start-z eye-z - to start-z
-	edge-end-x eye-x - to end-x
-	edge-end-z eye-z - to end-z
 	right second to right-rise
 	view-centre-x negate focal-length / to left-reach
 	view-width view-centre-x - focal-length / to right-reach
@@ -377,38 +416,38 @@ land-outlines [ south-land ] concat water-rings!
 		eye-x sight first distance * + eye-z sight 2 @i distance * + water-at? to water
 		right centre-sight v-cross to normal
 		normal second height * negate to offset
-		start-x normal first * start-z normal 2 @i * + offset + to start-side
-		end-x normal first * end-z normal 2 @i * + offset + to end-side
-		start-side end-side * 0 < where to crossing-indices
+		normal first sq normal 2 @i sq + to reach-squared
 		[ ] to crossings
-		0 crossing-indices num-elements 1 do k
-			crossing-indices k @e to i
-			start-side i @e to side-a
-			side-a side-a end-side i @e - / to along
-			start-x i @e to ax
-			start-z i @e to az
-			[ end-x i @e ax - along * ax + height negate end-z i @e az - along * az + ] to crossing
-			crossing forward v-dot to ahead
-			ahead 0 > if
-				crossing right v-dot ahead / to across
-				across low > across high < and if crossings across add-last! drop then
-			then
-		loop
+		reach-squared 1e-12 > if
+			offset negate reach-squared / to share
+			normal first share * to origin-x
+			normal 2 @i share * to origin-z
+			normal 2 @i negate to direction-x
+			normal first to direction-z
+			land-edges origin-x eye-x + origin-z eye-z + direction-x direction-z segment-crossings to distances
+			0 distances num-elements 1 do k
+				distances k @e to along
+				[ direction-x along * origin-x + height negate direction-z along * origin-z + ] to crossing
+				crossing forward v-dot to ahead
+				ahead 0 > if
+					crossing right v-dot ahead / to across
+					across low > across high < and if crossings across add-last! drop then
+				then
+			loop
+		then
 		crossings sort to crossings
 		right-rise 0 < crossings size 2 mod 1 = and if water not to water then
 		low to cursor
 		0 crossings size 1 do k
 			crossings k @i to across
-			row cursor across water if water-colour else ground-colour then centre-sight right cursor across + 2 / v* v+ height seen-ground fill-reaches
+			row cursor across water if water-colour else level-ground-colour then centre-sight right cursor across + 2 / v* v+ height seen-ground fill-reaches
 			water not to water
 			across to cursor
 		loop
-		row cursor high water if water-colour else ground-colour then centre-sight right cursor high + 2 / v* v+ height seen-ground fill-reaches
+		row cursor high water if water-colour else level-ground-colour then centre-sight right cursor high + 2 / v* v+ height seen-ground fill-reaches
 	loop ;
 
-\ the sun by day, due south 45° up, a midday sun of August at 56°N: its true radius, 0.27°, about 2 px, in a pale halo of 7 px
-45 PI 180 / * constant sun-elevation
-[ 0 sun-elevation sin sun-elevation cos negate ] constant sun-direction
+\ the sun's disc: its true radius, 0.27°, about 2 px, in a pale halo of 7 px
 0xfff8e0 constant sun-colour
 
 : draw-sun ( -- )

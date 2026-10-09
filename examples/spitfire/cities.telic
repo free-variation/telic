@@ -1,4 +1,5 @@
-\ Spitfire: Edinburgh and Glasgow, and the whole scenery's assembly. Each
+\ Spitfire: Edinburgh and Glasgow, Inverness, Aberdeen, Peterhead, Montrose,
+\ Orkney and Shetland, Trondheim and Narvik, and the whole scenery's assembly. Each
 \ landmark stands at its Wikidata position. Published heights are used
 \ where found: the castle rock 80 m above its surroundings, the Great Hall
 \ 29 m by 12.5 m, the Half Moon Battery's wall 80 ft on its south side, the
@@ -46,6 +47,42 @@
 		then
 	loop ;
 
+\ the wooden towns' houses, as the photographs of Trondheim and Narvik show them: two storeys, 12 m along the street, 10 m deep, 7 m to the eaves and 10 m to the ridge, one every 30 m, standing 12 m either side of the street's line; their walls red, ochre or white by a hash (sizes, colours and spacing estimates)
+0xa8442e constant red-timber-colour
+0xc89a50 constant ochre-timber-colour
+0xe0dccc constant white-timber-colour
+30 constant house-pitch
+\ weathered copper, the green of Nidaros's roofs in the photographs (an estimate)
+0x6a9a82 constant copper-colour
+
+\ a wooden town's streets lined with houses on both sides, those that would stand in water left out; each street's houses an object for each colour
+: keep-wooden-streets ( lines -- )
+	| lines |
+	lines ( line |
+		[ new-sketch new-sketch new-sketch ] to sketches
+		0 line size 1- 1 do k
+			line k @i to start
+			line k 1+ @i to finish
+			[ finish first start first - 0 finish second start second - ] to run
+			run heading-of to heading
+			[ start first 0 start second ] to origin
+			0 run v-length house-pitch / round-down 1 do h
+				h house-pitch * house-pitch 2 / + to along
+				[ -1 1 ] ( side |
+					origin heading side 12 * along 12 block-in-water? not if
+						start first 0.37 * start second 0.11 * + h 1.3 * + side 0.7 * + hash-fraction 3 * round-down to pick
+						sketches pick @i origin heading side 12 * 0 along placed heading 10 12 7 10 sketch-house
+					then
+				) each
+			loop
+		loop
+		[ red-timber-colour ochre-timber-colour white-timber-colour ] to colours
+		0 3 1 do c
+			sketches c @i to houses
+			houses@points size 0 > if houses colours c @i keep then
+		loop
+	) each ;
+
 \ a street's line begun where it first passes a distance from a point, for a street that starts inside a landmark's grounds
 : line-beyond ( line point distance -- line' )
 	| line point distance |
@@ -80,11 +117,6 @@
 	sheds stone-colour keep
 	railways ( line | line 1 ground-path rail-colour keep-path ) each ;
 
-\ the middle of an outline, the mean of its points
-: outline-middle ( outline -- point )
-	| outline |
-	outline [ 0 0 ] ' v+ reduce outline size 1 swap / v* ;
-
 \ === Edinburgh Castle ===
 
 \ the rock's top above the town, metres
@@ -109,12 +141,17 @@
 	rock top-indices join-loop
 	rock ledge-indices join-loop
 	rock foot-indices join-loop
+	rock top-indices foot-indices concat inside-of to inside
 	0 n-points 1 do k
 		rock [ top-indices k @i ledge-indices k @i foot-indices k @i ] join-path
+		k 1+ n-points mod to next
+		rock [ top-indices k @i top-indices next @i ledge-indices next @i ledge-indices k @i ] inside sketch-face
+		rock [ ledge-indices k @i ledge-indices next @i foot-indices next @i foot-indices k @i ] inside sketch-face
 	loop
+	rock top-indices inside sketch-face
 	rock hill-colour keep
 	new-sketch to wall
-	wall top castle-rock outline-at 8 sketch-prism
+	wall top castle-rock outline-at 8 sketch-wall-ring drop drop
 	wall stone-colour keep ;
 
 \ the castle's buildings about Crown Square, the batteries and gates to the east, the barracks to the south-west, the esplanade and Castlehill running down to the Royal Mile
@@ -251,24 +288,15 @@
 	temple [ 0 13 0 ] v+ 4.5 0 9 ring-points ( rim | calton [ rim temple [ 0 16 0 ] v+ ] sketch-path ) each
 	calton stone-colour keep ;
 
-\ Holyrood's palace and Leith's docks
-: build-holyrood-and-leith ( royal-mile -- )
+\ Holyrood's palace
+: build-holyrood ( royal-mile -- )
 	| royal-mile |
 	:holyrood landmark-ground to palace
 	new-sketch to holyrood
 	holyrood palace royal-mile 70 70 18 sketch-box
 	holyrood palace royal-mile -40 0 -40 placed royal-mile 18 18 26 sketch-box
 	holyrood palace royal-mile 40 0 -40 placed royal-mile 18 18 26 sketch-box
-	holyrood stone-colour keep
-	:leith landmark-ground to docks
-	new-sketch to leith
-	leith docks 10 400 600 0 rectangle-corners sketch-loop
-	leith docks 10 200 300 0 rectangle-corners sketch-loop
-	[ -150 -50 50 150 ] ( along |
-		docks 10 210 0 along placed to crane-foot
-		leith [ crane-foot crane-foot [ 0 30 0 ] v+ crane-foot 10 -20 30 0 placed ] sketch-path
-	) each
-	leith town-colour keep ;
+	holyrood stone-colour keep ;
 
 : build-edinburgh ( -- )
 	build-castle
@@ -278,7 +306,7 @@
 	royal-mile build-new-town
 	build-west-end
 	build-calton-hill
-	royal-mile build-holyrood-and-leith ;
+	royal-mile build-holyrood ;
 
 \ === Glasgow ===
 
@@ -333,10 +361,16 @@
 	loop
 	crossings 2 mod 1 = ;
 
-\ Kelvingrove Park along the Kelvin between the museum, Gilmorehill and Woodlands Hill: its boundary, a walk along each bank, and clumps of trees off the water; the outline is an estimate
+\ Kelvingrove Park's boundary as [ x z ] points, set out in metres east and north of the museum's point (an estimate)
+: kelvingrove-boundary ( -- outline )
+	:kelvingrove landmark-ground to museum
+	[ [ 62 58 ] [ 212 228 ] [ 512 378 ] [ 612 508 ] [ 742 128 ] [ 592 -92 ] [ 292 -122 ] [ 62 -52 ] ]
+	( corner | [ corner first museum first + corner second museum 2 @i + ] ) map ;
+
+\ Kelvingrove Park along the Kelvin between the museum, Gilmorehill and Woodlands Hill: its boundary, a walk along each bank, and clumps of trees off the water
 : build-kelvingrove-park ( -- )
-	[ [ -42930 -14470 ] [ -42780 -14300 ] [ -42480 -14150 ] [ -42380 -14020 ]
-	  [ -42250 -14400 ] [ -42400 -14620 ] [ -42700 -14650 ] [ -42930 -14580 ] ] to boundary
+	:kelvingrove landmark-ground to museum
+	kelvingrove-boundary to boundary
 	new-sketch to park
 	park boundary 0 ground-path sketch-loop
 	rivers@kelvin 1 skip 3 take to reach
@@ -344,8 +378,8 @@
 	park park-colour keep
 	new-sketch to trees
 	0 40 1 do k
-		k 3.17 * 11 + hash-fraction 680 * -42930 + to x
-		k 5.41 * 7 + hash-fraction 630 * -14650 + to z
+		k 3.17 * 11 + hash-fraction 680 * 62 + museum first + to x
+		k 5.41 * 7 + hash-fraction 630 * -122 + museum 2 @i + to z
 		x z water-at? not [ x z ] boundary inside-outline? and if
 			trees [ x 0 z ] k 2.3 * hash-fraction 6 * 9 + sketch-tree
 		then
@@ -447,6 +481,135 @@
 	inverness-buildings@inverness-town-house 0 ground-path 16 churches -rot sketch-prism
 	churches stone-colour keep
 	build-urquhart ;
+
+\ === the north-east and the northern isles ===
+
+0xb4b4bc constant granite-colour
+
+\ a lighthouse on its landmark's ground: a round tower its height high, the lantern on it 4 m high, and the roof's point 2 m above the lantern
+: keep-lighthouse ( key height -- )
+	| key height |
+	key on-ground to foot
+	new-sketch to lighthouse
+	lighthouse foot 3.5 0 height 10 sketch-drum
+	lighthouse foot 2 height height 4 + 8 sketch-drum
+	foot [ 0 height 4 + 0 ] v+ 2 0 8 ring-points ( rim | lighthouse [ rim foot [ 0 height 6 + 0 ] v+ ] sketch-path ) each
+	lighthouse stone-colour keep ;
+
+\ a frame of the same style for every one of a city's streets
+: uniform-styles ( streets style -- styles )
+	| streets style |
+	{ } to styles
+	streets keys ( key | styles style key ! drop ) each
+	styles ;
+
+\ Aberdeen in its granite: the main streets lined with tenements an estimated 16 m high; Marischal College's front range along Broad Street and the Mitchell Tower behind it, 85 m (published, as raised in 1891-95); the Town House's west tower, 64 m (published); the Kirk of St Nicholas and its granite spire, 143 ft (published); in Old Aberdeen King's College Chapel with its crown tower and St Machar's Cathedral with its two west towers and spires; Girdle Ness lighthouse, 37 m (published). Every footprint, and the heights not given as published, are estimates
+: build-aberdeen ( -- )
+	aberdeen-streets aberdeen-streets [ 16 [ -1 1 ] ] uniform-styles aberdeen-squares aberdeen-stations { } aberdeen-railways keep-city
+	new-sketch to granite
+	:marischal-college on-ground 0 site!
+	granite 0 0 0 at 0 16 120 20 26 sketch-house
+	granite 0 40 0 at 0 12 12 60 sketch-box
+	granite 0 40 0 at 12 60 85 8 sketch-pinnacled-spire
+	:aberdeen-town-house on-ground 90 site!
+	granite 0 0 0 at 90 20 60 18 24 sketch-house
+	granite -30 0 0 at 90 10 10 48 sketch-box
+	granite -30 0 0 at 10 48 64 6 sketch-pinnacled-spire
+	:st-nicholas on-ground 90 site!
+	granite 0 0 0 at 90 24 70 14 22 sketch-house
+	granite 0 0 0 at 90 10 10 26 sketch-box
+	granite 0 0 0 at 10 26 44 4 sketch-pinnacled-spire
+	:kings-college on-ground 90 site!
+	granite 0 0 0 at 90 10 45 12 16 sketch-house
+	granite -24 0 0 at 90 9 9 22 sketch-box
+	granite -24 0 0 at 9 22 30 33 sketch-crown
+	:st-machars on-ground 90 site!
+	granite 0 0 0 at 90 20 40 12 18 sketch-house
+	[ -6 6 ] ( across | granite -22 across 0 at 6 22 12 sketch-spire ) each
+	granite granite-colour keep
+	:girdle-ness 37 keep-lighthouse ;
+
+\ Peterhead: its streets lined with buildings an estimated 12 m high; the convict prison of 1888 on the shore south of the town, four cell blocks about a yard (the layout and sizes estimates); Buchan Ness lighthouse, 36 m (published)
+: build-peterhead ( -- )
+	peterhead-streets peterhead-streets [ 12 [ -1 1 ] ] uniform-styles peterhead-squares peterhead-stations { } peterhead-railways keep-city
+	new-sketch to prison
+	:peterhead-prison on-ground 0 site!
+	[ [ -45 0 ] [ 45 0 ] ] ( block | prison block first block second 0 at 0 14 80 14 18 sketch-house ) each
+	[ [ 0 -45 ] [ 0 45 ] ] ( block | prison block first block second 0 at 90 14 70 14 18 sketch-house ) each
+	prison [ [ -80 -80 ] [ 80 -80 ] [ 80 80 ] [ -80 80 ] ] 0 outline-at 5 sketch-wall-ring drop drop
+	prison granite-colour keep
+	:buchan-ness 36 keep-lighthouse ;
+
+\ Montrose: its streets lined with buildings an estimated 12 m high, the station's shed an estimated 8 m, the railway; the Old Church's steeple by Gillespie Graham, 1834: the tower 108 ft to its parapet, the spire 220 ft at its tip, the corner pinnacles 32 ft (published), the church behind it an estimate; Scurdie Ness lighthouse across the South Esk, 39 m (published)
+: build-montrose ( -- )
+	montrose-streets montrose-streets [ 12 [ -1 1 ] ] uniform-styles montrose-squares montrose-stations { :montrose-railway-station 8 } montrose-railways keep-city
+	new-sketch to church
+	:montrose-steeple on-ground 0 site!
+	church 0 0 0 at 0 9 9 33 sketch-box
+	church 0 0 0 at 9 33 67 10 sketch-pinnacled-spire
+	church -20 0 0 at 0 26 30 14 20 sketch-house
+	church stone-colour keep
+	:scurdie-ness 39 keep-lighthouse ;
+
+\ the Home Fleet's ships at anchor in Scapa Flow, each [ heading across along ] from the Flow's point, drawn with the cruiser's shape (the positions estimates)
+: build-scapa-ships ( -- )
+	:scapa-flow landmark-ground to anchorage
+	[ [ 230 0 0 ] [ 230 -600 900 ] [ 240 700 -800 ] [ 220 -1400 -300 ] ] ( ship |
+		ship spread to along to across to ship-heading
+		anchorage 0 across 0 along placed ship-heading keep-cruiser
+	) each ;
+
+\ Orkney: Kirkwall's streets lined with buildings an estimated 10 m high; St Magnus Cathedral in its red sandstone, 50 m to the spire's tip (published), its nave, transepts and crossing tower estimates; the ruins of the Bishop's and the Earl's palaces beside it; the naval base's oil tanks at Lyness; the Old Man of Hoy, a stack 137 m high (published) about 30 m across; the Ring of Brodgar, 27 stones on a circle about 100 m across; the Kitchener Memorial on Marwick Head; Hatston and Skeabrae are among the airfields (the sizes not given as published are estimates)
+: build-orkney ( -- )
+	:kirkwall landmark-ground use-water-near
+	kirkwall-streets kirkwall-streets [ 10 [ -1 1 ] ] uniform-styles kirkwall-squares kirkwall-stations { } kirkwall-railways keep-city
+	new-sketch to cathedral
+	:st-magnus-cathedral on-ground 90 site!
+	cathedral 0 0 0 at 90 18 70 16 22 sketch-house
+	cathedral 5 0 0 at 0 12 34 14 20 sketch-house
+	cathedral 5 0 0 at 90 11 11 32 sketch-box
+	cathedral 5 0 0 at 11 32 50 0 sketch-pinnacled-spire
+	cathedral sandstone-colour keep
+	new-sketch to ruins
+	[ :bishops-palace :earls-palace ] ( palace | ruins palace on-ground 0 10 30 10 sketch-box ) each
+	ruins stone-colour keep
+	new-sketch to tanks
+	:lyness on-ground 0 site!
+	0 6 1 do k
+		tanks k 3 mod 50 * 200 + k 3 / round-down 50 * 0 at 20 0 12 12 sketch-drum
+	loop
+	tanks town-colour keep
+	:old-man-of-hoy landmark-ground 15 137 keep-cone
+	new-sketch to stack
+	stack :old-man-of-hoy landmark-ground 15 0 137 9 sketch-drum
+	stack hill-colour keep
+	:ring-of-brodgar on-ground to ring-centre
+	new-sketch to ring
+	ring-centre 50 0 27 ring-points ( stone | ring [ stone stone [ 0 4 0 ] v+ ] sketch-path ) each
+	ring stone-colour keep
+	new-sketch to memorial
+	memorial :kitchener-memorial on-ground 0 6 6 14 sketch-box
+	memorial stone-colour keep
+	build-scapa-ships
+	[ 0 0 0 ] use-water-near ;
+
+\ Shetland: Lerwick's streets lined with buildings an estimated 10 m high; Fort Charlotte's five-sided walls above the harbour; the Town Hall of 1883 and its tower; Scalloway Castle; the lighthouses on Sumburgh Head, 17 m, and Muckle Flugga, 64 ft (published); RAF Sumburgh is among the airfields (the sizes not given as published are estimates)
+: build-shetland ( -- )
+	:lerwick landmark-ground use-water-near
+	lerwick-streets lerwick-streets [ 10 [ -1 1 ] ] uniform-styles lerwick-squares lerwick-stations { } lerwick-railways keep-city
+	new-sketch to forts
+	:fort-charlotte on-ground 0 site!
+	[ 0 5 1 do k k 5 / TAU * to angle [ angle cos 60 * angle sin 60 * ] loop ] 0 outline-at to walls
+	forts walls 6 sketch-wall-ring drop drop
+	:lerwick-town-hall on-ground 90 site!
+	forts 0 0 0 at 90 15 30 12 18 sketch-house
+	forts 12 0 0 at 6 22 8 sketch-spire
+	:scalloway-castle on-ground 0 site!
+	forts 0 0 0 at 0 10 20 15 sketch-box
+	forts stone-colour keep
+	:sumburgh-head 17 keep-lighthouse
+	:muckle-flugga 19.5 keep-lighthouse
+	[ 0 0 0 ] use-water-near ;
 
 \ === Trondheim and the Tirpitz ===
 
@@ -609,11 +772,12 @@ variable tirpitz-heading
 	sketch foot heading 0 20 0 placed heading 7 7 4 sketch-box
 	sketch [ foot heading 0 23 0 placed foot heading 0 26 12 placed ] sketch-path ;
 
-\ Trondheim's harbour in March 1942: the piers, quays and breakwaters (today's, from the map), each its edge 2 m above the water and a parallel edge 8 m in; on each quay 150 m or longer a portal crane every 80 m with a warehouse behind it, 40 m long, 15 m deep, 8 m to the eaves; the U-boat bunker Dora I, building since the autumn of 1941 and handed over in June 1943 (published), its walls up to 10 m with no roof, two tower cranes over it (heights and crane spacing estimates)
-: build-harbour ( -- )
+\ a harbour's piers, quays and breakwaters, each its edge 2 m above the water and a parallel edge 8 m in; on each quay 150 m or longer a portal crane every 80 m with a warehouse behind it, 40 m long, 15 m deep, 8 m to the eaves (heights and crane spacing estimates)
+: keep-harbour ( piers -- )
+	| piers |
 	new-sketch to quays
 	new-sketch to sheds
-	harbour-piers ( pier |
+	piers ( pier |
 		pier 2 ground-path to edge
 		quays edge sketch-path
 		quays pier 8 offset-path ( point | [ point first 2 point 2 @i ] ) map sketch-path
@@ -634,39 +798,144 @@ variable tirpitz-heading
 		loop
 	) each
 	quays warship-colour keep
-	sheds town-colour keep
+	sheds town-colour keep ;
+
+\ Leith's harbour as in 1940: the wet docks' quays with their cranes and warehouses, the dry docks' rims, the breakwaters standing an estimated 4 m above the water
+: build-leith ( -- )
+	leith-wet-docks ( dock | dock counter-clockwise to ring ring [ ring first ] concat ) map keep-harbour
+	new-sketch to leith
+	leith-dry-docks ( dock | leith dock 2 ground-path sketch-loop ) each
+	leith-breakwaters ( breakwater | leith breakwater 0 ground-path 4 sketch-prism ) each
+	leith stone-colour keep ;
+
+\ Trondheim's harbour in March 1942: the piers, quays and breakwaters (today's, from the map) with their cranes and warehouses; the U-boat bunker Dora I, building since the autumn of 1941 and handed over in June 1943 (published), its walls up to 10 m with no roof, two tower cranes over it (heights estimates)
+: build-harbour ( -- )
+	harbour-piers keep-harbour
 	dora-outline size 0 > if
 		new-sketch to bunker
-		bunker dora-outline 0 ground-path 10 sketch-prism
+		bunker dora-outline 0 ground-path 10 sketch-wall-ring drop drop
 		[ dora-outline first dora-outline dora-outline size 2 / round-down @i ] ( corner |
 			bunker [ corner first 0 corner second ] 0 40 25 sketch-hammerhead
 		) each
 		bunker stone-colour keep
 	then ;
 
-\ Trondheim: its streets lined with buildings an estimated 12 m high, the station's shed an estimated 10 m, the railways; Nidaros Cathedral, 102 m by 50 m across the transepts and 21 m high, its central spire's tip 87 m (published), the west front's towers an estimated 40 m; Munkholmen's fort on its islet; the Luftwaffe's airfield at Værnes
+\ Trondheim: its streets lined with wooden houses, the station's shed an estimated 10 m, the railways; Nidaros Cathedral, 102 m by 50 m across the transepts and 21 m high, its central spire's tip 87 m (published), the west front's towers an estimated 40 m, the roofs and spires weathered copper; Munkholmen's fort on its islet; the Luftwaffe's airfield at Værnes
 : build-trondheim ( -- )
 	:faettenfjord landmark-ground use-water-near
-	{ :munkegata [ 12 [ -1 1 ] ] :kongens-gate [ 12 [ -1 1 ] ] :olav-tryggvasons-gate [ 12 [ -1 1 ] ]
-	  :prinsens-gate [ 12 [ -1 1 ] ] } to styles
-	trondheim-streets styles trondheim-squares trondheim-stations { :trondheim-s 10 } trondheim-railways keep-city
+	trondheim-lanes keep-wooden-streets
+	{ } { } trondheim-squares trondheim-stations { :trondheim-s 10 } trondheim-railways keep-city
 	new-sketch to church
+	new-sketch to roofs
 	:nidaros landmark-ground 90 site!
-	church 0 0 0 at 90 24 102 21 28 sketch-house
-	church 10 0 0 at 0 20 50 21 28 sketch-house
+	[ [ 0 90 24 102 ] [ 10 0 20 50 ] ] ( wing |
+		wing spread to length to width to heading to along
+		along 0 0 at to centre
+		church centre heading width length 21 box-points to eaves-corners to floor
+		church floor eaves-corners box-walls
+		roofs centre heading width length 21 rectangle-corners sketch-points to eaves
+		roofs eaves centre heading length 28 centre sketch-roof
+	) each
 	church 10 0 0 at 90 14 14 40 sketch-box
-	church 10 0 0 at 14 40 87 6 sketch-pinnacled-spire
+	roofs 10 0 0 at 14 40 87 6 sketch-pinnacled-spire
 	[ -12 12 ] ( across |
 		church -48 across 0 at 90 10 10 40 sketch-box
-		church -48 across 0 at 10 40 46 3 sketch-pinnacled-spire
+		roofs -48 across 0 at 10 40 46 3 sketch-pinnacled-spire
 	) each
 	church stone-colour keep
+	roofs copper-colour keep
 	new-sketch to fort
 	fort :munkholmen landmark-ground 15 0 12 12 sketch-drum
 	fort :munkholmen landmark-ground 6 12 22 8 sketch-drum
 	fort stone-colour keep
 	build-harbour
 	:vaernes landmark-ground 90 keep-airfield
+	[ 0 0 0 ] use-water-near ;
+
+\ === Narvik and Bardufoss ===
+
+\ where the anti-aircraft cruiser Cairo lay off Narvik on 28 May 1940, the Allied ships' place, [ x 0 z ]: 2,500 m from the town on 290° (an estimate)
+: narvik-anchorage ( -- point ) :narvik landmark-ground 290 0 0 2500 placed ;
+
+\ a ground path lifted onto the ground's height, a height above it
+: lifted-path ( points lift -- points' )
+	| points lift |
+	points ( point | point spread to z to x [ x x z ground-height lift + z ] ) map ;
+
+\ the Allied ships off Narvik on 28 May 1940, supporting the crossing to Narvik: the anti-aircraft cruisers Cairo and Coventry and the destroyers Whirlwind, Fame, Havelock and Walker (published); each from the anchorage [ heading across along ], and drawn with the cruiser and destroyer shapes, not to their own classes (positions and headings estimates)
+: build-narvik-ships ( -- )
+	narvik-anchorage to anchorage
+	anchorage 60 keep-cruiser
+	anchorage 0 0 0 -1500 placed 60 keep-cruiser
+	new-sketch to escort
+	[ [ 70 -400 1200 ] [ 40 500 2200 ] [ 90 -700 -2600 ] [ 20 600 -900 ] ] ( ship |
+		ship spread to along to across to ship-heading
+		escort anchorage 0 across 0 along placed ship-heading sketch-destroyer
+	) each
+	escort warship-colour keep ;
+
+\ the heading from a point to the nearest land of the map's coast in the water in use, looking every 15° out to 400 m in steps of 20 m
+: shoreward ( point -- heading )
+	| point |
+	0 to shore-heading
+	420 to shore-reach
+	0 360 15 do heading
+		20 401 20 do reach
+			point heading 0 0 reach placed to probe
+			probe first probe 2 @i water-at? not reach shore-reach < and if
+				reach to shore-reach
+				heading to shore-heading
+			then
+		loop
+	loop
+	shore-heading ;
+
+\ a destroyer's wreck run ashore bow first: the forward part of the destroyer's hull, a length of it above the water, the stern end at the waterline and the bow 2 m higher, its deck 5 m above its foot, centred on a point and heading to the shore; the bridge, the forward guns and the forward funnel where they stand on that part
+: sketch-wreck ( sketch centre shown -- )
+	| sketch centre shown |
+	centre centre shoreward site!
+	59.5 shown - to cut
+	[ [ 59.5 0 ] [ 45 4.5 ] [ cut 5.65 ] [ cut -5.65 ] [ 45 -4.5 ] ] ( pair |
+		pair first to along
+		along cut - shown / 2 * to rise
+		along 59.5 - shown 2 / + pair second rise at
+	) map to hull
+	sketch hull 5 sketch-prism
+	[ [ 44 1 ] [ 34 1 ] [ 24 0 ] [ 10 0 ] ] ( part |
+		part first to along
+		along cut 3 + > if
+			along cut - shown / 2 * 5 + to deck
+			along 59.5 - shown 2 / + to placed-along
+			part second 1 = if
+				sketch placed-along 0 deck at site-heading 3 4 2.5 sketch-box
+			else
+				along 24 = if
+					sketch placed-along 0 deck at site-heading 6 8 9 sketch-box
+				else
+					sketch placed-along 0 deck at 1.8 0 9 8 sketch-drum
+				then
+			then
+		then
+	) each ;
+
+\ the German destroyers' wrecks by Narvik on 28 May 1940 whose positions are recorded to the second, both run ashore and blown up by their crews on 13 April: Z2 Georg Thiele in Rombaksbotn, broken in two, her bow on the shore (OpenStreetMap's wreck, which still shows), and Z19 Hermann Künne in Trollvika in the Herjangsfjord (Wikidata); drawn with the destroyer's shape, the length above the water estimates
+: build-narvik-wrecks ( -- )
+	new-sketch to wrecks
+	wrecks :georg-thiele landmark-ground 50 sketch-wreck
+	wrecks :hermann-kunne landmark-ground 70 sketch-wreck
+	wrecks warship-colour keep ;
+
+\ Narvik on 28 May 1940: its centre's streets, within 800 m of the town's point where the ground is taken as level, lined with wooden houses; the harbour's quays with their cranes and warehouses (today's, from the map); the ore railway laid on the ground; the Allied ships; Bardufoss airfield at its height, 77 m (published), its runway along today's 10/28, taken as 100° (an estimate)
+: build-narvik ( -- )
+	:narvik landmark-ground to town
+	town use-water-near
+	narvik-streets ( line | line ( point | point first town first - sq point second town 2 @i - sq + 800 sq < ) all? ) filter to streets
+	streets keep-wooden-streets
+	narvik-piers keep-harbour
+	narvik-railways ( line | line 1 lifted-path rail-colour keep-path ) each
+	build-narvik-ships
+	build-narvik-wrecks
+	:bardufoss landmark-ground [ 0 :bardufoss landmark-height 0 ] v+ 100 keep-airfield
 	[ 0 0 0 ] use-water-near ;
 
 \ === the whole scenery ===
@@ -682,12 +951,19 @@ variable tirpitz-heading
 	build-norway-terrain
 	build-airfields
 	build-edinburgh
+	build-leith
 	build-forth-bridge
 	build-ships
 	build-glasgow
 	build-stirling
 	build-inverness
+	build-aberdeen
+	build-peterhead
+	build-montrose
+	build-orkney
+	build-shetland
 	build-trondheim
 	build-tirpitz
+	build-narvik
 	gather-terrain
 	scenery collect-objects ;

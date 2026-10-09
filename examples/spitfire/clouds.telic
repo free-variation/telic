@@ -161,7 +161,7 @@ variable cloud-shadows
 				  ahead ]
 			loop ] to corners
 			corners ( corner | corner 2 @i near-plane > ) all? if
-				x z water-at? if water-colour else ground-colour then 0.75 dimmed to shade
+				x z water-at? if water-colour else level-ground-colour then 0.75 dimmed to shade
 				shade sky-colour distance depth-light blended to shade
 				corners shade fill-polygon
 			then
@@ -170,13 +170,15 @@ variable cloud-shadows
 
 ( draw-cloud-shadows ) to ground-marks
 
-\ the whole scene in one pass from the farthest to the nearest, so that what is filled covers what lies behind it: behind everything the sky, the sun or stars, the ground and the clouds' shadows; then the visible objects of the collections, the hills' slices, the clouds' spheres in view as discs, and the aircraft given with their smoke, each by its distance along the line of sight; the whole view the cloud's colour when the eye is inside a sphere
+\ the whole scene in one pass from the farthest to the nearest, so that what is filled covers what lies behind it: behind everything the sky, the sun or stars, the ground and the clouds' shadows; then the visible objects of the collections, the hills' slices, the near fields each just after the tile under it, the clouds' spheres in view as discs, and the aircraft given with their smoke, each by its distance along the line of sight; the whole view the cloud's colour when the eye is inside a sphere
 : draw-scene ( collections crafts -- )
 	| collections crafts ^in-cloud |
+	eye@position use-level-ground
 	draw-background
 	false to in-cloud
 	cloud-radii num-elements to n-spheres
-	collections object-items terrain-items concat to items
+	collections object-items terrain-items concat countryside-fields ground-items concat
+	town-grounds null? if [ ] else town-grounds ground-items then concat to items
 	n-spheres 0 > if
 		cloud-centres camera matmul to viewed
 		viewed 0 @j to across
@@ -209,6 +211,7 @@ variable cloud-shadows
 		ordered k @i spread to payload to kind drop
 		kind :object = if payload draw-object continue then
 		kind :terrain = if payload draw-terrain-tile continue then
+		kind :fields = if payload draw-fields continue then
 		kind :craft = if payload draw-bomber continue then
 		cloud-top-colour cloud-base-colour cloud-shades payload @e blended to colour
 		colour sky-colour distance-squared payload @e sqrt depth-light blended to colour

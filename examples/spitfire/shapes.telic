@@ -9,7 +9,17 @@
 : hash-fraction ( k -- f ) 12.9898 * sin 43758.5453 * dup round-down - ;
 
 \ a new, empty sketch
-: new-sketch ( -- sketch ) { :points [ ] :edges [ ] } ;
+: new-sketch ( -- sketch ) { :points [ ] :edges [ ] :faces [ ] } ;
+
+\ a face of a sketch, filled as a side of a solid: its corners' indices in turn round it, and a point inside the solid, so the face knows which way is out
+: sketch-face ( sketch indices inside -- )
+	| sketch indices inside |
+	sketch@faces [ indices inside ] add-last! drop ;
+
+\ the middle of some of a sketch's points, by their indices
+: inside-of ( sketch indices -- point )
+	| sketch indices |
+	indices ( index | sketch@points index @i ) map [ 0 0 0 ] ' v+ reduce 1 indices size / v* ;
 
 \ add a point to a sketch and answer its index
 : sketch-point ( sketch point -- index )
@@ -50,14 +60,48 @@
 	| sketch points |
 	sketch sketch points sketch-points join-loop ;
 
-\ the finished object: points as an n×4 matrix, edges, colour, and the sphere around the points
+\ a sketch's edges that lie on none of its faces' boundaries, a flat array of indices in pairs
+: loose-edges ( sketch -- edges )
+	| sketch |
+	{ } to on-faces
+	sketch@faces ( face |
+		face first to corners
+		corners size to n-corners
+		0 n-corners 1 do k
+			corners k @i to a
+			corners k 1+ n-corners mod @i to b
+			on-faces true a b min2 a b max2 "{1}/{0}" format string>symbol ! drop
+		loop
+	) each
+	sketch@edges to edges
+	[ 0 edges size 2 do k
+		edges k @i to a
+		edges k 1+ @i to b
+		on-faces a b min2 a b max2 "{1}/{0}" format string>symbol has? not if a b then
+	loop ] ;
+
+\ the finished object: points as an n×4 matrix, edges, colour, and the sphere around the points; with faces also each face's corners, its centre as a row of an m×4 matrix, and its outward normal, away from the point inside its solid, as a row of an m×3 matrix of unit vectors, and the edges on no face
 : sketch>object ( sketch colour -- object )
 	| sketch colour |
 	sketch@points to points
 	points [ 0 0 0 ] ' v+ reduce points size 1 max2 1 swap / v* to centre
 	points 0 ( far point | far point centre v- v-length max2 ) reduce to radius
 	points ( point | point spread 1 4 array ) map flatten points size 4 matrix to point-matrix
-	{ :points point-matrix :edges sketch@edges :colour colour :centre centre :radius radius } ;
+	{ :points point-matrix :edges sketch@edges :colour colour :centre centre :radius radius } to object
+	sketch :faces [ ] @or to faces
+	faces size 0 = if object exit then
+	faces ( face | face first ( index | points index @i ) map [ 0 0 0 ] ' v+ reduce 1 face first size / v* ) map to face-centres
+	faces face-centres ( face face-centre |
+		face first ( index | points index @i ) map to corners
+		corners second corners first v- corners 2 @i corners first v- v-cross to normal
+		normal face-centre face second v- v-dot 0 < if normal -1 v* to normal then
+		normal v-unit
+	) 2 nmap to normals
+	object
+	faces ( face | face first ) map :faces !
+	face-centres ( point | point spread 1 4 array ) map flatten faces size 4 matrix :face-centres !
+	normals flatten faces size 3 matrix :face-normals !
+	sketch loose-edges :loose-edges ! ;
 
 \ === placing shapes ===
 
@@ -79,28 +123,57 @@
 	  centre heading half-width height half-length placed
 	  centre heading half-width negate height half-length placed ] ;
 
-\ a box: its base centred on a point, turned to a heading
-: sketch-box ( sketch centre heading width length height -- )
+\ a box's edges, its base centred on a point, turned to a heading: its floor's and its top's corners' indices
+: box-points ( sketch centre heading width length height -- floor top )
 	| sketch centre heading width length height |
 	sketch centre heading width length 0 rectangle-corners sketch-points to floor
-	sketch centre heading width length height rectangle-corners sketch-points to roof
+	sketch centre heading width length height rectangle-corners sketch-points to top
 	sketch floor join-loop
-	sketch roof join-loop
+	sketch top join-loop
 	0 4 1 do k
-		sketch floor k @i roof k @i sketch-edge
+		sketch floor k @i top k @i sketch-edge
+	loop
+	floor top ;
+
+\ a box's four walls as faces, between its floor's corners and its top's
+: box-walls ( sketch floor top -- )
+	| sketch floor top |
+	sketch floor top concat inside-of to inside
+	0 4 1 do k
+		k 1+ 4 mod to next
+		sketch [ floor k @i floor next @i top next @i top k @i ] inside sketch-face
 	loop ;
 
-\ a house: walls to the eaves, then a pitched roof along its length
+\ a box's edges alone, for a lattice: a crane's tower
+: sketch-open-box ( sketch centre heading width length height -- ) box-points drop drop ;
+
+\ a box: its base centred on a point, turned to a heading; its walls and top filled
+: sketch-box ( sketch centre heading width length height -- )
+	| sketch centre heading width length height |
+	sketch centre heading width length height box-points to top to floor
+	sketch floor top box-walls
+	sketch top sketch floor top concat inside-of sketch-face ;
+
+\ a pitched roof along a length from four eaves corners already in a sketch up to a ridge at a height: its edges, its two slopes and its gables filled, facing away from a point inside
+: sketch-roof ( sketch eaves-corners centre heading length ridge inside -- )
+	| sketch eaves-corners centre heading length ridge inside |
+	length 2 / to half-length
+	sketch centre heading 0 ridge half-length negate placed sketch-point to front-ridge
+	sketch centre heading 0 ridge half-length placed sketch-point to back-ridge
+	sketch [ eaves-corners first front-ridge eaves-corners second ] join-path
+	sketch [ eaves-corners 3 @i back-ridge eaves-corners 2 @i ] join-path
+	sketch front-ridge back-ridge sketch-edge
+	sketch [ eaves-corners first front-ridge back-ridge eaves-corners 3 @i ] inside sketch-face
+	sketch [ eaves-corners second eaves-corners 2 @i back-ridge front-ridge ] inside sketch-face
+	sketch [ eaves-corners first eaves-corners second front-ridge ] inside sketch-face
+	sketch [ eaves-corners 2 @i eaves-corners 3 @i back-ridge ] inside sketch-face ;
+
+\ a house: walls to the eaves, then a pitched roof along its length; its walls, the roof's two slopes and the gables filled
 : sketch-house ( sketch centre heading width length eaves ridge -- )
 	| sketch centre heading width length eaves ridge |
-	sketch centre heading width length eaves sketch-box
-	length 2 / to half-length
-	centre heading 0 ridge half-length negate placed to front-ridge
-	centre heading 0 ridge half-length placed to back-ridge
-	centre heading width length eaves rectangle-corners to eaves-corners
-	sketch [ eaves-corners first front-ridge eaves-corners second ] sketch-path
-	sketch [ eaves-corners 3 @i back-ridge eaves-corners 2 @i ] sketch-path
-	sketch [ front-ridge back-ridge ] sketch-path ;
+	sketch centre heading width length eaves box-points to eaves-corners to floor
+	sketch floor eaves-corners box-walls
+	sketch eaves-corners centre heading length ridge sketch floor eaves-corners concat inside-of sketch-roof ;
 
 \ a ring of points about a centre at a height
 : ring-points ( centre radius height count -- points )
@@ -110,7 +183,7 @@
 		[ centre first angle sin radius * + centre second height + centre 2 @i angle cos radius * + ]
 	loop ] ;
 
-\ a hill: a ring at its foot, a smaller one part way up, and lines from the foot to the top; the seed turns it and varies its shoulders
+\ a hill's rings: seven points at its foot, seven part way up, and its summit; the seed turns it and varies its shoulders
 : hill-rings ( centre radius height seed -- foot shoulder summit )
 	| centre radius height seed |
 	7 to count
@@ -123,34 +196,39 @@
 	foot ( point | point centre 0.45 v-between [ 0 height 0.55 * 0 ] v+ ) map
 	centre [ 0 height 0 ] v+ ;
 
-: sketch-hill ( sketch centre radius height seed -- )
-	| sketch centre radius height seed |
-	7 to count
-	centre radius height seed hill-rings to summit-point to shoulder to foot
-	sketch foot sketch-points to foot-indices
-	sketch shoulder sketch-points to shoulder-indices
-	sketch summit-point sketch-point to summit
-	sketch foot-indices join-loop
-	sketch shoulder-indices join-loop
-	0 count 1 do k
-		sketch [ foot-indices k @i shoulder-indices k @i summit ] join-path
+\ a pyramid from a ring of corners already in a sketch to a tip: an edge up each corner, a face between each pair of corners and the tip
+: pyramid ( sketch corners tip -- )
+	| sketch corners tip |
+	corners size to n-corners
+	sketch corners [ tip ] concat inside-of to inside
+	0 n-corners 1 do k
+		sketch corners k @i tip sketch-edge
+		sketch [ corners k @i corners k 1+ n-corners mod @i tip ] inside sketch-face
 	loop ;
 
-\ a ridge of hills along a line, each summit the height given
-: sketch-ridge ( sketch summits radius -- )
-	| sketch summits radius |
-	0 summits size 1 do k
-		summits k @i spread to height to z to x
-		sketch [ x 0 z ] radius height k 1.3 * sketch-hill
-	loop ;
+\ whether a ring of [ x y z ] points turns one way all round in plan, so a fan from its first point fills it
+: convex-ring? ( points -- flag )
+	| points |
+	points size to n-points
+	0 to n-left
+	0 to n-right
+	0 n-points 1 do k
+		points k @i to a
+		points k 1+ n-points mod @i to b
+		points k 2 + n-points mod @i to c
+		b first a first - c 2 @i b 2 @i - * b 2 @i a 2 @i - c first b first - * - to turn
+		turn 1e-9 > if ++ n-left then
+		turn -1e-9 < if ++ n-right then
+	loop
+	n-left 0 = n-right 0 = or ;
 
 \ a tower with a pointed spire on it
 : sketch-spire ( sketch centre width tower-height spire-height -- )
 	| sketch centre width tower-height spire-height |
-	sketch centre 0 width width tower-height sketch-box
-	sketch centre 0 width width tower-height rectangle-corners sketch-points to eaves
+	sketch centre 0 width width tower-height box-points to eaves to floor
+	sketch floor eaves box-walls
 	sketch centre [ 0 tower-height spire-height + 0 ] v+ sketch-point to tip
-	eaves ( corner | sketch corner tip sketch-edge ) each ;
+	sketch eaves tip pyramid ;
 
 \ === a building's own terms ===
 
@@ -175,16 +253,27 @@ variable site-heading
 	| pairs up |
 	pairs ( pair | pair first pair second up at ) map ;
 
-\ a solid standing on an outline: the outline at its foot and again a height above, joined at every corner
-: sketch-prism ( sketch outline height -- )
+\ a wall standing round an outline, open above: the outline at its foot and again a height above, joined at every corner, the sides filled; its top's indices and a point inside it
+: sketch-wall-ring ( sketch outline height -- top inside )
 	| sketch outline height |
 	sketch outline sketch-points to foot
 	sketch outline ( point | point [ 0 height 0 ] v+ ) map sketch-points to top
 	sketch foot join-loop
 	sketch top join-loop
-	0 foot size 1 do k
+	foot size to n-corners
+	sketch foot top concat inside-of to inside
+	0 n-corners 1 do k
 		sketch foot k @i top k @i sketch-edge
-	loop ;
+		k 1+ n-corners mod to next
+		sketch [ foot k @i foot next @i top next @i top k @i ] inside sketch-face
+	loop
+	top inside ;
+
+\ a solid standing on an outline: the wall round it and, where the outline is convex, its top filled
+: sketch-prism ( sketch outline height -- )
+	| sketch outline height |
+	sketch outline height sketch-wall-ring to inside to top
+	outline convex-ring? if sketch top inside sketch-face then ;
 
 \ a drum: a ring of sides from one height to another about a centre
 : sketch-drum ( sketch centre radius bottom top n-sides -- )
@@ -196,7 +285,7 @@ variable site-heading
 	| sketch centre width base tip pinnacle |
 	sketch centre 0 width width base rectangle-corners sketch-points to corners
 	sketch centre [ 0 tip 0 ] v+ sketch-point to apex
-	corners ( corner | sketch corner apex sketch-edge ) each
+	sketch corners apex pyramid
 	centre 0 width width base rectangle-corners ( corner |
 		sketch [ corner corner [ 0 pinnacle 0 ] v+ ] sketch-path
 	) each ;
@@ -222,7 +311,7 @@ variable site-heading
 \ a hammerhead crane: a lattice tower and the long jib across its top, the counterweight end shorter
 : sketch-hammerhead ( sketch foot heading height jib -- )
 	| sketch foot heading height jib |
-	sketch foot heading 10 10 height sketch-box
+	sketch foot heading 10 10 height sketch-open-box
 	sketch [ foot heading -5 0 -5 placed foot heading 5 height -5 placed ] sketch-path
 	sketch [ foot heading 5 0 -5 placed foot heading -5 height -5 placed ] sketch-path
 	sketch [ foot heading 0 height jib 0.35 * negate placed foot heading 0 height jib placed
@@ -256,6 +345,23 @@ variable site-heading
 		points k @i spread to z to x
 		[ x across first across-length / distance * + 0 z across second across-length / distance * + ]
 	loop ] ;
+
+\ the middle of an outline, the mean of its points
+: outline-middle ( outline -- point )
+	| outline |
+	outline [ 0 0 ] ' v+ reduce outline size 1 swap / v* ;
+
+\ a ring of [ x z ] points turned counter-clockwise, east to north, so its inside lies left of each side
+: counter-clockwise ( ring -- ring' )
+	| ring |
+	ring size to n-points
+	0 to twice-area
+	0 n-points 1 do k
+		ring k @i to a
+		ring k 1+ n-points mod @i to b
+		twice-area a first b second * b first a second * - + to twice-area
+	loop
+	twice-area 0 < if ring reverse else ring then ;
 
 \ a ground path's [ x z ] points as [ x height z ]
 : ground-path ( points height -- points' )

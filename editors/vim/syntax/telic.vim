@@ -84,20 +84,21 @@ syn keyword telicBuiltin reify reload remove-last! rename-file rename-key! rende
 syn keyword telicBuiltin resample-indices-ext reset reshape rest resume reverse rm rmdir roll rot rotate-bitmap rotate-bitmap-angle
 syn keyword telicBuiltin round round-down round-up row-at row-maxes row-means row-mins row-sums rows>dataset rshift run run-result
 syn keyword telicBuiltin running? sample sample-with-replacement sample-without-replacement save save-tsv save-value screen-effect screen-frame screen-frames screen-shader screen-size
-syn keyword telicBuiltin screen-zoom se second see see-compiled see-compiled>string see-tree see-tree>string see>string seed segment>pointer segment?
-syn keyword telicBuiltin select-columns select-eq select-keys select-neq select-rows select-values sequence-articulation sequence-chord sequence-end sequence-instrument sequence-note sequence-rest
-syn keyword telicBuiltin sequence-tempo sequence-velocity set set-add! set-remove! set-unit! set>array set? sheet>bitmaps shift shift-with shuffle
-syn keyword telicBuiltin side-depth side-drop side-peek sigmoid silence-audio sin sinh size skip sleep slice! solutions
-syn keyword telicBuiltin sort sort-by sort-rows sort-rows-descending spaces split split-by spread sprite-bitmap sprite-box sprites-collide? sprites-overlap?
-syn keyword telicBuiltin sq sqrt start-generator start-process std stderr stdin stdout stdout>string stop stream? string>byte-vector
-syn keyword telicBuiltin string>chars string>codepoints string>number string>symbol string? submatrix substring successive-differences sum sum-times summary swap
-syn keyword telicBuiltin symbol? take take-solutions tan tanh telic telic-version test test-report text-scale text-width throw
-syn keyword telicBuiltin tick-every time>iso timed to-slice! touch touch-file trace transpose trim true true? truncate
-syn keyword telicBuiltin try-catch tsv>db tty? tuck type-of typed-text unify? union unit unit-of update-at upper-case
-syn keyword telicBuiltin value>bytes values var variables vars vector vf* vf+ vf- vf/ vfabs vfcos
-syn keyword telicBuiltin vfexp vflog vfneg vfsin vfsq vfsqrt vftan vftanh vstack vvf* vvf*+ vvf*-
-syn keyword telicBuiltin vvf+ vvf- vvf/ wait wait-audio wait-readable wait-sequence wall-now where wildcard? with-db with-stream
-syn keyword telicBuiltin within-groups words write write-arrow write-bitmap write-file write-in write-tsv xml-escape xt? yield zero-variance?
+syn keyword telicBuiltin screen-zoom se second see see-compiled see-compiled>string see-tree see-tree>string see>string seed segment-crossings segment>pointer
+syn keyword telicBuiltin segment? select-columns select-eq select-keys select-neq select-rows select-values sequence-articulation sequence-chord sequence-end sequence-instrument sequence-note
+syn keyword telicBuiltin sequence-rest sequence-tempo sequence-velocity set set-add! set-remove! set-unit! set>array set? sheet>bitmaps shift shift-with
+syn keyword telicBuiltin shuffle side-depth side-drop side-peek sigmoid silence-audio sin sinh size skip sleep slice!
+syn keyword telicBuiltin solutions sort sort-by sort-rows sort-rows-descending spaces split split-by spread sprite-bitmap sprite-box sprites-collide?
+syn keyword telicBuiltin sprites-overlap? sq sqrt start-generator start-process std stderr stdin stdout stdout>string stop stream?
+syn keyword telicBuiltin string>byte-vector string>chars string>codepoints string>number string>symbol string? submatrix substring successive-differences sum sum-times summary
+syn keyword telicBuiltin swap symbol? take take-solutions tan tanh telic telic-version test test-report text-scale text-width
+syn keyword telicBuiltin throw tick-every time>iso timed to-slice! touch touch-file trace transpose trim true true?
+syn keyword telicBuiltin truncate try-catch tsv>db tty? tuck type-of typed-text unify? union unit unit-of update-at
+syn keyword telicBuiltin upper-case value>bytes values var variables vars vector vf* vf+ vf- vf/ vfabs
+syn keyword telicBuiltin vfcos vfexp vflog vfneg vfsin vfsq vfsqrt vftan vftanh vstack vvf* vvf*+
+syn keyword telicBuiltin vvf*- vvf+ vvf- vvf/ wait wait-audio wait-readable wait-sequence wall-now where wildcard? with-db
+syn keyword telicBuiltin with-stream within-groups words write write-arrow write-bitmap write-file write-in write-tsv xml-escape xt? yield
+syn keyword telicBuiltin zero-variance?
 
 hi def link telicComment      Comment
 hi def link telicString       String

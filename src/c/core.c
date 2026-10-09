@@ -6302,6 +6302,7 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "argmin", p_argmin, 0);
 	define_primitive(interp, "nonmissing-count", p_nonmissing_count, 0);
 	define_primitive(interp, "where", p_where, 0);
+	define_primitive(interp, "segment-crossings", p_segment_crossings, 0);
 	define_primitive(interp, "row-maxes", p_row_maxes, 0);
 	define_primitive(interp, "row-mins", p_row_mins, 0);
 	define_primitive(interp, "column-maxes", p_column_maxes, 0);

@@ -1,11 +1,19 @@
-\ Spitfire: a Supermarine Spitfire Mk I over central Scotland in 1940, in
+\ Spitfire: a Supermarine Spitfire Mk I over Scotland in 1940, in
 \ wireframe. Every armed mission but the flying lesson may be flown in a
 \ Hawker Hurricane Mk I instead, chosen on its briefing.
 \
 \   ./telic examples/spitfire.telic
 \
 \ The title lists the missions: the Ju 88 raid on the Forth of 16 October
-\ 1939, from the runway at RAF Turnhouse, west of Edinburgh; the dogfight
+\ 1939, from the runway at RAF Turnhouse, west of Edinburgh; the raid on the
+\ Home Fleet in Scapa Flow of 16 March 1940, He 111s from the east, flown in
+\ a Hurricane from Wick on patrol over the Pentland Firth; Narvik on 28
+\ May 1940, the day the Allies retook the town, flown only in 46 Squadron's
+\ Hurricane from Bardufoss against Kampfgruppe 100's He 111s coming for the
+\ cruisers and destroyers in the Ofotfjord; HMS Glorious on 7 June 1940,
+\ a Hurricane of 46 Squadron, with no hook and a sandbag in its tail,
+\ landing on her flight deck as she steams into the wind north of Andenes,
+\ braking to rest on the moving deck; the dogfight
 \ off the Farne Islands of 15 August 1940, begun among the Bf 110s escorting
 \ KG 26's He 111s to Tyneside, which break toward a Spitfire behind them and
 \ turn their nose guns onto one ahead, with five more of 72 Squadron's
@@ -27,7 +35,9 @@
 \ The map runs
 \ from the Clyde to the Firth of Forth, south-east to the Farne Islands
 \ and Tyneside, north up the Great Glen to
-\ Inverness and on to Wick, and, across 580 miles of the North Sea placed at
+\ Inverness, up the east coast by Montrose, Aberdeen and Peterhead, on over
+\ Wick to Orkney and Shetland, placed by the azimuthal equidistant projection
+\ from 56°N 3.6°W, true in distance and bearing from there, and, across 580 miles of the North Sea placed at
 \ their true distance and bearing, round the Trondheimsfjord: Trondheim
 \ with Nidaros Cathedral, Munkholmen and its harbour, the U-boat bunker Dora I
 \ half built, the Luftwaffe's airfield at Værnes, and the Tirpitz with two
@@ -39,26 +49,53 @@
 \ College's towers, the Cathedral and the Necropolis, the City Chambers, the
 \ Tolbooth Steeple, the Finnieston and Titan cranes and the shipyards;
 \ Stirling, Loch
-\ Lomond and Loch Ness, the Pentlands, Ochils and Campsies, and the
-\ airfields at Turnhouse, Drem, Abbotsinch and Dalcross.
+\ Lomond and Loch Ness, the Highlands, the Pentlands, Ochils and Campsies on
+\ the surveyed ground, and the
+\ airfields at Turnhouse, Drem, Abbotsinch, Dalcross, Wick, Castletown,
+\ Dyce and Montrose. In the north-east: Aberdeen's granite streets, Marischal
+\ College's Mitchell Tower, the Town House, the Kirk of St Nicholas, King's
+\ College Chapel and St Machar's Cathedral; Peterhead's prison; Montrose's
+\ steeple; the lighthouses at Girdle Ness, Buchan Ness and Scurdie Ness.
+\ In Orkney: Kirkwall's streets, St Magnus Cathedral and the palaces beside
+\ it, the Home Fleet at anchor in Scapa Flow, the oil tanks at Lyness, the
+\ Old Man of Hoy, the Ring of Brodgar, the Kitchener Memorial, and the
+\ airfields at Hatston and Skeabrae. In Shetland: Lerwick's streets, Fort
+\ Charlotte, the Town Hall, Scalloway Castle, the lighthouses on Sumburgh
+\ Head and Muckle Flugga, and RAF Sumburgh. Round Narvik, the
+\ Ofotfjord, Rombaksfjord and Herjangsfjord among their mountains, the
+\ town's streets, quays and ore railway, the Allied ships off it, the
+\ wrecks of the destroyers Georg Thiele and Hermann Künne on the shore, and
+\ Bardufoss airfield 77 m up in the valley to the north. Each mission has a
+\ wind, which carries the aircraft over the ground, and gusts, stronger near
+\ the ground in a strong wind, under the cumulus and inside it.
 \
 \ Keys: the arrows are the stick (down pulls back, lifting the nose; left and
-\ right roll), Z and X the rudder, Q and A the throttle, [ and ] the
+\ right roll), Z and X the rudder, M the magnetos on and off, K held the
+\ starter (on the runway the engine starts stopped), O held the
+\ slow-running cut-out that stops it, Q and A the throttle, [ and ] the
 \ elevator trim nose-down and nose-up, W and S the propeller finer and
 \ coarser, E the boost cut-out, C the cameras on the reconnaissance
 \ sortie, T time four and sixteen times as fast, V the film's review after
 \ landing, F the flaps, G the
 \ undercarriage, B the brakes, space the guns, J bails out (the hood back,
-\ then over the side, then the ripcord), in the Hurricane comma and period
-\ the rudder bias and R the fuel cock, 1 to 4 look ahead, left, right
-\ and behind, P pauses, escape returns to the
+\ then over the side, then the ripcord), N held the chart on the pilot's
+\ knee across the whole screen (the mission's map without the marks that
+\ move, in the detail of a printed one: the land tinted by height, rivers,
+\ railways, towns, airfields, summits and ten-mile squares; the aircraft
+\ flying on unseen), comma and period the rudder trim
+\ left and right, in the Hurricane R the fuel cock, 1 to 4 look ahead, left, right
+\ and behind, H the help (the keys, the cockpit, flying, fighting and finding
+\ the way, left and right turning its pages, the flight paused), P pauses,
+\ escape returns to the
 \ missions. A gamepad: the left stick is the stick, the shoulders the rudder,
 \ the right stick's up and down or the d-pad's the throttle, the right
 \ stick's left and right the trim, the stick clicks the propeller (right
 \ finer, left coarser), the left trigger the boost cut-out, A or the right
 \ trigger the guns, X the flaps, Y the undercarriage, B the brakes, the d-pad
 \ left and right turns the view, start pauses and back returns to the
-\ missions. On the title, up and down or the d-pad choose a mission, return,
+\ missions; on the ground with the engine stopped A switches the magnetos
+\ on and, held, turns the starter, and at rest with it running the left
+\ trigger held stops it. On the title, up and down or the d-pad choose a mission, return,
 \ start or A opens its briefing (a map of the area, the particulars and the
 \ orders), where return, start or A flies it; H or Y shows the keys; escape
 \ quits.
@@ -67,7 +104,14 @@
 \ examples/spitfire/flight.telic; the ground's heights and Trondheim's
 \ harbour in norway-terrain.telic, generated by tools/gen-norway-terrain.py
 \ from the AWS Terrain Tiles (Norway terrain data © Kartverket) and from
-\ OpenStreetMap;
+\ OpenStreetMap; the land round Narvik and Bardufoss, its heights, coast,
+\ landmarks, streets, quays and railways, in narvik.telic, generated by
+\ tools/gen-narvik.py from the same tiles, OpenStreetMap and Wikidata;
+\ Scotland's heights in scotland-terrain.telic, generated by
+\ tools/gen-scotland-terrain.py from the same tiles (produced using
+\ Copernicus data and information funded by the European Union - EU-DEM
+\ layers; SRTM data courtesy of the U.S. Geological Survey; © Environment
+\ Agency copyright and/or database right 2015);
 \ the map in geography.telic, generated by
 \ tools/gen-spitfire-map.py from Natural Earth and Wikidata, and Glasgow's,
 \ Edinburgh's and Inverness's streets, squares, stations, railways and some
@@ -83,10 +127,16 @@
 \ cockpit.telic; the aircraft's models, the Spitfire's and the Hurricane's
 \ among them, in aircraft.telic; the Spitfire's, the PR IV's and the
 \ Hurricane's figures for the flight model in aircraft-types.telic; the
-\ sound in sound.telic; the game in game.telic.
+\ sound in sound.telic, and with it the music under the title and the
+\ briefings: Paul Whiteman and his Ambassador Orchestra's "Anytime, Anyday,
+\ Anywhere" (Victor 18694, 1920, the Library of Congress's National
+\ Jukebox transfer), in examples/assets/anytime-anyday-anywhere.mp3,
+\ decoded through ffmpeg; the game in game.telic.
 
 "spitfire/geography.telic" load
 "spitfire/norway-terrain.telic" load
+"spitfire/narvik.telic" load
+"spitfire/scotland-terrain.telic" load
 "spitfire/space.telic" load
 "spitfire/shapes.telic" load
 "spitfire/render.telic" load
@@ -154,12 +204,20 @@
 
 ' window-face embodies fill-face
 
+: window-capture ( -- bitmap ) 0 0 640 window-scale * 480 window-scale * capture-bitmap ;
+: window-pixels ( -- n ) window-scale ;
+
+' window-capture embodies capture-view
+' draw-bitmap embodies draw-view
+' window-pixels embodies view-pixels
+
 \ run the flight until escape, each frame advanced by the time since the last, at most 1/15 s
 : play ( -- )
 	| ^scenery-collection |
 	build-scenery to scenery-collection
 	build-models
 	define-sounds
+	load-title-music
 	( audio-on ) catch if drop else settle-sound then
 	0 show-title
 	now to last

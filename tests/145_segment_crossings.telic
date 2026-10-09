@@ -1,0 +1,43 @@
+\ ==== segment-crossings ( segments x z dx dz -- v ) ====
+
+\ The line through the point x z along the direction dx dz crosses the
+\ segments, the rows [ x0 z0 x1 z1 ] of an n×4 matrix, at the distances t
+\ along it, the point x z + t·(dx dz): a k×1 vector in ascending order. A
+\ segment counts when its ends lie on opposite sides of the line, an end on
+\ the line counting with the right side, so two segments meeting on the
+\ line give one crossing where the outline passes through and none where it
+\ only touches.
+
+[ 0 0 4 0  4 0 4 4  4 4 0 4  0 4 0 0 ] 4 4 matrix to square
+
+\ === a square crossed: two distances, in order ===
+square 1 2 1 0 segment-crossings matrix>array . cr          \ [ -1 3 ]
+square 1 2 -1 0 segment-crossings matrix>array . cr         \ [ -3 1 ]
+square 2 0 0 1 segment-crossings matrix>array . cr          \ [ 0 4 ]
+square 0 0 1 1 segment-crossings matrix>array . cr          \ [ 0 4 ]
+square 1 2 2 0 segment-crossings matrix>array . cr          \ [ -0.5 1.5 ]
+clear
+
+\ === a line missing every segment: an empty vector ===
+square 0 9 1 0 segment-crossings dim . . cr                 \ 1 0
+clear
+
+\ === two segments meeting on the line ===
+\ passing through the meeting point: one crossing
+[ 0 0 1 1  1 1 2 2 ] 2 4 matrix 0 1 1 0 segment-crossings matrix>array . cr   \ [ 1 ]
+\ touching it from below, a peak: none
+[ 0 0 1 1  1 1 2 0 ] 2 4 matrix 0 1 1 0 segment-crossings matrix>array . cr   \ [ ]
+\ touching it from above, a trough: two at the same place, the parity kept
+[ 0 2 1 1  1 1 2 2 ] 2 4 matrix 0 1 1 0 segment-crossings matrix>array . cr   \ [ 1 1 ]
+clear
+
+\ === the even-odd test: positive distances due east, odd inside ===
+square 2 2 1 0 segment-crossings 0 > sum . cr               \ 1
+square 6 2 1 0 segment-crossings 0 > sum . cr               \ 0
+clear
+
+\ === errors ===
+[ 0 0 1 ] 1 3 matrix 0 0 1 0 segment-crossings              \ (not 4 columns)
+square 0 0 0 0 segment-crossings                            \ (zero direction)
+"square" 0 0 1 0 segment-crossings                          \ (not a matrix)
+square 0 0 1 "east" segment-crossings                       \ (a string direction)

@@ -1658,6 +1658,7 @@ void p_reshape(DISPATCH_ARGS);
 void p_row_maxes(DISPATCH_ARGS);
 void p_row_mins(DISPATCH_ARGS);
 void p_row_sums(DISPATCH_ARGS);
+void p_segment_crossings(DISPATCH_ARGS);
 void p_select_rows(DISPATCH_ARGS);
 void p_store_e(DISPATCH_ARGS);
 void p_store_e_drop(DISPATCH_ARGS);

@@ -1,12 +1,19 @@
-\ Spitfire: the countryside near the aircraft. Each kilometre of land within
-\ 3 km is divided by hedges into about sixteen fields, with trees along the
-\ hedges and now and then a farm, a house and a barn about a yard; lanes run
-\ straight through whole rows and columns of kilometres. The layout comes
-\ from a hash of the kilometre's position, so the same fields are there
-\ whenever the aircraft returns. A kilometre of water has ripples instead,
+\ Spitfire: the countryside near the aircraft. The land within 3 km is
+\ divided by hedges into irregular four-sided fields of about 6 to 20
+\ hectares, the hedges running between corners scattered about a 250 m
+\ lattice, some left out, some planted as lines of trees, trees standing in
+\ others, and now and then a farm, a house and a barn about a yard; lanes
+\ follow the hedges' lines from one kilometre to the next. The layout comes
+\ from a hash of each corner's and hedge's position, so the same fields are there
+\ whenever the aircraft returns. In Norway the fields lie only on the level
+\ farmland below 150 m, without hedges or lanes, white under the snow, with
+\ a red barn and a white house about many of the yards; the ground above
+\ them is the terrain's own forest, heath, rock and snow. A kilometre of
+\ water has ripples instead,
 \ short strokes on the surface, more of them next to an aircraft below 400 m.
 \ Kilometres within reach of a town or an airfield are left clear for their
-\ own buildings. The objects of the kilometres near the aircraft are kept and
+\ own buildings; a town's ground is filled grey or brown in squares of
+\ 350 m out to an irregular edge, its parks green, built once. The objects of the kilometres near the aircraft are kept and
 \ gathered again only when the aircraft crosses into another kilometre or
 \ through 400 m.
 
@@ -16,13 +23,19 @@ variable countryside-objects
 { } to countryside-objects
 variable countryside-collection
 { :objects [ ] :centres 0 4 0-matrix :radii 0 1 0-matrix } to countryside-collection
+\ the near kilometres' field meshes, their centres and radii for culling, and the centres of the grid tiles they lie on
+variable countryside-fields
+{ :meshes [ ] :centres 0 4 0-matrix :radii 0 1 0-matrix :tile-centres 0 4 0-matrix } to countryside-fields
 variable countryside-cell
 [ null null ] to countryside-cell
 
 \ the places whose surroundings stay clear of fields, with how far
 [ [ :edinburgh-castle 3500 ] [ :leith 1500 ] [ :glasgow-cathedral 4500 ] [ :govan 2000 ] [ :clydebank 1500 ]
   [ :inverness-castle 2000 ] [ :stirling-castle 1500 ] [ :turnhouse 1200 ] [ :drem 1200 ]
-  [ :abbotsinch 1200 ] [ :dalcross 1200 ] [ :nidaros 2500 ] [ :vaernes 1200 ] ] to clear-places
+  [ :abbotsinch 1200 ] [ :dalcross 1200 ] [ :nidaros 1500 ] [ :vaernes 1200 ]
+  [ :marischal-college 2500 ] [ :peterhead 1000 ] [ :montrose 1000 ] [ :kirkwall 1000 ] [ :lerwick 800 ]
+  [ :hatston 1200 ] [ :skeabrae 1200 ] [ :castletown 1200 ] [ :sumburgh 1200 ] [ :montrose-air-station 1200 ]
+  [ :dyce 1200 ] [ :wick 1200 ] ] to clear-places
 
 \ whether a kilometre's centre lies within a clear place's reach
 : clear-cell? ( x z -- flag )
@@ -79,7 +92,7 @@ variable countryside-cell
 	| sketch cones |
 	sketch sketch@points ( point | [ point first point second point first point 2 @i cones ground-height-under + point 2 @i ] ) map :points ! drop ;
 
-\ the hill cones that may stand under a kilometre, and whether the kilometre needs lifting at all: a cone near it, or the Norwegian terrain's grid round it
+\ the hill cones that may stand under a kilometre, and whether the kilometre needs lifting at all: a cone near it, or one of the terrain's grids round it
 : cell-cones ( west south -- cones lift )
 	| west south |
 	west land-cell 2 / + to centre-x
@@ -87,94 +100,594 @@ variable countryside-cell
 	hill-cones ( cone | cone first centre-x - sq cone second centre-z - sq + sqrt cone 2 @i land-cell + < ) filter to near
 	near
 	near size 0 >
-	centre-x terrain-west land-cell - > centre-x terrain-west terrain-columns terrain-spacing * + land-cell + < and
-	centre-z terrain-south land-cell - > and centre-z terrain-south terrain-rows terrain-spacing * + land-cell + < and or ;
+	terrain-grids ( grid | centre-x centre-z grid land-cell near-grid? ) any? or ;
 
-\ the lanes: a row or column of kilometres carries one straight through its middle when its hash says so, a fifth of them, so a lane runs on from one kilometre to the next
-: lane-row? ( row -- flag ) 7.7 * 3.1 + hash-fraction 0.2 < ;
-: lane-column? ( column -- flag ) 5.9 * 1.3 + hash-fraction 0.2 < ;
+\ === the fields ===
 
-\ one kilometre's lanes, each two lines 6 m apart, as one object; null when it has none
-: lanes ( column row west south coastal -- object )
-	| column row west south coastal |
-	new-sketch to roads
-	false to any-lane
-	row lane-row? if
-		[ -3 3 ] ( side | roads [ west 0 south 500 + side + ] [ west land-cell + 0 south 500 + side + ] coastal ground-line ) each
-		true to any-lane
+\ the hedges' corners every 250 m on a lattice laid from the countryside's origin, four to a kilometre each way, each moved off its place by up to 35% of the spacing either way by a hash of its place, so the fields are four-sided but no two alike and no hedge runs straight for long; of the hedges between neighbouring corners three in ten left out, joining fields into bigger ones, about 6 to 20 hectares, and of those kept about one in eight planted as a line of trees instead; one lattice line in twenty, east and west or north and south, carrying a lane 6 m wide in place of its hedges, about one every 5 km as before (the spacing, the shares and the widths estimates)
+250 constant hedge-spacing
+0.35 constant corner-shift
+0.3 constant hedge-gap-share
+0.12 constant tree-line-share
+0.05 constant lane-share
+0x3e5a2c constant hedge-colour
+
+\ a corner of the hedges, [ x 0 z ], by its place on the lattice
+: hedge-corner ( lattice-x lattice-z -- point )
+	| lattice-x lattice-z |
+	lattice-x 7.31 * lattice-z 13.17 * + to seed
+	seed hash-fraction 0.5 - 2 * corner-shift * lattice-x + hedge-spacing * land-origin-x + to x
+	seed 0.37 + hash-fraction 0.5 - 2 * corner-shift * lattice-z + hedge-spacing * land-origin-z + to z
+	[ x 0 z ] ;
+
+\ a hash from 0 to 1 of the hedge from a corner to the next east (way 0) or north (way 1), different for each salt
+: hedge-hash ( lattice-x lattice-z way salt -- fraction )
+	| lattice-x lattice-z way salt |
+	lattice-x 3.13 * lattice-z 5.71 * + way 0.53 * + salt + hash-fraction ;
+
+\ whether a lattice line carries a lane: a line running east (way 0) by its place north, or north (way 1) by its place east
+: lane-line? ( place way -- flag )
+	| place way |
+	place 7.7 * way 3.1 * + 1.3 + hash-fraction lane-share < ;
+
+\ the fields' own colours, as aerial photographs of East Lothian, Fife and Renfrewshire show them (estimates read from the photographs): ploughed earth, dark and drier; stubble; ripe grain; grass dark, mid and light; young crops; rough grazing
+0x5c4a3a constant ploughed-colour
+0x7a6450 constant dry-ploughed-colour
+0xb8a070 constant stubble-colour
+0xc8a85a constant ripe-colour
+0x46642e constant dark-grass-colour
+0x587a36 constant grass-colour
+0x6e8c42 constant light-grass-colour
+0x7c9c4a constant young-crop-colour
+0x8a8a60 constant rough-grazing-colour
+
+\ the month the fields are coloured for, set by each flight; the kilometres built again when it changes
+variable field-month
+7 to field-month
+
+: use-field-month ( month -- )
+	| month ^field-month ^countryside-objects ^countryside-cell |
+	month field-month = if exit then
+	month to field-month
+	{ } to countryside-objects
+	[ null null ] to countryside-cell ;
+
+\ the snow line for a flight; the kilometres built again when it changes
+: use-snow-line ( height -- )
+	| height ^snow-line ^countryside-objects ^countryside-cell |
+	height snow-line = if exit then
+	height to snow-line
+	{ } to countryside-objects
+	[ null null ] to countryside-cell ;
+
+\ the shares of the fields in each colour in a month, in the arable east, browns and golds among the greens, or in the pastoral west, mostly grass, as [ colour share ] summing to 1: March and April ploughed and sown, May to July young crops and grass, August and September ripe grain and stubble, October to February stubble and the plough (estimates from the photographs and the farming year)
+: field-crops ( month east -- crops )
+	| month east |
+	month 3 >= month 4 <= and if
+		east if [ [ ploughed-colour 0.3 ] [ dry-ploughed-colour 0.15 ] [ grass-colour 0.25 ] [ dark-grass-colour 0.1 ] [ young-crop-colour 0.2 ] ]
+		else [ [ grass-colour 0.4 ] [ dark-grass-colour 0.25 ] [ light-grass-colour 0.15 ] [ ploughed-colour 0.15 ] [ rough-grazing-colour 0.05 ] ] then exit
 	then
-	column lane-column? if
-		[ -3 3 ] ( side | roads [ west 500 + side + 0 south ] [ west 500 + side + 0 south land-cell + ] coastal ground-line ) each
-		true to any-lane
+	month 5 >= month 7 <= and if
+		east if [ [ young-crop-colour 0.3 ] [ grass-colour 0.3 ] [ light-grass-colour 0.2 ] [ ploughed-colour 0.1 ] [ dark-grass-colour 0.1 ] ]
+		else [ [ grass-colour 0.4 ] [ light-grass-colour 0.25 ] [ dark-grass-colour 0.2 ] [ young-crop-colour 0.1 ] [ rough-grazing-colour 0.05 ] ] then exit
 	then
-	any-lane not if null exit then
-	roads@edges size 0 = if null exit then
-	west south cell-cones to lift to cones
-	lift if roads cones lift-sketch then
-	roads road-colour sketch>object ;
+	month 8 >= month 9 <= and if
+		east if [ [ ripe-colour 0.35 ] [ stubble-colour 0.15 ] [ grass-colour 0.3 ] [ dark-grass-colour 0.15 ] [ ploughed-colour 0.05 ] ]
+		else [ [ grass-colour 0.4 ] [ dark-grass-colour 0.2 ] [ light-grass-colour 0.15 ] [ ripe-colour 0.15 ] [ rough-grazing-colour 0.1 ] ] then exit
+	then
+	east if [ [ stubble-colour 0.3 ] [ ploughed-colour 0.3 ] [ dry-ploughed-colour 0.1 ] [ grass-colour 0.2 ] [ dark-grass-colour 0.1 ] ]
+	else [ [ grass-colour 0.4 ] [ dark-grass-colour 0.25 ] [ ploughed-colour 0.15 ] [ stubble-colour 0.1 ] [ rough-grazing-colour 0.1 ] ] then ;
 
-\ one kilometre's objects: on land its hedges, three each way at jittered quarters, about sixteen fields; ten trees along the hedges; three times in ten a farm, a house and a barn about a yard; its lanes. On water its ripples, eighty when the eye is near and low, else twelve. In a town nothing
-: cell-objects ( column row dense -- objects )
+\ whether the hedge on a field's west side (way 1) or south side (way 0) is missing, so the field joins its neighbour there
+: hedge-missing? ( lattice-x lattice-z way -- flag )
+	| lattice-x lattice-z way |
+	way 0 = if lattice-z else lattice-x then way lane-line? if false exit then
+	lattice-x lattice-z way 0 hedge-hash hedge-gap-share < ;
+
+\ the colour of the field whose south-west corner is a corner of the lattice: where its west or south hedge is missing the colour of the field it joins, followed up to three times; then a crop picked by a hash from the month's shares, the east's or the west's by another hash weighed by how far east the field lies, wholly the west's 20 km west of 3.6°W and wholly the east's 20 km east of it
+: field-colour-at ( lattice-x lattice-z -- colour )
+	| lattice-x lattice-z |
+	0 3 1 do step
+		lattice-x lattice-z 1 hedge-missing? if
+			lattice-x 1- to lattice-x
+		else lattice-x lattice-z 0 hedge-missing? if
+			lattice-z 1- to lattice-z
+		then then
+	loop
+	lattice-x lattice-z hedge-corner first 20000 + 40000 / 0 1 clamp to east-share
+	field-month lattice-x lattice-z 0 0.71 hedge-hash east-share < field-crops to crops
+	lattice-x lattice-z 1 0.91 hedge-hash to pick
+	crops last first to colour
+	0 to reached
+	0 crops size 1 do k
+		reached crops k @i second + to reached
+		pick reached < if crops k @i first to colour leave then
+	loop
+	colour ;
+
+\ a lane along a hedge's line between two corners: two lines 3 m either side of it
+: keep-lane-stretch ( sketch from onto coastal -- )
+	| sketch from onto coastal |
+	onto from v- to run
+	[ run 2 @i negate 0 run first ] v-unit 3 v* to beside
+	[ -1 1 ] ( way | sketch from beside way v* v+ onto beside way v* v+ coastal ground-line ) each ;
+
+\ a line of trees along a hedge's line, one every 25 m, those not on water, their heights from 9 to 14 m by a hash
+: keep-tree-line ( sketch from onto coastal seed -- )
+	| sketch from onto coastal seed |
+	onto from v- v-length 25 / round-down 1 max2 to n-trees
+	0 n-trees 1 do k
+		from onto k 0.5 + n-trees / v-between to base
+		coastal if base first base 2 @i water-at? else false then not if
+			sketch base seed k 1.7 * + hash-fraction 5 * 9 + sketch-tree
+		then
+	loop ;
+
+\ the grid steps a kilometre's fields are cut into each way, and the radius of the sphere round them
+4 constant fields-per-side
+710 constant field-cell-radius
+
+\ the surveyed grids' tiles by their centres' places, "x/z" to the tile, made on first use once the scenery is built
+variable tiles-by-centre
+null to tiles-by-centre
+
+: tile-key ( x z -- key ) | x z | x round z round "{1}/{0}" format string>symbol ;
+
+\ the grid tile a ground point lies on, or null: the first grid holding the point, the tile of 8 grid steps it falls in by the grid's own arithmetic, found by its centre; null too where that tile was all sea and left out. The fields and the towns' ground are drawn just after it
+: tile-under ( x z -- tile )
+	| x z ^tiles-by-centre |
+	tiles-by-centre null? if
+		{ } to tiles-by-centre
+		terrain-tiles ( tile | tile@radius 2000 >= if tiles-by-centre tile tile@centre first tile@centre 2 @i tile-key ! drop then ) each
+	then
+	null to under
+	0 terrain-grids size 1 do k
+		terrain-grids k @i to grid
+		under null? x z grid 0 near-grid? and if
+			x grid@west - grid@spacing / 8 / round-down 8 * to tile-column
+			z grid@south - grid@spacing / 8 / round-down 8 * to tile-row
+			grid@west tile-column 4 + grid@spacing * + grid@south tile-row 4 + grid@spacing * + tile-key to key
+			tiles-by-centre key has? if tiles-by-centre key @ to under then
+		then
+	loop
+	under ;
+
+\ the most a Norwegian field's corners differ in height, metres, about 6° across a field (an estimate): steeper ground is left to the forest
+25 constant field-rise
+
+\ whether a field's triangle stays: off the water, and in Norway on level farmland, its corners below the farmland's height and within a field's rise of each other
+: field-triangle? ( corner-points coastal cover -- flag )
+	| corner-points coastal cover |
+	coastal if corner-points ( point | point first point 2 @i water-at? ) any? if false exit then then
+	cover null? if true exit then
+	corner-points ( point | point second ) map to heights
+	heights heights first ' max2 reduce to highest
+	highest farmland-height < highest heights heights first ' min2 reduce - field-rise < and ;
+
+\ one kilometre's fields as a filled mesh: the 25 corners of its 16 fields lifted onto the ground, each field two triangles in its colour, a triangle left out where field-triangle? fails; in Norway a field white above the snow line; the colours with the mesh as :field-colours, the kilometre's centre and the tile it lies on; null when no field is left
+: field-mesh ( first-x first-z coastal lift cones cover -- mesh )
+	| first-x first-z coastal lift cones cover |
+	fields-per-side 1+ to n-corners
+	[ 0 n-corners 1 do b
+		0 n-corners 1 do a
+			first-x a + first-z b + hedge-corner to corner
+			corner first to x
+			corner 2 @i to z
+			[ x lift if x z cones ground-height-under else 0 then z ]
+		loop
+	loop ] to points
+	[ ] to triangles
+	[ ] to colours
+	0 fields-per-side 1 do b
+		0 fields-per-side 1 do a
+			b n-corners * a + to p00
+			p00 1+ to p01
+			p00 n-corners + to p10
+			p10 1+ to p11
+			first-x a + first-z b + field-colour-at to colour
+			cover null? not if
+				points p00 @i second snow-line >= if snow-colour to colour then
+			then
+			[ [ p00 p10 p11 ] [ p00 p11 p01 ] ] to pair
+			0 2 1 do t
+				pair t @i to triangle
+				triangle ( corner | points corner @i ) map coastal cover field-triangle? if
+					triangles triangle add-last! drop
+					colours colour add-last! drop
+				then
+			loop
+		loop
+	loop
+	triangles size 0 = if null exit then
+	points triangles filled-mesh to mesh
+	points 12 @i to middle
+	mesh colours :field-colours ! middle :centre ! middle first middle 2 @i tile-under :tile ! ;
+
+\ a kilometre's hedges from each of its sixteen corners east and north to the next: a lane where the line carries one, else a hedge or a line of trees or nothing, a hedge carrying a tree a third of the time
+: keep-hedges ( hedges trees roads first-x first-z coastal -- )
+	| hedges trees roads first-x first-z coastal |
+	first-x first-x 4 + 1 do lattice-x
+		first-z first-z 4 + 1 do lattice-z
+			lattice-x lattice-z hedge-corner to corner
+			0 2 1 do way
+				way 0 = if lattice-x 1+ lattice-z else lattice-x lattice-z 1+ then hedge-corner to onward
+				way 0 = if lattice-z else lattice-x then way lane-line? if
+					roads corner onward coastal keep-lane-stretch
+				else lattice-x lattice-z way 0 hedge-hash hedge-gap-share >= if
+					lattice-x lattice-z way 0.29 hedge-hash tree-line-share < if
+						trees corner onward coastal lattice-x lattice-z way 0.61 hedge-hash 100 * keep-tree-line
+					else
+						hedges corner onward coastal ground-line
+						lattice-x lattice-z way 0.83 hedge-hash 0.35 < if
+							corner onward lattice-x lattice-z way 0.47 hedge-hash v-between to base
+							coastal if base first base 2 @i water-at? else false then not if
+								trees base lattice-x lattice-z way 0.19 hedge-hash 6 * 8 + sketch-tree
+							then
+						then
+					then
+				then then
+			loop
+		loop
+	loop ;
+
+\ a Norwegian farmstead about a yard, as the photographs of Trøndelag show them: a white house of two storeys, 8 m by 14, and a red barn, 14 m by 30, 12 m to its ridge (sizes and colours estimates)
+0xe4e0d4 constant farmhouse-colour
+0x9a3428 constant barn-colour
+
+\ one kilometre's countryside, { :objects :fields }. In Scotland its hedges, and three times in ten a farm, a house and a barn about a yard; in Norway no hedges, and six times in ten a farmstead where the yard lies on the farmland; each kind its own object, lifted onto the ground; and its fields filled. On water its ripples, eighty when the eye is near and low, else twelve, and no fields. In a town nothing
+: cell-objects ( column row dense -- cell )
 	| column row dense |
 	land-origin-x column land-cell * + to west
 	land-origin-z row land-cell * + to south
 	west land-cell 2 / + south land-cell 2 / + water-at? if
 		column row dense if 80 else 12 then ripples to waves
-		waves null? if [ ] else [ waves ] then exit
+		{ :objects waves null? if [ ] else [ waves ] then :fields null } exit
 	then
-	west land-cell 2 / + south land-cell 2 / + clear-cell? if [ ] exit then
+	west land-cell 2 / + south land-cell 2 / + clear-cell? if { :objects [ ] :fields null } exit then
+	west land-cell 2 / + south land-cell 2 / + land-cover-at to cover
 	column 7.31 * row 13.17 * + to seed
 	west south coastal-cell? to coastal
-	new-sketch to fields
-	fields [ west 0 south ] [ west land-cell + 0 south ] coastal ground-line
-	fields [ west 0 south ] [ west 0 south land-cell + ] coastal ground-line
-	[ 1 2 3 ] ( quarter | seed quarter 1.7 * + hash-fraction 0.15 * quarter 0.25 * + 0.075 - land-cell * west + ) map to hedge-xs
-	[ 1 2 3 ] ( quarter | seed quarter 2.9 * + 0.4 + hash-fraction 0.15 * quarter 0.25 * + 0.075 - land-cell * south + ) map to hedge-zs
-	hedge-xs ( x | fields [ x 0 south ] [ x 0 south land-cell + ] coastal ground-line ) each
-	hedge-zs ( z | fields [ west 0 z ] [ west land-cell + 0 z ] coastal ground-line ) each
-	0 10 1 do k
-		seed k 3.1 * + hash-fraction to t
-		k 2 mod 0 = if
-			[ hedge-xs k 3 mod @i 0 south t land-cell * + ]
-		else
-			[ west t land-cell * + 0 hedge-zs k 3 mod @i ]
+	new-sketch to hedges
+	new-sketch to trees
+	new-sketch to roads
+	new-sketch to farm
+	new-sketch to barn
+	column 4 * to first-x
+	row 4 * to first-z
+	cover null? if hedges trees roads first-x first-z coastal keep-hedges then
+	first-x 1+ first-z 1+ hedge-corner [ 40 0 40 ] v+ to yard
+	coastal if yard first yard 2 @i water-at? not else true then to dry-yard
+	seed 90 * to farm-heading
+	cover null? if
+		seed 4.2 + hash-fraction 0.3 < dry-yard and if
+			farm yard farm-heading 10 16 6 9 sketch-house
+			farm yard farm-heading 25 0 0 placed farm-heading 12 24 7 10 sketch-house
+			farm yard farm-heading 12 0 22 placed farm-heading 30 20 0 rectangle-corners sketch-loop
 		then
-		to base
-		coastal if base first base 2 @i water-at? else false then not if
-			fields base seed k 5.3 * + hash-fraction 6 * 8 + sketch-tree
+	else
+		seed 4.2 + hash-fraction 0.6 < dry-yard and yard first yard 2 @i ground-height farmland-height < and if
+			farm yard farm-heading 8 14 6 9 sketch-house
+			barn yard farm-heading 22 0 4 placed farm-heading 14 30 7 12 sketch-house
 		then
-	loop
-	hedge-xs first 40 + to farm-x
-	hedge-zs first 40 + to farm-z
-	seed 4.2 + hash-fraction 0.3 < coastal if farm-x farm-z water-at? not else true then and if
-		seed 90 * to farm-heading
-		fields [ farm-x 0 farm-z ] farm-heading 10 16 6 9 sketch-house
-		fields [ farm-x 0 farm-z ] farm-heading 25 0 0 placed farm-heading 12 24 7 10 sketch-house
-		fields [ farm-x 0 farm-z ] farm-heading 12 0 22 placed farm-heading 30 20 0 rectangle-corners sketch-loop
 	then
 	west south cell-cones to lift to cones
-	lift if fields cones lift-sketch then
-	fields field-colour sketch>object to field-object
-	column row west south coastal lanes to lane-object
-	lane-object null? if [ field-object ] else [ field-object lane-object ] then ;
+	[ [ hedges hedge-colour ] [ trees tree-colour ] [ roads road-colour ]
+	  [ farm cover null? if town-colour else farmhouse-colour then ] [ barn barn-colour ] ] to parts
+	[ 0 parts size 1 do part
+		parts part @i spread to colour to sketch
+		sketch@edges size 0 > if
+			lift if sketch cones lift-sketch then
+			sketch colour sketch>object
+		then
+	loop ] to objects
+	{ :objects objects :fields first-x first-z coastal lift cones cover field-mesh } ;
 
-\ the kilometres near a point: their objects, built once each and kept; the kilometres next to the point's own, while the point is below 400 m, in their dense form; gathered again when the point crosses into another kilometre or through 400 m
+\ the most kilometres built in one frame, so crossing into a new kilometre spreads its building over a few frames
+2 constant countryside-builds-per-frame
+
+\ the near kilometres' field meshes gathered for culling and ordering: their centres and spheres, and the centres of the tiles they lie on, a field's own centre where it lies on no tile
+: gather-fields ( meshes -- fields )
+	| meshes |
+	meshes size 0 = if { :meshes [ ] :centres 0 4 0-matrix :radii 0 1 0-matrix :tile-centres 0 4 0-matrix } exit then
+	meshes ( mesh | mesh@centre spread 1 4 array ) map flatten meshes size 4 matrix to centres
+	meshes ( mesh | mesh@tile null? if mesh@centre else mesh@tile@centre then spread 1 4 array ) map flatten meshes size 4 matrix to tile-centres
+	meshes ( mesh | mesh :radius field-cell-radius @or ) map vector to radii
+	{ :meshes meshes :centres centres :radii radii :tile-centres tile-centres } ;
+
+\ the kilometres near a point: their objects and fields, built once each and kept, the nearest first, at most two a frame, those not yet built left out until a later frame builds them; the kilometres next to the point's own, while the point is below 400 m, in their dense form; gathered again each frame until all are built, then only when the point crosses into another kilometre or through 400 m
 : refresh-countryside ( position -- )
-	| position ^countryside-collection ^countryside-cell |
+	| position ^countryside-collection ^countryside-cell ^countryside-fields |
 	position first land-origin-x - land-cell / round-down to column
 	position 2 @i land-origin-z - land-cell / round-down to row
 	position second 400 < to low
 	countryside-cell [ column row low ] = if exit then
-	[ column row low ] to countryside-cell
+	0 to n-built
+	true to complete
 	[ ] to near-objects
-	column countryside-reach - column countryside-reach + 1 + 1 do c
-		row countryside-reach - row countryside-reach + 1 + 1 do r
-			low c column - abs 1 <= and r row - abs 1 <= and to dense
-			c r dense if "{1}/{0}/dense" else "{1}/{0}" then format string>symbol to key
-			countryside-objects key has? not if
-				countryside-objects c r dense cell-objects key ! drop
-			then
-			near-objects countryside-objects key @ concat to near-objects
+	[ ] to near-fields
+	0 countryside-reach 1+ 1 do ring
+		column ring - column ring + 1+ 1 do c
+			row ring - row ring + 1+ 1 do r
+				c column - abs r row - abs max2 ring = if
+					low c column - abs 1 <= and r row - abs 1 <= and to dense
+					c r dense if "{1}/{0}/dense" else "{1}/{0}" then format string>symbol to key
+					countryside-objects key has? not if
+						n-built countryside-builds-per-frame < if
+							countryside-objects c r dense cell-objects key ! drop
+							++ n-built
+						else
+							false to complete
+						then
+					then
+					countryside-objects key has? if
+						countryside-objects key @ to cell
+						near-objects cell@objects concat to near-objects
+						cell@fields null? not if near-fields cell@fields add-last! drop then
+					then
+				then
+			loop
 		loop
 	loop
-	near-objects collect-objects to countryside-collection ;
+	complete if [ column row low ] to countryside-cell then
+	near-objects collect-objects to countryside-collection
+	near-fields gather-fields to countryside-fields ;
+
+\ a kilometre's fields' colours at a haze, a share of their own colour kept from 0 to 1 in sixteenths: each field's colour darkened by its slope's shade, faded into the sky; grey in a photograph; made once for each palette and haze and kept
+: field-colours ( mesh haze -- colours )
+	| mesh haze |
+	haze 16 * round to level
+	sky-colour level monochrome "{0}/{1}/{2}" format string>symbol to key
+	mesh@colours key has? if mesh@colours key @ exit then
+	level 16 / to light
+	[ 0 mesh@shades size 1 do k
+		mesh@field-colours k @i mesh@shades k @i dimmed sky-colour light blended
+		monochrome if grey-of then
+	loop ] to colours
+	mesh@colours colours key ! drop
+	colours ;
+
+\ the visible meshes of a gathering of fields or towns' ground as items to draw in order of depth, [ depth :fields mesh ], each just nearer than the tile it lies on, so it is drawn over the tile and under what stands nearer; none at night, when the ground is dark and the towns blacked out
+: ground-items ( gathered -- items )
+	| gathered |
+	stars-showing if [ ] exit then
+	gathered@meshes to meshes
+	meshes size 0 = if [ ] exit then
+	gathered@centres gathered@radii visible-objects to shown
+	shown num-elements 0 = if [ ] exit then
+	gathered@tile-centres camera matmul 2 @j to depths
+	[ 0 shown num-elements 1 do k
+		shown k @e to index
+		meshes index @i to mesh
+		mesh@tile null? if 0 else mesh@tile ground-tile-reach then to reach
+		[ depths index @e reach + 1 - mesh :sooner 0 @or - :fields mesh ]
+	loop ] ;
+
+\ a kilometre's fields, or a piece of a town's ground, drawn at their distance's haze
+: draw-fields ( mesh -- )
+	| mesh |
+	mesh mesh mesh@centre eye@position v- v-length depth-light field-colours draw-filled-mesh ;
+
+\ === the towns' ground ===
+
+\ the built-up ground's colours (estimates from what the towns were built of, not read from photographs of the time): slate roofs and sandstone blackened by coal smoke in Glasgow and on Clydeside, grey in Edinburgh and Leith, granite in Aberdeen, slate in the other Scottish towns, painted timber in Trondheim and Narvik; of each town's squares a fifth darker blocks and a tenth paler streets and yards, the rest its own colour
+0x564840 constant clydeside-colour
+0x58585a constant edinburgh-colour
+0x8c8c8a constant aberdeen-colour
+0x605e5c constant slate-colour
+0x6c5e52 constant timber-colour
+0.2 constant dark-block-share
+0.1 constant street-share
+350 constant town-square
+
+\ each town's built-up ground, [ key radius colour ]: the places the countryside leaves clear of fields, at the same reach, with Narvik's level centre
+[ [ :edinburgh-castle 3500 edinburgh-colour ] [ :leith 1500 edinburgh-colour ] [ :glasgow-cathedral 4500 clydeside-colour ]
+  [ :govan 2000 clydeside-colour ] [ :clydebank 1500 clydeside-colour ] [ :inverness-castle 2000 slate-colour ]
+  [ :stirling-castle 1500 slate-colour ] [ :marischal-college 2500 aberdeen-colour ] [ :peterhead 1000 slate-colour ]
+  [ :montrose 1000 slate-colour ] [ :kirkwall 1000 slate-colour ] [ :lerwick 800 slate-colour ]
+  [ :nidaros 1500 timber-colour ] [ :narvik 800 timber-colour ] ] constant towns
+
+\ whether a ground point is within a reach of a line of [ x z ] points
+: near-line? ( x z line reach -- flag )
+	| x z line reach |
+	false to near
+	0 line size 1- 1 do k
+		line k @i spread to start-z to start-x
+		line k 1+ @i spread to end-z to end-x
+		end-x start-x - to dx
+		end-z start-z - to dz
+		dx sq dz sq + 1e-9 max2 to length-squared
+		x start-x - dx * z start-z - dz * + length-squared / 0 1 clamp to along
+		x start-x - along dx * - sq z start-z - along dz * - sq + sqrt reach < if true to near leave then
+	loop
+	near ;
+
+\ the parks inside the towns, left green: Kelvingrove Park's outline; within 450 m of Glasgow Green's point, 900 m of Arthur's Seat's for Holyrood Park, 300 m of the Meadows'; Princes Street Gardens within 75 m of a line 80 m south of Princes Street (the reaches estimates from the parks' sizes)
+variable park-lines
+null to park-lines
+
+: in-park? ( x z -- flag )
+	| x z ^park-lines |
+	park-lines null? if
+		{ :kelvingrove kelvingrove-boundary
+		  :gardens edinburgh-streets@princes-street ( point | [ point first point second 80 - ] ) map } to park-lines
+	then
+	[ x z ] park-lines@kelvingrove inside-outline? if true exit then
+	[ [ :glasgow-green 450 ] [ :arthurs-seat 900 ] [ :meadows 300 ] ] ( park |
+		park first landmark-ground to centre
+		centre first x - sq centre 2 @i z - sq + sqrt park second <
+	) any? if true exit then
+	x z park-lines@gardens 75 near-line? ;
+
+\ how far a town's ground reaches at a bearing: between 85% and 110% of its radius, by a hash of the bearing's sixteenth, blended into the next
+: town-reach ( radius seed angle -- reach )
+	| radius seed angle |
+	angle TAU / 16 * 16 + 16 mod to place
+	place round-down to sector
+	seed sector + hash-fraction seed sector 1+ 16 mod + hash-fraction place sector - * +
+	seed sector + hash-fraction place sector - * - 0.25 * 0.85 + radius * ;
+
+\ a square of ground of a size about a middle, two triangles at the ground's height in a colour, added to the piece of the grid tile under its middle, the pieces kept by their tiles' places
+: add-square ( chunks middle-x middle-z side colour -- )
+	| chunks middle-x middle-z side colour |
+	middle-x middle-z tile-under to tile
+	tile null? if :none else tile@centre first tile@centre 2 @i tile-key then to chunk-key
+	chunks chunk-key has? not if chunks { :points [ ] :triangles [ ] :colours [ ] :tile tile } chunk-key ! drop then
+	chunks chunk-key @ to chunk
+	chunk@points size to base
+	[ [ -0.5 -0.5 ] [ 0.5 -0.5 ] [ 0.5 0.5 ] [ -0.5 0.5 ] ] ( corner |
+		middle-x corner first side * + to x
+		middle-z corner second side * + to z
+		chunk@points [ x x z ground-height z ] add-last! drop
+	) each
+	chunk@triangles [ base base 1+ base 2 + ] add-last! [ base base 2 + base 3 + ] add-last! drop
+	chunk@colours colour add-last! colour add-last! drop ;
+
+\ the share of the snow's light a Norwegian town's snowed roofs and streets keep, greyed by the chimneys and the traffic (an estimate)
+0.82 constant town-snow-shade
+
+\ a town's built-up ground as meshes, one for each grid tile it lies on: squares of 350 m on a grid about its point, those whose middles lie within the town's reach at their bearing, each two triangles at the ground's height, green in a park, else its colour, a darker block or a paler street by a hash; in Norway under snow down to the shore the parks white and the rest the snow greyed; a square with water at a corner or its middle cut into sixteen and those on water left out, so the rivers and the shore show; each mesh with its squares' colours, its middle, its tile and the radius round it
+: town-pieces ( town -- pieces )
+	| town |
+	town spread to colour to radius to key
+	key landmark-ground to centre
+	centre first centre 2 @i land-cover-at null? not snow-line 0 <= and to snowed
+	snowed if snow-colour town-snow-shade dimmed to colour then
+	centre use-water-near
+	centre first 0.013 * centre 2 @i 0.007 * + to seed
+	radius 1.1 * town-square / round-up to reach
+	{ } to chunks
+	reach negate reach 1 do b
+		reach negate reach 1 do a
+			centre first a 0.5 + town-square * + to middle-x
+			centre 2 @i b 0.5 + town-square * + to middle-z
+			middle-x centre first - to east
+			middle-z centre 2 @i - to north
+			east north atan2 to bearing
+			east sq north sq + sqrt radius seed bearing town-reach < if
+				middle-x middle-z in-park? if
+					snowed if snow-colour else grass-colour then
+				else
+					seed a 3.7 * + b 5.3 * + hash-fraction to pick
+					pick dark-block-share < if colour 0.8 dimmed else pick dark-block-share street-share + < if colour 1.25 dimmed else colour then then
+				then to square-colour
+				[ [ 0 0 ] [ -0.5 -0.5 ] [ 0.5 -0.5 ] [ 0.5 0.5 ] [ -0.5 0.5 ] ]
+				( place | middle-x place first town-square * + middle-z place second town-square * + water-at? ) any? if
+					town-square 4 / to part
+					0 4 1 do q
+						0 4 1 do p
+							middle-x p 1.5 - part * + to part-x
+							middle-z q 1.5 - part * + to part-z
+							part-x part-z water-at? not if chunks part-x part-z part square-colour add-square then
+						loop
+					loop
+				else
+					chunks middle-x middle-z town-square square-colour add-square
+				then
+			then
+		loop
+	loop
+	[ 0 0 0 ] use-water-near
+	chunks values ( chunk |
+		chunk@points chunk@triangles filled-mesh to mesh
+		chunk@points [ 0 0 0 ] ' v+ reduce 1 chunk@points size / v* to middle
+		chunk@points ( point | point middle v- v-length ) map 0 ' max2 reduce to extent
+		mesh chunk@colours :field-colours ! middle :centre ! chunk@tile :tile ! extent :radius !
+	) map ;
+
+\ the width of a city street the tenements line, between their fronts 15 m either side of its centre line, less a pavement's width each side
+24 constant city-street-width
+
+\ a town's roads' colour, setts and tarmac standing out from the blocks about them: paler than a dark town's ground, darker than a light town's, a light town one whose ground is lighter than a middle grey (the shares estimates)
+: road-colour-in ( town -- colour )
+	| town |
+	town 2 @i to ground
+	ground grey-of 255 bit-and 128 > if ground 0.7 dimmed else ground 1.4 dimmed then ;
+
+\ the town a ground point lies in, or null: the first whose reach at the point's bearing takes it in
+: town-at ( x z -- town )
+	| x z |
+	null to found
+	0 towns size 1 do k
+		towns k @i to town
+		town first landmark-ground to centre
+		x centre first - to east
+		z centre 2 @i - to north
+		east abs town second 1.1 * < north abs town second 1.1 * < and if
+			east sq north sq + sqrt town second centre first 0.013 * centre 2 @i 0.007 * + east north atan2 town-reach < if
+				town to found
+				leave
+			then
+		then
+	loop
+	found ;
+
+\ a line of [ x z ] points with points put in so no stretch is longer than a length
+: split-line ( line length -- line' )
+	| line length |
+	[ line first
+	  0 line size 1- 1 do k
+		line k @i to from
+		line k 1+ @i to onto
+		onto first from first - sq onto second from second - sq + sqrt length / round-up 1 max2 to n-pieces
+		1 n-pieces 1+ 1 do p from onto p n-pieces / v-between loop
+	  loop ] ;
+
+\ the towns' main roads as meshes, one for each grid tile they lie on, the city streets the tenements line among them, each line cut into stretches of 100 m or less so each stretch is drawn with the tile it lies on: each stretch of a road whose middle lies in a town and not on water a band of the road's width along it at the ground's height, two triangles, in its town's roads' colour; drawn just after the town's ground on the same tile
+: road-pieces ( -- pieces )
+	{ } to chunks
+	[ glasgow-streets edinburgh-streets inverness-streets aberdeen-streets peterhead-streets montrose-streets
+	  kirkwall-streets lerwick-streets trondheim-streets ] ( streets | streets values ) map [ ] ' concat reduce
+	narvik-streets concat ( line | [ city-street-width line ] ) map town-roads concat to roads
+	0 roads size 1 do r
+		roads r @i spread 100 split-line to line to width
+		width 2 / to half
+		0 line size 1- 1 do k
+			line k @i spread to start-z to start-x
+			line k 1+ @i spread to end-z to end-x
+			start-x end-x + 2 / to middle-x
+			start-z end-z + 2 / to middle-z
+			middle-x middle-z town-at to town
+			town null? not if
+				town first landmark-ground use-water-near
+				middle-x middle-z water-at? not if
+					end-x start-x - to dx
+					end-z start-z - to dz
+					dx sq dz sq + sqrt 1e-6 max2 to length
+					dz negate length / half * to side-x
+					dx length / half * to side-z
+					middle-x middle-z tile-under to tile
+					tile null? if :none else tile@centre first tile@centre 2 @i tile-key then to chunk-key
+					chunks chunk-key has? not if chunks { :points [ ] :triangles [ ] :colours [ ] :tile tile } chunk-key ! drop then
+					chunks chunk-key @ to chunk
+					chunk@points size to base
+					[ [ start-x side-x + start-z side-z + ] [ end-x side-x + end-z side-z + ]
+					  [ end-x side-x - end-z side-z - ] [ start-x side-x - start-z side-z - ] ] ( corner |
+						corner spread to z to x
+						chunk@points [ x x z ground-height 0.5 + z ] add-last! drop
+					) each
+					chunk@triangles [ base base 1+ base 2 + ] add-last! [ base base 2 + base 3 + ] add-last! drop
+					town road-colour-in to road-colour
+					chunk@colours road-colour add-last! road-colour add-last! drop
+				then
+			then
+		loop
+	loop
+	[ 0 0 0 ] use-water-near
+	chunks values ( chunk |
+		chunk@points chunk@triangles filled-mesh to mesh
+		chunk@points [ 0 0 0 ] ' v+ reduce 1 chunk@points size / v* to middle
+		chunk@points ( point | point middle v- v-length ) map 0 ' max2 reduce to extent
+		mesh chunk@colours :field-colours ! middle :centre ! chunk@tile :tile ! extent :radius ! 0.5 :sooner !
+	) map ;
+
+\ every town's ground and main roads gathered for culling and ordering, built on the first flight and again when the snow line changes
+variable town-grounds
+null to town-grounds
+variable town-grounds-snow-line
+null to town-grounds-snow-line
+
+: ensure-town-grounds ( -- )
+	| ^town-grounds ^town-grounds-snow-line |
+	town-grounds null? not town-grounds-snow-line snow-line = and if exit then
+	snow-line to town-grounds-snow-line
+	towns ( town | town town-pieces ) map [ ] ' concat reduce road-pieces concat gather-fields to town-grounds ;

@@ -156,17 +156,40 @@ variable far-models
 	[ [ 0.5 0 3 ] [ -0.5 0 3 ] [ 0 0.5 3 ] [ 0 -0.5 3 ] ] ( corner | model [ corner [ 0 0 5 ] ] sketch-path ) each
 	model bomber-colour sketch>object ;
 
+\ a box in a model's own terms, between two values on each axis: its two ends' outlines and the four edges joining them
+: sketch-block ( sketch x0 x1 y0 y1 z0 z1 -- )
+	| sketch x0 x1 y0 y1 z0 z1 |
+	[ y0 y1 ] ( y | sketch [ [ x0 y z0 ] [ x1 y z0 ] [ x1 y z1 ] [ x0 y z1 ] ] sketch-loop ) each
+	[ [ x0 z0 ] [ x1 z0 ] [ x1 z1 ] [ x0 z1 ] ] ( corner | sketch [ [ corner first y0 corner second ] [ corner first y1 corner second ] ] sketch-path ) each ;
+
+\ HMS Glorious as in 1940, from her waterline's centre: 239.8 m long overall and 27.6 m in the beam at the waterline (published); the hull to a deck 10 m above the water; the flight deck 18 m above the water over two hangars each 4.9 m high (published), 185 m long from 110 m aft of the centre and 28 m wide; its two lifts 14.0 by 14.6 m (published), fore and aft; the island on the starboard side with the bridge, the funnel and the mast (heights, the flight deck's ends and the lifts' places estimates)
+: carrier-model ( -- model )
+	new-sketch to model
+	[ [ 0 120 ] [ 9 95 ] [ 13.8 60 ] [ 13.8 -80 ] [ 11 -112 ] [ 0 -120 ] [ -11 -112 ] [ -13.8 -80 ] [ -13.8 60 ] [ -9 95 ] ] to plan
+	[ 0 10 ] ( up | model plan ( corner | [ corner first up corner second ] ) map sketch-loop ) each
+	plan ( corner | model [ [ corner first 0 corner second ] [ corner first 10 corner second ] ] sketch-path ) each
+	model -14 14 18 18 -110 75 sketch-block
+	[ [ -14 -110 ] [ 14 -110 ] [ -14 75 ] [ 14 75 ] [ -14 -20 ] [ 14 -20 ] ] ( corner | model [ [ corner first 10 corner second ] [ corner first 18 corner second ] ] sketch-path ) each
+	[ 50 -75 ] ( along | model -7 7 18 18 along 7.3 - along 7.3 + sketch-block ) each
+	-100 70 10 do along
+		model [ [ 0 18 along ] [ 0 18 along 5 + ] ] sketch-path
+	loop
+	model 12 16 18 30 -5 25 sketch-block
+	model 12.5 15.5 30 38 -2 8 sketch-block
+	model [ [ 14 30 15 ] [ 14 46 15 ] ] sketch-path
+	model bomber-colour sketch>object ;
+
 \ each type's model near and from afar, the far ones from the published spans and lengths and the engines' distance out; the Spitfire's and the Hurricane's with wheels up and down; the Lysander target tug's from afar only, its published 50 ft span and 30 ft 6 in length
 : build-models ( -- )
 	| ^models ^far-models |
 	{ :ju-88 junkers-88 :he-111 heinkel-111 :bf-110 messerschmitt-110
 	  :spitfire false spitfire-model :spitfire-down true spitfire-model
 	  :hurricane false hurricane-model :hurricane-down true hurricane-model
-	  :lysander 15.24 9.3 0 bomber-colour far-model :drogue drogue-model } to models
+	  :lysander 15.24 9.3 0 bomber-colour far-model :drogue drogue-model :carrier carrier-model } to models
 	{ :ju-88 20.08 14.36 3.6 bomber-colour far-model :he-111 22.6 16.4 3.8 bomber-colour far-model
 	  :bf-110 16.25 12.1 2.4 bomber-colour far-model :spitfire 11.23 9.12 0 spitfire-colour far-model
 	  :hurricane 12.19 9.55 0 spitfire-colour far-model
-	  :lysander models@lysander :drogue models@drogue } to far-models
+	  :lysander models@lysander :drogue models@drogue :carrier models@carrier } to far-models
 	far-models far-models@spitfire :spitfire-down ! drop
 	far-models far-models@hurricane :hurricane-down ! drop ;
 
@@ -430,7 +453,7 @@ variable wingmen
 	:inchgarvie :north-queensferry landmark-heading 90 + to east-of-bridge
 	:inchgarvie landmark-ground east-of-bridge 0 0 2000 placed ;
 
-\ the missions, each a name, three lines of story, the Spitfire's start as [ position heading speed on-ground ], the raid's plan or null, night or day, whether it begins on the approach with wheels and flaps down, the propeller (the two-pitch in 1939, the constant-speed fitted from June 1940) and whether 100-octane fuel allows emergency boost (from 1940), the weather (the visibility in metres, the share of the sky's squares holding a cloud and the clouds' base), the opening message, the group the title lists it under, and the briefing's text
+\ the missions, each a name, three lines of story, the Spitfire's start as [ position heading speed on-ground ], the raid's plan or null, night or day, whether it begins on the approach with wheels and flaps down, the propeller (the two-pitch in 1939, the constant-speed fitted from June 1940) and whether 100-octane fuel allows emergency boost (from 1940), the weather (the visibility in metres, the share of the sky's squares holding a cloud and the clouds' base, the wind as [ the bearing it blows from, metres a second ], every wind an estimate: the records found give none), the carrier's flight deck where the mission has one (Glorious's 28 knots, 14.4 m/s, and the 12-knot wind together giving the 40 knots over her deck published for 7 June; the split and the place, 40 km north of Andenes where she and Ark Royal were operating, estimates), any ballast the aircraft carries as [ kg place ] (the Glorious Hurricanes' published 15 lb sandbag, 6.8 kg, in the rear fuselage, its place an estimate), the aircraft where the mission fixes it (the PR Spitfire, or the Hurricane at Narvik and at Scapa Flow, where no Spitfires served; the Scapa raid's coming from the east about 7 pm, seen by the Shetland radar, published, its fifteen bombers, height and course estimates, the published counts running from 15 to 35, and drawn in daylight, the game having no dusk), the opening message, the group the title lists it under, and the briefing's text; over Norway the height the snow lay down to (estimates: Trøndelag's lowland under snow in early March, the thaw at Narvik begun on 29 April 1940 by the despatches, the snow then lying above about 400 m at the end of May and 600 m in June)
 : missions ( -- missions )
 	:turnhouse landmark-ground 60 0 wheel-height -580 placed to turnhouse-runway
 	:abbotsinch :greenock landmark-heading to west-from-abbotsinch
@@ -441,18 +464,61 @@ variable wingmen
 	farne-fight 70 0 -600 2500 placed to heinkels
 	:inchkeith :bass-rock landmark-heading to firing-course
 	:inchkeith landmark-ground firing-course 0 1524 3000 placed to tug-start
-	[ { :name "THE FORTH, 16 OCTOBER 1939"
+	:bardufoss landmark-ground 100 0 :bardufoss landmark-height wheel-height + -580 placed to bardufoss-runway
+	narvik-anchorage :narvik :vaernes landmark-heading 0 0 90000 placed to narvik-raid-start
+	:andenes landmark-ground 0 0 0 40000 placed to glorious-centre
+	:scapa-flow landmark-ground to scapa-anchorage
+	scapa-anchorage 0 0 2500 -15000 placed to scapa-patrol
+	[ { :name "THE FORTH, 16 OCTOBER 1939" :month 10
 	    :story [ "16 OCTOBER 1939. TWELVE JU 88s ARE CROSSING THE NORTH"
 	             "SEA FOR THE CRUISERS LYING BY THE FORTH BRIDGE."
 	             "603 SQUADRON, RAF TURNHOUSE: SCRAMBLE." ]
 	    :start [ turnhouse-runway 60 0 true ]
 	    :raid :ju-88 4 anchorage [ 45000 0 9000 ] v+ anchorage 3000 100 raid-plan
-	    :night false :landing false :visibility clear-visibility :cover 0.25 :base 1500
+	    :night false :landing false :visibility clear-visibility :cover 0.25 :base 1500 :wind [ 50 6 ]
 	    :propeller :two-pitch :emergency false
 	    :message "SCRAMBLE! 12 BANDITS, ANGELS 10, OVER THE FORTH  -  Q FOR THROTTLE, PULL BACK AT 100 MPH"
 	    :group :battle
-	    :briefing "INTERCEPT THE JU 88s BEFORE THEY BOMB THE CRUISERS BY THE FORTH BRIDGE. THE CONTROLLER'S BEARING AND DISTANCE TO THE NEAREST OF THEM IS IN THE STRIP BELOW THE PANEL. TAKE OFF: FINE PITCH (W), FULL THROTTLE (Q), EASE BACK PAST 90 MPH, WHEELS UP (G), THEN COARSE PITCH (S) AS THE SPEED GROWS. ATTACK FROM ASTERN OR THE QUARTER AND OPEN FIRE AT 250 YARDS, WHEN THE SPAN FILLS THE SIGHT'S RANGE BARS, IN BURSTS OF 1 TO 2 SECONDS: YOU HAVE ABOUT 15 SECONDS OF FIRE. THEIR REAR GUNNERS FIRE BACK INSIDE 650 YARDS. LAND AT TURNHOUSE WHEN THE RAID IS OVER." }
-	  { :name "FARNE ISLANDS, 15 AUGUST 1940"
+	    :briefing "INTERCEPT THE JU 88s BEFORE THEY BOMB THE CRUISERS BY THE FORTH BRIDGE. THE CONTROLLER'S BEARING AND DISTANCE TO THE NEAREST OF THEM IS IN THE STRIP BELOW THE PANEL. START: MAGNETOS ON (M), HOLD K UNTIL THE ENGINE FIRES. TAKE OFF: FINE PITCH (W), FULL THROTTLE (Q), EASE BACK PAST 90 MPH, WHEELS UP (G), THEN COARSE PITCH (S) AS THE SPEED GROWS. ATTACK FROM ASTERN OR THE QUARTER AND OPEN FIRE AT 250 YARDS, WHEN THE SPAN FILLS THE SIGHT'S RANGE BARS, IN BURSTS OF 1 TO 2 SECONDS: YOU HAVE ABOUT 15 SECONDS OF FIRE. THEIR REAR GUNNERS FIRE BACK INSIDE 650 YARDS. LAND AT TURNHOUSE WHEN THE RAID IS OVER." }
+	  { :name "SCAPA FLOW, 16 MARCH 1940" :month 3
+	    :story [ "16 MARCH 1940, ABOUT 7 PM. HE 111s AND JU 88s ARE"
+	             "COMING IN FROM THE EAST FOR THE HOME FLEET'S SHIPS"
+	             "IN SCAPA FLOW. WICK'S HURRICANES ARE ON PATROL." ]
+	    :start [ scapa-patrol 0 110 false ]
+	    :raid :he-111 5 scapa-anchorage [ 45000 0 2000 ] v+ scapa-anchorage 3000 110 raid-plan
+	    :night false :landing false :visibility clear-visibility :cover 0.3 :base 1200 :wind [ 250 8 ]
+	    :propeller :two-pitch :emergency false
+	    :aircraft :hurricane
+	    :message "BANDITS EAST OF SCAPA FLOW, ANGELS 10  -  FOLLOW THE RAID BEARING"
+	    :group :battle
+	    :briefing "STOP THE BOMBERS BEFORE THEY REACH THE SHIPS AT ANCHOR IN SCAPA FLOW. THE RADAR ON SHETLAND HAS SEEN THEM COMING FROM THE EAST; YOU ARE OVER THE PENTLAND FIRTH, THE FLOW AHEAD BETWEEN HOY AND MAINLAND. THE RAID'S BEARING AND DISTANCE ARE IN THE STRIP BELOW THE PANEL. FIRE FROM ASTERN IN BURSTS OF 1 TO 2 SECONDS. THE SIGHT'S RANGE BARS ARE SET FOR THE HE 111'S SPAN. LAND AT WICK, SOUTH OF THE FIRTH, OR AT HATSTON BY KIRKWALL." }
+	  { :name "NARVIK, 28 MAY 1940" :month 5 :snow-line 400
+	    :story [ "28 MAY 1940. THE FOREIGN LEGION IS CROSSING TO NARVIK"
+	             "UNDER THE GUNS OF THE CRUISERS CAIRO AND COVENTRY."
+	             "46 SQUADRON'S HURRICANES, BARDUFOSS: HE 111s COMING." ]
+	    :start [ bardufoss-runway 100 0 true ]
+	    :raid :he-111 3 narvik-raid-start narvik-anchorage 3000 100 raid-plan
+	    :night false :landing false :visibility clear-visibility :cover 0.5 :base 900 :wind [ 100 4 ]
+	    :propeller :two-pitch :emergency false
+	    :aircraft :hurricane
+	    :message "SCRAMBLE! HE 111s FOR THE SHIPS OFF NARVIK, ANGELS 10  -  Q FOR THROTTLE, PULL BACK AT 100 MPH"
+	    :group :battle
+	    :briefing "THE WEATHER HAS KEPT BARDUFOSS'S HURRICANES ON THE GROUND WHILE THE BOMBERS WORKED OVER THE SHIPS; NOW IT HAS LIFTED. CATCH THE HE 111s COMING UP FROM THE SOUTH FOR THE CRUISERS AND DESTROYERS OFF NARVIK, 50 MILES SOUTH-SOUTH-WEST OF YOU OVER THE MOUNTAINS. THE SUN DOES NOT SET THIS FAR NORTH IN MAY. THE RAID'S BEARING AND DISTANCE ARE IN THE STRIP BELOW THE PANEL. START: MAGNETOS ON (M), HOLD K UNTIL THE ENGINE FIRES. TAKE OFF: FINE PITCH (W), FULL THROTTLE (Q), EASE BACK PAST 90 MPH, WHEELS UP (G), COARSE PITCH (S) AS THE SPEED GROWS. FIRE FROM ASTERN IN BURSTS OF 1 TO 2 SECONDS. LAND BACK AT BARDUFOSS." }
+	  { :name "HMS GLORIOUS, 7 JUNE 1940" :month 6 :snow-line 600
+	    :story [ "7 JUNE 1940. NORWAY IS BEING EVACUATED. 46 SQUADRON"
+	             "WILL NOT DESTROY ITS HURRICANES: LAND THEM ON GLORIOUS,"
+	             "NO HOOK, A 15 LB SANDBAG IN THE TAIL." ]
+	    :start [ glorious-centre 20 0 150 -3700 placed 20 55 false ]
+	    :raid null
+	    :carrier { :centre glorious-centre :heading 20 :speed 14.4 :height 18 :fore 75 :aft -110 :half-width 14 }
+	    :ballast [ 6.8 [ 0 0 -4.0 ] ]
+	    :night false :landing true :visibility clear-visibility :cover 0.2 :base 1200 :wind [ 20 6.2 ]
+	    :propeller :two-pitch :emergency false
+	    :aircraft :hurricane :landing-on "GLORIOUS"
+	    :message "GLORIOUS AHEAD, INTO WIND  -  HOLD 85 MPH, LAND TAIL-DOWN ON HER DECK, BRAKE (B) IN PRESSES"
+	    :group :battle
+	    :briefing "LAND ON HMS GLORIOUS, 25 MILES NORTH OF ANDENES, STEAMING INTO WIND: WITH THE WIND, 40 KNOTS BLOW OVER HER DECK. NO HURRICANE HAS EVER LANDED ON A CARRIER, AND IT HAS NO HOOK: THE SANDBAG IN THE TAIL HELPS HOLD IT DOWN, BUT BRAKE IN SHORT PRESSES WITH THE STICK FULLY BACK: HELD, THE BRAKES TIP HER ONTO HER NOSE. YOU ARE ASTERN OF HER, WHEELS AND FLAPS DOWN. HOLD 85 MPH AND A SHALLOW DESCENT ONTO THE AFTER END OF THE DECK, 60 FT ABOVE THE SEA; CLOSE THE THROTTLE OVER THE ROUND-DOWN AND SETTLE HER TAIL-DOWN ON ALL THREE WHEELS, THEN BRAKE (B). DO NOT GO OFF THE BOW." }
+	  { :name "FARNE ISLANDS, 15 AUGUST 1940" :month 8
 	    :story [ "15 AUGUST 1940. KG 26'S HE 111s AND ZG 76'S BF 110s"
 	             "HAVE CROSSED FROM NORWAY FOR TYNESIDE. 72 SQUADRON"
 	             "MEETS THEM OFF THE FARNE ISLANDS: A DOGFIGHT." ]
@@ -461,40 +527,40 @@ variable wingmen
 	    :escort [ [ 60 40 700 70 ] [ -470 140 -800 0 ] [ 350 -80 700 190 ] [ -500 180 350 -100 ] [ 550 150 -250 120 ] [ 150 -250 950 30 ] ]
 	    :wingmen [ [ -60 10 -90 0 ] [ 70 -10 -100 0 ] [ -450 120 -350 0 ] [ 350 160 -450 0 ] [ 40 -220 -700 0 ] ]
 	    :sight-span 16.25
-	    :night false :landing false :visibility clear-visibility :cover 0.3 :base 1500
+	    :night false :landing false :visibility clear-visibility :cover 0.3 :base 1500 :wind [ 270 3 ]
 	    :propeller :constant-speed :emergency true
 	    :message "BF 110s ALL ROUND, HE 111s BELOW AHEAD  -  72 SQUADRON IS WITH YOU, PICK ONE"
 	    :group :battle
 	    :briefing "BREAK UP THE RAID ON TYNESIDE. YOU START IN THE FIGHT, FIVE MORE OF 72 SQUADRON'S SPITFIRES ROUND YOU, THE BF 110s ALL ROUND AND THE HE 111s BELOW AHEAD. A BF 110 WITH ITS NOSE ON YOU IS DANGEROUS - FOUR MACHINE GUNS AND TWO CANNON - BUT IT TURNS WIDER THAN YOU: TURN HARD AND IT CANNOT FOLLOW. WHEN YOU ARE WARNED OF ONE ON YOUR TAIL, BREAK. THE SIGHT'S RANGE BARS ARE SET FOR THE BF 110'S SPAN. THE BOOST CUT-OUT (E) GIVES +12 LB IN AN EMERGENCY. J BAILS OUT." }
-	  { :name "CLYDEBANK, 13 MARCH 1941"
+	  { :name "CLYDEBANK, 13 MARCH 1941" :month 3
 	    :story [ "13 MARCH 1941, NIGHT. GERMAN BOMBERS ARE COMING"
 	             "UP THE FIRTH OF CLYDE FOR THE SHIPYARDS AND"
 	             "TENEMENTS OF CLYDEBANK. YOU ARE ON PATROL." ]
 	    :start [ :abbotsinch landmark-ground west-from-abbotsinch 0 3000 0 placed west-from-abbotsinch 110 false ]
 	    :raid :he-111 5 greenock [ -20000 0 -12000 ] v+ :clydebank landmark-ground 4000 110 raid-plan
-	    :night true :landing false :visibility clear-visibility :cover 0 :base 1500 :moon [ 108.7 11.9 0.276 ]
+	    :night true :landing false :visibility clear-visibility :cover 0 :base 1500 :wind [ 60 3 ] :moon [ 108.7 11.9 0.276 ]
 	    :propeller :constant-speed :emergency true
 	    :message "BANDITS COMING UP THE CLYDE FROM THE WEST, ANGELS 13  -  FOLLOW THE RAID BEARING"
 	    :group :battle
 	    :briefing "FIND AND ATTACK THE HE 111s COMING UP THE FIRTH OF CLYDE FROM THE WEST FOR CLYDEBANK. AT NIGHT THEY ARE HARD TO SEE: FOLLOW THE RAID'S BEARING AND DISTANCE IN THE STRIP BELOW THE PANEL, CLIMB TO THEIR HEIGHT, AND LOOK FOR THEM AGAINST THE SKY. CLOSE IN FROM ASTERN BEFORE YOU FIRE, IN BURSTS OF 1 TO 2 SECONDS. THE SIGHT'S RANGE BARS ARE SET FOR THE HE 111'S SPAN." }
-	  { :name "GREENOCK, 6 MAY 1941"
+	  { :name "GREENOCK, 6 MAY 1941" :month 5
 	    :story [ "6 MAY 1941, NIGHT. THE BOMBERS ARE OUT FOR"
 	             "GREENOCK, ITS SHIPYARDS AND THE SHIPS"
 	             "BERTHED THERE. YOU ARE OVER DUMBARTON." ]
 	    :start [ :dumbarton-castle landmark-ground west-from-dumbarton 0 2500 0 placed west-from-dumbarton 110 false ]
 	    :raid :he-111 5 greenock [ -22000 0 -15000 ] v+ greenock 3500 110 raid-plan
-	    :night true :landing false :visibility clear-visibility :cover 0.15 :base 1800 :moon [ 212.5 33.3 0.270 ]
+	    :night true :landing false :visibility clear-visibility :cover 0.15 :base 1800 :wind [ 230 5 ] :moon [ 212.5 33.3 0.270 ]
 	    :propeller :constant-speed :emergency true
 	    :message "BANDITS SOUTH-WEST OF GREENOCK, ANGELS 11  -  FOLLOW THE RAID BEARING"
 	    :group :battle
 	    :briefing "STOP THE HE 111s BOUND FOR GREENOCK'S SHIPYARDS, COMING IN FROM THE SOUTH-WEST. FOLLOW THE RAID'S BEARING AND DISTANCE IN THE STRIP BELOW THE PANEL, CLIMB TO THEIR HEIGHT, AND LOOK FOR THEM AGAINST THE MOONLIT SKY. CLOSE IN FROM ASTERN BEFORE YOU FIRE, IN BURSTS OF 1 TO 2 SECONDS. THE SIGHT'S RANGE BARS ARE SET FOR THE HE 111'S SPAN." }
-	  { :name "TIRPITZ AT TRONDHEIM, 5 MARCH 1942"
+	  { :name "TIRPITZ AT TRONDHEIM, 5 MARCH 1942" :month 3 :snow-line 0
 	    :story [ "5 MARCH 1942. THE TIRPITZ LIES IN FAETTENFJORD BY TRONDHEIM."
 	             "FLY THE UNARMED PR SPITFIRE 580 MILES FROM WICK, PHOTOGRAPH"
 	             "HER FROM 30,000 FT, AND BRING THE FILM HOME." ]
 	    :start [ tirpitz-berth 47 0 9144 -6000 placed 47 140 false ]
 	    :raid null
-	    :night false :landing false :visibility clear-visibility :cover 0.3 :base 1200
+	    :night false :landing false :visibility clear-visibility :cover 0.3 :base 1200 :wind [ 260 10 ]
 	    :propeller :constant-speed :emergency true
 	    :aircraft :reconnaissance :target :faettenfjord
 	    :message "30,000 FT OVER THE TRONDHEIMSFJORD  -  THE TIRPITZ IS 4 MILES AHEAD, C RUNS THE CAMERAS"
@@ -506,7 +572,7 @@ variable wingmen
 	             "FLAPS AND THE LANDING, STEP BY STEP." ]
 	    :start [ turnhouse-runway 60 0 true ]
 	    :raid null
-	    :night false :landing false :visibility clear-visibility :cover 0.2 :base 1500
+	    :night false :landing false :visibility clear-visibility :cover 0.2 :base 1500 :wind [ 60 5 ]
 	    :propeller :two-pitch :emergency false :lesson true :target :turnhouse
 	    :message ""
 	    :group :training
@@ -517,44 +583,44 @@ variable wingmen
 	             "QUARTER ATTACKS, A TURNING TARGET; EVERY BURST ASSESSED." ]
 	    :start [ tug-start firing-course 150 300 -1500 placed firing-course 70 false ]
 	    :raid null :tug-start tug-start :tug-course firing-course
-	    :night false :landing false :visibility clear-visibility :cover 0.15 :base 2600
+	    :night false :landing false :visibility clear-visibility :cover 0.15 :base 2600 :wind [ 250 6 ]
 	    :propeller :constant-speed :emergency true :lesson true :air-firing true
 	    :message ""
 	    :group :training
 	    :briefing "FIVE STEPS: RANGING ON THE TUG WITH THE SIGHT'S BARS, AN ASTERN ATTACK ON THE DROGUE, A QUARTER ATTACK, A TURNING TARGET, AND YOUR TOTALS. A SECOND AFTER YOU LET GO OF THE TRIGGER THE INSTRUCTOR ASSESSES THE BURST: ITS RANGE, ANGLE OFF AND HITS, THE LEAD IT NEEDED AND THE LEAD YOU GAVE, AND WHERE YOUR AIM WAS. THE DROGUE'S RANGE IS IN THE STRIP BELOW THE PANEL. THE GUNS ARE FILLED FOR EACH EXERCISE. NEVER FIRE WITH THE TUG NEAR YOUR SIGHT." }
 	  { :name "FREE FLIGHT FROM TURNHOUSE"
 	    :story [ "NO RAID: FLY WHERE YOU LIKE, FROM THE CLYDE"
-	             "TO THE FORTH AND UP THE GREAT GLEN"
-	             "TO INVERNESS." ]
+	             "TO THE FORTH, UP THE GREAT GLEN TO INVERNESS,"
+	             "ROUND BY ABERDEEN, TO ORKNEY AND SHETLAND." ]
 	    :start [ turnhouse-runway 60 0 true ]
 	    :raid null
-	    :night false :landing false :visibility clear-visibility :cover 0.35 :base 1200
+	    :night false :landing false :visibility clear-visibility :cover 0.35 :base 1200 :wind [ 70 7 ]
 	    :propeller :constant-speed :emergency true
 	    :message "FREE FLIGHT  -  Q FOR THROTTLE, PULL BACK AT 100 MPH"
 	    :group :free
-	    :briefing "NO RAID AND NO TARGET. THE MAP RUNS FROM THE CLYDE TO THE FORTH, SOUTH-EAST TO THE FARNE ISLANDS AND TYNESIDE, AND NORTH UP THE GREAT GLEN TO INVERNESS AND ON TO WICK. T RUNS TIME FASTER." }
+	    :briefing "NO RAID AND NO TARGET. THE MAP RUNS FROM THE CLYDE TO THE FORTH, SOUTH-EAST TO THE FARNE ISLANDS AND TYNESIDE, NORTH UP THE GREAT GLEN TO INVERNESS, UP THE EAST COAST BY MONTROSE, ABERDEEN AND PETERHEAD, AND ON OVER WICK TO ORKNEY, SCAPA FLOW AND SHETLAND. T RUNS TIME FASTER." }
 	  { :name "LANDING AT ABBOTSINCH"
 	    :story [ "LANDING PRACTICE: ON THE APPROACH TO"
 	             "ABBOTSINCH, WHEELS AND FLAPS DOWN."
 	             "PUT HER DOWN ON THE RUNWAY AHEAD." ]
 	    :start [ :abbotsinch landmark-ground 50 0 150 -3600 placed 50 55 false ]
-	    :raid null
-	    :night false :landing true :visibility clear-visibility :cover 0 :base 1500
+	    :raid null :target :abbotsinch :landing-on "ABBOTSINCH"
+	    :night false :landing true :visibility clear-visibility :cover 0 :base 1500 :wind [ 50 4 ]
 	    :propeller :constant-speed :emergency true
 	    :message "FINALS FOR ABBOTSINCH  -  HOLD 120 MPH, LAND ON THE RUNWAY AHEAD"
 	    :group :training
-	    :briefing "LAND ON THE RUNWAY AHEAD. YOU ARE ON THE APPROACH, WHEELS AND FLAPS DOWN: HOLD 120 MPH WITH THE THROTTLE AND THE DESCENT WITH THE STICK, SLOW TO 85 MPH ON THE FINAL APPROACH, CLOSE THE THROTTLE OVER THE END OF THE RUNWAY AND HOLD HER OFF UNTIL SHE SETTLES. BRAKES (B) ONCE DOWN." }
+	    :briefing "LAND ON THE RUNWAY AHEAD. YOU ARE ON THE APPROACH, WHEELS AND FLAPS DOWN, TRIMMED: THE RUDDER TRIM A LITTLE RIGHT AGAINST THE ENGINE'S SWING TO THE LEFT. MORE POWER WANTS MORE RIGHT RUDDER, LESS POWER LESS: WIND IT WITH . AND , UNTIL THE SLIP NEEDLE CENTRES. HOLD 120 MPH WITH THE THROTTLE AND THE DESCENT WITH THE STICK, SLOW TO 85 MPH ON THE FINAL APPROACH, CLOSE THE THROTTLE OVER THE END OF THE RUNWAY AND HOLD HER OFF, THE STICK COMING BACK, SO SHE SETTLES TAIL-DOWN ON ALL THREE WHEELS. ONCE DOWN, STICK FULLY BACK, KEEP STRAIGHT ON THE RUDDER AND BRAKE IN SHORT PRESSES OF B: HELD, THE BRAKES TIP HER ONTO HER NOSE." }
 	  { :name "FOG AT ABBOTSINCH"
 	    :story [ "LANDING PRACTICE IN FOG: A MILE'S VISIBILITY,"
 	             "WHEELS AND FLAPS DOWN. HOLD THE HEADING"
 	             "AND THE DESCENT UNTIL THE RUNWAY SHOWS." ]
 	    :start [ :abbotsinch landmark-ground 50 0 150 -3600 placed 50 55 false ]
-	    :raid null
-	    :night false :landing true :visibility 1600 :cover 0 :base 1500
+	    :raid null :target :abbotsinch :landing-on "ABBOTSINCH"
+	    :night false :landing true :visibility 1600 :cover 0 :base 1500 :wind [ 50 1 ]
 	    :propeller :constant-speed :emergency true
 	    :message "FOG AT ABBOTSINCH  -  HOLD 050 AND 120 MPH, THE RUNWAY IS AHEAD"
 	    :group :training
-	    :briefing "LAND IN FOG WITH A MILE'S VISIBILITY. THE RUNWAY IS AHEAD ON 050 BUT OUT OF SIGHT: HOLD THE HEADING ON THE GYRO, 120 MPH, AND A STEADY DESCENT ON THE CLIMB INDICATOR UNTIL THE RUNWAY SHOWS, THEN LAND AS IN CLEAR AIR." } ] ;
+	    :briefing "LAND IN FOG WITH A MILE'S VISIBILITY. YOU ARE TRIMMED, THE RUDDER TRIM A LITTLE RIGHT AGAINST THE ENGINE'S SWING; AS THE POWER CHANGES, WIND IT WITH . AND , TO KEEP THE SLIP NEEDLE CENTRED. THE RUNWAY IS AHEAD ON 050 BUT OUT OF SIGHT: HOLD THE HEADING ON THE GYRO, 120 MPH, AND A STEADY DESCENT ON THE CLIMB INDICATOR UNTIL THE RUNWAY SHOWS, THEN LAND AS IN CLEAR AIR." } ] ;
 
 \ the mission's raid, or none
 : start-raid ( mission -- )
@@ -611,3 +677,17 @@ variable wingmen
 	:kills game@ plane@ammunition plane@type@fire-seconds / plane@type@rounds-per-gun * round "ROUNDS {0:.0f} KILLS {1}" format to score-line
 	x floor-top 17 + score-line dial-ink draw-text
 	plane@damage 0 > if x floor-top 30 + plane@damage round "DAMAGE {0}%" format 0xff6040 draw-text then ;
+
+\ the place to land, its bearing and distance, and the height above it: on a carrier the deck's, with the speed closing on her along her heading; else the field's
+: draw-landing-panel ( -- )
+	436 to x
+	deck null? if :target game@ else deck@centre [ 0 deck@height 0 ] v+ then to place
+	place plane@position v- spread to dz to dy to dx
+	[ dx 0 dz ] v-length 1609.34 / [ dx 0 dz ] heading-of :landing-on game@ "{0} {1:03.0f} {2:.1f} MI" format to place-line
+	x floor-top 4 + place-line 0xffe080 draw-text
+	dy negate 3.28084 * round deck null? if "FIELD {0} FT BELOW" else "DECK {0} FT BELOW" then format to height-line
+	x floor-top 17 + height-line dial-ink draw-text
+	deck null? not if
+		plane@velocity deck-velocity v- deck@heading heading-attitude :forward @ v-dot 2.23694 * round "CLOSING {0} MPH" format to closing-line
+		x floor-top 30 + closing-line dial-ink draw-text
+	then ;

@@ -215,7 +215,9 @@ variable tug-track
 	:lesson-step game@ air-firing-steps size 1- = not if exit then
 	:rounds-fired game@ 1 max2 to rounds
 	:drogue-hits game@ rounds / 100 * :drogue-hits game@ round :rounds-fired game@ :bursts game@
-	"EXERCISE COMPLETE: {0} BURSTS, {1:.0f} ROUNDS, {2} HITS ON THE DROGUE - {3:.1f} PER 100 ROUNDS. ESCAPE FOR THE MISSIONS." format :instruction game! ;
+	"EXERCISE COMPLETE: {0} BURSTS, {1:.0f} ROUNDS, {2} HITS ON THE DROGUE - {3:.1f} PER 100 ROUNDS. ESCAPE FOR THE MISSIONS." format to totals
+	totals :instruction game!
+	totals reading-pause ;
 
 \ the exercise's step: the tug flies and the drogue follows; a burst begins when the trigger is pressed, is sampled while it is held, and is assessed a second after it is let go, or at once if another begins first
 : run-air-firing ( dt -- )

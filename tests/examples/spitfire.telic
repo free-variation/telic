@@ -1,18 +1,32 @@
 \ examples/spitfire.telic's flight model against the Spitfire Mk I's published
 \ figures, without a window: the level speed at full throttle at 5,669 m (582
 \ km/h published), the climb at full throttle from 300 m holding 75 m/s (770
-\ m/min published), and a take-off from Turnhouse with the stick eased back
-\ from 45 m/s. Each line gives the model's figure, rounded.
+\ m/min published), these two with the wings held level and the ball
+\ centred against the propeller's torque and swirl, and a take-off from
+\ Turnhouse on its wheels from the tail-down attitude, the rudder trimmed
+\ right, the throttle opened over 5 s and the swing held on the rudder, the
+\ stick eased back from 45 m/s, the engine already running; then starting on the runway and
+\ stopping with the slow-running cut-out, the revolutions and whether the
+\ engine runs after each step. Each line gives the model's figure, rounded.
 
-[ "geography" "norway-terrain" "space" "shapes" "render" "world" "cities" "aircraft-types" "flight" ] ( name | "examples/spitfire/" name + ".telic" + load ) each
+[ "geography" "norway-terrain" "narvik" "scotland-terrain" "space" "shapes" "render" "world" "cities" "aircraft-types" "flight" ] ( name | "examples/spitfire/" name + ".telic" + load ) each
 build-scenery drop
 
-\ === level speed: the nose held so the height stays put, the stick against the climb and the pitch rate, the trim wound against the climb ===
+\ the test pilot's hands and feet against the propeller's torque and swirl: the ailerons against the bank and the roll rate, the rudder against the sideslip
+: hold-level ( plane -- )
+	| plane |
+	plane@attitude@right second asin negate to bank
+	plane@velocity plane@attitude@right v-dot plane@velocity v-length 1 max2 / to slipping
+	bank -2 * plane@rates first 0.5 * - -1 1 clamp controls swap :roll ! drop
+	slipping 5 * -1 1 clamp controls swap :yaw ! drop ;
+
+\ === level speed: the nose held so the height stays put, the stick against the climb and the pitch rate, the trim wound against the climb, the wings held level ===
 : level-speed ( height -- km/h )
 	| height |
 	[ 0 height 0 ] 0 120 false new-plane to aircraft
 	aircraft 1 :throttle ! 1 :revolutions ! drop
 	0 3000 1 do k
+		aircraft hold-level
 		aircraft@velocity second to climb
 		climb -0.02 * aircraft@rates second 0.6 * - -1 1 clamp controls swap :pitch ! drop
 		aircraft@trim climb 0.001 * - -1 1 clamp aircraft!trim
@@ -23,12 +37,13 @@ build-scenery drop
 300 level-speed . cr                                       \ 478
 clear
 
-\ === climb: the nose held so the speed stays at 75 m/s, the stick against the speed's excess, its growth and the pitch rate, the trim wound slowly against the excess ===
+\ === climb: the nose held so the speed stays at 75 m/s, the stick against the speed's excess, its growth and the pitch rate, the trim wound slowly against the excess, the wings held level ===
 : climb-rate ( -- m/min )
 	[ 0 300 0 ] 0 80 false new-plane to climber
 	climber 1 :throttle ! 1 :revolutions ! drop
 	80 to previous
 	0 1200 1 do k
+		climber hold-level
 		climber@velocity v-length to speed
 		speed 75 - to excess
 		speed previous - 0.05 / to growth
@@ -38,17 +53,19 @@ clear
 		climber 0.05 fly
 	loop
 	climber@velocity second 60 * round ;
-climb-rate . cr                                            \ 861
+climb-rate . cr                                            \ 859
 clear
 
-\ === take-off from Turnhouse ===
+\ === take-off from Turnhouse: the rudder trim fully right, the throttle opened over 5 s, the heading held on the rudder against the swing, the stick eased back from 45 m/s ===
 : take-off ( -- seconds km/h metres )
 	:turnhouse landmark-ground [ 0 wheel-height 0 ] v+ 60 0 true new-plane to runner
-	runner 1 :throttle ! drop
+	runner true :magnetos ! true :running ! 0.2 :revolutions ! 0 :throttle ! 1 :rudder-trim ! drop
 	runner@position to start
 	0 to lifted-at
 	0 1200 1 do k
-		runner@velocity v-length 45 > if 0.6 else 0 then controls swap :pitch ! drop
+		k 100 / 1 min2 runner!throttle
+		60 runner@attitude@forward heading-of - 540 + 360 mod 180 - 0.15 * runner@rates 2 @i 3 * - -1 1 clamp to pedal
+		runner@velocity v-length 45 > if 0.6 else 0 then controls swap :pitch ! 0 :roll ! pedal :yaw ! false :brakes ! drop
 		runner 0.05 fly
 		lifted-at 0 = runner@on-ground not and if
 			k 0.05 * to lifted-at
@@ -58,4 +75,48 @@ clear
 		then
 	loop
 	lifted-at lift-off-speed run ;
-take-off . . . cr                                          \ 346 169 14.95
+take-off . . . cr                                          \ 353 169 15.2
+clear
+
+\ === starting on the runway: the revolutions with no keys for 2 s; the magnetos on and the starter held 3 s; then the magnetos off for 3 s; the starter held 1 s with them off ===
+: runway-seconds ( plane seconds starter -- )
+	| plane seconds starter |
+	0 seconds 20 * round 1 do k
+		controls starter :starter ! true :brakes ! drop
+		plane 0.05 fly
+	loop ;
+: rpm ( plane -- rpm ) :revolutions @ 3000 * round ;
+: starting ( -- )
+	:turnhouse landmark-ground [ 0 wheel-height 0 ] v+ 60 0 true new-plane to starter
+	starter 2 false runway-seconds
+	starter rpm . starter@running . cr                     \ 0 0
+	starter true :magnetos ! drop
+	starter 3 true runway-seconds
+	starter rpm . starter@running . cr                     \ 271 1
+	starter false :magnetos ! drop
+	starter 3 false runway-seconds
+	starter rpm . starter@running . cr                     \ 23 0
+	starter 1 true runway-seconds
+	starter rpm . starter@running . cr                     \ 77 0
+	controls false :starter ! drop ;
+starting
+clear
+
+\ === stopping with the slow-running cut-out: from idle, held 1 s and let go; then held 3 s, and the revolutions 6 s after the cut-out was first held ===
+: cut-out-seconds ( plane seconds held -- )
+	| plane seconds held |
+	0 seconds 20 * round 1 do k
+		controls held :cut-out ! true :brakes ! drop
+		plane 0.05 fly
+	loop ;
+: stopping ( -- )
+	:turnhouse landmark-ground [ 0 wheel-height 0 ] v+ 60 0 true new-plane to idler
+	idler true :magnetos ! true :running ! 0.2 :revolutions ! drop
+	idler 1 true cut-out-seconds
+	idler 1 false cut-out-seconds
+	idler rpm . idler@running . cr                         \ 600 1
+	idler 3 true cut-out-seconds
+	idler 3 false cut-out-seconds
+	idler rpm . idler@running . cr                         \ 22 0
+	controls false :cut-out ! drop ;
+stopping

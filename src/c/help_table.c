@@ -697,6 +697,7 @@ const HelpEntry help_entries[] = {
 	{ "see-tree>string", "( xt -- str )", "The disassembly with each colon-word call expanded inline, indented two spaces, recursively down to primitives (recursive calls as name ...), returned as a string (trailing newline stripped)", "body scan", "1o", "O(expanded body)", 30 },
 	{ "see>string", "( xt -- str )", "A word's source (: name … ;), a quotation's ( … ) text, or a variable/symbol/primitive form (a curried token's bound values then its target), returned as a string (trailing newline stripped)", "dict scan", "1o", "O(|dict|)", 30 },
 	{ "seed", "( n -- )", "Set the global base seed and reset the stream counter; per-thread streams derive from it", "1", "none", "O(1)", 22 },
+	{ "segment-crossings", "( segments x z dx dz -- v )", "Where the line through the point x z along the direction dx dz crosses the plane segments, the n rows [ x0 z0 x1 z1 ] of segments: each crossing's distance t along the line, the point x z + t·dx dz, as a k×1 vector in ascending order. A segment counts when its ends lie on opposite sides of the line, an end exactly on the line counting with the side to the line's right as seen along dx dz, so where two segments of an outline meet on the line the outline crosses it once, and touches it with no crossing. With direction 1 0 the count of positive t is the crossing count of the even-odd test for whether x z lies inside closed outlines. Errors unless segments has 4 columns, or on a zero direction", "2n + k log k", "1m(k)", "O(n + k log k)", 20 },
 	{ "segment>pointer", "( seg -- ptr )", "Intern the backing buffer and return an FFI pointer handle (no copy)", "1", "none", "O(1)†", 21 },
 	{ "segment?", "( a -- bool )", "core.telic: 1 when the value is a segment, else 0", "5", "none", "O(1)", 4 },
 	{ "select-columns", "( dataset cols -- dataset )", "datasets.telic: the named columns as a new dataset (a fresh frame sharing the column values); a missing name errors", "k log c", "1a(k) + 1o", "O(k log c)", 24 },
@@ -893,7 +894,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, arrays element-wise with a trailing rest pattern taking the remaining elements, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails", "n", "none", "O(n)", 28 },
 };
 
-const int help_entry_count = 833;
+const int help_entry_count = 834;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -1537,6 +1538,7 @@ const HelpExample help_examples[] = {
 	{ "see-tree>string", ": st-inner ( -- n ) 1 ; : st-outer2 ( -- n ) st-inner 3 * ; ' st-outer2 see-tree>string print cr", ": st-outer2\n  0: st-inner:\n    0: (lit) 1\n    2: exit\n  2: (lit) 3\n  4: *\n  5: exit\n;" },
 	{ "see>string", ": sq-see2 ( n -- n ) dup * ; ' sq-see2 see>string print cr", ": sq-see2 ( n -- n ) dup * ;" },
 	{ "seed", "42 seed random . cr", "0.083863" },
+	{ "segment-crossings", "[ 0 0 4 0  4 0 4 4  4 4 0 4  0 4 0 0 ] 4 4 matrix to square\nsquare 1 2 1 0 segment-crossings matrix>array . cr\nsquare 1 2 -1 0 segment-crossings matrix>array . cr\n[ 0 0 1 1  1 1 2 2 ] 2 4 matrix 0 1 1 0 segment-crossings matrix>array . cr", "[ -1 3 ]\n[ -3 1 ]\n[ 1 ]" },
 	{ "segment>pointer", "4 int-segment segment>pointer ptr? . cr", "1" },
 	{ "segment?", "4 int-segment segment? . cr", "1" },
 	{ "select-columns", "[ [ \"a\" \"b\" ] [ 1 2 ] ] true rows>dataset [ :b ] select-columns keys . cr", "[ :b ]" },
@@ -1734,4 +1736,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 836;
+const int help_example_count = 837;

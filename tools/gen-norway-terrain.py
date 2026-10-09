@@ -238,4 +238,5 @@ def main():
     print("wrote", OUT, rows, "rows", columns, "columns", "highest", max(found))
 
 
-main()
+if __name__ == "__main__":
+    main()

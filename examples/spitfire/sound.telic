@@ -3,9 +3,21 @@
 \ at 3,000 rpm, and the propeller's three blades passing through the
 \ reduction gear at 0.477 of the crankshaft's speed; both follow the
 \ engine's revolutions by retuning the sounding oscillators, through a filter
-\ that opens with the throttle. The wind is pink noise whose filter and level
-\ rise with the airspeed; the eight Brownings are white noise chopped by a
-\ square wave at their combined rate while the trigger is held.
+\ that opens with the throttle; stopped, the engine is heard running down,
+\ its note falling and fading with the revolutions below idle. As the
+\ slow-running cut-out stops it, a few weak coughs; as the propeller comes
+\ to rest, a soft clunk. Near the stall the buffet: brown noise under
+\ 150 Hz shaken 14 times a second, louder as the stall comes closer.
+\ The wind is pink noise whose filter and level rise with the airspeed; the
+\ eight Brownings are white noise chopped by a square wave at their combined
+\ rate while the trigger is held. The starter is a saw's whine and brown
+\ noise chopped at 4 a second by the compression strokes, rising as it
+\ turns the engine over; the engine catching, a few bangs of filtered
+\ noise; the undercarriage and the Hurricane's flaps, the hydraulic fluid's
+\ flow, a low rumble of brown noise under 200 Hz wavering 6 times a second,
+\ for their travel, the Spitfire's air-worked flaps a quiet hiss; at the end
+\ of each travel a low clunk. Every sound is synthesized and its shape an
+\ estimate.
 
 110 constant engine-base-hz
 
@@ -13,10 +25,24 @@
 	{ :oscillators [ { :wave :saw :ratio 1 :level 0.8 :attack 0.5 :release 1 }
 	                 { :wave :pulse :width 0.3 :ratio 0.4 :level 0.6 :attack 0.5 :release 1 }
 	                 { :wave :brown :level 0.4 :attack 0.5 :release 1 } ]
-	  :carriers [ 0 1 2 ] :cutoff 600 :resonance 0.3 :level 0.22 } :merlin instrument-patch!
+	  :carriers [ 0 1 2 ] :cutoff 600 :resonance 0.3 :level 0 } :merlin instrument-patch!
 	{ :oscillators [ { :wave :pink :attack 0.5 :release 1 } ] :cutoff 300 :level 0.0 } :wind instrument-patch!
 	{ :oscillators [ { :wave :white :attack 0.002 :release 0.05 :lfo-level 1 } ]
-	  :lfo { :shape :square :rate 22 } :cutoff 2500 :resonance 0.6 :level 0.5 } :guns instrument-patch! ;
+	  :lfo { :shape :square :rate 22 } :cutoff 2500 :resonance 0.6 :level 0.5 } :guns instrument-patch!
+	{ :oscillators [ { :wave :saw :level 0.6 :lfo-level 0.8 :attack 0.2 :release 0.3 }
+	                 { :wave :brown :level 0.5 :lfo-level 1 :attack 0.2 :release 0.3 } ]
+	  :carriers [ 0 1 ] :lfo { :shape :square :rate 4 } :cutoff 900 :level 0.35 } :starter instrument-patch!
+	{ :oscillators [ { :wave :brown :attack 0.001 :decay 0.05 :sustain 0 :release 0.05 }
+	                 { :wave :pulse :level 0.5 :attack 0.001 :decay 0.04 :sustain 0 :release 0.04 } ]
+	  :carriers [ 0 1 ] :cutoff 700 :level 0.6 } :pops instrument-patch!
+	{ :oscillators [ { :wave :brown :lfo-level 0.3 :attack 0.15 :release 0.25 } ]
+	  :lfo { :shape :sample-and-hold :rate 6 } :cutoff 700 :level 0.6 } :pump instrument-patch!
+	{ :oscillators [ { :wave :white :attack 0.05 :release 0.3 } ] :high-pass 2000 :level 0.06 } :hiss instrument-patch!
+	{ :oscillators [ { :wave :brown :lfo-level 0.7 :attack 0.05 :release 0.2 } ]
+	  :lfo { :shape :sample-and-hold :rate 14 } :cutoff 150 :level 0 } :buffet instrument-patch!
+	{ :oscillators [ { :wave :sine :attack 0.002 :decay 0.08 :sustain 0 :release 0.05 }
+	                 { :wave :brown :level 0.6 :attack 0.002 :decay 0.05 :sustain 0 :release 0.05 } ]
+	  :carriers [ 0 1 ] :cutoff 300 :level 0.7 } :thump instrument-patch! ;
 
 \ the effects under the whole flight: a little room on everything
 : settle-sound ( -- )
@@ -24,23 +50,46 @@
 	0 :wet :delay effect! 0 :wet :chorus effect!
 	0.9 :level :master effect! ;
 
-\ start the engine and the wind sounding
+\ start the engine, the wind and the buffet sounding, each heard as its level is set
 : start-sounds ( -- )
 	:a2 1 :merlin note-on
-	:a2 1 :wind note-on ;
+	:a2 1 :wind note-on
+	:a2 1 :buffet note-on ;
+
+\ the engine heard only while it runs
+0.22 constant merlin-level
+
+\ the starter's whine and the engine's compression strokes under it, begun and ended with the cranking; its pitch rising as it turns the engine over, from 0.6 to 1 of its note by the time the engine fires
+: start-starter-sound ( -- ) :c3 1 :starter note-on ;
+: stop-starter-sound ( -- ) :c3 :starter note-off ;
+: starter-sound-pitch ( share -- ) 0 1 clamp 0.4 * 0.6 + :ratio 0 :starter oscillator! ;
+
+\ one of the exhaust's bangs as the engine catches, at a pitch
+: engine-pop ( pitch -- ) 1 :pops note-on ;
+
+\ the undercarriage's or the flaps' movement heard: the hydraulic fluid's flow, or for air-worked flaps the air's hiss, from its start to its end; the clunk at the end of the travel
+: start-movement-sound ( instrument -- ) | instrument | :e4 1 instrument note-on ;
+: stop-movement-sound ( instrument -- ) | instrument | :e4 instrument note-off ;
+: lock-thump ( -- ) :a1 1 :thump note-on ;
+
+\ the starved engine's weak cough at a pitch, as the cut-out stops it; the propeller's soft clunk as it comes to rest
+: engine-cough ( pitch -- ) 0.4 :pops note-on ;
+: propeller-stop-clunk ( -- ) :e1 0.4 :thump note-on ;
 
 \ retune and reshape the engine and the wind to the aircraft's state
 : update-sounds ( plane -- )
 	| plane |
-	plane@revolutions 3000 * 400 max2 to revolutions-per-minute
+	plane@running if merlin-level else plane@revolutions 0.2 / 0 1 clamp merlin-level * then :level :merlin instrument!
+	plane@revolutions 3000 * 30 max2 to revolutions-per-minute
 	revolutions-per-minute 60 / 6 * engine-base-hz / to firing-ratio
 	revolutions-per-minute 60 / 0.477 * 3 * engine-base-hz / to blade-ratio
 	firing-ratio 0.1 8 clamp :ratio 0 :merlin oscillator!
 	blade-ratio 0.1 8 clamp :ratio 1 :merlin oscillator!
 	plane@throttle 1500 * 400 + :cutoff :merlin instrument!
-	plane@velocity v-length to speed
+	plane air-velocity v-length to speed
 	speed 12 * 200 + 20 8000 clamp :cutoff :wind instrument!
-	speed 160 / 0 1 clamp 0.25 * :level :wind instrument! ;
+	speed 160 / 0 1 clamp 0.25 * :level :wind instrument!
+	plane buffet-share 0.6 * :level :buffet instrument! ;
 
 \ the guns sounding while the trigger is held
 : guns-sound ( firing -- )
@@ -48,3 +97,37 @@
 	firing if :c4 1 :guns note-on else :c4 :guns note-off then ;
 
 : stop-sounds ( -- ) silence-audio ;
+
+\ === the title's music ===
+
+\ Paul Whiteman and his Ambassador Orchestra's "Anytime, Anyday, Anywhere", a fox trot recorded for Victor on 23 August 1920 (Victor 18694; the Library of Congress's National Jukebox transfer), at 0.3 of its recorded level under the title, the keys and the briefings, from the start again when it ends; a flight's silence-audio stops it
+: title-music-path ( -- path ) "examples/assets/anytime-anyday-anywhere.mp3" ;
+0.3 constant title-music-level
+
+variable title-music
+null to title-music
+variable title-music-started
+-1e9 to title-music-started
+
+\ the recording decoded through ffmpeg to 48 kHz mono samples at the music's level; none if ffmpeg fails
+: load-title-music ( -- )
+	| ^title-music |
+	[ "ffmpeg" "-v" "error" "-i" title-music-path "-ac" "1" "-ar" "48000" "-f" "s16le" "-" ] run-result to decoded
+	decoded :status @ 0 = not if exit then
+	decoded :out @ string>byte-vector to bytes
+	bytes dim drop 2 / round-down to n-samples
+	bytes n-samples 2 reshape [ 1 256 ] 2 1 matrix matmul
+	32768 + 65536 mod 32768 - title-music-level 32768 / * to title-music ;
+
+\ the music started again from the beginning at the next keep-title-music
+: restart-title-music ( -- )
+	| ^title-music-started |
+	-1e9 to title-music-started ;
+
+\ the music played again once the last playing has run its length; nothing without a device
+: keep-title-music ( -- )
+	| ^title-music-started |
+	title-music null? if exit then
+	now title-music-started - title-music dim drop 48000 / < if exit then
+	( title-music play-samples ) catch if drop then
+	now to title-music-started ;

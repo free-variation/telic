@@ -3,8 +3,13 @@
 \ mass, wing, engine, drag polar and lift; its tail's areas and arms; the
 \ centre of gravity's margin ahead of the neutral point; the ailerons' lift,
 \ how stiff each control is to move against the air, and the speed at
-\ which the wing's twist reverses the ailerons; and its masses, each at a
-\ place on the model, from which the moments of inertia are summed.
+\ which the wing's twist reverses the ailerons; its masses, each at a
+\ place on the model, from which the moments of inertia are summed; and
+\ its wheels, the main wheels' and the tailwheel's centres and radii as the
+\ models in aircraft.telic draw them, on which it rests and rolls; the
+\ propeller's hub, about which its 1.64 m blades turn; and the bottom of
+\ its fuselage, the models' lowest ring, on which it lands with the
+\ wheels up.
 \
 \ The Spitfire Mk I's published figures: the loaded weight, 2,624 kg; the
 \ wing, 11.23 m and 22.48 m²; the Merlin III, 1,030 hp and 1,335 lb; the
@@ -15,9 +20,10 @@
 \ December 1946, from J. Smith's paper to the Royal Aeronautical Society);
 \ the stick force, about 5 lb a g, is a later Spitfire's (the
 \ Mk XVI's) taken for the Mk I. Measured from the model: the mean chord,
-\ 2.165 m; the tailplane, 2.89 m², 4.55 m behind the centre of gravity;
-\ the fin and rudder, 1.47 m² of the 1.84 m² outline standing clear of
-\ the fuselage, 4.8 m behind. Estimates: the margin, 3% of the chord; the
+\ 2.165 m; the tailplane, 2.89 m², its quarter chord 4.25 m behind the
+\ model's origin; the fin and rudder, 1.47 m² of the 1.84 m² outline
+\ standing clear of the fuselage, centred 4.6 m behind; their arms from the
+\ centre of gravity at its published place, 1.48 m ahead of the origin. Estimates: the margin, 3% of the chord; the
 \ tail's and fin's lift slopes, efficiency and the downwash; the
 \ elevator's and rudder's effectiveness and travel; the flaps' pitching
 \ moment; the pilot's greatest force on the stick sideways (50 lb), fore
@@ -78,7 +84,7 @@
 		  out sq along sq + spread-out sq + spread-along sq + m * ]
 	) map [ 0 0 0 ] ' v+ reduce ;
 
-\ a type from its figures: the centre of gravity and the moments of inertia dry and of the fuel when full; the tail's and fin's volumes; the pitching moment's terms, the wing's lift about the centre of gravity, the tail's restoring slope, the offset that trims at the trim lift, the damping and the elevator's power; the yawing moment's stability, damping and the rudder's power; each control's stiffness, lb of stick force at full deflection for each pascal of dynamic pressure, the elevator's from the stick force for each g of a steady pull-up at sea level, whose elevator holds both the extra lift against the margin and the pitch damping of the pull's rotation; the dynamic pressure at the ailerons' reversal; the arm of each wing half's lift, the centroid of a half ellipse
+\ a type from its figures: the centre of gravity and the moments of inertia dry and of the fuel when full; the tail's and fin's volumes; the pitching moment's terms, the wing's lift about the centre of gravity, the tail's restoring slope, the offset that trims at the trim lift, the damping and the elevator's power; the yawing moment's stability, damping and the rudder's power; each control's stiffness, lb of stick force at full deflection for each pascal of dynamic pressure, the elevator's from the stick force for each g of a steady pull-up at sea level, whose elevator holds both the extra lift against the margin and the pitch damping of the pull's rotation; the dynamic pressure at the ailerons' reversal; the arm of each wing half's lift, the centroid of a half ellipse; the share of the weight the tailwheel carries at rest, from the centre of gravity's place between it and the main wheels
 : aircraft-type ( figures -- type )
 	| figures |
 	figures@components to parts
@@ -109,86 +115,102 @@
 	  :elevator-power elevator-power :yaw-stability yaw-stability :yaw-damping yaw-damping :rudder-power rudder-power
 	  :elevator-stiffness elevator-stiffness :rudder-stiffness rudder-stiffness
 	  :reversal-pressure figures@reversal-speed sea-level-pressure
-	  :panel-arm span 2 / 4 3 PI * / * } merge ;
+	  :panel-arm span 2 / 4 3 PI * / *
+	  :tail-share figures@main-wheel 2 @i centre 2 @i - figures@main-wheel 2 @i figures@tail-wheel 2 @i - / } merge ;
 
-\ the Spitfire's masses but the guns: the published Merlin III (1,335 lb), and estimates of the propeller, the radiator and coolant, the pilot with his parachute, the fuel tanks' 85 gallons full, the wing's structure spread over its span as an ellipse is, and the tail
+\ the Spitfire's masses but the guns: the published Merlin III (1,335 lb), and estimates of the propeller, the radiator and coolant, the pilot with his parachute, the fuel tanks' 85 gallons full, the wing's structure spread over its span as an ellipse is, and the tail; each where the model in aircraft.telic puts it, the radiator under the wing (taken on the centre line), the wing's structure about its mid-chord line, 1.17 m forward of the origin
 : airframe-parts ( -- components )
 	[ 606 [ 0 0.1 2.3 ] point-mass
 	  160 [ 0 0 3.6 ] point-mass
-	  90 [ 0 -0.6 0 ] point-mass
-	  90 [ 0 0.3 -0.5 ] point-mass
+	  90 [ 0 -0.9 0.8 ] point-mass
+	  90 [ 0 0.3 -0.2 ] point-mass
 	  278 [ 0 0.2 1.1 ] fuel-mass-at
-	  420 [ 0 -0.3 0.1 ] [ 2.81 0.1 0.6 ] false component
+	  420 [ 0 -0.65 1.17 ] [ 2.81 0.1 0.6 ] false component
 	  55 [ 0 0.4 -4.4 ] [ 0.6 0.4 0.3 ] false component ] ;
 
-\ the eight Brownings, the published 21 lb 14 oz each, with an estimated 7.6 kg of their 300 rounds, where the model's gun ports are
+\ the eight Brownings, the published 21 lb 14 oz each, with an estimated 7.6 kg of their 300 rounds, where the model's gun ports are, reaching back 1 m from the leading edge
 : gun-parts ( -- components )
 	[ 1.9 2.15 2.9 3.15 ] ( out | [ out negate out ] ) map [ ] ' concat reduce
-	( out | 17.52 [ out -0.3 0.4 ] point-mass ) map ;
+	( out | 17.52 [ out -0.6 1.8 ] point-mass ) map ;
 
-\ the fuselage: the Mk I's loaded weight less every other mass, spread along its length
+\ the Mk I's centre of gravity's place along the model, metres forward of its origin: the published limits, 8.25 to 9.9 in aft of the datum (spitfireperformance.com's K5054 trials page), their middle 9.1 in; the datum at 23% of the mean aerodynamic chord (a forum thread on the Spitfire's controllability, theairtacticalassaultgroup.com); that chord, 2.165 m, its leading edge 4.8 in behind the root's (NACA's flying qualities report on the Spitfire VA); the root's leading edge where the model puts it, 2.33 m forward
+2.33 0.122 - 0.23 2.165 * - 9.1 0.0254 * - constant spitfire-centre-along
+
+\ the fuselage: the Mk I's loaded weight less every other mass, spread along its length, centred where it puts the whole aircraft's centre of gravity at its published place, the one mass whose place is not otherwise known
 : fuselage-part ( -- component )
-	airframe-parts gun-parts concat ( part | part@mass ) map 0 ' + reduce to named
-	2624 named - [ 0 0 -1.2 ] [ 0.35 0.4 1.88 ] false component ;
+	airframe-parts gun-parts concat to named-parts
+	named-parts ( part | part@mass ) map 0 ' + reduce to named
+	named-parts ( part | part@place 2 @i part@mass * ) map 0 ' + reduce to named-moment
+	2624 named - to remainder
+	spitfire-centre-along 2624 * named-moment - remainder / to remainder-along
+	remainder [ 0 0 remainder-along ] [ 0.35 0.4 1.88 ] false component ;
 
 \ the Spitfire Mk I's masses
 : spitfire-components ( -- components )
 	airframe-parts gun-parts concat [ fuselage-part ] concat ;
 
-\ the Spitfire Mk I's figures
+\ the Spitfire Mk I's figures. Its split flaps' 85° travel, and its ailerons' full total deflection, the two ailerons' angles added, about 41° right and 45° left, taken as 21.5° each (Measurements of the Flying Qualities of a Supermarine Spitfire VA Airplane, NACA, 1942, its figures 25 and 26). Its rudder trimming tab worked from a handwheel in the cockpit (the Air Ministry's modification to the Spitfire I's rudder trimmer tab's range, 17 August 1939; the Spitfire II's Pilot's Notes set it fully to starboard for take-off). Its stall as NACA's flight tests of a Spitfire VA found it (Stalling Characteristics of the Supermarine Spitfire VA Airplane, NACA WR L-353): good warning by buffeting, the nose easing down at the start of the stall and no violent motions even beyond the most lift; in a hard turn the stick could be pulled far back without losing control, the aircraft pitching down and recovering by itself when the stick was let go; with the gun ports open a right roll past about 10° of up elevator. Modelled, as estimates: the buffet from 2° below the stall angle, a nose-down pitching moment past it, and the lift falling past it 1.2 for each radian, as the Hurricane's
 : spitfire-mk-i-figures ( -- figures )
-	{ :name "SPITFIRE MK I" :kind :spitfire :model-down :spitfire-down
+	{ :name "SPITFIRE MK I" :kind :spitfire :model-down :spitfire-down :finish :temperate-land
 	  :rounds-per-gun 300 :fire-seconds 300 60 * browning-rate / :stick-force-per-g 5
 	  :mass 2624 :span 11.23 :wing-area 22.48 :chord 2.165
 	  :engine-power 768000 :full-throttle-height 5500 :fuel-capacity 85
 	  :lift-slope 4.8 :zero-lift-coefficient 0.12 :stall-angle 0.26 :parasite-drag 0.019 :induced-drag 0.063
 	  :static-thrust 10500 :propeller-efficiency 0.8
-	  :dihedral 6 PI 180 / * :tailplane-area 2.89 :tail-arm 4.55 :fin-area 1.47 :fin-arm 4.8
-	  :static-margin 0.03 :trim-lift 0.25 :flap-moment -0.07 :flap-limit 140 :rudder-bias false :reserve-capacity 0
+	  :dihedral 6 PI 180 / * :tailplane-area 2.89 :tail-arm 4.25 spitfire-centre-along + :fin-area 1.47 :fin-arm 4.6 spitfire-centre-along +
+	  :static-margin 0.03 :trim-lift 0.25 :flap-moment -0.07 :flap-limit 140 :rudder-bias true :reserve-capacity 0
+	  :flap-travel 85 :aileron-travel 21.5
+	  :main-wheel [ 0.865 -1.52 1.809 ] :wheel-radius 0.32 :tail-wheel [ 0 -0.55 -4.42 ] :tail-wheel-radius 0.1
+	  :hub [ 0 0 3.62 ] :belly -0.8
 	  :aileron-lift 0.32 :aileron-stiffness aileron-force 75.1 sea-level-pressure / :reversal-speed 214.6
+	  :buffet-margin 2 PI 180 / * :post-stall-slope 1.2 :stall-pitch-down -0.5
 	  :components spitfire-components } ;
 
-\ the photographic reconnaissance Spitfire, the PR IV: the Merlin 46's published 1,415 hp at 14,000 ft; the leading edges' 66.5 gallons a side with the 85 behind the engine, 218 in all; no guns, the cameras in their place, an estimated 100 kg lighter for it; the leading edges' fuel, 1.8 m out (an estimate), a tenth more inertia in roll when full
+\ the photographic reconnaissance Spitfire, the PR IV: the Merlin 46's published 1,415 hp at 14,000 ft; the leading edges' 66.5 gallons a side with the 85 behind the engine, 218 in all; no guns, the cameras in their place, an estimated 100 kg lighter for it; the leading edges' fuel, 1.8 m out and 0.3 m behind the leading edge, 2.0 m forward of the model's origin (estimates), a tenth more inertia in roll when full; the airframe's remainder the Mk I's, in the same place; painted PRU Blue overall, Type B roundels on its upper wings (published)
 : pr-iv-figures ( -- figures )
 	airframe-parts [ fuselage-part
 	                 40 [ 0 0 -1.8 ] point-mass
-	                 217.5 [ -1.8 -0.2 0.9 ] fuel-mass-at
-	                 217.5 [ 1.8 -0.2 0.9 ] fuel-mass-at ] concat to parts
+	                 217.5 [ -1.8 -0.6 2.0 ] fuel-mass-at
+	                 217.5 [ 1.8 -0.6 2.0 ] fuel-mass-at ] concat to parts
 	spitfire-mk-i-figures
-	{ :name "SPITFIRE PR IV" :mass 2959 :engine-power 1055000 :full-throttle-height 4267 :fuel-capacity 218
+	{ :name "SPITFIRE PR IV" :finish :pru-blue :mass 2959 :engine-power 1055000 :full-throttle-height 4267 :fuel-capacity 218
 	  :components parts } merge ;
 
-\ the Hurricane Mk I's masses: the published Merlin III; estimates of the propeller, the radiator under the fuselage with its coolant, the pilot, the wing's structure (its thick wing heavier than the Spitfire's), the tail; the published 97 gallons, 34.5 in each tank between the centre section's spars and 28 in the reserve tank ahead of the cockpit; the eight Brownings, four in each wing outboard of the undercarriage, the inner pairs with the published 334 rounds each and the outer with 287 (an estimated 25.4 g a round with its link); the fuselage the remainder of the loaded weight
+\ the Hurricane Mk I's masses: the published Merlin III; estimates of the propeller, the radiator under the fuselage with its coolant, the pilot, the wing's structure (its thick wing heavier than the Spitfire's), the tail; the published 97 gallons, 34.5 in each tank between the centre section's spars and 28 in the reserve tank ahead of the cockpit; the eight Brownings, four in each wing outboard of the undercarriage, the inner pairs with the published 334 rounds each and the outer with 287 (an estimated 25.4 g a round with its link); the fuselage the remainder of the loaded weight. Each placed where the model as drawn from the M. L. Watts three-view puts it: the wing's root from 1.25 m ahead of the origin, the pilot under the hood
 : hurricane-components ( -- components )
 	[ 606 [ 0 0.15 1.9 ] point-mass
 	  160 [ 0 0.05 3.05 ] point-mass
-	  90 [ 0 -0.85 -0.7 ] point-mass
-	  90 [ 0 0.5 -0.9 ] point-mass
-	  112.8 [ -1.0 -0.3 0.3 ] fuel-mass-at
-	  112.8 [ 1.0 -0.3 0.3 ] fuel-mass-at
-	  91.6 [ 0 0.3 1.0 ] fuel-mass-at
-	  540 [ 0 -0.4 -0.3 ] [ 2.7 0.15 0.6 ] false component
-	  70 [ 0 0.6 -5.4 ] [ 0.7 0.5 0.3 ] false component ] to parts
+	  90 [ 0 -1.0 -0.5 ] point-mass
+	  90 [ 0 0.55 -0.45 ] point-mass
+	  112.8 [ -1.0 -0.3 0.7 ] fuel-mass-at
+	  112.8 [ 1.0 -0.3 0.7 ] fuel-mass-at
+	  91.6 [ 0 0.2 1.4 ] fuel-mass-at
+	  540 [ 0 -0.4 0.1 ] [ 2.7 0.15 0.6 ] false component
+	  70 [ 0 0.4 -5.3 ] [ 0.7 0.5 0.3 ] false component ] to parts
 	[ [ 2.2 334 ] [ 2.4 334 ] [ 2.6 287 ] [ 2.8 287 ] ] ( gun |
 		gun first to out
 		gun second 0.0254 * 9.92 + to gun-mass
-		[ gun-mass [ out negate -0.35 0.2 ] point-mass gun-mass [ out -0.35 0.2 ] point-mass ]
+		[ gun-mass [ out negate -0.35 0.6 ] point-mass gun-mass [ out -0.35 0.6 ] point-mass ]
 	) map [ ] ' concat reduce to guns
 	parts guns concat to named
 	2994 named ( part | part@mass ) map 0 ' + reduce - to remainder
-	named [ remainder [ 0 0.1 -1.3 ] [ 0.4 0.5 2.0 ] false component ] concat ;
+	named [ remainder [ 0 0.1 -0.9 ] [ 0.4 0.5 2.0 ] false component ] concat ;
 
-\ the Hurricane Mk I's figures. Published: the loaded weight, 6,600 lb (the-battle-of-britain.co.uk); the span, 40 ft, and wing area, 257.5 sq ft; the Merlin III; 97 gallons; the guns' rounds; the flaps' 120 mph limit, from the placard in the Smithsonian's Mk IIC cockpit; the rudder bias wheel and the fuel cock between the main tanks and the 28-gallon reserve, seen in that cockpit. Measured from the model: the tailplane, 2.75 m², its quarter chord 5.1 m aft of the model's origin; the fin and rudder, 1.6 m² of the 1.87 m² outline standing clear of the fuselage, centred 5.83 m aft; the arms from the centre of gravity the masses give. Estimates: the lift slope, the thicker wing's higher aspect ratio's (Helmbold's formula, 3% above the Spitfire's); the induced drag, an efficiency of 0.8 for its tapered wing; the dihedral, 3.5°; the margin, 8% of the chord, more than the Spitfire's, as its steadiness as a gun platform was reported; the stick force, 8 lb a g; the ailerons the Spitfire's, with no published rate of roll found, and its thick wing's reversal speed 700 mph. The parasite drag is set so the model reaches the A&AEE's 316 mph at 20,000 ft for L.2026 with the Rotol constant-speed propeller (June 1940)
+\ the Hurricane Mk I's figures. Published: the flaps' 80° travel and the ailerons' 19.2° to 21.5° down and 20.6° to 22.4° up, taken as 20.5° either way (Nissen and Phillips, NACA MR, April 1942); the loaded weight, 6,600 lb (the-battle-of-britain.co.uk); the span, 40 ft, and wing area, 257.5 sq ft; the Merlin III; 97 gallons; the guns' rounds; the flaps' 120 mph limit, from the placard in the Smithsonian's Mk IIC cockpit; the rudder bias wheel and the fuel cock between the main tanks and the 28-gallon reserve, seen in that cockpit. Measured from the model as drawn from the M. L. Watts three-view: the tailplane, 2.75 m², its quarter chord 5.1 m aft of the model's origin; the fin and rudder, 2.07 m² of the 2.39 m² outline standing clear of the fuselage, centred 5.48 m aft; the arms, 5.34 m and 5.72 m, from the centre of gravity the masses give, 0.24 m ahead of the origin. Estimates: the lift slope, the thicker wing's higher aspect ratio's (Helmbold's formula, 3% above the Spitfire's); the induced drag, an efficiency of 0.8 for its tapered wing; the dihedral, 3.5°; the margin, 8% of the chord, more than the Spitfire's, as its steadiness as a gun platform was reported; the stick force, 8 lb a g; the ailerons the Spitfire's, with no published rate of roll found, and its thick wing's reversal speed 700 mph. The stall as NACA's flight tests of a Hurricane II, the Mk I's wing (Nissen and Phillips, NACA WR L-565, 1942), found it: never very violent, recovered by normal use of the controls; the flow breaking down first at the centre section, pitching the nose down, its buffeting warning the pilot while back stick remained before any roll; held stalled, a roll that stopped of its own accord. Modelled, as estimates: the buffet from 3° below the stall angle, a nose-down pitching moment past it, and the lift falling past it 1.2 for each radian. The parasite drag is set so the model reaches the A&AEE's 316 mph at 20,000 ft for L.2026 with the Rotol constant-speed propeller (June 1940)
 : hurricane-mk-i-figures ( -- figures )
-	{ :name "HURRICANE MK I" :kind :hurricane :model-down :hurricane-down
+	{ :name "HURRICANE MK I" :kind :hurricane :model-down :hurricane-down :finish :temperate-land
 	  :rounds-per-gun 310.5 :fire-seconds 310.5 60 * browning-rate / :stick-force-per-g 8
 	  :mass 2994 :span 12.19 :wing-area 23.92 :chord 1.96
 	  :engine-power 768000 :full-throttle-height 5500 :fuel-capacity 97
 	  :lift-slope 4.96 :zero-lift-coefficient 0.12 :stall-angle 0.26 :parasite-drag 0.0253 :induced-drag 0.064
 	  :static-thrust 10500 :propeller-efficiency 0.8
-	  :dihedral 3.5 PI 180 / * :tailplane-area 2.75 :tail-arm 5.06 :fin-area 1.6 :fin-arm 5.79
+	  :dihedral 3.5 PI 180 / * :tailplane-area 2.75 :tail-arm 5.34 :fin-area 2.07 :fin-arm 5.72
 	  :static-margin 0.08 :trim-lift 0.25 :flap-moment -0.07 :flap-limit 120 :rudder-bias true :reserve-capacity 28
+	  :flap-travel 80 :aileron-travel 20.5
+	  :main-wheel [ 1.195 -1.74 0.97 ] :wheel-radius 0.35 :tail-wheel [ 0 -0.84 -4.76 ] :tail-wheel-radius 0.1
+	  :hub [ 0 0.05 3.05 ] :belly -0.82
 	  :aileron-lift 0.32 :aileron-stiffness aileron-force 75.1 sea-level-pressure / :reversal-speed 313
+	  :buffet-margin 3 PI 180 / * :post-stall-slope 1.2 :stall-pitch-down -0.5
 	  :components hurricane-components } ;
 
 variable spitfire-mk-i

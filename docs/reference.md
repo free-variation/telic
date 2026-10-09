@@ -3567,6 +3567,7 @@ element.
 | `argsort` | `( v -- v' )` or `( arr -- arr )` | The sorting permutation of a vector, shape preserved: element i is the source index of the i-th smallest value; ties keep index order, NaNs go last in index order. An array operand answers the permutation under natural (structural) order, so mixed types order, ties in index order, as a float-index array | 1 + n log n | `1m(n)` + `malloc(16n)`; array `1a(n)` + `malloc(4n)` | O(n log n); vectors above 8k elements O(n) radix |
 | `ranks` | `( v -- v' )` | statistics.telic: 0-based midranks as nx1 — tied values share the mean of their sorted positions, NaNs rank last in index order | n log n + 2n | `3m(n)` + `malloc(16n)` | O(n log n) |
 | `where` | `( mat -- v )` | Flat row-major indices of the nonzero elements, as a k×1 index vector (1×k for a 1×n mask) | 1 + n | `1m(k)` | O(n) |
+| `segment-crossings` | `( segments x z dx dz -- v )` | Where the line through the point `x z` along the direction `dx dz` crosses the plane segments, the n rows `[ x0 z0 x1 z1 ]` of `segments`: each crossing's distance t along the line, the point `x z` + t·`dx dz`, as a k×1 vector in ascending order. A segment counts when its ends lie on opposite sides of the line, an end exactly on the line counting with the side to the line's right as seen along `dx dz`, so where two segments of an outline meet on the line the outline crosses it once, and touches it with no crossing. With direction `1 0` the count of positive t is the crossing count of the even-odd test for whether `x z` lies inside closed outlines. Errors unless `segments` has 4 columns, or on a zero direction | 2n + k log k | `1m(k)` | O(n + k log k) |
 | `drop-nans` | `( v -- v' )` | matrix.telic: the finite elements of a vector, NaNs dropped | 4n | mask + index + `1m(k)` | O(n) |
 | `cumulative-sum` | `( mat -- mat' )` | Running sum over the elements in row-major order, shape preserved — a vector's prefix sums | 1 + n | `1m(r×c)` | O(n) |
 | `var` | `( mat -- f )` | Sample variance (÷ n−1) over all elements; errors with fewer than 2 | 1 + n | none | O(n) |
@@ -3681,6 +3682,18 @@ null [ 5 ] vector vstack matrix>array . cr
 ```output
 [ 0 2 ]
 [ 0 2 ]
+```
+
+```forth segment-crossings
+[ 0 0 4 0  4 0 4 4  4 4 0 4  0 4 0 0 ] 4 4 matrix to square
+square 1 2 1 0 segment-crossings matrix>array . cr
+square 1 2 -1 0 segment-crossings matrix>array . cr
+[ 0 0 1 1  1 1 2 2 ] 2 4 matrix 0 1 1 0 segment-crossings matrix>array . cr
+```
+```output
+[ -1 3 ]
+[ -3 1 ]
+[ 1 ]
 ```
 
 ```forth drop-nans

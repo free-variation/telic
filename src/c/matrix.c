@@ -734,6 +734,77 @@ void p_where(DISPATCH_ARGS) {
 	DISPATCH_REGISTERS(interp, chain_ip, chain_sp);
 }
 
+static inline double side_of_line(double x, double z, double origin_x, double origin_z, double normal_x, double normal_z) {
+	return normal_x * (x - origin_x) + normal_z * (z - origin_z);
+}
+
+static int segment_crossings(Interpreter *interp, Object *segments, double origin_x, double origin_z,
+		double direction_x, double direction_z) {
+	int n_segments = segments->matrix.rows;
+	const double *ends = segments->matrix.elements;
+	double normal_x = -direction_z;
+	double normal_z = direction_x;
+	double direction_length_squared = direction_x * direction_x + direction_z * direction_z;
+
+	int n_crossings = 0;
+	for (int i = 0; i < n_segments; i++) {
+		const double *row = ends + (size_t)i * 4;
+		double start_side = side_of_line(row[0], row[1], origin_x, origin_z, normal_x, normal_z);
+		double end_side = side_of_line(row[2], row[3], origin_x, origin_z, normal_x, normal_z);
+		n_crossings += (start_side > 0) != (end_side > 0);
+	}
+
+	int distances_handle = object_new_matrix(interp, n_crossings, 1);
+	if (interp->error_flag)
+		return -1;
+
+	double *distances = OBJECT_AT(distances_handle)->matrix.elements;
+	int n_written = 0;
+	for (int i = 0; i < n_segments; i++) {
+		const double *row = ends + (size_t)i * 4;
+		double start_side = side_of_line(row[0], row[1], origin_x, origin_z, normal_x, normal_z);
+		double end_side = side_of_line(row[2], row[3], origin_x, origin_z, normal_x, normal_z);
+		if ((start_side > 0) == (end_side > 0))
+			continue;
+		double share = start_side / (start_side - end_side);
+		double crossing_x = row[0] + share * (row[2] - row[0]);
+		double crossing_z = row[1] + share * (row[3] - row[1]);
+		distances[n_written++] = ((crossing_x - origin_x) * direction_x + (crossing_z - origin_z) * direction_z)
+				/ direction_length_squared;
+	}
+	sort_doubles(distances, (size_t)n_crossings);
+
+	return distances_handle;
+}
+
+void p_segment_crossings(DISPATCH_ARGS) {
+	PEEK_TYPE_AT(direction_z_val, 0, "segment-crossings", T_FLOAT);
+	PEEK_TYPE_AT(direction_x_val, 1, "segment-crossings", T_FLOAT);
+	PEEK_TYPE_AT(origin_z_val, 2, "segment-crossings", T_FLOAT);
+	PEEK_TYPE_AT(origin_x_val, 3, "segment-crossings", T_FLOAT);
+	PEEK_TYPE_AT(segments_val, 4, "segment-crossings", T_MATRIX);
+	Object *segments = OBJECT_AT(VAL_DATA(segments_val));
+	double direction_x = VAL_NUMBER(direction_x_val);
+	double direction_z = VAL_NUMBER(direction_z_val);
+
+	if (segments->matrix.columns != 4) {
+		fail(interp, "expected an nx4 matrix of segments; got %dx%d", segments->matrix.rows, segments->matrix.columns);
+		return;
+	}
+	if (direction_x == 0 && direction_z == 0) {
+		fail(interp, "expected a nonzero direction; got 0 0");
+		return;
+	}
+
+	int distances_handle = segment_crossings(interp, segments, VAL_NUMBER(origin_x_val), VAL_NUMBER(origin_z_val),
+			direction_x, direction_z);
+	if (interp->error_flag) return;
+
+	chain_sp[-5] = make_matrix(distances_handle);
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 4);
+}
+
 #define ADD(a, b) ((a) + (b))
 
 static inline int double_is_nan_bits(double element) {

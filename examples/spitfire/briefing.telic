@@ -7,6 +7,7 @@
 \ particulars, read from the mission: the time of day and the moon, the
 \ aircraft and its guns or cameras, the propeller, the boost, the start,
 \ the weather and the opposition. Below them the mission's own briefing.
+\ The chart N shows in flight is drawn from the same map in more detail.
 
 16 constant map-left
 32 constant map-top
@@ -16,6 +17,16 @@
 214 constant values-width
 332 constant briefing-top
 0xff6040 constant raid-colour
+
+\ the rectangle a map is drawn in, [ left top width height ]: the briefing's square, or the whole screen for the chart
+[ map-left map-top map-size map-size ] constant briefing-sheet
+[ 0 0 640 480 ] constant chart-sheet
+variable sheet
+briefing-sheet to sheet
+
+: sheet! ( rectangle -- )
+	| rectangle ^sheet |
+	rectangle to sheet ;
 0xffe080 constant heading-colour
 
 \ a text broken at spaces into lines no wider than a width in pixels
@@ -45,9 +56,14 @@
 	  [ :acklington "ACKLINGTON" ] [ :wick "WICK" ] [ :vaernes "VAERNES" ]
 	  [ :edinburgh-castle "EDINBURGH" ] [ :glasgow-cathedral "GLASGOW" ] [ :greenock "GREENOCK" ]
 	  [ :clydebank "CLYDEBANK" ] [ :tynemouth "TYNEMOUTH" ] [ :nidaros "TRONDHEIM" ]
-	  [ :forth-bridge "FORTH BRIDGE" ] [ :farne-islands "FARNE ISLANDS" ] [ :inverness-castle "INVERNESS" ] ] ;
+	  [ :forth-bridge "FORTH BRIDGE" ] [ :farne-islands "FARNE ISLANDS" ] [ :inverness-castle "INVERNESS" ]
+	  [ :narvik "NARVIK" ] [ :bardufoss "BARDUFOSS" ] [ :bjerkvik "BJERKVIK" ] [ :ankenes "ANKENES" ]
+	  [ :marischal-college "ABERDEEN" ] [ :dyce "DYCE" ] [ :peterhead "PETERHEAD" ] [ :montrose "MONTROSE" ]
+	  [ :montrose-air-station "RAF MONTROSE" ] [ :castletown "CASTLETOWN" ] [ :kirkwall "KIRKWALL" ]
+	  [ :hatston "HATSTON" ] [ :skeabrae "SKEABRAE" ] [ :lyness "LYNESS" ] [ :lerwick "LERWICK" ]
+	  [ :sumburgh "SUMBURGH" ] ] ;
 
-\ the ground points a mission names, each [ x z ]: the start, the raid's start and target, the mission's target, the tug's start
+\ the ground points a mission names, each [ x z ]: the start, the raid's start and target, the mission's target, the tug's start, the carrier
 : mission-points ( mission -- points )
 	| mission |
 	mission@start first to start
@@ -64,9 +80,11 @@
 	then
 	mission :tug-start null @or to tug-place
 	tug-place null? not if points [ tug-place first tug-place 2 @i ] add-last! drop then
+	mission :carrier null @or to carrier
+	carrier null? not if points [ carrier@centre first carrier@centre 2 @i ] add-last! drop then
 	points ;
 
-\ the map's centre, metres east and north, and its scale, pixels a metre: the square round the mission's points with a 30% margin, at least 30 km across
+\ the map's centre, metres east and north, and its scale, pixels a metre: the square round the mission's points with a 30% margin, at least 30 km across, fitted to the shorter side of the sheet in use
 : map-frame ( mission -- frame )
 	| mission |
 	mission mission-points to points
@@ -77,25 +95,27 @@
 	zs 1e12 ' min2 reduce to south
 	zs -1e12 ' max2 reduce to north
 	east west - north south - max2 2 / 1.3 * 15000 max2 to half-size
-	{ :x west east + 2 / :z south north + 2 / :scale map-size 2 / half-size / } ;
+	{ :x west east + 2 / :z south north + 2 / :scale sheet 2 @i sheet 3 @i min2 2 / half-size / } ;
 
 \ a ground point's place on the map, [ column row ]
 : map-at ( frame x z -- column row )
 	| frame x z |
-	map-left map-size 2 / + x frame@x - frame@scale * +
-	map-top map-size 2 / + z frame@z - frame@scale * - ;
+	sheet spread to height to width to top to left
+	left width 2 / + x frame@x - frame@scale * +
+	top height 2 / + z frame@z - frame@scale * - ;
 
-\ whether a map place lies within the map's square, a margin inside it
+\ whether a map place lies within the map's rectangle, a margin inside it
 : on-map? ( column row margin -- flag )
 	| column row margin |
-	column map-left margin + >= column map-left map-size + margin - <= and
-	row map-top margin + >= and row map-top map-size + margin - <= and ;
+	sheet spread to height to width to top to left
+	column left margin + >= column left width + margin - <= and
+	row top margin + >= and row top height + margin - <= and ;
 
-\ the shore lines as map segments, each [ x0 y0 x1 y1 ]: the coastlines, Norway's shores and the lochs', each point kept 1.5 pixels or more from the last, a segment kept when an end lies within 50 pixels of the map
+\ the shore lines as map segments, each [ x0 y0 x1 y1 ]: the coastlines, Norway's shores round Trondheim and Narvik and the lochs', each point kept 1.5 pixels or more from the last, a segment kept when an end lies within 50 pixels of the map
 : map-lines ( frame -- segments )
 	| frame |
 	lochs keys ( key | lochs key @ :shores @ ) map [ ] ' concat reduce to loch-shores
-	coastlines norway-shores concat loch-shores concat to shores
+	coastlines norway-shores concat narvik-shores concat loch-shores concat to shores
 	[ ] to segments
 	0 shores size 1 do k
 		shores k @i to shore
@@ -131,12 +151,14 @@ variable placed-labels
 	row 6 - to top
 	column gap + to right-left
 	column gap - width - to left-left
-	right-left width + map-left map-size + 2 - <= right-left top right-left width + top 12 + label-clashes? not and if
+	sheet first to sheet-left
+	sheet first sheet 2 @i + to sheet-right
+	right-left width + sheet-right 2 - <= right-left top right-left width + top 12 + label-clashes? not and if
 		right-left to left
-	else left-left map-left 2 + >= left-left top left-left width + top 12 + label-clashes? not and if
+	else left-left sheet-left 2 + >= left-left top left-left width + top 12 + label-clashes? not and if
 		left-left to left
 	else required if
-		right-left width + map-left map-size + 2 - <= if right-left else left-left then to left
+		right-left width + sheet-right 2 - <= if right-left else left-left then to left
 	else
 		null exit
 	then then then
@@ -161,22 +183,22 @@ variable placed-labels
 	column row name 7 true place-label spread name colour draw-text ;
 
 \ the scale bar: the longest of 1, 2, 5, 10, 20, 50 and 100 miles no longer than 90 pixels, under the map's lower left corner
-: draw-scale-bar ( frame -- )
-	| frame |
+: draw-scale-bar ( frame colour -- )
+	| frame colour |
 	[ 1 2 5 10 20 50 100 ] ( miles | miles 1609.34 * frame@scale * 90 <= ) filter to fitting
 	fitting size 0 = if exit then
 	fitting last to miles
 	miles 1609.34 * frame@scale * to length
-	map-left 8 + to x
-	map-top map-size + 10 - to y
-	x y x length + y dial-ink draw-segment
-	x y 3 - x y 3 + dial-ink draw-segment
-	x length + y 3 - x length + y 3 + dial-ink draw-segment
-	x length + 6 + y 6 - miles 1 = if "1 MILE" else miles "{0} MILES" format then dial-ink draw-text ;
+	sheet first 8 + to x
+	sheet second sheet 3 @i + 10 - to y
+	x y x length + y colour draw-segment
+	x y 3 - x y 3 + colour draw-segment
+	x length + y 3 - x length + y 3 + colour draw-segment
+	x length + 6 + y 6 - miles 1 = if "1 MILE" else miles "{0} MILES" format then colour draw-text ;
 
-\ the map: its square, the shores, the places, the raid's track, the target, the start and its heading, the scale and north; whatever of the shores falls outside covered over by the screen's ground
-: draw-briefing-map ( mission frame segments -- )
-	| mission frame segments ^placed-labels |
+\ the map: its square, the shores, the places, the raid's target, the mission's target, the scale and north; on the briefing also the start and its heading, the raid's start and track, the tug and the carrier, which in flight, the chart on the pilot's knee, would be out of date; whatever of the shores falls outside covered over by the screen's ground
+: draw-briefing-map ( mission frame segments briefing -- )
+	| mission frame segments briefing ^placed-labels |
 	map-left map-top map-size map-size board-colour fill-span
 	dial-ink 0.55 dimmed to shore-colour
 	segments ( segment | segment spread shore-colour draw-segment ) each
@@ -188,38 +210,188 @@ variable placed-labels
 	[ ] to placed-labels
 	mission@start first to start
 	frame start first start 2 @i map-at to start-row to start-column
-	mission@start second PI 180 / * to bearing
-	start-column start-row start-column bearing sin 14 * + start-row bearing cos 14 * - heading-colour draw-segment
-	start-column start-row 3 heading-colour fill-disc
+	briefing if
+		mission@start second PI 180 / * to bearing
+		start-column start-row start-column bearing sin 14 * + start-row bearing cos 14 * - heading-colour draw-segment
+		start-column start-row 3 heading-colour fill-disc
+	then
 	mission@raid to plan
 	plan null? not if
 		frame plan@start first plan@start 2 @i map-at to raid-row to raid-column
 		frame plan@target first plan@target 2 @i map-at to target-row to target-column
-		raid-column raid-row target-column target-row raid-colour draw-segment
+		briefing if raid-column raid-row target-column target-row raid-colour draw-segment then
 		target-column target-row "TARGET" raid-colour draw-map-cross
-		raid-column raid-row "RAID" raid-colour true draw-map-mark
+		briefing if raid-column raid-row "RAID" raid-colour true draw-map-mark then
 	then
 	mission :aircraft :fighter @or :reconnaissance = if
 		mission@target landmark-ground to place
 		frame place first place 2 @i map-at "TIRPITZ" raid-colour draw-map-cross
 	then
 	mission :tug-start null @or to tug-place
-	tug-place null? not if frame tug-place first tug-place 2 @i map-at "TUG" dial-ink true draw-map-mark then
-	start-column start-row "YOU" 6 true place-label spread "YOU" heading-colour draw-text
+	tug-place null? not briefing and if frame tug-place first tug-place 2 @i map-at "TUG" dial-ink true draw-map-mark then
+	mission :carrier null @or to carrier
+	carrier null? not briefing and if frame carrier@centre first carrier@centre 2 @i map-at "GLORIOUS" dial-ink true draw-map-mark then
+	briefing if start-column start-row "YOU" 6 true place-label spread "YOU" heading-colour draw-text then
 	dial-ink 0.8 dimmed to place-colour
 	map-places ( place |
 		place first landmark-ground to point
 		frame point first point 2 @i map-at place second place-colour false draw-map-mark
 	) each
-	frame draw-scale-bar
+	frame dial-ink draw-scale-bar
 	map-left map-size + 16 - map-top 6 + "N" dial-ink draw-text
 	map-left map-size + 12 - map-top 20 + map-left map-size + 12 - map-top 30 + dial-ink draw-segment ;
 
-\ whether a mission may be flown in the Hurricane: every armed mission but the flying lesson, which is the two-seat Spitfire's
+\ === the chart ===
+
+\ the chart's paper: the water, the land in layers of height, from the coast at 0 through 250, 500, 1,000, 1,500, 2,000 and 3,000 ft (the bands and tints an estimate of a layer-coloured map of the time), the shores, rivers, railways, streets, the ten-mile squares and the printing
+0xbcd6e4 constant chart-water-colour
+[ 0 76 152 305 457 610 914 ] constant chart-band-heights
+[ 0xc4d8a8 0xdce4b0 0xece0a8 0xe4c890 0xd4ac78 0xbc9068 0xa07858 ] constant chart-band-colours
+0x3c5a78 constant chart-shore-colour
+0x4878a8 constant chart-river-colour
+0x302820 constant chart-ink
+0x8a6a50 constant chart-street-colour
+0x98a4a8 constant chart-square-colour
+0xf4f0e0 constant chart-label-colour
+
+\ the weights that take a line of a grid's corners to points among them: a matrix of a row for each point, a column for each corner, the point's place among the corners shared between the two corners either side of it
+: corner-weights ( places n-corners -- weights )
+	| places n-corners |
+	places size n-corners 0-matrix to weights
+	0 places size 1 do k
+		places k @i to place
+		place round-down 0 max2 n-corners 2 - min2 to lower
+		place lower - 0 1 clamp to share
+		weights 1 share - k lower !i,j drop
+		weights share k lower 1+ !i,j drop
+	loop
+	weights ;
+
+\ the land of one surveyed grid on the chart, tinted by height, a window pixel at a time: the grid's heights between its corners, by the weights each way, at the centre of every window pixel of the sheet the grid covers; each pixel the tint of the band its height reaches, the sea and the lochs, below 2 m, the water's; laid over the sheet as a picture
+: draw-chart-grid ( frame grid -- )
+	| frame grid |
+	view-pixels to n
+	sheet spread to sheet-height to sheet-width to sheet-top to sheet-left
+	grid@west to west
+	grid@south to south
+	grid@spacing to spacing
+	frame west south map-at to grid-bottom to grid-left
+	frame west grid@columns 1- spacing * + south grid@rows 1- spacing * + map-at to grid-top to grid-right
+	grid-left sheet-left max2 n * round-up to first-x
+	grid-right sheet-left sheet-width + min2 n * round-down to last-x
+	grid-top sheet-top max2 n * round-up to first-y
+	grid-bottom sheet-top sheet-height + min2 n * round-down to last-y
+	first-x last-x >= first-y last-y >= or if exit then
+	sheet-left sheet-width 2 / + to centre-x
+	sheet-top sheet-height 2 / + to centre-y
+	[ first-x last-x 1 do x x 0.5 + n / centre-x - frame@scale / frame@x + west - spacing / loop ] to column-places
+	[ first-y last-y 1 do y frame@z y 0.5 + n / centre-y - frame@scale / - south - spacing / loop ] to row-places
+	column-places 1e9 ' min2 reduce round-down 0 max2 grid@columns 2 - min2 to first-column
+	column-places -1e9 ' max2 reduce round-down 1+ grid@columns 1- min2 first-column 1+ max2 to last-column
+	row-places 1e9 ' min2 reduce round-down 0 max2 grid@rows 2 - min2 to first-row
+	row-places -1e9 ' max2 reduce round-down 1+ grid@rows 1- min2 first-row 1+ max2 to last-row
+	grid@heights first-row last-row 1+ first-column last-column 1+ submatrix to block
+	column-places ( place | place first-column - ) map last-column first-column - 1+ corner-weights to across
+	row-places ( place | place first-row - ) map last-row first-row - 1+ corner-weights to down
+	down block matmul across transpose matmul to fine
+	fine 2 >= chart-band-colours first chart-water-colour - * chart-water-colour + to tints
+	1 chart-band-heights size 1 do k
+		fine chart-band-heights k @i >= chart-band-colours k @i chart-band-colours k 1- @i - * tints + to tints
+	loop
+	tints first-x first-y draw-view ;
+
+\ a line of [ x z ] ground points on the chart
+: draw-chart-line ( frame points colour -- )
+	| frame points colour |
+	points ( point | frame point first point second map-at 2 array ) map to places
+	0 places size 1- 1 do k
+		places k @i spread places k 1+ @i spread colour draw-segment
+	loop ;
+
+\ the airfields among the places on the chart, drawn as rings
+[ :turnhouse :drem :abbotsinch :dalcross :acklington :wick :vaernes :bardufoss :dyce :montrose-air-station
+  :castletown :hatston :skeabrae :sumburgh ] constant chart-airfields
+
+\ the summits the chart marks with their heights in feet, from the map's heights
+[ :ben-lomond :ben-cleuch :west-lomond :scald-law :tinto :earls-seat :arthurs-seat :north-berwick-law ] constant chart-summits
+
+\ the chart on the pilot's knee across the whole sheet, the mission's own map in the detail of a printed one: the water, and over it the land of every surveyed grid tinted by height; the ten-mile squares; the coasts' and lochs' shores, the rivers, the cities' main-line railways and main streets; the summits with their heights in feet; the airfields as rings and the towns as dots with their names; the raid's target and the Tirpitz; the scale and north; the mission's name and how to put the chart away in a box at the top
+: draw-chart-sheet ( mission frame -- )
+	| mission frame ^placed-labels |
+	sheet spread to sheet-height to sheet-width to sheet-top to sheet-left
+	sheet-left sheet-top sheet-width sheet-height chart-water-colour fill-span
+	terrain-grids ( grid | frame grid draw-chart-grid ) each
+	16093.4 to square
+	sheet-width 2 / frame@scale / to reach-x
+	sheet-height 2 / frame@scale / to reach-z
+	frame@x reach-x - square / round-down frame@x reach-x + square / round-up 1+ 1 do k
+		frame k square * frame@z reach-z - map-at drop to column
+		column sheet-top column sheet-top sheet-height + chart-square-colour draw-segment
+	loop
+	frame@z reach-z - square / round-down frame@z reach-z + square / round-up 1+ 1 do k
+		frame frame@x k square * map-at to row drop
+		sheet-left row sheet-left sheet-width + row chart-square-colour draw-segment
+	loop
+	frame map-lines ( segment | segment spread chart-shore-colour draw-segment ) each
+	[ rivers@clyde rivers@forth rivers@kelvin ] rivers@ness concat ( course | frame course chart-river-colour draw-chart-line ) each
+	[ glasgow-railways edinburgh-railways inverness-railways aberdeen-railways montrose-railways trondheim-railways narvik-railways ]
+	( lines | lines ( line | frame line chart-ink draw-chart-line ) each ) each
+	[ glasgow-streets edinburgh-streets inverness-streets aberdeen-streets peterhead-streets montrose-streets kirkwall-streets
+	  lerwick-streets trondheim-streets ] ( streets | streets values ( line | frame line chart-street-colour draw-chart-line ) each ) each
+	narvik-streets ( line | frame line chart-street-colour draw-chart-line ) each
+	[ ] to placed-labels
+	map-places ( place |
+		place first to key
+		key landmark-ground to point
+		frame point first point 2 @i map-at to row to column
+		column row 4 on-map? if
+			chart-airfields key position-of 0 >= if
+				column row 4 chart-ink draw-circle
+				column row place second 7 false place-label to position
+			else
+				column 1 - row 1 - 3 3 chart-ink fill-span
+				column row place second 5 false place-label to position
+			then
+			position null? not if position spread place second chart-ink draw-text then
+		then
+	) each
+	chart-summits ( key |
+		key landmark-ground to point
+		frame point first point 2 @i map-at to row to column
+		column row 4 on-map? if
+			column 3 - row 2 + column 3 + row 2 + column row 3 - chart-ink fill-face
+			key landmark-height 3.28084 * round "{0}" format to feet
+			column row feet 5 false place-label to position
+			position null? not if position spread feet chart-ink draw-text then
+		then
+	) each
+	mission@raid to plan
+	plan null? not if
+		frame plan@target first plan@target 2 @i map-at "TARGET" raid-colour draw-map-cross
+	then
+	mission :aircraft :fighter @or :reconnaissance = if
+		mission@target landmark-ground to place
+		frame place first place 2 @i map-at "TIRPITZ" raid-colour draw-map-cross
+	then
+	frame chart-ink draw-scale-bar
+	sheet-left sheet-width + 16 - sheet-top 34 + "N" chart-ink draw-text
+	sheet-left sheet-width + 12 - sheet-top 48 + sheet-left sheet-width + 12 - sheet-top 58 + chart-ink draw-segment
+	sheet-left sheet-top sheet-width 28 chart-label-colour fill-span
+	sheet-left sheet-top 28 + sheet-left sheet-width + sheet-top 28 + chart-ink draw-segment
+	sheet-left 8 + sheet-top 8 + mission@name chart-ink draw-text
+	sheet-left sheet-width + 8 - "RELEASE N TO LOOK UP" text-width - sheet-top 8 + "RELEASE N TO LOOK UP" chart-ink draw-text ;
+
+\ whether a mission may be flown in either fighter: every armed mission that does not fix its aircraft, but the flying lesson, which is the two-seat Spitfire's
 : aircraft-choosable? ( mission -- flag )
 	| mission |
-	mission :aircraft :fighter @or :reconnaissance = if false exit then
+	mission :aircraft :fighter @or :fighter = not if false exit then
 	mission :lesson false @or mission :air-firing false @or not and not ;
+
+\ the fighter a mission is flown in: the Hurricane where the mission fixes it, or where chosen and the mission allows the choice; otherwise the Spitfire
+: flown-in ( mission choice -- kind )
+	| mission choice |
+	mission :aircraft :fighter @or :hurricane = if :hurricane exit then
+	choice :hurricane = mission aircraft-choosable? and if :hurricane else :spitfire then ;
 
 \ how many of a type, by the name the briefing gives it
 : kind-plural ( kind -- text )
@@ -239,7 +411,7 @@ variable placed-labels
 	then to time-text
 	mission :aircraft :fighter @or :reconnaissance = if
 		"SPITFIRE PR, UNARMED, SPLIT CAMERAS"
-	else choice :hurricane = mission aircraft-choosable? and if
+	else mission choice flown-in :hurricane = if
 		"HURRICANE MK I, EIGHT BROWNINGS, 334 OR 287 ROUNDS EACH"
 	else
 		"SPITFIRE MK I, EIGHT BROWNINGS, 300 ROUNDS EACH"
@@ -274,12 +446,40 @@ variable placed-labels
 	n-wingmen 0 > if rows [ "SQUADRON" n-wingmen "{0} MORE SPITFIRES WITH YOU" format ] add-last! drop then
 	rows ;
 
+\ a model drawn turning about its vertical axis at an angle, seen from 9° above, nearly level so the canopy stands out against the background, without perspective: each point's place across the screen and up it, a scale's pixels a metre from a centre
+: draw-model-turning ( model cx cy scale angle colour -- )
+	| model cx cy scale angle colour |
+	0.15 to tilt
+	[ angle cos angle sin negate tilt sin *
+	  0 tilt cos
+	  angle sin angle cos tilt sin *
+	  0 0 ] 4 2 matrix to turn
+	model@points turn matmul to seen
+	model@edges to edges
+	0 edges size 2 do k
+		edges k @i to i
+		edges k 1+ @i to j
+		cx seen i 0 @i,j scale * + cy seen i 1 @i,j scale * -
+		cx seen j 0 @i,j scale * + cy seen j 1 @i,j scale * -
+		colour draw-segment
+	loop ;
+
+\ the aircraft the mission is flown in, its undercarriage down, turning under the particulars in the space down to the briefing: the Hurricane when chosen and allowed, otherwise the Spitfire
+: draw-chosen-aircraft ( mission choice top -- )
+	| mission choice top |
+	mission choice flown-in :hurricane = if models@hurricane-down 12.19 else models@spitfire-down 11.23 then to span to model
+	briefing-top top - 8 - to room
+	room 30 < if exit then
+	290 span / room 4 / min2 to scale
+	game :title-time 0 @or 0.4 * to angle
+	model particulars-left 624 + 2 / top room 2 / + scale angle dial-ink draw-model-turning ;
+
 \ the briefing screen: the mission's name, the map, the particulars, the briefing, and what the keys do, the choice of aircraft among them where the mission allows it
 : draw-briefing ( mission frame segments choice -- )
 	| mission frame segments choice |
 	0 0 640 480 wall-colour fill-span
 	320 12 mission@name 0xffffff centred-print
-	mission frame segments draw-briefing-map
+	mission frame segments true draw-briefing-map
 	map-top 4 + to y
 	mission choice briefing-particulars to rows
 	0 rows size 1 do k
@@ -292,6 +492,7 @@ variable placed-labels
 		loop
 		y 4 + to y
 	loop
+	mission choice y draw-chosen-aircraft
 	mission :briefing "" @or 640 32 - wrapped-lines to lines
 	0 lines size 1 do k
 		16 briefing-top k 13 * + lines k @i dial-ink draw-text

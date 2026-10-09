@@ -5,15 +5,18 @@ Maintainer tool, run by hand; the generated file is committed, so playing the
 game needs no network. It downloads Natural Earth's 1:10m vectors (public
 domain) and asks Wikidata (CC0) for the coordinates and heights of the
 landmarks, then writes them in the game's ground frame: metres east (x) and
-north (z) of 56°N 3.6°W, from an equirectangular projection about that point,
-54.9-58.7°N, 5.2-1.3°W. Its east-west distances from 3.6°W are true at 56°N
-and off by the cosine of the latitude elsewhere: 3.4 km long at Tynemouth,
-4 km at the map's south-east corner, 10 km short at its north-east corner.
+north (z) of 56°N 3.6°W by the azimuthal equidistant projection from that
+point, true in distance and bearing from there, over the mainland's box,
+54.9-58.7°N, 5.2-1.3°W, and the northern isles' box, 58.7-60.9°N,
+3.5-0.6°W.
 
   python3 tools/gen-spitfire-map.py
 
 The file holds
-  coastlines   arrays of [ x z ] points, sea level, simplified to 150 m
+  coastlines   arrays of [ x z ] points, sea level, simplified to 150 m: the
+               mainland's from Natural Earth, Orkney's and Shetland's from
+               OpenStreetMap's coastline (land on its left), chained into
+               closed rings, islets under 2 hectares dropped
   lochs        Loch Lomond and Loch Ness, closed, with their surface heights
   rivers       the Ness from Natural Earth; the Clyde through Glasgow, the
                Forth up to Stirling and the Kelvin from the Botanic Gardens
@@ -24,19 +27,21 @@ The file holds
   land squares the south-west corner and size of the kilometre squares the
                countryside is laid out in
   land outlines
-               Natural Earth's land polygons clipped to the map's edges and
-               simplified to 150 m, closed rings, for filling the water
-  map edges    the frame the outlines are clipped to; south land, England as
+               Natural Earth's land polygons south of 58.7°N clipped to the
+               map's edges and simplified to 150 m, closed rings, for filling
+               the water; apart from them OpenStreetMap's rings for Orkney and
+               Shetland at 150 m, and again at 1,000 m without the islands
+               under 20 hectares, which the game uses away from the islands
+  map edges    the frame the outlines are clipped to, the rectangle in the
+               ground frame round both boxes; south land, England as
                a band of land south of the frame, so the sea outside the
                map's land is water and England is not
   Norway       the land round the Trondheimsfjord from OpenStreetMap's
                coastline (land on its left), chained, clipped to the box and
                closed along it, simplified to 40 m, islets under 2 hectares
-               dropped. Points north of 62 N are placed by the azimuthal
-               equidistant projection from 56 N 3.6 W, true in distance and
-               bearing from there, so the flight from Wick to Trondheim is its
-               true length
-  cities       Glasgow and Edinburgh from OpenStreetMap through its Overpass
+               dropped
+  cities       Glasgow, Edinburgh, Inverness, Trondheim, Aberdeen, Peterhead,
+               Montrose, Kirkwall and Lerwick from OpenStreetMap through its Overpass
                API, (c) OpenStreetMap contributors under the ODbL, which
                therefore covers the generated file: each city's main streets'
                centre lines (a street's ways averaged across every 80 m along
@@ -69,10 +74,14 @@ WIKIDATA = "https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki
 
 LAT0 = 56.0
 LON0 = -3.6
-METRES_PER_DEGREE_NORTH = 110574.0
-METRES_PER_DEGREE_EAST = 111320.0 * math.cos(math.radians(LAT0))
+METRES_PER_DEGREE_NORTH = 111132.0
 LAT_MIN, LAT_MAX, LON_MIN, LON_MAX = 54.9, 58.7, -5.2, -1.3
+MAINLAND_BOX = (LAT_MIN, LON_MIN, LAT_MAX, LON_MAX)
+ISLES_BOX = (58.7, -3.5, 60.9, -0.6)
+LOMOND_BOX = (55.95, -4.8, 56.35, -4.4)
 SIMPLIFY_METRES = 150.0
+COARSE_ISLES_METRES = 1000.0
+COARSE_ISLES_SMALLEST = 200000
 CELL_METRES = 1000.0
 
 LANDMARKS = [
@@ -107,6 +116,24 @@ LANDMARKS = [
     ("finnieston-crane", "Finnieston Crane"), ("titan-crane", "Titan Clydebank"),
     ("farne-islands", "Farne Islands"), ("acklington", "RAF Acklington"), ("tynemouth", "Tynemouth"),
     ("bamburgh-castle", "Bamburgh Castle"), ("lindisfarne-castle", "Lindisfarne Castle"),
+    ("scapa-flow", "Scapa Flow"), ("kirkwall", "Kirkwall"), ("st-magnus-cathedral", "St Magnus Cathedral"),
+    ("bishops-palace", "Bishop's Palace, Kirkwall"), ("earls-palace", "Earl's Palace, Kirkwall"),
+    ("hatston", "RNAS Hatston"), ("skeabrae", "RAF Skeabrae"), ("castletown", "RAF Castletown"),
+    ("lyness", "Lyness"), ("flotta", "Flotta"), ("stromness", "Stromness"), ("stenness", "Stenness"),
+    ("old-man-of-hoy", "Old Man of Hoy"), ("ring-of-brodgar", "Ring of Brodgar"),
+    ("kitchener-memorial", "Kitchener Memorial"), ("dunnet-head", "Dunnet Head"), ("thurso", "Thurso"),
+    ("lerwick", "Lerwick"), ("fort-charlotte", "Fort Charlotte, Shetland"), ("lerwick-town-hall", "Lerwick Town Hall"),
+    ("sumburgh", "RAF Sumburgh"), ("sumburgh-head", "Sumburgh Head"), ("scalloway-castle", "Scalloway Castle"),
+    ("sullom-voe", "RAF Sullom Voe"), ("muckle-flugga", "Muckle Flugga"), ("fair-isle", "Fair Isle"),
+    ("peterhead", "Peterhead"), ("peterhead-prison", "HM Prison Peterhead"), ("buchan-ness", "Buchan Ness Lighthouse"),
+    ("marischal-college", "Marischal College"), ("st-machars", "St Machar's Cathedral"),
+    ("kings-college", "King's College, Aberdeen"), ("aberdeen-town-house", "Aberdeen Town House"),
+    ("st-nicholas", "Kirk of St Nicholas"), ("girdle-ness", "Girdle Ness Lighthouse"),
+    ("aberdeen-harbour", "Aberdeen Harbour"), ("dyce", "Aberdeen Airport"),
+    ("montrose", "Montrose, Angus"), ("montrose-air-station", "RAF Montrose"),
+    ("montrose-steeple", "Montrose Old and St Andrew's Church"), ("montrose-basin", "Montrose Basin"),
+    ("scurdie-ness", "Scurdie Ness Lighthouse"),
+    ("meadows", "The Meadows, Edinburgh"),
 ]
 
 CLYDE = ["Greenock", "Port Glasgow", "Bowling, West Dunbartonshire", "Old Kilpatrick", "Erskine Bridge",
@@ -158,13 +185,18 @@ def azimuthal(lon, lat):
 
 
 def to_ground(lon, lat):
-    if lat > 62:
-        return azimuthal(lon, lat)
-    return ((lon - LON0) * METRES_PER_DEGREE_EAST, (lat - LAT0) * METRES_PER_DEGREE_NORTH)
+    return azimuthal(lon, lat)
 
 
 def inside(lon, lat):
     return LAT_MIN <= lat <= LAT_MAX and LON_MIN <= lon <= LON_MAX
+
+
+def ground_frame(boxes):
+    points = [to_ground(lon, lat) for south, west, north, east in boxes
+              for lon, lat in sampled((west, south), (east, south)) + sampled((east, south), (east, north))
+              + sampled((east, north), (west, north)) + sampled((west, north), (west, south))]
+    return (min(p[0] for p in points), min(p[1] for p in points), max(p[0] for p in points), max(p[1] for p in points))
 
 
 def fetch_json(url):
@@ -226,7 +258,12 @@ def simplify(points, tolerance=SIMPLIFY_METRES):
     return [p for p, k in zip(points, keep) if k]
 
 
-def layer_runs(name, wanted=None):
+def within(ring, box):
+    south, west, north, east = box
+    return all(south < p[1] < north and west < p[0] < east for p in ring)
+
+
+def layer_runs(name, wanted=None, box=None):
     runs = []
     for feature in fetch_json(NATURAL_EARTH.format(name))["features"]:
         if feature["geometry"] is None:
@@ -234,8 +271,13 @@ def layer_runs(name, wanted=None):
         if wanted and feature["properties"].get("name") not in wanted:
             continue
         for ring in rings_of(feature["geometry"]):
-            runs.extend(simplify(run) for run in runs_inside(ring))
+            if box is None or within(ring, box):
+                runs.extend(simplify(run) for run in runs_inside(ring))
     return runs
+
+
+def lomond_runs():
+    return layer_runs("ne_10m_lakes_europe", {"Loch Lomond North Basin", None}, LOMOND_BOX)
 
 
 def clip_ring(ring, x_low, z_low, x_high, z_high):
@@ -262,12 +304,13 @@ def ring_area(ring):
     return abs(sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(ring, ring[1:] + ring[:1]))) / 2
 
 
-def land_outlines():
-    x_low, z_low = to_ground(LON_MIN, LAT_MIN)
-    x_high, z_high = to_ground(LON_MAX, LAT_MAX)
+def land_outlines(frame):
+    x_low, z_low, x_high, z_high = frame
     outlines = []
     for feature in fetch_json(NATURAL_EARTH.format("ne_10m_land"))["features"]:
         for ring in rings_of(feature["geometry"]):
+            if all(p[1] > ISLES_BOX[0] for p in ring):
+                continue
             points = [to_ground(p[0], p[1]) for p in ring]
             if points[0] == points[-1]:
                 points = points[:-1]
@@ -316,6 +359,43 @@ CITIES = {
         "stations": ["Trondheim S"],
         "buildings": [],
     },
+    "aberdeen": {
+        "box": "57.135,-2.13,57.175,-2.07",
+        "streets": {"union-street": ["Union Street"], "king-street": ["King Street"], "george-street": ["George Street"],
+                    "market-street": ["Market Street"], "holburn-street": ["Holburn Street"],
+                    "rosemount-viaduct": ["Rosemount Viaduct"], "gallowgate": ["Gallowgate"]},
+        "squares": [],
+        "stations": [],
+    },
+    "peterhead": {
+        "box": "57.495,-1.80,57.515,-1.77",
+        "streets": {"queen-street": ["Queen Street"], "marischal-street": ["Marischal Street"], "king-street": ["King Street"],
+                    "ugie-street": ["Ugie Street"], "kirk-street": ["Kirk Street"], "bridge-street": ["Bridge Street"]},
+        "squares": [],
+        "stations": [],
+    },
+    "montrose": {
+        "box": "56.70,-2.48,56.72,-2.45",
+        "streets": {"high-street": ["High Street"], "bridge-street": ["Bridge Street"], "john-street": ["John Street"],
+                    "new-wynd": ["New Wynd"], "ferry-street": ["Ferry Street"], "western-road": ["Western Road"]},
+        "squares": [],
+        "stations": ["Montrose Railway Station"],
+    },
+    "kirkwall": {
+        "box": "58.97,-2.98,58.995,-2.94",
+        "streets": {"albert-street": ["Albert Street"], "broad-street": ["Broad Street"], "junction-road": ["Junction Road"],
+                    "queen-street": ["Queen Street"], "shore-street": ["Shore Street"], "main-street": ["Main Street"]},
+        "squares": [],
+        "stations": [],
+    },
+    "lerwick": {
+        "box": "60.145,-1.16,60.165,-1.13",
+        "streets": {"commercial-street": ["Commercial Street"], "hillhead": ["Hillhead"],
+                    "king-harald-street": ["King Harald Street"], "harbour-street": ["Harbour Street"],
+                    "north-road": ["North Road"], "esplanade": ["Esplanade"]},
+        "squares": [],
+        "stations": [],
+    },
 }
 
 
@@ -323,7 +403,7 @@ def city_query(city):
     box = city["box"]
     names = "|".join(n for names in city["streets"].values() for n in names)
     squares = "|".join(city["squares"]) or "^$"
-    stations = "|".join(city["stations"])
+    stations = "|".join(city["stations"]) or "^$"
     buildings = "|".join(city.get("buildings", [])) or "^$"
     return """[out:json][timeout:120];
 (
@@ -504,7 +584,7 @@ def clip_chain(chain, box):
     return pieces
 
 
-def coast_land(box):
+def coast_land(box, tolerance=40.0, smallest=20000):
     south, west, north, east = box
     query = "[out:json][timeout:180];\nway[\"natural\"=\"coastline\"]({},{},{},{});\nout geom;".format(south, west, north, east)
     ways = [[(n["lon"], n["lat"]) for n in e["geometry"]] for e in overpass(query)["elements"]]
@@ -540,13 +620,13 @@ def coast_land(box):
     land = []
     for ring in rings:
         points = [to_ground(lon, lat) for lon, lat in ring]
-        closed = simplify(points + points[:1], 40.0)[:-1]
-        if len(closed) >= 3 and ring_area(closed) > 20000:
+        closed = simplify(points + points[:1], tolerance)[:-1]
+        if len(closed) >= 3 and ring_area(closed) > smallest:
             land.append(closed)
     shores = []
     for chain in chains:
         for piece in ([chain] if chain[0] == chain[-1] else clip_chain(chain, box)):
-            points = simplify([to_ground(lon, lat) for lon, lat in piece], 40.0)
+            points = simplify([to_ground(lon, lat) for lon, lat in piece], tolerance)
             if len(points) >= 2 and sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(points, points[1:])) > 500:
                 shores.append(points)
     return land, shores
@@ -554,6 +634,78 @@ def coast_land(box):
 
 def key_of(name):
     return name.lower().replace(" ", "-")
+
+
+TOWN_ROADS = [("Edinburgh Castle", 3500), ("Leith", 1500), ("Glasgow Cathedral", 4500), ("Govan", 2000),
+              ("Clydebank", 1500), ("Inverness Castle", 2000), ("Stirling Castle", 1500), ("Marischal College", 2500),
+              ("Peterhead", 1000), ("Montrose, Angus", 1000), ("Kirkwall", 1000), ("Lerwick", 800),
+              ("Nidaros Cathedral", 2500)]
+ROAD_WIDTHS = {"trunk": 16, "primary": 16, "secondary": 12}
+
+
+def town_roads(places):
+    seen, roads = set(), []
+    for title, reach in TOWN_ROADS:
+        lon, lat, _ = places[title]
+        dlat = reach / METRES_PER_DEGREE_NORTH
+        dlon = reach / (METRES_PER_DEGREE_NORTH * math.cos(math.radians(lat)))
+        box = "{},{},{},{}".format(lat - dlat, lon - dlon, lat + dlat, lon + dlon)
+        query = '[out:json][timeout:180];way["highway"~"^(trunk|primary|secondary)$"]({});out tags geom;'.format(box)
+        for element in overpass(query)["elements"]:
+            if element["id"] in seen:
+                continue
+            seen.add(element["id"])
+            points = simplify([to_ground(p["lon"], p["lat"]) for p in element["geometry"]], 8.0)
+            if len(points) >= 2:
+                roads.append((ROAD_WIDTHS[element["tags"]["highway"]], points))
+    return roads
+
+
+TRONDHEIM_TOWN_BOX = (63.418, 10.365, 63.440, 10.430)
+TRONDHEIM_LANES = "primary|secondary|tertiary|residential|unclassified|living_street|pedestrian"
+
+
+def trondheim_town():
+    south, west, north, east = TRONDHEIM_TOWN_BOX
+    box = "{},{},{},{}".format(south, west, north, east)
+    query = '[out:json][timeout:180];(way["natural"="water"]["water"="river"]({0});relation["natural"="water"]["water"="river"]({0}););out geom;'.format(box)
+    ways = []
+    for element in overpass(query)["elements"]:
+        if element["type"] == "way":
+            ways.append([(p["lon"], p["lat"]) for p in element["geometry"]])
+        else:
+            ways += [[(p["lon"], p["lat"]) for p in member["geometry"]]
+                     for member in element["members"] if member["type"] == "way" and member["role"] == "outer"]
+    low, high = to_ground(west, south), to_ground(east, north)
+    river = []
+    for chain in chain_ways(ways):
+        if chain[0] != chain[-1]:
+            continue
+        clipped = clip_ring([to_ground(lon, lat) for lon, lat in chain[:-1]], low[0], low[1], high[0], high[1])
+        closed = simplify(clipped + clipped[:1], 8.0)[:-1] if clipped else []
+        if len(closed) >= 3:
+            river.append(closed)
+    query = '[out:json][timeout:180];way["highway"~"^({})$"]({});out geom;'.format(TRONDHEIM_LANES, box)
+    lanes = [simplify(way_points(element), 8.0) for element in overpass(query)["elements"]]
+    return river, [lane for lane in lanes if len(lane) >= 2]
+
+
+LEITH_BOX = "55.970,-3.205,55.995,-3.150"
+LEITH_WET_DOCKS = ["Victoria Dock", "Albert Dock", "Edinburgh Dock", "Imperial Dock"]
+LEITH_DRY_DOCKS = ["Alexandra Dry Dock", "Imperial Dry Dock"]
+LEITH_BREAKWATERS = ["West Breakwater", "East Breakwater"]
+
+
+def leith_harbour():
+    names = "|".join(LEITH_WET_DOCKS + LEITH_DRY_DOCKS + LEITH_BREAKWATERS)
+    query = '[out:json][timeout:120];way["name"~"^({})$"]({});out tags geom;'.format(names, LEITH_BOX)
+    rings = {}
+    for element in overpass(query)["elements"]:
+        points = [to_ground(p["lon"], p["lat"]) for p in element["geometry"]]
+        if points[0] != points[-1]:
+            points.append(points[0])
+        rings[element["tags"]["name"]] = simplify(points, 5.0)[:-1]
+    return [[rings[name] for name in names if name in rings] for names in (LEITH_WET_DOCKS, LEITH_DRY_DOCKS, LEITH_BREAKWATERS)]
 
 
 def city_features(city):
@@ -610,15 +762,15 @@ def polyline_text(points):
 
 def main():
     coast = layer_runs("ne_10m_coastline")
-    lomond = layer_runs("ne_10m_lakes_europe", {"Loch Lomond North Basin", None})
-    lomond = [run for run in lomond
-              if all(-4.8 < x / METRES_PER_DEGREE_EAST + LON0 < -4.4 and 55.95 < z / METRES_PER_DEGREE_NORTH + LAT0 < 56.35
-                     for x, z in run)]
+    lomond = lomond_runs()
     ness = layer_runs("ne_10m_lakes", {"Loch Ness"})
     river_ness = layer_runs("ne_10m_rivers_lake_centerlines", {"Ness"})
-    frame_low = to_ground(LON_MIN, LAT_MIN)
-    frame_high = to_ground(LON_MAX, LAT_MAX)
-    outlines = land_outlines()
+    frame = ground_frame([MAINLAND_BOX, ISLES_BOX])
+    frame_low, frame_high = frame[:2], frame[2:]
+    isles, isles_shores = coast_land(ISLES_BOX, SIMPLIFY_METRES)
+    coarse_isles, _ = coast_land(ISLES_BOX, COARSE_ISLES_METRES, COARSE_ISLES_SMALLEST)
+    coast += isles_shores
+    outlines = land_outlines(frame)
     cities = {name: city_features(city) for name, city in CITIES.items()}
     norway, norway_shores = coast_land(NORWAY_BOX)
 
@@ -629,10 +781,13 @@ def main():
 
     lines = [
         "\\ Spitfire: the map, generated by tools/gen-spitfire-map.py from Natural",
-        "\\ Earth's 1:10m vectors (public domain) and Wikidata (CC0); do not edit,",
-        "\\ re-run the script. Metres east (x) and north (z) of 56°N 3.6°W.",
+        "\\ Earth's 1:10m vectors (public domain), OpenStreetMap ((c) OpenStreetMap",
+        "\\ contributors, ODbL) and Wikidata (CC0); do not edit, re-run the script.",
+        "\\ Metres east (x) and north (z) of 56°N 3.6°W by the azimuthal equidistant",
+        "\\ projection from there.",
         "",
-        "\\ the coastlines at sea level, each an array of [ x z ] points",
+        "\\ the coastlines at sea level, each an array of [ x z ] points: the mainland's from Natural Earth,",
+        "\\ Orkney's and Shetland's from OpenStreetMap",
         "[",
     ]
     lines += ["  " + polyline_text(run) for run in coast]
@@ -654,10 +809,17 @@ def main():
               "{} constant land-origin-z".format(number(frame_low[1])),
               "{} constant land-cell".format(number(CELL_METRES)),
               "",
-              "\\ the land's outlines within the map, each closed, the last point joined back to the first",
+              "\\ the mainland's outlines within the map, each closed, the last point joined back to the first",
               "["]
     lines += ["  " + polyline_text(ring) for ring in outlines]
     lines += ["] to land-outlines", "",
+              "\\ Orkney's and Shetland's outlines from OpenStreetMap, closed: simplified to 150 m, and coarsely,",
+              "\\ to 1,000 m without the islands under 20 hectares, for filling the water from afar",
+              "["]
+    lines += ["  " + polyline_text(ring) for ring in isles]
+    lines += ["] to isles-outlines", "["]
+    lines += ["  " + polyline_text(ring) for ring in coarse_isles]
+    lines += ["] to isles-coarse-outlines", "",
               "\\ the map's edges, the frame the land's outlines are clipped to",
               polyline_text([frame_low, (frame_high[0], frame_low[1]), frame_high, (frame_low[0], frame_high[1])])
               + " to map-edges",
@@ -665,8 +827,7 @@ def main():
               polyline_text([(frame_low[0], frame_low[1] - 500000), (frame_high[0], frame_low[1] - 500000),
                              (frame_high[0], frame_low[1]), frame_low]) + " to south-land", "",
               "\\ the land round the Trondheimsfjord, from OpenStreetMap's coastline, (c) OpenStreetMap",
-              "\\ contributors under the ODbL: closed outlines within 63.25-63.80 N, 9.6-11.2 E, placed",
-              "\\ by the azimuthal equidistant projection from 56 N 3.6 W, true in distance and bearing",
+              "\\ contributors under the ODbL: closed outlines within 63.25-63.80 N, 9.6-11.2 E",
               "["]
     lines += ["  " + polyline_text(ring) for ring in norway]
     lines += ["] to norway-outlines",
@@ -686,7 +847,28 @@ def main():
         lon, lat, height = places[title]
         x, z = to_ground(lon, lat)
         lines.append("  :{} [ {} {} {} ]".format(key, number(x), number(z), number(height)))
-    lines += ["} to landmarks"]
+    lines += ["} to landmarks", "",
+              "\\ the towns' main roads from OpenStreetMap, (c) OpenStreetMap contributors, under the ODbL:",
+              "\\ the trunk, primary and secondary roads within each town's reach of its point, each once,",
+              "\\ [ width points ], the width 16 m for trunk and primary, 12 for secondary, the line simplified to 8 m",
+              "["]
+    lines += ["  [ {} {} ]".format(width, polyline_text(points)) for width, points in town_roads(places)]
+    lines += ["] to town-roads"]
+    wet_docks, dry_docks, breakwaters = leith_harbour()
+    lines += ["",
+              "\\ Leith's harbour of 1940 from OpenStreetMap, (c) OpenStreetMap contributors, under the ODbL, as",
+              "\\ closed outlines simplified to 5 m: the Victoria, Albert, Edinburgh and Imperial wet docks; the",
+              "\\ Alexandra and Imperial dry docks; the West and East Breakwaters at the harbour's mouth; the",
+              "\\ Western Harbour, enclosed in 1943, and the Old East and West Docks, filled in since, left out"]
+    for key, rings in (("leith-wet-docks", wet_docks), ("leith-dry-docks", dry_docks), ("leith-breakwaters", breakwaters)):
+        lines += ["["] + ["  " + polyline_text(ring) for ring in rings] + ["] to " + key]
+    river, lanes = trondheim_town()
+    lines += ["",
+              "\\ Trondheim's town of 1940, 63.418-63.440 N, 10.365-10.430 E, from OpenStreetMap, (c) OpenStreetMap",
+              "\\ contributors, under the ODbL: the Nidelva's water as closed outlines cut to that box, and its",
+              "\\ streets, primary to residential, simplified to 8 m, as they run today",
+              "["] + ["  " + polyline_text(ring) for ring in river] + ["] to nidelva-water", "["]
+    lines += ["  " + polyline_text(lane) for lane in lanes] + ["] to trondheim-lanes"]
     for city, (streets, squares, stations, buildings, railways) in cities.items():
         lines += ["",
                   "\\ {} from OpenStreetMap, (c) OpenStreetMap contributors, under the ODbL:".format(city.capitalize()),
@@ -709,4 +891,5 @@ def main():
     print("wrote", OUT, "coast runs", len(coast), "land outlines", len(outlines))
 
 
-main()
+if __name__ == "__main__":
+    main()

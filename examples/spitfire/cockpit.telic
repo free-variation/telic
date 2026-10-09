@@ -38,11 +38,24 @@ variable game
 
 : game@ ( key -- value ) game swap @ ;
 
-\ a message across the top of the view for a few seconds
+\ the fewest words in a text that stops the flight while it is read, and the words read a second (estimates)
+9 constant reading-words
+4 constant reading-rate
+
+\ in the flying lesson and the air firing, stop the flight while a text of 9 words or more is read: its words at 4 a second, at least 2 seconds, or the pause already running where that is longer
+: reading-pause ( text -- )
+	| text |
+	:lesson game@ not if exit then
+	text " " split ( piece | piece size 0 > ) filter size to n-words
+	n-words reading-words < if exit then
+	n-words reading-rate / 2 max2 :reading-left game@ max2 :reading-left game! ;
+
+\ a message across the top of the view for a few seconds, the flight stopped in the flying lesson and the air firing while a long one is read
 : say ( text -- )
 	| text |
 	text :message game!
-	4 :message-left game! ;
+	4 :message-left game!
+	text reading-pause ;
 
 480 constant screen-height
 view-height constant panel-top
@@ -254,7 +267,7 @@ panel-top 188 + constant floor-top
 	[ -2 -1 0 1 2 ] ( mark | cx cy large-radius mark 12 * PI 180 / * tick ) each
 	cx 24 - cy 6 - "L" dial-ink centred-text
 	cx 24 + cy 6 - "R" dial-ink centred-text
-	plane@attitude plane@velocity ground>attitude spread to ahead drop to across
+	plane@attitude plane air-velocity ground>attitude spread to ahead drop to across
 	across ahead abs 1 max2 / 2 * -0.5 0.5 clamp to slip
 	cx cy large-radius slip 0.8 dial-ink hand
 	cx cy large-radius PI plane@turn-rate 3 / 15 * -60 60 clamp PI 180 / * - 0.8 needle-colour hand ;
@@ -376,23 +389,41 @@ panel-top 188 + constant floor-top
 	cx cy small-radius 200 0 300 sweep 0.85 dial-ink hand
 	cx cy small-radius + 3 + "BRAKES" dial-ink centred-text ;
 
-\ the undercarriage's lights, red while up and green while down
+\ the undercarriage's lights, red while locked up and green while locked down, neither while it travels
 : draw-undercarriage ( cx cy -- )
 	| cx cy |
-	plane@gear to gear
+	plane@gear-position to position
 	cx cy 20 - "U/C" dial-ink centred-text
-	cx 13 - cy 6 gear if 0x401010 else 0xe04030 then fill-disc
-	cx 13 + cy 6 gear if 0x40e040 else 0x103010 then fill-disc
+	cx 13 - cy 6 position 0 = if 0xe04030 else 0x401010 then fill-disc
+	cx 13 + cy 6 position 1 = if 0x40e040 else 0x103010 then fill-disc
 	cx 13 - cy 9 + "UP" dial-ink centred-text
 	cx 13 + cy 9 + "DOWN" dial-ink centred-text ;
 
-\ the left of the panel, as on the surviving panels: the flaps' lever and warning plate; the oxygen delivery and the elevator trim's indicator; the brakes' pressure and the undercarriage's lights
+\ the magneto switches, two small toggles on a square plate of their own, up and bright while on (M), down and dim while off
+: draw-magnetos ( x foot -- )
+	| x foot |
+	x 12 - foot 18 - 24 18 0x050505 fill-span
+	x 12 - foot 18 - 24 18 dial-ink 0.6 dimmed outline
+	plane@magnetos if foot 15 - 0xf0f0e8 else foot 10 - 0x808078 then to colour to lever-top
+	[ -5 5 ] ( offset | x offset + 1 - lever-top 3 8 colour fill-span ) each ;
+
+\ the starter and booster coil buttons, a pair side by side, lit while the starter is held (K)
+: draw-starter-buttons ( x y -- )
+	| x y |
+	plane@cranking if 0xf8e040 else brass-colour 0.7 dimmed then to colour
+	[ -5 5 ] ( offset | x offset + y 4 colour fill-disc ) each ;
+
+\ the left of the panel, as on the surviving panels: the flaps' lever and warning plate; the oxygen delivery and the elevator trim's indicator; the brakes' pressure and the undercarriage's lights; the magneto switches and the starter buttons beside the blind-flying panel
 : draw-left-panel ( -- )
 	48 panel-top 10 + draw-flaps
 	panel-top 98 + draw-oxygen
 	134 panel-top 98 + draw-trim
 	62 lower-row 14 + draw-brakes
-	134 lower-row 12 + draw-undercarriage ;
+	134 lower-row 12 + draw-undercarriage
+	170 panel-top 110 + draw-magnetos
+	170 panel-top 114 + "MAGS" dial-ink centred-text
+	170 panel-top 136 + draw-starter-buttons
+	170 panel-top 142 + "START" dial-ink centred-text ;
 
 \ === beneath the panel ===
 
@@ -427,6 +458,20 @@ panel-top 188 + constant floor-top
 		x 28 - top 19 + x 28 + top 19 + pedal-colour draw-segment
 	loop ;
 
+\ a ring filled between two radii about a centre, 48 pairs of triangles round it, its middle left clear
+: fill-ring ( cx cy inner outer colour -- )
+	| cx cy inner outer colour |
+	0 48 1 do k
+		k 48 / TAU * to from
+		k 1+ 48 / TAU * to onto
+		cx from sin inner * + cy from cos inner * -
+		cx from sin outer * + cy from cos outer * -
+		cx onto sin outer * + cy onto cos outer * - colour fill-face
+		cx from sin inner * + cy from cos inner * -
+		cx onto sin outer * + cy onto cos outer * -
+		cx onto sin inner * + cy onto cos inner * - colour fill-face
+	loop ;
+
 \ the control column and its spade grip, a ring with the gun button on it, standing over the directional gyro: the ring moves right and left with the roll and toward the pilot when pulled back; the button red while firing
 : draw-column ( -- )
 	320 controls@roll 14 * + to grip-x
@@ -437,9 +482,7 @@ panel-top 188 + constant floor-top
 	loop
 	314 480 grip-x 6 - shaft-top grip-edge-colour draw-segment
 	326 480 grip-x 6 + shaft-top grip-edge-colour draw-segment
-	60 85 1 do k
-		grip-x grip-y k 2 / grip-colour draw-circle
-	loop
+	grip-x grip-y 30 42 grip-colour fill-ring
 	grip-x grip-y 42 grip-edge-colour draw-circle
 	grip-x grip-y 30 grip-edge-colour draw-circle
 	grip-x 25 - grip-y 25 - 7 :firing game@ if 0xff4030 else brass-colour then fill-disc ;
@@ -487,6 +530,22 @@ variable sight-span
 	cx radius - cy cx gap - cy sight-line
 	cx gap + cy cx radius + cy sight-line ;
 
+\ a trim wheel on the left wall, a ring with four spokes turned with its setting, from -1 to 1; above it its scale, the setting's mark between the two ends' letters; its name under it
+: draw-wall-wheel ( cx cy setting low high name -- )
+	| cx cy setting low high name |
+	cx cy 10 edge-colour draw-circle
+	0 4 1 do k
+		setting 15 * k PI * 2 / + to spoke
+		cx cy cx spoke sin 10 * + cy spoke cos 10 * - edge-colour draw-segment
+	loop
+	cx 14 - cy 16 - cx 14 + cy 16 - dial-ink draw-segment
+	cx cy 18 - cx cy 14 - dial-ink draw-segment
+	cx setting 14 * + round to mark
+	mark cy 20 - mark cy 12 - needle-colour draw-segment
+	cx 20 - cy 19 - low dial-ink centred-text
+	cx 20 + cy 19 - high dial-ink centred-text
+	cx cy 13 + name dial-ink centred-text ;
+
 \ the Spitfire's cockpit below the windscreen
 : draw-spitfire-panel ( -- )
 	0 panel-top view-width screen-height panel-top - wall-colour fill-span
@@ -504,6 +563,7 @@ variable sight-span
 	draw-engine-instruments
 	draw-left-panel
 	draw-throttle-lever
+	92 floor-top 20 + plane@rudder-trim "L" "R" "RUDDER" draw-wall-wheel
 	draw-pedals
 	draw-column ;
 
@@ -513,14 +573,24 @@ variable sight-span
 \ (NASM A19700066000, photographed from the seat) and the labelled panel of
 \ the "Battle of Britain - Hurricane" simulation's manual. The same
 \ blind-flying panel stands in the middle, its rows closer together, under
-\ the reflector sight's pedestal and its padded crash pad. High on the left
-\ the undercarriage indicator, high on the right the revolution counter,
-\ both on the coaming. The left of the panel: the oxygen regulator's
-\ delivery and supply dials, the red emergency boost knob, the clock, the
-\ brakes' pressure, the magneto switches and the starter and booster coil
-\ buttons. The right: the boost gauge in its red rim, the fuel gauge with
-\ its selector for the port, centre and starboard tanks, the oil
-\ pressure, the oil and radiator temperatures. On the right wall the one
+\ the reflector sight's pedestal and its padded crash pad. Three boards
+\ stand side by side across the panel, as in photographs of the cockpit:
+\ the left board, the blind-flying panel and the right board, sharing one
+\ top and one foot. The left board: the oxygen regulator's nameplate and
+\ its delivery and supply dials on the upper row; the emergency boost knob,
+\ a red ring round a yellow face, at the board's edge, the clock and the
+\ undercarriage indicator on the lower; along the foot the magneto
+\ switches' plate and three bat-handled toggle switches under their label
+\ plates; the brakes' pressure on the wall beside it. The right board: the
+\ boost gauge in its red rim at the top left, the revolution counter at the
+\ top right, the fuel gauge's selector for the port, centre and starboard
+\ tanks between them; the oil pressure's orange strip gauge and the fuel
+\ pressure's red one side by side under the boost gauge, the fuel gauge
+\ beside them; the oil and radiator temperatures along the foot, their rims
+\ orange and brass. The undercarriage indicator and the revolution counter
+\ stand on the coaming in the aircraft; they are on the boards here, the
+\ coaming above them too shallow for their dials. The supply dial, the
+\ magnetos and the toggle switches are drawn and do nothing. On the right wall the one
 \ lever that works the wheels and the flaps, in its gate, the selector
 \ returned to neutral after each use, the flaps' placard and their
 \ indicator. On the left wall the throttle quadrant, the rudder bias and
@@ -531,34 +601,50 @@ variable sight-span
 \ bias and elevator trim wheels turn with their settings, each read on a
 \ scale above it; the fuel cock turns between the main tanks and the
 \ reserve, and the fuel gauge, its selector following, reads the tanks the
-\ engine draws from. The magnetos and the buttons are drawn where they are
-\ and do nothing.
+\ engine draws from.
 
-\ the Hurricane's rows of blind-flying dials, the column's ring and the panel's sections' tops
+\ the Hurricane's rows of blind-flying dials, the column's ring and the boards' top; the foot of the panel's old sections, which the tubes below run from, and the boards' shared foot
 panel-top 70 + constant hurricane-upper-row
 panel-top 148 + constant hurricane-lower-row
 panel-top 30 + constant blind-panel-top
-panel-top 56 + constant left-section-top
-panel-top 70 + constant right-section-top
 panel-top 186 + constant panel-foot
+panel-top 190 + constant board-foot
 
-\ the undercarriage indicator on the coaming: red while the wheels are up, green when locked down
+\ a board of the panel from its left edge to its right, from the blind-flying panel's top to the shared foot
+: draw-board ( left right colour -- )
+	| left right colour |
+	left blind-panel-top right left - board-foot blind-panel-top - colour fill-span
+	left blind-panel-top right left - board-foot blind-panel-top - edge-colour outline ;
+
+\ the undercarriage indicator: red while the wheels are locked up, green when locked down, neither while they travel
 : draw-hurricane-undercarriage ( cx cy -- )
 	| cx cy |
-	plane@gear to gear
+	plane@gear-position to position
 	cx cy small-radius dial-face
-	cx 7 - cy 5 gear if 0x401010 else 0xe04030 then fill-disc
-	cx 7 + cy 5 gear if 0x40e040 else 0x103010 then fill-disc
-	cx cy small-radius + 3 + "U/C  UP  DOWN" dial-ink centred-text ;
+	cx 7 - cy 5 position 0 = if 0xe04030 else 0x401010 then fill-disc
+	cx 7 + cy 5 position 1 = if 0x40e040 else 0x103010 then fill-disc
+	cx cy small-radius + 3 + "U/C" dial-ink centred-text ;
 
-\ the oxygen regulator: OXYGEN over its delivery dial, set for the height above 10,000 ft, and its supply dial, full
+\ the oxygen regulator: its nameplate across the top; the delivery dial, set for the height above 10,000 ft, and beside it the supply dial, full, the upper left of its face red
 : draw-hurricane-oxygen ( cx cy -- )
 	| cx cy |
-	cx cy small-radius 2 * - 2 - "OXYGEN" dial-ink centred-text
+	cx 46 - panel-top 33 + 92 11 0x050505 fill-span
+	cx 46 - panel-top 33 + 92 11 dial-ink 0.6 dimmed outline
+	cx panel-top 35 + "OXYGEN REGULATOR" dial-ink centred-text
 	plane@position second 3.28084 * 1000 / to thousands
 	thousands 10 < if 0 else thousands then to delivery
-	cx 24 - cy small-radius delivery 0 40 6 [ ] "DELIVERY" sweep-dial
-	cx 24 + cy small-radius 1 0 1 4 [ ] "SUPPLY" sweep-dial ;
+	cx 26 - cy small-radius delivery 0 40 6 [ ] "DELIVERY" sweep-dial
+	cx 26 + to supply-x
+	supply-x cy small-radius dial-face
+	0 17 1 do k
+		k 0.1 * 1.9 - to angle
+		supply-x angle sin small-radius 0.35 * * + cy angle cos small-radius 0.35 * * -
+		supply-x angle sin small-radius 0.9 * * + cy angle cos small-radius 0.9 * * -
+		warning-colour 0.7 dimmed draw-segment
+	loop
+	supply-x cy small-radius 4 sweep-ticks
+	supply-x cy small-radius 1 0 1 sweep 0.85 needle-colour hand
+	supply-x cy small-radius + 3 + "SUPPLY" dial-ink centred-text ;
 
 \ the clock: from twelve, the hands moved on by the flight's time
 : draw-clock ( cx cy -- )
@@ -570,31 +656,31 @@ panel-top 186 + constant panel-foot
 	cx cy small-radius seconds 43200 / TAU * 0.55 dial-ink hand
 	cx cy small-radius + 3 + "CLOCK" dial-ink centred-text ;
 
-\ the emergency boost knob, red, lit while pushed in
+\ the emergency boost control, a pull knob, a red ring round a yellow face, the face bright while pulled
 : draw-emergency-knob ( cx cy -- )
 	| cx cy |
-	cx cy 7 plane@boost-cut-out if warning-colour else 0x502018 then fill-disc
-	cx cy 7 dial-ink draw-circle
-	cx cy 11 + "EMERG." dial-ink centred-text ;
+	cx cy 9 warning-colour fill-disc
+	cx cy 6 plane@boost-cut-out if 0xf8e040 else 0xb09a30 then fill-disc
+	cx cy 13 + "EMERG." dial-ink centred-text ;
 
-\ the magneto switches and the starter and booster coil buttons along the foot of the left section
-: draw-switches ( x y -- )
-	| x y |
-	[ 0 10 ] ( offset | x offset + y x offset + 4 + y 8 - dial-ink draw-segment ) each
-	x 7 + y 4 + "MAGS" dial-ink centred-text
-	x 44 + y 3 - 4 brass-colour fill-disc
-	x 58 + y 3 - 4 brass-colour fill-disc
-	x 51 + y 4 + "START" dial-ink centred-text ;
+\ a bat-handled toggle switch standing up from its foot, a white label plate over it
+: draw-toggle ( x foot -- )
+	| x foot |
+	x 5 - foot 18 - 10 4 dial-ink 0.8 dimmed fill-span
+	x foot 2 0x707070 fill-disc
+	x 1 - foot 10 - 3 9 0xd8d8d0 fill-span ;
 
-\ the left of the Hurricane's panel
+\ the left board of the Hurricane's panel, as photographs of the cockpit show it: the oxygen regulator's nameplate, delivery and supply dials on the upper row; the emergency boost knob at the board's edge, the clock and the undercarriage indicator on the lower row; along the foot the magneto switches' plate and three toggle switches; the brakes' pressure on the cockpit wall beside it. The switches are drawn and do nothing
 : draw-hurricane-left ( -- )
-	36 left-section-top 160 panel-foot left-section-top - board-colour fill-span
-	36 left-section-top 160 panel-foot left-section-top - edge-colour outline
-	100 left-section-top 38 + draw-hurricane-oxygen
-	62 left-section-top 86 + draw-emergency-knob
-	110 left-section-top 84 + draw-clock
-	162 left-section-top 84 + draw-brakes
-	56 panel-foot 12 - draw-switches ;
+	40 192 board-colour draw-board
+	116 hurricane-upper-row draw-hurricane-oxygen
+	54 hurricane-lower-row 10 - draw-emergency-knob
+	112 hurricane-lower-row 10 - draw-clock
+	164 hurricane-lower-row 10 - draw-hurricane-undercarriage
+	53 board-foot 13 - draw-starter-buttons
+	84 board-foot 4 - draw-magnetos
+	[ 118 142 166 ] ( x | x board-foot 4 - draw-toggle ) each
+	18 hurricane-lower-row draw-brakes ;
 
 \ the fuel gauge's selector between the boost gauge and the fuel gauge, following the cock: on the centre tank, the reserve, while the engine draws from it, otherwise toward the port wing tank for the main tanks read together
 : draw-fuel-selector ( cx cy -- )
@@ -621,19 +707,38 @@ panel-top 186 + constant panel-foot
 	cx cy 9 + "FUEL" dial-ink centred-text
 	cx cy medium-radius gallons 0 capacity sweep 0.85 needle-colour hand ;
 
-\ the right of the Hurricane's panel, and the revolution counter on the coaming above it
+\ the oil temperature's dial rim and the oil pressure's frame, orange as in photographs of the cockpit; the radiator temperature's rim, brass
+0xc07028 constant oil-gauge-colour
+
+\ an upright strip gauge in a coloured frame: its window, five ticks, the pointer at a share of the scale, its name under it
+: draw-strip-gauge ( x top width height share colour name -- )
+	| x top width height share colour name |
+	x width 2 / - top width height colour fill-span
+	x width 2 / - 3 + top 3 + width 6 - height 6 - dial-colour fill-span
+	0 5 1 do k
+		x width 2 / - 3 + top 5 + k height 10 - 4 / * + x top 5 + k height 10 - 4 / * + dial-ink draw-segment
+	loop
+	top height + 5 - share 0 1 clamp height 10 - * - to level
+	x width 2 / - 3 + level x width 2 / + 3 - level needle-colour draw-segment
+	x top height + 2 + name dial-ink centred-text ;
+
+\ the fuel pressure, as a share of its scale: steady while the engine runs on the tanks the cock draws from (the figure an estimate), none once they are dry or the engine dead
+: fuel-pressure-share ( -- share )
+	plane@engine-dead plane@fuel-starved or if 0 else 0.6 then ;
+
+\ the right board of the Hurricane's panel, as photographs of the cockpit show it, in three rows: the boost gauge at the left of the top and the revolution counter at its right, the tank selector between; the oil pressure's orange strip and the fuel pressure's red one side by side under the boost gauge, the fuel gauge beside them; the temperatures along the foot, the oil's rim orange and the radiator's brass
 : draw-hurricane-right ( -- )
-	488 panel-top 4 + 80 62 board-colour fill-span
-	488 panel-top 4 + 80 62 edge-colour outline
-	528 panel-top 32 + draw-revolutions
-	444 right-section-top 144 panel-foot right-section-top - board-colour fill-span
-	444 right-section-top 144 panel-foot right-section-top - edge-colour outline
-	476 right-section-top 30 + draw-boost
-	518 right-section-top 24 + draw-fuel-selector
-	560 right-section-top 30 + draw-hurricane-fuel
-	468 panel-foot 28 - small-radius plane@oil-pressure 0 120 4 [ ] "OIL PSI" sweep-dial
-	510 panel-foot 28 - plane@oil-temperature "OIL" null draw-temperature
-	552 panel-foot 28 - plane@coolant-temperature "RAD" coolant-limit draw-temperature ;
+	448 590 board-colour draw-board
+	476 panel-top 58 + draw-boost
+	519 panel-top 50 + draw-fuel-selector
+	562 panel-top 58 + draw-revolutions
+	470 panel-top 96 + 20 36 plane@oil-pressure 120 / oil-gauge-colour "OIL" draw-strip-gauge
+	494 panel-top 96 + 20 36 fuel-pressure-share boost-rim-colour "FUEL" draw-strip-gauge
+	556 panel-top 124 + draw-hurricane-fuel
+	470 panel-top 162 + plane@oil-temperature "OIL" null draw-temperature
+	470 panel-top 162 + small-radius 1 + oil-gauge-colour draw-circle
+	512 panel-top 162 + plane@coolant-temperature "RAD" coolant-limit draw-temperature
+	512 panel-top 162 + small-radius 1 + brass-colour 0.8 dimmed draw-circle ;
 
 \ how long the Hurricane's wheels and flaps lever stays in its slot after it is moved, seconds: the flaps' travel, and an estimate for the wheels
 2 constant selector-hold
@@ -664,22 +769,6 @@ panel-top 186 + constant panel-foot
 	then
 	604 gate-top 48 + "W" dial-ink centred-text
 	626 gate-top 48 + "F" dial-ink centred-text ;
-
-\ a trim wheel on the left wall, a ring with four spokes turned with its setting, from -1 to 1; above it its scale, the setting's mark between the two ends' letters; its name under it
-: draw-wall-wheel ( cx cy setting low high name -- )
-	| cx cy setting low high name |
-	cx cy 10 edge-colour draw-circle
-	0 4 1 do k
-		setting 3 * k PI * 2 / + to spoke
-		cx cy cx spoke sin 10 * + cy spoke cos 10 * - edge-colour draw-segment
-	loop
-	cx 14 - cy 16 - cx 14 + cy 16 - dial-ink draw-segment
-	cx cy 18 - cx cy 14 - dial-ink draw-segment
-	cx setting 14 * + round to mark
-	mark cy 20 - mark cy 12 - needle-colour draw-segment
-	cx 20 - cy 19 - low dial-ink centred-text
-	cx 20 + cy 19 - high dial-ink centred-text
-	cx cy 13 + name dial-ink centred-text ;
 
 \ the fuel cock, its pointer on the main tanks or the reserve, the tanks it draws from named under it
 : draw-fuel-cock ( cx cy -- )
@@ -729,9 +818,7 @@ panel-top 186 + constant panel-foot
 	loop
 	314 screen-height grip-x 6 - shaft-top grip-edge-colour draw-segment
 	326 screen-height grip-x 6 + shaft-top grip-edge-colour draw-segment
-	60 85 1 do k
-		grip-x grip-y k 2 / grip-colour draw-circle
-	loop
+	grip-x grip-y 30 42 grip-colour fill-ring
 	grip-x grip-y 42 grip-edge-colour draw-circle
 	grip-x grip-y 30 grip-edge-colour draw-circle
 	grip-x 25 - grip-y 25 - 7 :firing game@ if 0xff4030 else brass-colour then fill-disc ;
@@ -748,13 +835,9 @@ panel-top 186 + constant panel-foot
 	0 panel-top view-width screen-height panel-top - wall-colour fill-span
 	0 panel-top view-width 4 edge-colour fill-span
 	draw-tubes
-	70 panel-top 6 + 100 46 board-colour fill-span
-	70 panel-top 6 + 100 46 edge-colour outline
-	120 panel-top 26 + draw-hurricane-undercarriage
 	draw-hurricane-left
 	draw-hurricane-right
-	204 blind-panel-top 232 panel-foot blind-panel-top - blind-panel-colour fill-span
-	204 blind-panel-top 232 panel-foot blind-panel-top - edge-colour outline
+	194 446 blind-panel-colour draw-board
 	draw-sight-pedestal
 	236 hurricane-upper-row draw-airspeed
 	320 hurricane-upper-row draw-horizon
@@ -771,14 +854,20 @@ panel-top 186 + constant panel-foot
 	draw-hurricane-pedals
 	draw-hurricane-column ;
 
-\ the Hurricane's windscreen in the view, faint: the armoured panel's frame, its posts rising from the coaming either side of the sight
+\ the Hurricane's windscreen in the view, faint: the armoured centre panel's frame, its two posts rising from the coaming either side of the sight, leaning in, to the top rail across them; from the rail's ends the side panes' top edges running back over the pilot's head out of the view (positions in the view estimates)
 : draw-hurricane-windscreen ( -- )
 	sight-frame-colour lighting dimmed to colour
 	view-centre-x to cx
+	30 to rail-top
+	view-height 1 - rail-top - 12 * 150 / to lean
 	[ -1 1 ] ( side |
-		cx side 96 * + view-height 1 - cx side 84 * + view-height 150 - colour draw-clipped
-		cx side 100 * + view-height 1 - cx side 88 * + view-height 150 - colour draw-clipped
-	) each ;
+		cx side 96 * + view-height 1 - cx side 96 lean - * + rail-top colour draw-clipped
+		cx side 100 * + view-height 1 - cx side 100 lean - * + rail-top colour draw-clipped
+		cx side 100 lean - * + rail-top cx side view-width 2 / * + 0 colour draw-clipped
+		cx side 100 lean - * + rail-top 4 + cx side view-width 2 / * + 4 colour draw-clipped
+	) each
+	cx 100 lean - - rail-top cx 100 lean - + rail-top colour draw-clipped
+	cx 96 lean - - rail-top 4 + cx 96 lean - + rail-top 4 + colour draw-clipped ;
 
 \ the cockpit below the windscreen, the type's own
 : draw-panel ( -- )
