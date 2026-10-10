@@ -1,7 +1,7 @@
 \ Spitfire: the raid and the fighting. A model is a sketch in its own terms —
 \ metres right, up and forward of its centre — drawn by carrying its points
 \ through one more matrix product, from its own terms into the ground's, on
-\ their way into the eye's. The Ju 88 A-1 and the He 111 H are built to their
+\ their way into the eye's. The Ju 88 A-4 and the He 111 H are built to their
 \ published spans and lengths (20.08 m by 14.36 m, 22.60 m by 16.40 m), the
 \ rest of their proportions estimated from drawings: fuselages of eight-sided
 \ rings, the glazing, the gun positions and gondolas, tapered wings with
@@ -144,20 +144,6 @@
 \ glass's colour: a dark blue-grey drawn unlit, 0x1000000 set, so it keeps one tone toward the sun or away from it (an estimate)
 0x1788c98 constant glass-colour
 
-\ glazing as a box of glass: its base's corners and its top's, each front left, front right, rear right, rear left; its top, front, rear and sides filled in glass's colour, their edges the frames
-: sketch-glazing ( sketch base top -- )
-	| sketch base top |
-	sketch base sketch-points to low
-	sketch top sketch-points to high
-	sketch low join-loop
-	sketch high join-loop
-	sketch low high concat inside-of to inside
-	[ high
-	  [ low first low second high second high first ]
-	  [ low 3 @i low 2 @i high 2 @i high 3 @i ]
-	  [ low first high first high 3 @i low 3 @i ]
-	  [ low second low 2 @i high 2 @i high second ] ] ( pane | sketch pane inside glass-colour sketch-painted-face ) each ;
-
 \ a gunner's hood of glass on a body of rings, rounded and open at its rear: at each station [ along height half-width ] an arch of five points from the skin on one side over the top to the skin on the other, its height above the body's top, its half-width where it meets the skin, the skin there on the body's top face; glass between each arch and the next, facing away from a point below them inside the body; the arches and the lines joining them the frames
 : sketch-gun-hood ( sketch rings stations -- )
 	| sketch rings stations |
@@ -187,13 +173,13 @@
 		loop
 	loop ;
 
-\ the Ju 88 A-1: a fuselage of nine rings, its nose glazed back to the windscreen; the canopy over the crew's compartment, a hood of glass with its frames, and the two rear guns; the ventral gondola, half the fuselage's width, hung under the cockpit 0.23 m to starboard, in the under colour, with its front window, two side windows each side, its glazed rear and its gun; the aerial from a mast on the canopy to the fin; tapered wings with rounded tips and the flaps' and ailerons' hinge line; the Jumo 211s in round cowlings with three-blade propellers; the tailplane, elevators, fin and rudder; the crosses, sized to fit their surfaces, and the swastikas on the fins; the glazing in glass's colour; the under colour on the bottom faces only. The span and length are published; the side outline is measured from a side painting and the gondola's width and offset from a front view, both scaled to them; every other figure is an estimate
+\ the Ju 88 A-4: a fuselage of rings, its nose a dome of small panes back to its frame, then a band of skin to the windscreen; the canopy over the crew's compartment, a hood of glass with its frames, and the two rear guns; the ventral gondola, half the fuselage's width, hung under the cockpit 0.23 m to starboard, in the under colour, with its front window, two side windows each side, its glazed rear and its gun; the aerial from a mast on the canopy to the fin; tapered wings with rounded tips and the flaps' and ailerons' hinge line; the Jumo 211s in round cowlings with three-blade propellers; the tailplane, elevators, fin and rudder; the crosses, sized to fit their surfaces, and the swastikas on the fins; the glazing in glass's colour; the under colour on the bottom faces only. The span and length are published; the side outline is measured from a side painting and the gondola's width and offset from a front view, both scaled to them; every other figure is an estimate
 : junkers-88 ( -- model )
 	new-model-sketch luftwaffe-under-colour :under-colour ! 0.5 :under-turn ! to model
 	model@faces size to first-face
-	[ [ 7.1 0.1 0.1 0.02 ] [ 7.05 0.2 0.185 0.015 ] [ 6.95 0.35 0.315 0.055 ] [ 6.85 0.45 0.39 0.08 ] [ 6.7 0.55 0.455 0.095 ] [ 6.46 0.65 0.545 0.125 ]
-	  [ 6.1 0.75 0.675 0.205 ] [ 3.8 0.8 0.71 0.24 ] [ 1.5 0.8 0.69 0.31 ]
-	  [ -1.5 0.72 0.6 0.4 ] [ -4.0 0.55 0.49 0.46 ] [ -6.6 0.3 0.335 0.515 ] [ -7.05 0.1 0.1 0.45 ] ] to rings
+	[ [ 7.1 0.08 0.1 0.02 ] [ 7.05 0.16 0.185 0.015 ] [ 6.95 0.28 0.315 0.055 ] [ 6.85 0.36 0.39 0.08 ] [ 6.7 0.44 0.455 0.095 ] [ 6.46 0.52 0.545 0.125 ]
+	  [ 6.1 0.6 0.675 0.205 ] [ 3.8 0.64 0.71 0.24 ] [ 1.5 0.64 0.69 0.31 ]
+	  [ -1.5 0.58 0.6 0.4 ] [ -4.0 0.44 0.49 0.46 ] [ -6.6 0.24 0.335 0.515 ] [ -7.05 0.08 0.1 0.45 ] ] to rings
 	model rings [ 0 0 0 ] 8 sketch-body
 	[ 0 40 1 do k first-face k + loop first-face 96 + ] ( face | model@faces face @i glass-colour add-last! drop ) each
 	[ 0.23 0 0 ] to gondola-centre
@@ -211,14 +197,14 @@
 			model pane gondola-centre [ 0 -0.6 middle ] v+ glass-colour sketch-painted-plate
 		) each
 	) each
-	model rings [ [ 6.17 0.06 0.5 ] [ 6.0 0.3 0.55 ] [ 5.9 0.37 0.55 ] [ 5.3 0.35 0.55 ] [ 4.8 0.33 0.55 ] [ 4.27 0.32 0.55 ] [ 3.8 0.05 0.45 ] ] sketch-gun-hood
+	model rings [ [ 6.17 0.06 0.4 ] [ 6.0 0.3 0.44 ] [ 5.9 0.37 0.44 ] [ 5.3 0.35 0.44 ] [ 4.8 0.33 0.44 ] [ 4.27 0.32 0.44 ] [ 3.8 0.05 0.36 ] ] sketch-gun-hood
 	[ -1 1 ] ( side | model [ side 0.15 * 1.1 3.9 ] [ side 0.15 * 1.15 3.1 ] 0.05 model-ink sketch-rod ) each
 	model [ 0.23 -0.6 3.9 ] [ 0.23 -0.85 3.2 ] 0.06 model-ink sketch-rod
-	model [ [ 0.6 4.33 ] [ 3.4 4.25 ] [ 6.2 3.83 ] [ 9.1 3.33 ] [ 9.55 3.2 ] [ 9.9 2.9 ] [ 10.04 2.6 ] [ 9.9 2.25 ] [ 9.6 2.04 ] [ 9.1 1.95 ] [ 5.2 1.3 ] [ 0.6 0.68 ] ]
+	model [ [ 0.45 4.33 ] [ 3.4 4.25 ] [ 6.2 3.83 ] [ 9.1 3.33 ] [ 9.55 3.2 ] [ 9.9 2.9 ] [ 10.04 2.6 ] [ 9.9 2.25 ] [ 9.6 2.04 ] [ 9.1 1.95 ] [ 5.2 1.3 ] [ 0.45 0.68 ] ]
 		[ [ [ 3.2 1.25 ] [ 9.3 2.3 ] ] [ [ 4.9 1.31 ] [ 4.9 1.6 ] ] ] 0.06 0 sketch-surface
 	model 2.72 0.3 6.0 [ [ 0 0.62 ] [ -0.6 0.7 ] [ -2.7 0.6 ] [ -4.0 0.45 ] [ -5.1 0 ] ] 1.7 bomber-spinner sketch-engines
-	model [ [ 0.3 -4.13 ] [ 1.91 -4.41 ] [ 3.17 -4.66 ] [ 3.53 -4.81 ] [ 3.68 -5.17 ] [ 3.58 -5.44 ] [ 3.43 -5.54 ] [ 2.17 -5.77 ] [ 0.3 -5.97 ] ]
-		[ [ [ 0.3 -5.32 ] [ 3.6 -5.32 ] ] ] 0 0.6 sketch-surface
+	model [ [ 0.2 -4.13 ] [ 1.91 -4.41 ] [ 3.17 -4.66 ] [ 3.53 -4.81 ] [ 3.68 -5.17 ] [ 3.58 -5.44 ] [ 3.43 -5.54 ] [ 2.17 -5.77 ] [ 0.2 -5.97 ] ]
+		[ [ [ 0.2 -5.32 ] [ 3.6 -5.32 ] ] ] 0 0.6 sketch-surface
 	[ [ -4.87 0.85 ] [ -5.02 1.22 ] [ -5.53 1.9 ] [ -5.76 2.17 ] [ -5.92 2.41 ] [ -6.13 2.66 ] [ -6.33 2.75 ] [ -6.61 2.66 ] [ -6.86 2.41 ] [ -7.02 2.09 ]
 	  [ -7.14 1.68 ] [ -7.24 1.23 ] [ -7.26 0.86 ] [ -7.22 0.62 ] [ -7.1 0.38 ] [ -6.89 0.21 ] [ -6.65 0.15 ] [ -6.44 0.25 ] [ -5.0 0.8 ] ] to fin
 	model 0 fin [ [ -6.3 2.74 ] [ -6.35 0.3 ] ] sketch-fin
@@ -317,9 +303,6 @@ variable models
 variable bombers
 [ ] to bombers
 
-variable far-models
-{ } to far-models
-
 \ the drogue: a cloth sleeve 6 m long, 1 m across at its mouth and 0.7 m at its tail (estimates), on a bridle of four lines meeting 2 m ahead of the mouth
 : drogue-model ( -- model )
 	new-model-sketch to model
@@ -367,21 +350,14 @@ variable far-models
 	model [ [ 14 30 15 ] [ 14 46 15 ] ] sketch-path
 	model carrier-grey-colour sketch>object ;
 
-\ each type's model near and from afar, the far ones from the published spans and lengths and the engines' distance out; the Spitfire's and the Hurricane's with wheels up and down; the Lysander target tug's from afar only, its published 50 ft span and 30 ft 6 in length
+\ each type's model, drawn at every distance; the Spitfire's and the Hurricane's with wheels up and down, unmarked; the title's three Spitfires in 602 Squadron's post-war code RAI, the Kelvingrove Spitfire's, as RAI-A, RAI-G and RAI-B; the Lysander target tug's the simple model of its outlines, from its published 50 ft span and 30 ft 6 in length
 : build-models ( -- )
-	| ^models ^far-models |
+	| ^models |
 	{ :ju-88 junkers-88 :he-111 heinkel-111 :bf-110 messerschmitt-110
-	  :spitfire false spitfire-model :spitfire-down true spitfire-model
+	  :spitfire false spitfire-model :spitfire-down true spitfire-model :spitfire-kelvingrove kelvingrove-spitfire-model
+	  :spitfire-title-leader :spitfire "RAI" "A" false marked-model :spitfire-title-wingman :spitfire "RAI" "B" false marked-model
 	  :hurricane false hurricane-model :hurricane-down true hurricane-model
-	  :lysander 15.24 9.3 0 dark-green-colour sky-paint-colour far-model :drogue drogue-model :carrier carrier-model } to models
-	{ :ju-88 20.08 14.36 3.6 luftwaffe-upper-colour luftwaffe-under-colour far-model
-	  :he-111 22.6 16.4 3.8 luftwaffe-upper-colour luftwaffe-under-colour far-model
-	  :bf-110 16.25 12.1 2.4 luftwaffe-upper-colour luftwaffe-under-colour far-model
-	  :spitfire 11.23 9.12 0 dark-green-colour sky-paint-colour far-model
-	  :hurricane 12.19 9.55 0 dark-green-colour sky-paint-colour far-model
-	  :lysander models@lysander :drogue models@drogue :carrier models@carrier } to far-models
-	far-models far-models@spitfire :spitfire-down ! drop
-	far-models far-models@hurricane :hurricane-down ! drop ;
+	  :lysander 15.24 9.3 0 dark-green-colour sky-paint-colour far-model :drogue drogue-model :carrier carrier-model } to models ;
 
 \ === moving models ===
 
@@ -611,12 +587,11 @@ variable wingmen
 
 \ === drawing ===
 
-\ one bomber and its smoke
+\ one bomber and its smoke, drawn by its own :model where it has one, else by its kind's
 : draw-bomber ( bomber -- )
 	| bomber |
 	bomber@state :down = not if
-		bomber@position eye@position v- v-length far-distance > if far-models else models then
-		bomber@kind @ bomber@position bomber@attitude draw-model
+		models bomber :model bomber@kind @or @ bomber@position bomber@attitude draw-model
 	then
 	bomber@smoke size 1 > if
 		new-sketch to trail
@@ -816,20 +791,58 @@ variable wingmen
 	    :group :training
 	    :briefing "LAND IN FOG WITH A MILE'S VISIBILITY. YOU ARE TRIMMED, THE RUDDER TRIM A LITTLE RIGHT AGAINST THE ENGINE'S SWING; AS THE POWER CHANGES, WIND IT WITH . AND , TO KEEP THE SLIP NEEDLE CENTRED. THE RUNWAY IS AHEAD ON 050 BUT OUT OF SIGHT: HOLD THE HEADING ON THE GYRO, 120 MPH, AND A STEADY DESCENT ON THE CLIMB INDICATOR UNTIL THE RUNWAY SHOWS, THEN LAND AS IN CLEAR AIR." } ] ;
 
-\ the mission's raid, or none
+\ each mission's squadron code and its fighters' own letters, the player's first and then each wingman's: 603's XT at Turnhouse from September 1939, 43's FT at Wick, 46's PO in Norway, 72's RN, 602's LO in the Clyde's defence in 1941 (en.wikipedia.org's squadron pages, aviation-safety.net's L1023 coded XT-N in October 1939); the training missions in the code of their base's squadron, Turnhouse's 603 and Abbotsinch's 602; the PR Spitfire uncoded; every letter a choice, none recorded
+[ [ "THE FORTH, 16 OCTOBER 1939" "XT" [ "D" ] ]
+  [ "SCAPA FLOW, 16 MARCH 1940" "FT" [ "K" ] ]
+  [ "NARVIK, 28 MAY 1940" "PO" [ "E" ] ]
+  [ "HMS GLORIOUS, 7 JUNE 1940" "PO" [ "F" ] ]
+  [ "FARNE ISLANDS, 15 AUGUST 1940" "RN" [ "E" "B" "D" "G" "H" "K" ] ]
+  [ "CLYDEBANK, 13 MARCH 1941" "LO" [ "F" ] ]
+  [ "GREENOCK, 6 MAY 1941" "LO" [ "H" ] ]
+  [ "TIRPITZ AT TRONDHEIM, 5 MARCH 1942" "" [ "" ] ]
+  [ "FLYING LESSON AT TURNHOUSE" "XT" [ "A" ] ]
+  [ "AIR FIRING OVER THE FORTH" "XT" [ "C" ] ]
+  [ "FREE FLIGHT FROM TURNHOUSE" "XT" [ "B" ] ]
+  [ "LANDING AT ABBOTSINCH" "LO" [ "L" ] ]
+  [ "FOG AT ABBOTSINCH" "LO" [ "M" ] ] ] constant mission-markings
+
+\ a mission's code and its fighters' letters, the player's first, from its row by its name; no code and a blank letter for a mission the table lacks
+: mission-code ( mission -- code letters )
+	| mission |
+	mission-markings ( row | row first mission@name = ) filter to rows
+	rows size 0 = if "" [ "" ] exit then
+	rows first second rows first 2 @i ;
+
+\ the letter of a mission's fighter, the player's at 0 and each wingman's after; blank past the list's end
+: mission-letter ( mission index -- letter )
+	| mission index |
+	mission mission-code to letters drop
+	index letters size < if letters index @i else "" then ;
+
+\ the model of a mission's wingman, by its index from 1, built in its squadron's markings and kept among the models under its own key
+: wingman-model ( mission index -- key )
+	| mission index ^models |
+	mission mission-code drop to code
+	index "wingman-{0}" format string>symbol to key
+	models :spitfire code mission index mission-letter false marked-model key ! to models
+	key ;
+
+\ the mission's wingmen, each drawn by its own model in the squadron's markings, and the mission's raid, or none
 : start-raid ( mission -- )
 	| mission ^bombers ^sight-span ^wingmen |
 	[ ] to wingmen
-	mission :wingmen [ ] @or ( placement |
-		placement spread to turned to along to up to across
+	mission :wingmen [ ] @or to placements
+	0 placements size 1 do k
+		placements k @i spread to turned to along to up to across
 		mission@start first mission@start second across up along placed to position
 		mission@start second turned + 360 + 360 mod to heading
+		mission k 1+ wingman-model to model-key
 		wingmen
-		{ :kind :spitfire :role :spitfire :position position :heading heading :pitch 0 :bank 0 :speed mission@start 2 @i
+		{ :kind :spitfire :model model-key :role :spitfire :position position :heading heading :pitch 0 :bank 0 :speed mission@start 2 @i
 		  :attitude heading 0 0 flying-attitude :height position second :target [ 0 0 0 ] :state :flying :hits 0
 		  :smoke [ ] :smoke-left 0 }
 		add-last! drop
-	) each
+	loop
 	mission@raid to plan
 	plan null? if [ ] to bombers exit then
 	plan@kind :ju-88 = if 20.08 else 22.6 then to sight-span

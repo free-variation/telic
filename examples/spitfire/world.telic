@@ -324,18 +324,9 @@ variable water-rings
 	loop
 	run size 2 >= if run half-width river-ring keep-water-ring then ;
 
-\ an island too small for the map's land: a ring of eight points round its landmark, as land amid the water
-: keep-island ( key radius -- )
-	| key radius |
-	key landmark-ground to centre
-	[ 0 8 1 do k
-		k 8 / TAU * to angle
-		[ centre first angle sin radius * + centre 2 @i angle cos radius * + ]
-	loop ] keep-water-ring ;
-
 : build-waters ( -- )
 	| ^water-rings |
-	land-outlines [ south-land ] concat to water-rings
+	land-outlines [ south-land ] concat forth-coarse-land concat forth-land concat to water-rings
 	lochs values ( loch | loch@shores ( shore | shore keep-water-ring ) each ) each
 	water-rings water-rings!
 	leith-wet-docks ( dock | dock outline-middle spread water-at? not if dock keep-water-ring then ) each
@@ -343,7 +334,6 @@ variable water-rings
 	rivers@forth 70 keep-river
 	rivers@kelvin 12 keep-river
 	rivers@ness ( course | course 25 keep-river ) each
-	[ [ :inchkeith 500 ] [ :inchcolm 300 ] [ :cramond-island 300 ] [ :bass-rock 200 ] ] ( island | island spread keep-island ) each
 	:faettenfjord landmark-ground to norway-centre
 	:narvik landmark-ground to narvik-centre
 	[ [ 0 130000 water-rings isles-coarse-outlines concat rings>edge-set ]
@@ -368,7 +358,7 @@ variable water-rings
 	{ :centre centre [ 0 height 2 / 0 ] v+ :radius radius 1.3 * height max2 :near mesh :far mesh }
 	add-last! drop ;
 
-\ a tile's mesh from a corner of the grid, cells to a side, taken a step at a time: each cell two triangles, a triangle left out when any of its corners is sea, so no slope reaches out over the water; the corners' heights the ground's
+\ a tile's mesh from a corner of the grid, cells to a side, taken a step at a time: each cell two triangles, a triangle left out when any of its corners is sea or its centre is water, so no slope reaches out over the water, the surveyed heights between the grid's points standing above the sea in a firth; the corners' heights the ground's; water by the region in use
 : tile-mesh ( grid row column n-cells step -- mesh )
 	| grid row column n-cells step |
 	n-cells step / round 1+ to count
@@ -386,7 +376,8 @@ variable water-rings
 			p00 count + to p10
 			p10 1+ to p11
 			[ [ p00 p10 p11 ] [ p00 p11 p01 ] ] ( triangle |
-				triangle ( corner | points corner @i second 2 < ) any? not
+				triangle ( corner | points corner @i ) map [ 0 0 0 ] ' v+ reduce 1 3 / v* to middle
+				triangle ( corner | points corner @i second 2 < ) any? not middle first middle 2 @i water-at? not and
 			) filter spread
 		loop
 	loop ] to triangles
@@ -409,6 +400,7 @@ variable water-rings
 			tile-west 8 spacing * + fine-terrain-west > tile-west fine-terrain-west fine-terrain-count fine-terrain-spacing * + < and
 			tile-south 8 spacing * + fine-terrain-south > and tile-south fine-terrain-south fine-terrain-count fine-terrain-spacing * + < and
 			if 0.5 else 1 then to near-step
+			[ tile-west 4 spacing * + 0 tile-south 4 spacing * + ] use-water-near
 			grid tile-row tile-column n-tile-rows n-tile-columns min2 near-step tile-mesh to near-mesh
 			grid tile-row tile-column n-tile-rows n-tile-columns min2 grid@far-step tile-mesh to far-mesh
 			grid :land-cover null @or to cover
@@ -425,7 +417,7 @@ variable water-rings
 	loop ;
 
 \ the ground of every grid
-: build-norway-terrain ( -- ) terrain-grids ( grid | grid build-grid-terrain ) each ;
+: build-norway-terrain ( -- ) terrain-grids ( grid | grid build-grid-terrain ) each [ 0 0 0 ] use-water-near ;
 
 \ how much farther than its centre a tile is sorted: a surveyed grid's tile, 2 km or more round, by its radius, so it is drawn before whatever stands on it; a hill's own tile not at all, so a hill hides what lies behind it
 : ground-tile-reach ( tile -- metres ) | tile | tile@radius 2000 >= if tile@radius else 0 then ;
@@ -525,47 +517,67 @@ variable water-rings
 
 \ === the Forth Bridge ===
 
-\ one double cantilever: a tower 110 m high on its pier and an arm reaching each way to its tip at the rail, its sides leaning in from 18 m apart at the water to 5 m at the top
+\ the Forth Bridge's members: the compression tubes 3.7 m across (published), the lattice ties and the struts 1.5 m (an estimate); the approach viaduct's masonry piers 4 m square (an estimate); the rail deck a girder 9 m square, its top at the rail's 46 m, drawn in lengths so a length behind the eye leaves the rest; the granite piers under the towers' feet 10 m square and 8 m high (estimates)
+3.7 constant bridge-tube
+1.5 constant bridge-tie
+4 constant bridge-pier
+9 constant bridge-girder
+46 constant bridge-rail
+50 constant bridge-girder-length
+10 constant bridge-granite
+8 constant bridge-granite-height
+
+\ one double cantilever, its members solid rods in the bridge's red: a tower 110 m high on its granite piers, its legs and the bottom chords tubes, and an arm reaching each way to its tip at the rail, the top chords and the bracing ties; its sides leaning in from 18 m apart at its feet to 5 m at the top, struts across the feet and the tops
 : keep-cantilever ( origin heading along -- )
 	| origin heading along |
 	new-sketch to cantilever
+	new-sketch to granite
 	[ -1 1 ] ( side |
 		[ -1 1 ] ( way |
-			origin heading side 18 * 0 along way 40 * + placed to foot
+			origin heading side 18 * bridge-granite-height along way 40 * + placed to foot
+			granite origin heading side 18 * 0 along way 40 * + placed foot bridge-granite stone-colour sketch-rod
 			origin heading side 5 * 110 along way 22 * + placed to tower-top
 			origin heading side 8 * 46 along way 247 * + placed to tip
 			origin heading side 14 * 26 along way 150 * + placed to bow
-			cantilever [ foot tower-top tip bow foot ] sketch-path
-			cantilever [ bow foot tower-top bow ] sketch-path
 			foot tower-top 0.5 v-between to tower-middle
-			cantilever [ tower-middle bow tower-top tip 0.5 v-between bow ] sketch-path
+			[ [ foot tower-top bridge-tube ] [ foot bow bridge-tube ] [ bow tip bridge-tube ]
+			  [ tower-top tip bridge-tie ] [ bow tower-top bridge-tie ] [ tower-middle bow bridge-tie ] [ bow tower-top tip 0.5 v-between bridge-tie ] ]
+			( member | cantilever member spread bridge-colour sketch-rod ) each
 		) each
-		cantilever [ origin heading side 18 * 0 along 40 - placed origin heading side 18 * 0 along 40 + placed ] sketch-path
-		cantilever [ origin heading side 5 * 110 along 22 - placed origin heading side 5 * 110 along 22 + placed ] sketch-path
+		cantilever origin heading side 18 * bridge-granite-height along 40 - placed origin heading side 18 * bridge-granite-height along 40 + placed bridge-tie bridge-colour sketch-rod
+		cantilever origin heading side 5 * 110 along 22 - placed origin heading side 5 * 110 along 22 + placed bridge-tie bridge-colour sketch-rod
 	) each
-	[ -22 22 ] ( at | cantilever [ origin heading -5 110 along at + placed origin heading 5 110 along at + placed ] sketch-path ) each
-	cantilever bridge-colour keep ;
+	[ -22 22 ] ( at | cantilever origin heading -5 110 along at + placed origin heading 5 110 along at + placed bridge-tie bridge-colour sketch-rod ) each
+	cantilever bridge-colour keep
+	granite stone-colour keep ;
 
+\ the Forth Bridge: its three double cantilevers; the rail deck's girder from end to end in lengths, and the arches over the suspended spans; the approach viaduct's piers up to the girder's foot
 : build-forth-bridge ( -- )
 	:inchgarvie :north-queensferry landmark-heading to bridge-heading
 	:inchgarvie landmark-ground to bridge-centre
 	[ -600 0 600 ] ( along | bridge-centre bridge-heading along keep-cantilever ) each
+	bridge-rail bridge-girder 2 / - to girder-middle
 	new-sketch to deck
-	deck [ bridge-centre bridge-heading -6 46 -1437 placed bridge-centre bridge-heading 6 46 -1437 placed
-	       bridge-centre bridge-heading 6 46 1030 placed bridge-centre bridge-heading -6 46 1030 placed ] null sketch-plate
+	-1437 1030 bridge-girder-length do along
+		deck bridge-centre bridge-heading 0 girder-middle along placed
+		bridge-centre bridge-heading 0 girder-middle along bridge-girder-length + 1030 min2 placed bridge-girder bridge-colour sketch-rod
+	loop
 	[ -353 353 ] ( middle |
 		[ -6 6 ] ( side |
-			deck [ bridge-centre bridge-heading side 46 middle 53 - placed bridge-centre bridge-heading side 60 middle placed
-			       bridge-centre bridge-heading side 46 middle 53 + placed ] sketch-path
+			deck bridge-centre bridge-heading side bridge-rail middle 53 - placed bridge-centre bridge-heading side 60 middle placed bridge-tie bridge-colour sketch-rod
+			deck bridge-centre bridge-heading side 60 middle placed bridge-centre bridge-heading side bridge-rail middle 53 + placed bridge-tie bridge-colour sketch-rod
 		) each
 	) each
+	deck bridge-colour keep
+	new-sketch to piers
+	bridge-rail bridge-girder - to pier-top
 	-1437 -846 50 do along
-		deck [ bridge-centre bridge-heading 0 0 along placed bridge-centre bridge-heading 0 46 along placed ] sketch-path
+		piers bridge-centre bridge-heading 0 0 along placed bridge-centre bridge-heading 0 pier-top along placed bridge-pier stone-colour sketch-rod
 	loop
 	847 1031 50 do along
-		deck [ bridge-centre bridge-heading 0 0 along placed bridge-centre bridge-heading 0 46 along placed ] sketch-path
+		piers bridge-centre bridge-heading 0 0 along placed bridge-centre bridge-heading 0 pier-top along placed bridge-pier stone-colour sketch-rod
 	loop
-	deck bridge-colour keep ;
+	piers stone-colour keep-solid ;
 
 \ === shipyards ===
 

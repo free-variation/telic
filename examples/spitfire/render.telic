@@ -520,7 +520,7 @@ variable ground-marks
 	fill-ground
 	ground-marks execute ;
 
-\ every visible object of each collection as an item to draw in order of depth, [ depth :object object ], the depth its sphere's centre's distance along the line of sight
+\ every visible object of each collection as an item to draw in order of depth, [ depth :object object ], the depth its sphere's centre's distance along the line of sight, and its :reach farther where it has one, so what lies flat on the ground is drawn before what stands on it
 : object-items ( collections -- items )
 	| collections |
 	collections ( collection |
@@ -530,7 +530,8 @@ variable ground-marks
 			collection@centres camera matmul 2 @j to depths
 			[ 0 shown num-elements 1 do k
 				shown k @e to index
-				[ depths index @e :object objects index @i ]
+				objects index @i to object
+				[ depths index @e object :reach 0 @or + :object object ]
 			loop ]
 		then
 	) map [ ] ' concat reduce ;

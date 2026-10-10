@@ -98,7 +98,10 @@
 \ trigger held stops it. On the title, up and down or the d-pad choose a mission, return,
 \ start or A opens its briefing (a map of the area, the particulars and the
 \ orders), where return, start or A flies it; H or Y shows the keys; escape
-\ quits.
+\ quits. The two campaigns at the head of the list, the Defence of Scotland
+\ and Norway, fly their missions in order; after each a debrief says what
+\ happened, and a mission not flown, the pilot lost or the task undone, is
+\ flown again. Their progress is kept in ~/.telic-spitfire-campaigns.
 \
 \ The flight model, its figures and their sources are in
 \ examples/spitfire/flight.telic; the ground's heights and Trondheim's
@@ -159,6 +162,7 @@
 "spitfire/briefing.telic" load
 "spitfire/parachute.telic" load
 "spitfire/sound.telic" load
+"spitfire/campaign.telic" load
 "spitfire/game.telic" load
 
 \ the window's pixels to each of the game's 640×480 on each axis
@@ -227,7 +231,8 @@
 	define-sounds
 	load-title-music
 	( audio-on ) catch if drop else settle-sound then
-	0 show-title
+	load-progress
+	0 campaign-choice show-title
 	now to last
 	begin :running game@ while
 		now to moment

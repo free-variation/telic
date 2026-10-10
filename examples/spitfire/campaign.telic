@@ -1,0 +1,138 @@
+\ Spitfire: the campaigns. Two run of the missions in their order, flown
+\ one after another as the war went: the Defence of Scotland, from the
+\ Forth in October 1939 to Greenock in May 1941, and Norway, from Narvik
+\ and HMS Glorious in 1940 to the Tirpitz in 1942. A mission is flown when
+\ its task is done and the pilot is down alive; anything else, a crash, a
+\ death, the task undone, and it is flown again. After each flight a
+\ debrief says what happened. How far each campaign has come is kept in a
+\ file in the home directory, so it outlasts the game.
+
+\ the campaigns, each its key, its title and its missions by name, in order
+[ { :key :scotland :title "DEFENCE OF SCOTLAND"
+    :missions [ "THE FORTH, 16 OCTOBER 1939" "SCAPA FLOW, 16 MARCH 1940" "FARNE ISLANDS, 15 AUGUST 1940"
+                "CLYDEBANK, 13 MARCH 1941" "GREENOCK, 6 MAY 1941" ] }
+  { :key :norway :title "NORWAY"
+    :missions [ "NARVIK, 28 MAY 1940" "HMS GLORIOUS, 7 JUNE 1940" "TIRPITZ AT TRONDHEIM, 5 MARCH 1942" ] } ] constant campaigns
+
+\ a campaign's place on the title's list: -1 the first campaign, -2 the second, so a list choice below 0 is a campaign and at or above 0 a mission
+: campaign-choice ( index -- choice ) 1+ negate ;
+: choice-campaign ( choice -- campaign ) negate 1- campaigns swap @i ;
+
+\ the file the campaigns' progress is kept in, in the home directory
+: progress-path ( -- path )
+	"HOME" env to home
+	home null? if "." to home then
+	home "/.telic-spitfire-campaigns" + ;
+
+\ how many of each campaign's missions are flown, by its key
+variable campaign-progress
+{ } to campaign-progress
+
+\ read the progress kept, none where there is no file
+: load-progress ( -- )
+	| ^campaign-progress |
+	progress-path file-exists? if progress-path load-value else { } then to campaign-progress ;
+
+\ keep the progress in its file
+: save-progress ( -- ) campaign-progress progress-path save-value ;
+
+\ how many of a campaign's missions are flown
+: flown-count ( campaign -- n ) | campaign | campaign-progress campaign@key 0 @or ;
+
+\ the index among all the missions of the one named
+: mission-named ( name -- index )
+	| name |
+	missions to all-missions
+	0 to found-at
+	0 all-missions size 1 do k
+		all-missions k @i to listed
+		listed@name name = if k to found-at then
+	loop
+	found-at ;
+
+\ the mission a campaign flies next: the one after those flown, its first again once all are
+: next-campaign-mission ( campaign -- index )
+	| campaign |
+	campaign flown-count campaign@missions size mod to place
+	campaign@missions place @i mission-named ;
+
+\ the list's line for a campaign: its title and how far it has come
+: campaign-line ( campaign -- text )
+	| campaign |
+	campaign flown-count to flown
+	campaign@missions size to n-missions
+	flown n-missions >= if
+		campaign@title "{0}  -  ALL FLOWN" format
+	else
+		flown 1+ n-missions campaign@title "{0}  -  {2} OF {1}" format
+	then ;
+
+\ the mission a list choice flies: a campaign's next, else the mission itself
+: choice-mission ( choice -- index )
+	| choice |
+	choice 0 < if choice choice-campaign next-campaign-mission else choice then ;
+
+\ a campaign begun again from its first mission when all its missions are flown and it is chosen
+: restart-if-flown ( choice -- )
+	| choice ^campaign-progress |
+	choice 0 >= if exit then
+	choice choice-campaign to campaign
+	campaign flown-count campaign@missions size >= if campaign-progress 0 campaign@key ! to campaign-progress then ;
+
+\ how a flight ended: the pilot down alive, by landing or by parachute on land or in the sea, the aircraft whole
+: down-alive? ( pilot -- flag )
+	| pilot |
+	pilot null? if :landed-said game@ plane@crashed not and exit then
+	pilot@state :down = pilot@state :in-sea = or ;
+
+\ whether a mission's task is done: a raid over, the carrier landed on, the Tirpitz caught on film, or for a mission with none of these, only the flight
+: task-done? ( mission -- flag )
+	| mission |
+	mission :raid null @or null? not if :raid-over game@ exit then
+	mission :carrier null @or null? not if plane@on-deck :landed-said game@ and exit then
+	mission :aircraft :fighter @or :reconnaissance = if tirpitz-frames size 0 > exit then
+	true ;
+
+\ the debrief's account of the flight just ended and whether the mission is flown: what became of the pilot and the aircraft, the task, and the raid
+: debrief-lines ( mission -- lines flown )
+	| mission |
+	:pilot game@ to pilot
+	pilot down-alive? to alive
+	mission task-done? to done
+	[ ] to lines
+	pilot null? not if
+		pilot@state :killed = if "KILLED: THE PARACHUTE FAILED" else
+		pilot@state :in-sea = if "BAILED OUT, PICKED UP FROM THE SEA" else
+		pilot@state :down = if "BAILED OUT, DOWN SAFE ON THE GROUND" else
+		"BAILED OUT, STILL FALLING WHEN THE FLIGHT ENDED" then then then
+	else plane@crashed if
+		plane@crash-reason upper-case "LOST: {0}" format
+	else :landed-said game@ if
+		plane@on-deck if "LANDED ON THE CARRIER" else "LANDED" then
+	else
+		"THE FLIGHT WAS BROKEN OFF IN THE AIR"
+	then then then lines swap add-last! drop
+	mission :raid null @or null? not if
+		lines :kills game@ "DESTROYED BY YOUR GUNS: {0}" format add-last! drop
+		lines :bombed game@ if "THE BOMBERS REACHED THE TARGET" else "THE BOMBERS NEVER REACHED THE TARGET" then add-last! drop
+		lines :raid-over game@ if "THE RAID IS OVER" else "THE RAID WAS STILL IN THE AIR" then add-last! drop
+	then
+	mission :aircraft :fighter @or :reconnaissance = if
+		lines tirpitz-frames size 0 > if "THE TIRPITZ IS ON THE FILM" else "THE TIRPITZ IS NOT ON THE FILM" then add-last! drop
+	then
+	lines alive done and ;
+
+\ the debrief over the whole screen: the mission, the account, and whether it is flown or to be flown again
+: draw-debrief ( -- )
+	0 0 view-width screen-height wall-colour fill-span
+	:debrief game@ to debrief
+	view-centre-x 40 debrief@title 0xffffff centred-print
+	view-centre-x 70 debrief@mission 0xffe080 centred-print
+	debrief@lines to lines
+	0 lines size 1 do k
+		view-centre-x 120 k 22 * + lines k @i dial-ink centred-print
+	loop
+	120 lines size 22 * + to y
+	debrief@flown if debrief@next "MISSION FLOWN  -  NEXT: {0}" format else "TO BE FLOWN AGAIN" then to verdict
+	view-centre-x y 20 + verdict 0xffffff centred-print
+	view-centre-x 456 "RETURN: FLY IT  -  ESCAPE: THE MISSIONS" 0xffffff centred-print ;

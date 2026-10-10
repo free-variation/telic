@@ -16,7 +16,7 @@
 \ left trigger the boost cut-out, A or the right trigger
 \ the guns, X the flaps, Y the undercarriage, B the brakes, the d-pad left
 \ and right turns the view, start pauses and back returns to the missions.
-\ On the title, the missions are listed under their groups, scrolling to
+\ On the title, the campaigns (campaign.telic) and then the missions are listed under their groups, scrolling to
 \ keep the chosen one in view: up and down or the d-pad choose a mission,
 \ return, start or A opens its briefing, H or Y shows the keys, and escape
 \ quits; on the briefing, return, start or A flies the mission and escape,
@@ -413,7 +413,7 @@ view-width 40 - constant message-line-width
 
 \ looking back from the cockpit. First the aircraft's own lines beyond 2 m, so the fuselage covers those behind it and the tailplane's tips, the fin, the mast and the aerial show past it. Then the fuselage behind the hood from its rings (aircraft.telic's) as sections: below the sill as far back as the glazing reaches, the rear windows above it left clear, then the razorback to the tail; its faces from the farthest to the nearest, each lit by how squarely it faces the light from above and to the right; the fairing standing across the fuselage behind the glazing in the cockpit's colour; over them the spine, the sills and each section's frame, and the rear windows' frames or the hood's rear frames. Last the head armour on the fairing, 26 cm wide and 22 cm high from the sill, its top corners cut, its upper and left edges catching the light, and a leather headrest pad 14 by 7 cm on it (estimates), and the aerial mast, nearer than the lines drawn first reach
 : draw-rear-view ( -- )
-	models plane@gear-position 0.5 > if plane@type@model-down else plane@type@kind then @ plane@position plane@attitude draw-model
+	models plane@gear-position 0.5 > if :flown-down else :flown then @ plane@position plane@attitude draw-model
 	plane@type@kind :hurricane = if hurricane-rings else spitfire-rings then 6 skip to rings
 	rear-glazing to window-end to sill
 	rings window-end ring-at to window-ring
@@ -756,7 +756,7 @@ variable wing-surfaces
 		crafts { :kind :carrier :position deck@centre :attitude deck@heading heading-attitude :state :sailing :smoke [ ] } add-last! drop
 	then
 	pilot null? not plane@crashed not and if
-		crafts { :kind plane@gear-position 0.5 > if plane@type@model-down else plane@type@kind then :position plane@position :attitude plane@attitude :state :flying :smoke [ ] } add-last! drop
+		crafts { :kind plane@type@kind :model plane@gear-position 0.5 > if :flown-down else :flown then :position plane@position :attitude plane@attitude :state :flying :smoke [ ] } add-last! drop
 	then
 	[ scenery-collection countryside-collection ] crafts draw-scene
 	pilot null? if
@@ -795,15 +795,20 @@ variable wing-surfaces
 	plane vision-loss draw-vision-loss
 	:chart-open game@ if draw-chart then ;
 
-\ a new flight of the chosen mission: the Spitfire at its start, the raid formed up, day or night
+\ a new flight of the chosen mission: the Spitfire at its start, its models wheels up and down in the mission's squadron code and its own letter kept as :flown and :flown-down, the raid formed up, day or night
 : new-flight ( choice -- )
 	| choice ^plane ^game ^moon-sky ^deck |
-	missions choice @i to mission
+	choice restart-if-flown
+	missions choice choice-mission @i to mission
 	mission :carrier null @or to deck
 	game :aircraft-choice :spitfire @or to aircraft-choice
 	mission@start spread new-plane to plane
 	mission :aircraft :fighter @or :reconnaissance = if plane make-reconnaissance then
 	mission aircraft-choice flown-in :hurricane = if plane hurricane-mk-i use-type then
+	mission mission-code drop to flown-code
+	mission 0 mission-letter to flown-letter
+	models plane@type@kind flown-code flown-letter false marked-model :flown !
+	plane@type@kind flown-code flown-letter true marked-model :flown-down ! drop
 	mission :ballast null @or plane!ballast
 	mission@propeller plane!propeller
 	mission@emergency plane!emergency-allowed
@@ -939,11 +944,14 @@ variable wing-surfaces
 : mission-groups ( -- groups )
 	[ [ :battle "BATTLES" ] [ :reconnaissance "RECONNAISSANCE" ] [ :training "TRAINING" ] [ :free "FREE FLIGHT" ] ] ;
 
-\ the list's rows, each [ text mission ]: each group's heading, its mission null, then the group's missions by their indices
+\ the list's rows, each [ text choice ]: the campaigns' heading and each campaign by its choice below 0; then each group's heading, its choice null, then the group's missions by their indices
 : menu-rows ( missions -- rows )
 	| all-missions |
 	mission-groups to groups
-	[ ] to rows
+	[ [ "CAMPAIGNS" null ] ] to rows
+	0 campaigns size 1 do c
+		rows [ campaigns c @i campaign-line c campaign-choice ] add-last! drop
+	loop
 	0 groups size 1 do g
 		groups g @i to group
 		rows [ group second null ] add-last! drop
@@ -1084,20 +1092,53 @@ help-pages size 1+ constant help-page-count
 	:left key-pressed? :dpad-left pad-pressed? or if page 1- help-page-count + help-page-count mod :help-page game! then
 	:escape key-pressed? :h key-pressed? or :back pad-pressed? or :east pad-pressed? or :north pad-pressed? or ;
 
-\ the title: the Forth Bridge from an eye circling it slowly, across the whole screen, lit as the chosen mission is; its story; the list of missions; what the keys do
+\ the title's flight over the Forth Bridge: a vic of three Spitfires flying along the bridge above its rail, pass after pass from beyond one end to beyond the other, each pass the other way, at a speed; the eye flying with them, behind the leader, to its left and above it, looking along their course a turn to the right and a little down, so the leader and one wingman stand right of the list with the bridge passing beneath, and the other wingman, the Kelvingrove Spitfire in its markings, wide on the leader's left, flies beside the eye some 28 m from it, large in the view left of the list; each Spitfire's place [ across up along ] from the leader
+200 constant title-vic-height
+120 constant title-vic-speed
+-1700 constant title-pass-from
+1300 constant title-pass-to
+-80 constant title-eye-across
+30 constant title-eye-rise
+-170 constant title-eye-along
+-2 constant title-look-turn
+-8 constant title-look-pitch
+[ -94 18 -146 ] constant title-near-wingman
+
+\ the title's Spitfires at a time since the title began, the bridge's middle at a point: the crafts as draw-scene takes them, the leader's position and its course
+: title-flight ( bridge time -- crafts leader course )
+	| bridge time |
+	:inchgarvie :north-queensferry landmark-heading to bridge-heading
+	title-pass-to title-pass-from - to pass-length
+	pass-length title-vic-speed / to pass-time
+	time pass-time / round-down to pass
+	time pass pass-time * - title-vic-speed * to flown
+	pass 2 mod 0 = if
+		bridge bridge-heading 0 title-vic-height title-pass-from flown + placed to leader
+		bridge-heading to course
+	else
+		bridge bridge-heading 0 title-vic-height title-pass-to flown - placed to leader
+		bridge-heading 180 + to course
+	then
+	course 0 0 flying-attitude to attitude
+	[ [ :spitfire-title-leader [ 0 0 0 ] ] [ :spitfire-kelvingrove title-near-wingman ] [ :spitfire-title-wingman [ 20 0 -15 ] ] ] ( flier |
+		{ :kind :spitfire :model flier first :position leader course flier second spread placed :attitude attitude :state :flying :smoke [ ] }
+	) map leader course ;
+
+\ the title: the Spitfires over the Forth Bridge seen from the eye flying with them, across the whole screen, lit as the chosen mission is, with the countryside and the clouds; its story; the list of missions; what the keys do
 : draw-title ( rows missions -- )
 	| rows all-missions ^moon-sky |
 	screen-height view-rows!
-	all-missions :choice game@ @i to chosen
+	all-missions :choice game@ choice-mission @i to chosen
 	chosen@night if use-night else use-day then
 	chosen :moon null @or to moon-sky
 	chosen@visibility use-visibility
-	:title-time game@ 0.04 * to angle
-	:inchgarvie landmark-ground to bridge
-	bridge [ angle sin 1700 * 120 angle cos 1700 * ] v+ to eye-point
-	bridge eye-point v- heading-of heading-attitude to attitude
-	eye-point attitude look-from
-	[ scenery-collection ] [ ] draw-scene
+	:inchgarvie landmark-ground :title-time game@ title-flight to course to leader to crafts
+	leader course title-eye-across title-eye-rise title-eye-along placed to eye-point
+	eye-point course title-look-turn + title-look-pitch 0 flying-attitude look-from
+	eye-point use-water-near
+	eye-point refresh-countryside
+	eye-point refresh-clouds
+	[ scenery-collection countryside-collection ] crafts draw-scene
 	view-centre-x 20 "SPITFIRE" 0xffffff centred-print
 	chosen@story to story-lines
 	0 story-lines size 1 do k
@@ -1112,12 +1153,12 @@ help-pages size 1+ constant help-page-count
 \ the chosen mission's briefing opened: its map's frame and shore lines worked out once
 : open-briefing ( missions -- )
 	| all-missions |
-	all-missions :choice game@ @i map-frame to frame
+	all-missions :choice game@ choice-mission @i map-frame to frame
 	frame :briefing-frame game!
 	frame map-lines :briefing-lines game!
 	:briefing :screen game! ;
 
-\ a frame of the title. On the list: escape quits, up and down choose a mission, return or start opens its briefing, H or Y the keys. On the keys: escape, H, Y or back returns to the list. On the briefing: left and right choose the Spitfire or the Hurricane where the mission allows, return or start flies the mission, escape or back returns to the list
+\ a frame of the title. On the list: escape quits, up and down choose a campaign or a mission, return or start opens the briefing of the mission chosen or of the campaign's next, H or Y the keys. On the keys: escape, H, Y or back returns to the list. On the briefing: left and right choose the Spitfire or the Hurricane where the mission allows, return or start flies the mission, escape or back returns to the list. On a campaign's debrief: return or start flies the campaign's next mission, the one just flown again when it is not flown, escape or back returns to the list
 : title-frame ( elapsed -- )
 	| elapsed |
 	:title-time game@ elapsed + :title-time game!
@@ -1133,11 +1174,17 @@ help-pages size 1+ constant help-page-count
 	title-screen :briefing = if
 		:escape key-pressed? :back pad-pressed? or :east pad-pressed? or if :list :screen game! exit then
 		:return key-pressed? :start pad-pressed? or :south pad-pressed? or if :choice game@ new-flight exit then
-		all-missions :choice game@ @i to mission
+		all-missions :choice game@ choice-mission @i to mission
 		:left key-pressed? :right key-pressed? or :dpad-left pad-pressed? or :dpad-right pad-pressed? or mission aircraft-choosable? and if
 			:aircraft-choice game@ :hurricane = if :spitfire else :hurricane then :aircraft-choice game!
 		then
 		mission :briefing-frame game@ :briefing-lines game@ :aircraft-choice game@ draw-briefing
+		exit
+	then
+	title-screen :debrief = if
+		:escape key-pressed? :back pad-pressed? or :east pad-pressed? or if :list :screen game! exit then
+		:return key-pressed? :start pad-pressed? or :south pad-pressed? or if :choice game@ new-flight exit then
+		draw-debrief
 		exit
 	then
 	:escape key-pressed? if false :running game! exit then
@@ -1156,6 +1203,25 @@ help-pages size 1+ constant help-page-count
 	game :aircraft-choice :spitfire @or to aircraft-choice
 	{ :running true :title true :title-time 0 :choice choice :screen :list :scroll 0
 	  :briefing-frame null :briefing-lines [ ] :aircraft-choice aircraft-choice } to game ;
+
+\ the end of a campaign's flight: the debrief worked out from the flight before the title replaces it, the mission counted flown and the progress kept when it is, then the title showing the debrief
+: end-campaign-flight ( -- )
+	| ^campaign-progress |
+	:choice game@ to choice
+	choice choice-campaign to campaign
+	missions choice choice-mission @i to mission
+	mission debrief-lines to flown to lines
+	flown if
+		campaign-progress campaign flown-count 1+ campaign@key ! to campaign-progress
+		save-progress
+	then
+	campaign flown-count campaign@missions size >= if "THE CAMPAIGN IS FLOWN" else campaign@missions campaign flown-count @i then to next
+	choice show-title
+	{ :title campaign@title :mission mission@name :lines lines :flown flown :next next } :debrief game!
+	:debrief :screen game! ;
+
+\ leaving a flight: to the debrief from a campaign's mission, else to the list
+: leave-flight ( -- ) :choice game@ 0 < if end-campaign-flight else :choice game@ show-title then ;
 
 \ the frames a second, each frame's real time folded into a running average over about ten frames
 variable frame-rate
@@ -1185,7 +1251,7 @@ variable frame-work
 	:title game@ if elapsed title-frame exit then
 	:reviewing game@ if
 		scenery-collection review-frame
-		:reviewing game@ not if :choice game@ show-title then
+		:reviewing game@ not if leave-flight then
 		exit
 	then
 	:help-page game@ null? not if
@@ -1198,7 +1264,7 @@ variable frame-work
 		0 draw-help
 		exit
 	then
-	:escape key-pressed? :back pad-pressed? or if :choice game@ show-title exit then
+	:escape key-pressed? :back pad-pressed? or if leave-flight exit then
 	:v key-pressed? :landed-said game@ and photos size 0 > and if
 		true :reviewing game!
 		0 :review-index game!

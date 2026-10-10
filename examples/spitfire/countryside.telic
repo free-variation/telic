@@ -47,7 +47,7 @@ variable countryside-cell
 
 0x8c8878 constant road-colour
 
-\ a kilometre of water's ripples: strokes 60 m long running east and west, those that fall on water; null when none does
+\ a kilometre of water's ripples: strokes 60 m long running east and west, those that fall on water, sorted a kilometre's reach farther so they are drawn before anything on the water; null when none does
 : ripples ( column row n-strokes -- object )
 	| column row n-strokes |
 	land-origin-x column land-cell * + to west
@@ -64,7 +64,7 @@ variable countryside-cell
 		then
 	loop
 	n-drawn 0 = if null exit then
-	waves bank-colour sketch>object ;
+	waves bank-colour sketch>object land-cell :reach ! ;
 
 \ a line along the ground at sea level, a point every 100 m, so it can follow the ground once lifted
 : ground-line ( sketch from onto coastal -- )

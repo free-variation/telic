@@ -72,7 +72,7 @@ variable aircraft-figures
   :hurricane { :empty 2260 :frontal 4.2 :planform 23.92 :side 9.5 }
   :bf-110 { :empty 4500 :frontal 7.9 :planform 38.5 :side 14 }
   :he-111 { :empty 6900 :frontal 14.9 :planform 87.6 :side 30 }
-  :ju-88 { :empty 8050 :frontal 12.3 :planform 54.5 :side 26 }
+  :ju-88 { :empty 8050 :frontal 12.3 :planform 54.7 :side 26 }
   :lysander { :empty 1887 :frontal 4.5 :planform 24.15 :side 11 }
   :drogue { :empty 2184 :frontal 0.79 :planform 5.1 :side 5.1 } } to aircraft-figures
 

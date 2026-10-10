@@ -152,10 +152,7 @@ hurricane-mk-i-figures :hub @ constant hurricane-hub
 \ the tyres' black (an estimate)
 0x262626 constant tyre-colour
 
-\ beyond this distance an aircraft is drawn by its distant model, where a metre is a third of a pixel
-1200 constant far-distance
-
-\ an aircraft as it shows from afar: a four-sided body along its length, the wings', the tailplane's and the fin's outlines filled, a line for each engine out on the wing; in its upper colour, the faces turned down in its under colour
+\ a simple aircraft: a four-sided body along its length, the wings', the tailplane's and the fin's outlines filled, a line for each engine out on the wing; in its upper colour, the faces turned down in its under colour
 : far-model ( span length engine-out colour under-colour -- model )
 	| span length engine-out colour under-colour |
 	new-model-sketch to model
@@ -292,7 +289,7 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 : spitfire-aileron-chord ( out -- chord ) spitfire-aileron-inner - spitfire-aileron-outer spitfire-aileron-inner - / 0.22 * 0.42 swap - ;
 
 \ the right wing's outline, the split flap's hinge and the aileron's, as [ out along ] points
-: spitfire-wing-outline ( -- pairs ) [ 0.6 1.5 2.5 3.5 4.3 4.9 5.3 5.5 5.6 ] spitfire-half-span spitfire-root-chord spitfire-spar 0.3 elliptical-outline ;
+: spitfire-wing-outline ( -- pairs ) [ 0 1.5 2.5 3.5 4.3 4.9 5.3 5.5 5.6 ] spitfire-half-span spitfire-root-chord spitfire-spar 0.3 elliptical-outline ;
 : spitfire-flap-hinge ( -- pairs ) [ 0.6 1.6 2.6 spitfire-aileron-inner ] ( out | [ out out wing-trailing-at spitfire-flap-chord + ] ) map ;
 : spitfire-aileron-hinge ( -- pairs )
 	[ spitfire-aileron-inner 3.5 4.2 spitfire-aileron-outer ] ( out | [ out out wing-trailing-at out spitfire-aileron-chord + ] ) map ;
@@ -420,7 +417,92 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 	  [ -0.10 0.40 0.55 -0.25 ] [ -0.12 0.33 0.695 -0.105 ] [ -1.4 0.34 0.64 -0.09 ] [ -2.6 0.25 0.52 -0.08 ]
 	  [ -4.6 0.085 0.33 0 ] [ -5.0 0.04 0.25 0 ] ] ;
 
-: spitfire-model ( wheels-down -- model )
+\ the fighters' code letters in Medium Sea Grey, the serial in black (estimates of the shades)
+0xa0a4a2 constant code-letter-colour
+0x161616 constant serial-colour
+
+\ a point on a side of a body of rings of a number of sides about the line through the origin, -1 the left and 1 the right, at a station along and a height: on the face of the ring between the two corners the height falls between, a distance proud of it across
+: ring-side-point ( rings n-sides along up side proud -- point )
+	| rings n-sides along up side proud |
+	rings along body-ring-at spread to lift to half-height to half-width drop
+	half-width to across
+	0 n-sides 2 / 1 do k
+		k n-sides / TAU * to upper-angle
+		k 1+ n-sides / TAU * to lower-angle
+		upper-angle cos half-height * lift + to upper-height
+		lower-angle cos half-height * lift + to lower-height
+		up upper-height <= up lower-height >= and if
+			up upper-height - lower-height upper-height - / to share
+			upper-angle sin lower-angle sin upper-angle sin - share * + half-width * to across
+		then
+	loop
+	[ side across proud + * up along ] ;
+
+\ lettering painted on a side of a body of rings of a number of sides, -1 the left and 1 the right: each character's strokes from the stroke font as bands 0.8 of a grid unit wide, a grid unit a sixth of the capital height, on the skin a little proud of it, the capitals a height tall about a height up; read from the nose toward the tail on the left side and from the tail toward the nose on the right, so it reads left to right either way, the first character's leading edge at a station along
+: sketch-body-lettering ( sketch rings n-sides text start height up side colour -- )
+	| sketch rings n-sides text start height up side colour |
+	height 6 / to unit
+	unit 0.8 * 2 / to half-band
+	up height 2 / + to top
+	( place | rings n-sides place first place second side 0.03 ring-side-point ) to on-skin
+	text upper-case string>chars to characters
+	0 characters size 1 do k
+		stroke-glyphs characters k @i string>symbol null @or to strokes
+		strokes null? not if
+			strokes ( stroke |
+				0 stroke size 2 - 2 do p
+					start k 5 * stroke p @i + unit * side * + to a0
+					top stroke p 1+ @i unit * - to u0
+					start k 5 * stroke p 2 + @i + unit * side * + to a1
+					top stroke p 3 + @i unit * - to u1
+					a1 a0 - to da
+					u1 u0 - to du
+					da sq du sq + sqrt half-band / to scale
+					du negate scale / to na
+					da scale / to nu
+					[ [ a0 na + u0 nu + ] [ a1 na + u1 nu + ] [ a1 na - u1 nu - ] [ a0 na - u0 nu - ] ]
+					on-skin map to corners
+					sketch corners [ 0 up a0 a1 + 2 / ] colour sketch-painted-plate
+				loop
+			) each
+		then
+	loop ;
+
+\ the code letters' height and their gap from the fuselage roundel's edge, the serial's height (estimates)
+0.5 constant code-letter-height
+0.15 constant code-letter-gap
+0.2 constant serial-height
+
+\ the length along of lettering at a capital height: five grid units a character, less the last one's gap
+: lettering-length ( text height -- metres ) | text height | text size 5 * 1- height 6 / * ;
+
+\ a fighter's squadron code, its own letter and its serial on both sides of a body of rings of a number of sides, about its fuselage roundel at a station along of a radius and a height up: the code ahead of the roundel on the left side and behind it on the right, the letter on the other side of it, as the squadrons painted them; the serial, unless empty, behind the code and the letter, its leading edge at a station along
+: sketch-markings ( sketch rings n-sides roundel-along roundel-radius up code letter serial serial-along -- )
+	| sketch rings n-sides roundel-along roundel-radius up code letter serial serial-along |
+	roundel-along roundel-radius + code-letter-gap + to ahead
+	roundel-along roundel-radius - code-letter-gap - to behind
+	code code-letter-height lettering-length to code-length
+	sketch rings n-sides code ahead code-length + code-letter-height up -1 code-letter-colour sketch-body-lettering
+	sketch rings n-sides letter behind code-letter-height up -1 code-letter-colour sketch-body-lettering
+	sketch rings n-sides code behind code-length - code-letter-height up 1 code-letter-colour sketch-body-lettering
+	sketch rings n-sides letter ahead code-letter-height up 1 code-letter-colour sketch-body-lettering
+	serial size 0 > if
+		sketch rings n-sides serial serial-along serial-height up -1 serial-colour sketch-body-lettering
+		sketch rings n-sides serial serial-along serial serial-height lettering-length - serial-height up 1 serial-colour sketch-body-lettering
+	then ;
+
+\ the Spitfire's fuselage roundel: its station along, its radii and its height (the radii in the proportion of a Type A1's inner three rings, the yellow outer ring left out)
+-2.3 constant spitfire-fuselage-roundel-along
+[ 0.38 0.27 0.11 ] constant spitfire-fuselage-roundel-radii
+-0.085 constant spitfire-fuselage-roundel-up
+
+\ a Spitfire's squadron code, its own letter and, unless empty, its serial near the tail
+: sketch-spitfire-markings ( sketch code letter serial -- )
+	| sketch code letter serial |
+	sketch spitfire-rings 8 spitfire-fuselage-roundel-along spitfire-fuselage-roundel-radii first spitfire-fuselage-roundel-up
+	code letter serial -4.05 sketch-markings ;
+
+: spitfire-sketch ( wheels-down -- sketch )
 	| wheels-down |
 	new-model-sketch sky-paint-colour :under-colour ! to model
 	model spitfire-rings [ 0 0 0 ] 8 sketch-body
@@ -448,10 +530,20 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 	[ -1 1 ] ( side |
 		side 3.7 * to out
 		[ out out wing-height-at 0.02 + out wing-leading-at out wing-trailing-at + 2 / ] to centre
-		model centre [ 1 0 0 ] [ 0 0 1 ] [ 0 1 0 ] [ spitfire-roundel-radius spitfire-roundel-centre-radius ] [ roundel-blue-colour roundel-red-colour ] sketch-roundel
-		model [ side 0.33 * -0.1 -2.3 ] [ 0 0 1 ] [ 0 1 0 ] [ side 0 0 ] [ 0.5 0.35 0.15 ] [ roundel-blue-colour roundel-white-colour roundel-red-colour ] sketch-roundel
+		[ 1 side spitfire-dihedral * 0 ] v-unit to along-span
+		[ side spitfire-dihedral * negate 1 0 ] v-unit to off-wing
+		model centre along-span [ 0 0 1 ] off-wing [ spitfire-roundel-radius spitfire-roundel-centre-radius ] [ roundel-blue-colour roundel-red-colour ] sketch-roundel
+		model [ side 0.28 * spitfire-fuselage-roundel-up spitfire-fuselage-roundel-along ] [ 0 0 1 ] [ 0 1 0 ] [ side 0 0 ] spitfire-fuselage-roundel-radii [ roundel-blue-colour roundel-white-colour roundel-red-colour ] sketch-roundel
 	) each
 	wheels-down if model sketch-undercarriage then
+	model ;
+
+: spitfire-model ( wheels-down -- model ) spitfire-sketch dark-green-colour sketch>object ;
+
+\ the Spitfire preserved at Kelvingrove, LA198 of 602 (City of Glasgow) Squadron, in the code it carried, RAI-G (warmemorialsonline.org.uk, warbirdregistry.org): wheels up, its markings painted
+: kelvingrove-spitfire-model ( -- model )
+	false spitfire-sketch to model
+	model "RAI" "G" "LA198" sketch-spitfire-markings
 	model dark-green-colour sketch>object ;
 
 \ === the Hurricane ===
@@ -619,14 +711,34 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 	  [ -6.1 0.92 ] [ -6.25 0.46 ] [ -6.2 0.0 ] [ -6.1 -0.33 ] [ -5.9 -0.43 ] [ -5.7 -0.49 ] [ -5.5 -0.5 ] ] ;
 : hurricane-rudder ( -- pairs ) [ [ -5.5 1.37 ] [ -5.5 -0.5 ] ] ;
 
-\ the Hurricane Mk I: the fuselage of ten-sided rings from the cowling to the rudder's hinge, deep to its end, and the keel along its underside from the tail wheel to the rudder's lower corner, the spinner and the three-blade propeller, six exhaust stubs a side, the hood and spine, the wings, the radiator under the fuselage, a tub with a U-shaped section deepest behind its intake, the tailplane and elevators, the fin and rudder, the aerial mast and its wire, the roundels on the upper wings; the undercarriage when down. Filled as the Spitfire is, in Dark Green with its own Dark Earth patches, Sky below
+\ the Hurricane Mk I: the fuselage of ten-sided rings from the cowling to the rudder's hinge, deep to its end, and the keel along its underside from the tail wheel to the rudder's lower corner, the spinner and the three-blade propeller, six exhaust stubs a side, the hood and spine, the wings, the radiator under the fuselage, a tub with a U-shaped section deepest behind its intake, the tailplane and elevators, the fin and rudder, the aerial mast and its wire, the roundels on the upper wings, each tilted to its wing's dihedral, and on the fuselage's sides; the undercarriage when down. Filled as the Spitfire is, in Dark Green with its own Dark Earth patches, Sky below
 \ the Hurricane's fuselage rings from the cowling to the rudder's hinge, the seventh the first behind the hood
 : hurricane-rings ( -- rings )
 	[ [ 2.85 0.28 0.285 0.035 ] [ 2.5 0.38 0.40 0 ] [ 2.1 0.51 0.55 -0.07 ] [ 1.5 0.55 0.635 -0.125 ] [ 0.5 0.53 0.69 -0.13 ]
 	  [ -0.95 0.53 0.64 -0.18 ] [ -0.97 0.53 0.815 -0.005 ] [ -1.4 0.53 0.795 -0.015 ] [ -2.5 0.47 0.655 -0.105 ] [ -3.5 0.37 0.51 -0.16 ]
 	  [ -4.5 0.25 0.49 -0.24 ] [ -5.3 0.12 0.33 -0.26 ] [ -5.5 0.08 0.30 -0.25 ] ] ;
 
-: hurricane-model ( wheels-down -- model )
+\ the Hurricane's fuselage roundel, behind the hood: its station along, its radii and its height (estimates from photographs, the radii as the Spitfire's, a Type A1's inner three rings, the yellow outer ring left out)
+-2.4 constant hurricane-fuselage-roundel-along
+[ 0.38 0.27 0.11 ] constant hurricane-fuselage-roundel-radii
+0.02 constant hurricane-fuselage-roundel-up
+
+\ a roundel painted on each side of a body of rings of a number of sides: discs of sixteen points about a station along and a height up, each laid on the skin a little prouder than the one before, from the largest, a colour for each
+: sketch-skin-roundel ( sketch rings n-sides along up radii colours -- )
+	| sketch rings n-sides along up radii colours |
+	[ -1 1 ] ( side |
+		0 radii size 1 do k
+			radii k @i to radius
+			0.03 k 0.006 * + to proud
+			[ 0 16 1 do c
+				c 16 / TAU * to angle
+				rings n-sides along angle cos radius * + up angle sin radius * + side proud ring-side-point
+			loop ] to corners
+			sketch corners [ 0 up along ] colours k @i sketch-painted-plate
+		loop
+	) each ;
+
+: hurricane-sketch ( wheels-down -- sketch )
 	| wheels-down |
 	new-model-sketch sky-paint-colour :under-colour ! to model
 	model hurricane-rings [ 0 0 0 ] 10 sketch-body
@@ -651,7 +763,28 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 	[ -1 1 ] ( side |
 		side 4.2 * to out
 		[ out out 0.5 hurricane-upper-at 0.03 + out hurricane-leading-at out hurricane-trailing-at + 2 / ] to centre
-		model centre [ 1 0 0 ] [ 0 0 1 ] [ 0 1 0 ] [ hurricane-roundel-radius hurricane-roundel-centre-radius ] [ roundel-blue-colour roundel-red-colour ] sketch-roundel
+		[ 1 side hurricane-dihedral * 0 ] v-unit to along-span
+		[ side hurricane-dihedral * negate 1 0 ] v-unit to off-wing
+		model centre along-span [ 0 0 1 ] off-wing [ hurricane-roundel-radius hurricane-roundel-centre-radius ] [ roundel-blue-colour roundel-red-colour ] sketch-roundel
 	) each
+	model hurricane-rings 10 hurricane-fuselage-roundel-along hurricane-fuselage-roundel-up hurricane-fuselage-roundel-radii
+	[ roundel-blue-colour roundel-white-colour roundel-red-colour ] sketch-skin-roundel
 	wheels-down if model sketch-hurricane-undercarriage then
+	model ;
+
+: hurricane-model ( wheels-down -- model ) hurricane-sketch dark-green-colour sketch>object ;
+
+\ a Hurricane's squadron code and its own letter about its fuselage roundel
+: sketch-hurricane-markings ( sketch code letter -- )
+	| sketch code letter |
+	sketch hurricane-rings 10 hurricane-fuselage-roundel-along hurricane-fuselage-roundel-radii first hurricane-fuselage-roundel-up
+	code letter "" 0 sketch-markings ;
+
+\ a fighter of a kind, :spitfire or :hurricane, wheels up or down, in a squadron's code and its own letter; the plain model where the code is empty
+: marked-model ( kind code letter wheels-down -- model )
+	| kind code letter wheels-down |
+	kind :hurricane = if wheels-down hurricane-sketch else wheels-down spitfire-sketch then to model
+	code size 0 > if
+		kind :hurricane = if model code letter sketch-hurricane-markings else model code letter "" sketch-spitfire-markings then
+	then
 	model dark-green-colour sketch>object ;

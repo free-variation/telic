@@ -82,6 +82,8 @@ LAT_MIN, LAT_MAX, LON_MIN, LON_MAX = 54.9, 58.7, -5.2, -1.3
 MAINLAND_BOX = (LAT_MIN, LON_MIN, LAT_MAX, LON_MAX)
 ISLES_BOX = (58.7, -3.5, 60.9, -0.6)
 LOMOND_BOX = (55.95, -4.8, 56.35, -4.4)
+FORTH_BOX = (55.88, -3.85, 56.27, -2.50)
+FORTH_MARGIN_METRES = 1000.0
 SIMPLIFY_METRES = 150.0
 COARSE_ISLES_METRES = 1000.0
 COARSE_ISLES_SMALLEST = 200000
@@ -656,6 +658,19 @@ def coast_land(box, tolerance=40.0, smallest=20000):
     return land, shores
 
 
+def forth_patch(outlines):
+    south, west, north, east = FORTH_BOX
+    corners = [to_ground(lon, lat) for lon, lat in [(west, south), (east, south), (east, north), (west, north)]]
+    x_low = max(corners[0][0], corners[3][0]) + FORTH_MARGIN_METRES
+    x_high = min(corners[1][0], corners[2][0]) - FORTH_MARGIN_METRES
+    z_low = max(corners[0][1], corners[1][1]) + FORTH_MARGIN_METRES
+    z_high = min(corners[2][1], corners[3][1]) - FORTH_MARGIN_METRES
+    land, _ = coast_land(FORTH_BOX)
+    def clipped(rings):
+        return [ring for ring in (clip_ring(r, x_low, z_low, x_high, z_high) for r in rings) if len(ring) >= 3]
+    return clipped(outlines), clipped(land)
+
+
 def key_of(name):
     return name.lower().replace(" ", "-")
 
@@ -829,6 +844,7 @@ def main():
     coarse_isles, _ = coast_land(ISLES_BOX, COARSE_ISLES_METRES, COARSE_ISLES_SMALLEST)
     coast += isles_shores
     outlines = land_outlines(frame)
+    forth_cut, forth_land = forth_patch(outlines)
     cities = {name: city_features(city) for name, city in CITIES.items()}
     norway, norway_shores = coast_land(NORWAY_BOX)
 
@@ -871,6 +887,16 @@ def main():
               "["]
     lines += ["  " + polyline_text(ring) for ring in outlines]
     lines += ["] to land-outlines", "",
+              "\\ the Firth of Forth's land from OpenStreetMap's coastline, (c) OpenStreetMap contributors under",
+              "\\ the ODbL, simplified to 40 m: within a rectangle 1 km inside {}-{} N, {}-{} E, the mainland's".format(
+                  FORTH_BOX[0], FORTH_BOX[2], FORTH_BOX[1], FORTH_BOX[3]),
+              "\\ outlines clipped to the same rectangle, and the coast's land clipped to it; water lies where an",
+              "\\ odd number of rings' edges is crossed, so the two together put the finer coast in the coarse one's place",
+              "["]
+    lines += ["  " + polyline_text(ring) for ring in forth_cut]
+    lines += ["] to forth-coarse-land", "["]
+    lines += ["  " + polyline_text(ring) for ring in forth_land]
+    lines += ["] to forth-land", "",
               "\\ Orkney's and Shetland's outlines from OpenStreetMap, closed: simplified to 150 m, and coarsely,",
               "\\ to 1,000 m without the islands under 20 hectares, for filling the water from afar",
               "["]
