@@ -11,6 +11,12 @@
 \ a new, empty sketch
 : new-sketch ( -- sketch ) { :points [ ] :edges [ ] :faces [ ] } ;
 
+\ the dark ink of the moving models' lines by day
+0x161a20 constant model-ink
+
+\ a new, empty sketch for a moving model, its lines on no face in the model ink
+: new-model-sketch ( -- sketch ) new-sketch model-ink :line-colour ! ;
+
 \ a face of a sketch, filled as a side of a solid: its corners' indices in turn round it, and a point inside the solid, so the face knows which way is out
 : sketch-face ( sketch indices inside -- )
 	| sketch indices inside |
@@ -20,6 +26,34 @@
 : inside-of ( sketch indices -- point )
 	| sketch indices |
 	indices ( index | sketch@points index @i ) map [ 0 0 0 ] ' v+ reduce 1 indices size / v* ;
+
+\ a face of a sketch in a colour of its own rather than the object's
+: sketch-painted-face ( sketch indices inside colour -- )
+	| sketch indices inside colour |
+	sketch@faces [ indices inside colour ] add-last! drop ;
+
+\ the unit normal of a polygon's corners by Newell's method, which holds for a polygon not convex and for three corners in a line; either way round
+: polygon-normal ( corners -- normal )
+	| corners |
+	corners size to n-corners
+	[ 0 0 0 ] to normal
+	0 n-corners 1 do k
+		corners k @i spread to az to ay to ax
+		corners k 1+ n-corners mod @i spread to bz to by to bx
+		normal [ ay by - az bz + * az bz - ax bx + * ax bx - ay by + * ] v+ to normal
+	loop
+	normal v-length 1e-12 max2 to length
+	normal 1 length / v* ;
+
+\ a thin flat surface's corners as two faces back to back, each facing away from a point just behind it, so it shows from either side; in a colour of its own, or null for the object's
+: sketch-sheet ( sketch indices colour -- )
+	| sketch indices colour |
+	sketch indices inside-of to middle
+	indices ( index | sketch@points index @i ) map polygon-normal 0.01 v* to offset
+	[ -1 1 ] ( side |
+		sketch indices middle offset side v* v+
+		colour null? if sketch-face else colour sketch-painted-face then
+	) each ;
 
 \ add a point to a sketch and answer its index
 : sketch-point ( sketch point -- index )
@@ -60,6 +94,66 @@
 	| sketch points |
 	sketch sketch points sketch-points join-loop ;
 
+\ a rod of square section a width across from one point to another, a gun's barrel: its four sides and two ends filled in a colour, their edges kept
+: sketch-rod ( sketch breech muzzle width colour -- )
+	| sketch breech muzzle width colour |
+	muzzle breech v- v-unit to direction
+	direction second abs 0.9 > if [ 1 0 0 ] else [ 0 1 0 ] then direction v-cross v-unit width 2 / v* to across
+	direction across v-cross to up
+	[ breech muzzle ] ( end |
+		sketch [ end across v+ up v+ end across v- up v+ end across v- up v- end across v+ up v- ] sketch-points
+	) map to ends
+	breech muzzle 0.5 v-between to inside
+	sketch ends first join-loop
+	sketch ends second join-loop
+	sketch ends first inside colour sketch-painted-face
+	sketch ends second inside colour sketch-painted-face
+	0 4 1 do k
+		k 1+ 4 mod to next
+		sketch ends first k @i ends second k @i sketch-edge
+		sketch [ ends first k @i ends first next @i ends second next @i ends second k @i ] inside colour sketch-painted-face
+	loop ;
+
+\ a closed outline of points and the thin flat surface inside it, showing from either side, in a colour of its own or null for the object's
+: sketch-plate ( sketch points colour -- )
+	| sketch points colour |
+	sketch points sketch-points to corners
+	sketch corners join-loop
+	sketch corners colour sketch-sheet ;
+
+\ how much nearer than its centre a mark painted on a surface is sorted, metres, so it is drawn after the surface under it, whose centre may lie nearer
+2 constant mark-lead
+
+\ a mark painted on a surface: a closed outline of points and the surface inside it showing on one side only, the side away from a point, in a colour of its own, sorted a mark's lead nearer
+: sketch-painted-plate ( sketch points inside colour -- )
+	| sketch points inside colour |
+	sketch points sketch-points to corners
+	sketch corners join-loop
+	sketch@faces [ corners inside colour mark-lead ] add-last! drop ;
+
+\ a closed outline of points lying flat and the surface inside it facing up, in the object's colour, for ground seen from above
+: sketch-floor ( sketch points -- )
+	| sketch points |
+	sketch points sketch-points to corners
+	sketch corners join-loop
+	sketch corners sketch corners inside-of [ 0 1 0 ] v- sketch-face ;
+
+\ a closed outline of pairs cut by a line: the part where a pair's element, first or second, is at least a limit (keep 1) or at most it (keep -1), new corners where the outline crosses the line (Sutherland and Hodgman)
+: clip-pairs ( pairs element limit keep -- pairs' )
+	| pairs element limit keep |
+	pairs size to n-pairs
+	[ 0 n-pairs 1 do k
+		pairs k @i to a
+		pairs k 1+ n-pairs mod @i to b
+		a element @i limit - keep * to a-room
+		b element @i limit - keep * to b-room
+		a-room 0 >= if a then
+		a-room 0 >= b-room 0 >= = not if
+			a-room a-room b-room - / to share
+			[ a first b first a first - share * + a second b second a second - share * + ]
+		then
+	loop ] ;
+
 \ a sketch's edges that lie on none of its faces' boundaries, a flat array of indices in pairs
 : loose-edges ( sketch -- edges )
 	| sketch |
@@ -80,7 +174,10 @@
 		on-faces a b min2 a b max2 "{1}/{0}" format string>symbol has? not if a b then
 	loop ] ;
 
-\ the finished object: points as an n×4 matrix, edges, colour, and the sphere around the points; with faces also each face's corners, its centre as a row of an m×4 matrix, and its outward normal, away from the point inside its solid, as a row of an m×3 matrix of unit vectors, and the edges on no face
+\ the share of the way down a face must turn to take a sketch's under colour, unless the sketch has its own :under-turn
+0.35 constant under-turn
+
+\ the finished object: points as an n×4 matrix, edges, colour, and the sphere around the points; with faces also each face's corners, a row of a matrix padded with -1, so the faces are one object to the collector rather than one each, its centre as a row of an m×4 matrix, its outward normal, away from the point inside its solid, by Newell's method, as a row of an m×3 matrix of unit vectors, its packed colour as an m×1 matrix: its own colour, else the sketch's :under-colour where it has one and the face turns down, else the object's; how much nearer it is sorted, a mark's lead or 0, as an m×1 matrix; each edge on no face a further face of two corners, a line, its centre its middle, its normal zero, its colour the sketch's :line-colour else the object's, with no lead
 : sketch>object ( sketch colour -- object )
 	| sketch colour |
 	sketch@points to points
@@ -92,16 +189,27 @@
 	faces size 0 = if object exit then
 	faces ( face | face first ( index | points index @i ) map [ 0 0 0 ] ' v+ reduce 1 face first size / v* ) map to face-centres
 	faces face-centres ( face face-centre |
-		face first ( index | points index @i ) map to corners
-		corners second corners first v- corners 2 @i corners first v- v-cross to normal
-		normal face-centre face second v- v-dot 0 < if normal -1 v* to normal then
-		normal v-unit
+		face first ( index | points index @i ) map polygon-normal to normal
+		normal face-centre face second v- v-dot 0 < if normal -1 v* else normal then
 	) 2 nmap to normals
+	sketch :under-colour colour @or to under-colour
+	sketch :under-turn under-turn @or negate to under-limit
+	faces normals ( face normal |
+		face size 2 > if face 2 @i else normal second under-limit < if under-colour else colour then then
+	) 2 nmap to face-colours
+	sketch loose-edges to loose
+	[ 0 loose size 2 do k [ loose k @i loose k 1+ @i ] loop ] to lines
+	sketch :line-colour colour @or to line-colour
+	faces ( face | face first ) map lines concat to corner-lists
+	corner-lists size to n-faces
+	corner-lists 0 ( widest corners | corners size widest max2 ) reduce to widest
 	object
-	faces ( face | face first ) map :faces !
-	face-centres ( point | point spread 1 4 array ) map flatten faces size 4 matrix :face-centres !
-	normals flatten faces size 3 matrix :face-normals !
-	sketch loose-edges :loose-edges ! ;
+	corner-lists ( corners | corners [ 0 widest corners size - 1 do pad -1 loop ] concat ) map flatten n-faces widest matrix :faces !
+	face-centres lines ( line | points line first @i points line second @i v+ 0.5 v* ) map concat
+	( point | point spread 1 4 array ) map flatten n-faces 4 matrix :face-centres !
+	normals lines ( drop [ 0 0 0 ] ) map concat flatten n-faces 3 matrix :face-normals !
+	face-colours lines ( drop line-colour ) map concat vector :face-colours !
+	faces ( face | face size 3 > if face 3 @i else 0 then ) map lines ( drop 0 ) map concat vector :face-leads ! ;
 
 \ === placing shapes ===
 
@@ -319,7 +427,7 @@ variable site-heading
 	         foot heading 0 height jib 0.35 * negate placed ] sketch-loop
 	sketch foot heading 0 height 4 - jib 0.3 * negate placed heading 6 8 4 sketch-box ;
 
-\ a tree: a trunk and a crown of three lines meeting at the top
+\ a tree: a trunk and a crown, a three-sided pyramid from a triangle of points about it up to the top, filled
 : sketch-tree ( sketch base height -- )
 	| sketch base height |
 	base [ 0 height 0.35 * 0 ] v+ to crown-foot
@@ -329,7 +437,12 @@ variable site-heading
 	sketch crown-foot height 0.3 * 0 3 ring-points sketch-points to spread-points
 	sketch root crown sketch-edge
 	sketch spread-points join-loop
-	spread-points ( corner | sketch corner top sketch-edge ) each ;
+	spread-points ( corner | sketch corner top sketch-edge ) each
+	crown-foot [ 0 height 0.15 * 0 ] v+ to inside
+	sketch spread-points inside sketch-face
+	0 3 1 do k
+		sketch [ spread-points k @i spread-points k 1+ 3 mod @i top ] inside sketch-face
+	loop ;
 
 \ a line on the ground offset to one side of a path by a distance, for a river's two banks
 : offset-path ( points distance -- points' )

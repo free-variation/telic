@@ -9,7 +9,7 @@
 \ stopping with the slow-running cut-out, the revolutions and whether the
 \ engine runs after each step. Each line gives the model's figure, rounded.
 
-[ "geography" "norway-terrain" "narvik" "scotland-terrain" "space" "shapes" "render" "world" "cities" "aircraft-types" "flight" ] ( name | "examples/spitfire/" name + ".telic" + load ) each
+[ "geography" "town-streets" "norway-terrain" "narvik" "scotland-terrain" "space" "shapes" "render" "world" "cities" "aircraft-types" "flight" ] ( name | "examples/spitfire/" name + ".telic" + load ) each
 build-scenery drop
 
 \ the test pilot's hands and feet against the propeller's torque and swirl: the ailerons against the bank and the roll rate, the rudder against the sideslip

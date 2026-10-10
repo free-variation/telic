@@ -298,7 +298,9 @@ file-exists?
 file-info
 fill
 fill-circle
+fill-polygons
 fill-rect
+fill-solid
 fill-triangle
 filter
 filter-columns

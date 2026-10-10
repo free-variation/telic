@@ -1,0 +1,47 @@
+######. 
+######. 
+######. 
+######. 
+######. 
+######. 
+....... 
+######. 
+######. 
+##..##. 
+##..##. 
+##..##. 
+##..##. 
+....... 
+....... 
+.rrrrr. 
+.rgggr. 
+.rgggr. 
+.rgggr. 
+.rrrrr. 
+....... 
+gggg... 
+gggg... 
+ggrrrr. 
+ggrrrr. 
+..rrrr. 
+..rrrr. 
+....... 
+...g. 
+..gg. 
+.ggg. 
+gggg. 
+..... 
+...... 
+...... 
+rrrrrr 
+...... 
+error: expected as many y coordinates as x coordinates; got 1 and 2
+in fill-polygons
+error: expected a fill and an outline colour for each of 1 faces; got 0 and 1
+in fill-polygons
+error: point index 2 out of bounds (2 points)
+in fill-polygons
+error: expected an array of point indices; got a float
+in fill-polygons
+error: stack underflow
+in fill-polygons

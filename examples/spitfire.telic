@@ -116,7 +116,8 @@
 \ tools/gen-spitfire-map.py from Natural Earth and Wikidata, and Glasgow's,
 \ Edinburgh's and Inverness's streets, squares, stations, railways and some
 \ buildings' footprints from OpenStreetMap
-\ (© OpenStreetMap contributors, ODbL); the scenery in
+\ (© OpenStreetMap contributors, ODbL), and every Scottish town's other
+\ streets in town-streets.telic, generated beside it; the scenery in
 \ world.telic, cities.telic and shapes.telic; the view in render.telic; the clouds in
 \ clouds.telic; the cameras, the film's review and the flak in
 \ reconnaissance.telic; the lesson's steps in lesson.telic; the air firing in
@@ -134,6 +135,7 @@
 \ decoded through ffmpeg; the game in game.telic.
 
 "spitfire/geography.telic" load
+"spitfire/town-streets.telic" load
 "spitfire/norway-terrain.telic" load
 "spitfire/narvik.telic" load
 "spitfire/scotland-terrain.telic" load
@@ -203,6 +205,12 @@
 	x0 window-scale * y0 window-scale * x1 window-scale * y1 window-scale * x2 window-scale * y2 window-scale * fill-triangle ;
 
 ' window-face embodies fill-face
+
+: window-solid ( points faces centres normals colours leads camera projection shading -- )
+	| points faces centres normals colours leads camera projection shading |
+	points faces centres normals colours leads camera projection [ window-scale window-scale window-scale 1 ] vector * shading fill-solid ;
+
+' window-solid embodies draw-solid
 
 : window-capture ( -- bitmap ) 0 0 640 window-scale * 480 window-scale * capture-bitmap ;
 : window-pixels ( -- n ) window-scale ;

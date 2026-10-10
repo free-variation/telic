@@ -1891,6 +1891,8 @@ void p_circle(DISPATCH_ARGS);
 void p_cls(DISPATCH_ARGS);
 void p_draw_bitmap_ext(DISPATCH_ARGS);
 void p_fill_circle(DISPATCH_ARGS);
+void p_fill_polygons(DISPATCH_ARGS);
+void p_fill_solid(DISPATCH_ARGS);
 void p_fill_rect(DISPATCH_ARGS);
 void p_fill_triangle(DISPATCH_ARGS);
 void p_gamepad_axis(DISPATCH_ARGS);

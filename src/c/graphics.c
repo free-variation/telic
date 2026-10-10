@@ -169,6 +169,79 @@ static Tigr *canvas_for_drawing(Interpreter *interp) {
 		DISPATCH_REGISTERS(interp, chain_ip, chain_sp - (n_operands)); \
 	}
 
+typedef struct {
+	double a;
+	double b;
+	double c;
+	double bias;
+} DepthPlane;
+
+static struct {
+	float *nearness;
+	unsigned int *stamps;
+	int width;
+	int height;
+	unsigned int stamp;
+} depth = { NULL, NULL, 0, 0, 0 };
+
+static int depth_ready(Tigr *canvas) {
+	if (depth.width == canvas->w && depth.height == canvas->h && depth.nearness)
+		return 1;
+	size_t n_pixels = (size_t)canvas->w * (size_t)canvas->h;
+	float *nearness = realloc(depth.nearness, n_pixels * sizeof(float));
+	if (!nearness)
+		return 0;
+	depth.nearness = nearness;
+	unsigned int *stamps = realloc(depth.stamps, n_pixels * sizeof(unsigned int));
+	if (!stamps)
+		return 0;
+	depth.stamps = stamps;
+	memset(depth.stamps, 0, n_pixels * sizeof(unsigned int));
+	depth.width = canvas->w;
+	depth.height = canvas->h;
+	depth.stamp = 0;
+	return 1;
+}
+
+static int depth_passes(const DepthPlane *plane, size_t pixel, int column, int row, int writes) {
+	if (!plane)
+		return 1;
+	float nearness = (float)(plane->a * (column + 0.5) + plane->b * (row + 0.5) + plane->c + plane->bias);
+	if (depth.stamps[pixel] == depth.stamp && nearness < depth.nearness[pixel])
+		return 0;
+	if (writes) {
+		depth.stamps[pixel] = depth.stamp;
+		depth.nearness[pixel] = nearness;
+	}
+	return 1;
+}
+
+static void opaque_line(Tigr *canvas, int x0, int y0, int x1, int y1, TPixel ink, const DepthPlane *plane) {
+	int dx = abs(x1 - x0);
+	int dy = -abs(y1 - y0);
+	int step_x = x0 < x1 ? 1 : -1;
+	int step_y = y0 < y1 ? 1 : -1;
+	int error = dx + dy;
+	for (;;) {
+		if (x0 >= 0 && x0 < canvas->w && y0 >= 0 && y0 < canvas->h) {
+			size_t pixel = (size_t)y0 * (size_t)canvas->w + (size_t)x0;
+			if (depth_passes(plane, pixel, x0, y0, 0))
+				canvas->pix[pixel] = ink;
+		}
+		if (x0 == x1 && y0 == y1)
+			break;
+		int doubled = 2 * error;
+		if (doubled >= dy) {
+			error += dy;
+			x0 += step_x;
+		}
+		if (doubled <= dx) {
+			error += dx;
+			y0 += step_y;
+		}
+	}
+}
+
 static void line_with_ends(Tigr *canvas, int x0, int y0, int x1, int y1, TPixel ink) {
 	tigrLine(canvas, x0, y0, x1, y1, ink);
 	tigrPlot(canvas, x1, y1, ink);
@@ -237,6 +310,643 @@ static TPixel pixel_from_rgb(unsigned int rgb) {
 	pixel.b = (unsigned char)(rgb & 0xFF);
 	pixel.a = 255;
 	return pixel;
+}
+
+static int clip_to_canvas(const Tigr *canvas, double *x0, double *y0, double *x1, double *y1) {
+	double dx = *x1 - *x0;
+	double dy = *y1 - *y0;
+	double steps[4] = { -dx, dx, -dy, dy };
+	double rooms[4] = { *x0, canvas->w - *x0, *y0, canvas->h - *y0 };
+	double entering = 0;
+	double leaving = 1;
+	for (int side = 0; side < 4; side++) {
+		if (steps[side] == 0) {
+			if (rooms[side] < 0)
+				return 0;
+			continue;
+		}
+		double ratio = rooms[side] / steps[side];
+		if (steps[side] < 0)
+			entering = fmax(entering, ratio);
+		else
+			leaving = fmin(leaving, ratio);
+	}
+	if (entering > leaving)
+		return 0;
+
+	double start_x = *x0;
+	double start_y = *y0;
+	*x0 = start_x + dx * entering;
+	*y0 = start_y + dy * entering;
+	*x1 = start_x + dx * leaving;
+	*y1 = start_y + dy * leaving;
+	return 1;
+}
+
+static int polygons_valid(Interpreter *interp, int n_points, Object *faces) {
+	for (int f = 0; f < faces->len; f++) {
+		Val face_val = faces->items[f];
+		if (VAL_TAG(face_val) != T_ARRAY) {
+			fail(interp, "expected an array of point indices; got %s", tag_name(VAL_TAG(face_val)));
+			return 0;
+		}
+		Object *face = OBJECT_AT(VAL_DATA(face_val));
+		for (int k = 0; k < face->len; k++) {
+			Val index_val = face->items[k];
+			if (VAL_TAG(index_val) != T_FLOAT) {
+				fail(interp, "expected a point index; got %s", tag_name(VAL_TAG(index_val)));
+				return 0;
+			}
+			int index = (int)VAL_NUMBER(index_val);
+			if (index < 0 || index >= n_points) {
+				fail(interp, "point index %d out of bounds (%d points)", index, n_points);
+				return 0;
+			}
+		}
+	}
+	return 1;
+}
+
+static void fill_polygon_corners(Tigr *canvas, const double *xs, const double *ys, const int *corners, int n_corners, TPixel ink,
+		const DepthPlane *plane) {
+	double crossings[n_corners];
+	double top = INFINITY;
+	double bottom = -INFINITY;
+	for (int k = 0; k < n_corners; k++) {
+		top = fmin(top, ys[corners[k]]);
+		bottom = fmax(bottom, ys[corners[k]]);
+	}
+	int first_row = (int)ceil(top - 0.5);
+	int last_row = (int)ceil(bottom - 0.5) - 1;
+	if (first_row < 0)
+		first_row = 0;
+	if (last_row > canvas->h - 1)
+		last_row = canvas->h - 1;
+
+	for (int row = first_row; row <= last_row; row++) {
+		double centre = row + 0.5;
+		int n_crossings = 0;
+		for (int k = 0; k < n_corners; k++) {
+			int a = corners[k];
+			int b = corners[(k + 1) % n_corners];
+			if ((ys[a] <= centre) == (ys[b] <= centre))
+				continue;
+			crossings[n_crossings++] = xs[a] + (centre - ys[a]) * (xs[b] - xs[a]) / (ys[b] - ys[a]);
+		}
+		for (int k = 1; k < n_crossings; k++) {
+			double crossing = crossings[k];
+			int slot = k;
+			while (slot > 0 && crossings[slot - 1] > crossing) {
+				crossings[slot] = crossings[slot - 1];
+				slot--;
+			}
+			crossings[slot] = crossing;
+		}
+		size_t row_start = (size_t)row * (size_t)canvas->w;
+		for (int k = 0; k + 1 < n_crossings; k += 2) {
+			int first_column = (int)ceil(crossings[k] - 0.5);
+			int last_column = (int)ceil(crossings[k + 1] - 0.5) - 1;
+			if (first_column < 0)
+				first_column = 0;
+			if (last_column > canvas->w - 1)
+				last_column = canvas->w - 1;
+			if (!plane) {
+				for (int column = first_column; column <= last_column; column++)
+					canvas->pix[row_start + (size_t)column] = ink;
+				continue;
+			}
+			double nearness = plane->a * (first_column + 0.5) + plane->b * centre + plane->c + plane->bias;
+			for (int column = first_column; column <= last_column; column++, nearness += plane->a) {
+				size_t pixel = row_start + (size_t)column;
+				if (depth.stamps[pixel] == depth.stamp && (float)nearness < depth.nearness[pixel])
+					continue;
+				depth.stamps[pixel] = depth.stamp;
+				depth.nearness[pixel] = (float)nearness;
+				canvas->pix[pixel] = ink;
+			}
+		}
+	}
+}
+
+static void fill_polygon(Tigr *canvas, const double *xs, const double *ys, Object *face, TPixel ink) {
+	int n_corners = face->len;
+	int corners[n_corners];
+	for (int k = 0; k < n_corners; k++)
+		corners[k] = (int)VAL_NUMBER(face->items[k]);
+	fill_polygon_corners(canvas, xs, ys, corners, n_corners, ink, NULL);
+}
+
+static void draw_polygons(Tigr *canvas, const double *xs, const double *ys, Object *faces,
+		const double *fills, const double *outlines) {
+	for (int f = 0; f < faces->len; f++) {
+		Object *face = OBJECT_AT(VAL_DATA(faces->items[f]));
+		int n_corners = face->len;
+		int finite = n_corners > 0;
+		for (int k = 0; k < n_corners && finite; k++) {
+			int corner = (int)VAL_NUMBER(face->items[k]);
+			finite = isfinite(xs[corner]) && isfinite(ys[corner]);
+		}
+		if (!finite)
+			continue;
+		fill_polygon(canvas, xs, ys, face, pixel_from_rgb((unsigned int)fills[f]));
+		if (outlines[f] < 0)
+			continue;
+		TPixel outline = pixel_from_rgb((unsigned int)outlines[f]);
+		for (int k = 0; k < n_corners; k++) {
+			int a = (int)VAL_NUMBER(face->items[k]);
+			int b = (int)VAL_NUMBER(face->items[(k + 1) % n_corners]);
+			double x0 = xs[a];
+			double y0 = ys[a];
+			double x1 = xs[b];
+			double y1 = ys[b];
+			if (clip_to_canvas(canvas, &x0, &y0, &x1, &y1))
+				line_with_ends(canvas, (int)x0, (int)y0, (int)x1, (int)y1, outline);
+		}
+	}
+}
+
+void p_fill_polygons(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 5);
+	Val xs_val = chain_sp[-5];
+	REQUIRE_CHAIN_TAG(xs_val, T_MATRIX, "fill-polygons", "a matrix of x coordinates");
+	Val ys_val = chain_sp[-4];
+	REQUIRE_CHAIN_TAG(ys_val, T_MATRIX, "fill-polygons", "a matrix of y coordinates");
+	Val faces_val = chain_sp[-3];
+	REQUIRE_CHAIN_TAG(faces_val, T_ARRAY, "fill-polygons", "an array of faces");
+	Val fills_val = chain_sp[-2];
+	REQUIRE_CHAIN_TAG(fills_val, T_MATRIX, "fill-polygons", "a matrix of fill colours");
+	Val outlines_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(outlines_val, T_MATRIX, "fill-polygons", "a matrix of outline colours");
+	Object *xs = OBJECT_AT(VAL_DATA(xs_val));
+	Object *ys = OBJECT_AT(VAL_DATA(ys_val));
+	Object *faces = OBJECT_AT(VAL_DATA(faces_val));
+	Object *fills = OBJECT_AT(VAL_DATA(fills_val));
+	Object *outlines = OBJECT_AT(VAL_DATA(outlines_val));
+	int n_points = xs->matrix.rows * xs->matrix.columns;
+	int n_ys = ys->matrix.rows * ys->matrix.columns;
+	int n_fills = fills->matrix.rows * fills->matrix.columns;
+	int n_outlines = outlines->matrix.rows * outlines->matrix.columns;
+
+	if (n_ys != n_points) {
+		fail(interp, "expected as many y coordinates as x coordinates; got %d and %d", n_ys, n_points);
+		return;
+	}
+	if (n_fills != faces->len || n_outlines != faces->len) {
+		fail(interp, "expected a fill and an outline colour for each of %d faces; got %d and %d", faces->len, n_fills, n_outlines);
+		return;
+	}
+	if (!polygons_valid(interp, n_points, faces))
+		return;
+
+	pthread_mutex_lock(&screen.lock);
+	Tigr *canvas = canvas_for_drawing(interp);
+	if (canvas) {
+		draw_polygons(canvas, xs->matrix.elements, ys->matrix.elements, faces, fills->matrix.elements, outlines->matrix.elements);
+		screen.requested = 1;
+		screen.dirty = 1;
+	}
+	pthread_mutex_unlock(&screen.lock);
+	if (!canvas)
+		return;
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 5);
+}
+
+#define SOLID_OUTLINE_SPAN 2
+#define SOLID_OUTLINE_LEAD 0.002
+#define SOLID_UNLIT 0x1000000
+
+typedef struct {
+	double depth;
+	int face;
+} SolidFace;
+
+typedef struct {
+	double focal;
+	double centre_x;
+	double centre_y;
+	double near;
+} SolidProjection;
+
+typedef struct {
+	double eye[3];
+	double sun[3];
+	double shadow;
+	double lighting;
+	double kept;
+	unsigned int sky;
+	double outline_share;
+	int grey;
+	int depth_tested;
+} SolidShading;
+
+static int compare_solid_faces(const void *a, const void *b) {
+	const SolidFace *left = a;
+	const SolidFace *right = b;
+	if (left->depth != right->depth)
+		return left->depth > right->depth ? -1 : 1;
+	return left->face - right->face;
+}
+
+static unsigned int shaded_rgb(unsigned int rgb, double light, const SolidShading *shading) {
+	unsigned int channels[3];
+	for (int k = 0; k < 3; k++) {
+		int shift = 16 - 8 * k;
+		double own = trunc((double)((rgb >> shift) & 0xFF) * light);
+		double sky = (double)((shading->sky >> shift) & 0xFF);
+		channels[k] = (unsigned int)(trunc(own * shading->kept) + trunc(sky * (1 - shading->kept)));
+	}
+	if (shading->grey) {
+		unsigned int level = (unsigned int)trunc(channels[0] * 0.3 + channels[1] * 0.59 + channels[2] * 0.11);
+		return level * 65536 + level * 256 + level;
+	}
+	return channels[0] * 65536 + channels[1] * 256 + channels[2];
+}
+
+typedef struct {
+	int n_faces;
+	int *starts;
+	int *corners;
+} SolidFaces;
+
+static int solid_faces(Interpreter *interp, Val faces_val, int n_points, SolidFaces *faces) {
+	int n_faces = 0;
+	int capacity = 0;
+	Object *source = OBJECT_AT(VAL_DATA(faces_val));
+	if (VAL_TAG(faces_val) == T_ARRAY) {
+		if (!polygons_valid(interp, n_points, source))
+			return 0;
+		n_faces = source->len;
+		for (int f = 0; f < n_faces; f++)
+			capacity += OBJECT_AT(VAL_DATA(source->items[f]))->len;
+	} else if (VAL_TAG(faces_val) == T_MATRIX) {
+		n_faces = source->matrix.rows;
+		capacity = source->matrix.rows * source->matrix.columns;
+	} else {
+		fail(interp, "expected an array of faces or a matrix of corner indices; got %s", tag_name(VAL_TAG(faces_val)));
+		return 0;
+	}
+
+	faces->n_faces = n_faces;
+	faces->starts = malloc((size_t)(n_faces + 1) * sizeof(int));
+	faces->corners = malloc((size_t)(capacity + 1) * sizeof(int));
+	if (!faces->starts || !faces->corners) {
+		free(faces->starts);
+		free(faces->corners);
+		fail(interp, "out of memory");
+		return 0;
+	}
+	int n_corners = 0;
+	for (int f = 0; f < n_faces; f++) {
+		faces->starts[f] = n_corners;
+		if (VAL_TAG(faces_val) == T_ARRAY) {
+			Object *face = OBJECT_AT(VAL_DATA(source->items[f]));
+			for (int k = 0; k < face->len; k++)
+				faces->corners[n_corners++] = (int)VAL_NUMBER(face->items[k]);
+			continue;
+		}
+		for (int k = 0; k < source->matrix.columns; k++) {
+			double index = MAT(source, f, k);
+			if (index < 0)
+				break;
+			if (index >= n_points) {
+				free(faces->starts);
+				free(faces->corners);
+				fail(interp, "point index %d out of bounds (%d points)", (int)index, n_points);
+				return 0;
+			}
+			faces->corners[n_corners++] = (int)index;
+		}
+	}
+	faces->starts[n_faces] = n_corners;
+	return 1;
+}
+
+static void solid_line(Tigr *canvas, const double *xs, const double *ys, const double *aheads, int a, int b, TPixel ink, int tested) {
+	double x0 = xs[a];
+	double y0 = ys[a];
+	double x1 = xs[b];
+	double y1 = ys[b];
+	if (!clip_to_canvas(canvas, &x0, &y0, &x1, &y1))
+		return;
+	if (!tested) {
+		opaque_line(canvas, (int)x0, (int)y0, (int)x1, (int)y1, ink, NULL);
+		return;
+	}
+	double span_x = xs[b] - xs[a];
+	double span_y = ys[b] - ys[a];
+	int along_x = fabs(span_x) >= fabs(span_y);
+	double share0 = along_x ? (span_x == 0 ? 0 : (x0 - xs[a]) / span_x) : (y0 - ys[a]) / span_y;
+	double share1 = along_x ? (span_x == 0 ? 1 : (x1 - xs[a]) / span_x) : (y1 - ys[a]) / span_y;
+	double near_a = 1 / aheads[a];
+	double near_b = 1 / aheads[b];
+	double nearness0 = near_a + (near_b - near_a) * share0;
+	double nearness1 = near_a + (near_b - near_a) * share1;
+	int column = (int)x0;
+	int row = (int)y0;
+	int end_column = (int)x1;
+	int end_row = (int)y1;
+	int dx = abs(end_column - column);
+	int dy = -abs(end_row - row);
+	int n_steps = dx > -dy ? dx : -dy;
+	int step_x = column < end_column ? 1 : -1;
+	int step_y = row < end_row ? 1 : -1;
+	int error = dx + dy;
+	for (int step = 0;; step++) {
+		if (column >= 0 && column < canvas->w && row >= 0 && row < canvas->h) {
+			size_t pixel = (size_t)row * (size_t)canvas->w + (size_t)column;
+			double nearness = n_steps == 0 ? nearness0 : nearness0 + (nearness1 - nearness0) * step / n_steps;
+			nearness *= 1 + SOLID_OUTLINE_LEAD;
+			if (depth.stamps[pixel] != depth.stamp || (float)nearness >= depth.nearness[pixel])
+				canvas->pix[pixel] = ink;
+		}
+		if (column == end_column && row == end_row)
+			break;
+		int doubled = 2 * error;
+		if (doubled >= dy) {
+			error += dy;
+			column += step_x;
+		}
+		if (doubled <= dx) {
+			error += dx;
+			row += step_y;
+		}
+	}
+}
+
+static int solid_face_plane(const double *xs, const double *ys, const double *aheads, const int *corners, int n_corners,
+		DepthPlane *plane) {
+	int first = corners[0];
+	double best = 0;
+	int second = -1;
+	int third = -1;
+	for (int k = 1; k + 1 < n_corners; k++) {
+		int b = corners[k];
+		int c = corners[k + 1];
+		double area = (xs[b] - xs[first]) * (ys[c] - ys[first]) - (xs[c] - xs[first]) * (ys[b] - ys[first]);
+		if (fabs(area) > fabs(best)) {
+			best = area;
+			second = b;
+			third = c;
+		}
+	}
+	if (fabs(best) < 1e-9)
+		return 0;
+	double w0 = 1 / aheads[first];
+	double w1 = 1 / aheads[second];
+	double w2 = 1 / aheads[third];
+	double x1 = xs[second] - xs[first];
+	double y1 = ys[second] - ys[first];
+	double x2 = xs[third] - xs[first];
+	double y2 = ys[third] - ys[first];
+	plane->a = ((w1 - w0) * y2 - (w2 - w0) * y1) / best;
+	plane->b = (x1 * (w2 - w0) - x2 * (w1 - w0)) / best;
+	plane->c = w0 - plane->a * xs[first] - plane->b * ys[first];
+	plane->bias = 0;
+	return 1;
+}
+
+static int solid_face_convex(const double *xs, const double *ys, const int *corners, int n_corners) {
+	int sign = 0;
+	for (int k = 0; k < n_corners; k++) {
+		int a = corners[k];
+		int b = corners[(k + 1) % n_corners];
+		int c = corners[(k + 2) % n_corners];
+		double turn = (xs[b] - xs[a]) * (ys[c] - ys[b]) - (ys[b] - ys[a]) * (xs[c] - xs[b]);
+		if (fabs(turn) < 1e-9)
+			continue;
+		int turn_sign = turn > 0 ? 1 : -1;
+		if (sign && turn_sign != sign)
+			return 0;
+		sign = turn_sign;
+	}
+	return 1;
+}
+
+static void solid_fill_fan(Tigr *canvas, const double *xs, const double *ys, const double *aheads, const int *corners, int n_corners,
+		TPixel ink) {
+	for (int k = 1; k + 1 < n_corners; k++) {
+		int triangle[3] = { corners[0], corners[k], corners[k + 1] };
+		DepthPlane plane;
+		if (solid_face_plane(xs, ys, aheads, triangle, 3, &plane))
+			fill_polygon_corners(canvas, xs, ys, triangle, 3, ink, &plane);
+	}
+}
+
+static void draw_solid(Tigr *canvas, Object *points, const SolidFaces *faces, Object *centres, Object *normals, const double *colours,
+		const double *leads, Object *camera, const SolidProjection *projection, const SolidShading *shading,
+		double *xs, double *ys, double *aheads, SolidFace *order) {
+	int n_points = points->matrix.rows;
+	int point_columns = points->matrix.columns;
+	for (int p = 0; p < n_points; p++) {
+		const double *row = points->matrix.elements + (size_t)p * (size_t)point_columns;
+		double w = point_columns > 3 ? row[3] : 1;
+		double eye_space[3];
+		for (int j = 0; j < 3; j++)
+			eye_space[j] = row[0] * MAT(camera, 0, j) + row[1] * MAT(camera, 1, j) + row[2] * MAT(camera, 2, j) + w * MAT(camera, 3, j);
+		aheads[p] = eye_space[2];
+		xs[p] = projection->focal * eye_space[0] / eye_space[2] + projection->centre_x;
+		ys[p] = projection->centre_y - projection->focal * eye_space[1] / eye_space[2];
+	}
+
+	int n_faces = faces->n_faces;
+	int centre_columns = centres->matrix.columns;
+	int n_facing = 0;
+	for (int f = 0; f < n_faces; f++) {
+		const double *centre = centres->matrix.elements + (size_t)f * (size_t)centre_columns;
+		const double *normal = normals->matrix.elements + (size_t)f * 3;
+		double toward = (shading->eye[0] - centre[0]) * normal[0] + (shading->eye[1] - centre[1]) * normal[1]
+				+ (shading->eye[2] - centre[2]) * normal[2];
+		int is_line = faces->starts[f + 1] - faces->starts[f] == 2;
+		if (toward <= 0 && !is_line)
+			continue;
+		double w = centre_columns > 3 ? centre[3] : 1;
+		double depth = centre[0] * MAT(camera, 0, 2) + centre[1] * MAT(camera, 1, 2) + centre[2] * MAT(camera, 2, 2) + w * MAT(camera, 3, 2);
+		order[n_facing].depth = depth - leads[f];
+		order[n_facing].face = f;
+		n_facing++;
+	}
+	qsort(order, (size_t)n_facing, sizeof order[0], compare_solid_faces);
+	int tested = shading->depth_tested && depth_ready(canvas);
+	depth.stamp++;
+
+	for (int k = 0; k < n_facing; k++) {
+		int f = order[k].face;
+		const int *corners = faces->corners + faces->starts[f];
+		int n_corners = faces->starts[f + 1] - faces->starts[f];
+		int in_front = n_corners > 0;
+		for (int c = 0; c < n_corners && in_front; c++)
+			in_front = aheads[corners[c]] >= projection->near;
+		if (!in_front)
+			continue;
+		if (n_corners == 2) {
+			TPixel ink = pixel_from_rgb(shaded_rgb((unsigned int)colours[f] & 0xFFFFFF, 1, shading));
+			solid_line(canvas, xs, ys, aheads, corners[0], corners[1], ink, tested);
+			continue;
+		}
+		DepthPlane plane;
+		DepthPlane *surface = NULL;
+		if (tested && solid_face_plane(xs, ys, aheads, corners, n_corners, &plane))
+			surface = &plane;
+		else if (tested)
+			continue;
+		const double *normal = normals->matrix.elements + (size_t)f * 3;
+		double sunlit = normal[0] * shading->sun[0] + normal[1] * shading->sun[1] + normal[2] * shading->sun[2];
+		sunlit = fmin(fmax(sunlit, 0), 1);
+		double light = (sunlit * (1 - shading->shadow) + shading->shadow) * shading->lighting;
+		unsigned int rgb = (unsigned int)colours[f];
+		if (rgb & SOLID_UNLIT) {
+			rgb &= 0xFFFFFF;
+			light = shading->lighting;
+		}
+		TPixel fill = pixel_from_rgb(shaded_rgb(rgb, light, shading));
+		if (surface && n_corners > 3 && solid_face_convex(xs, ys, corners, n_corners))
+			solid_fill_fan(canvas, xs, ys, aheads, corners, n_corners, fill);
+		else
+			fill_polygon_corners(canvas, xs, ys, corners, n_corners, fill, surface);
+		if (shading->outline_share < 0)
+			continue;
+		DepthPlane raised;
+		DepthPlane *edge_surface = NULL;
+		if (surface) {
+			raised = plane;
+			raised.bias = SOLID_OUTLINE_LEAD / aheads[corners[0]];
+			edge_surface = &raised;
+		}
+		double left = INFINITY;
+		double right = -INFINITY;
+		double top = INFINITY;
+		double bottom = -INFINITY;
+		for (int c = 0; c < n_corners; c++) {
+			left = fmin(left, xs[corners[c]]);
+			right = fmax(right, xs[corners[c]]);
+			top = fmin(top, ys[corners[c]]);
+			bottom = fmax(bottom, ys[corners[c]]);
+		}
+		if (right - left < SOLID_OUTLINE_SPAN && bottom - top < SOLID_OUTLINE_SPAN)
+			continue;
+		TPixel outline = pixel_from_rgb(shaded_rgb(rgb, light * shading->outline_share, shading));
+		for (int c = 0; c < n_corners; c++) {
+			int a = corners[c];
+			int b = corners[(c + 1) % n_corners];
+			double x0 = xs[a];
+			double y0 = ys[a];
+			double x1 = xs[b];
+			double y1 = ys[b];
+			if (clip_to_canvas(canvas, &x0, &y0, &x1, &y1))
+				opaque_line(canvas, (int)x0, (int)y0, (int)x1, (int)y1, outline, edge_surface);
+		}
+	}
+}
+
+void p_fill_solid(DISPATCH_ARGS) {
+	REQUIRE_STACK_DEPTH(interp, chain_ip, chain_sp, 9);
+	Val points_val = chain_sp[-9];
+	REQUIRE_CHAIN_TAG(points_val, T_MATRIX, "fill-solid", "a matrix of points");
+	Val faces_val = chain_sp[-8];
+	if (VAL_TAG(faces_val) != T_ARRAY && VAL_TAG(faces_val) != T_MATRIX) {
+		fail(interp, "expected an array of faces or a matrix of corner indices; got %s", tag_name(VAL_TAG(faces_val)));
+		return;
+	}
+	Val centres_val = chain_sp[-7];
+	REQUIRE_CHAIN_TAG(centres_val, T_MATRIX, "fill-solid", "a matrix of face centres");
+	Val normals_val = chain_sp[-6];
+	REQUIRE_CHAIN_TAG(normals_val, T_MATRIX, "fill-solid", "a matrix of face normals");
+	Val colours_val = chain_sp[-5];
+	REQUIRE_CHAIN_TAG(colours_val, T_MATRIX, "fill-solid", "a matrix of face colours");
+	Val leads_val = chain_sp[-4];
+	REQUIRE_CHAIN_TAG(leads_val, T_MATRIX, "fill-solid", "a matrix of face leads");
+	Val camera_val = chain_sp[-3];
+	REQUIRE_CHAIN_TAG(camera_val, T_MATRIX, "fill-solid", "a 4x3 camera matrix");
+	Val projection_val = chain_sp[-2];
+	REQUIRE_CHAIN_TAG(projection_val, T_MATRIX, "fill-solid", "a projection vector");
+	Val shading_val = chain_sp[-1];
+	REQUIRE_CHAIN_TAG(shading_val, T_MATRIX, "fill-solid", "a shading vector");
+	Object *points = OBJECT_AT(VAL_DATA(points_val));
+	Object *face_source = OBJECT_AT(VAL_DATA(faces_val));
+	Object *centres = OBJECT_AT(VAL_DATA(centres_val));
+	Object *normals = OBJECT_AT(VAL_DATA(normals_val));
+	Object *colours = OBJECT_AT(VAL_DATA(colours_val));
+	Object *leads = OBJECT_AT(VAL_DATA(leads_val));
+	Object *camera = OBJECT_AT(VAL_DATA(camera_val));
+	Object *projection_vector = OBJECT_AT(VAL_DATA(projection_val));
+	Object *shading_vector = OBJECT_AT(VAL_DATA(shading_val));
+	int n_points = points->matrix.rows;
+	int n_faces = VAL_TAG(faces_val) == T_ARRAY ? face_source->len : face_source->matrix.rows;
+
+	if (points->matrix.columns < 3) {
+		fail(interp, "expected points of 3 or 4 columns; got %dx%d", points->matrix.rows, points->matrix.columns);
+		return;
+	}
+	if (camera->matrix.rows != 4 || camera->matrix.columns != 3) {
+		fail(interp, "expected a 4x3 camera matrix; got %dx%d", camera->matrix.rows, camera->matrix.columns);
+		return;
+	}
+	if (centres->matrix.rows != n_faces || centres->matrix.columns < 3 || normals->matrix.rows != n_faces || normals->matrix.columns != 3) {
+		fail(interp, "expected a centre and a normal for each of %d faces; got %dx%d and %dx%d", n_faces,
+				centres->matrix.rows, centres->matrix.columns, normals->matrix.rows, normals->matrix.columns);
+		return;
+	}
+	if (colours->matrix.rows * colours->matrix.columns != n_faces || leads->matrix.rows * leads->matrix.columns != n_faces) {
+		fail(interp, "expected a colour and a lead for each of %d faces; got %d and %d", n_faces,
+				colours->matrix.rows * colours->matrix.columns, leads->matrix.rows * leads->matrix.columns);
+		return;
+	}
+	if (projection_vector->matrix.rows * projection_vector->matrix.columns != 4) {
+		fail(interp, "expected a projection of 4 elements; got %d", projection_vector->matrix.rows * projection_vector->matrix.columns);
+		return;
+	}
+	int n_shading = shading_vector->matrix.rows * shading_vector->matrix.columns;
+	if (n_shading != 12 && n_shading != 13) {
+		fail(interp, "expected a shading of 12 or 13 elements; got %d", n_shading);
+		return;
+	}
+	SolidFaces faces;
+	if (!solid_faces(interp, faces_val, n_points, &faces))
+		return;
+
+	const double *projected = projection_vector->matrix.elements;
+	SolidProjection projection = { .focal = projected[0], .centre_x = projected[1], .centre_y = projected[2], .near = projected[3] };
+	const double *shaded = shading_vector->matrix.elements;
+	SolidShading shading = {
+		.eye = { shaded[0], shaded[1], shaded[2] }, .sun = { shaded[3], shaded[4], shaded[5] },
+		.shadow = shaded[6], .lighting = shaded[7], .kept = shaded[8], .sky = (unsigned int)shaded[9],
+		.outline_share = shaded[10], .grey = shaded[11] != 0, .depth_tested = n_shading < 13 || shaded[12] != 0
+	};
+	double *xs = malloc((size_t)(n_points + 1) * sizeof(double));
+	double *ys = malloc((size_t)(n_points + 1) * sizeof(double));
+	double *aheads = malloc((size_t)(n_points + 1) * sizeof(double));
+	SolidFace *order = malloc((size_t)(n_faces + 1) * sizeof(SolidFace));
+	if (!xs || !ys || !aheads || !order) {
+		free(xs);
+		free(ys);
+		free(aheads);
+		free(order);
+		free(faces.starts);
+		free(faces.corners);
+		fail(interp, "out of memory");
+		return;
+	}
+
+	pthread_mutex_lock(&screen.lock);
+	Tigr *canvas = canvas_for_drawing(interp);
+	if (canvas) {
+		draw_solid(canvas, points, &faces, centres, normals, colours->matrix.elements, leads->matrix.elements, camera,
+				&projection, &shading, xs, ys, aheads, order);
+		screen.requested = 1;
+		screen.dirty = 1;
+	}
+	pthread_mutex_unlock(&screen.lock);
+	free(xs);
+	free(ys);
+	free(aheads);
+	free(order);
+	free(faces.starts);
+	free(faces.corners);
+	if (!canvas)
+		return;
+
+	DISPATCH_REGISTERS(interp, chain_ip, chain_sp - 9);
 }
 
 static unsigned int xterm256_rgb(int index) {

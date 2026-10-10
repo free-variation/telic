@@ -1,8 +1,8 @@
-\ Spitfire: the aircraft's wireframe models, each a sketch in its own terms,
-\ metres right, up and forward of its centre: bodies as rings along their
-\ length, flat surfaces on both sides with their hinge lines, fins,
-\ propellers; and the Spitfire Mk I and the Hurricane Mk I, wheels up or
-\ down.
+\ Spitfire: the aircraft's models, each a sketch in its own terms, metres
+\ right, up and forward of its centre, its faces filled and its edges kept
+\ for the briefing's wireframe: bodies as rings along their length, flat
+\ surfaces on both sides with their hinge lines, fins, propellers; and the
+\ Spitfire Mk I and the Hurricane Mk I, wheels up or down.
 \
 \ The Spitfire is built to its published span and length (11.23 m,
 \ 9.12 m), wing area (22.48 m², as in flight.telic) and dihedral (6°). Its
@@ -14,8 +14,6 @@
 \ tail surfaces, the radiator under the starboard wing and the oil cooler
 \ under the port, the propeller's 1.64 m radius, the undercarriage's track.
 
-0xd0d0d0 constant spitfire-colour
-
 \ one ring of a body, points about its centre line: the ring is [ along half-width half-height lift ], the centre where the line runs
 : body-ring ( ring centre n-sides -- points )
 	| ring centre n-sides |
@@ -25,16 +23,55 @@
 		centre [ angle sin half-width * angle cos half-height * lift + along ] v+
 	loop ] ;
 
-\ a body as rings along its length, joined ring to ring: a fuselage, a nacelle
+\ the ring of a body of rings at a station along, between the two rings around it in proportion
+: body-ring-at ( rings along -- ring )
+	| rings along |
+	0 rings size 1- 1 do k
+		rings k @i to front
+		rings k 1+ @i to back
+		along front first <= along back first >= and if
+			back front along back first - front first back first - / v-between to ring
+		then
+	loop
+	ring ;
+
+\ a point on the upper shoulder of a body of rings about the line through the origin, the rings' corners 45° up a side, -1 the left and 1 the right: where the skin between the two rings around a station along passes the station
+: body-shoulder ( rings along side -- point )
+	| rings along side |
+	rings along body-ring-at spread to lift to half-height to half-width drop
+	[ side half-width * 0.5 sqrt * half-height 0.5 sqrt * lift + along ] ;
+
+\ the height of the top of a body of rings about the line through the origin at a station along
+: body-top ( rings along -- height )
+	| rings along |
+	rings along body-ring-at to ring
+	ring 2 @i ring 3 @i + ;
+
+\ a point on a side of a body of rings about the line through the origin, at a station along and a height between the shoulders 45° above and below the side's ridge: on the skin's face between the ridge and the nearer shoulder, a distance proud of it across
+: body-side-point ( rings along up side proud -- point )
+	| rings along up side proud |
+	rings along body-ring-at spread to lift to half-height to half-width drop
+	up lift - abs half-height 0.5 sqrt * / to rise
+	[ side half-width 1 1 0.5 sqrt - rise * - * proud + * up along ] ;
+
+\ a body as rings along its length, joined ring to ring, its skin filled between them and its ends closed: a fuselage, a nacelle
 : sketch-body ( sketch rings centre n-sides -- )
 	| sketch rings centre n-sides |
 	rings ( ring | sketch ring centre n-sides body-ring sketch-points ) map to ring-indices
+	rings ( ring | centre [ 0 ring 3 @i ring first ] v+ ) map to axis
 	ring-indices ( indices | sketch indices join-loop ) each
 	0 ring-indices size 1- 1 do k
+		ring-indices k @i to front
+		ring-indices k 1+ @i to back
+		axis k @i axis k 1+ @i 0.5 v-between to inside
 		0 n-sides 1 do corner
-			sketch ring-indices k @i corner @i ring-indices k 1+ @i corner @i sketch-edge
+			corner 1+ n-sides mod to next
+			sketch front corner @i back corner @i sketch-edge
+			sketch [ front corner @i front next @i back next @i back corner @i ] inside sketch-face
 		loop
-	loop ;
+	loop
+	sketch ring-indices first axis second sketch-face
+	sketch ring-indices last axis axis size 2 - @i sketch-face ;
 
 \ a box centred on a point rather than standing on it
 : sketch-box-centred ( sketch centre heading width length height -- )
@@ -46,37 +83,47 @@
 	| outline side slope height |
 	outline ( pair | [ pair first side * pair first slope * height + pair second ] ) map ;
 
-\ a flat surface on both sides, wings or tailplanes: its outline closed, and its hinge lines
+\ a flat surface on both sides, wings or tailplanes: its outline closed and filled, and its hinge lines
 : sketch-surface ( sketch outline hinges slope height -- )
 	| sketch outline hinges slope height |
 	[ -1 1 ] ( side |
-		sketch outline side slope height surface-points sketch-loop
+		sketch outline side slope height surface-points null sketch-plate
 		hinges ( hinge | sketch hinge side slope height surface-points sketch-path ) each
 	) each ;
 
-\ a fin a distance out from the centre line: its outline and its rudder's hinge, as [ along up ] points
+\ a fin a distance out from the centre line: its outline filled and its rudder's hinge, as [ along up ] points
 : sketch-fin ( sketch out outline hinge -- )
 	| sketch out outline hinge |
-	sketch outline ( pair | [ out pair second pair first ] ) map sketch-loop
+	sketch outline ( pair | [ out pair second pair first ] ) map null sketch-plate
 	sketch hinge ( pair | [ out pair second pair first ] ) map sketch-path ;
 
-\ a propeller: the spinner's line forward from the hub and three blades of a radius
+\ a propeller: three blades of a radius from the hub
 : sketch-propeller ( sketch hub radius -- )
 	| sketch hub radius |
-	sketch [ hub hub [ 0 0 0.6 ] v+ ] sketch-path
 	0 3 1 do k
 		k 3 / TAU * 0.35 + to angle
 		sketch [ hub hub [ angle sin radius * angle cos radius * 0 ] v+ ] sketch-path
 	loop ;
 
 \ a circle of points about a centre in the plane of two directions
-: sketch-ring ( sketch centre across up radius n-points -- )
-	| sketch centre across up radius n-points |
+: ring-of ( centre across up radius n-points -- points )
+	| centre across up radius n-points |
 	[ 0 n-points 1 do k
 		k n-points / TAU * to angle
 		centre across angle cos radius * v* v+ up angle sin radius * v* v+
-	loop ] to points
-	sketch points sketch-loop ;
+	loop ] ;
+
+: sketch-ring ( sketch centre across up radius n-points -- )
+	| sketch centre across up radius n-points |
+	sketch centre across up radius n-points ring-of sketch-loop ;
+
+\ painted discs on a surface, one inside the next, each a little farther out along the surface's outward direction so it lies over the one before; the radii from the largest, a colour for each
+: sketch-roundel ( sketch centre across up outward radii colours -- )
+	| sketch centre across up outward radii colours |
+	0 radii size 1 do k
+		centre outward k 1+ 0.004 * v* v+ to lifted
+		sketch lifted across up radii k @i 16 ring-of lifted outward v- colours k @i sketch-painted-plate
+	loop ;
 
 \ the spinners as rings from their points back to the cowling
 : spitfire-spinner-rings ( -- rings ) [ [ 4.05 0.02 0.02 0 ] [ 3.85 0.22 0.22 0 ] [ 3.45 0.33 0.33 0 ] ] ;
@@ -102,34 +149,39 @@ hurricane-mk-i-figures :hub @ constant hurricane-hub
 	| sketch hub radius |
 	sketch hub [ 1 0 0 ] [ 0 1 0 ] radius 48 sketch-ring ;
 
+\ the tyres' black (an estimate)
+0x262626 constant tyre-colour
+
 \ beyond this distance an aircraft is drawn by its distant model, where a metre is a third of a pixel
 1200 constant far-distance
 
-\ an aircraft as it shows from afar: a four-sided body along its length, the wings' and the tailplane's outlines, the fin, a line for each engine out on the wing
-: far-model ( span length engine-out colour -- model )
-	| span length engine-out colour |
-	new-sketch to model
+\ an aircraft as it shows from afar: a four-sided body along its length, the wings', the tailplane's and the fin's outlines filled, a line for each engine out on the wing; in its upper colour, the faces turned down in its under colour
+: far-model ( span length engine-out colour under-colour -- model )
+	| span length engine-out colour under-colour |
+	new-model-sketch to model
+	model under-colour :under-colour ! to model
 	length 2 / to half-length
 	model [ [ half-length 0.1 0.1 0 ] [ half-length 0.4 * length 0.05 * length 0.06 * 0 ] [ half-length -1 * 0.05 0.05 0.2 ] ] [ 0 0 0 ] 4 sketch-body
 	span 2 / to half-span
 	length 0.14 * to chord
 	[ -1 1 ] ( side |
-		model [ [ 0 0 chord ] [ half-span side * span 0.03 * chord 0.3 * ] [ half-span side * span 0.03 * chord -0.4 * ] [ 0 0 chord -1 * ] ] sketch-loop
-		model [ [ 0 0.1 half-length -0.8 * ] [ span 0.12 * side * 0.1 half-length -0.9 * ] [ span 0.12 * side * 0.1 half-length -1 * ] [ 0 0.1 half-length -1 * ] ] sketch-loop
+		model [ [ 0 0 chord ] [ half-span side * span 0.03 * chord 0.3 * ] [ half-span side * span 0.03 * chord -0.4 * ] [ 0 0 chord -1 * ] ] null sketch-plate
+		model [ [ 0 0.1 half-length -0.8 * ] [ span 0.12 * side * 0.1 half-length -0.9 * ] [ span 0.12 * side * 0.1 half-length -1 * ] [ 0 0.1 half-length -1 * ] ] null sketch-plate
 		engine-out 0 > if model [ [ engine-out side * 0 chord 1.2 * ] [ engine-out side * 0 chord -1.5 * ] ] sketch-path then
 	) each
-	model [ [ 0 0.1 half-length -0.75 * ] [ 0 length 0.18 * half-length -0.95 * ] [ 0 length 0.18 * half-length -1 * ] [ 0 0.1 half-length -1 * ] ] sketch-loop
+	model [ [ 0 0.1 half-length -0.75 * ] [ 0 length 0.18 * half-length -0.95 * ] [ 0 length 0.18 * half-length -1 * ] [ 0 0.1 half-length -1 * ] ] null sketch-plate
 	model colour sketch>object ;
 
 \ === the finish of 1940 ===
 
-\ the upper surfaces' colours (BS 381C: 641 Dark Green, 450 Dark Earth, 636 PRU Blue, 210 Sky, as w3schools' British Standard table renders them), and the roundel's red and blue (estimates of the dull wartime shades)
+\ the upper surfaces' colours (BS 381C: 641 Dark Green, 450 Dark Earth, 636 PRU Blue, 210 Sky, as w3schools' British Standard table renders them), and the roundel's red, blue and white (estimates of the dull wartime shades)
 0x484837 constant dark-green-colour
 0x745f46 constant dark-earth-colour
 0x5f7682 constant pru-blue-colour
 0xbbc9a5 constant sky-paint-colour
 0x2c3768 constant roundel-blue-colour
 0x8a2a26 constant roundel-red-colour
+0xd8d8d0 constant roundel-white-colour
 
 \ the Type B roundel on each upper wing, red and blue: the Spitfire's 55 in across with a 22 in red centre (Hooton, 1982), the Hurricane's 49 in (a modeller's reference for a Hurricane of August 1940) with its centre in the same proportion
 55 0.0254 * 2 / constant spitfire-roundel-radius
@@ -150,6 +202,23 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
   [ [ 1.75 -0.070 ] [ 1.72 0.000 ] [ 1.80 0.030 ] [ 1.88 0.000 ] [ 1.88 -0.060 ] ]
   [ [ 2.00 0.030 ] [ 1.97 0.100 ] [ 2.03 0.120 ] [ 2.03 0.200 ] [ 2.12 0.260 ] [ 2.12 0.300 ] [ 1.97 0.360 ] [ 1.97 0.440 ] [ 2.07 0.520 ] [ 2.20 0.570 ] [ 2.70 0.570 ] [ 3.03 0.460 ] [ 3.07 0.240 ] [ 3.28 0.120 ] [ 3.28 0.080 ] [ 3.12 0.000 ] [ 3.12 -0.060 ] [ 2.10 -0.070 ] [ 2.07 0.000 ] ]
   [ [ 3.50 0.670 ] [ 3.53 0.900 ] [ 3.93 1.000 ] [ 3.95 1.070 ] [ 5.35 1.070 ] [ 5.38 0.980 ] [ 5.55 0.950 ] [ 5.62 0.900 ] [ 5.30 0.830 ] [ 5.15 0.850 ] [ 4.70 0.830 ] [ 4.68 0.780 ] [ 5.05 0.770 ] [ 5.25 0.650 ] [ 5.50 0.610 ] [ 5.68 0.540 ] [ 5.68 0.480 ] [ 5.72 0.460 ] [ 5.68 0.400 ] [ 5.88 0.280 ] [ 5.82 0.160 ] [ 5.90 0.130 ] [ 6.22 0.120 ] [ 6.22 -0.060 ] [ 5.70 -0.070 ] [ 5.68 0.020 ] [ 5.60 0.050 ] [ 5.40 0.030 ] [ 5.32 0.060 ] [ 5.32 0.140 ] [ 4.85 0.330 ] [ 4.55 0.330 ] [ 4.47 0.300 ] [ 4.47 0.260 ] [ 4.20 0.150 ] [ 3.90 0.190 ] [ 3.82 0.220 ] [ 3.82 0.380 ] [ 3.68 0.480 ] [ 3.68 0.520 ] [ 3.90 0.630 ] [ 4.15 0.590 ] [ 4.28 0.620 ] [ 4.28 0.760 ] [ 4.20 0.790 ] [ 4.00 0.790 ] [ 3.93 0.760 ] [ 3.93 0.720 ] [ 3.65 0.630 ] ] ] constant hurricane-dark-earth
+
+\ the Dark Earth patches laid 15 mm over the upper wings' skin, each painted on its upper side only: each patch cut to the chord, and to each wing between the fuselage's side, a distance out, and the tip, so a patch across the fuselage becomes two; each corner [ out share ] placed on the skin by a word
+: sketch-dark-earth ( sketch patches root tip skin -- )
+	| sketch patches root tip skin |
+	[ [ root 1 tip -1 ] [ root negate -1 tip negate 1 ] ] to wings
+	0 patches size 1 do p
+		patches p @i 1 0 1 clip-pairs 1 1 -1 clip-pairs to cut
+		0 2 1 do w
+			wings w @i spread to tip-keep to tip-limit to root-keep to root-limit
+			cut 0 root-limit root-keep clip-pairs 0 tip-limit tip-keep clip-pairs to piece
+			piece size 3 >= if
+				[ 0 piece size 1 do c piece c @i spread skin execute [ 0 0.015 0 ] v+ loop ] to corners
+				corners [ 0 0 0 ] ' v+ reduce 1 corners size / v* [ 0 1 0 ] v- to below
+				sketch corners below dark-earth-colour sketch-painted-plate
+			then
+		loop
+	loop ;
 
 \ === the Spitfire ===
 
@@ -191,6 +260,12 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 : wing-leading-at ( out -- along ) abs spitfire-half-span spitfire-root-chord elliptical-chord 0.3 * spitfire-spar + ;
 : wing-trailing-at ( out -- along ) abs spitfire-half-span spitfire-root-chord elliptical-chord 0.7 * spitfire-spar swap - ;
 
+\ the point on the wing's chord plane a distance out and a share of the chord back from the leading edge
+: spitfire-skin ( out share -- point )
+	| out share |
+	out wing-leading-at to leading
+	[ out out wing-height-at leading leading out wing-trailing-at - share * - ] ;
+
 \ a NACA four-digit section's upper surface above its chord line at a share of the chord back from the leading edge, as a share of the chord: its camber line, the greatest camber a share of the chord at a place along it, and half its thickness, a share of the chord, over it
 : naca-upper ( x camber place thickness -- up )
 	| x camber place thickness |
@@ -231,7 +306,7 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 	[ flap last aileron first aileron last ] ( hinge-end | [ [ hinge-end first hinge-end first wing-trailing-at ] hinge-end ] ) map to ends
 	sketch outline [ flap aileron ] ends concat spitfire-dihedral spitfire-wing-height sketch-surface
 	[ -1 1 ] ( side |
-		sketch outline ( pair | [ pair first side * pair first wing-underside-at pair second ] ) map sketch-loop
+		sketch outline ( pair | [ pair first side * pair first wing-underside-at pair second ] ) map null sketch-plate
 	) each
 	[ 1.9 2.15 2.9 3.15 ] ( out |
 		[ -1 1 ] ( side |
@@ -279,23 +354,36 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 	1.55 wing-underside-at to top
 	[ [ 1.36 0.27 ] [ 0.40 0.24 ] [ 0.18 0.29 ] ] ( station | station spread to depth to along
 		[ [ 1.25 top along ] [ 1.85 top along ] [ 1.85 top depth - along ] [ 1.25 top depth - along ] ] ) map to frames
-	sketch frames first sketch-loop
-	sketch frames last sketch-loop
+	frames ( frame | sketch frame sketch-points ) map to frame-indices
+	sketch frame-indices first join-loop
+	sketch frame-indices last join-loop
+	[ 1.55 top 0.13 - 0.8 ] to inside
 	0 4 1 do corner
-		sketch frames ( frame | frame corner @i ) map sketch-path
+		corner 1+ 4 mod to next
+		sketch frame-indices ( indices | indices corner @i ) map join-path
+		0 2 1 do k
+			frame-indices k @i to front
+			frame-indices k 1+ @i to back
+			sketch [ front corner @i front next @i back next @i back corner @i ] inside sketch-face
+		loop
 	loop
 	sketch [ frames second 2 @i frames second 3 @i ] sketch-path ;
 
-\ a wheel rolling along the line of flight: its tyre's two faces a width apart along its axle, joined around the tread, and the hub, a share of the radius, on the face the axle points to; the axle and the wheel's up are unit vectors square to the line of flight
+\ the wheels' hubs, grey (an estimate)
+0x8a8a86 constant hub-colour
+
+\ a wheel rolling along the line of flight: its tyre's two faces a width apart along its axle, joined around the tread, all filled, and the hub, a share of the radius, on the face the axle points to; the axle and the wheel's up are unit vectors square to the line of flight
 : sketch-wheel ( sketch centre axle up radius width hub-share -- )
 	| sketch centre axle up radius width hub-share |
-	[ -1 1 ] ( face | sketch centre axle face width * 2 / v* v+ [ 0 0 1 ] up radius 12 sketch-ring ) each
-	0 8 1 do k
-		k 8 / TAU * to angle
-		centre [ 0 0 angle cos radius * ] v+ up angle sin radius * v* v+ to rim
-		sketch [ rim axle width -2 / v* v+ rim axle width 2 / v* v+ ] sketch-path
+	[ -1 1 ] ( face | sketch centre axle face width * 2 / v* v+ [ 0 0 1 ] up radius 12 ring-of sketch-points ) map to rims
+	rims ( rim | sketch rim join-loop sketch rim centre tyre-colour sketch-painted-face ) each
+	0 12 1 do k
+		k 1+ 12 mod to next
+		sketch rims first k @i rims second k @i sketch-edge
+		sketch [ rims first k @i rims first next @i rims second next @i rims second k @i ] centre tyre-colour sketch-painted-face
 	loop
-	sketch centre axle width 2 / v* v+ [ 0 0 1 ] up radius hub-share * 12 sketch-ring ;
+	centre axle width 2 / 0.005 + v* v+ to hub
+	sketch hub [ 0 0 1 ] up radius hub-share * 12 ring-of centre hub-colour sketch-painted-plate ;
 
 \ the undercarriage, down, as it swings out from the fuselage to retract: each leg a slim strut from its pivot near the fuselage down, out and forward, raked 18°, leaning 15° outward to the wheel's inner face 0.75 m below the pivot, with a short link near its foot; the wheel upright, for a track of 5 ft 8 in, its tyre a third of its diameter wide, its hub on the outer face; the leg's cover inboard of the wheel, a half-disc over the tyre's upper half, its edge an arc about the hub and straight across at the hub's height; the tailwheel and its leg (the track and the rake from a forum thread on the Mk Vb's undercarriage; the pivots, the leg's length, the cover and the tyre estimates from photographs)
 : sketch-undercarriage ( sketch -- )
@@ -314,14 +402,14 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 			k 8 / PI * to angle
 			cover-centre up angle sin 0.37 * v* v+ [ 0 0 angle cos 0.37 * ] v+
 		loop ] to arc
-		sketch arc sketch-loop
+		sketch arc null sketch-plate
 		sketch centre axle up spitfire-mk-i-figures :wheel-radius @ 0.21 0.3 sketch-wheel
 	) each
 	spitfire-mk-i-figures :tail-wheel @ to tail-wheel
 	sketch [ [ 0 -0.35 -4.3 ] tail-wheel ] sketch-path
-	sketch tail-wheel [ 0 0 1 ] [ 0 1 0 ] spitfire-mk-i-figures :tail-wheel-radius @ 8 sketch-ring ;
+	sketch tail-wheel [ 0 0 1 ] [ 0 1 0 ] spitfire-mk-i-figures :tail-wheel-radius @ 8 ring-of tyre-colour sketch-plate ;
 
-\ the Spitfire Mk I: the fuselage of eight-sided rings from the cowling to the tail, its profile measured on the same side view as the hood, the cowling's top level with the spinner's and its bottom curving down behind it, the spinner and the three-blade propeller, six exhaust stubs a side, the hood, the wings, the radiator and the oil cooler, the elliptical tailplane and elevators, the fin and rudder, the aerial mast, the roundels on the upper wings and the fuselage; the undercarriage when down
+\ the Spitfire Mk I: the fuselage of eight-sided rings from the cowling to the tail, its profile measured on the same side view as the hood, the cowling's top level with the spinner's and its bottom curving down behind it, the spinner and the three-blade propeller, six exhaust stubs a side, the hood, the wings, the radiator and the oil cooler, the elliptical tailplane and elevators, the fin and rudder, the aerial mast, the roundels on the upper wings and the fuselage; the undercarriage when down. Filled in Dark Green with the Dark Earth patches on the upper wings, the faces turned down in Sky, the blades left as outlines, a turning propeller's blur, the wing roundels blue and red and the fuselage's blue, white and red (Sky on the undersides throughout, though before June 1940 they were black and white, and the fuselage roundel's yellow ring left out)
 \ the Spitfire's aerial mast behind the hood, a tapered outline; the Hurricane's mast and its wire to the fin
 : spitfire-mast ( -- points ) [ [ 0 0.57 -0.68 ] [ 0 1.22 -0.77 ] [ 0 1.22 -0.83 ] [ 0 0.57 -0.86 ] ] ;
 : hurricane-mast ( -- points ) [ [ 0 0.68 -1.9 ] [ 0 1.48 -1.9 ] [ 0 1.37 -5.5 ] ] ;
@@ -334,7 +422,7 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 
 : spitfire-model ( wheels-down -- model )
 	| wheels-down |
-	new-sketch to model
+	new-model-sketch sky-paint-colour :under-colour ! to model
 	model spitfire-rings [ 0 0 0 ] 8 sketch-body
 	model spitfire-spinner-rings [ 0 0 0 ] 8 sketch-body
 	[ 0 1 2 ] ( blade | model spitfire-hub blade 3 / TAU * 0.35 + spitfire-blade-widths propeller-blade sketch-loop ) each
@@ -355,15 +443,16 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 	model tailplane [ elevator ] 0 0.15 sketch-surface
 	model 0 [ [ -3.55 0.14 ] [ -3.85 0.58 ] [ -4.15 0.94 ] [ -4.45 1.18 ] [ -4.75 1.25 ] [ -4.98 1.12 ] [ -5.1 0.76 ]
 	          [ -5.12 0.27 ] [ -5.04 -0.22 ] [ -4.85 -0.35 ] [ -4.6 -0.31 ] ] [ [ -4.68 1.25 ] [ -4.68 -0.33 ] ] sketch-fin
-	model spitfire-mast sketch-loop
+	model spitfire-mast null sketch-plate
+	model spitfire-dark-earth 0.45 spitfire-half-span ' spitfire-skin sketch-dark-earth
 	[ -1 1 ] ( side |
 		side 3.7 * to out
-		[ out out wing-height-at 0.01 + out wing-leading-at out wing-trailing-at + 2 / ] to centre
-		[ spitfire-roundel-radius spitfire-roundel-centre-radius ] ( radius | model centre [ 1 0 0 ] [ 0 0 1 ] radius 16 sketch-ring ) each
-		[ 0.5 0.35 0.15 ] ( radius | model [ side 0.33 * -0.1 -2.3 ] [ 0 0 1 ] [ 0 1 0 ] radius 16 sketch-ring ) each
+		[ out out wing-height-at 0.02 + out wing-leading-at out wing-trailing-at + 2 / ] to centre
+		model centre [ 1 0 0 ] [ 0 0 1 ] [ 0 1 0 ] [ spitfire-roundel-radius spitfire-roundel-centre-radius ] [ roundel-blue-colour roundel-red-colour ] sketch-roundel
+		model [ side 0.33 * -0.1 -2.3 ] [ 0 0 1 ] [ 0 1 0 ] [ side 0 0 ] [ 0.5 0.35 0.15 ] [ roundel-blue-colour roundel-white-colour roundel-red-colour ] sketch-roundel
 	) each
 	wheels-down if model sketch-undercarriage then
-	model spitfire-colour sketch>object ;
+	model dark-green-colour sketch>object ;
 
 \ === the Hurricane ===
 
@@ -439,7 +528,13 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 	hurricane-rib-profile ( pair | pair first ) map hurricane-rib-profile ( pair | pair second ) map fraction table-at depth *
 	out hurricane-height-at + ;
 
-\ the wings: the centre section's outline and flaps level, the outer panels' outlines, flaps and ailerons at their dihedral, the tips rounded, all on the wing's flat underside; the cambered upper surface over it, a Clark YH section 19% of the chord thick through the centre section thinning to 12.2% at the tip (the published figures), drawn as ribs at five stations and the crest along the span at 30% of the chord, coming down over the rounded tip to its outermost point; the four gun ports in each wing's leading edge
+\ the point on the wing's upper surface a distance out and a share of the chord back from the leading edge
+: hurricane-skin ( out share -- point )
+	| out share |
+	out hurricane-edges-at to trailing to leading
+	[ out out share hurricane-upper-at leading leading trailing - share * - ] ;
+
+\ the wings: the centre section's outline and flaps level, the outer panels' outlines, flaps and ailerons at their dihedral, the tips rounded, all on the wing's flat underside; the cambered upper surface over it, a Clark YH section 19% of the chord thick through the centre section thinning to 12.2% at the tip (the published figures), drawn as ribs at five stations with the skin filled between them; the four gun ports in each wing's leading edge
 : sketch-hurricane-wings ( sketch -- )
 	| sketch |
 	hurricane-centre-half-span to inner
@@ -463,12 +558,17 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 		[ 0.55 1.6 3.0 4.5 5.6 ] ribs ( out rib |
 			rib spread to rib-base to rib-depth to rib-chord to rib-leading
 			sketch hurricane-rib-profile
-				( pair | [ out side * rib-base pair second rib-depth * + rib-leading pair first rib-chord * - ] ) map sketch-path
-			[ out side * rib-base rib-depth + rib-leading rib-chord 0.3 * - ]
-		) 2 nmap to crest
-		[ [ side 5.95 * 5.95 hurricane-height-at 0.143 + 0.48 ] [ side 6.05 * 6.05 hurricane-height-at 0.10 + 0.415 ]
-		  [ side 6.095 * 6.095 hurricane-height-at 0.23 ] ] to tip-crest
-		sketch crest tip-crest concat sketch-path
+				( pair | [ out side * rib-base pair second rib-depth * + rib-leading pair first rib-chord * - ] ) map sketch-points
+		) 2 nmap to rib-indices
+		rib-indices ( indices | sketch indices join-path ) each
+		0 rib-indices size 1- 1 do r
+			rib-indices r @i to inner-rib
+			rib-indices r 1+ @i to outer-rib
+			0 inner-rib size 1- 1 do j
+				[ inner-rib j @i inner-rib j 1+ @i outer-rib j 1+ @i outer-rib j @i ] to quad
+				sketch quad sketch quad inside-of [ 0 0.3 0 ] v- sketch-face
+			loop
+		loop
 	) each
 	[ 2.2 2.4 2.6 2.8 ] ( out |
 		[ -1 1 ] ( side |
@@ -503,12 +603,12 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 		[ side wheel-out * wheel-up wheel-along ] to axle
 		1.385 hurricane-height-at to wing
 		sketch [ [ side 1.385 * wing wheel-along ] [ side 1.385 * wheel-up wheel-along ] axle ] sketch-path
-		sketch [ [ side 1.40 * wing 0.82 ] [ side 1.40 * -1.56 1.52 ] [ side 1.40 * -1.56 0.435 ] [ side 1.40 * -1.17 0.70 ] [ side 1.40 * wing 0.59 ] ] sketch-loop
+		sketch [ [ side 1.40 * wing 0.82 ] [ side 1.40 * -1.56 1.52 ] [ side 1.40 * -1.56 0.435 ] [ side 1.40 * -1.17 0.70 ] [ side 1.40 * wing 0.59 ] ] null sketch-plate
 		sketch axle [ side negate 0 0 ] [ 0 1 0 ] hurricane-mk-i-figures :wheel-radius @ 0.26 0.35 sketch-wheel
 	) each
 	hurricane-mk-i-figures :tail-wheel @ to tail-wheel
 	sketch [ [ 0 -0.70 -4.65 ] tail-wheel ] sketch-path
-	sketch tail-wheel [ 0 0 1 ] [ 0 1 0 ] hurricane-mk-i-figures :tail-wheel-radius @ 8 sketch-ring ;
+	sketch tail-wheel [ 0 0 1 ] [ 0 1 0 ] hurricane-mk-i-figures :tail-wheel-radius @ 8 ring-of tyre-colour sketch-plate ;
 
 \ the Hurricane's tailplane, its right half as [ out along ] points, and its elevator's hinge; the fin and rudder as [ along up ] points, and the rudder's hinge
 : hurricane-tailplane ( -- pairs )
@@ -519,7 +619,7 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 	  [ -6.1 0.92 ] [ -6.25 0.46 ] [ -6.2 0.0 ] [ -6.1 -0.33 ] [ -5.9 -0.43 ] [ -5.7 -0.49 ] [ -5.5 -0.5 ] ] ;
 : hurricane-rudder ( -- pairs ) [ [ -5.5 1.37 ] [ -5.5 -0.5 ] ] ;
 
-\ the Hurricane Mk I: the fuselage of ten-sided rings from the cowling to the rudder's hinge, deep to its end, and the keel along its underside from the tail wheel to the rudder's lower corner, the spinner and the three-blade propeller, six exhaust stubs a side, the hood and spine, the wings, the radiator under the fuselage, a tub with a U-shaped section deepest behind its intake, the tailplane and elevators, the fin and rudder, the aerial mast and its wire, the roundels on the upper wings; the undercarriage when down
+\ the Hurricane Mk I: the fuselage of ten-sided rings from the cowling to the rudder's hinge, deep to its end, and the keel along its underside from the tail wheel to the rudder's lower corner, the spinner and the three-blade propeller, six exhaust stubs a side, the hood and spine, the wings, the radiator under the fuselage, a tub with a U-shaped section deepest behind its intake, the tailplane and elevators, the fin and rudder, the aerial mast and its wire, the roundels on the upper wings; the undercarriage when down. Filled as the Spitfire is, in Dark Green with its own Dark Earth patches, Sky below
 \ the Hurricane's fuselage rings from the cowling to the rudder's hinge, the seventh the first behind the hood
 : hurricane-rings ( -- rings )
 	[ [ 2.85 0.28 0.285 0.035 ] [ 2.5 0.38 0.40 0 ] [ 2.1 0.51 0.55 -0.07 ] [ 1.5 0.55 0.635 -0.125 ] [ 0.5 0.53 0.69 -0.13 ]
@@ -528,7 +628,7 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 
 : hurricane-model ( wheels-down -- model )
 	| wheels-down |
-	new-sketch to model
+	new-model-sketch sky-paint-colour :under-colour ! to model
 	model hurricane-rings [ 0 0 0 ] 10 sketch-body
 	model hurricane-spinner-rings [ 0 0 0 ] 8 sketch-body
 	[ 0 1 2 ] ( blade | model hurricane-hub blade 3 / TAU * 0.35 + hurricane-blade-widths propeller-blade sketch-loop ) each
@@ -547,10 +647,11 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 	model hurricane-tailplane [ hurricane-elevator ] 0 0.15 sketch-surface
 	model 0 hurricane-fin hurricane-rudder sketch-fin
 	model hurricane-mast sketch-path
+	model hurricane-dark-earth 0.55 6.095 ' hurricane-skin sketch-dark-earth
 	[ -1 1 ] ( side |
 		side 4.2 * to out
-		[ out out hurricane-height-at 0.01 + out hurricane-leading-at out hurricane-trailing-at + 2 / ] to centre
-		[ hurricane-roundel-radius hurricane-roundel-centre-radius ] ( radius | model centre [ 1 0 0 ] [ 0 0 1 ] radius 16 sketch-ring ) each
+		[ out out 0.5 hurricane-upper-at 0.03 + out hurricane-leading-at out hurricane-trailing-at + 2 / ] to centre
+		model centre [ 1 0 0 ] [ 0 0 1 ] [ 0 1 0 ] [ hurricane-roundel-radius hurricane-roundel-centre-radius ] [ roundel-blue-colour roundel-red-colour ] sketch-roundel
 	) each
 	wheels-down if model sketch-hurricane-undercarriage then
-	model spitfire-colour sketch>object ;
+	model dark-green-colour sketch>object ;

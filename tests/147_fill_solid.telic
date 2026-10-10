@@ -1,0 +1,175 @@
+\ ==== fill-solid ( points faces centres normals colours leads camera projection shading -- ), offline ====
+
+\ fill-solid draws a solid's faces, an array of corner-index arrays or a
+\ matrix of them a row a face, as a camera sees them: the points
+\ (n×3 or n×4 rows) carried to the eye's terms by the 4×3 camera matrix,
+\ each face kept when it turns toward the eye (its outward normal against
+\ the eye's place less its centre), sorted farthest first by its centre's
+\ depth less its lead, left out when a corner lies nearer than the near
+\ plane, projected by [ focal centre-x centre-y near ], then filled and
+\ outlined, each pixel kept only where the face is no farther than what
+\ the same call drew there before, unless a 13th shading element is 0. A
+\ face of two corners is a line: never culled, sorted by its middle, drawn
+\ in its colour faded into the sky but unlit, each pixel tested against the
+\ faces' depths along its length without writing its own. A face whose
+\ colour has 0x1000000 set is unlit: the sun's light is left out. A face
+\ of more than three corners, convex on the screen, is depth-tested as
+\ triangles from its first corner, each in its own plane. Its light is the
+\ sun's on it, clamped to [0, 1], over a floor of the shadow share, times
+\ the day's lighting; the fill is its colour
+\ dimmed to that light and faded into the sky's colour keeping a share,
+\ the outline the same at the outline share of the light; grey when asked.
+\ The shading is [ eye-x eye-y eye-z sun-x sun-y sun-z shadow lighting
+\ kept sky outline-share grey ].
+
+: show-rows ( bitmap -- )
+	| bitmap |
+	bitmap dim to n-columns to n-rows
+	0 n-rows 1 do row
+		"" 0 n-columns 1 do column
+			bitmap row column @i,j to pixel
+			pixel 0 = if "." else pixel 0x808080 = if "#" else pixel 0x404040 = if "o" else pixel 0xff0000 = if "r" else "?" then then then then +
+		loop . cr
+	loop ;
+
+: blank ( -- ) 0 ink 0 0 12 12 fill-rect ;
+
+\ the camera looks along z from the origin: a point [ x y z ] is x across, y up, z ahead
+[ 1 0 0  0 1 0  0 0 1  0 0 0 ] 4 3 matrix constant straight-on
+[ 10 5 5 0.1 ] vector constant projection
+[ 0 0 0  0 0 -1  0.5 1 1  0  0.5 0 ] vector constant sunlit
+
+\ a square 4 across, 10 ahead, its corners at 3 and 7 on the screen
+[ -2 -2 10  2 -2 10  2 2 10  -2 2 10 ] 4 3 matrix constant square
+
+\ === a face toward the eye: filled grey, outlined at half the light ===
+blank
+square [ [ 0 1 2 3 ] ] [ 0 0 10 ] 1 3 matrix [ 0 0 -1 ] 1 3 matrix [ 0x808080 ] vector [ 0 ] vector straight-on projection sunlit fill-solid
+0 0 9 9 capture-bitmap show-rows
+\ .........
+\ .........
+\ .........
+\ ...ooooo.
+\ ...o###o.
+\ ...o###o.
+\ ...o###o.
+\ ...ooooo.
+\ .........
+clear
+
+\ === the faces as a matrix of corner indices, a row a face, -1 ending a shorter one: a triangle of the square's first three corners, at (3,7), (7,7) and (7,3) on the screen ===
+blank
+square [ 0 1 2 -1 ] 1 4 matrix [ 0 0 10 ] 1 3 matrix [ 0 0 -1 ] 1 3 matrix [ 0x808080 ] vector [ 0 ] vector straight-on projection sunlit fill-solid
+0 0 9 9 capture-bitmap show-rows
+\ .........
+\ .........
+\ .........
+\ ......#o.
+\ .....#oo.
+\ ....#o#o.
+\ ...#o##o.
+\ ...ooooo.
+\ .........
+clear
+
+\ === the same face turned away from the eye: nothing drawn ===
+blank
+square [ [ 0 1 2 3 ] ] [ 0 0 10 ] 1 3 matrix [ 0 0 1 ] 1 3 matrix [ 0x808080 ] vector [ 0 ] vector straight-on projection sunlit fill-solid
+0 0 9 9 capture-bitmap show-rows
+\ .........
+\ .........
+\ .........
+\ .........
+\ .........
+\ .........
+\ .........
+\ .........
+\ .........
+clear
+
+\ === a corner nearer than the near plane: the face left out ===
+blank
+[ -2 -2 0.05  2 -2 10  2 2 10  -2 2 10 ] 4 3 matrix [ [ 0 1 2 3 ] ] [ 0 0 7.5 ] 1 3 matrix [ 0 0 -1 ] 1 3 matrix [ 0x808080 ] vector [ 0 ] vector straight-on projection sunlit fill-solid
+0 0 9 9 capture-bitmap show-rows
+\ .........
+\ .........
+\ .........
+\ .........
+\ .........
+\ .........
+\ .........
+\ .........
+\ .........
+clear
+
+\ === two faces over each other: the nearer, red, shows; with a lead of 1 the farther, grey, sorts nearer and is drawn last, and the red still shows, each pixel kept by the nearer face ===
+blank
+[ -2 -2 10  2 -2 10  2 2 10  -2 2 10  -2 -2 9.5  2 -2 9.5  2 2 9.5  -2 2 9.5 ] 8 3 matrix to stacked
+[ 0 0 10  0 0 9.5 ] 2 3 matrix to centres
+[ 0 0 -1  0 0 -1 ] 2 3 matrix to normals
+[ 0 0 0  0 0 -1  0 1 1  0  -1 0 ] vector to no-outline
+stacked [ [ 0 1 2 3 ] [ 4 5 6 7 ] ] centres normals [ 0x808080 0xff0000 ] vector [ 0 0 ] vector straight-on projection no-outline fill-solid
+5 5 1 1 capture-bitmap matrix>array .                           \ [ 16711680 ]
+stacked [ [ 0 1 2 3 ] [ 4 5 6 7 ] ] centres normals [ 0x808080 0xff0000 ] vector [ 1 0 ] vector straight-on projection no-outline fill-solid
+5 5 1 1 capture-bitmap matrix>array .                           \ [ 16711680 ]
+stacked [ [ 0 1 2 3 ] [ 4 5 6 7 ] ] centres normals [ 0x808080 0xff0000 ] vector [ 1 0 ] vector straight-on projection
+[ 0 0 0  0 0 -1  0 1 1  0  -1 0  0 ] vector fill-solid
+5 5 1 1 capture-bitmap matrix>array . cr                        \ [ 8421504 ] (a 13th shading element of 0: no depth test, the order alone)
+clear
+
+\ === two faces crossing: the grey one 10 ahead, the red one leaning from 8 ahead on the left to 12 on the right, 45° from the sun so 0.707 of its red, 0xb40000; they cross at the screen's column 5, the red showing left of it, the grey right ===
+blank
+[ -2 -2 10  2 -2 10  2 2 10  -2 2 10  -2 -2 8  2 -2 12  2 2 12  -2 2 8 ] 8 3 matrix
+[ [ 0 1 2 3 ] [ 4 5 6 7 ] ] [ 0 0 10  0 0 10 ] 2 3 matrix [ 0 0 -1  -0.707 0 -0.707 ] 2 3 matrix
+[ 0x808080 0xff0000 ] vector [ 0 0 ] vector straight-on projection [ 0 0 0  0 0 -1  0 1 1  0  -1 0 ] vector fill-solid
+0 4 9 1 capture-bitmap matrix>array . cr                        \ [ 0 0 11796480 11796480 11796480 8421504 8421504 0 0 ]
+clear
+
+\ === a line, a face of two corners, never culled, in its colour unshaded: from 8 ahead on the left to 12 on the right through the grey face 10 ahead, shown left of the screen's column 5 where it is nearer, hidden right of it, shown again past the face's edge ===
+blank
+[ -2 -2 10  2 -2 10  2 2 10  -2 2 10  -3 0 8  3 0 12 ] 6 3 matrix
+[ 0 1 2 3  4 5 -1 -1 ] 2 4 matrix [ 0 0 10  0 0 10 ] 2 3 matrix [ 0 0 -1  0 0 0 ] 2 3 matrix
+[ 0x808080 0xff0000 ] vector [ 0 0 ] vector straight-on projection [ 0 0 0  0 0 -1  0 1 1  0  -1 0 ] vector fill-solid
+0 5 9 1 capture-bitmap matrix>array . cr                        \ [ 0 16711680 16711680 16711680 16711680 8421504 8421504 16711680 0 ]
+clear
+
+\ === the light: the sun square on the face gives its colour; at its edge the shadow's half; the sky taking half at a kept share of 0.5 ===
+blank
+square [ [ 0 1 2 3 ] ] [ 0 0 10 ] 1 3 matrix [ 0 0 -1 ] 1 3 matrix [ 0x808080 ] vector [ 0 ] vector straight-on projection
+[ 0 0 0  1 0 0  0.5 1 1  0  -1 0 ] vector fill-solid
+5 5 1 1 capture-bitmap matrix>array .                           \ [ 4210752 ]
+square [ [ 0 1 2 3 ] ] [ 0 0 10 ] 1 3 matrix [ 0 0 -1 ] 1 3 matrix [ 0x808080 ] vector [ 0 ] vector straight-on projection
+[ 0 0 0  0 0 -1  0.5 1 0.5  0xffffff  -1 0 ] vector fill-solid
+5 5 1 1 capture-bitmap matrix>array . cr                        \ [ 12566463 ]
+clear
+
+\ === a face of four corners not in one plane, its fourth corner 14 ahead and the rest 10: depth-tested as two triangles from its first corner, so over the red face 11 ahead the triangle reaching back to 14 lets the red through where it lies nearer ===
+blank
+[ -2 -2 10  2 -2 10  2 2 10  -2 2 14  -2 -2 11  2 -2 11  2 2 11  -2 2 11 ] 8 3 matrix
+[ [ 0 1 2 3 ] [ 4 5 6 7 ] ] [ 0 0 10  0 0 11 ] 2 3 matrix [ 0 0 -1  0 0 -1 ] 2 3 matrix
+[ 0x808080 0xff0000 ] vector [ 0 0 ] vector straight-on projection [ 0 0 0  0 0 -1  0 1 1  0  -1 0 ] vector fill-solid
+0 0 9 9 capture-bitmap show-rows
+\ .........
+\ .........
+\ .........
+\ ...rrr#..
+\ ...rr##..   (4,4) red: the far triangle lies behind the red face; one plane through the near corners would draw it grey
+\ ...r###..
+\ ...####..
+\ .........
+\ .........
+clear
+
+\ === an unlit face, its colour with 0x1000000 set: the sun at its edge as above, drawn in its full colour, the day's lighting and the sky still applied ===
+blank
+square [ [ 0 1 2 3 ] ] [ 0 0 10 ] 1 3 matrix [ 0 0 -1 ] 1 3 matrix [ 0x1808080 ] vector [ 0 ] vector straight-on projection
+[ 0 0 0  1 0 0  0.5 1 1  0  -1 0 ] vector fill-solid
+5 5 1 1 capture-bitmap matrix>array . cr                        \ [ 8421504 ]
+clear
+
+\ === errors ===
+square [ [ 0 1 2 3 ] ] [ 0 0 10 ] 1 3 matrix [ 0 0 -1 ] 1 3 matrix [ 0x808080 ] vector [ 0 ] vector projection projection sunlit fill-solid  \ (a camera not 4x3)
+square [ [ 0 1 2 3 ] ] [ 0 0 10 ] 1 3 matrix [ 0 0 -1 ] 1 3 matrix [ ] vector [ 0 ] vector straight-on projection sunlit fill-solid         \ (no colour for the face)
+square [ [ 0 1 2 9 ] ] [ 0 0 10 ] 1 3 matrix [ 0 0 -1 ] 1 3 matrix [ 0x808080 ] vector [ 0 ] vector straight-on projection sunlit fill-solid \ (a corner index past the points)
+square [ [ 0 1 2 3 ] ] [ 0 0 10 ] 1 3 matrix [ 0 0 -1 ] 1 3 matrix [ 0x808080 ] vector [ 0 ] vector straight-on [ 10 5 5 ] vector sunlit fill-solid \ (a projection of 3 elements)
+square [ [ 0 1 2 3 ] ] [ 0 0 10 ] 1 3 matrix [ 0 0 -1 ] 1 3 matrix [ 0x808080 ] vector [ 0 ] vector straight-on projection fill-solid          \ (too few operands)

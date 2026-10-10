@@ -1,0 +1,104 @@
+\ ==== fill-polygons ( xs ys faces fills outlines -- ), offline ====
+
+\ fill-polygons draws polygons in the order given: each filled in its own
+\ packed colour, every pixel whose centre lies inside by the even-odd rule,
+\ so a polygon need not be convex, then outlined in another colour, corner to
+\ corner and back to the first, the lines cut to the canvas; an outline
+\ below 0 is left out, and so is a polygon with a corner whose coordinate
+\ is not finite. xs and ys hold the corners' coordinates; each polygon is
+\ an array of indices into them. Drawing needs no window, so
+\ capture-bitmap reads the canvas back.
+
+: show-rows ( bitmap -- )
+	| bitmap |
+	bitmap dim to n-columns to n-rows
+	0 n-rows 1 do row
+		"" 0 n-columns 1 do column
+			bitmap row column @i,j to pixel
+			pixel 0 = if "." else pixel 0xff0000 = if "r" else pixel 0x00ff00 = if "g" else "#" then then then +
+		loop . cr
+	loop ;
+
+: blank ( -- ) 0 ink 0 0 12 12 fill-rect ;
+
+\ === a square filled, no outline: the pixels whose centres lie inside, 0 to 5 each way ===
+blank
+[ 0 6 6 0 ] vector [ 0 0 6 6 ] vector [ [ 0 1 2 3 ] ] [ 0xffffff ] vector [ -1 ] vector fill-polygons
+0 0 7 7 capture-bitmap show-rows
+\ ######.
+\ ######.
+\ ######.
+\ ######.
+\ ######.
+\ ######.
+\ .......
+clear
+
+\ === a polygon not convex, a notch cut up into its lower edge: rows 2 to 5 filled on either side of it ===
+blank
+[ 0 6 6 4 4 2 2 0 ] vector [ 0 0 6 6 2 2 6 6 ] vector [ [ 0 1 2 3 4 5 6 7 ] ] [ 0xffffff ] vector [ -1 ] vector fill-polygons
+0 0 7 7 capture-bitmap show-rows
+\ ######.
+\ ######.
+\ ##..##.
+\ ##..##.
+\ ##..##.
+\ ##..##.
+\ .......
+clear
+
+\ === filled green, outlined red: the outline drawn over the fill along the corners ===
+blank
+[ 1 5 5 1 ] vector [ 1 1 5 5 ] vector [ [ 0 1 2 3 ] ] [ 0x00ff00 ] vector [ 0xff0000 ] vector fill-polygons
+0 0 7 7 capture-bitmap show-rows
+\ .......
+\ .rrrrr.
+\ .rgggr.
+\ .rgggr.
+\ .rgggr.
+\ .rrrrr.
+\ .......
+clear
+
+\ === in order: the second polygon, red, drawn over the first, green ===
+blank
+[ 0 4 4 0 2 6 6 2 ] vector [ 0 0 4 4 2 2 6 6 ] vector [ [ 0 1 2 3 ] [ 4 5 6 7 ] ]
+[ 0x00ff00 0xff0000 ] vector [ -1 -1 ] vector fill-polygons
+0 0 7 7 capture-bitmap show-rows
+\ gggg...
+\ gggg...
+\ ggrrrr.
+\ ggrrrr.
+\ ..rrrr.
+\ ..rrrr.
+\ .......
+clear
+
+\ === a polygon with a corner not finite left out; the other, corners (0,4) (4,4) (4,0), drawn: row 0's centre, y 0.5, meets its long edge at x 3.5, so pixel 3 ===
+blank
+[ 0 4 null 0 4 4 ] vector [ 0 0 4 4 4 0 ] vector [ [ 0 1 2 ] [ 3 4 5 ] ]
+[ 0xff0000 0x00ff00 ] vector [ -1 -1 ] vector fill-polygons
+0 0 5 5 capture-bitmap show-rows
+\ ...g.
+\ ..gg.
+\ .ggg.
+\ gggg.
+\ .....
+clear
+
+\ === an outline running far off the canvas cut to it: only the part on the canvas drawn ===
+blank
+[ -100000 100000 0 ] vector [ 2 2 -100000 ] vector [ [ 0 1 2 ] ] [ 0 ] vector [ 0xff0000 ] vector fill-polygons
+0 0 6 4 capture-bitmap show-rows
+\ ......
+\ ......
+\ rrrrrr
+\ ......
+clear
+
+\ === errors ===
+[ 0 1 ] vector [ 0 ] vector [ ] [ ] vector [ ] vector fill-polygons                    \ (as many ys as xs needed)
+[ 0 1 ] vector [ 0 1 ] vector [ [ 0 1 ] ] [ ] vector [ -1 ] vector fill-polygons       \ (a fill colour for each face)
+[ 0 1 ] vector [ 0 1 ] vector [ [ 0 2 ] ] [ 0 ] vector [ -1 ] vector fill-polygons     \ (a corner index past the points)
+[ 0 1 ] vector [ 0 1 ] vector [ 7 ] [ 0 ] vector [ -1 ] vector fill-polygons           \ (a face that is not an array)
+[ 0 1 ] vector [ 0 1 ] vector [ ] [ ] vector fill-polygons                             \ (too few operands)

@@ -2,7 +2,9 @@
 """Generate examples/spitfire/geography.telic, the map the Spitfire flies over.
 
 Maintainer tool, run by hand; the generated file is committed, so playing the
-game needs no network. It downloads Natural Earth's 1:10m vectors (public
+game needs no network. Each Overpass answer is kept in ~/.cache/telic-overpass
+under a hash of its query, so a run that fails partway fetches only what is
+still missing when run again; delete that directory to fetch everything anew. It downloads Natural Earth's 1:10m vectors (public
 domain) and asks Wikidata (CC0) for the coordinates and heights of the
 landmarks, then writes them in the game's ground frame: metres east (x) and
 north (z) of 56°N 3.6°W by the azimuthal equidistant projection from that
@@ -18,12 +20,11 @@ The file holds
                OpenStreetMap's coastline (land on its left), chained into
                closed rings, islets under 2 hectares dropped
   lochs        Loch Lomond and Loch Ness, closed, with their surface heights
-  rivers       the Ness from Natural Earth; the Clyde through Glasgow, the
-               Forth up to Stirling and the Kelvin from the Botanic Gardens
-               through Kelvingrove Park to the Clyde, which Natural Earth
-               lacks, traced through Wikidata places on their banks (one
-               Kelvin point the midpoint of the museum and the Kelvin Hall,
-               between which it flows)
+  rivers       the Ness from Natural Earth; the Clyde through Glasgow and
+               the Forth up to Stirling, which Natural Earth lacks, traced
+               through Wikidata places on their banks; the Kelvin from the
+               Botanic Gardens through Kelvingrove Park to the Clyde,
+               OpenStreetMap's centre line simplified to 10 m
   land squares the south-west corner and size of the kilometre squares the
                countryside is laid out in
   land outlines
@@ -59,6 +60,7 @@ The file holds
                none
 """
 
+import hashlib
 import json
 import math
 import os
@@ -69,6 +71,7 @@ import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "examples", "spitfire", "geography.telic")
+STREETS_OUT = os.path.join(ROOT, "examples", "spitfire", "town-streets.telic")
 NATURAL_EARTH = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/{}.geojson"
 WIKIDATA = "https://www.wikidata.org/w/api.php?action=wbgetentities&sites=enwiki&props=claims&format=json&titles="
 
@@ -140,17 +143,27 @@ CLYDE = ["Greenock", "Port Glasgow", "Bowling, West Dunbartonshire", "Old Kilpat
          "Clydebank", "Renfrew", "Govan", "Riverside Museum", "Kingston Bridge, Glasgow", "Glasgow Green",
          "Dalmarnock", "Rutherglen"]
 FORTH = ["Grangemouth", "Kincardine Bridge", "Clackmannan", "Alloa", "Cambuskenneth Abbey", "Stirling Old Bridge"]
-KELVIN = [("Glasgow Botanic Gardens",), ("Kelvinbridge subway station",), ("Kelvingrove Park",),
-          ("Kelvingrove Art Gallery and Museum", "Kelvin Hall"), ("Riverside Museum",)]
+KELVIN_BOX = (55.866, -4.312, 55.882, -4.275)
+KELVIN_GAP_DEGREES = 0.001
 
 
-def traced(stations, places):
-    course = []
-    for titles in stations:
-        if all(t in places for t in titles):
-            points = [to_ground(*places[t][:2]) for t in titles]
-            course.append((sum(p[0] for p in points) / len(points), sum(p[1] for p in points) / len(points)))
-    return course
+def kelvin_course():
+    south, west, north, east = KELVIN_BOX
+    query = '[out:json][timeout:120];way["waterway"="river"]["name"="River Kelvin"]({},{},{},{});out geom;'.format(south, west, north, east)
+    ways = [[(p["lon"], p["lat"]) for p in element["geometry"]] for element in overpass(query)["elements"]]
+    chains = chain_ways(ways)
+    joined = True
+    while joined:
+        joined = False
+        for a in chains:
+            following = [b for b in chains if b is not a and math.dist(a[-1], b[0]) < KELVIN_GAP_DEGREES]
+            if following:
+                chains.remove(following[0])
+                a.extend(following[0])
+                joined = True
+                break
+    inside = [[(lon, lat) for lon, lat in chain if west <= lon <= east and south <= lat <= north] for chain in chains]
+    return simplify([to_ground(lon, lat) for lon, lat in max(inside, key=len)], 10.0)
 
 
 EARTH_RADIUS = 6371000.0
@@ -417,17 +430,28 @@ def city_query(city):
 out geom;""".format(names=names, squares=squares, stations=stations, buildings=buildings, box=box)
 
 
-def overpass(query, attempts=5):
+OVERPASS_CACHE = os.path.expanduser("~/.cache/telic-overpass")
+
+
+def overpass(query, attempts=8):
+    cached = os.path.join(OVERPASS_CACHE, hashlib.sha256(query.encode()).hexdigest() + ".json")
+    if os.path.exists(cached):
+        with open(cached) as source:
+            return json.load(source)
     data = urllib.parse.urlencode({"data": query}).encode()
     for attempt in range(attempts):
         request = urllib.request.Request(OVERPASS, data=data, headers={"User-Agent": "telic-gen-spitfire-map/1"})
         try:
             with urllib.request.urlopen(request, timeout=300) as response:
-                return json.load(response)
+                answer = json.load(response)
+            os.makedirs(OVERPASS_CACHE, exist_ok=True)
+            with open(cached, "w") as sink:
+                json.dump(answer, sink)
+            return answer
         except urllib.error.HTTPError as error:
             if error.code not in (429, 502, 503, 504) or attempt == attempts - 1:
                 raise
-            time.sleep(30)
+            time.sleep(60)
 
 
 def way_points(element):
@@ -661,6 +685,40 @@ def town_roads(places):
     return roads
 
 
+TOWN_LANES = [("edinburgh", "Edinburgh Castle", 3000), ("leith", "Leith", 1200), ("glasgow", "Glasgow Cathedral", 4000),
+              ("govan", "Govan", 1500), ("clydebank", "Clydebank", 1200), ("inverness", "Inverness Castle", 1500),
+              ("stirling", "Stirling Castle", 1200), ("aberdeen", "Marischal College", 2000), ("peterhead", "Peterhead", 800),
+              ("montrose", "Montrose, Angus", 800), ("kirkwall", "Kirkwall", 700), ("lerwick", "Lerwick", 600)]
+TOWN_LANE_KINDS = "primary|secondary|tertiary|residential|unclassified|living_street"
+
+
+def town_lanes(places):
+    named = {n for city in CITIES.values() for names in city["streets"].values() for n in names}
+    seen, towns = set(), []
+    for key, title, reach in TOWN_LANES:
+        lon, lat, _ = places[title]
+        centre = to_ground(lon, lat)
+        dlat = reach / METRES_PER_DEGREE_NORTH
+        dlon = reach / (METRES_PER_DEGREE_NORTH * math.cos(math.radians(lat)))
+        box = "{},{},{},{}".format(lat - dlat, lon - dlon, lat + dlat, lon + dlon)
+        query = '[out:json][timeout:180];way["highway"~"^({})$"]({});out tags geom;'.format(TOWN_LANE_KINDS, box)
+        lanes = []
+        for element in overpass(query)["elements"]:
+            if element["id"] in seen or element.get("tags", {}).get("name") in named:
+                continue
+            seen.add(element["id"])
+            run = []
+            for point in way_points(element) + [None]:
+                if point is not None and math.dist(point, centre) <= reach:
+                    run.append(point)
+                    continue
+                if len(run) >= 2:
+                    lanes.append(simplify(run, 8.0))
+                run = []
+        towns.append((key, lanes))
+    return towns
+
+
 TRONDHEIM_TOWN_BOX = (63.418, 10.365, 63.440, 10.430)
 TRONDHEIM_LANES = "primary|secondary|tertiary|residential|unclassified|living_street|pedestrian"
 
@@ -774,10 +832,10 @@ def main():
     cities = {name: city_features(city) for name, city in CITIES.items()}
     norway, norway_shores = coast_land(NORWAY_BOX)
 
-    places = titled_points([title for _, title in LANDMARKS] + CLYDE + FORTH + [t for titles in KELVIN for t in titles])
+    places = titled_points([title for _, title in LANDMARKS] + CLYDE + FORTH)
     clyde = [to_ground(*places[t][:2]) for t in CLYDE if t in places]
     forth = [to_ground(*places[t][:2]) for t in FORTH if t in places]
-    kelvin = traced(KELVIN, places)
+    kelvin = kelvin_course()
 
     lines = [
         "\\ Spitfire: the map, generated by tools/gen-spitfire-map.py from Natural",
@@ -854,6 +912,17 @@ def main():
               "["]
     lines += ["  [ {} {} ]".format(width, polyline_text(points)) for width, points in town_roads(places)]
     lines += ["] to town-roads"]
+    street_lines = [
+        "\\ Spitfire: each Scottish town's other streets, generated by tools/gen-spitfire-map.py beside",
+        "\\ geography.telic, which load's size limit keeps them out of; do not edit, re-run the script.",
+        "\\ Primary to residential, from OpenStreetMap, (c) OpenStreetMap contributors, under the ODbL,",
+        "\\ within a reach of the town's point that keeps to the town of 1940 (Edinburgh 3 km of the castle,",
+        "\\ Glasgow 4 km of the cathedral, Aberdeen 2 km of Marischal College, the others less), the streets",
+        "\\ the cities' blocks already line left out, simplified to 8 m",
+        "{"]
+    for key, lanes in town_lanes(places):
+        street_lines += ["  :{} [".format(key)] + ["    " + polyline_text(lane) for lane in lanes] + ["  ]"]
+    street_lines += ["} to town-lanes", ""]
     wet_docks, dry_docks, breakwaters = leith_harbour()
     lines += ["",
               "\\ Leith's harbour of 1940 from OpenStreetMap, (c) OpenStreetMap contributors, under the ODbL, as",
@@ -888,7 +957,9 @@ def main():
     lines += [""]
     with open(OUT, "w") as out:
         out.write("\n".join(lines))
-    print("wrote", OUT, "coast runs", len(coast), "land outlines", len(outlines))
+    with open(STREETS_OUT, "w") as out:
+        out.write("\n".join(street_lines))
+    print("wrote", OUT, "and", STREETS_OUT, "coast runs", len(coast), "land outlines", len(outlines))
 
 
 if __name__ == "__main__":

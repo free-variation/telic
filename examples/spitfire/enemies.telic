@@ -22,18 +22,33 @@
 \ reach the same greatest lift. Everything about the guns is gunnery.telic's;
 \ an aircraft whose hits pass its strength smokes, rolls over and falls.
 
-0xd0d0d0 constant bomber-colour
 0x908070 constant smoke-colour
 
-\ an engine on each wing: the nacelle as rings of six from its round cowling back past the wing, the propeller and its disc before it, six exhaust stubs down each side of the cowling; the stations are [ along radius ] from the cowling's face
-: sketch-engines ( sketch out lift face stations propeller-radius -- )
-	| sketch out lift face stations propeller-radius |
-	stations ( station | [ station first face + station second station second lift ] ) map to rings
+\ the Luftwaffe's finish of 1939 to 1941: the upper surfaces in RLM 70 and 71, drawn as one dark green between them, the under surfaces RLM 65 light blue, the crosses black over white; the target drogue's canvas; HMS Glorious's grey and her flight deck's (every shade an estimate)
+0x3a4232 constant luftwaffe-upper-colour
+0x93a8b8 constant luftwaffe-under-colour
+0x141414 constant cross-black-colour
+0xe6e6e0 constant cross-white-colour
+0xd8d2c0 constant canvas-colour
+0x7c848a constant carrier-grey-colour
+0x5c5a52 constant flight-deck-colour
+
+\ an engine on each wing: the nacelle as rings of six from its round cowling back past the wing, the propeller and its disc before it 0.15 m ahead of the face, the spinner of six sides through [ ahead-of-face radius ] pairs, six exhaust stubs down each side of the cowling; the spinner and the hub on the cowling face's centre; the stations are [ along radius ] from the cowling's face, or [ along half-width half-height drop ] for a nacelle deeper than it is wide, the drop added to the lift
+\ the Jumo 211's spinner, a blunt dome, as [ ahead-of-face radius ] pairs (measured on the He 111 from a side profile)
+[ [ 0.05 0.4 ] [ 0.15 0.4 ] [ 0.35 0.37 ] [ 0.5 0.28 ] [ 0.6 0.16 ] [ 0.65 0.05 ] ] constant bomber-spinner
+
+: sketch-engines ( sketch out lift face stations propeller-radius spinner-profile -- )
+	| sketch out lift face stations propeller-radius spinner-profile |
+	stations ( station | station size 2 > if [ station first face + station second station 2 @i station 3 @i lift + ] else [ station first face + station second station second lift ] then ) map to rings
 	stations second second to cowling
+	rings first 3 @i to axis-height
+	face 0.15 + to hub-along
+	spinner-profile ( place | [ face place first + place second place second axis-height ] ) map to spinner
 	[ -1 1 ] ( side |
 		[ out side * 0 0 ] to centre
 		sketch rings centre 6 sketch-body
-		centre [ 0 lift face 0.15 + ] v+ to hub
+		sketch spinner centre 6 sketch-body
+		centre [ 0 axis-height hub-along ] v+ to hub
 		sketch hub propeller-radius sketch-propeller
 		sketch hub propeller-radius sketch-propeller-disc
 		[ -1 1 ] ( flank |
@@ -45,101 +60,257 @@
 		) each
 	) each ;
 
-\ the Balkenkreuz's outline: a cross of four arms, each a quarter as wide as the whole is long, on a plane given by two directions
-: sketch-cross ( sketch centre across up size -- )
-	| sketch centre across up size |
+\ the Balkenkreuz's outline as [ across up ] pairs about its middle: a cross reaching a distance each way, its arms a half-width each side of their middle lines
+: cross-pairs ( reach bar -- pairs )
+	| reach bar |
+	[ [ bar reach ] [ bar bar ] [ reach bar ] [ reach bar negate ] [ bar bar negate ] [ bar reach negate ]
+	  [ bar negate reach negate ] [ bar negate bar negate ] [ reach negate bar negate ] [ reach negate bar ] [ bar negate bar ] [ bar negate reach ] ] ;
+
+\ the Balkenkreuz painted on a flat surface facing an outward direction, by the Luftwaffe's rule: a black cross a length long, its arms a quarter as wide; a white angle a flank wide along each side of each arm, ending flush with the arm's end, drawn as a white cross as long under the black
+: sketch-cross ( sketch centre across up outward size flank -- )
+	| sketch centre across up outward size flank |
 	size 2 / to reach
 	reach 4 / to bar
-	[ [ bar reach ] [ bar bar ] [ reach bar ] [ reach bar negate ] [ bar bar negate ] [ bar reach negate ]
-	  [ bar negate reach negate ] [ bar negate bar negate ] [ reach negate bar negate ] [ reach negate bar ] [ bar negate bar ] [ bar negate reach ] ]
-	( pair | centre across pair first v* v+ up pair second v* v+ ) map to corners
-	sketch corners sketch-loop ;
-
-\ the crosses: on each upper wing at a distance out, and on each side of the fuselage at a station
-: sketch-crosses ( sketch wing-out wing-along wing-height wing-size side-out side-along side-height side-size -- )
-	| sketch wing-out wing-along wing-height wing-size side-out side-along side-height side-size |
-	[ -1 1 ] ( side |
-		sketch [ wing-out side * wing-height wing-along ] [ 1 0 0 ] [ 0 0 1 ] wing-size sketch-cross
-		sketch [ side-out side * side-height side-along ] [ 0 0 1 ] [ 0 1 0 ] side-size sketch-cross
+	[ [ 0.004 bar flank + cross-white-colour ] [ 0.008 bar cross-black-colour ] ] ( layer |
+		layer spread to colour to half-width to proud
+		centre outward proud v* v+ to middle
+		sketch reach half-width cross-pairs ( pair | middle across pair first v* v+ up pair second v* v+ ) map
+		centre outward v- colour sketch-painted-plate
 	) each ;
 
-\ the Ju 88 A-1: a fuselage of nine rings; the glazed canopy raised over the crew's compartment with its frames and the two rear guns; the ventral gondola offset to starboard under the cockpit with its gun; tapered wings with rounded tips and the flaps' and ailerons' hinge line; the Jumo 211s in round cowlings with three-blade propellers; the tailplane, elevators, fin and rudder; the crosses. The span and length are published; every other figure is an estimate from drawings
+\ the Balkenkreuz on a side of a body of rings, on the skin, centred on the side's ridge at a station: nine tenths as long as the height between the shoulders 45° above and below the ridge where its rear end lies, the white angles an eighth of its length wide, as on the fuselage by the rule; each colour cut at the ridge, the half above it on the face above, the half below on the face below
+: sketch-body-cross ( sketch rings along side -- )
+	| sketch rings along side |
+	rings along body-ring-at 2 @i 0.5 sqrt * 2 * 0.9 * to size
+	rings along size 2 / - body-ring-at 2 @i 0.5 sqrt * 2 * 0.9 * to size
+	rings along body-ring-at 3 @i to lift
+	size 2 / to reach
+	reach 4 / to bar
+	[ [ 0.01 bar size 8 / + cross-white-colour ] [ 0.02 bar cross-black-colour ] ] ( layer |
+		layer spread to colour to half-width to proud
+		[ 1 -1 ] ( keep |
+			reach half-width cross-pairs 1 0 keep clip-pairs
+			( pair | rings along pair first + lift pair second + side proud body-side-point ) map to corners
+			sketch corners [ 0 lift along ] colour sketch-painted-plate
+		) each
+	) each ;
+
+\ the crosses: on each upper wing at a distance out, a length long with the upper surface's narrow white angles, a twentieth of the length (the Bf 109's 50 mm on 1000 mm), and on each side of the fuselage at a station
+: sketch-crosses ( sketch rings wing-out wing-along wing-height wing-size side-along -- )
+	| sketch rings wing-out wing-along wing-height wing-size side-along |
+	[ -1 1 ] ( side |
+		sketch [ wing-out side * wing-height wing-along ] [ 1 0 0 ] [ 0 0 1 ] [ 0 1 0 ] wing-size wing-size 20 / sketch-cross
+		sketch rings side-along side sketch-body-cross
+	) each ;
+
+\ the swastika on a fin, as the Luftwaffe painted it from 1939: black with a thin white border, standing on a corner, its arms turning clockwise as seen from the side it is painted on; laid out on a grid of five by five cells, a bar each way through the middle and a hook at the end of each arm, each a rectangle of cells [ left bottom right top ]; the border a fifth of a cell (an estimate)
+[ [ 2 0 3 5 ] [ 0 2 5 3 ] [ 3 4 5 5 ] [ 4 0 5 2 ] [ 0 0 2 1 ] [ 0 3 1 5 ] ] constant swastika-cells
+0.2 constant swastika-border
+
+\ the swastika's pieces, each a rectangle of cells widened by a margin, as points on a surface: its middle, its upward direction, its width, the direction to the right as seen from outside
+: swastika-pieces ( centre right up size margin -- pieces )
+	| centre right up size margin |
+	size 5 / to cell
+	swastika-cells ( piece |
+		piece spread to top to right-edge to bottom to left-edge
+		[ [ left-edge margin - bottom margin - ] [ right-edge margin + bottom margin - ] [ right-edge margin + top margin + ] [ left-edge margin - top margin + ] ]
+		( corner |
+			corner first 2.5 - cell * to u
+			corner second 2.5 - cell * to v
+			centre right u v - 2 sqrt / v* v+ up u v + 2 sqrt / v* v+
+		) map
+	) map ;
+
+\ a swastika painted on a surface facing an outward direction: the white pieces widened by the border, then the black over them
+: sketch-swastika ( sketch centre up outward size -- )
+	| sketch centre up outward size |
+	outward up v-cross to right
+	centre outward 0.004 v* v+ right up size swastika-border swastika-pieces ( piece | sketch piece centre outward v- cross-white-colour sketch-painted-plate ) each
+	centre outward 0.008 v* v+ right up size 0 swastika-pieces ( piece | sketch piece centre outward v- cross-black-colour sketch-painted-plate ) each ;
+
+\ the swastikas on a fin a distance out, its outline as [ along up ] points: at the outline's middle, a third as wide as the outline is tall or long, the lesser; on the fin's outer side, or on both sides of a fin on the centre line
+: sketch-fin-swastikas ( sketch out outline -- )
+	| sketch out outline |
+	outline outline-middle spread to middle-up to middle-along
+	outline ( pair | pair first ) map to alongs
+	outline ( pair | pair second ) map to ups
+	alongs alongs first ' max2 reduce alongs alongs first ' min2 reduce - to length
+	ups ups first ' max2 reduce ups ups first ' min2 reduce - to height
+	length height min2 3 / to size
+	out 0 = if [ -1 1 ] else [ out 0 > if 1 else -1 then ] then ( side |
+		sketch [ out middle-up middle-along ] [ 0 1 0 ] [ side 0 0 ] size sketch-swastika
+	) each ;
+
+\ glass's colour: a dark blue-grey drawn unlit, 0x1000000 set, so it keeps one tone toward the sun or away from it (an estimate)
+0x1788c98 constant glass-colour
+
+\ glazing as a box of glass: its base's corners and its top's, each front left, front right, rear right, rear left; its top, front, rear and sides filled in glass's colour, their edges the frames
+: sketch-glazing ( sketch base top -- )
+	| sketch base top |
+	sketch base sketch-points to low
+	sketch top sketch-points to high
+	sketch low join-loop
+	sketch high join-loop
+	sketch low high concat inside-of to inside
+	[ high
+	  [ low first low second high second high first ]
+	  [ low 3 @i low 2 @i high 2 @i high 3 @i ]
+	  [ low first high first high 3 @i low 3 @i ]
+	  [ low second low 2 @i high 2 @i high second ] ] ( pane | sketch pane inside glass-colour sketch-painted-face ) each ;
+
+\ a gunner's hood of glass on a body of rings, rounded and open at its rear: at each station [ along height half-width ] an arch of five points from the skin on one side over the top to the skin on the other, its height above the body's top, its half-width where it meets the skin, the skin there on the body's top face; glass between each arch and the next, facing away from a point below them inside the body; the arches and the lines joining them the frames
+: sketch-gun-hood ( sketch rings stations -- )
+	| sketch rings stations |
+	stations ( station |
+		station spread to half-width to height to along
+		rings along body-ring-at spread to lift to half-height to body-half-width drop
+		[ 0 5 1 do k
+			k 45 * 90 - PI 180 / * to angle
+			angle sin half-width * to across
+			lift half-height + across abs body-half-width 0.5 sqrt * / 1 0.5 sqrt - * half-height * - to skin
+			[ across skin angle cos height * + along ]
+		loop ] to arch
+		sketch arch sketch-points to indices
+		sketch indices join-path
+		indices
+	) map to arches
+	0 arches size 1- 1 do k
+		arches k @i to front
+		arches k 1+ @i to back
+		stations k @i first stations k 1+ @i first + 2 / to middle
+		[ 0 rings middle body-top 0.3 - middle ] to inside
+		0 5 1 do corner
+			sketch front corner @i back corner @i sketch-edge
+		loop
+		0 4 1 do corner
+			sketch [ front corner @i front corner 1+ @i back corner 1+ @i back corner @i ] inside glass-colour sketch-painted-face
+		loop
+	loop ;
+
+\ the Ju 88 A-1: a fuselage of nine rings, its nose glazed back to the windscreen; the canopy over the crew's compartment, a hood of glass with its frames, and the two rear guns; the ventral gondola, half the fuselage's width, hung under the cockpit 0.23 m to starboard, in the under colour, with its front window, two side windows each side, its glazed rear and its gun; the aerial from a mast on the canopy to the fin; tapered wings with rounded tips and the flaps' and ailerons' hinge line; the Jumo 211s in round cowlings with three-blade propellers; the tailplane, elevators, fin and rudder; the crosses, sized to fit their surfaces, and the swastikas on the fins; the glazing in glass's colour; the under colour on the bottom faces only. The span and length are published; the side outline is measured from a side painting and the gondola's width and offset from a front view, both scaled to them; every other figure is an estimate
 : junkers-88 ( -- model )
-	new-sketch to model
-	model [ [ 7.1 0.15 0.15 0.05 ] [ 6.6 0.6 0.7 0.05 ] [ 5.6 0.85 1.0 0.1 ] [ 3.8 0.95 1.15 0.15 ] [ 1.5 0.9 1.05 0.05 ]
-	        [ -1.5 0.8 0.9 0 ] [ -4 0.55 0.65 0.05 ] [ -6.6 0.3 0.4 0.15 ] [ -7.2 0.12 0.15 0.2 ] ] [ 0 0 0 ] 8 sketch-body
-	model [ [ -0.75 1.05 5.9 ] [ 0.75 1.05 5.9 ] [ 0.8 1.15 3.0 ] [ -0.8 1.15 3.0 ] ] sketch-loop
-	model [ [ -0.5 1.75 5.2 ] [ 0.5 1.75 5.2 ] [ 0.55 1.8 3.3 ] [ -0.55 1.8 3.3 ] ] sketch-loop
-	[ [ 0.75 1.05 5.9 0.5 1.75 5.2 ] [ 0.8 1.12 4.3 0.55 1.8 4.3 ] [ 0.8 1.15 3.0 0.55 1.8 3.3 ] ] ( bar |
-		bar spread to top-along to top-up to top-out to foot-along to foot-up to foot-out
-		[ -1 1 ] ( side |
-			model [ [ foot-out side * foot-up foot-along ] [ top-out side * top-up top-along ] ] sketch-path
+	new-model-sketch luftwaffe-under-colour :under-colour ! 0.5 :under-turn ! to model
+	model@faces size to first-face
+	[ [ 7.1 0.1 0.1 0.02 ] [ 7.05 0.2 0.185 0.015 ] [ 6.95 0.35 0.315 0.055 ] [ 6.85 0.45 0.39 0.08 ] [ 6.7 0.55 0.455 0.095 ] [ 6.46 0.65 0.545 0.125 ]
+	  [ 6.1 0.75 0.675 0.205 ] [ 3.8 0.8 0.71 0.24 ] [ 1.5 0.8 0.69 0.31 ]
+	  [ -1.5 0.72 0.6 0.4 ] [ -4.0 0.55 0.49 0.46 ] [ -6.6 0.3 0.335 0.515 ] [ -7.05 0.1 0.1 0.45 ] ] to rings
+	model rings [ 0 0 0 ] 8 sketch-body
+	[ 0 40 1 do k first-face k + loop first-face 96 + ] ( face | model@faces face @i glass-colour add-last! drop ) each
+	[ 0.23 0 0 ] to gondola-centre
+	[ [ 6.55 0.1 0.1 -0.4 ] [ 6.45 0.2 0.16 -0.46 ] [ 6.3 0.26 0.205 -0.505 ] [ 6.0 0.29 0.24 -0.54 ] [ 5.4 0.29 0.29 -0.59 ]
+	  [ 4.6 0.29 0.26 -0.56 ] [ 4.2 0.27 0.23 -0.53 ] [ 3.9 0.23 0.175 -0.475 ] ] to gondola
+	model@faces size to gondola-first-face
+	model gondola gondola-centre 8 sketch-body
+	0 58 1 do k
+		model@faces gondola-first-face k + @i k 8 < k 55 > or if glass-colour else luftwaffe-under-colour then add-last! drop
+	loop
+	[ -1 1 ] ( side |
+		[ 5.1 4.7 ] ( middle |
+			[ [ middle 0.08 + -0.56 ] [ middle 0.08 - -0.56 ] [ middle 0.08 - -0.42 ] [ middle 0.08 + -0.42 ] ]
+			( place | gondola place spread side 0.01 body-side-point gondola-centre v+ ) map to pane
+			model pane gondola-centre [ 0 -0.6 middle ] v+ glass-colour sketch-painted-plate
 		) each
 	) each
-	model [ [ 0 1.75 5.2 ] [ 0 1.8 3.3 ] ] sketch-path
-	model [ [ 0.25 1.65 3.2 ] [ 0.3 1.55 2.3 ] ] sketch-path
-	model [ [ -0.25 1.65 3.2 ] [ -0.3 1.55 2.3 ] ] sketch-path
-	model [ 0.3 -0.95 4.0 ] 0 0.7 2.4 0.5 sketch-box-centred
-	model [ [ 0.3 -1.0 2.8 ] [ 0.3 -1.1 2.0 ] ] sketch-path
-	model [ [ 0.9 2.0 ] [ 3.0 1.85 ] [ 8.5 0.9 ] [ 9.7 0.55 ] [ 10.04 0.0 ] [ 9.8 -0.6 ] [ 8.5 -0.95 ] [ 3.0 -1.5 ] [ 0.9 -1.8 ] ]
-		[ [ [ 3.2 -1.15 ] [ 8.4 -0.6 ] ] [ [ 6.0 -1.2 ] [ 6.0 -0.82 ] ] ] 0.06 0 sketch-surface
-	model 3.6 -0.05 3.7 [ [ 0 0.62 ] [ -0.7 0.7 ] [ -3.2 0.6 ] [ -4.7 0.45 ] [ -6.0 0 ] ] 1.7 sketch-engines
-	model [ [ 0.5 -5.9 ] [ 3.0 -6.4 ] [ 3.7 -6.9 ] [ 3.5 -7.35 ] [ 0.5 -7.4 ] ] [ [ [ 0.5 -6.9 ] [ 3.6 -6.95 ] ] ] 0 0.2 sketch-surface
-	model 0 [ [ -5.0 0.6 ] [ -6.3 2.9 ] [ -6.8 3.2 ] [ -7.5 3.0 ] [ -7.6 0.4 ] ] [ [ -6.9 3.1 ] [ -7.0 0.5 ] ] sketch-fin
-	model [ [ 0 1.75 2.4 ] [ 0 2.15 2.2 ] [ 0 3.0 -6.8 ] ] sketch-path
-	model 6.0 0.05 0.5 1.6 0.6 -3.5 0.05 1.2 sketch-crosses
-	model bomber-colour sketch>object ;
+	model rings [ [ 6.17 0.06 0.5 ] [ 6.0 0.3 0.55 ] [ 5.9 0.37 0.55 ] [ 5.3 0.35 0.55 ] [ 4.8 0.33 0.55 ] [ 4.27 0.32 0.55 ] [ 3.8 0.05 0.45 ] ] sketch-gun-hood
+	[ -1 1 ] ( side | model [ side 0.15 * 1.1 3.9 ] [ side 0.15 * 1.15 3.1 ] 0.05 model-ink sketch-rod ) each
+	model [ 0.23 -0.6 3.9 ] [ 0.23 -0.85 3.2 ] 0.06 model-ink sketch-rod
+	model [ [ 0.6 4.33 ] [ 3.4 4.25 ] [ 6.2 3.83 ] [ 9.1 3.33 ] [ 9.55 3.2 ] [ 9.9 2.9 ] [ 10.04 2.6 ] [ 9.9 2.25 ] [ 9.6 2.04 ] [ 9.1 1.95 ] [ 5.2 1.3 ] [ 0.6 0.68 ] ]
+		[ [ [ 3.2 1.25 ] [ 9.3 2.3 ] ] [ [ 4.9 1.31 ] [ 4.9 1.6 ] ] ] 0.06 0 sketch-surface
+	model 2.72 0.3 6.0 [ [ 0 0.62 ] [ -0.6 0.7 ] [ -2.7 0.6 ] [ -4.0 0.45 ] [ -5.1 0 ] ] 1.7 bomber-spinner sketch-engines
+	model [ [ 0.3 -4.13 ] [ 1.91 -4.41 ] [ 3.17 -4.66 ] [ 3.53 -4.81 ] [ 3.68 -5.17 ] [ 3.58 -5.44 ] [ 3.43 -5.54 ] [ 2.17 -5.77 ] [ 0.3 -5.97 ] ]
+		[ [ [ 0.3 -5.32 ] [ 3.6 -5.32 ] ] ] 0 0.6 sketch-surface
+	[ [ -4.87 0.85 ] [ -5.02 1.22 ] [ -5.53 1.9 ] [ -5.76 2.17 ] [ -5.92 2.41 ] [ -6.13 2.66 ] [ -6.33 2.75 ] [ -6.61 2.66 ] [ -6.86 2.41 ] [ -7.02 2.09 ]
+	  [ -7.14 1.68 ] [ -7.24 1.23 ] [ -7.26 0.86 ] [ -7.22 0.62 ] [ -7.1 0.38 ] [ -6.89 0.21 ] [ -6.65 0.15 ] [ -6.44 0.25 ] [ -5.0 0.8 ] ] to fin
+	model 0 fin [ [ -6.3 2.74 ] [ -6.35 0.3 ] ] sketch-fin
+	model 0 fin sketch-fin-swastikas
+	model [ 0 1.25 5.4 ] [ 0 2.3 5.4 ] 0.05 model-ink sketch-rod
+	model [ [ 0 2.3 5.4 ] [ 0 2.7 -6.4 ] ] sketch-path
+	model rings 5.66 2.66 0.41 1.6 -1.6 sketch-crosses
+	model luftwaffe-upper-colour sketch>object ;
 
-\ the He 111 H: a fuselage of nine rings ending in the stepless glazed nose, its rear frame and the offset nose gun; the open dorsal gun position and its gun; the ventral gondola and its gun; wings with a swept leading edge, rounded tips and the hinge line; the Jumo 211s with three-blade propellers; the tail; the crosses. The span and length are published; every other figure is an estimate from drawings
+\ the He 111 H: a fuselage of nine rings ending in the stepless glazed nose, glazed all round from its tip back 2.2 m, and the offset nose gun; the dorsal hood on the fuselage's top, low, rounded and glazed, open at its rear, its MG 15 out of it; the ventral gondola under the wing, a faired body with a window each side, its rear glazed and its MG 15 out of it; a gunner's window each side of the fuselage with its MG 15; low wings with the leading edge swept back from the nacelles, the trailing edge straight, rounded tips and the hinge line; the Jumo 211s close beside the nose, low on the wing, with three-blade propellers and two bulges under each nacelle; the rounded tailplane, the fin with its broad rounded top and the rudder; the tail wheel on its fork; the aerial from an upright mast on the fuselage to the fin; the crosses, sized to fit their surfaces, and the swastikas on the fins; the glazing in glass's colour. The span and length are published; the wing, the engines and the tailplane in plan are measured from a plan view scaled to them, the fuselage's profile, the nose, the hood, the mast, the gondola, the fin, the tail wheel and the heights of the wing and engines from a side profile scaled to the length; every other figure is an estimate
 : heinkel-111 ( -- model )
-	new-sketch to model
-	model [ [ 8.2 0.2 0.2 0 ] [ 7.8 0.65 0.7 0 ] [ 7.0 0.9 1.0 0.05 ] [ 5.5 1.0 1.2 0.1 ] [ 2.5 0.95 1.2 0.1 ]
-	        [ -1.0 0.85 1.0 0.1 ] [ -4.0 0.6 0.75 0.1 ] [ -6.8 0.35 0.45 0.2 ] [ -8.2 0.15 0.2 0.25 ] ] [ 0 0 0 ] 8 sketch-body
-	model [ 6.4 0.95 1.1 0.07 ] [ 0 0 0 ] 8 body-ring sketch-loop
+	new-model-sketch luftwaffe-under-colour :under-colour ! 0.5 :under-turn ! to model
+	model@faces size to first-face
+	model@points size to first-point
+	[ [ 8.2 0.15 0.15 0 ] [ 7.6 0.6 0.6 -0.05 ] [ 6.8 0.85 0.85 0 ] [ 6.4 0.9 0.9 0.025 ] [ 6.0 0.95 0.95 0.05 ] [ 5.5 0.95 0.95 0.05 ] [ 5.0 0.95 0.95 0.05 ] [ 2.5 0.95 0.95 0.05 ]
+	  [ -1.0 0.85 0.95 0.05 ] [ -4.0 0.6 0.72 0.0 ] [ -6.8 0.28 0.31 0.0 ] [ -8.2 0.1 0.1 -0.07 ] ] to rings
+	model rings [ 0 0 0 ] 8 sketch-body
+	[ 0.2 0.08 ] to nose-offsets
+	0 16 1 do k
+		first-point k + to index
+		model@points model@points index @i [ nose-offsets k 8 / round-down @i 0 0 ] v+ index !i drop
+	loop
+	[ 0 24 1 do k first-face k + loop [ 24 25 30 31 32 33 38 39 ] ( offset | first-face offset + ) map spread first-face 88 + ] ( face | model@faces face @i glass-colour add-last! drop ) each
 	model [ [ 0.2 0.2 8.0 ] [ 0.25 0.15 8.7 ] ] sketch-path
-	model [ [ -0.35 1.05 -0.4 ] [ 0.35 1.05 -0.4 ] [ 0.35 1.0 -2.0 ] [ -0.35 1.0 -2.0 ] ] sketch-loop
-	model [ [ 0 1.2 -1.2 ] [ 0 1.3 -2.6 ] ] sketch-path
-	model [ 0 -1.3 1.5 ] 0 0.8 3.0 0.45 sketch-box-centred
-	model [ [ 0 -1.3 0 ] [ 0 -1.45 -0.9 ] ] sketch-path
-	model [ [ 1.0 2.4 ] [ 3.8 2.2 ] [ 8.0 1.2 ] [ 10.4 0.55 ] [ 11.3 -0.1 ] [ 10.8 -0.8 ] [ 8.0 -1.2 ] [ 3.8 -2.0 ] [ 1.0 -2.6 ] ]
-		[ [ [ 4.0 -1.55 ] [ 10.4 -0.6 ] ] [ [ 7.2 -1.35 ] [ 7.2 -0.95 ] ] ] 0.044 0 sketch-surface
-	model 3.8 -0.05 4.3 [ [ 0 0.62 ] [ -0.7 0.72 ] [ -3.8 0.62 ] [ -5.5 0.42 ] [ -6.6 0 ] ] 1.75 sketch-engines
-	model [ [ 0.5 -6.6 ] [ 3.4 -7.2 ] [ 4.2 -7.8 ] [ 4.0 -8.4 ] [ 0.5 -8.6 ] ] [ [ [ 0.5 -8.0 ] [ 4.1 -8.05 ] ] ] 0 0.3 sketch-surface
-	model 0 [ [ -6.1 0.6 ] [ -7.3 2.8 ] [ -7.9 3.3 ] [ -8.6 3.1 ] [ -8.7 0.5 ] ] [ [ -8.0 3.2 ] [ -8.1 0.6 ] ] sketch-fin
-	model [ [ 0 1.2 -2.8 ] [ 0 1.65 -3.0 ] [ 0 3.2 -7.8 ] ] sketch-path
-	model 7.5 0.0 0.45 1.8 0.58 -4.5 0.1 1.3 sketch-crosses
-	model bomber-colour sketch>object ;
-
-\ the Bf 110 C: a slim fuselage of eight rings; the long glazed canopy over the pilot and the gunner, its frames and the gunner's MG 15; the four MG 17s in the nose and the two MG FF cannon under it; tapered wings with the hinge line; the DB 601s in slim nacelles with three-blade propellers; the tailplane and the twin fins at its tips; the crosses. The span, length and height are published (16.25 m, 12.1 m, 3.5 m); every other figure is an estimate from drawings
-: messerschmitt-110 ( -- model )
-	new-sketch to model
-	model [ [ 5.6 0.15 0.2 0 ] [ 5.3 0.45 0.55 0 ] [ 4.3 0.6 0.75 0.05 ] [ 2.5 0.62 0.85 0.15 ]
-	        [ 0.0 0.6 0.85 0.15 ] [ -2.5 0.45 0.6 0.1 ] [ -5.0 0.25 0.35 0.15 ] [ -6.4 0.12 0.15 0.2 ] ] [ 0 0 0 ] 8 sketch-body
-	model [ [ -0.45 0.85 3.4 ] [ 0.45 0.85 3.4 ] [ 0.5 0.95 -1.2 ] [ -0.5 0.95 -1.2 ] ] sketch-loop
-	model [ [ -0.32 1.45 2.8 ] [ 0.32 1.45 2.8 ] [ 0.32 1.4 -0.9 ] [ -0.32 1.4 -0.9 ] ] sketch-loop
-	[ [ 0.45 0.85 3.4 0.32 1.45 2.8 ] [ 0.5 0.9 1.8 0.32 1.45 1.8 ] [ 0.5 0.92 0.6 0.32 1.42 0.6 ] [ 0.5 0.95 -1.2 0.32 1.4 -0.9 ] ] ( bar |
-		bar spread to top-along to top-up to top-out to foot-along to foot-up to foot-out
-		[ -1 1 ] ( side |
-			model [ [ foot-out side * foot-up foot-along ] [ top-out side * top-up top-along ] ] sketch-path
+	model rings [ [ 3.85 0.02 0.25 ] [ 3.72 0.17 0.3 ] [ 3.58 0.26 0.33 ] [ 3.44 0.3 0.34 ] [ 2.67 0.3 0.34 ] [ 2.47 0.28 0.33 ] [ 2.09 0.26 0.32 ] ] sketch-gun-hood
+	rings 2.35 body-top 0.1 + to breech-height
+	model [ 0 breech-height 2.85 ] [ 0 breech-height 1.42 ] 0.06 model-ink sketch-rod
+	model@faces size to gondola-first-face
+	[ [ 2.24 0.05 0.05 -0.95 ] [ 1.9 0.4 0.25 -1.16 ] [ 0.1 0.4 0.25 -1.16 ] [ -0.05 0.3 0.15 -1.1 ] ] to gondola
+	model gondola [ 0 0 0 ] 8 sketch-body
+	model@faces gondola-first-face 25 + @i glass-colour add-last! drop
+	model [ 0 -1.18 0.4 ] [ 0 -1.18 -0.58 ] 0.06 model-ink sketch-rod
+	[ -1 1 ] ( side |
+		model [ [ 1.58 -1.33 ] [ 1.42 -1.33 ] [ 1.42 -1.16 ] [ 1.58 -1.16 ] ] ( place | gondola place spread side 0.01 body-side-point ) map
+		[ 0 -1.16 1.5 ] glass-colour sketch-painted-plate
+		model [ [ 1.01 0.16 ] [ 0.49 0.16 ] [ 0.49 0.52 ] [ 1.01 0.52 ] ] ( place | rings place spread side 0.01 body-side-point ) map
+		[ 0 0.34 0.75 ] glass-colour sketch-painted-plate
+		model [ side 0.6 * 0.34 0.85 ] [ rings 0.6 0.34 side 0.15 body-side-point first 0.36 0.45 ] 0.04 model-ink sketch-rod
+	) each
+	model [ [ 0.7 6.0 ] [ 3.8 5.8 ] [ 8.0 4.8 ] [ 9.8 4.2 ] [ 10.8 3.7 ] [ 11.3 3.0 ] [ 11.3 2.3 ] [ 10.9 1.8 ] [ 10.0 1.55 ] [ 8.0 1.5 ] [ 3.8 1.3 ] [ 2.0 1.1 ] [ 1.6 1.25 ] [ 1.35 1.5 ] [ 0.7 1.75 ] ]
+		[ [ [ 3.8 2.0 ] [ 10.2 2.0 ] ] [ [ 7.2 1.5 ] [ 7.2 2.0 ] ] ] 0.044 -0.45 sketch-surface
+	model 2.8 -0.48 7.45 [ [ 0 0.62 ] [ -0.7 0.72 ] [ -3.8 0.62 ] [ -5.2 0.42 ] [ -6.45 0 ] ] 1.75 bomber-spinner sketch-engines
+	[ -1 1 ] ( side |
+		[ [ [ 6.5 0.15 0.05 -1.05 ] [ 6.2 0.33 0.2 -1.1 ] [ 5.9 0.35 0.22 -1.1 ] [ 5.5 0.25 0.1 -1.1 ] ]
+		  [ [ 5.5 0.25 0.1 -1.1 ] [ 4.8 0.35 0.2 -1.12 ] [ 3.3 0.35 0.2 -1.12 ] [ 2.6 0.1 0.05 -1.0 ] ] ] ( bulge |
+			model bulge [ side 2.8 * 0 0 ] 8 sketch-body
 		) each
 	) each
-	model [ [ 0 1.35 -1.0 ] [ 0 1.3 -2.0 ] ] sketch-path
-	[ [ 0.12 0.35 ] [ -0.12 0.35 ] [ 0.12 0.15 ] [ -0.12 0.15 ] ] ( muzzle |
+	model [ [ 0.5 -5.4 ] [ 2.0 -5.6 ] [ 3.2 -6.0 ] [ 3.9 -6.6 ] [ 3.9 -7.1 ] [ 3.2 -7.5 ] [ 0.5 -7.6 ] ] [ [ [ 0.5 -7.05 ] [ 3.8 -7.05 ] ] ] 0 0.1 sketch-surface
+	[ [ -5.55 0.45 ] [ -5.75 1.4 ] [ -6.0 2.1 ] [ -6.24 2.55 ] [ -6.6 2.72 ] [ -7.02 2.77 ] [ -7.4 2.6 ] [ -7.68 2.2 ] [ -7.97 1.44 ] [ -8.15 0.6 ] [ -7.0 0.26 ] ] to fin
+	model 0 fin [ [ -7.1 2.77 ] [ -7.1 0.27 ] ] sketch-fin
+	model 0 fin sketch-fin-swastikas
+	rings 0.35 body-top to mast-foot
+	model [ [ 0 mast-foot 0.35 ] [ 0 mast-foot 0.87 + 0.35 ] [ 0 2.77 -7.02 ] ] sketch-path
+	[ -1 1 ] ( side | model [ side 0.09 * -0.3 -6.45 ] [ side 0.09 * -0.5 -6.7 ] 0.04 model-ink sketch-rod ) each
+	model [ 0 -0.5 -6.7 ] [ 1 0 0 ] [ 0 1 0 ] 0.2 0.12 0.4 sketch-wheel
+	model rings 7.0 3.5 -0.07 1.8 -2.8 sketch-crosses
+	model luftwaffe-upper-colour sketch>object ;
+
+\ the Bf 110 C: a slim fuselage of eight rings; the long glazed canopy over the pilot and the gunner, its frames and the gunner's MG 15; the four MG 17s in the nose and the two MG FF cannon under it; tapered wings with the hinge line; the DB 601s in slim nacelles with three-blade propellers; the tailplane and the twin fins at its tips; the crosses, sized to fit their surfaces, and the swastikas on the fins; the glazing in glass's colour. The span, length and height are published (16.25 m, 12.1 m, 3.5 m); every other figure is an estimate from drawings
+: messerschmitt-110 ( -- model )
+	new-model-sketch luftwaffe-under-colour :under-colour ! 0.5 :under-turn ! to model
+	[ [ 5.62 0.08 0.08 0.06 ] [ 5.55 0.2 0.215 0.085 ] [ 5.49 0.27 0.27 0.09 ] [ 5.19 0.43 0.435 0.085 ] [ 4.74 0.5 0.525 0.105 ] [ 4.3 0.54 0.57 0.12 ]
+	  [ 3.87 0.56 0.59 0.13 ] [ 2.5 0.54 0.575 0.175 ] [ 1.0 0.52 0.6 0.2 ] [ 0.0 0.5 0.645 0.225 ] [ -1.63 0.43 0.585 0.225 ]
+	  [ -3.8 0.33 0.445 0.205 ] [ -5.1 0.22 0.33 0.23 ] [ -6.3 0.1 0.18 0.28 ] ] to rings
+	model rings [ 0 0 0 ] 8 sketch-body
+	model rings [ [ 3.87 0.02 0.22 ] [ 3.72 0.17 0.3 ] [ 3.55 0.31 0.33 ] [ 3.13 0.31 0.34 ] [ 2.76 0.305 0.34 ] [ 2.5 0.3 0.34 ] [ 2.24 0.295 0.34 ]
+	              [ 1.98 0.29 0.34 ] [ 1.65 0.285 0.34 ] [ 1.38 0.28 0.34 ] [ 1.0 0.27 0.33 ] [ 0.8 0.19 0.3 ] [ 0.55 0.16 0.26 ] ] sketch-gun-hood
+	model [ 0 0.88 1.0 ] [ 0 1.15 -0.4 ] 0.06 model-ink sketch-rod
+	[ [ 0.12 0.25 ] [ -0.12 0.25 ] [ 0.12 0.1 ] [ -0.12 0.1 ] ] ( muzzle |
 		model [ [ muzzle first muzzle second 5.4 ] [ muzzle first muzzle second 6.2 ] ] sketch-path
 	) each
 	[ -1 1 ] ( side |
-		model [ [ side 0.15 * -0.55 3.8 ] [ side 0.15 * -0.6 4.8 ] ] sketch-path
+		model [ [ side 0.15 * -0.44 3.8 ] [ side 0.15 * -0.47 4.8 ] ] sketch-path
 	) each
-	model [ [ 0.6 1.7 ] [ 3.0 1.55 ] [ 7.4 0.8 ] [ 8.0 0.55 ] [ 8.125 0.1 ] [ 8.0 -0.4 ] [ 7.4 -0.55 ] [ 3.0 -1.15 ] [ 0.6 -1.4 ] ]
-		[ [ [ 3.2 -0.85 ] [ 7.4 -0.3 ] ] [ [ 5.3 -0.84 ] [ 5.3 -0.6 ] ] ] 0.05 0 sketch-surface
-	model 2.4 -0.05 3.4 [ [ 0 0.45 ] [ -0.6 0.55 ] [ -2.8 0.48 ] [ -4.2 0.3 ] [ -5.0 0 ] ] 1.65 sketch-engines
-	model [ [ 0.3 -5.0 ] [ 2.8 -5.3 ] [ 3.2 -5.6 ] [ 3.2 -6.3 ] [ 0.3 -6.4 ] ] [ [ [ 0.3 -5.9 ] [ 3.2 -5.95 ] ] ] 0 0.25 sketch-surface
-	[ -3.15 3.15 ] ( out |
-		model out [ [ -5.2 -0.8 ] [ -5.0 0.9 ] [ -5.4 1.4 ] [ -6.2 1.45 ] [ -6.6 0.9 ] [ -6.5 -0.7 ] ] [ [ -6.0 1.4 ] [ -6.0 -0.7 ] ] sketch-fin
+	model [ [ 0.4 2.65 ] [ 3.0 2.5 ] [ 7.4 1.75 ] [ 8.0 1.5 ] [ 8.125 1.05 ] [ 8.0 0.55 ] [ 7.4 0.4 ] [ 3.0 -0.2 ] [ 0.4 -0.45 ] ]
+		[ [ [ 3.2 0.1 ] [ 7.4 0.65 ] ] [ [ 5.3 0.11 ] [ 5.3 0.35 ] ] ] 0.05 0 sketch-surface
+	model 2.4 -0.05 4.18 [ [ 0 0.36 0.34 -0.08 ] [ -0.5 0.44 0.5 -0.065 ] [ -1.09 0.48 0.6 -0.1 ] [ -1.56 0.48 0.65 -0.18 ] [ -2.28 0.47 0.63 -0.2 ]
+	                       [ -3.18 0.42 0.55 -0.2 ] [ -3.8 0.3 0.38 -0.13 ] [ -4.6 0.03 0.03 -0.24 ] ] 1.65
+		[ [ 0 0.3 ] [ 0.12 0.3 ] [ 0.39 0.1 ] ] sketch-engines
+	model [ [ 0.05 -5.0 ] [ 2.28 -5.0 ] [ 2.28 -5.95 ] [ 2.05 -6.4 ] [ 0.05 -6.4 ] ] [ [ [ 0.05 -5.9 ] [ 2.28 -5.95 ] ] ] 0 0.46 sketch-surface
+	[ [ -5.31 -0.07 ] [ -5.08 0.25 ] [ -5.1 0.54 ] [ -5.28 1.11 ] [ -5.5 1.33 ] [ -5.74 1.38 ] [ -6.06 1.25 ] [ -6.27 0.9 ] [ -6.33 0.25 ] [ -6.2 -0.03 ] [ -5.92 -0.1 ] ] to fin
+	[ -2.28 2.28 ] ( out |
+		model out fin [ [ -5.9 1.36 ] [ -5.9 -0.1 ] ] sketch-fin
+		model out fin sketch-fin-swastikas
 	) each
-	model [ [ 0 1.42 -1.3 ] [ 0 1.8 -1.5 ] [ 3.15 1.4 -5.9 ] ] sketch-path
-	model 5.5 0.0 0.4 1.2 0.42 -3.0 0.12 1.0 sketch-crosses
-	model bomber-colour sketch>object ;
+	model [ 0 1.05 2.04 ] [ 0 1.77 2.04 ] 0.05 model-ink sketch-rod
+	model [ [ 0 1.77 2.04 ] [ -2.28 1.38 -5.74 ] ] sketch-path
+	[ -1 1 ] ( side | model [ side 0.08 * -0.1 -5.45 ] [ side 0.08 * -0.4 -5.71 ] 0.04 model-ink sketch-rod ) each
+	model [ 0 -0.4 -5.71 ] [ 1 0 0 ] [ 0 1 0 ] 0.18 0.1 0.4 sketch-wheel
+	model rings 5.5 0.95 0.33 1.2 -3.0 sketch-crosses
+	model luftwaffe-upper-colour sketch>object ;
 
 variable models
 { } to models
@@ -151,33 +322,50 @@ variable far-models
 
 \ the drogue: a cloth sleeve 6 m long, 1 m across at its mouth and 0.7 m at its tail (estimates), on a bridle of four lines meeting 2 m ahead of the mouth
 : drogue-model ( -- model )
-	new-sketch to model
+	new-model-sketch to model
 	model [ [ 3 0.5 0.5 0 ] [ -3 0.35 0.35 0 ] ] [ 0 0 0 ] 8 sketch-body
 	[ [ 0.5 0 3 ] [ -0.5 0 3 ] [ 0 0.5 3 ] [ 0 -0.5 3 ] ] ( corner | model [ corner [ 0 0 5 ] ] sketch-path ) each
-	model bomber-colour sketch>object ;
+	model canvas-colour sketch>object ;
 
-\ a box in a model's own terms, between two values on each axis: its two ends' outlines and the four edges joining them
+\ a box in a model's own terms, between two values on each axis: its two ends' outlines and the four edges joining them, its six sides filled
 : sketch-block ( sketch x0 x1 y0 y1 z0 z1 -- )
 	| sketch x0 x1 y0 y1 z0 z1 |
-	[ y0 y1 ] ( y | sketch [ [ x0 y z0 ] [ x1 y z0 ] [ x1 y z1 ] [ x0 y z1 ] ] sketch-loop ) each
-	[ [ x0 z0 ] [ x1 z0 ] [ x1 z1 ] [ x0 z1 ] ] ( corner | sketch [ [ corner first y0 corner second ] [ corner first y1 corner second ] ] sketch-path ) each ;
+	[ y0 y1 ] ( y | sketch [ [ x0 y z0 ] [ x1 y z0 ] [ x1 y z1 ] [ x0 y z1 ] ] sketch-points ) map to ends
+	sketch ends first join-loop
+	sketch ends second join-loop
+	[ x0 x1 + 2 / y0 y1 + 2 / z0 z1 + 2 / ] to inside
+	sketch ends first inside sketch-face
+	sketch ends second inside sketch-face
+	0 4 1 do k
+		k 1+ 4 mod to next
+		sketch ends first k @i ends second k @i sketch-edge
+		sketch [ ends first k @i ends first next @i ends second next @i ends second k @i ] inside sketch-face
+	loop ;
 
-\ HMS Glorious as in 1940, from her waterline's centre: 239.8 m long overall and 27.6 m in the beam at the waterline (published); the hull to a deck 10 m above the water; the flight deck 18 m above the water over two hangars each 4.9 m high (published), 185 m long from 110 m aft of the centre and 28 m wide; its two lifts 14.0 by 14.6 m (published), fore and aft; the island on the starboard side with the bridge, the funnel and the mast (heights, the flight deck's ends and the lifts' places estimates)
+\ HMS Glorious as in 1940, from her waterline's centre: 239.8 m long overall and 27.6 m in the beam at the waterline (published); the hull to a deck 10 m above the water; the flight deck 18 m above the water over two hangars each 4.9 m high (published), 185 m long from 110 m aft of the centre and 28 m wide, closed in at their sides; its two lifts 14.0 by 14.6 m (published), fore and aft; the island on the starboard side with the bridge, the funnel and the mast (heights, the flight deck's ends and the lifts' places estimates); in grey, the flight deck darker
 : carrier-model ( -- model )
-	new-sketch to model
+	new-model-sketch to model
 	[ [ 0 120 ] [ 9 95 ] [ 13.8 60 ] [ 13.8 -80 ] [ 11 -112 ] [ 0 -120 ] [ -11 -112 ] [ -13.8 -80 ] [ -13.8 60 ] [ -9 95 ] ] to plan
-	[ 0 10 ] ( up | model plan ( corner | [ corner first up corner second ] ) map sketch-loop ) each
-	plan ( corner | model [ [ corner first 0 corner second ] [ corner first 10 corner second ] ] sketch-path ) each
-	model -14 14 18 18 -110 75 sketch-block
-	[ [ -14 -110 ] [ 14 -110 ] [ -14 75 ] [ 14 75 ] [ -14 -20 ] [ 14 -20 ] ] ( corner | model [ [ corner first 10 corner second ] [ corner first 18 corner second ] ] sketch-path ) each
-	[ 50 -75 ] ( along | model -7 7 18 18 along 7.3 - along 7.3 + sketch-block ) each
+	[ 0 10 ] ( up | model plan ( corner | [ corner first up corner second ] ) map sketch-points ) map to decks
+	decks ( indices | model indices join-loop ) each
+	plan size to n-corners
+	[ 0 5 0 ] to inside
+	0 n-corners 1 do k
+		k 1+ n-corners mod to next
+		model decks first k @i decks second k @i sketch-edge
+		model [ decks first k @i decks first next @i decks second next @i decks second k @i ] inside sketch-face
+	loop
+	model decks second inside sketch-face
+	model -14 14 10 18 -110 75 sketch-block
+	model [ [ -14 18.02 -110 ] [ 14 18.02 -110 ] [ 14 18.02 75 ] [ -14 18.02 75 ] ] [ 0 14 -17.5 ] flight-deck-colour sketch-painted-plate
+	[ 50 -75 ] ( along | model [ [ -7 18.04 along 7.3 - ] [ 7 18.04 along 7.3 - ] [ 7 18.04 along 7.3 + ] [ -7 18.04 along 7.3 + ] ] sketch-loop ) each
 	-100 70 10 do along
-		model [ [ 0 18 along ] [ 0 18 along 5 + ] ] sketch-path
+		model [ [ 0 18.04 along ] [ 0 18.04 along 5 + ] ] sketch-path
 	loop
 	model 12 16 18 30 -5 25 sketch-block
 	model 12.5 15.5 30 38 -2 8 sketch-block
 	model [ [ 14 30 15 ] [ 14 46 15 ] ] sketch-path
-	model bomber-colour sketch>object ;
+	model carrier-grey-colour sketch>object ;
 
 \ each type's model near and from afar, the far ones from the published spans and lengths and the engines' distance out; the Spitfire's and the Hurricane's with wheels up and down; the Lysander target tug's from afar only, its published 50 ft span and 30 ft 6 in length
 : build-models ( -- )
@@ -185,10 +373,12 @@ variable far-models
 	{ :ju-88 junkers-88 :he-111 heinkel-111 :bf-110 messerschmitt-110
 	  :spitfire false spitfire-model :spitfire-down true spitfire-model
 	  :hurricane false hurricane-model :hurricane-down true hurricane-model
-	  :lysander 15.24 9.3 0 bomber-colour far-model :drogue drogue-model :carrier carrier-model } to models
-	{ :ju-88 20.08 14.36 3.6 bomber-colour far-model :he-111 22.6 16.4 3.8 bomber-colour far-model
-	  :bf-110 16.25 12.1 2.4 bomber-colour far-model :spitfire 11.23 9.12 0 spitfire-colour far-model
-	  :hurricane 12.19 9.55 0 spitfire-colour far-model
+	  :lysander 15.24 9.3 0 dark-green-colour sky-paint-colour far-model :drogue drogue-model :carrier carrier-model } to models
+	{ :ju-88 20.08 14.36 3.6 luftwaffe-upper-colour luftwaffe-under-colour far-model
+	  :he-111 22.6 16.4 3.8 luftwaffe-upper-colour luftwaffe-under-colour far-model
+	  :bf-110 16.25 12.1 2.4 luftwaffe-upper-colour luftwaffe-under-colour far-model
+	  :spitfire 11.23 9.12 0 dark-green-colour sky-paint-colour far-model
+	  :hurricane 12.19 9.55 0 dark-green-colour sky-paint-colour far-model
 	  :lysander models@lysander :drogue models@drogue :carrier models@carrier } to far-models
 	far-models far-models@spitfire :spitfire-down ! drop
 	far-models far-models@hurricane :hurricane-down ! drop ;
@@ -200,14 +390,18 @@ variable far-models
 	| position attitude |
 	[ attitude@right spread 0 attitude@up spread 0 attitude@forward spread 0 position spread 1 ] 4 4 matrix ;
 
-\ draw a model at a position and attitude in the bombers' colour for the time of day, unless behind the eye or beyond the visibility
+\ draw a model at a position and attitude, unless behind the eye or beyond the visibility: its faces filled, their centres and normals carried to the ground's terms, its lines on no face among them; at night, with the light too dim to show the paint, all its lines in the night's ink over the faces
 : draw-model ( model position attitude -- )
 	| model position attitude |
 	position eye@position v- to offset
 	offset eye@attitude@forward v-dot to ahead
 	ahead -30 < if exit then
 	offset v-length visibility > if exit then
-	model@points position attitude model-matrix camera matmul matmul model@edges bomber-ink draw-edges ;
+	position attitude model-matrix to placing
+	model@points placing matmul to points
+	[ attitude@right spread attitude@up spread attitude@forward spread ] 3 3 matrix to turning
+	model points model@face-centres placing matmul model@face-normals turning matmul position draw-faces
+	stars-showing if points camera matmul model@edges bomber-ink draw-edges then ;
 
 \ === the raid ===
 

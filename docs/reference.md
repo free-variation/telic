@@ -6041,6 +6041,8 @@ Every shape draws in the current `ink`; `cls` fills with the current `paper`.
 | `rect` | `( x y w h -- )` | The outline of the `w`×`h` rectangle with its top-left corner at `x y` | n | none | O(n) |
 | `fill-rect` | `( x y w h -- )` | The filled `w`×`h` rectangle with its top-left corner at `x y` | w·h | none | O(w·h) |
 | `fill-triangle` | `( x0 y0 x1 y1 x2 y2 -- )` | The filled triangle with corners at the three points, which may be fractional and lie off the canvas: every pixel whose centre lies inside it. Each row's span runs between the edges' crossings of the row's centre line, so triangles sharing an edge leave no gap and no overlap | n | none | O(n) |
+| `fill-polygons` | `( xs ys faces fills outlines -- )` | Polygons drawn in the order given, each in its own colours, the current `ink` untouched: `xs` and `ys` matrices of the corners' coordinates, read in row-major order and as many of one as the other; `faces` an array of polygons, each an array of indices into them; `fills` and `outlines` matrices of packed `0xRRGGBB` colours, one of each per polygon. Each polygon is filled at every pixel whose centre lies inside it by the even-odd rule, each row's spans running between the edges' crossings of the row's centre line as `fill-triangle`'s do, so a polygon need not be convex, then outlined corner to corner and back to the first, each line cut to the canvas first, so a corner far off it costs nothing; an outline below 0 is left out, and so is every polygon with a corner whose coordinate is not finite (NaN, `null` in a vector). Errors on a corner index outside the points | n | none | O(n) |
+| `fill-solid` | `( points faces centres normals colours leads camera projection shading -- )` | A solid's faces as a camera sees them, flat-shaded, the current `ink` untouched. `points` an n×3 or n×4 matrix of `[ x y z 1 ]` rows; `faces` an array of corner-index arrays, or a matrix of them a row a face, a row ending at its first element below 0; `centres` (m×3 or m×4) and unit `normals` (m×3) one row per face, each normal pointing out of the solid; `colours` and `leads` one element per face; `camera` the 4×3 matrix taking a row to `[ across up ahead ]`; `projection` `[ focal centre-x centre-y near ]`; `shading` `[ eye-x eye-y eye-z sun-x sun-y sun-z shadow lighting kept sky outline-share grey ]`, with an optional 13th element, 0 to draw by the order alone without the depth test below (cheaper for solids that do not cross). A face is drawn when its normal turns toward the eye's place and every corner lies at least `near` ahead, farthest first by its centre's depth less its lead, and each of its pixels kept only where it is no farther than what the same call has already drawn there, so faces of one solid that cross or overlap hide each other correctly whatever their order (a solid's own pixels are told from earlier calls' without clearing anything); its outline is tested the same way with an allowance of 0.2% of its depth, so an edge shows on its own face; a face of two corners is a line, never culled (its normal is not read), sorted by its centre, drawn in its colour faded into the sky but unlit, with no outline, and tested along its length against the depth the faces have drawn without writing its own, so a solid's lines are hidden by its faces in front of them; a face of more than three corners that is convex on the screen is depth-tested as triangles from its first corner, each in its own plane, so a face whose corners are not in one plane hides and is hidden correctly; a face whose colour has 0x1000000 set is unlit, drawn in its colour at the day's lighting without the sun's, as glass is; projected to `centre-x + focal·across/ahead`, `centre-y − focal·up/ahead`; filled as `fill-polygons` fills, then outlined. Its light is the sun direction's dot with its normal, clamped to [0, 1], times `1 − shadow` plus `shadow`, times `lighting`; each channel of the fill is the colour's channel times the light, truncated, times `kept`, truncated, plus the `sky` colour's channel times `1 − kept`, truncated; the outline the same at the light times `outline-share`; with `grey` nonzero every colour its luminance (0.3, 0.59, 0.11) in all three channels. Errors on shapes that do not match and on a corner index outside the points | n | n + m | O(n + m log m) |
 | `circle` | `( x y r -- )` | The outline of the circle of radius `r` centred on `x y` | n | none | O(r) |
 | `fill-circle` | `( x y r -- )` | The filled circle of radius `r` centred on `x y` | r² | none | O(r²) |
 | `print-at` | `( x y str -- )` | Draw `str` with its top-left corner at `x y`, starting in the current `ink`, in Tigr's built-in font: a proportional bitmap font 12 pixels tall covering Windows-1252. A `{name}` directive for any color in `colors` switches the pen for the text after it and `{plain}` returns to the starting ink, so `8 8 "{red}warm {dodgerblue}cool" print-at` draws in two colors; the terminal escapes `format` emits for those directives are read the same way, while `{bold}` and `{dim}` are skipped and an unknown `{…}` draws literally. A newline byte returns to `x` one line down; a code point the font lacks draws as its placeholder glyph. `screen-zoom` enlarges it with everything else | n | none | O(n) |
@@ -6178,6 +6180,23 @@ screen-frames  1 sleep  screen-frames swap - . cr
 ```
 ```output
 [ 16777215 16777215 16777215 16777215 16777215 0 ]
+```
+
+```forth-noexec fill-polygons
+[ 0 4 4 0 ] vector [ 0 0 4 4 ] vector [ [ 0 1 2 3 ] ] [ 0x00ff00 ] vector [ -1 ] vector fill-polygons
+0 0 5 1 capture-bitmap matrix>array . cr
+```
+```output
+[ 65280 65280 65280 65280 0 ]
+```
+
+```forth-noexec fill-solid
+[ -2 -2 10  2 -2 10  2 2 10  -2 2 10 ] 4 3 matrix [ [ 0 1 2 3 ] ] [ 0 0 10 ] 1 3 matrix [ 0 0 -1 ] 1 3 matrix [ 0x808080 ] vector [ 0 ] vector
+[ 1 0 0  0 1 0  0 0 1  0 0 0 ] 4 3 matrix [ 10 5 5 0.1 ] vector [ 0 0 0  0 0 -1  0.5 1 1  0  0.5 0 ] vector fill-solid
+0 4 9 1 capture-bitmap matrix>array . cr
+```
+```output
+[ 0 0 0 4210752 8421504 8421504 8421504 4210752 0 ]
 ```
 
 ```forth colors

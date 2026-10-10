@@ -69,7 +69,7 @@ variable haze
 	0x9ab878 to hill-top-colour
 	0x30527e to water-colour
 	1 to lighting
-	0x161a20 to bomber-ink
+	model-ink to bomber-ink
 	false to stars-showing
 	0xeef0f4 to cloud-top-colour
 	0x9ca2ac to cloud-base-colour
@@ -113,6 +113,8 @@ defer fill-span
 defer fill-disc
 \ fill a triangle of the view in a packed colour
 defer fill-face
+\ fill a solid's faces seen through the camera: fill-solid's operands, the projection in the view's terms
+defer draw-solid
 \ the whole view as a bitmap; a bitmap laid over the view with its top-left corner at a window pixel; the window's pixels to the view's on each axis
 defer capture-view
 defer draw-view
@@ -244,48 +246,21 @@ star-directions constant stars
 0.55 constant face-shadow
 0.6 constant face-outline-share
 
-\ an object's faces, each turned toward the eye, from the farthest to the nearest: filled in the object's colour by its light and the day's, faded into the sky at the object's distance, then outlined in a darker shade; a face with a corner behind the near plane left out
-: draw-faces ( object viewed -- )
-	| object viewed |
-	object@face-normals to normals
-	object@face-centres to centres
-	eye@position spread to eye-z to eye-y to eye-x
-	eye-x centres 0 @j - normals 0 @j * eye-y centres 1 @j - normals 1 @j * + eye-z centres 2 @j - normals 2 @j * + 0 > where to facing
-	facing num-elements 0 = if exit then
-	centres camera matmul 2 @j to depths
-	facing matrix>array ( index | depths index @e negate ) sort-by to order
-	normals 0 @j sun-direction first * normals 1 @j sun-direction second * + normals 2 @j sun-direction 2 @i * + to lights
-	object@centre eye@position v- v-length depth-light to kept-light
-	viewed 0 @j to across
-	viewed 1 @j to rising
-	viewed 2 @j to ahead
-	object@faces to faces
-	object@colour to colour
-	0 order size 1 do k
-		order k @i truncate to f
-		faces f @i to corners
-		corners ( corner | ahead corner @e near-plane < ) any? not if
-			corners ( corner | [ focal-length across corner @e * ahead corner @e / view-centre-x + view-centre-y focal-length rising corner @e * ahead corner @e / - ] ) map to places
-			lights f @e 0 max2 1 face-shadow - * face-shadow + lighting * to light
-			colour light dimmed sky-colour kept-light blended to fill
-			colour light face-outline-share * dimmed sky-colour kept-light blended to edge
-			monochrome if fill grey-of to fill edge grey-of to edge then
-			1 places size 1- 1 do t
-				places first spread places t @i spread places t 1+ @i spread fill fill-face
-			loop
-			0 places size 1 do t
-				places t @i spread places t 1+ places size mod @i spread edge draw-clipped
-			loop
-		then
-	loop ;
+\ an object's faces, each turned toward the eye, from the farthest to the nearest, a mark sorted its lead nearer: filled in its colour by its light from the sun and the day's, faded into the sky at the object's distance, then outlined in a darker shade; a face with a corner behind the near plane left out; all in one call to draw-solid, its faces hiding each other pixel by pixel unless the object's :depth-test is false, as for the towns' blocks, whose boxes the far-to-near order alone draws right. The points, the faces' centres, their normals and the object's centre in the ground's terms, so a moving model passes its own
+: draw-faces ( object points centres normals centre -- )
+	| object points centres normals centre |
+	centre eye@position v- v-length depth-light to kept-light
+	points object@faces centres normals object@face-colours object@face-leads camera
+	[ focal-length view-centre-x view-centre-y near-plane ] vector
+	[ eye@position spread sun-direction spread face-shadow lighting kept-light sky-colour face-outline-share monochrome
+	  object :depth-test true @or ] vector
+	draw-solid ;
 
-\ draw one object: its faces filled where it has them, then its lines on no face; else all its lines
+\ draw one object: its faces, its lines on no face among them, where it has faces; else all its lines
 : draw-object ( object -- )
 	| object |
-	object@points camera matmul to viewed
-	object :faces null @or null? if viewed object@edges object@colour draw-edges exit then
-	object viewed draw-faces
-	viewed object@loose-edges object@colour draw-edges ;
+	object :faces null @or null? if object@points camera matmul object@edges object@colour draw-edges exit then
+	object object@points object@face-centres object@face-normals object@centre draw-faces ;
 
 \ the indices of the objects the eye can see: in front of it, within the visibility and inside the view's sides, by their spheres
 : visible-objects ( centres radii -- indices )

@@ -268,6 +268,11 @@ variable water-rings
 	| sketch colour ^scenery |
 	scenery sketch colour sketch>object add-last! drop ;
 
+\ add a finished sketch of separate solids whose every line lies on a face to the scenery: without its list of lines, which only a wireframe reads, so the collector need not walk it, and drawn without the depth test, the far-to-near order being enough for solids that do not cross
+: keep-solid ( sketch colour -- )
+	| sketch colour ^scenery |
+	scenery sketch colour sketch>object [ ] :edges ! false :depth-test ! add-last! drop ;
+
 \ a landmark's ground point, [ x 0 z ]
 : landmark-ground ( key -- point )
 	| key |
@@ -462,16 +467,16 @@ variable water-rings
 
 \ === airfields ===
 
-\ an RAF airfield of 1940: the landing ground's boundary, a runway with dashes down it, hangars and the watch office, beside a point on a heading
+\ an RAF airfield of 1940: the landing ground filled to its boundary, a runway painted on it with dashes down it, hangars and the watch office, beside a point on a heading
 : keep-airfield ( centre heading -- )
 	| centre heading |
 	new-sketch to field
-	field centre heading 1600 1600 0 rectangle-corners sketch-loop
+	field centre heading 1600 1600 0 rectangle-corners sketch-floor
+	field centre heading 46 1250 0 rectangle-corners centre [ 0 1 0 ] v- runway-colour sketch-painted-plate
 	field field-colour keep
 	new-sketch to runway
-	runway centre heading 46 1250 0 rectangle-corners sketch-loop
 	-560 561 80 do along
-		runway [ centre heading 0 0 along placed centre heading 0 0 along 40 + placed ] sketch-path
+		runway [ centre heading 0 0.1 along placed centre heading 0 0.1 along 40 + placed ] sketch-path
 	loop
 	runway runway-colour keep
 	new-sketch to hangars
@@ -546,9 +551,8 @@ variable water-rings
 	:inchgarvie landmark-ground to bridge-centre
 	[ -600 0 600 ] ( along | bridge-centre bridge-heading along keep-cantilever ) each
 	new-sketch to deck
-	[ -6 6 ] ( side |
-		deck [ bridge-centre bridge-heading side 46 -1437 placed bridge-centre bridge-heading side 46 1030 placed ] sketch-path
-	) each
+	deck [ bridge-centre bridge-heading -6 46 -1437 placed bridge-centre bridge-heading 6 46 -1437 placed
+	       bridge-centre bridge-heading 6 46 1030 placed bridge-centre bridge-heading -6 46 1030 placed ] null sketch-plate
 	[ -353 353 ] ( middle |
 		[ -6 6 ] ( side |
 			deck [ bridge-centre bridge-heading side 46 middle 53 - placed bridge-centre bridge-heading side 60 middle placed
@@ -571,13 +575,17 @@ variable water-rings
 	sketch foot heading 8 8 46 sketch-open-box
 	sketch [ foot heading 0 46 -25 placed foot heading 0 46 45 placed foot heading 0 52 0 placed foot heading 0 46 -25 placed ] sketch-path ;
 
-\ a ship's hull on a slipway: its deck outline and keel line
+\ a ship's hull on a slipway: its deck outline and keel line, its two sides and its deck filled
 : sketch-hull ( sketch centre heading length -- )
 	| sketch centre heading length |
 	length 2 / to half
 	sketch [ centre heading 0 0 half negate placed centre heading -11 12 half negate 20 + placed centre heading -11 12 half placed
-	         centre heading 0 14 half 15 + placed centre heading 11 12 half placed centre heading 11 12 half negate 20 + placed ] sketch-loop
-	sketch [ centre heading 0 0 half negate placed centre heading 0 0 half placed centre heading 0 14 half 15 + placed ] sketch-path ;
+	         centre heading 0 14 half 15 + placed centre heading 11 12 half placed centre heading 11 12 half negate 20 + placed
+	         centre heading 0 0 half placed ] sketch-points to corners
+	sketch corners 6 take join-loop
+	sketch [ corners first corners 6 @i corners 3 @i ] join-path
+	centre heading 0 7 0 placed to inside
+	[ [ 0 1 2 3 6 ] [ 0 5 4 3 6 ] [ 1 2 3 4 5 ] ] ( face | sketch face ( k | corners k @i ) map inside sketch-face ) each ;
 
 \ === Stirling and Urquhart ===
 
@@ -599,14 +607,22 @@ variable water-rings
 
 \ === the cruisers in the Forth ===
 
-\ a cruiser at anchor: the hull's outline at the waterline and the deck, the bridge and superstructure, two funnels, four turrets
+\ a cruiser at anchor: the hull's outline at the waterline and the deck, its sides and deck filled, the bridge and superstructure, two funnels, four turrets
 : keep-cruiser ( centre heading -- )
 	| centre heading |
 	new-sketch to ship
 	ship [ centre heading 0 0 -90 placed centre heading -10 0 -70 placed centre heading -10 0 75 placed centre heading 0 0 95 placed
-	       centre heading 10 0 75 placed centre heading 10 0 -70 placed ] sketch-loop
+	       centre heading 10 0 75 placed centre heading 10 0 -70 placed ] sketch-points to waterline
 	ship [ centre heading 0 8 -90 placed centre heading -10 8 -70 placed centre heading -10 8 75 placed centre heading 0 9 95 placed
-	       centre heading 10 8 75 placed centre heading 10 8 -70 placed ] sketch-loop
+	       centre heading 10 8 75 placed centre heading 10 8 -70 placed ] sketch-points to deck-line
+	ship waterline join-loop
+	ship deck-line join-loop
+	centre heading 0 4 0 placed to inside
+	0 6 1 do k
+		k 1+ 6 mod to next
+		ship [ waterline k @i waterline next @i deck-line next @i deck-line k @i ] inside sketch-face
+	loop
+	ship deck-line inside sketch-face
 	ship centre heading 0 8 15 placed heading 12 30 10 sketch-box
 	ship centre heading 0 18 25 placed heading 8 10 12 sketch-box
 	[ -5 12 ] ( along | ship centre heading 0 18 along placed 0 5 5 12 sketch-box ) each

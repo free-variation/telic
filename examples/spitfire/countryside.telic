@@ -469,12 +469,7 @@ null to tiles-by-centre
 
 \ === the towns' ground ===
 
-\ the built-up ground's colours (estimates from what the towns were built of, not read from photographs of the time): slate roofs and sandstone blackened by coal smoke in Glasgow and on Clydeside, grey in Edinburgh and Leith, granite in Aberdeen, slate in the other Scottish towns, painted timber in Trondheim and Narvik; of each town's squares a fifth darker blocks and a tenth paler streets and yards, the rest its own colour
-0x564840 constant clydeside-colour
-0x58585a constant edinburgh-colour
-0x8c8c8a constant aberdeen-colour
-0x605e5c constant slate-colour
-0x6c5e52 constant timber-colour
+\ of each town's squares of built-up ground (its colour cities.telic's) a fifth darker blocks and a tenth paler streets and yards, the rest its own colour
 0.2 constant dark-block-share
 0.1 constant street-share
 350 constant town-square
@@ -485,38 +480,6 @@ null to tiles-by-centre
   [ :stirling-castle 1500 slate-colour ] [ :marischal-college 2500 aberdeen-colour ] [ :peterhead 1000 slate-colour ]
   [ :montrose 1000 slate-colour ] [ :kirkwall 1000 slate-colour ] [ :lerwick 800 slate-colour ]
   [ :nidaros 1500 timber-colour ] [ :narvik 800 timber-colour ] ] constant towns
-
-\ whether a ground point is within a reach of a line of [ x z ] points
-: near-line? ( x z line reach -- flag )
-	| x z line reach |
-	false to near
-	0 line size 1- 1 do k
-		line k @i spread to start-z to start-x
-		line k 1+ @i spread to end-z to end-x
-		end-x start-x - to dx
-		end-z start-z - to dz
-		dx sq dz sq + 1e-9 max2 to length-squared
-		x start-x - dx * z start-z - dz * + length-squared / 0 1 clamp to along
-		x start-x - along dx * - sq z start-z - along dz * - sq + sqrt reach < if true to near leave then
-	loop
-	near ;
-
-\ the parks inside the towns, left green: Kelvingrove Park's outline; within 450 m of Glasgow Green's point, 900 m of Arthur's Seat's for Holyrood Park, 300 m of the Meadows'; Princes Street Gardens within 75 m of a line 80 m south of Princes Street (the reaches estimates from the parks' sizes)
-variable park-lines
-null to park-lines
-
-: in-park? ( x z -- flag )
-	| x z ^park-lines |
-	park-lines null? if
-		{ :kelvingrove kelvingrove-boundary
-		  :gardens edinburgh-streets@princes-street ( point | [ point first point second 80 - ] ) map } to park-lines
-	then
-	[ x z ] park-lines@kelvingrove inside-outline? if true exit then
-	[ [ :glasgow-green 450 ] [ :arthurs-seat 900 ] [ :meadows 300 ] ] ( park |
-		park first landmark-ground to centre
-		centre first x - sq centre 2 @i z - sq + sqrt park second <
-	) any? if true exit then
-	x z park-lines@gardens 75 near-line? ;
 
 \ how far a town's ground reaches at a bearing: between 85% and 110% of its radius, by a hash of the bearing's sixteenth, blended into the next
 : town-reach ( radius seed angle -- reach )
@@ -597,11 +560,8 @@ null to park-lines
 \ the width of a city street the tenements line, between their fronts 15 m either side of its centre line, less a pavement's width each side
 24 constant city-street-width
 
-\ a town's roads' colour, setts and tarmac standing out from the blocks about them: paler than a dark town's ground, darker than a light town's, a light town one whose ground is lighter than a middle grey (the shares estimates)
-: road-colour-in ( town -- colour )
-	| town |
-	town 2 @i to ground
-	ground grey-of 255 bit-and 128 > if ground 0.7 dimmed else ground 1.4 dimmed then ;
+\ a town's roads' colour, street-colour-on its ground
+: road-colour-in ( town -- colour ) 2 @i street-colour-on ;
 
 \ the town a ground point lies in, or null: the first whose reach at the point's bearing takes it in
 : town-at ( x z -- town )

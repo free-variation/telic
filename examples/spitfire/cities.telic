@@ -55,11 +55,15 @@
 \ weathered copper, the green of Nidaros's roofs in the photographs (an estimate)
 0x6a9a82 constant copper-colour
 
-\ a wooden town's streets lined with houses on both sides, those that would stand in water left out; each street's houses an object for each colour
+\ the side of the squares a wooden town's houses are gathered in, metres, so a view of the whole town draws a few hundred objects rather than one for each street
+300 constant house-quarter
+
+\ a wooden town's streets lined with houses on both sides, those that would stand in water left out; the houses of each square of the town an object for each colour
 : keep-wooden-streets ( lines -- )
 	| lines |
-	lines ( line |
-		[ new-sketch new-sketch new-sketch ] to sketches
+	{ } to quarters
+	0 lines size 1 do n
+		lines n @i to line
 		0 line size 1- 1 do k
 			line k @i to start
 			line k 1+ @i to finish
@@ -68,18 +72,23 @@
 			[ start first 0 start second ] to origin
 			0 run v-length house-pitch / round-down 1 do h
 				h house-pitch * house-pitch 2 / + to along
-				[ -1 1 ] ( side |
+				-1 2 2 do side
 					origin heading side 12 * along 12 block-in-water? not if
+						origin heading side 12 * 0 along placed to house-site
+						house-site first house-quarter / round-down house-site 2 @i house-quarter / round-down "{1}/{0}" format string>symbol to key
+						quarters key has? not if quarters [ new-sketch new-sketch new-sketch ] key ! to quarters then
 						start first 0.37 * start second 0.11 * + h 1.3 * + side 0.7 * + hash-fraction 3 * round-down to pick
-						sketches pick @i origin heading side 12 * 0 along placed heading 10 12 7 10 sketch-house
+						quarters key @ pick @i house-site heading 10 12 7 10 sketch-house
 					then
-				) each
+				loop
 			loop
 		loop
-		[ red-timber-colour ochre-timber-colour white-timber-colour ] to colours
+	loop
+	[ red-timber-colour ochre-timber-colour white-timber-colour ] to colours
+	quarters values ( sketches |
 		0 3 1 do c
 			sketches c @i to houses
-			houses@points size 0 > if houses colours c @i keep then
+			houses@points size 0 > if houses colours c @i keep-solid then
 		loop
 	) each ;
 
@@ -97,15 +106,20 @@
 	loop
 	line 1 skip ;
 
-\ a square: its outline and the paths across it corner to corner
+\ a square's gravel paths' colour (an estimate)
+0xc8c0a0 constant path-colour
+
+\ a square: its ground filled green to its outline, and the paths across it corner to corner
 : keep-square ( outline -- )
 	| outline |
 	new-sketch to square
-	square outline 0 ground-path sketch-loop
+	square outline 0.2 ground-path sketch-floor
+	square park-colour keep
+	new-sketch to paths
 	outline size 2 / round-down to half
-	square [ outline first outline half @i ] 0 ground-path sketch-path
-	square [ outline second outline half 1+ outline size mod @i ] 0 ground-path sketch-path
-	square park-colour keep ;
+	paths [ outline first outline half @i ] 0.3 ground-path sketch-path
+	paths [ outline second outline half 1+ outline size mod @i ] 0.3 ground-path sketch-path
+	paths path-colour keep ;
 
 \ a city's OpenStreetMap features: tenements along its streets, each street's height and sides from styles keyed like the streets; its squares; its stations' train sheds, each its height from shed-heights; its railways on the ground, each run of track once
 : keep-city ( streets styles squares stations shed-heights railways -- )
@@ -330,18 +344,18 @@
 	university stone-colour keep ;
 
 
-\ Kelvingrove Art Gallery and Museum in its red sandstone, its north entrance to the park and the Kelvin; the Kelvin traced through Wikidata places passes within a few metres of the museum's own point, so the building is set 75 m south of it, and its 90 m by 110 m plan is an estimate: the central hall up to its 36 m roof between two long gallery wings, ranges closing the north and south ends, the two 51 m towers flanking the entrance, a smaller tower at each corner
+\ Kelvingrove Art Gallery and Museum in its red sandstone, its north entrance to the park and the Kelvin, at the map's point, the middle of its outline, which spans 110 m east to west and 137 m north to south (OpenStreetMap); within that the plan is an estimate: the central hall up to its 36 m roof between two long gallery wings, ranges closing the north and south ends, the two 51 m towers flanking the entrance, a smaller tower at each corner
 : build-kelvingrove-museum ( -- )
-	:kelvingrove landmark-ground 0 0 0 -75 placed 0 site!
+	:kelvingrove landmark-ground 0 site!
 	new-sketch to museum
-	museum 0 0 0 at 0 25 80 26 36 sketch-house
-	[ -40 40 ] ( across | museum 0 across 0 at 0 30 90 20 24 sketch-house ) each
-	[ -45 45 ] ( along | museum along 0 0 at 90 14 110 20 sketch-box ) each
+	museum 0 0 0 at 0 25 100 26 36 sketch-house
+	[ -40 40 ] ( across | museum 0 across 0 at 0 30 124 20 24 sketch-house ) each
+	[ -62 62 ] ( along | museum along 0 0 at 90 14 110 20 sketch-box ) each
 	[ -12 12 ] ( across |
-		museum 47 across 0 at 0 9 9 40 sketch-box
-		museum 47 across 0 at 9 40 51 4 sketch-pinnacled-spire
+		museum 64 across 0 at 0 9 9 40 sketch-box
+		museum 64 across 0 at 9 40 51 4 sketch-pinnacled-spire
 	) each
-	[ [ -45 -55 ] [ -45 55 ] [ 45 -55 ] [ 45 55 ] ] ( corner |
+	[ [ -62 -55 ] [ -62 55 ] [ 62 -55 ] [ 62 55 ] ] ( corner |
 		museum corner first corner second 0 at 8 26 4 sketch-spire
 	) each
 	museum sandstone-colour keep ;
@@ -367,15 +381,235 @@
 	[ [ 62 58 ] [ 212 228 ] [ 512 378 ] [ 612 508 ] [ 742 128 ] [ 592 -92 ] [ 292 -122 ] [ 62 -52 ] ]
 	( corner | [ corner first museum first + corner second museum 2 @i + ] ) map ;
 
-\ Kelvingrove Park along the Kelvin between the museum, Gilmorehill and Woodlands Hill: its boundary, a walk along each bank, and clumps of trees off the water
+\ whether a ground point is within a reach of a line of [ x z ] points
+: near-line? ( x z line reach -- flag )
+	| x z line reach |
+	false to near
+	0 line size 1- 1 do k
+		line k @i spread to start-z to start-x
+		line k 1+ @i spread to end-z to end-x
+		end-x start-x - to dx
+		end-z start-z - to dz
+		dx sq dz sq + 1e-9 max2 to length-squared
+		x start-x - dx * z start-z - dz * + length-squared / 0 1 clamp to along
+		x start-x - along dx * - sq z start-z - along dz * - sq + sqrt reach < if true to near leave then
+	loop
+	near ;
+
+\ the parks inside the towns, left green and free of buildings: Kelvingrove Park's outline; within 450 m of Glasgow Green's point, 900 m of Arthur's Seat's for Holyrood Park, 300 m of the Meadows'; Princes Street Gardens within 75 m of a line 80 m south of Princes Street (the reaches estimates from the parks' sizes)
+variable park-lines
+null to park-lines
+
+: in-park? ( x z -- flag )
+	| x z ^park-lines |
+	park-lines null? if
+		{ :kelvingrove kelvingrove-boundary
+		  :gardens edinburgh-streets@princes-street ( point | [ point first point second 80 - ] ) map } to park-lines
+	then
+	[ x z ] park-lines@kelvingrove inside-outline? if true exit then
+	[ [ :glasgow-green 450 ] [ :arthurs-seat 900 ] [ :meadows 300 ] ] ( park |
+		park first landmark-ground to centre
+		centre first x - sq centre 2 @i z - sq + sqrt park second <
+	) any? if true exit then
+	x z park-lines@gardens 75 near-line? ;
+
+\ === the towns' other streets ===
+
+\ the built-up ground's colours (estimates from what the towns were built of, not read from photographs of the time): slate roofs and sandstone blackened by coal smoke in Glasgow and on Clydeside, grey in Edinburgh and Leith, granite in Aberdeen, slate in the other Scottish towns, painted timber in Trondheim and Narvik
+0x564840 constant clydeside-colour
+0x58585a constant edinburgh-colour
+0x8c8c8a constant aberdeen-colour
+0x605e5c constant slate-colour
+0x6c5e52 constant timber-colour
+
+\ a street's colour on a town's ground, setts and tarmac standing out from the blocks about them: paler than a dark ground, darker than a light one, a light ground one lighter than a middle grey (the shares estimates)
+: street-colour-on ( ground -- colour )
+	| ground |
+	ground grey-of 255 bit-and 128 > if ground 0.6 dimmed else ground 1.8 dimmed then ;
+
+\ the tenements and terraces lining the Scottish towns' other streets: blocks 12 m deep standing 20 m either side of the street's line, as many to each stretch as fit one every 100 m, each 10 m shorter than its share; each town's height, its stones' colours, a block's colour by a hash, and its built-up ground's colour, which its streets' is set against (heights, sizes and colours estimates: Glasgow's red and blond sandstone tenements of four storeys, Edinburgh's grey and blond, Aberdeen's granite, the smaller towns' lower rows of grey stone)
+100 constant tenement-pitch
+{ :edinburgh [ 18 [ 0xa49a88 0x8c8478 0xb2a690 ] edinburgh-colour ] :leith [ 15 [ 0x9c9484 0x8a8274 ] edinburgh-colour ]
+  :glasgow [ 17 [ 0x9a5a48 0xb0a088 0x8a5040 ] clydeside-colour ] :govan [ 14 [ 0x8e5444 0xa49480 ] clydeside-colour ]
+  :clydebank [ 14 [ 0x8e5444 0xa49480 ] clydeside-colour ] :aberdeen [ 14 [ 0xa8a8a4 0x949490 ] aberdeen-colour ]
+  :inverness [ 12 [ 0x9a9488 0x88827a ] slate-colour ] :stirling [ 12 [ 0x9a9284 0x88807a ] slate-colour ]
+  :peterhead [ 10 [ 0xa0a09c 0x8c8c88 ] slate-colour ] :montrose [ 10 [ 0x9a968c 0x888478 ] slate-colour ]
+  :kirkwall [ 9 [ 0x9a968c 0x888478 ] slate-colour ] :lerwick [ 9 [ 0x9a968c 0x888478 ] slate-colour ] } constant town-stone
+
+\ the landmarks whose own buildings and grounds the blocks keep clear of, each [ x z reach ], and George Square within 90 m of its middle (the reaches estimates from the grounds' sizes)
+[ [ :edinburgh-castle 280 ] [ :holyrood 200 ] [ :calton-hill 250 ] [ :scott-monument 60 ] [ :st-giles 50 ]
+  [ :glasgow-cathedral 150 ] [ :glasgow-necropolis 250 ] [ :glasgow-university 250 ] [ :trinity-college 120 ]
+  [ :kelvingrove 130 ] [ :glasgow-city-chambers 60 ] [ :stirling-castle 250 ]
+  [ :inverness-castle 120 ] [ :marischal-college 80 ] ] ( clearance |
+	clearance first landmark-ground to centre
+	[ centre first centre 2 @i clearance second ]
+) map glasgow-squares@george-square outline-middle spread 90 3 array add-last! constant landmark-clearances
+
+\ whether a ground point is clear of the landmarks' grounds
+: clear-of-landmarks? ( x z -- flag )
+	| x z |
+	landmark-clearances ( clearance | clearance spread to reach to clearance-z to clearance-x
+		clearance-x x - sq clearance-z z - sq + sqrt reach < ) any? not ;
+
+\ the side of the squares a town's blocks are gathered in, metres, each square's blocks one object, its blocks' colours on their faces
+600 constant tenement-quarter
+
+\ a square's blocks as they are gathered: flat arrays of numbers, its corners four to a row, its faces' corner indices four to a row, their centres four to a row, their normals three, their colours one, their leads one, and the square's extent so far, so a block adds no small arrays for the collector to sweep
+: new-quarter ( -- quarter )
+	{ :points [ ] :faces [ ] :centres [ ] :normals [ ] :colours [ ] :leads [ ] :low-x 1e9 :high-x -1e9 :low-z 1e9 :high-z -1e9 :top 0 } ;
+
+\ a block added to a square: a box standing on a point, turned to a heading, a width across and a length along it, a height high, in a colour; its four walls and its roof as faces, each with its centre and outward normal
+: add-block ( quarter x z heading width length height colour -- )
+	| quarter x z heading width length height colour |
+	heading PI 180 / * to bearing
+	bearing cos to cosine
+	bearing sin to sine
+	width 2 / to half-width
+	length 2 / to half-length
+	quarter@points to points
+	points size 4 / to base
+	0 2 1 do level
+		level height * to y
+		0 4 1 do k
+			k 1 = k 2 = or if half-width else half-width negate then to across
+			k 2 >= if half-length else half-length negate then to ahead
+			points x across cosine * + ahead sine * + add-last! y add-last! z across sine * - ahead cosine * + add-last! 1 add-last! drop
+		loop
+	loop
+	quarter@faces to faces
+	quarter@centres to centres
+	quarter@normals to normals
+	quarter@colours to face-colours
+	0 4 1 do k
+		k 1+ 4 mod to next
+		faces base k + add-last! base next + add-last! base next + 4 + add-last! base k + 4 + add-last! drop
+		k 1 = if 1 else k 3 = if -1 else 0 then then to across-unit
+		k 0 = if -1 else k 2 = if 1 else 0 then then to ahead-unit
+		normals across-unit cosine * ahead-unit sine * + add-last! 0 add-last! across-unit sine * negate ahead-unit cosine * + add-last! drop
+		centres x across-unit half-width * cosine * + ahead-unit half-length * sine * + add-last! height 2 / add-last!
+		z across-unit half-width * sine * - ahead-unit half-length * cosine * + add-last! 1 add-last! drop
+		face-colours colour add-last! drop
+	loop
+	faces base 4 + add-last! base 5 + add-last! base 6 + add-last! base 7 + add-last! drop
+	normals 0 add-last! 1 add-last! 0 add-last! drop
+	centres x add-last! height add-last! z add-last! 1 add-last! drop
+	face-colours colour add-last! drop
+	quarter@leads 0 add-last! 0 add-last! 0 add-last! 0 add-last! 0 add-last! drop
+	half-width half-length + to reach
+	quarter x reach - quarter@low-x min2 :low-x ! drop
+	quarter x reach + quarter@high-x max2 :high-x ! drop
+	quarter z reach - quarter@low-z min2 :low-z ! drop
+	quarter z reach + quarter@high-z max2 :high-z ! drop
+	quarter height quarter@top max2 :top ! drop ;
+
+\ the width of the towns' other streets' bands, metres, between the rows of blocks 20 m either side of the line (an estimate); how high above the ground they lie; how much farther than its centre a band is sorted, so the square's blocks are all drawn over it
+14 constant street-band-width
+0.3 constant street-band-height
+-1000 constant street-band-lead
+
+\ a stretch of street added to a square: a flat band along it, its colour, facing up
+: add-street ( quarter start finish colour -- )
+	| quarter start finish colour |
+	finish first start first - to dx
+	finish second start second - to dz
+	dx sq dz sq + sqrt 1e-9 max2 to stretch
+	dz stretch / street-band-width 2 / * to across-x
+	dx stretch / negate street-band-width 2 / * to across-z
+	quarter@points to points
+	points size 4 / to base
+	[ start start finish finish ] to ends
+	0 4 1 do k
+		ends k @i to end
+		k 0 = k 3 = or if 1 else -1 then to side
+		points end first across-x side * + add-last! street-band-height add-last! end second across-z side * + add-last! 1 add-last! drop
+	loop
+	quarter@faces base add-last! base 1+ add-last! base 2 + add-last! base 3 + add-last! drop
+	quarter@normals 0 add-last! 1 add-last! 0 add-last! drop
+	quarter@centres start first finish first + 2 / add-last! street-band-height add-last! start second finish second + 2 / add-last! 1 add-last! drop
+	quarter@colours colour add-last! drop
+	quarter@leads street-band-lead add-last! drop
+	quarter start first finish first min2 quarter@low-x min2 :low-x ! drop
+	quarter start first finish first max2 quarter@high-x max2 :high-x ! drop
+	quarter start second finish second min2 quarter@low-z min2 :low-z ! drop
+	quarter start second finish second max2 quarter@high-z max2 :high-z ! drop ;
+
+\ a square's blocks as one object: its matrices from the flat arrays, its sphere round its extent, no lines off its faces, drawn without the depth test
+: quarter-object ( quarter -- object )
+	| quarter |
+	quarter@points size 4 / to n-points
+	quarter@colours size to n-faces
+	[ quarter@low-x quarter@high-x + 2 / quarter@top 2 / quarter@low-z quarter@high-z + 2 / ] to middle
+	quarter@high-x quarter@low-x - sq quarter@high-z quarter@low-z - sq + quarter@top sq + sqrt 2 / to reach
+	{ :points quarter@points n-points 4 matrix :edges [ ] :colour quarter@colours first :centre middle :radius reach
+	  :faces quarter@faces n-faces 4 matrix :face-centres quarter@centres n-faces 4 matrix
+	  :face-normals quarter@normals n-faces 3 matrix :face-colours quarter@colours vector :face-leads quarter@leads vector
+	  :depth-test false } ;
+
+\ add an object already made to the scenery
+: keep-object ( object -- )
+	| object ^scenery |
+	scenery object add-last! drop ;
+
+\ a town's other streets, each stretch a band in its streets' colour on its built-up ground, none on water, lined with blocks of a height in its colours, none in a park, in water or on a landmark's grounds; the bands and blocks of each square of the town one object
+: keep-tenement-streets ( lines height colours ground -- )
+	| lines height colours ground |
+	colours size to n-colours
+	ground street-colour-on to street-colour
+	{ } to quarters
+	0 lines size 1 do n
+		lines n @i to line
+		0 line size 1- 1 do k
+			line k @i to start
+			line k 1+ @i to finish
+			[ finish first start first - 0 finish second start second - ] to run
+			run v-length to stretch
+			start first finish first + 2 / to middle-x
+			start second finish second + 2 / to middle-z
+			middle-x middle-z water-at? not if
+				middle-x tenement-quarter / round-down middle-z tenement-quarter / round-down "{1}/{0}" format string>symbol to key
+				quarters key has? not if quarters new-quarter key ! to quarters then
+				quarters key @ start finish street-colour add-street
+			then
+			stretch 20 >= if
+				run heading-of to heading
+				[ start first 0 start second ] to origin
+				stretch tenement-pitch / round-up to n-blocks
+				stretch n-blocks / to share
+				share 10 - to block
+				0 n-blocks 1 do b
+					b share * share 2 / + to along
+					-1 2 2 do side
+						origin heading side 20 * 0 along placed to block-site
+						block-site first block-site 2 @i in-park? not
+						block-site first block-site 2 @i clear-of-landmarks? and
+						origin heading side 20 * along block block-in-water? not and if
+							block-site first tenement-quarter / round-down block-site 2 @i tenement-quarter / round-down "{1}/{0}" format string>symbol to key
+							quarters key has? not if quarters new-quarter key ! to quarters then
+							start first 0.29 * start second 0.17 * + b 1.7 * + side 0.6 * + hash-fraction n-colours * round-down to pick
+							quarters key @ block-site first block-site 2 @i heading 12 block height colours pick @i add-block
+						then
+					loop
+				loop
+			then
+		loop
+	loop
+	quarters values ( quarter | quarter quarter-object keep-object ) each ;
+
+\ every Scottish town's other streets lined, the streets then let go, so the collector need not walk them
+: build-town-streets ( -- )
+	| ^town-lanes |
+	town-lanes keys ( key | town-lanes key @ town-stone key @ spread keep-tenement-streets ) each
+	null to town-lanes ;
+
+\ Kelvingrove Park along the Kelvin between the museum, Gilmorehill and Woodlands Hill: its boundary and a walk along each bank as gravel lines on its green ground, and clumps of trees off the water
 : build-kelvingrove-park ( -- )
 	:kelvingrove landmark-ground to museum
 	kelvingrove-boundary to boundary
 	new-sketch to park
 	park boundary 0 ground-path sketch-loop
-	rivers@kelvin 1 skip 3 take to reach
+	rivers@kelvin ( point | point boundary inside-outline? ) filter to reach
 	[ -30 30 ] ( side | park reach side offset-path sketch-path ) each
-	park park-colour keep
+	park path-colour keep
 	new-sketch to trees
 	0 40 1 do k
 		k 3.17 * 11 + hash-fraction 680 * 62 + museum first + to x
@@ -585,7 +819,7 @@
 	stack hill-colour keep
 	:ring-of-brodgar on-ground to ring-centre
 	new-sketch to ring
-	ring-centre 50 0 27 ring-points ( stone | ring [ stone stone [ 0 4 0 ] v+ ] sketch-path ) each
+	ring-centre 50 0 27 ring-points ( stone | ring stone stone ring-centre v- heading-of 1 0.4 4 sketch-box ) each
 	ring stone-colour keep
 	new-sketch to memorial
 	memorial :kitchener-memorial on-ground 0 6 6 14 sketch-box
@@ -772,15 +1006,25 @@ variable tirpitz-heading
 	sketch foot heading 0 20 0 placed heading 7 7 4 sketch-box
 	sketch [ foot heading 0 23 0 placed foot heading 0 26 12 placed ] sketch-path ;
 
-\ a harbour's piers, quays and breakwaters, each its edge 2 m above the water and a parallel edge 8 m in; on each quay 150 m or longer a portal crane every 80 m with a warehouse behind it, 40 m long, 15 m deep, 8 m to the eaves (heights and crane spacing estimates)
+\ a harbour's piers, quays and breakwaters, each its edge 2 m above the water and a parallel edge 8 m in, the quay's top filled between them and its wall from the water up to the edge; on each quay 150 m or longer a portal crane every 80 m with a warehouse behind it, 40 m long, 15 m deep, 8 m to the eaves (heights and crane spacing estimates)
 : keep-harbour ( piers -- )
 	| piers |
 	new-sketch to quays
 	new-sketch to sheds
 	piers ( pier |
 		pier 2 ground-path to edge
-		quays edge sketch-path
-		quays pier 8 offset-path ( point | [ point first 2 point 2 @i ] ) map sketch-path
+		quays edge sketch-points to edge-indices
+		quays pier 8 offset-path ( point | [ point first 2 point 2 @i ] ) map sketch-points to inner-indices
+		quays pier 0 ground-path sketch-points to foot-indices
+		quays edge-indices join-path
+		quays inner-indices join-path
+		0 edge-indices size 1- 1 do k
+			k 1+ to next
+			[ edge-indices k @i edge-indices next @i inner-indices next @i inner-indices k @i ] to top
+			quays top quays top inside-of [ 0 1 0 ] v- sketch-face
+			quays [ foot-indices k @i foot-indices next @i edge-indices next @i edge-indices k @i ]
+			quays [ inner-indices k @i inner-indices next @i ] inside-of [ 0 1 0 ] v- sketch-face
+		loop
 		1 pier size 1 do k
 			pier k 1- @i to a
 			pier k @i to b
@@ -962,6 +1206,7 @@ variable tirpitz-heading
 	build-montrose
 	build-orkney
 	build-shetland
+	build-town-streets
 	build-trondheim
 	build-tirpitz
 	build-narvik

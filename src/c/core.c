@@ -6200,6 +6200,8 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "rect", p_rect, 0);
 	define_primitive(interp, "fill-rect", p_fill_rect, 0);
 	define_primitive(interp, "fill-triangle", p_fill_triangle, 0);
+	define_primitive(interp, "fill-polygons", p_fill_polygons, 0);
+	define_primitive(interp, "fill-solid", p_fill_solid, 0);
 	define_primitive(interp, "circle", p_circle, 0);
 	define_primitive(interp, "fill-circle", p_fill_circle, 0);
 	define_primitive(interp, "cls", p_cls, 0);
