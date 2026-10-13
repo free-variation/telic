@@ -515,6 +515,7 @@ void p_fill_polygons(DISPATCH_ARGS) {
 #define SOLID_OUTLINE_SPAN 2
 #define SOLID_OUTLINE_LEAD 0.002
 #define SOLID_UNLIT 0x1000000
+#define SOLID_UNOUTLINED 0x2000000
 
 typedef struct {
 	double depth;
@@ -794,17 +795,16 @@ static void draw_solid(Tigr *canvas, Object *points, const SolidFaces *faces, Ob
 		double sunlit = normal[0] * shading->sun[0] + normal[1] * shading->sun[1] + normal[2] * shading->sun[2];
 		sunlit = fmin(fmax(sunlit, 0), 1);
 		double light = (sunlit * (1 - shading->shadow) + shading->shadow) * shading->lighting;
-		unsigned int rgb = (unsigned int)colours[f];
-		if (rgb & SOLID_UNLIT) {
-			rgb &= 0xFFFFFF;
+		unsigned int flagged_rgb = (unsigned int)colours[f];
+		unsigned int rgb = flagged_rgb & 0xFFFFFF;
+		if (flagged_rgb & SOLID_UNLIT)
 			light = shading->lighting;
-		}
 		TPixel fill = pixel_from_rgb(shaded_rgb(rgb, light, shading));
 		if (surface && n_corners > 3 && solid_face_convex(xs, ys, corners, n_corners))
 			solid_fill_fan(canvas, xs, ys, aheads, corners, n_corners, fill);
 		else
 			fill_polygon_corners(canvas, xs, ys, corners, n_corners, fill, surface);
-		if (shading->outline_share < 0)
+		if (shading->outline_share < 0 || (flagged_rgb & SOLID_UNOUTLINED))
 			continue;
 		DepthPlane raised;
 		DepthPlane *edge_surface = NULL;

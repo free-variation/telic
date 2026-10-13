@@ -96,7 +96,7 @@ LANDMARKS = [
     ("portobello", "Portobello, Edinburgh"), ("forth-bridge", "Forth Bridge"),
     ("inchgarvie", "Inchgarvie"), ("north-queensferry", "North Queensferry"),
     ("inchkeith", "Inchkeith"), ("inchcolm", "Inchcolm"), ("cramond-island", "Cramond Island"),
-    ("hound-point", "Hound Point"), ("turnhouse", "Edinburgh Airport"), ("drem", "RAF Drem"),
+    ("hound-point", "Hound Point"), ("turnhouse", "Edinburgh Airport"), ("drem", "RAF Drem"), ("grangemouth", "RAF Grangemouth"),
     ("north-berwick-law", "North Berwick Law"), ("bass-rock", "Bass Rock"),
     ("scald-law", "Scald Law"), ("ben-cleuch", "Ben Cleuch"), ("west-lomond", "West Lomond"),
     ("stirling-castle", "Stirling Castle"), ("wallace-monument", "Wallace Monument"),

@@ -1,7 +1,7 @@
 \ Spitfire: the campaigns. Two run of the missions in their order, flown
 \ one after another as the war went: the Defence of Scotland, from the
-\ Forth in October 1939 to Greenock in May 1941, and Norway, from Narvik
-\ and HMS Glorious in 1940 to the Tirpitz in 1942. A mission is flown when
+\ Forth in October 1939 to Greenock in May 1941, and Norway, from HMS
+\ Glorious, Narvik and Glorious again in 1940 to the Tirpitz in 1942. A mission is flown when
 \ its task is done and the pilot is down alive; anything else, a crash, a
 \ death, the task undone, and it is flown again. After each flight a
 \ debrief says what happened. How far each campaign has come is kept in a
@@ -9,10 +9,10 @@
 
 \ the campaigns, each its key, its title and its missions by name, in order
 [ { :key :scotland :title "DEFENCE OF SCOTLAND"
-    :missions [ "THE FORTH, 16 OCTOBER 1939" "SCAPA FLOW, 16 MARCH 1940" "FARNE ISLANDS, 15 AUGUST 1940"
+    :missions [ "THE FORTH, 16 OCTOBER 1939" "SCAPA FLOW, 16 MARCH 1940" "FORTH PATROL, JUNE 1940" "FARNE ISLANDS, 15 AUGUST 1940"
                 "CLYDEBANK, 13 MARCH 1941" "GREENOCK, 6 MAY 1941" ] }
   { :key :norway :title "NORWAY"
-    :missions [ "NARVIK, 28 MAY 1940" "HMS GLORIOUS, 7 JUNE 1940" "TIRPITZ AT TRONDHEIM, 5 MARCH 1942" ] } ] constant campaigns
+    :missions [ "HMS GLORIOUS, 26 MAY 1940" "NARVIK, 28 MAY 1940" "HMS GLORIOUS, 7 JUNE 1940" "TIRPITZ AT TRONDHEIM, 5 MARCH 1942" ] } ] constant campaigns
 
 \ a campaign's place on the title's list: -1 the first campaign, -2 the second, so a list choice below 0 is a campaign and at or above 0 a mission
 : campaign-choice ( index -- choice ) 1+ negate ;
@@ -85,12 +85,14 @@ variable campaign-progress
 	pilot null? if :landed-said game@ plane@crashed not and exit then
 	pilot@state :down = pilot@state :in-sea = or ;
 
-\ whether a mission's task is done: a raid over, the carrier landed on, the Tirpitz caught on film, or for a mission with none of these, only the flight
+\ whether a mission's task is done: a raid over, the aircraft flown off the carrier landed within 3 km of the target, the carrier landed on, the Tirpitz caught on film, every sighting of a patrol reported and the aircraft landed, or for a mission with none of these, only the flight
 : task-done? ( mission -- flag )
 	| mission |
 	mission :raid null @or null? not if :raid-over game@ exit then
+	mission :fly-off false @or if :landed-said game@ plane@on-deck not and plane@position :target game@ v- v-length 3000 < and exit then
 	mission :carrier null @or null? not if plane@on-deck :landed-said game@ and exit then
 	mission :aircraft :fighter @or :reconnaissance = if tirpitz-frames size 0 > exit then
+	mission :patrol null @or null? not if patrol-done? :landed-said game@ and exit then
 	true ;
 
 \ the debrief's account of the flight just ended and whether the mission is flown: what became of the pilot and the aircraft, the task, and the raid
@@ -119,6 +121,10 @@ variable campaign-progress
 	then
 	mission :aircraft :fighter @or :reconnaissance = if
 		lines tirpitz-frames size 0 > if "THE TIRPITZ IS ON THE FILM" else "THE TIRPITZ IS NOT ON THE FILM" then add-last! drop
+	then
+	mission :patrol null @or null? not if
+		:sightings game@ to sightings
+		lines sightings size sightings ( sighting | sighting@reported ) filter size "SIGHTINGS REPORTED: {0} OF {1}" format add-last! drop
 	then
 	lines alive done and ;
 

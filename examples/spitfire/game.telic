@@ -12,7 +12,7 @@
 \ right and behind, P pauses, escape returns to
 \ the missions. A gamepad: the left stick is the stick, the shoulders the
 \ rudder, the right stick's up and down the throttle and its left and right
-\ the trim, the stick clicks the propeller (right finer, left coarser), the
+\ the trim, the right stick's click switches the propeller's pitch, the
 \ left trigger the boost cut-out, A or the right trigger
 \ the guns, X the flaps, Y the undercarriage, B the brakes, the d-pad left
 \ and right turns the view, start pauses and back returns to the missions.
@@ -47,14 +47,26 @@ variable scenery-collection
 : any-pressed? ( -- flag )
 	reading-keys ( key | key key-pressed? ) any? reading-buttons ( button | button pad-pressed? ) any? or ;
 
-\ the view keys: 1 to 4 ahead, left, right and behind, the d-pad's left and right turning through them
+\ the view keys: 1 to 4 ahead, left, right and behind, the d-pad's left and right turning through them; each choice sets the view's turn from it back to none
 : read-view-keys ( -- )
 	[ :front :left :right :back ] to views
+	:view game@ to chosen
 	0 4 1 do k
-		[ :1 :2 :3 :4 ] k @i key-pressed? if views k @i :view game! then
+		[ :1 :2 :3 :4 ] k @i key-pressed? if views k @i :view game! 0 :view-turn game! 0 :view-tilt game! then
 	loop
-	:dpad-right pad-pressed? if views views :view game@ position-of 1+ 4 mod @i :view game! then
-	:dpad-left pad-pressed? if views views :view game@ position-of 3 + 4 mod @i :view game! then ;
+	:dpad-right pad-pressed? if views views chosen position-of 1+ 4 mod @i :view game! then
+	:dpad-left pad-pressed? if views views chosen position-of 3 + 4 mod @i :view game! then
+	:view game@ chosen = not if 0 :view-turn game! 0 :view-tilt game! then ;
+
+\ whether the arrows turn the view instead of the stick: shift held in the Lysander
+: view-turning? ( -- flag ) :shift key-down? plane@type@kind :lysander = and ;
+
+\ the view turned from the chosen one by the arrows while view-turning?: left and right about the aircraft's up, up and down about its span, 60° a second, up and down no more than 89°
+: turn-view ( elapsed -- )
+	| elapsed |
+	view-turning? not if exit then
+	:right key-down? :left key-down? - PI 3 / * elapsed * game :view-turn 0 @or + TAU mod :view-turn game!
+	:down key-down? :up key-down? - PI 3 / * elapsed * game :view-tilt 0 @or + 89 PI 180 / * dup negate swap clamp :view-tilt game! ;
 
 \ the undercarriage's or the flaps' movement heard for its travel: an instrument for the seconds it takes, a clunk at its end when asked for; a movement still sounding is cut short
 : start-movement ( instrument seconds thump -- )
@@ -122,11 +134,12 @@ variable scenery-collection
 	goal current - abs step <= if goal exit then
 	current goal current > if step else step negate then + ;
 
-\ the controls from the keys and the pad; on the ground with the engine stopped the pad's A switches the magnetos on and, held, turns the starter, and at rest with it running the left trigger held works the cut-out
+\ the controls from the keys and the pad; on the ground with the engine stopped the pad's A switches the magnetos on and, held, turns the starter, and at rest with it running the left trigger held works the cut-out; where the type's slats work its flaps, or its undercarriage is fixed, the flaps' and the undercarriage's keys say so
 : read-controls ( elapsed -- )
 	| elapsed ^controls |
-	:down key-down? :up key-down? - game :key-pitch 0 @or elapsed key-stick :key-pitch game!
-	:right key-down? :left key-down? - game :key-roll 0 @or elapsed key-stick :key-roll game!
+	view-turning? if 0 0 else :down key-down? :up key-down? - :right key-down? :left key-down? - then to rolling to pitching
+	pitching game :key-pitch 0 @or elapsed key-stick :key-pitch game!
+	rolling game :key-roll 0 @or elapsed key-stick :key-roll game!
 	:key-pitch game@ :left-y stick-axis + -1 1 clamp to pitch
 	:key-roll game@ :left-x stick-axis + -1 1 clamp to roll
 	:x key-down? :z key-down? - :right-shoulder 0 gamepad-down? + :left-shoulder 0 gamepad-down? - -1 1 clamp to yaw
@@ -160,11 +173,15 @@ variable scenery-collection
 	then
 	plane@propeller :constant-speed = if
 		:w key-down? :s key-down? - to pitch-move
-		:right-stick pad-pressed? if 300 else 0 then :left-stick pad-pressed? if 300 else 0 then - to pitch-step
-		plane@revolution-setting pitch-move 600 * elapsed * + pitch-step + lowest-revolutions rated-revolutions clamp plane!revolution-setting
+		plane@type@rated-revolutions to rated
+		plane@revolution-setting pitch-move 600 * elapsed * + lowest-revolutions rated clamp plane!revolution-setting
+		:right-stick pad-pressed? if
+			plane@revolution-setting lowest-revolutions rated + 2 / > if lowest-revolutions else rated then plane!revolution-setting
+		then
 	else
-		:w key-pressed? :right-stick pad-pressed? or if true plane!fine "FINE PITCH" say then
-		:s key-pressed? :left-stick pad-pressed? or if false plane!fine "COARSE PITCH" say then
+		plane@fine to was-fine
+		:w key-pressed? :right-stick pad-pressed? was-fine not and or if true plane!fine "FINE PITCH" say then
+		:s key-pressed? :right-stick pad-pressed? was-fine and or if false plane!fine "COARSE PITCH" say then
 	then
 	:e key-pressed? :left-trigger pad-pressed? pad-stopping not and or if
 		plane@emergency-allowed if
@@ -175,7 +192,10 @@ variable scenery-collection
 		then
 	then
 	plane :selector-left 0 @or elapsed - 0 max2 plane!selector-left
-	:f key-pressed? :west pad-pressed? or if
+	:f key-pressed? :west pad-pressed? or plane@type@automatic-flaps and if
+		"THE FLAPS COME DOWN BY THEMSELVES WITH THE SLATS" say
+	then
+	:f key-pressed? :west pad-pressed? or plane@type@automatic-flaps not and if
 		plane@flaps not plane!flaps
 		false plane!flaps-blown
 		:flaps plane!selector-slot
@@ -187,7 +207,10 @@ variable scenery-collection
 			plane@flaps if "FLAPS DOWN" else "FLAPS UP" then say
 		then
 	then
-	:g key-pressed? :north pad-pressed? or if
+	:g key-pressed? :north pad-pressed? or plane@type@fixed-undercarriage and if
+		"THE UNDERCARRIAGE IS FIXED" say
+	then
+	:g key-pressed? :north pad-pressed? or plane@type@fixed-undercarriage not and if
 		plane@gear not plane!gear
 		:pump undercarriage-travel-time true start-movement
 		:wheels plane!selector-slot
@@ -207,7 +230,8 @@ variable scenery-collection
 		:time-scale game@ 1 = if 4 else :time-scale game@ 4 = if 16 else 1 then then :time-scale game!
 		:time-scale game@ "TIME x{0:.0f}" format say
 	then
-	read-view-keys ;
+	read-view-keys
+	elapsed turn-view ;
 
 \ the falling pilot's gaze: the arrows and the left stick turn it, left and right and up and down, 60° a second, up and down no more than 89°; until first turned it follows the aircraft
 : look-around ( elapsed -- )
@@ -250,7 +274,7 @@ view-width 40 - constant message-line-width
 \ the most the buffet shakes the view, radians each way about the span and the line of flight (an estimate)
 0.012 constant buffet-shake
 
-\ the eye's attitude for the chosen view, turned from the aircraft's, shaken by the stall's buffet
+\ the eye's attitude for the chosen view, turned from the aircraft's, shaken by the stall's buffet; in the cockpit turned further by the arrows' view-turn about the aircraft's up and view-tilt about the eye's span
 : view-attitude ( -- attitude )
 	:pilot game@ null? if plane@attitude else pilot-attitude then to attitude
 	:pilot game@ null? :paused game@ not and if
@@ -258,10 +282,9 @@ view-width 40 - constant message-line-width
 		attitude :right random 0.5 - 2 * shake * turn-attitude :forward random 0.5 - 2 * shake * turn-attitude to attitude
 	then
 	:view game@ to view
-	view :left = if attitude :up PI -2 / turn-attitude exit then
-	view :right = if attitude :up PI 2 / turn-attitude exit then
-	view :back = if attitude :up PI turn-attitude exit then
-	attitude ;
+	view :left = if PI -2 / else view :right = if PI 2 / else view :back = if PI else 0 then then then to heading
+	:pilot game@ null? not if attitude :up heading turn-attitude exit then
+	attitude :up heading game :view-turn 0 @or + turn-attitude :right game :view-tilt 0 @or turn-attitude ;
 
 \ the felt g's grey-out and black-out over the whole screen: a dark border closing in from the edges, grey at first and black by the end, the clear circle in the middle shrinking with the loss until the screen is dark
 : draw-vision-loss ( share -- )
@@ -293,13 +316,17 @@ view-width 40 - constant message-line-width
 	briefing-sheet sheet!
 	capture-view :chart-picture game! ;
 
-\ the pilot's eye under the hood, [ right up forward ] of the model's origin, the Hurricane's farther back under its higher hood (estimates from the models' hoods)
-: cockpit-eye ( -- point ) plane@type@kind :hurricane = if [ 0 0.65 -0.3 ] else [ 0 0.48 0.1 ] then ;
+\ the pilot's eye under the hood, [ right up forward ] of the model's origin, the Hurricane's farther back under its higher hood, the Lysander's in line with the wing's chord, between the root's underside 1.15 m and top 1.31 m up, and in line with its leading edge (a Shuttleworth pilot's account; estimates from the models' hoods)
+: cockpit-eye ( -- point )
+	plane@type@kind to kind
+	kind :hurricane = if [ 0 0.65 -0.3 ] exit then
+	kind :lysander = if [ 0 1.20 0.1 ] exit then
+	[ 0 0.48 0.1 ] ;
 
-\ the glazing behind the pilot: the sill's height and how far along the windows end, from the models' hoods: the Spitfire's rear windows from the hood back to 0.6 m behind the origin over a sill 0.31 m up, the Hurricane's hood itself to 0.97 m behind it over its 0.46 m sill
-: rear-glazing ( -- sill window-end ) plane@type@kind :hurricane = if 0.46 -0.97 else 0.31 -0.6 then ;
+\ the glazing behind the pilot: the sill's height and how far along the windows end, from the models' hoods: the Spitfire's rear windows from the hood back to 0.6 m behind the origin over a sill 0.31 m up, the Hurricane's hood itself to 1.26 m behind it over its 0.46 m sill
+: rear-glazing ( -- sill window-end ) plane@type@kind :hurricane = if 0.46 -1.26 else 0.31 -0.6 then ;
 
-\ the fuselage's ring at a place along it, between the two rings either side
+\ the fuselage's ring at a place along it, between the two rings either side, with its upper half-height whether they give one or not
 : ring-at ( rings along -- ring )
 	| rings along |
 	rings first to ring
@@ -308,7 +335,7 @@ view-width 40 - constant message-line-width
 		rings k 1+ @i to aft
 		along fore first <= along aft first >= and if
 			along fore first - aft first fore first - / to share
-			fore aft share v-between to ring
+			[ fore ring-figures ] [ aft ring-figures ] share v-between to ring
 			leave
 		then
 	loop
@@ -317,11 +344,12 @@ view-width 40 - constant message-line-width
 \ a ring's section below the glazing's sill: its ellipse below the sill, closed across at the sill's height, ten points
 : sill-section ( ring sill -- points )
 	| ring sill |
-	ring spread to lift to half-height to half-width to along
-	sill lift - half-height / -1 1 clamp acos to start
+	ring ring-figures to upper-half-height to lift to half-height to half-width to along
+	sill lift - sill lift > if upper-half-height else half-height then / -1 1 clamp acos to start
 	[ 0 9 1 do k
 		k 8 / TAU 2 start * - * start + to angle
-		[ angle sin half-width * angle cos half-height * lift + along ]
+		angle cos 0 > if upper-half-height else half-height then to reach
+		[ angle sin half-width * angle cos reach * lift + along ]
 	loop
 	[ 0 sill along ] ] ;
 
@@ -361,12 +389,13 @@ view-width 40 - constant message-line-width
 \ a ring of the fuselage behind the hood as the razorback's section: the ring's ellipse from 60° either side of its top round its bottom, the sides closing to the spine at the top, ten points
 : razorback-section ( ring -- points )
 	| ring |
-	ring spread to lift to half-height to half-width to along
+	ring ring-figures to upper-half-height to lift to half-height to half-width to along
 	[ 0 9 1 do k
 		k 8 / 240 * 60 + PI 180 / * to angle
-		[ angle sin half-width * angle cos half-height * lift + along ]
+		angle cos 0 > if upper-half-height else half-height then to reach
+		[ angle sin half-width * angle cos reach * lift + along ]
 	loop
-	[ 0 half-height lift + along ] ] ;
+	[ 0 upper-half-height lift + along ] ] ;
 
 \ the fuselage's skin seen from the cockpit: a face square to the light at its lightest, turned away from it at its darkest; its seams and frames
 0x6e6e56 constant fuselage-top-colour
@@ -411,10 +440,21 @@ view-width 40 - constant message-line-width
 		from null? onto null? or not if from spread onto spread colour draw-segment then
 	loop ;
 
-\ looking back from the cockpit. First the aircraft's own lines beyond 2 m, so the fuselage covers those behind it and the tailplane's tips, the fin, the mast and the aerial show past it. Then the fuselage behind the hood from its rings (aircraft.telic's) as sections: below the sill as far back as the glazing reaches, the rear windows above it left clear, then the razorback to the tail; its faces from the farthest to the nearest, each lit by how squarely it faces the light from above and to the right; the fairing standing across the fuselage behind the glazing in the cockpit's colour; over them the spine, the sills and each section's frame, and the rear windows' frames or the hood's rear frames. Last the head armour on the fairing, 26 cm wide and 22 cm high from the sill, its top corners cut, its upper and left edges catching the light, and a leather headrest pad 14 by 7 cm on it (estimates), and the aerial mast, nearer than the lines drawn first reach
+\ the Lysander seen from its cockpit, whichever way the pilot looks: its model without the canopy's glass, so the wing overhead, its struts, the wheels' fairings, the nose and the tail show where they lie, and over it the canopy's frames, at each frame's station and each of its rows, its sills and its roof's edges, as lines
+: draw-lysander-cockpit-view ( -- )
+	models@lysander-cockpit plane@position plane@attitude draw-model
+	( along rake | along 1 0 rake lysander-canopy-section 1 skip 4 take own-points-on-screen fuselage-seam-colour draw-places-path ) to frame
+	lysander-canopy-frames ( along | along 0 frame execute ) each
+	0 lysander-canopy size 1 do k lysander-canopy k @i first k lysander-row-rake frame execute loop
+	1 5 1 do c
+		[ 0 lysander-canopy size 1 do k lysander-canopy k @i first 1 0 k lysander-row-rake lysander-canopy-section c @i loop ] own-points-on-screen fuselage-seam-colour draw-places-path
+	loop ;
+
+\ looking back from the cockpit; the Lysander's as its whole cockpit view. First the aircraft's own lines beyond 2 m, so the fuselage covers those behind it and the tailplane's tips, the fin, the mast and the aerial show past it. Then the fuselage behind the hood from its rings (aircraft.telic's) as sections: below the sill as far back as the glazing reaches, the rear windows above it left clear, then the razorback to the tail; its faces from the farthest to the nearest, each lit by how squarely it faces the light from above and to the right; the fairing standing across the fuselage behind the glazing in the cockpit's colour; over them the spine, the sills and each section's frame, and the rear windows' frames or the hood's rear frames. Last the head armour on the fairing, 26 cm wide and 22 cm high from the sill, its top corners cut, its upper and left edges catching the light, and a leather headrest pad 14 by 7 cm on it (estimates), and the aerial mast, nearer than the lines drawn first reach
 : draw-rear-view ( -- )
+	plane@type@kind :lysander = if draw-lysander-cockpit-view exit then
 	models plane@gear-position 0.5 > if :flown-down else :flown then @ plane@position plane@attitude draw-model
-	plane@type@kind :hurricane = if hurricane-rings else spitfire-rings then 6 skip to rings
+	plane@type@kind :hurricane = if hurricane-rings hurricane-rings-ahead else spitfire-rings spitfire-rings-ahead then skip to rings
 	rear-glazing to window-end to sill
 	rings window-end ring-at to window-ring
 	[ rings first sill sill-section window-ring sill sill-section window-ring razorback-section ]
@@ -439,12 +479,13 @@ view-width 40 - constant message-line-width
 	pad headrest-colour fill-places
 	pad [ pad first ] concat fuselage-seam-colour draw-places-path
 	plane@type@kind :hurricane = if
-		hurricane-mast own-points-on-screen fuselage-seam-colour draw-places-path
+		hurricane-aerial own-points-on-screen fuselage-seam-colour draw-places-path
+		hurricane-mast
 	else
-		spitfire-mast own-points-on-screen to mast
-		mast fuselage-side-colour fill-places
-		mast [ mast first ] concat fuselage-seam-colour draw-places-path
-	then ;
+		spitfire-mast
+	then own-points-on-screen to mast
+	mast fuselage-side-colour fill-places
+	mast [ mast first ] concat fuselage-seam-colour draw-places-path ;
 
 \ a point of a wing's outline on one side, [ out along ], on the wing's chord plane (the Hurricane's flat underside) in the aircraft's terms, as the models draw it
 : wing-point ( pair side -- point )
@@ -663,9 +704,10 @@ variable wing-surfaces
 : flank-stations ( kind -- alongs )
 	:hurricane = if [ 1.4 0.9 0.4 -0.1 -0.6 -1.1 -1.4 ] else [ 2.5 2.0 1.5 1.0 0.5 0 -0.5 ] then ;
 
-\ looking out to one side from the cockpit. The split flaps first, under the wing, turned down about their hinges by the flaps' setting through the type's travel, their upper faces in Sky. Then the wing's upper surface filled: its cells lit by their slopes in Dark Green, the Dark Earth of the A pattern over them, and the roundel, or PRU Blue on the PR IV; behind the aileron's hinge the cells turned with the aileron by the stick, the right one up as the stick goes right and the left one down, through the type's travel. Over them the leading edge, the trailing edge either side of the aileron and the aileron's outline. Last the fuselage's flank below the sill beside the wing's root, its faces from the farthest to the nearest, and the sill along the near edge
+\ looking out to one side from the cockpit; the Lysander's as its whole cockpit view. The split flaps first, under the wing, turned down about their hinges by the flaps' setting through the type's travel, their upper faces in Sky. Then the wing's upper surface filled: its cells lit by their slopes in Dark Green, the Dark Earth of the A pattern over them, and the roundel, or PRU Blue on the PR IV; behind the aileron's hinge the cells turned with the aileron by the stick, the right one up as the stick goes right and the left one down, through the type's travel. Over them the leading edge, the trailing edge either side of the aileron and the aileron's outline. Last the fuselage's flank below the sill beside the wing's root, its faces from the farthest to the nearest, and the sill along the near edge
 : draw-side-view ( side -- )
 	| side |
+	plane@type@kind :lysander = if draw-lysander-cockpit-view exit then
 	plane@type to type
 	type@kind to kind
 	plane@deflections first side * negate type@aileron-travel * to aileron-down
@@ -719,21 +761,28 @@ variable wing-surfaces
 
 \ the propeller ahead of the nose as the front view sees it: below the speed the eye can follow, its three blades filled dark at their angle, turning under the starter, idling and running down; faster, the blades too quick to see and the disc clear but for the circle the yellow tips trace, drawn thin and faded toward the sky
 : draw-propeller ( -- )
-	plane@type@kind :hurricane = if hurricane-hub hurricane-blade-widths else spitfire-hub spitfire-blade-widths then to widths to hub
-	plane@revolutions rated-revolutions * propeller-gear * to propeller-rpm
+	plane@type@kind to kind
+	kind :hurricane = if hurricane-hub hurricane-blade-widths else
+		kind :lysander = if lysander-hub lysander-blade-widths else spitfire-hub spitfire-blade-widths then
+	then to widths to hub
+	plane@type@propeller-radius to radius
+	plane@revolutions plane@type@rated-revolutions * plane@type@propeller-gear * to propeller-rpm
 	propeller-rpm blade-showing-revolutions < if
 		[ 0 1 2 ] ( blade |
-			hub blade 3 / TAU * plane@propeller-angle + widths propeller-blade own-points-on-screen blade-colour fill-places
+			hub blade 3 / TAU * plane@propeller-angle + widths radius propeller-blade own-points-on-screen blade-colour fill-places
 		) each
 		exit
 	then
-	[ 0 49 1 do k k 48 / TAU * to angle hub [ angle sin 1.64 * angle cos 1.64 * 0 ] v+ loop ] own-points-on-screen
+	[ 0 49 1 do k k 48 / TAU * to angle hub [ angle sin radius * angle cos radius * 0 ] v+ loop ] own-points-on-screen
 	tip-colour sky-colour 0.4 blended draw-places-path ;
 
-\ the cowling ahead of the windscreen and the spinner, filled as the rear view fills the fuselage, so the nose hides the blades' roots and the disc's lower part: the fuselage's first five rings and the spinner's, twelve-sided sections, their faces from the farthest to the nearest, lit by the light from above and to the right
+\ the cowling ahead of the windscreen and the spinner, filled as the rear view fills the fuselage, so the nose hides the blades' roots and the disc's lower part: the fuselage's rings ahead of its datum and the spinner's, twelve-sided sections, their faces from the farthest to the nearest, lit by the light from above and to the right
 : draw-nose ( -- )
-	plane@type@kind :hurricane = if hurricane-spinner-rings hurricane-rings else spitfire-spinner-rings spitfire-rings then
-	5 take concat ( ring | ring [ 0 0 0 ] 12 body-ring ) map to sections
+	plane@type@kind to kind
+	kind :hurricane = if hurricane-spinner-rings hurricane-rings else
+		kind :lysander = if lysander-spinner-rings lysander-rings else spitfire-spinner-rings spitfire-rings then
+	then
+	( ring | ring first 0 > ) filter concat ( ring | ring [ 0 0 0 ] 12 body-ring ) map to sections
 	sections cockpit-eye fuselage-faces ( face | face@depth negate ) sort-by ( face |
 		face@quad own-points-on-screen fuselage-top-colour fuselage-side-colour face@light blended fill-places
 	) each ;
@@ -752,6 +801,7 @@ variable wing-surfaces
 	eye-point refresh-countryside
 	eye-point refresh-clouds
 	bombers wingmen concat to crafts
+	:patrol game@ if crafts patrol-crafts concat to crafts then
 	deck null? not if
 		crafts { :kind :carrier :position deck@centre :attitude deck@heading heading-attitude :state :sailing :smoke [ ] } add-last! drop
 	then
@@ -768,11 +818,19 @@ variable wing-surfaces
 	draw-battle
 	:air-firing game@ if draw-tow-cable then
 	:view game@ :front = pilot null? and if
+		plane@type@kind :lysander = if draw-lysander-cockpit-view then
 		draw-propeller
 		draw-nose
 	then
 	:view game@ :front = pilot null? and plane@type@kind :hurricane = and if draw-hurricane-windscreen then
-	:view game@ :front = plane@armed and pilot null? and if draw-sight then
+	:view game@ :front = plane@armed and pilot null? and if
+		game :view-turn 0 @or 0 = game :view-tilt 0 @or 0 = and if
+			view-centre-x view-centre-y draw-sight
+		else
+			[ cockpit-eye [ 0 0 1000 ] v+ ] own-points-on-screen first to sight-place
+			sight-place null? not if sight-place spread draw-sight then
+		then
+	then
 	:view game@ :front = not if 8 8 :view game@ "{0} VIEW" format upper-case 0xd8d4c0 draw-text then
 	draw-message
 	:paused game@ if view-centre-x 24 - view-centre-y "PAUSED" 0xffffff draw-text then
@@ -784,13 +842,15 @@ variable wing-surfaces
 		draw-panel
 		:air-firing game@ if
 			draw-air-firing-panel
+		else :patrol game@ if
+			draw-patrol-panel
 		else :lesson game@ if
 			draw-lesson-panel
 		else :landing-on game@ "" = not if
 			draw-landing-panel
 		else
 			plane@armed if draw-raid-panel else :target game@ draw-reconnaissance-panel then
-		then then then
+		then then then then
 	then
 	plane vision-loss draw-vision-loss
 	:chart-open game@ if draw-chart then ;
@@ -805,10 +865,15 @@ variable wing-surfaces
 	mission@start spread new-plane to plane
 	mission :aircraft :fighter @or :reconnaissance = if plane make-reconnaissance then
 	mission aircraft-choice flown-in :hurricane = if plane hurricane-mk-i use-type then
+	mission aircraft-choice flown-in :lysander = if plane lysander-mk-ii use-type then
 	mission mission-code drop to flown-code
 	mission 0 mission-letter to flown-letter
-	models plane@type@kind flown-code flown-letter false marked-model :flown !
-	plane@type@kind flown-code flown-letter true marked-model :flown-down ! drop
+	plane@type@kind :lysander = if
+		models models@lysander :flown ! models@lysander :flown-down ! drop
+	else
+		models plane@type@kind flown-code flown-letter false marked-model :flown !
+		plane@type@kind flown-code flown-letter true marked-model :flown-down ! drop
+	then
 	mission :ballast null @or plane!ballast
 	mission@propeller plane!propeller
 	mission@emergency plane!emergency-allowed
@@ -828,6 +893,12 @@ variable wing-surfaces
 		0.7 plane!throttle
 		0.6 plane!revolutions
 	then
+	mission :fly-off false @or if
+		true plane!magnetos
+		true plane!running
+		two-pitch-idle plane!revolutions
+		plane true :on-deck ! drop
+	then
 	mission@night if use-night else use-day then
 	mission :moon null @or to moon-sky
 	mission@visibility use-visibility
@@ -839,14 +910,16 @@ variable wing-surfaces
 	{ :running true :title false :choice choice :aircraft-choice aircraft-choice :paused false :view :front :message "" :message-left 0
 	  :firing false :was-firing false :crash-said false :airborne false :landed-said false :fuel-said false :failure-said false :over-revving false
 	  :hood-open false :pilot null :accumulated 0 :flight-time 0 :time-scale 1
-	  :landing-on mission :landing-on "" @or :bias-held 0
+	  :landing-on mission :landing-on "" @or :fly-off mission :fly-off false @or :bias-held 0
 	  :chart-open false :chart-mission mission :chart-picture null
 	  :lesson lesson :air-firing air-firing :lesson-step 0 :step-time 0 :hold-time 0 :instruction opening-step@say
 	  :cameras-running false :exposure-timer 0 :exposures-left magazine-exposures :reviewing false :review-index 0 :review-side -1
-	  :target mission :target null @or null? if [ 0 0 0 ] else mission@target landmark-ground then
+	  :target mission :target null @or null? if [ 0 0 0 ] else mission@target landmark-ground [ 0 mission@target landmark-height 0 ] v+ then
 	  :kills 0 :bombed false :raid-over mission@raid null?
 	  :was-cranking false :was-running plane@running :pops-due [ ] :pop-clock 0 :propeller-turning plane@running
-	  :movement-instrument null :movement-left 0 :movement-thump false :reading-left 0 :help-page null } to game
+	  :movement-instrument null :movement-left 0 :movement-thump false :reading-left 0 :help-page null
+	  :patrol mission :patrol null @or null? not :sightings mission patrol-sightings
+	  :base-field mission :base-field null @or :base-name mission :base-name "" @or } to game
 	lesson if opening-step@say reading-pause then
 	mission start-raid
 	air-firing if mission start-air-firing then
@@ -875,6 +948,7 @@ variable wing-surfaces
 	repeat
 	:accumulated game@ step-time min2 :accumulated game!
 	plane@on-ground not if true :airborne game! then
+	:patrol game@ if patrol-step then
 	:pilot game@ null? not if exit then
 	plane@engine-failure "" = not :failure-said game@ not and if
 		plane@engine-failure "  -  GLIDE DOWN" + say
@@ -926,7 +1000,7 @@ variable wing-surfaces
   [ "M K O" "A, L TRIGGER" "MAGNETOS ON, OFF; HOLD K: STARTER; HOLD O: STOP" ]
   [ "Q A" "RIGHT STICK" "THROTTLE" ]
   [ "[ ]" "RIGHT STICK" "TRIM, LEFT NOSE DOWN" ]
-  [ "W S" "STICK CLICKS" "PROPELLER: FINER, COARSER" ]
+  [ "W S" "R STICK CLICK" "PROPELLER: FINER, COARSER; CLICK SWITCHES" ]
   [ "E" "LEFT TRIGGER" "BOOST CUT-OUT, +12 LB" ]
   [ "C T V" "RIGHT TRIGGER" "CAMERAS (PR), TIME x4 x16, DEVELOP FILM" ]
   [ "SPACE" "A, TRIGGER" "GUNS" ]
@@ -934,8 +1008,10 @@ variable wing-surfaces
   [ "J" "" "BAIL OUT: HOOD BACK, OVER THE SIDE, RIPCORD" ]
   [ "N" "" "HOLD: THE CHART ON YOUR KNEE" ]
   [ "1 2 3 4" "D-PAD" "LOOK AHEAD, LEFT, RIGHT, BACK" ]
+  [ "SHIFT ARROWS" "" "TURN THE LOOK FURTHER (LYSANDER)" ]
   [ "P" "START" "PAUSE" ]
   [ "ESC" "BACK" "BACK TO THE MISSIONS; ON THE LIST, ESC QUITS" ]
+  [ "F5 F9" "" "SAVE THE FLIGHT; RESUME THE SAVED FLIGHT, ON THE LIST TOO" ]
   [ ", ." "" "RUDDER TRIM LEFT, RIGHT" ]
   [ "R" "" "FUEL COCK, MAIN OR RESERVE (HURRICANE)" ]
   [ "H" "Y ON THE LIST" "HELP; LEFT, RIGHT TURN ITS PAGES" ] ] to control-rows
@@ -1158,7 +1234,52 @@ help-pages size 1+ constant help-page-count
 	frame map-lines :briefing-lines game!
 	:briefing :screen game! ;
 
-\ a frame of the title. On the list: escape quits, up and down choose a campaign or a mission, return or start opens the briefing of the mission chosen or of the campaign's next, H or Y the keys. On the keys: escape, H, Y or back returns to the list. On the briefing: left and right choose the Spitfire or the Hurricane where the mission allows, return or start flies the mission, escape or back returns to the list. On a campaign's debrief: return or start flies the campaign's next mission, the one just flown again when it is not flown, escape or back returns to the list
+\ the file a saved flight is kept in, in the home directory
+: flight-path ( -- path )
+	"HOME" env to home
+	home null? if "." to home then
+	home "/.telic-spitfire-flight" + ;
+
+\ the game's keys a saved flight leaves out, the mission's start making them again: the aircraft's marked models, the chart's mission and its picture
+[ :flown :flown-down :chart-mission :chart-picture ] constant remade-game-keys
+
+\ the flight as it stands kept in the file: the title's choice, the mission's name, the aircraft, the controls, the carrier, the game's state but the keys its start makes again, the raid and the wingmen, the guns' salvos and flashes, the battle's clock, the photographs, the flak, the tug's track, and a fresh seed for the random numbers, set now, so the flight resumed draws what this one draws from here
+: save-flight ( -- )
+	random 2147483647 * truncate to fresh
+	fresh seed
+	{ } to kept
+	game keys ( key | remade-game-keys ( remade | remade key = ) any? not if kept game key @ key ! drop then ) each
+	{ :choice :choice game@ :mission missions :choice game@ choice-mission @i @name :seed fresh
+	  :plane plane :controls controls :deck deck :game kept :bombers bombers :wingmen wingmen
+	  :salvos salvos :flashes flashes :battle-clock battle-clock :photos photos :flak-bursts flak-bursts :tug-track tug-track }
+	flight-path save-value
+	"FLIGHT SAVED  -  F9 RESUMES IT" say ;
+
+\ the saved flight resumed: its mission started afresh, in the aircraft it was flown in, then everything the flight had changed put back as it was saved and the random numbers seeded as they were; nothing when no flight is saved, or when the title's choice, a campaign, has moved on to another mission since
+: load-flight ( -- )
+	| ^plane ^controls ^deck ^bombers ^wingmen ^salvos ^flashes ^battle-clock ^photos ^flak-bursts ^tug-track |
+	flight-path file-exists? not if exit then
+	flight-path load-value to saved
+	missions saved@choice choice-mission @i @name saved@mission = not if exit then
+	saved@game@aircraft-choice :aircraft-choice game!
+	saved@choice new-flight
+	saved@game to restored
+	restored keys ( key | game restored key @ key ! drop ) each
+	saved@plane to plane
+	saved@controls to controls
+	saved@deck to deck
+	saved@bombers to bombers
+	saved@wingmen to wingmen
+	saved@salvos to salvos
+	saved@flashes to flashes
+	saved@battle-clock to battle-clock
+	saved@photos to photos
+	saved@flak-bursts to flak-bursts
+	saved@tug-track to tug-track
+	saved@seed seed
+	"FLIGHT RESUMED" say ;
+
+\ a frame of the title. On the list: escape quits, F9 resumes the saved flight, up and down choose a campaign or a mission, return or start opens the briefing of the mission chosen or of the campaign's next, H or Y the keys. On the keys: escape, H, Y or back returns to the list. On the briefing: left and right choose the Spitfire or the Hurricane where the mission allows, return or start flies the mission, escape or back returns to the list. On a campaign's debrief: return or start flies the campaign's next mission, the one just flown again when it is not flown, escape or back returns to the list
 : title-frame ( elapsed -- )
 	| elapsed |
 	:title-time game@ elapsed + :title-time game!
@@ -1188,6 +1309,7 @@ help-pages size 1+ constant help-page-count
 		exit
 	then
 	:escape key-pressed? if false :running game! exit then
+	:f9 key-pressed? if load-flight exit then
 	:up key-pressed? :dpad-up pad-pressed? or if rows :choice game@ -1 step-choice :choice game! then
 	:down key-pressed? :dpad-down pad-pressed? or if rows :choice game@ 1 step-choice :choice game! then
 	rows :choice game@ scroll-to
@@ -1245,7 +1367,7 @@ variable frame-work
 	frame-work frame-rate round "{0} FPS  {1:.1f} MS" format to rate-line
 	view-width rate-line text-width - 8 - 8 rate-line 0xd8d4c0 draw-text ;
 
-\ one frame: keys, the flight, the sound, the picture; while the help is open, H opening it, the flight stopped and only the help drawn; while a long message or instruction is read, the flight stopped and only the picture drawn, until its time is up or a key or button goes down
+\ one frame: keys, F5 saving the flight and F9 resuming the saved one, the flight, the sound, the picture; while the help is open, H opening it, the flight stopped and only the help drawn; while a long message or instruction is read, the flight stopped and only the picture drawn, until its time is up or a key or button goes down
 : frame ( elapsed -- )
 	| elapsed |
 	:title game@ if elapsed title-frame exit then
@@ -1265,6 +1387,8 @@ variable frame-work
 		exit
 	then
 	:escape key-pressed? :back pad-pressed? or if leave-flight exit then
+	:f5 key-pressed? if save-flight exit then
+	:f9 key-pressed? if load-flight exit then
 	:v key-pressed? :landed-said game@ and photos size 0 > and if
 		true :reviewing game!
 		0 :review-index game!

@@ -60,6 +60,7 @@
 variable gun-table
 { :spitfire [ { :guns 8 :rate 1150 :velocity 811 :weight 1 :spread fixed-spread :rounds 300 :mount :fixed } ]
   :hurricane [ { :guns 8 :rate 1150 :velocity 811 :weight 1 :spread fixed-spread :rounds 310.5 :mount :fixed } ]
+  :lysander [ { :guns 2 :rate 1150 :velocity 811 :weight 1 :spread fixed-spread :rounds 500 :mount :fixed } ]
   :bf-110 [ { :guns 4 :rate 1100 :velocity 895 :weight 1 :spread fixed-spread :rounds 1000 :mount :fixed }
             { :guns 2 :rate 530 :velocity 600 :weight cannon-weight :spread fixed-spread :rounds 180 :mount :fixed }
             { :guns 1 :rate 1025 :velocity 755 :weight 1 :spread rear-spread :rounds 75 :mount :rear } ]
@@ -310,12 +311,14 @@ variable flashes
 		then
 	) each ;
 
-\ the rear gunners: after taking aim, each fires at the nearest Spitfire behind it within the opening range, aiming at its lead point; an empty drum is changed
+\ the rear gunners, in the aircraft whose type's last group of guns is a rear gunner's: after taking aim, each fires at the nearest Spitfire behind it within the opening range, aiming at its lead point; an empty drum is changed
 : gunners-fire ( dt -- )
 	| dt |
 	spitfires to targets
 	bombers ( gunner |
-		gunner flying? gun-table gunner kind-of null @or null? not and if
+		gun-table gunner kind-of null @or to groups
+		groups null? if false else groups last :mount @ :rear = then to has-gunner
+		gunner flying? has-gunner and if
 			gunner rounds-left to store
 			store size 1- to index
 			gunner@aim-left dt - 0 max2 gunner!aim-left

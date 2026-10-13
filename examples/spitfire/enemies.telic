@@ -32,13 +32,15 @@
 0xd8d2c0 constant canvas-colour
 0x7c848a constant carrier-grey-colour
 0x5c5a52 constant flight-deck-colour
+\ the He 111s' spinners, yellow (an estimate)
+0xd8c048 constant he-111-spinner-colour
 
-\ an engine on each wing: the nacelle as rings of six from its round cowling back past the wing, the propeller and its disc before it 0.15 m ahead of the face, the spinner of six sides through [ ahead-of-face radius ] pairs, six exhaust stubs down each side of the cowling; the spinner and the hub on the cowling face's centre; the stations are [ along radius ] from the cowling's face, or [ along half-width half-height drop ] for a nacelle deeper than it is wide, the drop added to the lift
+\ an engine on each wing: the nacelle as rings of six from its round cowling back past the wing, the propeller and its disc before it 0.15 m ahead of the face, the spinner of six sides through [ ahead-of-face radius ] pairs, in a colour of its own where one is given, else the body's, six exhaust stubs down each side of the cowling; the spinner and the hub on the cowling face's centre; the stations are [ along radius ] from the cowling's face, or [ along half-width half-height drop ] for a nacelle deeper than it is wide, the drop added to the lift
 \ the Jumo 211's spinner, a blunt dome, as [ ahead-of-face radius ] pairs (measured on the He 111 from a side profile)
 [ [ 0.05 0.4 ] [ 0.15 0.4 ] [ 0.35 0.37 ] [ 0.5 0.28 ] [ 0.6 0.16 ] [ 0.65 0.05 ] ] constant bomber-spinner
 
-: sketch-engines ( sketch out lift face stations propeller-radius spinner-profile -- )
-	| sketch out lift face stations propeller-radius spinner-profile |
+: sketch-engines ( sketch out lift face stations propeller-radius spinner-profile spinner-colour -- )
+	| sketch out lift face stations propeller-radius spinner-profile spinner-colour |
 	stations ( station | station size 2 > if [ station first face + station second station 2 @i station 3 @i lift + ] else [ station first face + station second station second lift ] then ) map to rings
 	stations second second to cowling
 	rings first 3 @i to axis-height
@@ -47,7 +49,11 @@
 	[ -1 1 ] ( side |
 		[ out side * 0 0 ] to centre
 		sketch rings centre 6 sketch-body
+		sketch@faces size to spinner-first-face
 		sketch spinner centre 6 sketch-body
+		spinner-colour null? not if
+			spinner-first-face sketch@faces size 1 do k sketch@faces k @i spinner-colour add-last! drop loop
+		then
 		centre [ 0 axis-height hub-along ] v+ to hub
 		sketch hub propeller-radius sketch-propeller
 		sketch hub propeller-radius sketch-propeller-disc
@@ -141,15 +147,13 @@
 		sketch [ out middle-up middle-along ] [ 0 1 0 ] [ side 0 0 ] size sketch-swastika
 	) each ;
 
-\ glass's colour: a dark blue-grey drawn unlit, 0x1000000 set, so it keeps one tone toward the sun or away from it (an estimate)
-0x1788c98 constant glass-colour
 
 \ a gunner's hood of glass on a body of rings, rounded and open at its rear: at each station [ along height half-width ] an arch of five points from the skin on one side over the top to the skin on the other, its height above the body's top, its half-width where it meets the skin, the skin there on the body's top face; glass between each arch and the next, facing away from a point below them inside the body; the arches and the lines joining them the frames
 : sketch-gun-hood ( sketch rings stations -- )
 	| sketch rings stations |
 	stations ( station |
 		station spread to half-width to height to along
-		rings along body-ring-at spread to lift to half-height to body-half-width drop
+		rings along body-ring-at ring-figures drop to lift to half-height to body-half-width drop
 		[ 0 5 1 do k
 			k 45 * 90 - PI 180 / * to angle
 			angle sin half-width * to across
@@ -202,7 +206,7 @@
 	model [ 0.23 -0.6 3.9 ] [ 0.23 -0.85 3.2 ] 0.06 model-ink sketch-rod
 	model [ [ 0.45 4.33 ] [ 3.4 4.25 ] [ 6.2 3.83 ] [ 9.1 3.33 ] [ 9.55 3.2 ] [ 9.9 2.9 ] [ 10.04 2.6 ] [ 9.9 2.25 ] [ 9.6 2.04 ] [ 9.1 1.95 ] [ 5.2 1.3 ] [ 0.45 0.68 ] ]
 		[ [ [ 3.2 1.25 ] [ 9.3 2.3 ] ] [ [ 4.9 1.31 ] [ 4.9 1.6 ] ] ] 0.06 0 sketch-surface
-	model 2.72 0.3 6.0 [ [ 0 0.62 ] [ -0.6 0.7 ] [ -2.7 0.6 ] [ -4.0 0.45 ] [ -5.1 0 ] ] 1.7 bomber-spinner sketch-engines
+	model 2.72 0.3 6.0 [ [ 0 0.62 ] [ -0.6 0.7 ] [ -2.7 0.6 ] [ -4.0 0.45 ] [ -5.1 0 ] ] 1.7 bomber-spinner null sketch-engines
 	model [ [ 0.2 -4.13 ] [ 1.91 -4.41 ] [ 3.17 -4.66 ] [ 3.53 -4.81 ] [ 3.68 -5.17 ] [ 3.58 -5.44 ] [ 3.43 -5.54 ] [ 2.17 -5.77 ] [ 0.2 -5.97 ] ]
 		[ [ [ 0.2 -5.32 ] [ 3.6 -5.32 ] ] ] 0 0.6 sketch-surface
 	[ [ -4.87 0.85 ] [ -5.02 1.22 ] [ -5.53 1.9 ] [ -5.76 2.17 ] [ -5.92 2.41 ] [ -6.13 2.66 ] [ -6.33 2.75 ] [ -6.61 2.66 ] [ -6.86 2.41 ] [ -7.02 2.09 ]
@@ -214,7 +218,7 @@
 	model rings 5.66 2.66 0.41 1.6 -1.6 sketch-crosses
 	model luftwaffe-upper-colour sketch>object ;
 
-\ the He 111 H: a fuselage of nine rings ending in the stepless glazed nose, glazed all round from its tip back 2.2 m, and the offset nose gun; the dorsal hood on the fuselage's top, low, rounded and glazed, open at its rear, its MG 15 out of it; the ventral gondola under the wing, a faired body with a window each side, its rear glazed and its MG 15 out of it; a gunner's window each side of the fuselage with its MG 15; low wings with the leading edge swept back from the nacelles, the trailing edge straight, rounded tips and the hinge line; the Jumo 211s close beside the nose, low on the wing, with three-blade propellers and two bulges under each nacelle; the rounded tailplane, the fin with its broad rounded top and the rudder; the tail wheel on its fork; the aerial from an upright mast on the fuselage to the fin; the crosses, sized to fit their surfaces, and the swastikas on the fins; the glazing in glass's colour. The span and length are published; the wing, the engines and the tailplane in plan are measured from a plan view scaled to them, the fuselage's profile, the nose, the hood, the mast, the gondola, the fin, the tail wheel and the heights of the wing and engines from a side profile scaled to the length; every other figure is an estimate
+\ the He 111 H: a fuselage of nine rings ending in the stepless glazed nose, glazed all round from its tip back 2.2 m, and the offset nose gun; the dorsal hood on the fuselage's top, low, rounded and glazed, open at its rear, its MG 15 out of it; the ventral gondola under the wing, a faired body with a window each side, its rear glazed and its MG 15 out of it; a gunner's window each side of the fuselage with its MG 15; low wings with the leading edge swept back from the nacelles, the trailing edge straight, rounded tips and the hinge line; the Jumo 211s close beside the nose, low on the wing, with three-blade propellers, yellow spinners and two bulges under each nacelle; the rounded tailplane, the fin with its broad rounded top and the rudder; the tail wheel on its fork; the aerial from an upright mast on the fuselage to the fin; the crosses, sized to fit their surfaces, and the swastikas on the fins; the glazing in glass's colour. The span and length are published; the wing, the engines and the tailplane in plan are measured from a plan view scaled to them, the fuselage's profile, the nose, the hood, the mast, the gondola, the fin, the tail wheel and the heights of the wing and engines from a side profile scaled to the length; every other figure is an estimate
 : heinkel-111 ( -- model )
 	new-model-sketch luftwaffe-under-colour :under-colour ! 0.5 :under-turn ! to model
 	model@faces size to first-face
@@ -246,7 +250,7 @@
 	) each
 	model [ [ 0.7 6.0 ] [ 3.8 5.8 ] [ 8.0 4.8 ] [ 9.8 4.2 ] [ 10.8 3.7 ] [ 11.3 3.0 ] [ 11.3 2.3 ] [ 10.9 1.8 ] [ 10.0 1.55 ] [ 8.0 1.5 ] [ 3.8 1.3 ] [ 2.0 1.1 ] [ 1.6 1.25 ] [ 1.35 1.5 ] [ 0.7 1.75 ] ]
 		[ [ [ 3.8 2.0 ] [ 10.2 2.0 ] ] [ [ 7.2 1.5 ] [ 7.2 2.0 ] ] ] 0.044 -0.45 sketch-surface
-	model 2.8 -0.48 7.45 [ [ 0 0.62 ] [ -0.7 0.72 ] [ -3.8 0.62 ] [ -5.2 0.42 ] [ -6.45 0 ] ] 1.75 bomber-spinner sketch-engines
+	model 2.8 -0.48 7.45 [ [ 0 0.62 ] [ -0.7 0.72 ] [ -3.8 0.62 ] [ -5.2 0.42 ] [ -6.45 0 ] ] 1.75 bomber-spinner he-111-spinner-colour sketch-engines
 	[ -1 1 ] ( side |
 		[ [ [ 6.5 0.15 0.05 -1.05 ] [ 6.2 0.33 0.2 -1.1 ] [ 5.9 0.35 0.22 -1.1 ] [ 5.5 0.25 0.1 -1.1 ] ]
 		  [ [ 5.5 0.25 0.1 -1.1 ] [ 4.8 0.35 0.2 -1.12 ] [ 3.3 0.35 0.2 -1.12 ] [ 2.6 0.1 0.05 -1.0 ] ] ] ( bulge |
@@ -284,7 +288,7 @@
 		[ [ [ 3.2 0.1 ] [ 7.4 0.65 ] ] [ [ 5.3 0.11 ] [ 5.3 0.35 ] ] ] 0.05 0 sketch-surface
 	model 2.4 -0.05 4.18 [ [ 0 0.36 0.34 -0.08 ] [ -0.5 0.44 0.5 -0.065 ] [ -1.09 0.48 0.6 -0.1 ] [ -1.56 0.48 0.65 -0.18 ] [ -2.28 0.47 0.63 -0.2 ]
 	                       [ -3.18 0.42 0.55 -0.2 ] [ -3.8 0.3 0.38 -0.13 ] [ -4.6 0.03 0.03 -0.24 ] ] 1.65
-		[ [ 0 0.3 ] [ 0.12 0.3 ] [ 0.39 0.1 ] ] sketch-engines
+		[ [ 0 0.3 ] [ 0.12 0.3 ] [ 0.39 0.1 ] ] null sketch-engines
 	model [ [ 0.05 -5.0 ] [ 2.28 -5.0 ] [ 2.28 -5.95 ] [ 2.05 -6.4 ] [ 0.05 -6.4 ] ] [ [ [ 0.05 -5.9 ] [ 2.28 -5.95 ] ] ] 0 0.46 sketch-surface
 	[ [ -5.31 -0.07 ] [ -5.08 0.25 ] [ -5.1 0.54 ] [ -5.28 1.11 ] [ -5.5 1.33 ] [ -5.74 1.38 ] [ -6.06 1.25 ] [ -6.27 0.9 ] [ -6.33 0.25 ] [ -6.2 -0.03 ] [ -5.92 -0.1 ] ] to fin
 	[ -2.28 2.28 ] ( out |
@@ -350,14 +354,46 @@ variable bombers
 	model [ [ 14 30 15 ] [ 14 46 15 ] ] sketch-path
 	model carrier-grey-colour sketch>object ;
 
-\ each type's model, drawn at every distance; the Spitfire's and the Hurricane's with wheels up and down, unmarked; the title's three Spitfires in 602 Squadron's post-war code RAI, the Kelvingrove Spitfire's, as RAI-A, RAI-G and RAI-B; the Lysander target tug's the simple model of its outlines, from its published 50 ft span and 30 ft 6 in length
+\ a hull from its waterline's centre: its plan as [ across along ] corners, the sides rising to a deck a height above the water, the deck closed
+: sketch-hull ( sketch plan deck -- )
+	| sketch plan deck |
+	[ 0 deck ] ( up | sketch plan ( corner | [ corner first up corner second ] ) map sketch-points ) map to decks
+	decks ( indices | sketch indices join-loop ) each
+	plan size to n-corners
+	[ 0 deck 2 / 0 ] to inside
+	0 n-corners 1 do k
+		k 1+ n-corners mod to next
+		sketch decks first k @i decks second k @i sketch-edge
+		sketch [ decks first k @i decks first next @i decks second next @i decks second k @i ] inside sketch-face
+	loop
+	sketch decks second inside sketch-face ;
+
+\ a coastal merchant ship of 1940 from her waterline's centre: 100 m long and 14 m in the beam, her deck 6 m above the water; the bridge and its house amidships, the funnel behind it, a mast forward and one aft, in wartime grey (every figure an estimate for a ship of about 3,000 tons)
+: merchant-model ( -- model )
+	new-model-sketch to model
+	model [ [ 0 50 ] [ 5 42 ] [ 7 30 ] [ 7 -40 ] [ 5 -48 ] [ 0 -50 ] [ -5 -48 ] [ -7 -40 ] [ -7 30 ] [ -5 42 ] ] 6 sketch-hull
+	model -6 6 6 14 -5 8 sketch-block
+	model -2 2 14 21 -10 -5 sketch-block
+	model [ [ 0 6 28 ] [ 0 22 28 ] ] sketch-path
+	model [ [ 0 6 -30 ] [ 0 18 -30 ] ] sketch-path
+	model carrier-grey-colour sketch>object ;
+
+\ a Type VIIC U-boat on the surface from her waterline's centre: 67.1 m long and 6.2 m in the beam (published), her casing 1.2 m above the water, the conning tower 2.4 m wide, 6 m long and 4.5 m above the casing (estimates), in dark grey
+: u-boat-model ( -- model )
+	new-model-sketch to model
+	model [ [ 0 33.5 ] [ 2 28 ] [ 3.1 15 ] [ 3.1 -15 ] [ 2 -28 ] [ 0 -33.5 ] [ -2 -28 ] [ -3.1 -15 ] [ -3.1 15 ] [ -2 28 ] ] 1.2 sketch-hull
+	model -1.2 1.2 1.2 5.7 -2.5 3.5 sketch-block
+	model 0x3a3c40 sketch>object ;
+
+\ each type's model, drawn at every distance; the Spitfire's and the Hurricane's with wheels up and down, unmarked; the title's three Spitfires in 602 Squadron's post-war code RAI, the Kelvingrove Spitfire's, as RAI-A, RAI-G and RAI-B; the Lysander's, as the target tug and as flown, and the Lysander's as its pilot sees it from inside its canopy; the carrier; the patrol's merchant ships and U-boat
 : build-models ( -- )
 	| ^models |
 	{ :ju-88 junkers-88 :he-111 heinkel-111 :bf-110 messerschmitt-110
 	  :spitfire false spitfire-model :spitfire-down true spitfire-model :spitfire-kelvingrove kelvingrove-spitfire-model
 	  :spitfire-title-leader :spitfire "RAI" "A" false marked-model :spitfire-title-wingman :spitfire "RAI" "B" false marked-model
 	  :hurricane false hurricane-model :hurricane-down true hurricane-model
-	  :lysander 15.24 9.3 0 dark-green-colour sky-paint-colour far-model :drogue drogue-model :carrier carrier-model } to models ;
+	  :lysander lysander-model :lysander-cockpit lysander-cockpit-model :drogue drogue-model :carrier carrier-model
+	  :merchant merchant-model :u-boat u-boat-model } to models ;
 
 \ === moving models ===
 
@@ -622,7 +658,7 @@ variable wingmen
 	:inchgarvie :north-queensferry landmark-heading 90 + to east-of-bridge
 	:inchgarvie landmark-ground east-of-bridge 0 0 2000 placed ;
 
-\ the missions, each a name, three lines of story, the Spitfire's start as [ position heading speed on-ground ], the raid's plan or null, night or day, whether it begins on the approach with wheels and flaps down, the propeller (the two-pitch in 1939, the constant-speed fitted from June 1940) and whether 100-octane fuel allows emergency boost (from 1940), the weather (the visibility in metres, the share of the sky's squares holding a cloud and the clouds' base, the wind as [ the bearing it blows from, metres a second ], every wind an estimate: the records found give none), the carrier's flight deck where the mission has one (Glorious's 28 knots, 14.4 m/s, and the 12-knot wind together giving the 40 knots over her deck published for 7 June; the split and the place, 40 km north of Andenes where she and Ark Royal were operating, estimates), any ballast the aircraft carries as [ kg place ] (the Glorious Hurricanes' published 15 lb sandbag, 6.8 kg, in the rear fuselage, its place an estimate), the aircraft where the mission fixes it (the PR Spitfire, or the Hurricane at Narvik and at Scapa Flow, where no Spitfires served; the Scapa raid's coming from the east about 7 pm, seen by the Shetland radar, published, its fifteen bombers, height and course estimates, the published counts running from 15 to 35, and drawn in daylight, the game having no dusk), the opening message, the group the title lists it under, and the briefing's text; over Norway the height the snow lay down to (estimates: Trøndelag's lowland under snow in early March, the thaw at Narvik begun on 29 April 1940 by the despatches, the snow then lying above about 400 m at the end of May and 600 m in June)
+\ the missions, each a name, three lines of story, the Spitfire's start as [ position heading speed on-ground ], the raid's plan or null, night or day, whether it begins on the approach with wheels and flaps down, the propeller (the two-pitch in 1939, the constant-speed fitted from June 1940) and whether 100-octane fuel allows emergency boost (from 1940), the weather (the visibility in metres, the share of the sky's squares holding a cloud and the clouds' base, the wind as [ the bearing it blows from, metres a second ], every wind an estimate: the records found give none), the carrier's flight deck where the mission has one (Glorious's 28 knots, 14.4 m/s, and the 12-knot wind together giving the 40 knots over her deck published for 7 June; the split and the place, 40 km north of Andenes where she and Ark Royal were operating, estimates; on 26 May, flying 46 Squadron's Hurricanes off for Norway, her 30 knots, 15.4 m/s, in a flat calm, 100 miles north of Skånland and 40 miles off the coast, published, her heading, toward Bardufoss, an estimate), whether the flight begins on her deck with the engine running and ends landed at the mission's target (on 26 May the first Hurricanes flown off reached Skånland, whose soft strip turned two of them over, and the rest went on to Bardufoss, published), any ballast the aircraft carries as [ kg place ] (the Glorious Hurricanes' published 15 lb sandbag, 6.8 kg, in the rear fuselage, its place an estimate), the aircraft where the mission fixes it (the PR Spitfire, or the Hurricane at Narvik and at Scapa Flow, where no Spitfires served; the Scapa raid's coming from the east about 7 pm, seen by the Shetland radar, published, its fifteen bombers, height and course estimates, the published counts running from 15 to 35, and drawn in daylight, the game having no dusk), the opening message, the group the title lists it under, and the briefing's text; over Norway the height the snow lay down to (estimates: Trøndelag's lowland under snow in early March, the thaw at Narvik begun on 29 April 1940 by the despatches, the snow then lying above about 400 m at the end of May and 600 m in June); a patrol's sightings, each [ name centre ships ], each ship [ kind place heading ], and the airfield it flies from and back to (a representative patrol, no particular one being recorded: the convoy's and the U-boat's places are estimates)
 : missions ( -- missions )
 	:turnhouse landmark-ground 60 0 wheel-height -580 placed to turnhouse-runway
 	:abbotsinch :greenock landmark-heading to west-from-abbotsinch
@@ -636,8 +672,13 @@ variable wingmen
 	:bardufoss landmark-ground 100 0 :bardufoss landmark-height wheel-height + -580 placed to bardufoss-runway
 	narvik-anchorage :narvik :vaernes landmark-heading 0 0 90000 placed to narvik-raid-start
 	:andenes landmark-ground 0 0 0 40000 placed to glorious-centre
+	:skanland landmark-ground 0 0 0 160934 placed to glorious-fly-off
+	:bardufoss landmark-ground glorious-fly-off v- heading-of to fly-off-heading
 	:scapa-flow landmark-ground to scapa-anchorage
 	scapa-anchorage 0 0 2500 -15000 placed to scapa-patrol
+	:grangemouth landmark-ground 70 0 wheel-height -580 placed to grangemouth-runway
+	:inchkeith landmark-ground 80 0 0 4000 placed to convoy-lead
+	:bass-rock landmark-ground 40 0 0 8000 placed to u-boat-place
 	[ { :name "THE FORTH, 16 OCTOBER 1939" :month 10
 	    :story [ "16 OCTOBER 1939. TWELVE JU 88s ARE CROSSING THE NORTH"
 	             "SEA FOR THE CRUISERS LYING BY THE FORTH BRIDGE."
@@ -661,6 +702,20 @@ variable wingmen
 	    :message "BANDITS EAST OF SCAPA FLOW, ANGELS 10  -  FOLLOW THE RAID BEARING"
 	    :group :battle
 	    :briefing "STOP THE BOMBERS BEFORE THEY REACH THE SHIPS AT ANCHOR IN SCAPA FLOW. THE RADAR ON SHETLAND HAS SEEN THEM COMING FROM THE EAST; YOU ARE OVER THE PENTLAND FIRTH, THE FLOW AHEAD BETWEEN HOY AND MAINLAND. THE RAID'S BEARING AND DISTANCE ARE IN THE STRIP BELOW THE PANEL. FIRE FROM ASTERN IN BURSTS OF 1 TO 2 SECONDS. THE SIGHT'S RANGE BARS ARE SET FOR THE HE 111'S SPAN. LAND AT WICK, SOUTH OF THE FIRTH, OR AT HATSTON BY KIRKWALL." }
+	  { :name "HMS GLORIOUS, 26 MAY 1940" :month 5 :snow-line 400
+	    :story [ "26 MAY 1940. GLORIOUS HAS BROUGHT 46 SQUADRON'S"
+	             "HURRICANES TO NORWAY. NO HURRICANE HAS FLOWN OFF A"
+	             "CARRIER BEFORE: FLY ONE OFF HER DECK TO BARDUFOSS." ]
+	    :start [ glorious-fly-off fly-off-heading 0 18 -95 placed fly-off-heading 15.4 true ]
+	    :raid null
+	    :carrier { :centre glorious-fly-off :heading fly-off-heading :speed 15.4 :height 18 :fore 75 :aft -110 :half-width 14 }
+	    :fly-off true :target :bardufoss
+	    :night false :landing false :visibility clear-visibility :cover 0.3 :base 1200 :wind [ 0 0 ]
+	    :propeller :two-pitch :emergency false
+	    :aircraft :hurricane :landing-on "BARDUFOSS"
+	    :message "GLORIOUS AT 30 KNOTS IN A FLAT CALM  -  FINE PITCH (W), FULL THROTTLE (Q), HOLD HER STRAIGHT"
+	    :group :battle
+	    :briefing "FLY OFF HMS GLORIOUS, 100 MILES NORTH OF SKANLAND AND 40 MILES OFF THE COAST, AND LAND AT BARDUFOSS. THE SEA IS FLAT CALM, SO SHE IS MAKING 30 KNOTS TO PUT THAT WIND OVER HER DECK; YOUR ENGINE IS RUNNING AND YOU ARE AT THE AFTER END OF THE FLIGHT DECK, 60 FT ABOVE THE SEA. FINE PITCH (W), OPEN THE THROTTLE FULLY (Q), HOLD HER STRAIGHT DOWN THE DECK ON THE RUDDER (Z X) AND EASE BACK AS SHE LIFTS; WHEELS UP (G), COARSE PITCH (S). BARDUFOSS IS SOUTH-EAST OVER THE ISLANDS AND THE MOUNTAINS, ITS BEARING AND DISTANCE IN THE STRIP BELOW THE PANEL. SKANLAND'S STRIP IS TOO SOFT: TWO HURRICANES HAVE TURNED OVER ON IT. LAND ON BARDUFOSS'S RUNWAY." }
 	  { :name "NARVIK, 28 MAY 1940" :month 5 :snow-line 400
 	    :story [ "28 MAY 1940. THE FOREIGN LEGION IS CROSSING TO NARVIK"
 	             "UNDER THE GUNS OF THE CRUISERS CAIRO AND COVENTRY."
@@ -789,7 +844,21 @@ variable wingmen
 	    :propeller :constant-speed :emergency true
 	    :message "FOG AT ABBOTSINCH  -  HOLD 050 AND 120 MPH, THE RUNWAY IS AHEAD"
 	    :group :training
-	    :briefing "LAND IN FOG WITH A MILE'S VISIBILITY. YOU ARE TRIMMED, THE RUDDER TRIM A LITTLE RIGHT AGAINST THE ENGINE'S SWING; AS THE POWER CHANGES, WIND IT WITH . AND , TO KEEP THE SLIP NEEDLE CENTRED. THE RUNWAY IS AHEAD ON 050 BUT OUT OF SIGHT: HOLD THE HEADING ON THE GYRO, 120 MPH, AND A STEADY DESCENT ON THE CLIMB INDICATOR UNTIL THE RUNWAY SHOWS, THEN LAND AS IN CLEAR AIR." } ] ;
+	    :briefing "LAND IN FOG WITH A MILE'S VISIBILITY. YOU ARE TRIMMED, THE RUDDER TRIM A LITTLE RIGHT AGAINST THE ENGINE'S SWING; AS THE POWER CHANGES, WIND IT WITH . AND , TO KEEP THE SLIP NEEDLE CENTRED. THE RUNWAY IS AHEAD ON 050 BUT OUT OF SIGHT: HOLD THE HEADING ON THE GYRO, 120 MPH, AND A STEADY DESCENT ON THE CLIMB INDICATOR UNTIL THE RUNWAY SHOWS, THEN LAND AS IN CLEAR AIR." }
+	  { :name "FORTH PATROL, JUNE 1940" :month 6
+	    :story [ "JUNE 1940. 614 SQUADRON'S LYSANDERS HAVE COME TO"
+	             "GRANGEMOUTH TO WATCH THE FORTH AND THE EAST COAST."
+	             "THE DAWN PATROL: DOWN THE FIRTH TO THE BASS ROCK." ]
+	    :start [ grangemouth-runway 70 0 true ]
+	    :raid null :aircraft :lysander :base-field :grangemouth :base-name "GRANGEMOUTH" :patrol-turn :bass-rock
+	    :patrol [ [ "A CONVOY EAST OF INCHKEITH" convoy-lead
+	                [ [ :merchant convoy-lead 80 ] [ :merchant convoy-lead 80 0 0 -450 placed 80 ] [ :merchant convoy-lead 80 0 0 -900 placed 80 ] ] ]
+	              [ "A U-BOAT OFF THE BASS ROCK" u-boat-place [ [ :u-boat u-boat-place 120 ] ] ] ]
+	    :night false :landing false :visibility clear-visibility :cover 0.3 :base 900 :wind [ 250 5 ]
+	    :propeller :two-pitch :emergency false
+	    :message "DAWN PATROL  -  FINE PITCH (W), OPEN THE THROTTLE AS SHE ROLLS"
+	    :group :reconnaissance
+	    :briefing "PATROL THE FORTH FROM GRANGEMOUTH DOWN THE FIRTH TO THE BASS ROCK AND BACK, AS 614 SQUADRON'S LYSANDERS DID FROM JUNE 1940. REPORT ANY SHIPPING AND ANY U-BOAT ON THE SURFACE BY CIRCLING IT ONCE WITHIN A MILE OF IT AND BELOW 2,000 FT; THE STRIP BELOW THE PANEL COUNTS YOUR REPORTS. THEN LAND AT GRANGEMOUTH. START: MAGNETOS ON (M), HOLD K. TAKE OFF IN FINE PITCH (W), OPENING THE THROTTLE AS SHE ROLLS; SHE SWINGS LEFT, SO HOLD HER WITH RIGHT RUDDER AND, AT FULL RUDDER, THE BRAKES (B). THE SLATS AND FLAPS COME OUT BY THEMSELVES AS SHE SLOWS. THE TAILPLANE'S TRIM ([ ]) IS POWERFUL: SET IT FOR THE SPEED." } ] ;
 
 \ each mission's squadron code and its fighters' own letters, the player's first and then each wingman's: 603's XT at Turnhouse from September 1939, 43's FT at Wick, 46's PO in Norway, 72's RN, 602's LO in the Clyde's defence in 1941 (en.wikipedia.org's squadron pages, aviation-safety.net's L1023 coded XT-N in October 1939); the training missions in the code of their base's squadron, Turnhouse's 603 and Abbotsinch's 602; the PR Spitfire uncoded; every letter a choice, none recorded
 [ [ "THE FORTH, 16 OCTOBER 1939" "XT" [ "D" ] ]
@@ -885,16 +954,17 @@ variable wingmen
 	x floor-top 17 + score-line dial-ink draw-text
 	plane@damage 0 > if x floor-top 30 + plane@damage round "DAMAGE {0}%" format 0xff6040 draw-text then ;
 
-\ the place to land, its bearing and distance, and the height above it: on a carrier the deck's, with the speed closing on her along her heading; else the field's
+\ the place to land, its bearing and distance, and the height above it: on a carrier the deck's, with the speed closing on her along her heading; else, or flying off her, the field's
 : draw-landing-panel ( -- )
 	436 to x
-	deck null? if :target game@ else deck@centre [ 0 deck@height 0 ] v+ then to place
+	deck null? :fly-off game@ or to field
+	field if :target game@ else deck@centre [ 0 deck@height 0 ] v+ then to place
 	place plane@position v- spread to dz to dy to dx
 	[ dx 0 dz ] v-length 1609.34 / [ dx 0 dz ] heading-of :landing-on game@ "{0} {1:03.0f} {2:.1f} MI" format to place-line
 	x floor-top 4 + place-line 0xffe080 draw-text
-	dy negate 3.28084 * round deck null? if "FIELD {0} FT BELOW" else "DECK {0} FT BELOW" then format to height-line
+	dy negate 3.28084 * round field if "FIELD {0} FT BELOW" else "DECK {0} FT BELOW" then format to height-line
 	x floor-top 17 + height-line dial-ink draw-text
-	deck null? not if
+	field not if
 		plane@velocity deck-velocity v- deck@heading heading-attitude :forward @ v-dot 2.23694 * round "CLOSING {0} MPH" format to closing-line
 		x floor-top 30 + closing-line dial-ink draw-text
 	then ;

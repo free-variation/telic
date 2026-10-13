@@ -52,7 +52,7 @@ briefing-sheet to sheet
 
 \ the places marked on the map when they fall within it, each [ landmark name ]
 : map-places ( -- places )
-	[ [ :turnhouse "TURNHOUSE" ] [ :drem "DREM" ] [ :abbotsinch "ABBOTSINCH" ] [ :dalcross "DALCROSS" ]
+	[ [ :turnhouse "TURNHOUSE" ] [ :drem "DREM" ] [ :grangemouth "GRANGEMOUTH" ] [ :abbotsinch "ABBOTSINCH" ] [ :dalcross "DALCROSS" ]
 	  [ :acklington "ACKLINGTON" ] [ :wick "WICK" ] [ :vaernes "VAERNES" ]
 	  [ :edinburgh-castle "EDINBURGH" ] [ :glasgow-cathedral "GLASGOW" ] [ :greenock "GREENOCK" ]
 	  [ :clydebank "CLYDEBANK" ] [ :tynemouth "TYNEMOUTH" ] [ :nidaros "TRONDHEIM" ]
@@ -63,7 +63,7 @@ briefing-sheet to sheet
 	  [ :hatston "HATSTON" ] [ :skeabrae "SKEABRAE" ] [ :lyness "LYNESS" ] [ :lerwick "LERWICK" ]
 	  [ :sumburgh "SUMBURGH" ] ] ;
 
-\ the ground points a mission names, each [ x z ]: the start, the raid's start and target, the mission's target, the tug's start, the carrier
+\ the ground points a mission names, each [ x z ]: the start, the raid's start and target, the mission's target, the tug's start, a patrol's turning point, the carrier
 : mission-points ( mission -- points )
 	| mission |
 	mission@start first to start
@@ -80,6 +80,11 @@ briefing-sheet to sheet
 	then
 	mission :tug-start null @or to tug-place
 	tug-place null? not if points [ tug-place first tug-place 2 @i ] add-last! drop then
+	mission :patrol-turn null @or to turn
+	turn null? not if
+		turn landmark-ground to place
+		points [ place first place 2 @i ] add-last! drop
+	then
 	mission :carrier null @or to carrier
 	carrier null? not if points [ carrier@centre first carrier@centre 2 @i ] add-last! drop then
 	points ;
@@ -115,7 +120,7 @@ briefing-sheet to sheet
 : map-lines ( frame -- segments )
 	| frame |
 	lochs keys ( key | lochs key @ :shores @ ) map [ ] ' concat reduce to loch-shores
-	coastlines norway-shores concat narvik-shores concat loch-shores concat to shores
+	coastlines norway-shores concat narvik-shores concat norway-coarse-shores concat loch-shores concat to shores
 	[ ] to segments
 	0 shores size 1 do k
 		shores k @i to shore
@@ -309,7 +314,7 @@ variable placed-labels
 	loop ;
 
 \ the airfields among the places on the chart, drawn as rings
-[ :turnhouse :drem :abbotsinch :dalcross :acklington :wick :vaernes :bardufoss :dyce :montrose-air-station
+[ :turnhouse :drem :grangemouth :abbotsinch :dalcross :acklington :wick :vaernes :bardufoss :dyce :montrose-air-station
   :castletown :hatston :skeabrae :sumburgh ] constant chart-airfields
 
 \ the summits the chart marks with their heights in feet, from the map's heights
@@ -387,10 +392,11 @@ variable placed-labels
 	mission :aircraft :fighter @or :fighter = not if false exit then
 	mission :lesson false @or mission :air-firing false @or not and not ;
 
-\ the fighter a mission is flown in: the Hurricane where the mission fixes it, or where chosen and the mission allows the choice; otherwise the Spitfire
+\ the aircraft a mission is flown in: the Hurricane or the Lysander where the mission fixes it, the Hurricane where chosen and the mission allows the choice; otherwise the Spitfire
 : flown-in ( mission choice -- kind )
 	| mission choice |
 	mission :aircraft :fighter @or :hurricane = if :hurricane exit then
+	mission :aircraft :fighter @or :lysander = if :lysander exit then
 	choice :hurricane = mission aircraft-choosable? and if :hurricane else :spitfire then ;
 
 \ how many of a type, by the name the briefing gives it
@@ -413,11 +419,15 @@ variable placed-labels
 		"SPITFIRE PR, UNARMED, SPLIT CAMERAS"
 	else mission choice flown-in :hurricane = if
 		"HURRICANE MK I, EIGHT BROWNINGS, 334 OR 287 ROUNDS EACH"
+	else mission choice flown-in :lysander = if
+		"LYSANDER MK II, TWO BROWNINGS IN THE WHEELS' FAIRINGS"
 	else
 		"SPITFIRE MK I, EIGHT BROWNINGS, 300 ROUNDS EACH"
-	then then to aircraft-text
+	then then then to aircraft-text
 	mission@propeller :two-pitch = if "TWO-PITCH" else "CONSTANT-SPEED" then to propeller-text
-	mission@emergency if "+6 LB, +12 LB EMERGENCY ON 100 OCTANE" else "+6 LB, 87 OCTANE" then to boost-text
+	mission choice flown-in :lysander = if "PERSEUS XII, 87 OCTANE" else
+		mission@emergency if "+6 LB, +12 LB EMERGENCY ON 100 OCTANE" else "+6 LB, 87 OCTANE" then
+	then to boost-text
 	mission@start to start
 	start 3 @i if
 		"ON THE RUNWAY"
@@ -464,10 +474,13 @@ variable placed-labels
 		colour draw-segment
 	loop ;
 
-\ the aircraft the mission is flown in, its undercarriage down, turning under the particulars in the space down to the briefing: the Hurricane when chosen and allowed, otherwise the Spitfire
+\ the aircraft the mission is flown in, its undercarriage down, turning under the particulars in the space down to the briefing: the Hurricane when chosen and allowed, the Lysander where the mission fixes it, otherwise the Spitfire
 : draw-chosen-aircraft ( mission choice top -- )
 	| mission choice top |
-	mission choice flown-in :hurricane = if models@hurricane-down 12.19 else models@spitfire-down 11.23 then to span to model
+	mission choice flown-in to kind
+	kind :hurricane = if models@hurricane-down 12.19 else
+		kind :lysander = if models@lysander 15.24 else models@spitfire-down 11.23 then
+	then to span to model
 	briefing-top top - 8 - to room
 	room 30 < if exit then
 	290 span / room 4 / min2 to scale

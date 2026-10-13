@@ -31,7 +31,7 @@ variable countryside-cell
 
 \ the places whose surroundings stay clear of fields, with how far
 [ [ :edinburgh-castle 3500 ] [ :leith 1500 ] [ :glasgow-cathedral 4500 ] [ :govan 2000 ] [ :clydebank 1500 ]
-  [ :inverness-castle 2000 ] [ :stirling-castle 1500 ] [ :turnhouse 1200 ] [ :drem 1200 ]
+  [ :inverness-castle 2000 ] [ :stirling-castle 1500 ] [ :turnhouse 1200 ] [ :drem 1200 ] [ :grangemouth 1200 ]
   [ :abbotsinch 1200 ] [ :dalcross 1200 ] [ :nidaros 1500 ] [ :vaernes 1200 ]
   [ :marischal-college 2500 ] [ :peterhead 1000 ] [ :montrose 1000 ] [ :kirkwall 1000 ] [ :lerwick 800 ]
   [ :hatston 1200 ] [ :skeabrae 1200 ] [ :castletown 1200 ] [ :sumburgh 1200 ] [ :montrose-air-station 1200 ]

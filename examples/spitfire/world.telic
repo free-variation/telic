@@ -16,7 +16,9 @@
 \ Shetland. Over Orkney and Shetland the ground is scotland-terrain.telic's
 \ second grid. Round the Trondheimsfjord the ground is
 \ norway-terrain.telic's surveyed heights, round Narvik and Bardufoss
-\ narvik.telic's, filled in the colours of its land cover by height and
+\ narvik.telic's, finer round Fættenfjord, Narvik and Bardufoss, and the
+\ rest of Norway's and Sweden's norway-coarse.telic's every 1.6 km, all
+\ filled in the colours of its land cover by height and
 \ slope, farmland, forest, heath, rock and snow, and taken as level where
 \ the scenery stands on it. Everything is built once
 \ into objects and gathered into the collection the view culls.
@@ -39,7 +41,7 @@ variable hill-cones
 \ the places where the ground is taken as level at a height, the scenery standing on it, each [ x z radius height ]. In Scotland, where the scenery is built at sea level, the towns and airfields at 0 out to the reach the countryside leaves clear of fields, Aberdeen within 2,500 m of Marischal College, so Old Aberdeen is in it, Dyce at its height, 66 m, Dumbarton's rock and the Abbey Craig under their cones; in Norway Trondheim within 2,500 m of Nidaros, Værnes within 1,500 m and Munkholmen within 400 m at sea level, Narvik's centre within 800 m at sea level, Bardufoss within 1,500 m at its height
 [ [ :edinburgh-castle 3500 0 ] [ :leith 1500 0 ] [ :glasgow-cathedral 4500 0 ] [ :govan 2000 0 ] [ :clydebank 1500 0 ]
   [ :inverness-castle 2000 0 ] [ :stirling-castle 1500 0 ] [ :dumbarton-castle 600 0 ] [ :wallace-monument 500 0 ]
-  [ :turnhouse 1200 0 ] [ :drem 1200 0 ] [ :abbotsinch 1200 0 ] [ :dalcross 1200 0 ] [ :wick 1200 0 ]
+  [ :turnhouse 1200 0 ] [ :drem 1200 0 ] [ :grangemouth 1200 0 ] [ :abbotsinch 1200 0 ] [ :dalcross 1200 0 ] [ :wick 1200 0 ]
   [ :marischal-college 2500 0 ] [ :peterhead 1000 0 ] [ :montrose 1000 0 ] [ :kirkwall 1000 0 ] [ :lerwick 800 0 ]
   [ :hatston 1200 0 ] [ :skeabrae 1200 0 ] [ :castletown 1200 0 ] [ :sumburgh 1200 0 ] [ :montrose-air-station 1200 0 ]
   [ :dyce 1200 landmarks :dyce @ 2 @i ]
@@ -49,7 +51,7 @@ variable hill-cones
 	[ point first point second radius height ]
 ) map constant level-places
 
-\ the surveyed grids, each a frame of its south-west corner, spacing, size and heights, and the grid steps a far tile's triangles span: over Scotland and over Orkney and Shetland 2, 1.6 km; round the Trondheimsfjord 4, 1.6 km; round Narvik and Bardufoss 2, 800 m, so the narrower fjords stay open at a distance
+\ the surveyed grids, each a frame of its south-west corner, spacing, size and heights, and the grid steps a far tile's triangles span: over Scotland and over Orkney and Shetland 2, 1.6 km; round the Trondheimsfjord 4, 1.6 km; round Narvik and Bardufoss 2, 800 m, so the narrower fjords stay open at a distance; over the rest of Norway and Sweden 2, 3.2 km, these coarse grids drawn only where no earlier grid holds the ground
 { :west scotland-terrain-west :south scotland-terrain-south :spacing scotland-terrain-spacing :columns scotland-terrain-columns
   :rows scotland-terrain-rows :heights scotland-terrain-heights :far-step 2 } constant scotland-grid
 { :west isles-terrain-west :south isles-terrain-south :spacing isles-terrain-spacing :columns isles-terrain-columns
@@ -58,7 +60,20 @@ variable hill-cones
   :far-step 4 :land-cover :trondelag } constant trondheim-grid
 { :west narvik-terrain-west :south narvik-terrain-south :spacing narvik-terrain-spacing :columns narvik-terrain-columns
   :rows narvik-terrain-rows :heights narvik-terrain-heights :far-step 2 :land-cover :ofoten } constant narvik-grid
-[ scotland-grid isles-grid trondheim-grid narvik-grid ] constant terrain-grids
+{ :west mid-norway-terrain-west :south mid-norway-terrain-south :spacing mid-norway-terrain-spacing :columns mid-norway-terrain-columns
+  :rows mid-norway-terrain-rows :heights mid-norway-terrain-heights :far-step 2 :land-cover :trondelag :coarse true } constant mid-norway-grid
+{ :west north-norway-terrain-west :south north-norway-terrain-south :spacing north-norway-terrain-spacing :columns north-norway-terrain-columns
+  :rows north-norway-terrain-rows :heights north-norway-terrain-heights :far-step 2 :land-cover :ofoten :coarse true } constant north-norway-grid
+[ scotland-grid isles-grid trondheim-grid narvik-grid mid-norway-grid north-norway-grid ] constant terrain-grids
+
+\ the finer grids, each a frame of its south-west corner, spacing, size and heights, and the step of the coarser grid's near triangles over it: round Fættenfjord 50 m, its tiles' triangles 200 m; round Narvik and round Bardufoss 100 m, the same
+{ :west fine-terrain-west :south fine-terrain-south :spacing fine-terrain-spacing :count fine-terrain-count :heights fine-terrain-heights
+  :near-step 0.5 } constant faettenfjord-fine-grid
+{ :west narvik-fine-west :south narvik-fine-south :spacing narvik-fine-spacing :count narvik-fine-count :heights narvik-fine-heights
+  :near-step 0.5 } constant narvik-fine-grid
+{ :west bardufoss-fine-west :south bardufoss-fine-south :spacing bardufoss-fine-spacing :count bardufoss-fine-count :heights bardufoss-fine-heights
+  :near-step 0.5 } constant bardufoss-fine-grid
+[ faettenfjord-fine-grid narvik-fine-grid bardufoss-fine-grid ] constant fine-grids
 
 \ whether a point lies within a grid or a margin outside it
 : near-grid? ( x z grid margin -- flag )
@@ -127,11 +142,14 @@ no-snow to snow-line
 	level-places ( place | place first x - sq place second z - sq + place 2 @i sq < ) filter to levels
 	levels size 0 > if levels first else null then ;
 
-\ the ground's height as surveyed: the 50 m grid round Fættenfjord where it reaches, else the first grid holding the point; 0 outside them
+\ the ground's height as surveyed: the first finer grid holding the point, else the first grid holding it; 0 outside them
 : surveyed-height ( x z -- height )
 	| x z |
-	x z fine-terrain-west fine-terrain-south fine-terrain-spacing fine-terrain-count fine-terrain-count fine-terrain-heights grid-height to fine
-	fine null? not if fine exit then
+	0 fine-grids size 1 do k
+		fine-grids k @i to grid
+		x z grid@west grid@south grid@spacing grid@count grid@count grid@heights grid-height to fine
+		fine null? not if fine exit then
+	loop
 	0 terrain-grids size 1 do k
 		terrain-grids k @i to grid
 		x z grid@west grid@south grid@spacing grid@columns grid@rows grid@heights grid-height to coarse
@@ -254,7 +272,7 @@ variable terrain-tile-radii
 	terrain-tiles ( tile | tile@centre spread 1 4 array ) map flatten terrain-tiles size 4 matrix to terrain-tile-centres
 	terrain-tiles ( tile | tile@radius ) map vector to terrain-tile-radii ;
 
-\ the water's rings, gathered as the scenery is built: the map's frame, the land's outlines, the lochs, the islands, the rivers' strips across the land and Leith's wet docks; with them, as the mainland's region, Orkney and Shetland coarsely, and the islands in detail with the mainland's outlines as a region of their own, the nearer of the two in use, so Glasgow's frames do not pay for Shetland's coast; the Trondheimsfjord's region with the Nidelva through the town
+\ the water's rings, gathered as the scenery is built: the map's frame, the land's outlines, the lochs, the islands, the rivers' strips across the land and Leith's wet docks; with them, as the mainland's region, Orkney and Shetland coarsely, and the islands in detail with the mainland's outlines as a region of their own, the nearer of the two in use, so Glasgow's frames do not pay for Shetland's coast; Norway's and Sweden's coarse land in each of two regions, round the Trondheimsfjord with its finer coast and the Nidelva through the town in its patch, and round Narvik with its finer coast in its
 variable water-rings
 [ ] to water-rings
 
@@ -338,8 +356,8 @@ variable water-rings
 	:narvik landmark-ground to narvik-centre
 	[ [ 0 130000 water-rings isles-coarse-outlines concat rings>edge-set ]
 	  [ 0 470000 land-outlines isles-outlines concat rings>edge-set ]
-	  [ norway-centre first norway-centre 2 @i norway-outlines norway-bands concat nidelva-water concat rings>edge-set ]
-	  [ narvik-centre first narvik-centre 2 @i narvik-outlines narvik-bands concat rings>edge-set ] ] water-regions!
+	  [ norway-centre first norway-centre 2 @i norway-coarse-outlines trondheim-patch concat nidelva-water concat rings>edge-set ]
+	  [ narvik-centre first narvik-centre 2 @i norway-coarse-outlines narvik-patch concat rings>edge-set ] ] water-regions!
 	[ 0 0 0 ] use-water-near ;
 
 \ === hills ===
@@ -358,9 +376,25 @@ variable water-rings
 	{ :centre centre [ 0 height 2 / 0 ] v+ :radius radius 1.3 * height max2 :near mesh :far mesh }
 	add-last! drop ;
 
-\ a tile's mesh from a corner of the grid, cells to a side, taken a step at a time: each cell two triangles, a triangle left out when any of its corners is sea or its centre is water, so no slope reaches out over the water, the surveyed heights between the grid's points standing above the sea in a firth; the corners' heights the ground's; water by the region in use
-: tile-mesh ( grid row column n-cells step -- mesh )
-	| grid row column n-cells step |
+\ the edges a line due east from a point within a rectangle can cross: those reaching east of its west side and spanning some of its south-to-north range
+: edges-near ( edges west south north -- edges' )
+	| edges west south north |
+	edges 0 @j west >= edges 2 @j west >= + 0 > to reaching
+	edges 1 @j north <= edges 3 @j north <= + 0 > to below
+	edges 1 @j south >= edges 3 @j south >= + 0 > to above
+	edges reaching below * above * where select-rows ;
+
+\ whether one of the first grids holds a point, so that grid draws the ground there
+: held-by-first? ( x z n-grids -- flag )
+	| x z n-grids |
+	0 n-grids 1 do k
+		x z terrain-grids k @i 0 near-grid? if true exit then
+	loop
+	false ;
+
+\ a tile's mesh from a corner of the grid, cells to a side, taken a step at a time: each cell two triangles, a triangle left out when any of its corners is sea or its centre is water, so no slope reaches out over the water, the surveyed heights between the grid's points standing above the sea in a firth, or when one of the first grids holds all its corners; the corners' heights the ground's; water by the region in use
+: tile-mesh ( grid row column n-cells step n-earlier -- mesh )
+	| grid row column n-cells step n-earlier |
 	n-cells step / round 1+ to count
 	[ 0 count 1 do r
 		0 count 1 do c
@@ -378,14 +412,15 @@ variable water-rings
 			[ [ p00 p10 p11 ] [ p00 p11 p01 ] ] ( triangle |
 				triangle ( corner | points corner @i ) map [ 0 0 0 ] ' v+ reduce 1 3 / v* to middle
 				triangle ( corner | points corner @i second 2 < ) any? not middle first middle 2 @i water-at? not and
+				triangle ( corner | points corner @i to point point first point 2 @i n-earlier held-by-first? not ) any? and
 			) filter spread
 		loop
 	loop ] to triangles
 	points triangles filled-mesh ;
 
-\ the ground of one of the grids in tiles of 8 grid steps (3.2 km in Norway, 6.4 km in Scotland), its sphere for culling 6 steps across: each tile filled by triangles, a grid step's near and the grid's far step's far, in Norway each carrying its grid's land cover; a tile all sea left out
-: build-grid-terrain ( grid -- )
-	| grid |
+\ the ground of one of the grids in tiles of 8 grid steps (3.2 km round Trondheim and Narvik, 6.4 km in Scotland, 12.8 km over the rest of Norway), its sphere for culling 6 steps across: each tile filled by triangles, a grid step's near, or over a finer grid that grid's near step, and the grid's far step's far, in Norway each carrying its grid's land cover; a tile left out when all its corners are sea or, for a coarse grid, when an earlier grid holds all four of its corners; the water judged by the region's edges near the tile
+: build-grid-terrain ( grid n-earlier -- )
+	| grid n-earlier |
 	grid@west to west
 	grid@south to south
 	grid@spacing to spacing
@@ -397,12 +432,29 @@ variable water-rings
 			8 n-columns 1- tile-column - min2 to n-tile-columns
 			west tile-column spacing * + to tile-west
 			south tile-row spacing * + to tile-south
-			tile-west 8 spacing * + fine-terrain-west > tile-west fine-terrain-west fine-terrain-count fine-terrain-spacing * + < and
-			tile-south 8 spacing * + fine-terrain-south > and tile-south fine-terrain-south fine-terrain-count fine-terrain-spacing * + < and
-			if 0.5 else 1 then to near-step
-			[ tile-west 4 spacing * + 0 tile-south 4 spacing * + ] use-water-near
-			grid tile-row tile-column n-tile-rows n-tile-columns min2 near-step tile-mesh to near-mesh
-			grid tile-row tile-column n-tile-rows n-tile-columns min2 grid@far-step tile-mesh to far-mesh
+			n-tile-rows n-tile-columns min2 to n-cells
+			tile-west n-cells spacing * + to tile-east
+			tile-south n-cells spacing * + to tile-north
+			grid@heights tile-row tile-row n-cells + 1+ tile-column tile-column n-cells + 1+ submatrix max 2 < to all-sea
+			tile-west tile-south n-earlier held-by-first? tile-east tile-south n-earlier held-by-first? and
+			tile-west tile-north n-earlier held-by-first? and tile-east tile-north n-earlier held-by-first? and to held
+			all-sea held or not if
+				1 to near-step
+				fine-grids ( fine |
+					tile-east fine@west > tile-west fine@west fine@count fine@spacing * + < and
+					tile-north fine@south > and tile-south fine@south fine@count fine@spacing * + < and
+				) filter to finer
+				finer size 0 > if finer first :near-step @ to near-step then
+				[ tile-west 4 spacing * + 0 tile-south 4 spacing * + ] use-water-near
+				land-edges to region-edges
+				region-edges tile-west tile-south tile-north grid@far-step spacing * + edges-near use-edge-set
+				grid tile-row tile-column n-cells near-step n-earlier tile-mesh to near-mesh
+				grid tile-row tile-column n-cells grid@far-step n-earlier tile-mesh to far-mesh
+				region-edges use-edge-set
+			else
+				null to near-mesh
+				null to far-mesh
+			then
 			grid :land-cover null @or to cover
 			cover null? not near-mesh null? not and if near-mesh cover :land-cover ! to near-mesh then
 			cover null? not far-mesh null? not and if far-mesh cover :land-cover ! to far-mesh then
@@ -416,8 +468,13 @@ variable water-rings
 		loop
 	loop ;
 
-\ the ground of every grid
-: build-norway-terrain ( -- ) terrain-grids ( grid | grid build-grid-terrain ) each [ 0 0 0 ] use-water-near ;
+\ the ground of every grid, a coarse grid's beneath the grids before it
+: build-norway-terrain ( -- )
+	0 terrain-grids size 1 do k
+		terrain-grids k @i to grid
+		grid grid :coarse false @or if k else 0 then build-grid-terrain
+	loop
+	[ 0 0 0 ] use-water-near ;
 
 \ how much farther than its centre a tile is sorted: a surveyed grid's tile, 2 km or more round, by its radius, so it is drawn before whatever stands on it; a hill's own tile not at all, so a hill hides what lies behind it
 : ground-tile-reach ( tile -- metres ) | tile | tile@radius 2000 >= if tile@radius else 0 then ;
@@ -481,6 +538,7 @@ variable water-rings
 : build-airfields ( -- )
 	:turnhouse landmark-ground 60 keep-airfield
 	:drem landmark-ground 90 keep-airfield
+	:grangemouth landmark-ground 70 keep-airfield
 	:abbotsinch landmark-ground 50 keep-airfield
 	:dalcross landmark-ground 60 keep-airfield
 	:wick landmark-ground 130 keep-airfield

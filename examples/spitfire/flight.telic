@@ -13,12 +13,17 @@
 \ clockwise seen from the cockpit, as the Merlin's did. Its torque, the
 \ power over the propeller's turning speed, rolls the aircraft left. Its
 \ slipstream, by actuator-disc theory, speeds up and narrows behind it and
-\ turns with it, carrying the torque as angular momentum: the swirl rises
+\ turns with it, carrying the torque as angular momentum, fastest at about
+\ two thirds of its radius and slow at its axis and edge: the swirl rises
 \ under the left wing's root and falls on the right's, rolling the aircraft
 \ back to the right, never by more than the torque; what turning the wing
-\ roots leave in it strikes the fin from the left, yawing the nose left,
-\ most at full power and low speed, while the slipstream over the rudder
-\ strengthens it. The turning propeller's
+\ roots leave in it strikes the fin, from the left above the
+\ wake's centre and from the right below it, yawing the nose left while the
+\ wake's centre lies low on the fin, most at full power and low speed; the
+\ air's flow across the propeller's axis carries the wake, so rolling tail
+\ down the aircraft carries it up the fin as the speed grows. The fin is
+\ reckoned in strips, those inside the wake in its faster air, which
+\ strengthens the rudder there. The turning propeller's
 \ gyroscopic moment yaws the nose right as it pitches up and pitches it down
 \ as it yaws right. A take-off so swings left and needs right rudder, as the
 \ Merlin Spitfires' did (their pilot's notes give the Griffon's swing as the
@@ -118,53 +123,85 @@
 
 9.81 constant gravity
 0.012 constant gear-drag
-\ the propeller, turning clockwise seen from the cockpit as the Merlin's did: its disc, 1.64 m in radius; the share of the fin and rudder in its slipstream; the fin's centre's height above the hub and the wing roots' distance out at the fuselage's side, metres, where the slipstream's swirl meets them; its moment of inertia, kg m²; the reduction gear (estimates but the radius and the gear)
-1.64 sq PI * constant propeller-disc
-0.5 constant slipstream-share
-0.6 constant fin-swirl-height
+\ the propeller, turning clockwise seen from the cockpit as the Merlin's did, its radius and reduction gear the type's: the wing roots' distance out at the fuselage's side, metres, where the slipstream's swirl meets them; the strips the fin is reckoned in, and the angle, radians, at which the low fin stalls; its moment of inertia, kg m² (estimates)
 0.5 constant wing-root-out
+\ the least share of the swirl's speed the wing roots leave in the wake: a wing recovers only part of a propeller's swirl, less than vanes built for it, which cut its kinetic energy by half in Veldhuis, Stokkermans, Sinnige and Eitelberg's PIV measurements (TU Delft), leaving the root of a half of its speed
+0.5 sqrt constant least-swirl-left
+8 constant fin-strips
+0.35 constant fin-stall-angle
 60 constant propeller-inertia
-0.477 constant propeller-gear
 
-\ the propeller's slipstream by actuator-disc theory, at the speed through the air, the thrust and the propeller's torque: the wake's speed far behind, the root of the speed squared and twice the thrust over the air's density and the disc; its radius, the disc's narrowed to carry the same flow at the wake's speed from the disc's, halfway between; its swirl, turning as a solid body with the propeller, carrying the torque as the flow's angular momentum, at a rate twice the torque over the flow and the wake's radius squared; [ wake-speed wake-radius swirl-rate ]
-: slipstream ( speed thrust torque density -- wake )
-	| speed thrust torque density |
-	thrust 2 * density propeller-disc * / speed sq + sqrt to wake-speed
+\ the swirl's speed across the wake at a share of the wake's radius from its axis, as a share of its scale: x(1 − x³), none on the axis, where the blades' roots carry no lift, and none at the edge, where their tips' circulation sheds, greatest at 0.63 of the radius, the shape blade-element theory gives a propeller's swirl; none outside the wake
+: swirl-profile ( share -- factor )
+	| share |
+	share 1 >= if 0 exit then
+	share 1 share 3 ^ - * ;
+
+\ the propeller's slipstream by actuator-disc theory, at the speed through the air, the thrust, the propeller's torque and its disc's area: the wake's speed far behind, the root of the speed squared and twice the thrust over the air's density and the disc; its radius, the disc's narrowed to carry the same flow at the wake's speed from the disc's, halfway between; its swirl, across the wake by the swirl's profile, carrying the torque as the flow's angular momentum: the profile's moment over the wake, ∫ x³(1 − x³) dx = 3/28, makes the profile's scale 14 times the torque over 3 times the flow and the wake's radius; [ wake-speed wake-radius swirl-speed ]
+: slipstream ( speed thrust torque density disc -- wake )
+	| speed thrust torque density disc |
+	thrust 2 * density disc * / speed sq + sqrt to wake-speed
 	speed wake-speed + 2 / to disc-speed
-	density propeller-disc * disc-speed * 0.1 max2 to flow
-	propeller-disc PI / sqrt disc-speed wake-speed / sqrt * to wake-radius
-	torque 2 * flow wake-radius sq * / to swirl-rate
-	[ wake-speed wake-radius swirl-rate ] ;
+	density disc * disc-speed * 0.1 max2 to flow
+	disc PI / sqrt disc-speed wake-speed / sqrt * to wake-radius
+	torque 14 * 3 flow * wake-radius * / to swirl-speed
+	[ wake-speed wake-radius swirl-speed ] ;
 
-\ the rolling moment the swirl gives the wing roots inside the wake, right positive: each strip of the roots from the fuselage's side to the wake's edge meets the swirl at its radius over the wake's speed, no more than the stall angle, its lift changed by that over the wake's dynamic pressure, raised on the left where the swirl rises and lowered on the right; no more than the torque the swirl carries, as the wing cannot take out more turning than the wake has
-: swirl-roll ( wake density chord lift-slope stall-angle torque -- moment )
-	| wake density chord lift-slope stall-angle torque |
-	wake spread to swirl-rate to wake-radius to wake-speed
+\ the rolling moment the swirl gives the wing roots inside the wake, right positive: the roots a height above the propeller's axis, below it negative; each strip of them from the fuselage's side out to where the wake's edge crosses them, at its distance from the wake's axis, meets the swirl's speed there by its profile, the share of it square to the wing, the strip's distance out over its distance from the axis, over the wake's speed, no more than the stall angle, its lift changed by that over the wake's dynamic pressure, raised on the left where the swirl rises and lowered on the right; a wing above or below the wake meets none; no more than the torque the swirl carries, as the wing cannot take out more turning than the wake has
+: swirl-roll ( wake density chord lift-slope stall-angle torque wing-up -- moment )
+	| wake density chord lift-slope stall-angle torque wing-up |
+	wake spread to swirl-speed to wake-radius to wake-speed
 	0.5 density * wake-speed sq * to wake-pressure
-	wake-radius wing-root-out - 0 max2 6 / to strip
 	0 to moment
+	wake-radius abs wing-up abs <= if 0 exit then
+	wake-radius sq wing-up sq - sqrt wing-root-out - 0 max2 6 / to strip
 	0 6 1 do k
 		wing-root-out k 0.5 + strip * + to r
-		swirl-rate r * wake-speed 1 max2 / stall-angle min2 to angle
+		r sq wing-up sq + sqrt to distance
+		swirl-speed distance wake-radius / swirl-profile * r * distance / wake-speed 1 max2 / stall-angle min2 to angle
 		moment 2 wake-pressure * chord * lift-slope * angle * r * strip * + to moment
 	loop
 	moment torque min2 ;
+
+\ the fin in the propeller's wake, in strips from its root at the fuselage's top to its tip, each of the fin's mean chord: the wake leaves the disc along the propeller's axis and is carried across it by the air's flow across the axis, the upward flow less the wing's downwash, for the time the wake takes to reach the fin at the wake's speed, so the tail-down aircraft rolling along carries its wake up the fin; a strip inside the wake meets the swirl the wing roots leave, the wake's turning carrying all its air past them, about the wake's centre, moving right above the centre and left below it, at an angle of the swirl's speed at the strip's distance from the centre, by its profile, times the strip's height over that distance, over the wake's speed, no more than the fin's stall, and meets the sideslip diluted by the wake's speed, at the wake's dynamic pressure; a strip outside it meets the free stream's. [ swirl-moment fin-pressure slip-pressure ]: the swirl's yawing moment, right positive; the dynamic pressure the rudder works in, the strips' mean; and the strips' mean of their dynamic pressure times the free stream's speed over theirs, which the fin's stability against the sideslip and its damping work in
+: fin-forces ( plane wake swirl-left speed rising across density -- forces )
+	| plane wake swirl-left speed rising across density |
+	plane@type to type
+	wake spread swirl-left * to swirl-speed to wake-radius to wake-speed
+	type@hub to hub
+	hub 2 @i type@fin-along - wake-speed / to travel
+	rising negate 1 downwash - * travel * to centre-up
+	across negate travel * to centre-out
+	type@fin-tip type@fin-root - fin-strips / to strip
+	0.5 density * speed sq * to free-pressure
+	0.5 density * wake-speed sq * to wake-pressure
+	0 to swirl-sum
+	0 to pressure-sum
+	0 to slip-sum
+	0 fin-strips 1 do k
+		type@fin-root k 0.5 + strip * + hub second - centre-up - to above
+		above sq centre-out sq + sqrt to distance
+		distance wake-radius < if
+			swirl-speed distance wake-radius / swirl-profile * above * distance 0.001 max2 / wake-speed 1 max2 / fin-stall-angle negate fin-stall-angle clamp wake-pressure * swirl-sum + to swirl-sum
+			pressure-sum wake-pressure + to pressure-sum
+			slip-sum 0.5 density * speed * wake-speed * + to slip-sum
+		else
+			pressure-sum free-pressure + to pressure-sum
+			slip-sum free-pressure + to slip-sum
+		then
+	loop
+	[ swirl-sum fin-strips / type@fin-stability * type@wing-area * type@span * negate
+	  pressure-sum fin-strips /
+	  slip-sum fin-strips / ] ;
 \ the seconds the undercarriage takes to travel fully up or down (an estimate)
 6 constant undercarriage-travel-time
 0.03 constant flap-drag
-0.35 constant flap-lift
-\ the engine's heat and cooling: the coolant's heating at full power over the cooling's coefficient, °C × m/s; the propeller's wash as airspeed at full revolutions, m/s; the coolant's capacity over the cooling's coefficient, seconds × m/s; the published coolant limit and the estimated temperature at which the glycol boils away, °C
-12400 constant engine-heat
+\ the engine's cooling: the propeller's wash as airspeed at full revolutions, m/s, the type giving the engine's heating, capacity and limits
 30 constant propeller-wash
-11160 constant coolant-capacity
-120 constant coolant-limit
-135 constant coolant-boiling
 \ the oil: its temperature following the coolant's over 120 s; its pressure, lb a square inch, at full revolutions when cool, and the pressure below which the bearings wear
 120 constant oil-lag
 80 constant oil-full-pressure
 20 constant oil-low-pressure
-\ the elevator trim: the share of the elevator's travel its tab holds at either end of its travel
-0.4 constant trim-range
 \ the pilot's hand and feet: the share of a control's travel he moves it a second (an estimate)
 5 constant control-speed
 \ the flaps: their travel, seconds; how far above a type's limit the air blows them back up, mph (an estimate)
@@ -175,16 +212,11 @@
 : flap-limit-speed ( plane -- speed ) :type @ :flap-limit @ 2.23694 / ;
 : flap-blow-speed ( plane -- speed ) :type @ :flap-limit @ flap-blow-margin + 2.23694 / ;
 1.6 constant wheel-height
-\ the boost, lb a square inch above the standard atmosphere's 14.7: with the throttle closed (an estimate), open, and open with the boost cut-out pushed forward on 100-octane fuel (the published +6 and +12); the emergency boost's published limit, seconds
+\ the boost, lb a square inch above the standard atmosphere's 14.7, with the throttle closed (an estimate), the type giving it open and with any boost cut-out; the emergency boost's published limit, seconds
 -4 constant idle-boost
-6 constant rated-boost
-12 constant emergency-boost
 300 constant emergency-limit
 14.7 constant atmosphere
-\ the propeller's revolutions a minute: the rated 3,000; the two-pitch propeller's at full throttle standing still, fine and coarse, and the airspeed, m/s, that adds as much again (estimates); the constant-speed propeller's lowest setting
-3000 constant rated-revolutions
-2650 constant fine-revolutions
-2100 constant coarse-revolutions
+\ the propeller's revolutions a minute, the type giving the rated and the two-pitch propeller's: the airspeed, m/s, that adds as much again to the two-pitch propeller's (an estimate); the constant-speed propeller's lowest setting
 568 constant windmill-speed
 1800 constant lowest-revolutions
 \ the two-pitch propeller's least revolutions with the throttle closed, a share of the rated: 600 rpm, the constant-speed propeller's idle (an estimate)
@@ -197,7 +229,6 @@
 0.25 constant restart-revolutions
 \ a gallon of petrol's mass, kg: 7.2 lb
 3.27 constant fuel-mass
-86 constant full-power-flow
 
 variable plane
 variable controls
@@ -220,9 +251,9 @@ variable controls
 \ the air's density at a height, kg/m³
 : air-density ( height -- density ) -8500 / exp 1.225 * ;
 
-\ the most absolute pressure the supercharger can hold in the manifold at a height, lb a square inch: the rated boost at the full-throttle height, more below it and less above, with the air's density
-: manifold-ceiling ( height rated-height -- pressure )
-	| height rated-height |
+\ the most absolute pressure the supercharger can hold in the manifold at a height, lb a square inch: a rated boost at the full-throttle height, more below it and less above, with the air's density
+: manifold-ceiling ( height rated-height rated-boost -- pressure )
+	| height rated-height rated-boost |
 	atmosphere rated-boost + height air-density rated-height air-density / * ;
 
 \ the wind 10 m above the ground, the air's motion over it, metres a second east, up and north; the mission sets it
@@ -366,9 +397,24 @@ variable cloud-air
 0.04 constant rolling-friction
 0.45 constant braking-friction
 0.6 constant tyre-grip
+\ the castoring tailwheel's friction in its pivot, which resists its swivelling and so the tail's sliding sideways, as a share of the tailwheel's load (an estimate; a Lysander pilot's account finds the free-castering tailwheel "likes to go straight")
+0.1 constant castor-friction
 
 \ the tyre's slip angle, radians, at which its sideways grip reaches its whole, growing in proportion to it below (an estimate)
 0.12 constant full-grip-slip
+
+\ the tyres' scrub against turning in place: each contact patch a disc, a main tyre's 10 cm and the tailwheel's 4 cm in radius (estimates), resisting its twist with two thirds of its grip at its radius, the whole moment reached at a yaw rate of 0.2 rad/s and growing in proportion to it below, and falling as the aircraft rolls along, halved at 1 m/s (estimates)
+0.1 constant main-patch-radius
+0.04 constant tail-patch-radius
+0.2 constant full-scrub-rate
+1 constant scrub-rolling-speed
+
+\ the rolling speed, m/s, below which the main legs' sideways pull is not counted toward their strength: at walking pace the tyres' grip, stiff against the slightest sideways creep, flicks from side to side over a step rather than loading the leg
+3 constant side-load-speed
+
+\ the main legs' sideways strength, shares of the aircraft's weight: the limit side loads of the civil rules for light aircraft (FAR and BCAR 23.485), 0.5 inboard and 0.33 outboard, at the ultimate factor of 1.5 (FAR 23.303), standing in for the Air Ministry's AP970, not found
+0.5 1.5 * constant inboard-strength
+0.33 1.5 * constant outboard-strength
 
 \ the height of the surface under a point: the carrier's deck over it, else the ground
 : surface-height ( point -- height )
@@ -383,7 +429,7 @@ variable cloud-air
 	point plane centre-of-mass v- spread to along to up to out
 	attitude@right out v* attitude@up up v* v+ attitude@forward along v* v+ ;
 
-\ the undercarriage's wheels, each [ centre radius share compression grips brake ]: the left and right main wheels, each carrying half of what the tailwheel does not, gripping sideways, each braked by the brakes' lever as the rudder bar shares the braking out, the right one more as the bar goes right, as the Spitfire's and Hurricane's differential brakes worked; the castoring tailwheel, free sideways and unbraked
+\ the undercarriage's wheels, each [ centre radius share compression grips brake ]: the left and right main wheels, each carrying half of what the tailwheel does not, gripping sideways, each braked by the brakes' lever as the rudder bar shares the braking out, the right one more as the bar goes right, as the Spitfire's and Hurricane's differential brakes worked; the castoring tailwheel, unbraked, held sideways only by the friction in its pivot
 : wheels ( plane -- wheels )
 	| plane |
 	plane@type to type
@@ -395,7 +441,7 @@ variable cloud-air
 	  [ [ out up along ] type@wheel-radius main-share main-leg-compression true 1 pedal + 0 1 clamp ]
 	  [ type@tail-wheel type@tail-wheel-radius tail-share tail-leg-compression false 0 ] ] ;
 
-\ the wheels' forces on the aircraft and their moments about its centre of gravity, [ roll pitch yaw ] as the air's, and how many wheels touch: each wheel pressed into the surface beneath it a spring stiff enough to compress its leg by the leg's figure under its share of the weight, and a damper of the leg's share of the critical damping; along the wheel's rolling, against its motion over the surface, the rolling friction and the braking; across, the tyre's grip, a main wheel's only, growing with the slip angle, the wheel's sideways speed over its rolling speed; each force's moment its arm from the centre of gravity crossed with it
+\ the wheels' forces on the aircraft and their moments about its centre of gravity, [ roll pitch yaw ] as the air's, and how many wheels touch: each wheel pressed into the surface beneath it a spring stiff enough to compress its leg by the leg's figure under its share of the weight, and a damper of the leg's share of the critical damping; along the wheel's rolling, against its motion over the surface, the rolling friction and the braking; across, a main tyre's grip or the tailwheel's castor friction, growing with the slip angle, the wheel's sideways speed over its rolling speed; each force's moment its arm from the centre of gravity crossed with it; and each tyre's scrub against the aircraft's turning about the vertical; the greatest pull sideways on a main leg, as a share of its strength inboard or outboard, kept as :side-load
 : wheel-forces ( plane -- force moments touching )
 	| plane |
 	plane@attitude to attitude
@@ -405,10 +451,12 @@ variable cloud-air
 	plane surface-velocity to carried
 	[ attitude@forward first 0 attitude@forward 2 @i ] to ahead
 	ahead v-length 0.01 < if [ 0 0 1 ] else ahead v-unit then to ahead
+	plane@velocity carried v- ahead v-dot abs to rolling-speed
 	[ ahead 2 @i 0 ahead first negate ] to beside
 	[ 0 0 0 ] to force
 	[ 0 0 0 ] to torque
 	0 to touching
+	0 to side-load
 	plane wheels to all-wheels
 	0 all-wheels size 1 do k
 		all-wheels k @i spread to brake to grips to compression to share to radius to place
@@ -423,13 +471,19 @@ variable cloud-air
 			rolling-friction braking-friction controls@brakes if brake else 0 then * + to friction
 			friction normal * point-velocity ahead v-dot 0.5 / -1 1 clamp * negate to drag
 			point-velocity beside v-dot point-velocity ahead v-dot abs 1 max2 / to slip-angle
-			grips if tyre-grip normal * slip-angle full-grip-slip / -1 1 clamp * negate else 0 then to side-force
+			grips if tyre-grip else castor-friction then normal * slip-angle full-grip-slip / -1 1 clamp * negate to side-force
+			beside attitude@right v-dot side-force * place first * 0 < if inboard-strength else outboard-strength then weight * to strength
+			rolling-speed side-load-speed > if side-force abs strength / side-load max2 to side-load then
 			[ 0 normal 0 ] ahead drag v* v+ beside side-force v* v+ to push
 			force push v+ to force
 			torque arm push v-cross v+ to torque
+			grips if main-patch-radius else tail-patch-radius then to patch
+			tyre-grip normal * patch * 2 3 / * 1 rolling-speed scrub-rolling-speed / + / to scrub
+			torque attitude@up scrub yaw-rate full-scrub-rate / -1 1 clamp * negate v* v+ to torque
 			touching 1+ to touching
 		then
 	loop
+	plane side-load :side-load ! drop
 	force
 	[ torque attitude@forward v-dot negate torque attitude@right v-dot negate torque attitude@up v-dot ]
 	touching ;
@@ -469,7 +523,7 @@ variable cloud-air
 	  :cut-out-stopped false
 	  :propeller :constant-speed
 	  :fine true
-	  :revolution-setting rated-revolutions
+	  :revolution-setting type@rated-revolutions
 	  :boost-cut-out false
 	  :emergency-allowed true
 	  :emergency-time 0
@@ -523,7 +577,7 @@ variable cloud-air
 : lift-coefficient ( angle flap-setting type -- coefficient )
 	| angle flap-setting type |
 	type@stall-angle to stall
-	flap-lift flap-setting * to flap-boost
+	type@flap-lift flap-setting * to flap-boost
 	angle abs stall <= if
 		type@lift-slope angle * type@zero-lift-coefficient + flap-boost + exit
 	then
@@ -531,12 +585,14 @@ variable cloud-air
 	type@lift-slope stall * type@zero-lift-coefficient + flap-boost + to peak
 	peak angle abs stall - type@post-stall-slope * - 0.5 max2 sign * ;
 
-\ the pilot's hands and feet: the stick and rudder bar moved toward where he asks, at most control-speed of their travel a second; each surface deflected as far as he moves it or as far as his greatest force against the air holds it, [ ailerons elevator rudder ] as shares of their travel
+\ the pilot's hands and feet: the stick and rudder bar moved toward where he asks, at most control-speed of their travel a second; each surface deflected as far as he moves it or as far as his greatest force against the air holds it, [ ailerons elevator rudder ] as shares of their travel; the rudder bar, his feet relaxed, going where the rudder's tab trims it, and his force reckoned from there, the rudder never past its stops
 : move-controls ( plane dt -- )
 	| plane dt |
 	plane@type to type
 	plane@position second air-density 0.5 * plane air-velocity v-length sq * 1 max2 to pressure
-	[ controls@roll controls@pitch controls@yaw ] plane@stick v- to error
+	plane@rudder-trim type@trim-range * to trimmed
+	controls@yaw 0 = if trimmed else controls@yaw then to pedal
+	[ controls@roll controls@pitch pedal ] plane@stick v- to error
 	control-speed dt * to reach
 	plane@stick [ error first reach negate reach clamp error second reach negate reach clamp error 2 @i reach negate reach clamp ] v+ to stick
 	stick plane!stick
@@ -545,9 +601,9 @@ variable cloud-air
 	rudder-force type@rudder-stiffness pressure * / 1 min2 to rudder-reach
 	[ stick first aileron-reach negate aileron-reach clamp
 	  stick second elevator-reach negate elevator-reach clamp
-	  stick 2 @i rudder-reach negate rudder-reach clamp ] plane!deflections ;
+	  stick 2 @i trimmed rudder-reach - trimmed rudder-reach + clamp -1 1 clamp ] plane!deflections ;
 
-\ the forces on the aircraft, ground frame, newtons, and the moments about its centre of gravity, [ roll pitch yaw ] newton-metres rolling right, pitching up and yawing right. Each half of the wing, left then right, meets the air at the angle of attack raised by the roll on the half going down and by the sideslip through the dihedral on the half it meets, at the speed changed by the yaw, its lift less the aileron's on the right as the stick goes right, the ailerons weakened toward the reversal's dynamic pressure; the halves' lift and drag act at the half ellipse's centroid. The pitching moment: the type's offset, the wing's lift about the centre of gravity, the tail's restoring slope, the pitch damping, the elevator with the trim tab's share, the flaps, and past the stall angle the type's pitch-down. The yawing moment: the halves' drag, the fin's stability against the sideslip and damping of the yaw, the rudder with the rudder bias's share, the slipstream's swirl on the fin. The propeller's torque and the swirl on the wing roots roll it; its gyroscopic moment couples pitch and yaw. Its thrust's centre moves off the hub where the air meets the disc at an angle, the blade turning into the air's cross-flow seeing it faster: by the cross-flow's speed over the propeller's turning speed, clockwise from the cross-flow's direction seen from behind, so the nose-up airflow moves it right and yaws the nose left and a sideslip from the left moves it down and pitches the nose up (only the faster air reckoned; the blades' changed angle of attack, which their pitch and section would give, would add to it)
+\ the forces on the aircraft, ground frame, newtons, and the moments about its centre of gravity, [ roll pitch yaw ] newton-metres rolling right, pitching up and yawing right. Each half of the wing, left then right, meets the air at the angle of attack raised by the roll on the half going down and by the sideslip through the dihedral on the half it meets, at the speed changed by the yaw, its lift less the aileron's on the right as the stick goes right, the ailerons weakened toward the reversal's dynamic pressure; the halves' lift and drag act at the half ellipse's centroid. The pitching moment: the type's offset, the wing's lift about the centre of gravity, the tail's restoring slope, the pitch damping, the elevator with the trim tab's share, the flaps, and past the stall angle the type's pitch-down. The yawing moment: the halves' drag, the fuselage's and the fin's stability against the sideslip and the fin's damping of the yaw, the rudder, the slipstream's swirl on the fin, the fin's terms at its strips' dynamic pressures. The propeller's torque and the swirl on the wing roots roll it; its gyroscopic moment couples pitch and yaw. Its thrust's centre moves off the hub where the air meets the disc at an angle, the blade turning into the air's cross-flow seeing it faster: by the cross-flow's speed over the propeller's turning speed, clockwise from the cross-flow's direction seen from behind, so the nose-up airflow moves it right and yaws the nose left and a sideslip from the left moves it down and pitches the nose up (only the faster air reckoned; the blades' changed angle of attack, which their pitch and section would give, would add to it)
 : aerodynamics ( plane -- force moments )
 	| plane |
 	plane@type to type
@@ -600,22 +656,20 @@ variable cloud-air
 	type@wing-arm wing-lift * +
 	type@tail-slope angle * -
 	type@pitch-damping pitch-rate chord * 2 speed * / * +
-	type@elevator-power elevator plane@trim trim-range * + * +
+	type@elevator-power elevator plane@trim type@trim-range * + * +
 	type@flap-moment flaps * +
 	type@stall-pitch-down angle type@stall-angle - 0 max2 * + dynamic-pressure area * chord * * to pitch-moment
-	slipstream-share thrust * propeller-disc / to slipstream-pressure
-	plane@revolutions rated-revolutions * propeller-gear * TAU * 60 / 10 max2 to propeller-speed
+	plane@revolutions type@rated-revolutions * type@propeller-gear * TAU * 60 / 10 max2 to propeller-speed
 	power propeller-speed / to torque
-	speed thrust torque density slipstream to wake
-	wake spread to swirl-rate drop to wake-speed
-	wake density chord type@lift-slope type@stall-angle torque swirl-roll to root-roll
-	1 root-roll torque 1 max2 / - to swirl-left
-	swirl-rate swirl-left * fin-swirl-height * wake-speed 1 max2 / type@stall-angle min2 to fin-swirl
+	speed thrust torque density type@propeller-radius sq PI * slipstream to wake
+	wake density chord type@lift-slope type@stall-angle torque type@wing-root-up swirl-roll to root-roll
+	1 root-roll torque 1 max2 / - least-swirl-left max2 to swirl-left
+	plane wake swirl-left speed rising across density fin-forces spread to slip-pressure to fin-pressure to swirl-moment
 	propeller-inertia propeller-speed * to spin
-	type@yaw-stability slip *
-	type@yaw-damping yaw-rate span * 2 speed * / * + dynamic-pressure area * span * *
-	type@rudder-power rudder plane@rudder-trim trim-range * + * dynamic-pressure slipstream-pressure + area * span * * +
-	type@yaw-stability fin-swirl * dynamic-pressure slipstream-pressure + * area * span * -
+	type@fuselage-stability slip * dynamic-pressure * area * span *
+	type@fin-stability slip * type@yaw-damping yaw-rate span * 2 speed * / * + slip-pressure * area * span * +
+	type@rudder-power rudder * fin-pressure * area * span * +
+	swirl-moment +
 	spin pitch-rate * +
 	drags second drags first - arm * + to yaw-moment
 	pitch-moment spin yaw-rate * - to pitch-moment
@@ -646,28 +700,30 @@ variable cloud-air
 	cranking plane@starter-time starter-catch-time >= and if true plane!running exit then
 	plane@on-ground not plane@revolutions restart-revolutions >= and if true plane!running then ;
 
-\ the throttle, the propeller and the power: the throttle sets the manifold's pressure between the closed throttle's and the open's, and the boost cut-out raises the open boost to the emergency's; the supercharger holds the open pressure only up to its ceiling at the height, and the closed pressure falls with it above the full-throttle height. The constant-speed propeller's governor holds the revolutions at their setting, idling below a tenth of the throttle; the two-pitch propeller's revolutions follow the throttle's opening between the closed and the rated boost, and the airspeed, in fine or coarse pitch, no fewer than its idle's. The power, as a share of the rated, is the throttle's opening times the open manifold's pressure over the rated boost's times the revolutions over the rated. Running over the rated revolutions, or on emergency boost past its five minutes, wears the engine. An engine starved of fuel makes no power, as a dead one does, until the cock turns to a tank that has some; nor one not running, which the starter, while cranking, turns slowly
+\ the throttle, the propeller and the power: the throttle sets the manifold's pressure between the closed throttle's and the open's, and the boost cut-out raises the open boost to the emergency's; the supercharger holds the open pressure only up to its ceiling at the height, and the closed pressure falls with it above the full-throttle height. The constant-speed propeller's governor holds the revolutions at their setting, idling below a tenth of the throttle; the two-pitch propeller's revolutions follow the throttle's opening between the closed and the rated boost, and the airspeed, in fine or coarse pitch, no fewer than its idle's. The power, as a share of the rated, is the throttle's opening times the open manifold's pressure over the rated boost's times the revolutions over the rated. Running over the rated revolutions, or on emergency boost past its five minutes, wears the engine; a type whose emergency boost is its rated boost has no cut-out to wear it. An engine starved of fuel makes no power, as a dead one does, until the cock turns to a tank that has some; nor one not running, which the starter, while cranking, turns slowly
 : run-propeller ( plane dt -- )
 	| plane dt |
+	plane@type to type
+	type@rated-boost to rated-boost
 	plane air-velocity v-length to speed
 	plane@position second to height
-	plane@boost-cut-out if emergency-boost else rated-boost then to open-boost
+	plane@boost-cut-out if type@emergency-boost else rated-boost then to open-boost
 	plane dt run-starter
 	plane@engine-dead plane@fuel-starved or plane@running not or to stopped
 	stopped if
 		atmosphere height air-density 1.225 / * to manifold
 		plane@cranking if cranking-revolutions else 0 then to target
 	else
-		height plane@full-throttle-height manifold-ceiling to ceiling
+		height plane@full-throttle-height rated-boost manifold-ceiling to ceiling
 		atmosphere open-boost + ceiling min2 to open-manifold
 		atmosphere idle-boost + ceiling atmosphere rated-boost + / 1 min2 * to closed-manifold
 		open-manifold closed-manifold - plane@throttle * closed-manifold + to manifold
 		plane@propeller :constant-speed = if
-			plane@throttle 0.1 < if 0.2 else plane@revolution-setting rated-revolutions / then to target
+			plane@throttle 0.1 < if 0.2 else plane@revolution-setting type@rated-revolutions / then to target
 		else
 			manifold atmosphere idle-boost + - rated-boost idle-boost - / 0 1 clamp to opening
-			plane@fine if fine-revolutions else coarse-revolutions then speed windmill-speed / 1 + *
-			opening 0.75 * 0.25 + * rated-revolutions / two-pitch-idle max2 to target
+			plane@fine if type@fine-revolutions else type@coarse-revolutions then speed windmill-speed / 1 + *
+			opening 0.75 * 0.25 + * type@rated-revolutions / two-pitch-idle max2 to target
 		then
 	then
 	manifold atmosphere - plane!boost
@@ -677,7 +733,7 @@ variable cloud-air
 	plane@revolutions 1 > if
 		plane@engine-wear plane@revolutions 1 - 0.2 / dt * 60 / + plane!engine-wear
 	then
-	plane@boost-cut-out plane@throttle 0.9 > and if
+	plane@boost-cut-out plane@throttle 0.9 > and type@emergency-boost rated-boost > and if
 		plane@emergency-time dt + plane!emergency-time
 		plane@emergency-time emergency-limit > if plane@engine-wear dt 120 / + plane!engine-wear then
 	then ;
@@ -728,14 +784,19 @@ variable cloud-air
 	plane@type to type
 	plane@angle-of-attack abs type@stall-angle type@buffet-margin - - type@buffet-margin / 0 1 clamp ;
 
-\ the flaps moving toward the selector's position over their travel time; blown back up when the indicated speed passes the blow-back speed
+\ the flaps moving toward their position over their travel time: the selector's, blown back up when the indicated speed passes the blow-back speed; or, where the type's flaps are worked by its slats, as far as the slats open, from closed at the type's slat-opening angle of attack to fully open at its full-opening angle
 : move-flaps ( plane dt -- )
 	| plane dt |
-	plane@flaps plane indicated-speed plane flap-blow-speed > and if
-		false plane!flaps
-		true plane!flaps-blown
+	plane@type to type
+	type@automatic-flaps if
+		plane@angle-of-attack type@slat-open-angle - type@slat-full-angle type@slat-open-angle - / 0 1 clamp to target
+	else
+		plane@flaps plane indicated-speed plane flap-blow-speed > and if
+			false plane!flaps
+			true plane!flaps-blown
+		then
+		plane@flaps if 1 else 0 then to target
 	then
-	plane@flaps if 1 else 0 then to target
 	dt flap-travel-time / to step
 	plane@flap-setting target - abs step <= if
 		target plane!flap-setting
@@ -743,9 +804,14 @@ variable cloud-air
 		plane@flap-setting target plane@flap-setting > if step else step negate then + plane!flap-setting
 	then ;
 
-\ the undercarriage moving toward the selector's position, 1 down and locked, 0 up, over its travel time
+\ the undercarriage moving toward the selector's position, 1 down and locked, 0 up, over its travel time; a fixed undercarriage always down
 : move-undercarriage ( plane dt -- )
 	| plane dt |
+	plane@type@fixed-undercarriage if
+		true plane!gear
+		1 plane!gear-position
+		exit
+	then
 	plane@gear if 1 else 0 then to target
 	dt undercarriage-travel-time / to step
 	plane@gear-position target - abs step <= if
@@ -757,9 +823,12 @@ variable cloud-air
 \ the air's temperature at a height, °C: 15 at sea level, falling 6.5 a kilometre
 : air-temperature ( height -- celsius ) 0.0065 * 15 swap - ;
 
-\ the engine's step: the coolant heated by the power and cooled by the air through the radiator, less as the glycol leaks away; the oil's temperature following it, the oil's pressure with the revolutions, less as the oil warms and leaks; the wear of running hot or short of oil, the engine seizing when it is worn out
+\ the engine's step: the engine's temperature, the coolant's or an air-cooled engine's cylinder heads', heated by the power and cooled by the air, a liquid-cooled engine's through its radiator behind its thermostat and less as the glycol leaks away; the oil's temperature following it by the type's share, the oil's pressure with the revolutions, less as the oil warms and leaks; the wear of running past the type's limit or short of oil, the engine seizing when it is worn out
 : run-engine ( plane dt -- )
 	| plane dt |
+	plane@type to type
+	type@temperature-limit to limit
+	type@temperature-seizing to seizing
 	plane@power to power
 	plane@position second air-temperature to outside
 	plane air-velocity v-length plane@revolutions propeller-wash * + to airflow
@@ -767,26 +836,28 @@ variable cloud-air
 	plane@oil-left plane@oil-leak dt * - 0 max2 plane!oil-left
 	plane@coolant-left to coolant
 	plane@coolant-temperature to temperature
-	temperature 60 - 15 / 0 1 clamp to thermostat
-	engine-heat power * airflow coolant * thermostat * temperature outside - * - coolant-capacity coolant 0.1 max2 * / dt * temperature + to temperature
+	type@air-cooled if 1 else temperature 60 - 15 / 0 1 clamp then to thermostat
+	type@engine-heat power * airflow coolant * thermostat * temperature outside - * - type@cooling-capacity coolant 0.1 max2 * / dt * temperature + to temperature
 	temperature plane!coolant-temperature
-	plane@oil-temperature temperature 0.75 * plane@oil-temperature - dt * oil-lag / + to oil
+	plane@oil-temperature temperature type@oil-share * plane@oil-temperature - dt * oil-lag / + to oil
 	oil plane!oil-temperature
 	plane@engine-dead if 0 else
 		oil-full-pressure plane@revolutions sqrt * oil 70 - 0.3 * - 0 max2 plane@oil-left 3 * 1 min2 *
 	then to pressure
 	pressure plane!oil-pressure
 	plane@engine-dead if exit then
-	temperature coolant-limit > if
-		plane@engine-wear temperature coolant-limit - coolant-boiling coolant-limit - / dt * 60 / + plane!engine-wear
+	temperature limit > if
+		plane@engine-wear temperature limit - seizing limit - / dt * 60 / + plane!engine-wear
 	then
-	temperature coolant-boiling > if plane@engine-wear dt 10 / + plane!engine-wear then
+	temperature seizing > if plane@engine-wear dt 10 / + plane!engine-wear then
 	pressure oil-low-pressure < plane@revolutions 0.1 > and if
 		plane@engine-wear oil-low-pressure pressure - oil-low-pressure / dt * 30 / + plane!engine-wear
 	then
 	plane@engine-wear 1 >= if
 		true plane!engine-dead
-		temperature coolant-limit > if "THE GLYCOL HAS BOILED AND THE ENGINE HAS SEIZED" else "THE OIL PRESSURE HAS GONE AND THE ENGINE HAS SEIZED" then plane!engine-failure
+		temperature limit > if
+			type@air-cooled if "THE CYLINDERS HAVE OVERHEATED AND THE ENGINE HAS SEIZED" else "THE GLYCOL HAS BOILED AND THE ENGINE HAS SEIZED" then
+		else "THE OIL PRESSURE HAS GONE AND THE ENGINE HAS SEIZED" then plane!engine-failure
 	then ;
 
 \ the aircraft's rotation for a step: the moments, less the gyroscopic coupling of its three rotations, turn it through its moments of inertia, the fuel's share of them as the tanks hold it; worked in the right-handed axes along the span, the vertical and the line of flight, where pitching up, rolling right and yawing right are a negative, a negative and a positive turn. The attitude then turns by the rates
@@ -814,7 +885,7 @@ variable cloud-air
 	square-attitude to attitude
 	plane attitude :attitude ! drop ;
 
-\ the aircraft against the surface after a step: a crash if the propeller's lowest blade tip or, with the wheels not locked down, the fuselage's bottom goes below it; on the wheels a crash over the water or on a hillside outside a level place, below the carrier's deck, coming down faster than 4 m/s or banked so a wing tip meets the surface; else on the ground while a wheel touches. The land and water judged by the water's region nearest the aircraft
+\ the aircraft against the surface after a step: a crash if the propeller's lowest blade tip or, with the wheels not locked down, the fuselage's bottom goes below it; on the wheels a crash over the water or on a hillside outside a level place, below the carrier's deck, coming down faster than 4 m/s or banked so a wing tip meets the surface, or a main leg pulled sideways past its strength; else on the ground while a wheel touches. The land and water judged by the water's region nearest the aircraft
 : touch-ground ( plane touching -- )
 	| plane touching |
 	plane@position to position
@@ -822,7 +893,7 @@ variable cloud-air
 	plane over-deck :on-deck ! drop
 	position surface-height to ground
 	over-deck position second ground 2 - < and if plane true :crashed ! "flew into the carrier's side" :crash-reason ! drop exit then
-	plane plane@type@hub body-arm position v+ [ 0 1.64 0 ] v- to blade-tip
+	plane plane@type@hub body-arm position v+ [ 0 plane@type@propeller-radius 0 ] v- to blade-tip
 	blade-tip second blade-tip surface-height < if plane true :crashed ! "the propeller struck the ground" :crash-reason ! drop exit then
 	plane@gear-position 1 < if
 		plane [ 0 plane@type@belly plane centre-of-mass 2 @i ] body-arm position v+ to belly
@@ -838,12 +909,13 @@ variable cloud-air
 	over-deck not position first position 2 @i water-at? and if plane true :crashed ! "ditched in the sea" :crash-reason ! drop exit then
 	over-deck not ground 0 > and position first position 2 @i level-place-at null? and if plane true :crashed ! "flew into the hillside" :crash-reason ! drop exit then
 	arriving sinking -4 < and bank 0.37 > or if plane true :crashed ! "struck the ground" :crash-reason ! drop exit then
+	plane :side-load 0 @or 1 > if plane true :crashed ! "ground-looped: the undercarriage collapsed" :crash-reason ! drop exit then
 	plane true :on-ground ! drop ;
 
 \ a step's fuel, burned in proportion to the power from the tanks the cock selects: the main tanks, or the reserve where the type has one; the engine starved while the selected tanks are dry
 : burn-fuel ( plane dt -- )
 	| plane dt |
-	plane@power full-power-flow * 3600 / dt * to burn
+	plane@power plane@type@full-power-flow * 3600 / dt * to burn
 	plane@reserve-fuel to reserve
 	plane@fuel reserve - to main
 	plane@fuel-cock :reserve = if
@@ -864,7 +936,7 @@ variable cloud-air
 	plane@engine-dead if 0 plane!throttle then
 	plane dt move-air
 	plane dt run-propeller
-	plane@propeller-angle plane@revolutions rated-revolutions * propeller-gear * TAU * 60 / dt * + TAU mod plane!propeller-angle
+	plane@propeller-angle plane@revolutions plane@type@rated-revolutions * plane@type@propeller-gear * TAU * 60 / dt * + TAU mod plane!propeller-angle
 	plane dt move-controls
 	plane aerodynamics to moments to force
 	plane@gear-position 1 >= if plane wheel-forces else [ 0 0 0 ] [ 0 0 0 ] 0 then to touching to wheel-moments to wheel-force

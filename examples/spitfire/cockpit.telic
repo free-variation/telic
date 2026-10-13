@@ -1,4 +1,4 @@
-\ Spitfire: the cockpits, the Spitfire's described here and the Hurricane's
+\ Spitfire: the cockpits, the Spitfire's described here and the Hurricane's and the Lysander's
 \ at the end of the file, each drawn for its type. The Spitfire's is laid
 \ out as a Mk I's. Below the windscreen the
 \ instrument panel stands on the cockpit's green wall. In its middle is the
@@ -284,7 +284,7 @@ panel-top 188 + constant floor-top
 	cx cy medium-radius 10 dial-ticks
 	cx cy medium-radius [ "0" "1" "2" "3" "4" "5" "6" "7" "8" "9" ] face-numerals
 	cx cy medium-radius + 3 + "R.P.M." dial-ink centred-text
-	plane@revolutions 3000 * to rpm
+	plane@revolutions plane@type@rated-revolutions * to rpm
 	cx cy medium-radius rpm 1000 / TAU * 0.85 needle-colour hand
 	cx cy medium-radius rpm 10000 / TAU * 0.5 dial-ink hand ;
 
@@ -345,7 +345,7 @@ panel-top 188 + constant floor-top
 	565 side-row draw-boost
 	470 side-row 54 + draw-oil-pressure
 	512 side-row 53 + plane@oil-temperature "OIL" null draw-temperature
-	562 side-row 53 + plane@coolant-temperature "RAD" coolant-limit draw-temperature
+	562 side-row 53 + plane@coolant-temperature "RAD" plane@type@temperature-limit draw-temperature
 	530 lower-row 21 + draw-fuel ;
 
 \ === the left of the panel ===
@@ -434,7 +434,7 @@ panel-top 188 + constant floor-top
 	20 floor-top 34 + plane@throttle 26 * - 6 needle-colour fill-disc
 	30 floor-top 4 + 4 plane@boost-cut-out if warning-colour else 0x502018 then fill-disc
 	plane@propeller :constant-speed = if
-		plane@revolution-setting lowest-revolutions - rated-revolutions lowest-revolutions - /
+		plane@revolution-setting lowest-revolutions - plane@type@rated-revolutions lowest-revolutions - /
 	else
 		plane@fine if 1 else 0 then
 	then to pitch
@@ -514,10 +514,9 @@ variable sight-span
 	cx 30 - view-height 18 - cx 30 - view-height 1 - colour draw-clipped
 	cx 30 + view-height 18 - cx 30 + view-height 1 - colour draw-clipped ;
 
-\ the reflector sight in the windscreen, centred on the guns' line: the sight's own faint outline; the ring with the centre spot; a cross whose four arms stand outside the ring, each as long as the ring's radius; and inside the ring the horizontal range bars, broken by a gap that the target's wingspan fills at the set range
-: draw-sight ( -- )
-	view-centre-x to cx
-	view-centre-y to cy
+\ the reflector sight in the windscreen, centred at a screen place on the guns' line: the sight's own faint outline; the ring with the centre spot; a cross whose four arms stand outside the ring, each as long as the ring's radius; and inside the ring the horizontal range bars, broken by a gap that the target's wingspan fills at the set range
+: draw-sight ( cx cy -- )
+	| cx cy |
 	focal-length sight-ring-angle * round to radius
 	focal-length sight-span 2 / * sight-range / round to gap
 	cx cy draw-sight-outline
@@ -737,7 +736,7 @@ panel-top 190 + constant board-foot
 	556 panel-top 124 + draw-hurricane-fuel
 	470 panel-top 162 + plane@oil-temperature "OIL" null draw-temperature
 	470 panel-top 162 + small-radius 1 + oil-gauge-colour draw-circle
-	512 panel-top 162 + plane@coolant-temperature "RAD" coolant-limit draw-temperature
+	512 panel-top 162 + plane@coolant-temperature "RAD" plane@type@temperature-limit draw-temperature
 	512 panel-top 162 + small-radius 1 + brass-colour 0.8 dimmed draw-circle ;
 
 \ how long the Hurricane's wheels and flaps lever stays in its slot after it is moved, seconds: the flaps' travel, and an estimate for the wheels
@@ -869,6 +868,69 @@ panel-top 190 + constant board-foot
 	cx 100 lean - - rail-top cx 100 lean - + rail-top colour draw-clipped
 	cx 96 lean - - rail-top 4 + cx 96 lean - + rail-top 4 + colour draw-clipped ;
 
+\ === the Lysander's cockpit ===
+
+\ The Lysander's cockpit, laid out from a photograph of a Lysander's
+\ instrument panel: one black board across the cockpit, the blind-flying
+\ panel's six dials in its middle. To their right the fuel contents' red
+\ strip gauge at the top, the boost gauge in its red rim, the cylinder
+\ temperature's large dial, 100 to 300°C, the Perseus's air-cooled cylinders
+\ taking the place of a radiator, the revolution counter, and the oil's
+\ pressure and temperature along the foot. To their left the clock, the
+\ brakes' pressure, the magneto switches and the starter buttons. Below the
+\ panel the compass, the throttle and the two-pitch propeller's lever, the
+\ tailplane's trim wheel on the left wall, the variable-incidence tailplane
+\ the Lysander trimmed by, the pedals and the column's ring grip. There is
+\ no flaps' lever and no undercarriage's indicator: the slats work the
+\ flaps and the wheels are fixed. The cylinder temperature's red mark is at
+\ the engine model's limit, an estimate.
+
+\ the cylinder heads' temperature, 0 to 300°C, numbered 100, 200 and 300 as the photographed dial is, CYL TEMP on its face, a red mark at the type's limit
+: draw-cylinder-temperature ( cx cy -- )
+	| cx cy |
+	cx cy medium-radius dial-face
+	cx cy medium-radius 6 sweep-ticks
+	cx cy medium-radius 0 300 [ [ 100 "100" ] [ 200 "200" ] [ 300 "300" ] ] sweep-numerals
+	plane@type@temperature-limit 0 300 sweep to angle
+	cx angle sin medium-radius 0.7 * * + cy angle cos medium-radius 0.7 * * -
+	cx angle sin medium-radius * + cy angle cos medium-radius * -
+	warning-colour draw-segment
+	cx cy 6 + "CYL TEMP" dial-ink centred-text
+	cx cy medium-radius plane@coolant-temperature 0 300 sweep 0.85 needle-colour hand ;
+
+\ the Lysander's cockpit below the windscreen
+: draw-lysander-panel ( -- )
+	0 panel-top view-width screen-height panel-top - wall-colour fill-span
+	0 panel-top view-width 4 edge-colour fill-span
+	30 610 board-colour draw-board
+	194 446 blind-panel-colour draw-board
+	236 hurricane-upper-row draw-airspeed
+	320 hurricane-upper-row draw-horizon
+	404 hurricane-upper-row draw-climb
+	236 hurricane-lower-row draw-altimeter
+	320 hurricane-lower-row draw-gyro
+	404 hurricane-lower-row draw-turn-and-slip
+	470 panel-top 36 + 18 40 plane@fuel plane@fuel-capacity / boost-rim-colour "FUEL" draw-strip-gauge
+	512 panel-top 62 + draw-boost
+	570 panel-top 62 + draw-cylinder-temperature
+	512 panel-top 132 + draw-revolutions
+	560 panel-top 126 + 18 36 plane@oil-pressure 120 / oil-gauge-colour "OIL" draw-strip-gauge
+	590 panel-top 162 + plane@oil-temperature "OIL" null draw-temperature
+	80 hurricane-upper-row 10 - draw-clock
+	150 hurricane-upper-row 10 - draw-brakes
+	96 board-foot 4 - draw-magnetos
+	96 board-foot 26 - "MAGS" dial-ink centred-text
+	150 board-foot 13 - draw-starter-buttons
+	150 board-foot 7 - "START" dial-ink centred-text
+	draw-throttle-lever
+	92 floor-top 20 + plane@trim "DN" "UP" "TAIL" draw-wall-wheel
+	282 floor-top 12 + draw-compass
+	draw-pedals
+	draw-hurricane-column ;
+
 \ the cockpit below the windscreen, the type's own
 : draw-panel ( -- )
-	plane@type@kind :hurricane = if draw-hurricane-panel else draw-spitfire-panel then ;
+	plane@type@kind to kind
+	kind :hurricane = if draw-hurricane-panel exit then
+	kind :lysander = if draw-lysander-panel exit then
+	draw-spitfire-panel ;

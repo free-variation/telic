@@ -1,0 +1,74 @@
+\ Spitfire: the coastal patrol, flown in the Lysander as 614 Squadron flew
+\ its patrols of the Forth from Grangemouth from June 1940. The mission
+\ places its sightings, a convoy and a U-boat on the surface, each a group
+\ of ships at sea; the pilot reports one by flying a whole circle round it,
+\ within a mile of its centre and below 2,000 ft, and the patrol is done when
+\ every sighting is reported and the Lysander has landed. The strip below
+\ the panel counts the reports and names the last one, with the home
+\ airfield's bearing and distance.
+
+\ how near a sighting's centre and how low the aircraft must circle to report it: a mile, 2,000 ft
+1609.34 constant report-range
+609.6 constant report-height
+
+\ the mission's sightings as the flight keeps them, each { :name :centre :ships :reported :swept :last-bearing }: the angle swept round the centre so far, degrees, and the bearing from it at the last step, null while out of reach
+: patrol-sightings ( mission -- sightings )
+	| mission |
+	mission :patrol [ ] @or ( sighting |
+		sighting spread to ships to centre to name
+		{ :name name :centre centre :ships ships :reported false :swept 0 :last-bearing null }
+	) map ;
+
+\ the bearing of a point from an origin, degrees from north clockwise
+: bearing-between ( origin point -- degrees )
+	| origin point |
+	point origin v- spread to dz drop to dx
+	dx dz atan2 180 * PI / 360 + 360 mod ;
+
+\ a step of the patrol: each sighting not yet reported, while the aircraft flies within reach of it, sweeps the bearing's change since the last step, the shorter way round; out of reach the sweep starts again; a sweep of a whole circle either way reports it, with the message
+: patrol-step ( -- )
+	:sightings game@ ( sighting |
+		sighting@reported not if
+			plane@position sighting@centre v- spread to dz drop to dx
+			[ dx 0 dz ] v-length report-range < plane@position second report-height < and if
+				sighting@centre plane@position bearing-between to bearing
+				sighting@last-bearing null? not if
+					bearing sighting@last-bearing - 540 + 360 mod 180 - sighting@swept + sighting swap :swept ! drop
+				then
+				sighting bearing :last-bearing ! drop
+				sighting@swept abs 360 >= if
+					sighting true :reported ! drop
+					sighting@name "REPORTED: {0}" format say
+					6 :message-left game!
+				then
+			else
+				sighting 0 :swept ! null :last-bearing ! drop
+			then
+		then
+	) each ;
+
+\ whether every sighting is reported
+: patrol-done? ( -- flag ) :sightings game@ ( sighting | sighting@reported ) all? ;
+
+\ the sightings' ships as crafts for the scene, each at sea level on its heading
+: patrol-crafts ( -- crafts )
+	[ ] to crafts
+	:sightings game@ ( sighting |
+		sighting@ships ( ship |
+			ship spread to heading to place to kind
+			crafts { :kind kind :position place :attitude heading heading-attitude :state :sailing :smoke [ ] } add-last! drop
+		) each
+	) each
+	crafts ;
+
+\ the strip below the panel: the reports made of the sightings, the last one's name, and the home airfield's bearing and distance
+: draw-patrol-panel ( -- )
+	436 to x
+	:sightings game@ to sightings
+	sightings ( sighting | sighting@reported ) filter to reported
+	sightings size reported size "REPORTED {0} OF {1}" format to count-line
+	x floor-top 4 + count-line 0xffe080 draw-text
+	reported size 0 > if x floor-top 17 + reported last :name @ dial-ink draw-text then
+	:base-field game@ landmark-ground plane@position v- spread to dz drop to dx
+	[ dx 0 dz ] v-length 1609.34 / [ dx 0 dz ] heading-of :base-name game@ "{0} {1:03.0f} {2:.1f} MI" format to home-line
+	x floor-top 30 + home-line dial-ink draw-text ;

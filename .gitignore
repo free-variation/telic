@@ -92,3 +92,4 @@ generated
 # python venv for tools/run-acceptance.py (anthropic SDK)
 .venv
 *.save
+screenshots

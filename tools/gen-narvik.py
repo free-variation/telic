@@ -9,14 +9,15 @@ distance and bearing from there, as they place the land round Trondheim:
   terrain     tools/gen-norway-terrain.py's heights from the AWS Terrain Tiles
               (Tilezen's Terrarium PNGs at zoom 10; Norway terrain data
               (c) Kartverket) at the corners of a 400 m grid over the box
-              68.3-69.12 N, 16.9-18.9 E; heights below 0 (the sea) as 0
-  coast       tools/gen-spitfire-map.py's land from OpenStreetMap's coastline
-              in that box, (c) OpenStreetMap contributors under the ODbL,
-              closed along the box's edges, simplified to 40 m, and its shore
-              lines; inland Norway and Sweden east and south of the box as
-              two bands of land
+              68.3-69.4 N, 15.5-18.9 E, and again at 100 m from the tiles at
+              zoom 12 over 6 km each way round Narvik and round Bardufoss;
+              heights below 0 (the sea) as 0
+  coast       tools/gen-spitfire-map.py's shore lines from OpenStreetMap's
+              coastline in that box, (c) OpenStreetMap contributors under the
+              ODbL, simplified to 40 m; the land itself is
+              tools/gen-norway-coarse.py's
   landmarks   Bardufoss Air Station, Bjerkvik, Narvik Church, the Ofotfjord,
-              the Herjangsfjord, Andenes and the wreck of Z19 Hermann Kunne from
+              the Herjangsfjord, Andenes, Skånland and the wreck of Z19 Hermann Kunne from
               Wikidata (CC0), Narvik and Ankenes from OpenStreetMap's place
               points, and the wreck of Z2 Georg Thiele from its wreck node
   Narvik      from OpenStreetMap: the streets of the town's centre, the
@@ -44,27 +45,20 @@ def load(name):
 terrain = load("gen-norway-terrain")
 mapping = load("gen-spitfire-map")
 
-NARVIK_BOX = (68.3, 16.9, 69.12, 18.9)
+NARVIK_BOX = (68.3, 15.5, 69.4, 18.9)
 SPACING = 400.0
 ZOOM = 10
+FINE_REACH = 6000.0
+FINE_SPACING = 100.0
+FINE_ZOOM = 12
 TOWN_BOX = "68.425,17.39,68.445,17.44"
 HARBOUR_BOX = "68.41,17.36,68.45,17.45"
 WIKIDATA_LANDMARKS = [("bardufoss", "Bardufoss Air Station"), ("bjerkvik", "Bjerkvik"), ("narvik-church", "Narvik Church"),
                       ("ofotfjord", "Ofotfjord"), ("herjangsfjord", "Herjangsfjord"),
-                      ("hermann-kunne", "German destroyer Z19 Hermann Künne"), ("andenes", "Andenes")]
+                      ("hermann-kunne", "German destroyer Z19 Hermann Künne"), ("andenes", "Andenes"),
+                      ("skanland", "Skånland Municipality")]
 PLACE_LANDMARKS = [("narvik", "Narvik", "town"), ("ankenes", "Ankenes", "locality")]
 WRECK_LANDMARKS = [("georg-thiele", "Z2 Georg Thiele")]
-
-
-def bands(box):
-    south, west, north, east = box
-    sampled = mapping.sampled
-    east_band = (sampled((east, 67.0), (east, 70.0)) + sampled((east, 70.0), (22.0, 70.0))
-                 + sampled((22.0, 70.0), (22.0, 67.0)) + sampled((22.0, 67.0), (east, 67.0)))
-    south_band = (sampled((west, 67.0), (east, 67.0)) + sampled((east, 67.0), (east, south))
-                  + sampled((east, south), (west, south)) + sampled((west, south), (west, 67.0)))
-    rings = [[mapping.azimuthal(lon, lat) for lon, lat in band] for band in (east_band, south_band)]
-    return [mapping.simplify(ring + ring[:1], 40.0)[:-1] for ring in rings]
 
 
 def grid():
@@ -126,12 +120,36 @@ out tags geom;""".format(town=TOWN_BOX, harbour=HARBOUR_BOX, south=south, west=w
     return streets, piers, railways
 
 
+def fine_grid(centre):
+    west = centre[0] - FINE_REACH
+    south = centre[1] - FINE_REACH
+    count = int(2 * FINE_REACH / FINE_SPACING) + 1
+    points = [terrain.inverse_azimuthal(west + c * FINE_SPACING, south + r * FINE_SPACING) for r in range(count) for c in range(count)]
+    return west, south, count, terrain.heights(FINE_ZOOM, points)
+
+
+def fine_lines(name, place, centre):
+    west, south, count, found = fine_grid(centre)
+    lines = ["\\ the same at {:.0f} m round {}, {:.0f} m each way from [ {:.0f} {:.0f} ], from the tiles at zoom {}".format(
+                 FINE_SPACING, place, FINE_REACH, centre[0], centre[1], FINE_ZOOM),
+             "{:.0f} constant {}-fine-west".format(west, name),
+             "{:.0f} constant {}-fine-south".format(south, name),
+             "{:.0f} constant {}-fine-spacing".format(FINE_SPACING, name),
+             "{} constant {}-fine-count".format(count, name),
+             "["]
+    for r in range(count):
+        lines.append("  [ " + " ".join("{:.0f}".format(max(0.0, h)) for h in found[r * count:(r + 1) * count]) + " ]")
+    lines += ["] flatten {0}-fine-count {0}-fine-count matrix constant {0}-fine-heights".format(name), ""]
+    return lines
+
+
 def main():
     x_low, z_low, columns, rows, found = grid()
-    land, shores = mapping.coast_land(NARVIK_BOX)
+    _, shores = mapping.coast_land(NARVIK_BOX)
     titled = mapping.titled_points([title for _, title in WIKIDATA_LANDMARKS])
     placed = places()
     placed.update(wrecks())
+    bardufoss = mapping.azimuthal(*titled["Bardufoss Air Station"][:2])
     streets, piers, railways = town()
     polyline_text = mapping.polyline_text
     lines = [
@@ -140,7 +158,8 @@ def main():
         "\\ ((c) OpenStreetMap contributors, under the ODbL) and Wikidata (CC0); do not edit,",
         "\\ re-run the script. Points by the azimuthal equidistant projection from 56 N 3.6 W.",
         "",
-        "\\ the ground's heights in metres over 68.3-69.12 N, 16.9-18.9 E, row by row from the",
+        "\\ the ground's heights in metres over {}-{} N, {}-{} E, row by row from the".format(
+            NARVIK_BOX[0], NARVIK_BOX[2], NARVIK_BOX[1], NARVIK_BOX[3]),
         "\\ south, each row west to east and an array of its own, so no literal outgrows the stack,",
         "\\ its corners every {:.0f} m from the south-west corner; the sea 0".format(SPACING),
         "{:.0f} constant narvik-terrain-west".format(x_low),
@@ -152,16 +171,10 @@ def main():
     ]
     for r in range(rows):
         lines.append("  [ " + " ".join("{:.0f}".format(max(0.0, h)) for h in found[r * columns:(r + 1) * columns]) + " ]")
-    lines += ["] flatten narvik-terrain-rows narvik-terrain-columns matrix constant narvik-terrain-heights", "",
-              "\\ the land within the box from OpenStreetMap's coastline, closed outlines",
-              "["]
-    lines += ["  " + polyline_text(ring) for ring in land]
-    lines += ["] to narvik-outlines",
-              "\\ inland Norway and Sweden east and south of the box, as two bands of land",
-              "["]
-    lines += ["  " + polyline_text(ring) for ring in bands(NARVIK_BOX)]
-    lines += ["] to narvik-bands",
-              "\\ the same coast's shore lines for drawing, pieces over 500 m, without the box's edges",
+    lines += ["] flatten narvik-terrain-rows narvik-terrain-columns matrix constant narvik-terrain-heights", ""]
+    lines += fine_lines("narvik", "Narvik", placed["narvik"])
+    lines += fine_lines("bardufoss", "Bardufoss", bardufoss)
+    lines += ["\\ the shore lines within the box from OpenStreetMap's coastline, pieces over 500 m, without the box's edges",
               "["]
     lines += ["  " + polyline_text(line) for line in shores]
     lines += ["] to narvik-shores", "",
@@ -188,7 +201,7 @@ def main():
     lines += ["] to narvik-railways", ""]
     with open(OUT, "w") as out:
         out.write("\n".join(lines))
-    print("wrote", OUT, rows, "rows", columns, "columns", "land", len(land), "shores", len(shores),
+    print("wrote", OUT, rows, "rows", columns, "columns", "shores", len(shores),
           "streets", len(streets), "piers", len(piers), "railways", len(railways), "landmarks", len(titled) + len(placed))
 
 
