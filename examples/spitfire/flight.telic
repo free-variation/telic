@@ -591,16 +591,35 @@ variable cloud-air
 	type@lift-slope stall * type@zero-lift-coefficient + flap-boost + to peak
 	peak angle abs stall - type@post-stall-slope * - 0.5 max2 sign * ;
 
-\ the pilot's hands and feet: the stick and rudder bar moved toward where he asks, at most control-speed of their travel a second; each surface deflected as far as he moves it or as far as his greatest force against the air holds it, [ ailerons elevator rudder ] as shares of their travel; the rudder bar, his feet relaxed, going where the rudder's tab trims it, and his force reckoned from there, the rudder never past its stops
+\ a control let go: the air's push on its surface, the type's stiffness times the dynamic pressure times the control's distance from where the surface floats, which the trim sets, carries it back against the friction of its cables and hinges, which holds it once that push falls to the breakout; the surface's aerodynamic damping grows with the airspeed as the push does with its square, so the motion is first order, its time constant free-control-time at free-control-speed and shorter in proportion to the airspeed, a released stick home in about a third of a second at 200 mph, slower as the speed falls, and left where it was near rest (estimates: the breakout, lb, and the time constant)
+2 constant control-breakout
+0.1 constant free-control-time
+89.4 constant free-control-speed
+: free-control ( position centre stiffness pressure speed dt -- position' )
+	| position centre stiffness pressure speed dt |
+	position centre - to offset
+	control-breakout stiffness pressure * / to friction-share
+	offset abs friction-share <= if position exit then
+	offset offset 0 > if friction-share else friction-share negate then - to excess
+	free-control-time free-control-speed * speed 1 max2 / to lag
+	1 dt negate lag / exp - to approach
+	position excess approach * - ;
+
+\ the pilot's hands and feet: the stick and rudder bar moved toward where he asks, at most control-speed of their travel a second, or, on an axis the controls mark free (:roll-free, :pitch-free, :yaw-free), let go to the air's push; each surface deflected as far as he moves it or as far as his greatest force against the air holds it, [ ailerons elevator rudder ] as shares of their travel; the rudder bar, his feet relaxed, going where the rudder's tab trims it, and his force reckoned from there, the rudder never past its stops
 : move-controls ( plane dt -- )
 	| plane dt |
 	plane@type to type
-	plane@position second air-density 0.5 * plane air-velocity v-length sq * 1 max2 to pressure
+	plane air-velocity v-length to speed
+	plane@position second air-density 0.5 * speed sq * 1 max2 to pressure
 	plane@rudder-trim type@trim-range * to trimmed
 	controls@yaw 0 = if trimmed else controls@yaw then to pedal
-	[ controls@roll controls@pitch pedal ] plane@stick v- to error
+	plane@stick to before
+	[ controls@roll controls@pitch pedal ] before v- to error
 	control-speed dt * to reach
-	plane@stick [ error first reach negate reach clamp error second reach negate reach clamp error 2 @i reach negate reach clamp ] v+ to stick
+	before [ error first reach negate reach clamp error second reach negate reach clamp error 2 @i reach negate reach clamp ] v+ to chased
+	[ controls :roll-free false @or if before first 0 type@aileron-stiffness pressure speed dt free-control else chased first then
+	  controls :pitch-free false @or if before second 0 type@elevator-stiffness pressure speed dt free-control else chased second then
+	  controls :yaw-free false @or if before 2 @i trimmed type@rudder-stiffness pressure speed dt free-control else chased 2 @i then ] to stick
 	stick plane!stick
 	aileron-force type@aileron-stiffness pressure * / 1 min2 to aileron-reach
 	elevator-force type@elevator-stiffness pressure * / 1 min2 to elevator-reach

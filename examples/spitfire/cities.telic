@@ -92,20 +92,6 @@
 		loop
 	) each ;
 
-\ a street's line begun where it first passes a distance from a point, for a street that starts inside a landmark's grounds
-: line-beyond ( line point distance -- line' )
-	| line point distance |
-	line first to start
-	line second to finish
-	0 101 1 do k
-		start finish k 100 / v-between to probe
-		probe point v- spread to dz to dx
-		dx sq dz sq + sqrt distance >= if
-			[ probe ] line 1 skip concat exit
-		then
-	loop
-	line 1 skip ;
-
 \ a square's gravel paths' colour (an estimate)
 0xc8c0a0 constant path-colour
 
@@ -136,8 +122,14 @@
 \ the rock's top above the town, metres
 78 constant castle-rock
 
-\ the castle rock: its top, a ledge 40% of the way up and close in under the top, so the crags above it stand nearly sheer over the slope to the foot; the curtain wall round the top
-: build-castle-rock ( -- )
+\ the castle rock's colours: the crags' dark basalt, the slopes under them grass and trees, the top's yard and buildings' grey (estimates)
+0x6a645c constant basalt-colour
+0x4f6e3a constant crag-slope-colour
+0x8a8476 constant castle-yard-colour
+
+\ the castle rock, a volcanic plug: its top, the crags' foot close in under the top and from 15% to 45% of the way up by a hash, so the crags stand sheer and uneven above the slope to the foot; east of the top the tail meets it (build-tail); the curtain wall round the top; all in the castle's sketch
+: build-castle-rock ( sketch -- )
+	rock |
 	[ [ -95 25 ] [ -80 -15 ] [ -45 -38 ] [ 10 -35 ] [ 60 -30 ] [ 100 -15 ] [ 125 0 ]
 	  [ 125 35 ] [ 95 62 ] [ 40 85 ] [ -20 84 ] [ -70 70 ] [ -95 48 ] ] to top
 	[ [ -175 30 ] [ -155 -55 ] [ -85 -115 ] [ 10 -115 ] [ 85 -105 ] [ 150 -60 ] [ 190 -15 ]
@@ -146,11 +138,10 @@
 	[ 0 n-points 1 do k
 		top k @i to upper
 		foot k @i to lower
-		[ upper first 0.88 * lower first 0.12 * + upper second 0.88 * lower second 0.12 * + ]
+		[ upper first 0.93 * lower first 0.07 * + upper second 0.93 * lower second 0.07 * + ]
 	loop ] to ledge
-	new-sketch to rock
 	rock top castle-rock outline-at sketch-points to top-indices
-	rock ledge castle-rock 0.4 * outline-at sketch-points to ledge-indices
+	rock [ 0 n-points 1 do k ledge k @i spread k 2.71 * 5 + hash-fraction 0.3 * 0.15 + castle-rock * at loop ] sketch-points to ledge-indices
 	rock foot 0 outline-at sketch-points to foot-indices
 	rock top-indices join-loop
 	rock ledge-indices join-loop
@@ -159,19 +150,16 @@
 	0 n-points 1 do k
 		rock [ top-indices k @i ledge-indices k @i foot-indices k @i ] join-path
 		k 1+ n-points mod to next
-		rock [ top-indices k @i top-indices next @i ledge-indices next @i ledge-indices k @i ] inside sketch-face
-		rock [ ledge-indices k @i ledge-indices next @i foot-indices next @i foot-indices k @i ] inside sketch-face
+		rock [ top-indices k @i top-indices next @i ledge-indices next @i ledge-indices k @i ] inside basalt-colour sketch-painted-face
+		rock [ ledge-indices k @i ledge-indices next @i foot-indices next @i foot-indices k @i ] inside crag-slope-colour sketch-painted-face
 	loop
-	rock top-indices inside sketch-face
-	rock hill-colour keep
-	new-sketch to wall
-	wall top castle-rock outline-at 8 sketch-wall-ring drop drop
-	wall stone-colour keep ;
+	rock top-indices inside castle-yard-colour sketch-painted-face
+	rock top castle-rock outline-at 8 sketch-wall-ring drop drop ;
 
-\ the castle's buildings about Crown Square, the batteries and gates to the east, the barracks to the south-west, the esplanade and Castlehill running down to the Royal Mile
-: build-castle-buildings ( -- )
+\ the castle's buildings about Crown Square, the batteries and gates to the east, the barracks to the south-west, in the castle's sketch
+: build-castle-buildings ( sketch -- )
+	castle |
 	site-heading to heading
-	new-sketch to castle
 	castle 0 0 castle-rock at heading 6 11 5 8 sketch-house
 	castle 19 25 castle-rock at heading 14 40 13 19 sketch-house
 	castle 19 14 castle-rock at heading 10 10 16 sketch-box
@@ -191,35 +179,159 @@
 	castle battery castle-rock 22 - outline-at 28 sketch-prism
 	castle 95 18 castle-rock 10 - at heading 12 10 22 sketch-box
 	castle 130 18 castle-rock 6 - at heading 22 10 14 sketch-box
-	[ -9 9 ] ( side | castle 130 18 side + castle-rock 6 - at heading 4 4 18 sketch-box ) each
-	castle [ [ 135 -5 ] [ 230 -5 ] [ 230 45 ] [ 135 45 ] ] castle-rock 4 - outline-at sketch-loop
-	castle [ 230 -5 castle-rock 12 - at 420 0 0 at ] sketch-path
-	castle [ 230 45 castle-rock 12 - at 420 40 0 at ] sketch-path
-	castle stone-colour keep ;
+	[ -9 9 ] ( side | castle 130 18 side + castle-rock 6 - at heading 4 4 18 sketch-box ) each ;
 
-: build-castle ( -- )
+\ the castle's sketch: the rock, its wall and the buildings on it, one object with the tail's esplanade (build-tail), since the scenery is drawn far to near an object at a time and these stand on one another, so drawn as separate objects their order would turn on which centre lay nearer the eye, and the rock's top would cover the buildings on it from one frame to the next
+: build-castle ( -- sketch )
 	:st-margarets-chapel landmark-ground :edinburgh-castle :holyrood landmark-heading site!
-	build-castle-rock
-	build-castle-buildings ;
+	new-sketch to castle
+	castle build-castle-rock
+	castle build-castle-buildings
+	castle ;
+
+\ === the castle rock's tail and the Royal Mile ===
+
+\ the tail's height at the castle's gate, metres above the town, the esplanade's level; from there the Royal Mile runs down the tail's crest to Holyrood, falling evenly, as its heights above the sea fall from about 115 m at the esplanade to about 45 m at the palace (estimates)
+castle-rock 6 - constant tail-top
+
+\ the tail's cross-section: the crest's half-width, the road's half-width down its middle, the esplanade's length from the gate, and the flanks' fall, metres out for each metre down, to the town either side (estimates: the High Street about 16 m between its fronts, the lands about 20 m deep, the flanks to the Cowgate and the Waverley valley about 1 in 1.5)
+35 constant tail-crest
+8 constant tail-road
+110 constant esplanade-length
+1.5 constant tail-flank
+
+\ the old town's colours: its massed closes on the tail's flanks, the High Street's setts, and the lands' darkened stone (estimates)
+0x7a7064 constant old-town-colour
+0x6c665e constant setts-colour
+[ 0x8c8478 0x7e776c 0x9a8f7e ] constant land-colours
+
+\ the distance between two ground points, each [ x z ]
+: plan-distance ( a b -- metres ) | a b | a first b first - sq a second b second - sq + sqrt ;
+
+\ the tail's spine as [ x z ] points: the castle's gate, the Royal Mile's line from OpenStreetMap, Holyrood
+: tail-spine ( -- points )
+	:st-margarets-chapel landmark-ground :edinburgh-castle :holyrood landmark-heading site!
+	130 20 0 at to gate
+	:holyrood landmark-ground to palace
+	[ [ gate first gate 2 @i ] ] edinburgh-streets@royal-mile concat [ [ palace first palace 2 @i ] ] concat ;
+
+\ the tail's stations along its spine, no more than 50 m apart, each [ x z height distance ]: the height falling evenly from the tail's top at the gate to the town's at Holyrood
+variable castle-tail-stations
+
+: find-castle-tail-stations ( -- )
+	| ^castle-tail-stations |
+	tail-spine to spine
+	0 to total
+	0 spine size 1- 1 do k
+		spine k @i spine k 1+ @i plan-distance total + to total
+	loop
+	[ ] to stations
+	0 to travelled
+	0 spine size 1- 1 do k
+		spine k @i to start
+		spine k 1+ @i to finish
+		start finish plan-distance to stretch
+		stretch 50 / round-up 1 max2 to n-pieces
+		0 n-pieces 1 do p
+			p n-pieces / to share
+			travelled stretch share * + to along
+			stations [ start first finish first start first - share * + start second finish second start second - share * + tail-top 1 along total / - * along ] add-last! drop
+		loop
+		travelled stretch + to travelled
+	loop
+	stations [ spine last first spine last second 0 total ] add-last! to castle-tail-stations ;
+
+\ the tail's surface over a ground point: the nearest station's height on its crest, falling down its flanks to the town's ground beyond
+: tail-height ( x z -- height )
+	| x z |
+	castle-tail-stations ( station | station first x - sq station second z - sq + ) map vector to squares
+	squares argmin to nearest
+	squares nearest @e sqrt tail-crest - 0 max2 tail-flank / to fall
+	castle-tail-stations nearest @i 2 @i fall - 0 max2 ;
+
+\ a landmark's point on the tail's crest
+: on-tail ( key -- point )
+	| key |
+	key landmark-ground to point
+	[ point first point first point 2 @i tail-height point 2 @i ] ;
+
+\ a station's heading, along the spine to the next station, or from the one before at the end
+: station-heading ( index -- degrees )
+	| index |
+	index castle-tail-stations size 1- = if index 1- else index then to from
+	castle-tail-stations from 1+ @i to onto
+	castle-tail-stations from @i to start
+	[ onto first start first - 0 onto second start second - ] heading-of ;
+
+\ a cross-section of the tail at a station, its six points in a sketch: the flanks' feet on the town's ground, the crest's edges and the road's at the station's height
+: tail-section ( sketch index -- indices )
+	| sketch index |
+	castle-tail-stations index @i to station
+	[ station first 0 station second ] to centre
+	station 2 @i to height
+	index station-heading to heading
+	tail-crest 20 + height tail-flank * + to reach
+	[ reach negate tail-crest negate tail-road negate tail-road tail-crest reach ] to acrosses
+	[ 0 height height height height 0 ] to ups
+	sketch [ 0 6 1 do s centre heading acrosses s @i ups s @i 0 placed loop ] sketch-points ;
+
+\ the tail, a stretch between each two stations its own object, so the scenery's far-to-near order sets it among the buildings beside it, but the esplanade's stretches part of the castle's object, which the castle's sketch is kept as at the end: the stretch's flanks and the crest's strips in the old town's colour and the road in setts, the esplanade's crest in gravel; below the esplanade a land either side of the road, the stretch less a close's gap long, 20 m deep and 22 to 32 m high by a hash, in its stone's colour, none where St Giles', the Hub or the Tron Kirk stands
+: build-tail ( castle -- )
+	| castle |
+	find-castle-tail-stations
+	[ :st-giles :the-hub :tron-kirk ] ( key | key landmark-ground ) map to churches
+	0 castle-tail-stations size 1- 1 do k
+		castle-tail-stations k @i to station
+		castle-tail-stations k 1+ @i to onward
+		station 3 @i esplanade-length < to esplanade
+		esplanade if castle else new-sketch then to stretch
+		stretch k tail-section to these
+		stretch k 1+ tail-section to next-section
+		[ station first onward first + 2 / station 2 @i onward 2 @i + 4 / station second onward second + 2 / ] to inside
+		0 5 1 do s
+			s 0 = s 4 = or if old-town-colour else esplanade if path-colour else s 2 = if setts-colour else old-town-colour then then then to colour
+			stretch [ these s @i these s 1+ @i next-section s 1+ @i next-section s @i ] inside colour sketch-painted-face
+		loop
+		esplanade not k castle-tail-stations size 2 - < and if
+			[ station first onward first + 2 / 0 station second onward second + 2 / ] to middle
+			station onward plan-distance 4 - to length
+			station 2 @i onward 2 @i + 2 / to height
+			k station-heading to heading
+			-1 2 2 do side
+				middle heading side tail-road 10 + * 0 0 placed to land-site
+				churches ( church | church first land-site first - sq church 2 @i land-site 2 @i - sq + sqrt 40 < ) any? not if
+					k 1.37 * side 0.61 * + hash-fraction to pick
+					land-colours pick 3 * round-down @i to stone
+					stretch land-site [ 0 height 1 - 0 ] v+ heading 20 length 23 pick 10 * + stone sketch-painted-box
+				then
+			loop
+		then
+		esplanade not if stretch old-town-colour keep then
+	loop
+	castle stone-colour keep ;
 
 \ === the Old Town ===
 
-\ the Royal Mile's tenements, St Giles' with its crown spire, the Hub's spire, the Tron Kirk
+\ St Giles' with its crown spire, the Hub's spire, the Tron Kirk, each on the tail's crest and each its own object, so each takes its place in the far-to-near order beside the tail's stretch it stands on
 : build-old-town ( -- royal-mile )
 	:edinburgh-castle :holyrood landmark-heading to royal-mile
-	new-sketch to churches
-	:st-giles landmark-ground royal-mile site!
-	churches 0 0 0 at royal-mile 38 60 16 22 sketch-house
-	churches 5 0 0 at royal-mile 9 9 30 sketch-box
-	churches 5 0 0 at 9 30 38 44 sketch-crown
-	:the-hub landmark-ground royal-mile site!
-	churches 10 0 0 at royal-mile 18 30 14 20 sketch-house
-	churches -10 0 0 at royal-mile 9 9 34 sketch-box
-	churches -10 0 0 at 9 34 73 6 sketch-pinnacled-spire
-	:tron-kirk landmark-ground royal-mile site!
-	churches 0 0 0 at royal-mile 20 24 12 18 sketch-house
-	churches -14 0 0 at 6 30 22 sketch-spire
-	churches stone-colour keep
+	new-sketch to giles
+	:st-giles on-tail royal-mile site!
+	giles 0 0 0 at royal-mile 38 60 16 22 sketch-house
+	giles 5 0 0 at royal-mile 9 9 30 sketch-box
+	giles 5 0 0 at 9 30 38 44 sketch-crown
+	giles stone-colour keep
+	new-sketch to hub
+	:the-hub on-tail royal-mile site!
+	hub 10 0 0 at royal-mile 18 30 14 20 sketch-house
+	hub -10 0 0 at royal-mile 9 9 34 sketch-box
+	hub -10 0 0 at 9 34 73 6 sketch-pinnacled-spire
+	hub stone-colour keep
+	new-sketch to tron
+	:tron-kirk on-tail royal-mile site!
+	tron 0 0 0 at royal-mile 20 24 12 18 sketch-house
+	tron -14 0 0 at 6 30 22 sketch-spire
+	tron stone-colour keep
 	royal-mile ;
 
 \ === the New Town and Calton Hill ===
@@ -237,16 +349,15 @@
 	scott 0 0 0 at 5 55 61 0 sketch-pinnacled-spire
 	scott stone-colour keep ;
 
-\ Edinburgh's main streets lined with tenements: the Royal Mile's tall lands, 26 m (an estimate), begun past the castle's esplanade; Princes Street and Queen Street on their north sides only, facing their gardens; George Street, South Bridge, Leith Walk and Lothian Road; St Andrew and Charlotte Squares; Waverley's and Haymarket's train sheds, an estimated 12 and 10 m high; the main-line railways through Princes Street Gardens
+\ Edinburgh's main streets lined with tenements, the Royal Mile's lands standing on the tail (build-tail): Princes Street and Queen Street on their north sides only, facing their gardens; George Street, South Bridge, Leith Walk and Lothian Road; St Andrew and Charlotte Squares; Waverley's and Haymarket's train sheds, an estimated 12 and 10 m high; the main-line railways through Princes Street Gardens
 : build-edinburgh-streets ( -- )
-	edinburgh-streets@royal-mile :st-margarets-chapel landmark-ground to chapel [ chapel first chapel 2 @i ] 420 line-beyond to royal-mile-line
-	edinburgh-streets { :royal-mile royal-mile-line } merge to streets
-	{ :royal-mile [ 26 [ -1 1 ] ] :princes-street [ 16 :north ] :queen-street [ 16 :north ]
+	edinburgh-streets copy :royal-mile delete-at to streets
+	{ :princes-street [ 16 :north ] :queen-street [ 16 :north ]
 	  :george-street [ 18 [ -1 1 ] ] :south-bridge [ 22 [ -1 1 ] ] :leith-walk [ 16 [ -1 1 ] ]
 	  :lothian-road [ 18 [ -1 1 ] ] } to styles
 	streets styles edinburgh-squares edinburgh-stations { :edinburgh-waverley 12 :haymarket 10 } edinburgh-railways keep-city ;
 
-\ the Balmoral Hotel's clock tower and the North Bridge over Waverley
+\ the Balmoral Hotel's clock tower and the North Bridge over Waverley, its deck 22 m up at each end, or on the tail where that stands higher, sloping between
 : build-new-town ( royal-mile -- )
 	| royal-mile |
 	new-sketch to centre
@@ -255,8 +366,9 @@
 	centre -20 -15 0 at royal-mile 10 10 42 sketch-box
 	centre -20 -15 0 at 10 42 52 4 sketch-pinnacled-spire
 	:north-bridge landmark-ground royal-mile 90 + site!
-	[ -8 8 ] ( across | centre [ -150 across 22 at 150 across 22 at ] sketch-path ) each
-	[ -75 0 75 ] ( along | centre along 0 0 at royal-mile 90 + 16 8 22 sketch-box ) each
+	[ -150 150 ] ( along | along 0 0 at to end end first end 2 @i tail-height 22 max2 ) map spread to deck-ahead to deck-behind
+	[ -8 8 ] ( across | centre [ -150 across deck-behind at 150 across deck-ahead at ] sketch-path ) each
+	[ -75 0 75 ] ( along | centre along 0 0 at royal-mile 90 + 16 8 along 150 + 300 / deck-ahead deck-behind - * deck-behind + sketch-box ) each
 	centre stone-colour keep ;
 
 \ St Mary's Cathedral's three spires, the tallest over the crossing; Fettes College's tower
@@ -314,6 +426,7 @@
 
 : build-edinburgh ( -- )
 	build-castle
+	build-tail
 	build-edinburgh-streets
 	build-old-town to royal-mile
 	royal-mile build-scott-monument

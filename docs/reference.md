@@ -6251,9 +6251,9 @@ Gamepads (read through Apple's GameController framework on macOS, which
 knows each pad's layout, and evdev on Linux) are numbered from 0 in the
 order the system lists them, at most 4. Buttons
 are named by position on an Xbox-style pad: `:south` `:east` `:west` `:north`
-(A B X Y on an Xbox pad) `:back` `:guide` `:start` `:left-stick`
+(A B X Y on an Xbox pad) `:back` `:guide` `:start` `:share` (the share or capture button) `:left-stick`
 `:right-stick` `:left-shoulder` `:right-shoulder` `:dpad-left` `:dpad-right`
-`:dpad-up` `:dpad-down` `:left-trigger` `:right-trigger`; axes are `:left-x`
+`:dpad-up` `:dpad-down` `:left-trigger` `:right-trigger`, and, on macOS where the pad has them, the extra pair of shoulder buttons `:left-bumper` `:right-bumper` and the back paddles `:left-paddle` `:right-paddle`; axes are `:left-x`
 `:left-y` `:right-x` `:right-y`, a stick in [-1, 1] with x negative pushed
 left and y negative pushed up, and `:left-trigger` `:right-trigger` in [0, 1]. The gamepad state is read
 once per update of the event loop and fixed with the key state when the

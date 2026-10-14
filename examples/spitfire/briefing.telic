@@ -56,7 +56,7 @@ briefing-sheet to sheet
 	  [ :acklington "ACKLINGTON" ] [ :wick "WICK" ] [ :vaernes "VAERNES" ]
 	  [ :edinburgh-castle "EDINBURGH" ] [ :glasgow-cathedral "GLASGOW" ] [ :greenock "GREENOCK" ]
 	  [ :clydebank "CLYDEBANK" ] [ :tynemouth "TYNEMOUTH" ] [ :nidaros "TRONDHEIM" ]
-	  [ :forth-bridge "FORTH BRIDGE" ] [ :farne-islands "FARNE ISLANDS" ] [ :inverness-castle "INVERNESS" ]
+	  [ :forth-bridge "FORTH BRIDGE" ] [ :inchkeith "INCHKEITH" ] [ :bass-rock "BASS ROCK" ] [ :farne-islands "FARNE ISLANDS" ] [ :inverness-castle "INVERNESS" ]
 	  [ :narvik "NARVIK" ] [ :bardufoss "BARDUFOSS" ] [ :bjerkvik "BJERKVIK" ] [ :ankenes "ANKENES" ]
 	  [ :marischal-college "ABERDEEN" ] [ :dyce "DYCE" ] [ :peterhead "PETERHEAD" ] [ :montrose "MONTROSE" ]
 	  [ :montrose-air-station "RAF MONTROSE" ] [ :castletown "CASTLETOWN" ] [ :kirkwall "KIRKWALL" ]
@@ -384,7 +384,7 @@ variable placed-labels
 	sheet-left sheet-top sheet-width 28 chart-label-colour fill-span
 	sheet-left sheet-top 28 + sheet-left sheet-width + sheet-top 28 + chart-ink draw-segment
 	sheet-left 8 + sheet-top 8 + mission@name chart-ink draw-text
-	sheet-left sheet-width + 8 - "RELEASE N TO LOOK UP" text-width - sheet-top 8 + "RELEASE N TO LOOK UP" chart-ink draw-text ;
+	sheet-left sheet-width + 8 - "RELEASE N OR THE PADDLE TO LOOK UP" text-width - sheet-top 8 + "RELEASE N OR THE PADDLE TO LOOK UP" chart-ink draw-text ;
 
 \ whether a mission may be flown in either fighter: every armed mission that does not fix its aircraft, but the flying lesson, which is the two-seat Spitfire's
 : aircraft-choosable? ( mission -- flag )

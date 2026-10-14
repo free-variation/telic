@@ -1851,12 +1851,14 @@ typedef struct {
 
 static const GamepadName gamepad_buttons[] = {
 	{"south", GAMEPAD_SOUTH}, {"east", GAMEPAD_EAST}, {"west", GAMEPAD_WEST}, {"north", GAMEPAD_NORTH},
-	{"back", GAMEPAD_BACK}, {"guide", GAMEPAD_GUIDE}, {"start", GAMEPAD_START},
+	{"back", GAMEPAD_BACK}, {"guide", GAMEPAD_GUIDE}, {"start", GAMEPAD_START}, {"share", GAMEPAD_SHARE},
 	{"left-stick", GAMEPAD_LEFT_STICK}, {"right-stick", GAMEPAD_RIGHT_STICK},
 	{"left-shoulder", GAMEPAD_LEFT_SHOULDER}, {"right-shoulder", GAMEPAD_RIGHT_SHOULDER},
 	{"dpad-left", GAMEPAD_DPAD_LEFT}, {"dpad-right", GAMEPAD_DPAD_RIGHT},
 	{"dpad-up", GAMEPAD_DPAD_UP}, {"dpad-down", GAMEPAD_DPAD_DOWN},
 	{"left-trigger", GAMEPAD_LEFT_TRIGGER}, {"right-trigger", GAMEPAD_RIGHT_TRIGGER},
+	{"left-bumper", GAMEPAD_LEFT_BUMPER}, {"right-bumper", GAMEPAD_RIGHT_BUMPER},
+	{"left-paddle", GAMEPAD_LEFT_PADDLE}, {"right-paddle", GAMEPAD_RIGHT_PADDLE},
 	{NULL, 0}
 };
 

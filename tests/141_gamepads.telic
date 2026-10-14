@@ -13,6 +13,8 @@ clear
 \ === buttons of a gamepad not connected ===
 :south 0 gamepad-down? . :east 0 gamepad-pressed? . :dpad-up 1 gamepad-down? . :right-trigger 3 gamepad-pressed? . cr \ 0 0 0 0
 :back 7 gamepad-down? . :guide 0 gamepad-down? . :start 0 gamepad-pressed? . :north 2 gamepad-down? . cr \ 0 0 0 0
+:share 0 gamepad-down? . :share 1 gamepad-pressed? . cr                \ 0 0
+:left-bumper 0 gamepad-down? . :right-bumper 0 gamepad-pressed? . :left-paddle 0 gamepad-down? . :right-paddle 2 gamepad-pressed? . cr \ 0 0 0 0
 clear
 
 \ === axes of a gamepad not connected ===

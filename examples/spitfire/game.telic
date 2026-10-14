@@ -9,15 +9,18 @@
 \ elevator trim nose-down and nose-up, W and S the propeller finer and
 \ coarser, E the boost cut-out, F the flaps, G the
 \ undercarriage, B the brakes, space the guns, J bails out, 1 to 4 the views ahead, left,
-\ right and behind, P pauses, escape returns to
+\ right and behind, L the flight recorder, P pauses, escape returns to
 \ the missions. A gamepad: the right stick is the stick, the left stick's
 \ left and right the rudder bar itself, where it points, and its up and
-\ down the elevator trim, pushed forward for nose-down, the shoulders the
-\ rudder bias on the types that have one, the d-pad's up and down the
-\ throttle, the right stick's click switches the propeller's pitch, the
-\ left trigger the boost cut-out, A or the right trigger
-\ the guns, X the flaps, Y the undercarriage, B the brakes, the d-pad left
-\ and right turns the view, start pauses and back returns to the missions.
+\ down the elevator trim, pushed forward for nose-down, at the type's trim
+\ rate, whichever of the two the stick is pushed further toward alone
+\ counting, the shoulders the rudder bias on the types that have one, the
+\ d-pad's up and down the throttle, the left stick's click switches the propeller's pitch, the
+\ left bumper the magnetos, the left trigger held the starter, the right
+\ bumper the boost cut-out, A or the right trigger the guns, X the flaps, Y the undercarriage, B the brakes, the d-pad left
+\ and right turns the view, the right stick's click held looks behind,
+\ the left back paddle held the chart, the right one the time's pace, start pauses
+\ and back returns to the missions.
 \ On the title, the campaigns (campaign.telic) and then the missions are listed under their groups, scrolling to
 \ keep the chosen one in view: up and down or the d-pad choose a mission,
 \ return, start or A opens its briefing, H or Y shows the keys, and escape
@@ -49,15 +52,20 @@ variable scenery-collection
 : any-pressed? ( -- flag )
 	reading-keys ( key | key key-pressed? ) any? reading-buttons ( button | button pad-pressed? ) any? or ;
 
-\ the view keys: 1 to 4 ahead, left, right and behind, the d-pad's left and right turning through them; each choice sets the view's turn from it back to none
+\ the view keys: 1 to 4 ahead, left, right and behind, the d-pad's left and right turning the view a quarter round that way, the right stick's click held looking behind and its release returning to the view before it; each choice sets the view's turn from it back to none
 : read-view-keys ( -- )
 	[ :front :left :right :back ] to views
 	:view game@ to chosen
 	0 4 1 do k
 		[ :1 :2 :3 :4 ] k @i key-pressed? if views k @i :view game! 0 :view-turn game! 0 :view-tilt game! then
 	loop
-	:dpad-right pad-pressed? if views views chosen position-of 1+ 4 mod @i :view game! then
-	:dpad-left pad-pressed? if views views chosen position-of 3 + 4 mod @i :view game! then
+	[ :front :right :back :left ] to clockwise
+	:dpad-right pad-pressed? if clockwise clockwise chosen position-of 1+ 4 mod @i :view game! then
+	:dpad-left pad-pressed? if clockwise clockwise chosen position-of 3 + 4 mod @i :view game! then
+	:right-stick 0 gamepad-down? to looking-back
+	game :view-before-look null @or to view-before-look
+	looking-back view-before-look null? and if :view game@ :view-before-look game! :back :view game! then
+	looking-back not view-before-look null? not and if view-before-look :view game! null :view-before-look game! then
 	:view game@ chosen = not if 0 :view-turn game! 0 :view-tilt game! then ;
 
 \ whether the arrows turn the view instead of the stick: shift held in the Lysander
@@ -121,18 +129,17 @@ variable scenery-collection
 		then
 	then ;
 
-\ the keyboard's stick: held, an arrow moves it toward that end over a second; let go, the air on the elevator and ailerons carries it back to the middle, where the aircraft flies as trimmed, the trim acting on the elevator by itself: within a third of a second at 200 mph indicated and up, more slowly as the air's push falls with the square of the speed, hardly at all at rest, so a tap or a short hold gives part of the travel and eases back (the rates estimates)
+\ the cockpit's stick under the keys and the gamepad, which aim it from where it stands rather than place it: held, an arrow moves it toward that end over a second, and a gamepad's stick off centre moves it toward the pad's position over a quarter of a second, the pad's spring standing for no part of the aircraft; let go, the keys up and the pad's stick back in its dead zone, the axis is marked free and the flight model's air carries it (free-control), so a tap or a short hold gives part of the travel and eases back (the rates estimates)
 1 constant key-stick-rate
-3 constant key-stick-return
-89.4 constant key-stick-return-speed
+4 constant pad-stick-rate
 
-\ how fast a let-go stick returns, its travel a second, at the aircraft's indicated speed
-: stick-return-rate ( -- rate ) plane indicated-speed key-stick-return-speed / sq 1 min2 key-stick-return * ;
+\ how fast the stick moves toward where it is held on one of the pad's axes, its travel a second: the pad's rate while that axis is off centre, else the keys'
+: holding-rate ( axis -- rate ) stick-axis 0 = if key-stick-rate else pad-stick-rate then ;
 
-\ the keyboard's stick on one axis a frame on: held -1, 0 or 1, from where it was
-: key-stick ( held current elapsed -- position )
-	| held current elapsed |
-	held 0 = if 0 stick-return-rate else held key-stick-rate then elapsed * to step to goal
+\ where the pilot puts a control this frame: from where it stands, toward goal at rate, its travel a second
+: aim-control ( goal rate current elapsed -- target )
+	| goal rate current elapsed |
+	rate elapsed * to step
 	goal current - abs step <= if goal exit then
 	current goal current > if step else step negate then + ;
 
@@ -151,14 +158,6 @@ variable scenery-collection
 	plane@type@automatic-flaps plane@flap-setting 0 > and not if 0 exit then
 	plane@attitude@right second asin negate -4 * plane@rates first - hands-envelope negate hands-envelope clamp ;
 
-\ the keys' stick in roll a frame on: as key-stick, but let go in the air while the hands correct, it goes to where they hold it at the key's rate
-: key-roll-stick ( held current elapsed -- position )
-	| held current elapsed |
-	hands-roll to hands
-	held 0 = if hands else held then to goal
-	held 0 = hands 0 = and if stick-return-rate else key-stick-rate then elapsed * to step
-	goal current - abs step <= if goal exit then
-	current goal current > if step else step negate then + ;
 
 \ the pilot's feet on the ground, on the same gate as in the air: the bar goes to the trim plus 0.15 of the degrees the nose is right of the kept heading, less 3 times the yaw rate, so a swing is met before it grows; a rudder key turns the kept heading at this rate, degrees a second, and the feet follow, so a press steers without the whole bar going over; the kept heading is the aircraft's own whenever it is airborne
 20 constant ground-steer-rate
@@ -170,53 +169,60 @@ variable scenery-collection
 	:kept-heading game@ held ground-steer-rate * elapsed * + 360 mod :kept-heading game!
 	heading :kept-heading game@ - 540 + 360 mod 180 - -0.15 * plane@rates 2 @i 3 * - -1 1 clamp ;
 
-\ the keys' rudder bar a frame on: on the ground where the keys hold it, at once, or where the bias trims it when let go, or, on a type whose feet work on the ground, where the feet hold the kept heading the keys steer; in the air moving toward the held end as the keyboard's stick does, and let go returning to where the bias trims it as the air's push carries it, or, while the feet correct, to where they hold it at the key's rate
-: key-rudder ( held current elapsed -- position )
-	| held current elapsed |
+\ the keys' rudder bar a frame on, and whether it is let go: on the ground where the keys hold it, at once, or where the bias trims it when let go, or, on a type whose feet work on the ground, where the feet hold the kept heading the keys steer; in the air moving from where it stands toward the held end as the keyboard's stick does, and let go left free for the air to carry back to where the bias trims it, or, while the feet correct, moved to where they hold it at the key's rate
+: key-rudder ( held elapsed -- position free )
+	| held elapsed |
+	plane@stick 2 @i to current
 	plane@rudder-trim plane@type@trim-range * to trimmed
 	feet-rudder to feet
 	held elapsed ground-feet to ground
-	plane@on-ground plane@type@automatic-flaps and if trimmed ground + -1 1 clamp exit then
+	plane@on-ground plane@type@automatic-flaps and if trimmed ground + -1 1 clamp false exit then
+	plane@on-ground not held 0 = and feet 0 = and if current true exit then
 	held 0 = if trimmed feet + -1 1 clamp else held then to goal
-	plane@on-ground if goal exit then
-	held 0 = feet 0 = and if stick-return-rate else key-stick-rate then elapsed * to step
-	goal current - abs step <= if goal exit then
-	current goal current > if step else step negate then + ;
+	plane@on-ground if goal false exit then
+	goal key-stick-rate current elapsed aim-control false ;
 
-\ the controls from the keys and the pad; on the ground with the engine stopped the pad's A switches the magnetos on and, held, turns the starter, and at rest with it running the left trigger held works the cut-out; where the type's slats work its flaps, or its undercarriage is fixed, the flaps' and the undercarriage's keys say so
+\ the controls from the keys and the pad, the left stick's stronger axis alone counting, rudder or trim, so a push for one does not move the other; the pad's left bumper switches the magnetos as M does, its left trigger held turns the starter as K does, its right bumper works the boost cut-out as E does; where the type's slats work its flaps, or its undercarriage is fixed, the flaps' and the undercarriage's keys say so
 : read-controls ( elapsed -- )
 	| elapsed ^controls |
 	view-turning? if 0 0 else :down key-down? :up key-down? - :right key-down? :left key-down? - then to rolling to pitching
-	pitching game :key-pitch 0 @or elapsed key-stick :key-pitch game!
-	rolling game :key-roll 0 @or elapsed key-roll-stick :key-roll game!
-	:key-pitch game@ :right-y stick-axis + -1 1 clamp to pitch
-	:key-roll game@ :right-x stick-axis + -1 1 clamp to roll
-	:left-x stick-axis to pad-rudder
+	plane@stick spread drop to stick-pitch to stick-roll
+	:right-y stick-axis to pad-pitch
+	pitching 0 = pad-pitch 0 = and to pitch-free
+	pitch-free if stick-pitch else pitching pad-pitch + -1 1 clamp :right-y holding-rate stick-pitch elapsed aim-control then to pitch
+	:right-x stick-axis to pad-roll
+	hands-roll to hands
+	rolling 0 = pad-roll 0 = and to roll-let-go
+	roll-let-go hands 0 = and to roll-free
+	roll-let-go if hands else rolling pad-roll + -1 1 clamp then to roll-goal
+	roll-free if stick-roll else roll-goal :right-x holding-rate stick-roll elapsed aim-control then to roll
+	:left-x stick-axis to left-x
+	:left-y stick-axis to left-y
+	left-x abs left-y abs > if left-x else 0 then to pad-rudder
+	left-x abs left-y abs > if 0 else left-y then to left-trim
 	pad-rudder 0 = if
-		:x key-down? :z key-down? - game :key-yaw 0 @or elapsed key-rudder
+		:x key-down? :z key-down? - elapsed key-rudder
 	else
 		plane@attitude@forward heading-of :kept-heading game!
-		pad-rudder
-	then to yaw
-	yaw :key-yaw game!
-	:n key-down? :chart-open game!
-	plane@on-ground plane@running not and to pad-starting
-	plane@on-ground plane@running and plane@velocity plane surface-velocity v- v-length 1 < and to pad-stopping
-	pad-starting :south pad-pressed? and plane@magnetos not and if
-		true plane!magnetos
-		"MAGNETOS ON" say
+		pad-rudder false
+	then to yaw-free to yaw
+	pitch-free roll-let-go and pad-rudder 0 = and :x key-down? :z key-down? or not and to hands-off
+	:time-scale game@ 1 > hands-off not plane@on-ground or and if
+		1 :time-scale game!
+		"TIME x1  -  YOU HAVE CONTROL" say
 	then
-	:k key-down? pad-starting :south 0 gamepad-down? and or to starting
-	:o key-down? pad-stopping :left-trigger 0 gamepad-down? and or to stopping
-	{ :pitch pitch :roll roll :yaw yaw :brakes :b key-down? :east 0 gamepad-down? or :starter starting :cut-out stopping } to controls
-	:m key-pressed? if
+	:n key-down? :left-paddle 0 gamepad-down? or :chart-open game!
+	:k key-down? :left-trigger 0 gamepad-down? or to starting
+	:o key-down? to stopping
+	{ :pitch pitch :roll roll :yaw yaw :pitch-free pitch-free :roll-free roll-free :yaw-free yaw-free :brakes :b key-down? :east 0 gamepad-down? or :starter starting :cut-out stopping } to controls
+	:m key-pressed? :left-bumper pad-pressed? or if
 		plane@magnetos not plane!magnetos
 		plane@magnetos if "MAGNETOS ON" else "MAGNETOS OFF" then say
 	then
 	:q key-down? :a key-down? - :dpad-up 0 gamepad-down? + :dpad-down 0 gamepad-down? - to throttle-move
 	plane@throttle throttle-move 0.5 * elapsed * + 0 1 clamp plane!throttle
-	:right-bracket key-down? :left-bracket key-down? - :left-y stick-axis + -1 1 clamp to trim-move
-	plane@trim trim-move 0.4 * elapsed * + -1 1 clamp plane!trim
+	:right-bracket key-down? :left-bracket key-down? - left-trim + -1 1 clamp to trim-move
+	plane@trim trim-move plane@type@trim-rate * elapsed * + -1 1 clamp plane!trim
 	plane@type@rudder-bias if
 		:period key-down? :comma key-down? - :right-shoulder 0 gamepad-down? + :left-shoulder 0 gamepad-down? - -1 1 clamp to bias-move
 		bias-move 0 = if 0 else :bias-held game@ elapsed + then :bias-held game!
@@ -231,15 +237,15 @@ variable scenery-collection
 		:w key-down? :s key-down? - to pitch-move
 		plane@type@rated-revolutions to rated
 		plane@revolution-setting pitch-move 600 * elapsed * + lowest-revolutions rated clamp plane!revolution-setting
-		:right-stick pad-pressed? if
+		:left-stick pad-pressed? if
 			plane@revolution-setting lowest-revolutions rated + 2 / > if lowest-revolutions else rated then plane!revolution-setting
 		then
 	else
 		plane@fine to was-fine
-		:w key-pressed? :right-stick pad-pressed? was-fine not and or if true plane!fine "FINE PITCH" say then
-		:s key-pressed? :right-stick pad-pressed? was-fine and or if false plane!fine "COARSE PITCH" say then
+		:w key-pressed? :left-stick pad-pressed? was-fine not and or if true plane!fine "FINE PITCH" say then
+		:s key-pressed? :left-stick pad-pressed? was-fine and or if false plane!fine "COARSE PITCH" say then
 	then
-	:e key-pressed? :left-trigger pad-pressed? pad-stopping not and or if
+	:e key-pressed? :right-bumper pad-pressed? or if
 		plane@emergency-allowed if
 			plane@boost-cut-out not plane!boost-cut-out
 			plane@boost-cut-out if "BOOST CUT-OUT: +12 LB  -  FIVE MINUTES AT MOST" else "BOOST CUT-OUT BACK: +6 LB" then say
@@ -274,7 +280,7 @@ variable scenery-collection
 		plane@gear if "UNDERCARRIAGE DOWN" else "UNDERCARRIAGE UP" then say
 	then
 	plane@armed if
-		:space key-down? :south 0 gamepad-down? pad-starting not and or :right-trigger 0 gamepad-down? or :firing game!
+		:space key-down? :south 0 gamepad-down? or :right-trigger 0 gamepad-down? or :firing game!
 	else
 		:c key-pressed? :right-trigger pad-pressed? or if
 			:cameras-running game@ not :cameras-running game!
@@ -282,9 +288,22 @@ variable scenery-collection
 			:cameras-running game@ if "MUD FLAPS OPEN, CAMERAS RUNNING" else "CAMERAS OFF" then say
 		then
 	then
-	:t key-pressed? if
-		:time-scale game@ 1 = if 4 else :time-scale game@ 4 = if 16 else 1 then then :time-scale game!
-		:time-scale game@ "TIME x{0:.0f}" format say
+	:t key-pressed? :right-paddle pad-pressed? or if
+		plane@on-ground if
+			"TIME RUNS FASTER IN THE AIR ONLY" say
+		else
+			:time-scale game@ 1 = if
+				plane@attitude@forward heading-of :held-heading game!
+				plane@position second :held-height game!
+			then
+			:time-scale game@ 1 = if 4 else :time-scale game@ 4 = if 16 else 1 then then :time-scale game!
+			:time-scale game@ 1 = if
+				"TIME x1  -  YOU HAVE CONTROL"
+			else
+				:held-height game@ 3.28084 * 100 / round 100 * :held-heading game@ round 360 mod :time-scale game@
+				"TIME x{0:.0f}  -  AUTOPILOT HOLDING {1:03.0f} AT {2:.0f} FT" format
+			then say
+		then
 	then
 	read-view-keys
 	elapsed turn-view ;
@@ -994,10 +1013,52 @@ variable wing-surfaces
 	plane@running mission@message "" = or if mission@message else "M: MAGNETOS ON, THEN HOLD K: STARTER  -  " mission@message + then say
 	8 :message-left game! ;
 
+\ the file the flight recorder writes, in the home directory
+: recording-path ( -- path )
+	"HOME" env to home
+	home null? if "." to home then
+	home "/.telic-spitfire-recording.bin" + ;
+
+\ the flight recorder's step: the controls, the aircraft's state but its type, which the recording names once, and the air the flight model reads, the wind, the cumulus and the carrier's deck, each step kept before the flight model takes it
+: record-step ( -- )
+	plane keys plane values frame :type delete-at copy to state
+	:recording game@ { :controls controls copy :plane state :wind surface-wind copy :cloud-air cloud-air copy :deck deck copy } add-last! drop ;
+
+\ the flight recorder started, or stopped and its steps written with the aircraft type's name and the step's length to recording-path, by L
+: toggle-recorder ( -- )
+	game :recording null @or to steps
+	steps null? if
+		[ ] :recording game!
+		"RECORDING" say
+		exit
+	then
+	{ :type plane@type@name :step-time step-time :steps steps } recording-path save-value
+	null :recording game!
+	steps size "RECORDED {0} STEPS TO ~/.telic-spitfire-recording.bin" format say ;
+
 \ the clouds the flight model's turbulence reads: the cumulus's base and cover, and whether the eye is inside one
 : stir-air ( -- )
 	| ^cloud-air |
 	{ :base cloud-base :cover cloud-cover :inside in-cloud } to cloud-air ;
+
+\ the autopilot that flies while time runs faster, each flight step: the wings banked toward the held heading, three degrees of bank for each degree off it and no more than autopilot-bank, the ailerons against the bank's error and the roll rate; the elevator against the climb's difference from a tenth of the height's error, no more than autopilot-climb m/s, and against the pitch rate, the trim wound slowly against the same difference as a pilot trims, the more slowly the more the type's trim moves the elevator, the Lysander's whole tailplane twice the Spitfire's tab, and no faster than autopilot-trim-rate of its travel a second, so it cannot chase an oscillation and feed it; the rudder against the sideslip (the gains those the flight model's test pilot flies with, tests/examples/spitfire.telic)
+20 constant autopilot-bank
+5 constant autopilot-climb
+0.05 constant autopilot-trim-rate
+: fly-autopilot ( -- )
+	| ^controls |
+	plane@attitude@right second asin negate to bank
+	:held-heading game@ plane@attitude@forward heading-of - 540 + 360 mod 180 - to heading-error
+	heading-error 3 * autopilot-bank negate autopilot-bank clamp PI 180 / * to wanted-bank
+	wanted-bank bank - 2 * plane@rates first 0.5 * - -1 1 clamp to roll
+	:held-height game@ plane@position second - 0.1 * autopilot-climb negate autopilot-climb clamp to wanted-climb
+	plane@velocity second wanted-climb - to climb-error
+	climb-error -0.02 * plane@rates second 0.6 * - -1 1 clamp to pitch
+	climb-error 0.0004 * plane@type@trim-range / autopilot-trim-rate step-time * dup negate swap clamp to trim-step
+	plane@trim trim-step - -1 1 clamp plane!trim
+	plane air-velocity to airflow
+	airflow plane@attitude@right v-dot airflow v-length 1 max2 / 5 * -1 1 clamp to pedal
+	controls { :roll roll :pitch pitch :yaw pedal :roll-free false :pitch-free false :yaw-free false } merge to controls ;
 
 \ advance the flight by elapsed seconds, run faster by the time's pace, in whole steps
 : advance ( elapsed -- )
@@ -1008,6 +1069,8 @@ variable wing-surfaces
 	0 to steps
 	begin :accumulated game@ step-time >= steps 4 :time-scale game@ * < and while
 		step-time move-deck
+		:time-scale game@ 1 > if fly-autopilot then
+		game :recording null @or null? not if record-step then
 		plane step-time fly
 		:accumulated game@ step-time - :accumulated game!
 		++ steps
@@ -1064,21 +1127,23 @@ variable wing-surfaces
   [ "ARROWS" "RIGHT STICK" "STICK, DOWN PULLS BACK" ]
   [ "Z X" "LEFT STICK" "RUDDER" ]
   [ ", ." "SHOULDERS" "RUDDER BIAS (SPITFIRE, HURRICANE)" ]
-  [ "M K O" "A, L TRIGGER" "MAGNETOS ON, OFF; HOLD K: STARTER; HOLD O: STOP" ]
+  [ "M K O" "L BUMPER, L TRIG" "MAGNETOS ON, OFF; HOLD K: STARTER; HOLD O: STOP" ]
   [ "Q A" "D-PAD UP DOWN" "THROTTLE" ]
-  [ "[ ]" "LEFT STICK UP DOWN" "TRIM, LEFT OR FORWARD NOSE DOWN" ]
-  [ "W S" "R STICK CLICK" "PROPELLER: FINER, COARSER; CLICK SWITCHES" ]
-  [ "E" "LEFT TRIGGER" "BOOST CUT-OUT, +12 LB" ]
-  [ "C T V" "RIGHT TRIGGER" "CAMERAS (PR), TIME x4 x16, DEVELOP FILM" ]
-  [ "SPACE" "A, TRIGGER" "GUNS" ]
+  [ "[ ]" "L STICK UP DOWN" "TRIM, [ OR FORWARD NOSE DOWN" ]
+  [ "W S" "L STICK CLICK" "PROPELLER: FINER, COARSER; CLICK SWITCHES" ]
+  [ "E" "RIGHT BUMPER" "BOOST CUT-OUT, +12 LB" ]
+  [ "C V" "RIGHT TRIGGER" "CAMERAS (PR), DEVELOP FILM" ]
+  [ "T" "RIGHT BACK" "TIME x4 x16 ON AUTOPILOT; A CONTROL TOUCHED, x1" ]
+  [ "SPACE" "A, RIGHT TRIGGER" "GUNS" ]
   [ "F G B" "X Y B" "FLAPS, WHEELS, BRAKES" ]
   [ "J" "" "BAIL OUT: HOOD BACK, OVER THE SIDE, RIPCORD" ]
-  [ "N" "" "HOLD: THE CHART ON YOUR KNEE" ]
-  [ "1 2 3 4" "D-PAD" "LOOK AHEAD, LEFT, RIGHT, BACK" ]
+  [ "N" "LEFT BACK" "HOLD: THE CHART ON YOUR KNEE" ]
+  [ "1 2 3 4" "D-PAD, R CLICK" "LOOK AHEAD, LEFT, RIGHT, BACK; CLICK HELD: BACK" ]
   [ "SHIFT ARROWS" "" "TURN THE LOOK FURTHER (LYSANDER)" ]
   [ "P" "START" "PAUSE" ]
   [ "ESC" "BACK" "BACK TO THE MISSIONS; ON THE LIST, ESC QUITS" ]
   [ "F5 F9" "" "SAVE THE FLIGHT; RESUME THE SAVED FLIGHT, ON THE LIST TOO" ]
+  [ "L" "" "FLIGHT RECORDER ON, OFF: ~/.telic-spitfire-recording.bin" ]
   [ ", ." "" "RUDDER TRIM LEFT, RIGHT" ]
   [ "R" "" "FUEL COCK, MAIN OR RESERVE (HURRICANE)" ]
   [ "H" "Y ON THE LIST" "HELP; LEFT, RIGHT TURN ITS PAGES" ] ] to control-rows
@@ -1194,11 +1259,12 @@ variable wing-surfaces
 \ the help's pages, the keys first
 help-pages size 1+ constant help-page-count
 
-\ the keys page: the keyboard's keys and the gamepad's controls, a line each
+\ the keys page: the keyboard's keys and the gamepad's controls, a line each, 18 pixels apart or closer so the last stands clear above the page's footer
 : draw-keys-page ( -- )
+	432 60 - control-rows size 1- / 18 min2 to spacing
 	0 control-rows size 1 do k
 		control-rows k @i to row
-		60 k 18 * + to y
+		60 k spacing * + to y
 		k 0 = if heading-colour else dial-ink then to colour
 		20 y row first colour draw-text
 		110 y row second colour draw-text
@@ -1307,8 +1373,8 @@ help-pages size 1+ constant help-page-count
 	home null? if "." to home then
 	home "/.telic-spitfire-flight" + ;
 
-\ the game's keys a saved flight leaves out, the mission's start making them again: the aircraft's marked models, the chart's mission and its picture
-[ :flown :flown-down :chart-mission :chart-picture ] constant remade-game-keys
+\ the game's keys a saved flight leaves out, the mission's start making them again: the aircraft's marked models, the chart's mission and its picture; and the flight recorder's steps, which a resumed flight starts without
+[ :flown :flown-down :chart-mission :chart-picture :recording ] constant remade-game-keys
 
 \ the flight as it stands kept in the file: the title's choice, the mission's name, the aircraft, the controls, the carrier, the game's state but the keys its start makes again, the raid and the wingmen, the guns' salvos and flashes, the battle's clock, the photographs, the flak, the tug's track, and a fresh seed for the random numbers, set now, so the flight resumed draws what this one draws from here
 : save-flight ( -- )
@@ -1456,6 +1522,7 @@ variable frame-work
 	:escape key-pressed? :back pad-pressed? or if leave-flight exit then
 	:f5 key-pressed? if save-flight exit then
 	:f9 key-pressed? if load-flight exit then
+	:l key-pressed? if toggle-recorder then
 	:v key-pressed? :landed-said game@ and photos size 0 > and if
 		true :reviewing game!
 		0 :review-index game!

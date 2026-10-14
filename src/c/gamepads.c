@@ -31,6 +31,16 @@ static const struct {
 	{0, NULL}
 };
 
+static const struct {
+	int button;
+	const char *name;
+} gamepad_profile_names[] = {
+	{GAMEPAD_SHARE, "Button Share"},
+	{GAMEPAD_LEFT_BUMPER, "Left Bumper"}, {GAMEPAD_RIGHT_BUMPER, "Right Bumper"},
+	{GAMEPAD_LEFT_PADDLE, "Back Left Button 0"}, {GAMEPAD_RIGHT_PADDLE, "Back Right Button 0"},
+	{0, NULL}
+};
+
 static id gamepad_send(id target, const char *selector) {
 	if (!target)
 		return NULL;
@@ -69,7 +79,15 @@ static int gamepads_open(void) {
 	return 1;
 }
 
-static void gamepad_read_extended(id pad, GamepadReading *reading) {
+static id gamepad_profile_button(id buttons, const char *name) {
+	if (!buttons)
+		return NULL;
+
+	id key = ((id (*)(id, SEL, const char *))objc_msgSend)((id)objc_getClass("NSString"), sel_registerName("stringWithUTF8String:"), name);
+	return ((id (*)(id, SEL, id))objc_msgSend)(buttons, sel_registerName("objectForKey:"), key);
+}
+
+static void gamepad_read_extended(id controller, id pad, GamepadReading *reading) {
 	for (int i = 0; gamepad_button_selectors[i].selector; i++)
 		reading->held[gamepad_button_selectors[i].button] = gamepad_pressed(gamepad_send(pad, gamepad_button_selectors[i].selector));
 
@@ -85,6 +103,9 @@ static void gamepad_read_extended(id pad, GamepadReading *reading) {
 	reading->axes[GAMEPAD_RIGHT_Y] = -gamepad_value(gamepad_send(right_stick, "yAxis"));
 	reading->axes[GAMEPAD_LEFT_TRIGGER_AXIS] = gamepad_value(gamepad_send(pad, "leftTrigger"));
 	reading->axes[GAMEPAD_RIGHT_TRIGGER_AXIS] = gamepad_value(gamepad_send(pad, "rightTrigger"));
+	id profile_buttons = gamepad_send(gamepad_send(controller, "physicalInputProfile"), "buttons");
+	for (int i = 0; gamepad_profile_names[i].name; i++)
+		reading->held[gamepad_profile_names[i].button] = gamepad_pressed(gamepad_profile_button(profile_buttons, gamepad_profile_names[i].name));
 }
 
 int gamepads_read(GamepadReading *readings, int capacity) {
@@ -102,7 +123,7 @@ int gamepads_read(GamepadReading *readings, int capacity) {
 		id pad = gamepad_send(controller, "extendedGamepad");
 		if (!pad)
 			continue;
-		gamepad_read_extended(pad, &readings[n_gamepads]);
+		gamepad_read_extended(controller, pad, &readings[n_gamepads]);
 		n_gamepads++;
 	}
 	gamepad_send(pool, "drain");
@@ -145,6 +166,8 @@ static int gamepad_button_of(int code) {
 	case BTN_SELECT: return GAMEPAD_BACK;
 	case BTN_MODE: return GAMEPAD_GUIDE;
 	case BTN_START: return GAMEPAD_START;
+	case BTN_Z: return GAMEPAD_SHARE;
+	case KEY_RECORD: return GAMEPAD_SHARE;
 	case BTN_THUMBL: return GAMEPAD_LEFT_STICK;
 	case BTN_THUMBR: return GAMEPAD_RIGHT_STICK;
 	case BTN_TL: return GAMEPAD_LEFT_SHOULDER;

@@ -262,6 +262,17 @@
 	sketch floor top box-walls
 	sketch top sketch floor top concat inside-of sketch-face ;
 
+\ a box in a colour of its own rather than the object's: its base centred on a point, turned to a heading; its walls and top filled
+: sketch-painted-box ( sketch centre heading width length height colour -- )
+	| sketch centre heading width length height colour |
+	sketch centre heading width length height box-points to top to floor
+	sketch floor top concat inside-of to inside
+	0 4 1 do k
+		k 1+ 4 mod to next
+		sketch [ floor k @i floor next @i top next @i top k @i ] inside colour sketch-painted-face
+	loop
+	sketch top inside colour sketch-painted-face ;
+
 \ a pitched roof along a length from four eaves corners already in a sketch up to a ridge at a height: its edges, its two slopes and its gables filled, facing away from a point inside
 : sketch-roof ( sketch eaves-corners centre heading length ridge inside -- )
 	| sketch eaves-corners centre heading length ridge inside |
