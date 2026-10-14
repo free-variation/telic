@@ -566,9 +566,20 @@ static unsigned int shaded_rgb(unsigned int rgb, double light, const SolidShadin
 
 typedef struct {
 	int n_faces;
+	int max_corners;
 	int *starts;
 	int *corners;
 } SolidFaces;
+
+typedef struct {
+	double *eye_xs;
+	double *eye_ys;
+	double *xs;
+	double *ys;
+	double *aheads;
+	int *corners;
+	int *on_plane;
+} SolidClip;
 
 static int solid_faces(Interpreter *interp, Val faces_val, int n_points, SolidFaces *faces) {
 	int n_faces = 0;
@@ -620,7 +631,57 @@ static int solid_faces(Interpreter *interp, Val faces_val, int n_points, SolidFa
 		}
 	}
 	faces->starts[n_faces] = n_corners;
+	faces->max_corners = 0;
+	for (int f = 0; f < n_faces; f++) {
+		int n_face_corners = faces->starts[f + 1] - faces->starts[f];
+		if (n_face_corners > faces->max_corners)
+			faces->max_corners = n_face_corners;
+	}
 	return 1;
+}
+
+static void free_solid_clip(SolidClip *clip) {
+	free(clip->eye_xs);
+	free(clip->eye_ys);
+	free(clip->xs);
+	free(clip->ys);
+	free(clip->aheads);
+	free(clip->corners);
+	free(clip->on_plane);
+}
+
+static void solid_clip_emit(SolidClip *clip, const SolidProjection *projection, int index, double eye_x, double eye_y, double ahead,
+		int on_plane) {
+	clip->xs[index] = projection->focal * eye_x / ahead + projection->centre_x;
+	clip->ys[index] = projection->centre_y - projection->focal * eye_y / ahead;
+	clip->aheads[index] = ahead;
+	clip->corners[index] = index;
+	clip->on_plane[index] = on_plane;
+}
+
+static void solid_clip_crossing(SolidClip *clip, const SolidProjection *projection, int index, const double *aheads, int a, int b) {
+	double share = (projection->near - aheads[a]) / (aheads[b] - aheads[a]);
+	double eye_x = clip->eye_xs[a] + (clip->eye_xs[b] - clip->eye_xs[a]) * share;
+	double eye_y = clip->eye_ys[a] + (clip->eye_ys[b] - clip->eye_ys[a]) * share;
+	solid_clip_emit(clip, projection, index, eye_x, eye_y, projection->near, 1);
+}
+
+static int solid_clip_face(SolidClip *clip, const SolidProjection *projection, const double *aheads, const int *corners, int n_corners) {
+	int n_edges = n_corners == 2 ? 1 : n_corners;
+	int n_clipped = 0;
+	for (int k = 0; k < n_edges; k++) {
+		int a = corners[k];
+		int b = corners[(k + 1) % n_corners];
+		int a_ahead = aheads[a] >= projection->near;
+		int b_ahead = aheads[b] >= projection->near;
+		if (a_ahead)
+			solid_clip_emit(clip, projection, n_clipped++, clip->eye_xs[a], clip->eye_ys[a], aheads[a], 0);
+		if (a_ahead != b_ahead)
+			solid_clip_crossing(clip, projection, n_clipped++, aheads, a, b);
+		if (n_corners == 2 && b_ahead)
+			solid_clip_emit(clip, projection, n_clipped++, clip->eye_xs[b], clip->eye_ys[b], aheads[b], 0);
+	}
+	return n_clipped;
 }
 
 static void solid_line(Tigr *canvas, const double *xs, const double *ys, const double *aheads, int a, int b, TPixel ink, int tested) {
@@ -736,7 +797,7 @@ static void solid_fill_fan(Tigr *canvas, const double *xs, const double *ys, con
 
 static void draw_solid(Tigr *canvas, Object *points, const SolidFaces *faces, Object *centres, Object *normals, const double *colours,
 		const double *leads, Object *camera, const SolidProjection *projection, const SolidShading *shading,
-		double *xs, double *ys, double *aheads, SolidFace *order) {
+		double *xs, double *ys, double *aheads, SolidFace *order, SolidClip *clip) {
 	int n_points = points->matrix.rows;
 	int point_columns = points->matrix.columns;
 	for (int p = 0; p < n_points; p++) {
@@ -745,6 +806,8 @@ static void draw_solid(Tigr *canvas, Object *points, const SolidFaces *faces, Ob
 		double eye_space[3];
 		for (int j = 0; j < 3; j++)
 			eye_space[j] = row[0] * MAT(camera, 0, j) + row[1] * MAT(camera, 1, j) + row[2] * MAT(camera, 2, j) + w * MAT(camera, 3, j);
+		clip->eye_xs[p] = eye_space[0];
+		clip->eye_ys[p] = eye_space[1];
 		aheads[p] = eye_space[2];
 		xs[p] = projection->focal * eye_space[0] / eye_space[2] + projection->centre_x;
 		ys[p] = projection->centre_y - projection->focal * eye_space[1] / eye_space[2];
@@ -773,21 +836,37 @@ static void draw_solid(Tigr *canvas, Object *points, const SolidFaces *faces, Ob
 
 	for (int k = 0; k < n_facing; k++) {
 		int f = order[k].face;
-		const int *corners = faces->corners + faces->starts[f];
-		int n_corners = faces->starts[f + 1] - faces->starts[f];
-		int in_front = n_corners > 0;
-		for (int c = 0; c < n_corners && in_front; c++)
-			in_front = aheads[corners[c]] >= projection->near;
-		if (!in_front)
+		const int *face_corners = faces->corners + faces->starts[f];
+		int n_face_corners = faces->starts[f + 1] - faces->starts[f];
+		int n_ahead = 0;
+		for (int c = 0; c < n_face_corners; c++)
+			n_ahead += aheads[face_corners[c]] >= projection->near;
+		if (n_ahead == 0)
 			continue;
+		const double *drawn_xs = xs;
+		const double *drawn_ys = ys;
+		const double *drawn_aheads = aheads;
+		const int *corners = face_corners;
+		const int *on_plane = NULL;
+		int n_corners = n_face_corners;
+		if (n_ahead < n_face_corners) {
+			n_corners = solid_clip_face(clip, projection, aheads, face_corners, n_face_corners);
+			if (n_corners < 2)
+				continue;
+			drawn_xs = clip->xs;
+			drawn_ys = clip->ys;
+			drawn_aheads = clip->aheads;
+			corners = clip->corners;
+			on_plane = clip->on_plane;
+		}
 		if (n_corners == 2) {
 			TPixel ink = pixel_from_rgb(shaded_rgb((unsigned int)colours[f] & 0xFFFFFF, 1, shading));
-			solid_line(canvas, xs, ys, aheads, corners[0], corners[1], ink, tested);
+			solid_line(canvas, drawn_xs, drawn_ys, drawn_aheads, corners[0], corners[1], ink, tested);
 			continue;
 		}
 		DepthPlane plane;
 		DepthPlane *surface = NULL;
-		if (tested && solid_face_plane(xs, ys, aheads, corners, n_corners, &plane))
+		if (tested && solid_face_plane(drawn_xs, drawn_ys, drawn_aheads, corners, n_corners, &plane))
 			surface = &plane;
 		else if (tested)
 			continue;
@@ -800,17 +879,17 @@ static void draw_solid(Tigr *canvas, Object *points, const SolidFaces *faces, Ob
 		if (flagged_rgb & SOLID_UNLIT)
 			light = shading->lighting;
 		TPixel fill = pixel_from_rgb(shaded_rgb(rgb, light, shading));
-		if (surface && n_corners > 3 && solid_face_convex(xs, ys, corners, n_corners))
-			solid_fill_fan(canvas, xs, ys, aheads, corners, n_corners, fill);
+		if (surface && n_corners > 3 && solid_face_convex(drawn_xs, drawn_ys, corners, n_corners))
+			solid_fill_fan(canvas, drawn_xs, drawn_ys, drawn_aheads, corners, n_corners, fill);
 		else
-			fill_polygon_corners(canvas, xs, ys, corners, n_corners, fill, surface);
+			fill_polygon_corners(canvas, drawn_xs, drawn_ys, corners, n_corners, fill, surface);
 		if (shading->outline_share < 0 || (flagged_rgb & SOLID_UNOUTLINED))
 			continue;
 		DepthPlane raised;
 		DepthPlane *edge_surface = NULL;
 		if (surface) {
 			raised = plane;
-			raised.bias = SOLID_OUTLINE_LEAD / aheads[corners[0]];
+			raised.bias = SOLID_OUTLINE_LEAD / drawn_aheads[corners[0]];
 			edge_surface = &raised;
 		}
 		double left = INFINITY;
@@ -818,10 +897,10 @@ static void draw_solid(Tigr *canvas, Object *points, const SolidFaces *faces, Ob
 		double top = INFINITY;
 		double bottom = -INFINITY;
 		for (int c = 0; c < n_corners; c++) {
-			left = fmin(left, xs[corners[c]]);
-			right = fmax(right, xs[corners[c]]);
-			top = fmin(top, ys[corners[c]]);
-			bottom = fmax(bottom, ys[corners[c]]);
+			left = fmin(left, drawn_xs[corners[c]]);
+			right = fmax(right, drawn_xs[corners[c]]);
+			top = fmin(top, drawn_ys[corners[c]]);
+			bottom = fmax(bottom, drawn_ys[corners[c]]);
 		}
 		if (right - left < SOLID_OUTLINE_SPAN && bottom - top < SOLID_OUTLINE_SPAN)
 			continue;
@@ -829,10 +908,12 @@ static void draw_solid(Tigr *canvas, Object *points, const SolidFaces *faces, Ob
 		for (int c = 0; c < n_corners; c++) {
 			int a = corners[c];
 			int b = corners[(c + 1) % n_corners];
-			double x0 = xs[a];
-			double y0 = ys[a];
-			double x1 = xs[b];
-			double y1 = ys[b];
+			if (on_plane && on_plane[a] && on_plane[b])
+				continue;
+			double x0 = drawn_xs[a];
+			double y0 = drawn_ys[a];
+			double x1 = drawn_xs[b];
+			double y1 = drawn_ys[b];
 			if (clip_to_canvas(canvas, &x0, &y0, &x1, &y1))
 				opaque_line(canvas, (int)x0, (int)y0, (int)x1, (int)y1, outline, edge_surface);
 		}
@@ -917,11 +998,23 @@ void p_fill_solid(DISPATCH_ARGS) {
 	double *ys = malloc((size_t)(n_points + 1) * sizeof(double));
 	double *aheads = malloc((size_t)(n_points + 1) * sizeof(double));
 	SolidFace *order = malloc((size_t)(n_faces + 1) * sizeof(SolidFace));
-	if (!xs || !ys || !aheads || !order) {
+	int n_clip_corners = 2 * faces.max_corners + 2;
+	SolidClip clip = {
+		.eye_xs = malloc((size_t)(n_points + 1) * sizeof(double)),
+		.eye_ys = malloc((size_t)(n_points + 1) * sizeof(double)),
+		.xs = malloc((size_t)n_clip_corners * sizeof(double)),
+		.ys = malloc((size_t)n_clip_corners * sizeof(double)),
+		.aheads = malloc((size_t)n_clip_corners * sizeof(double)),
+		.corners = malloc((size_t)n_clip_corners * sizeof(int)),
+		.on_plane = malloc((size_t)n_clip_corners * sizeof(int))
+	};
+	if (!xs || !ys || !aheads || !order || !clip.eye_xs || !clip.eye_ys || !clip.xs || !clip.ys || !clip.aheads || !clip.corners
+			|| !clip.on_plane) {
 		free(xs);
 		free(ys);
 		free(aheads);
 		free(order);
+		free_solid_clip(&clip);
 		free(faces.starts);
 		free(faces.corners);
 		fail(interp, "out of memory");
@@ -932,7 +1025,7 @@ void p_fill_solid(DISPATCH_ARGS) {
 	Tigr *canvas = canvas_for_drawing(interp);
 	if (canvas) {
 		draw_solid(canvas, points, &faces, centres, normals, colours->matrix.elements, leads->matrix.elements, camera,
-				&projection, &shading, xs, ys, aheads, order);
+				&projection, &shading, xs, ys, aheads, order, &clip);
 		screen.requested = 1;
 		screen.dirty = 1;
 	}
@@ -941,6 +1034,7 @@ void p_fill_solid(DISPATCH_ARGS) {
 	free(ys);
 	free(aheads);
 	free(order);
+	free_solid_clip(&clip);
 	free(faces.starts);
 	free(faces.corners);
 	if (!canvas)

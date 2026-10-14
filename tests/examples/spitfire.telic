@@ -8,7 +8,12 @@
 \ rudder and, at full rudder, the brakes, the stick eased back from 45 m/s,
 \ the engine already running; then starting on the runway and
 \ stopping with the slow-running cut-out, the revolutions and whether the
-\ engine runs after each step. Each line gives the model's figure, rounded.
+\ engine runs after each step; then the Lysander's take-off, whose Perseus
+\ turns the other way, trimmed for take-off with the stick neutral: the
+\ heading's change with the rudder free after 6 s, right positive, and with
+\ the heading held on the rudder alone, no brakes, the heading's greatest
+\ stray, the most rudder used and the lift-off speed (65 mph published).
+\ Each line gives the model's figure, rounded.
 
 [ "geography" "town-streets" "norway-terrain" "narvik" "norway-coarse" "scotland-terrain" "space" "shapes" "render" "world" "cities" "aircraft-types" "flight" ] ( name | "examples/spitfire/" name + ".telic" + load ) each
 build-scenery drop
@@ -125,3 +130,29 @@ clear
 	idler rpm . idler@running . cr                         \ 22 0
 	controls false :cut-out ! drop ;
 stopping
+clear
+
+\ === the Lysander's take-off from Turnhouse, fine pitch, the throttle opened as the Spitfire's, the tailplane trimmed to the take-off position and the stick neutral: with the rudder free, the heading's change after 6 s, degrees, right positive; with the heading held on the rudder alone, no rudder trim and no brakes, the greatest stray from the heading, degrees, the most rudder used, a share of its travel, and the lift-off speed, km/h ===
+: lysander-run ( law seconds -- plane stray most-rudder )
+	| law seconds |
+	:turnhouse landmark-ground [ 0 wheel-height 0 ] v+ 60 0 true new-plane to runner
+	runner lysander-mk-ii use-type
+	runner true :magnetos ! true :running ! 0.2 :revolutions ! 0 :throttle ! :two-pitch :propeller ! 0.3 :trim ! drop
+	0 to stray
+	0 to most-rudder
+	0 seconds 20 * round 1 do k
+		runner@velocity v-length to speed
+		speed 30 / 0.33 + 1 min2 runner!throttle
+		60 runner@attitude@forward heading-of - 540 + 360 mod 180 - to error
+		error runner law execute to pedal
+		controls 0 :pitch ! 0 :roll ! pedal :yaw ! false :brakes ! drop
+		runner 0.05 fly
+		error abs stray max2 to stray
+		pedal abs most-rudder max2 to most-rudder
+		runner@on-ground not if leave then
+	loop
+	runner stray most-rudder ;
+( 2drop 0 ) 6 lysander-run 2drop @attitude@forward heading-of 60 - round . cr   \ 17
+( error plane | error 0.15 * plane@rates 2 @i 3 * - -1 1 clamp ) 60 lysander-run
+100 * round 100 / . round . @velocity v-length 3.6 * round . cr                  \ 0.87 6 105
+clear

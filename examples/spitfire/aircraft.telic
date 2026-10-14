@@ -1010,7 +1010,7 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 	out hurricane-edges-at to trailing to leading
 	[ out out share hurricane-upper-at leading leading trailing - share * - ] ;
 
-\ the wings: the centre section's outline and flaps level, and the fillet behind its trailing edge, the outer panels' outlines, flaps and ailerons on their underside, which rises as the chord plane does at the dihedral and the section thins, the tips rounded, all on the wing's flat underside; the cambered upper surface over it, a Clark YH section 19% of the chord thick through the centre section thinning to 12.2% at the tip (the published figures), drawn as ribs from the centre line, the centre section passing under the fuselage, to the tip's end, round the tip as the outline rounds, with the skin filled between them; the four Browning ports in each wing's leading edge, dark discs 2 cm ahead of the edge where the Watts three-view's front view puts them, 1.87 m to 2.40 m out, and the gun bay's panel round them, 14 cm high
+\ the wings: the centre section's outline and flaps level, and the fillet behind its trailing edge, the outer panels' outlines, flaps and ailerons on their underside, which rises as the chord plane does at the dihedral and the section thins, the tips rounded, all on the wing's flat underside; the cambered upper surface over it, a Clark YH section 19% of the chord thick through the centre section thinning to 12.2% at the tip (the published figures), drawn as ribs from the centre line, the centre section passing under the fuselage, to the tip's end, round the tip as the outline rounds, with the skin filled between them and a line along the ribs' crests, 30% of the chord back; the four Browning ports in each wing's leading edge, dark discs 2 cm ahead of the edge where the Watts three-view's front view puts them, 1.87 m to 2.40 m out, and the gun bay's panel round them, 14 cm high
 : sketch-hurricane-wings ( sketch -- )
 	| sketch |
 	hurricane-centre-outline to centre-outline
@@ -1044,6 +1044,7 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 				( pair | [ out side * rib-base pair second rib-depth * + rib-leading pair first rib-chord * - ] ) map sketch-points
 		) 2 nmap to rib-indices
 		rib-indices ( indices | sketch indices join-path ) each
+		sketch rib-indices ( indices | indices 3 @i ) map join-path
 		0 rib-indices size 1- 1 do r
 			rib-indices r @i to inner-rib
 			rib-indices r 1+ @i to outer-rib
@@ -1103,19 +1104,20 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 		sketch [ frames first corner @i frames last corner @i ] outside map sketch-path
 	loop ;
 
-\ a bar from one point to another, a rectangular tube, a half-width across and a half-width along the line of flight, its faces square to that line and to the plane through the bar and it, filled in a colour, or the object's where null
+\ a bar from one point to another, a rectangular tube, a half-width across and a half-width along the line of flight, its faces square to that line and to the plane through the bar and it, filled in a colour, or the object's where null; its ends' outlines and its four long edges as lines
 : sketch-bar ( sketch start end half-across half-forward colour -- )
 	| sketch start end half-across half-forward colour |
 	end start v- v-unit [ 0 0 1 ] v-cross v-unit to across
 	[ 0 0 1 ] to forward
 	start end v+ 0.5 v* to middle
-	[ [ -1 -1 ] [ 1 -1 ] [ 1 1 ] [ -1 1 ] ] to signs
+	[ [ -1 -1 ] [ 1 -1 ] [ 1 1 ] [ -1 1 ] ] ( signs | across signs first half-across * v* forward signs second half-forward * v* v+ ) map to offsets
+	[ start end ] ( point | sketch offsets ( offset | point offset v+ ) map sketch-points ) map to ends
+	sketch ends first join-loop
+	sketch ends second join-loop
 	0 4 1 do k
-		signs k @i spread to forward-sign to across-sign
-		signs k 1+ 4 mod @i spread to next-forward-sign to next-across-sign
-		across across-sign half-across * v* forward forward-sign half-forward * v* v+ to offset
-		across next-across-sign half-across * v* forward next-forward-sign half-forward * v* v+ to next-offset
-		sketch [ start offset v+ start next-offset v+ end next-offset v+ end offset v+ ] sketch-points to corners
+		k 1+ 4 mod to next
+		sketch ends first k @i ends second k @i sketch-edge
+		[ ends first k @i ends first next @i ends second next @i ends second k @i ] to corners
 		colour null? if sketch corners middle sketch-face else sketch corners middle colour sketch-painted-face then
 	loop ;
 

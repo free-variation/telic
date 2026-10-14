@@ -676,7 +676,7 @@ variable wingmen
 	:bardufoss landmark-ground glorious-fly-off v- heading-of to fly-off-heading
 	:scapa-flow landmark-ground to scapa-anchorage
 	scapa-anchorage 0 0 2500 -15000 placed to scapa-patrol
-	:grangemouth landmark-ground 70 0 wheel-height -580 placed to grangemouth-runway
+	:grangemouth landmark-ground 70 0 wheel-height 580 placed to grangemouth-runway
 	:inchkeith landmark-ground 80 0 0 4000 placed to convoy-lead
 	:bass-rock landmark-ground 40 0 0 8000 placed to u-boat-place
 	[ { :name "THE FORTH, 16 OCTOBER 1939" :month 10
@@ -844,19 +844,20 @@ variable wingmen
 	    :propeller :constant-speed :emergency true
 	    :message "FOG AT ABBOTSINCH  -  HOLD 050 AND 120 MPH, THE RUNWAY IS AHEAD"
 	    :group :training
-	    :briefing "LAND IN FOG WITH A MILE'S VISIBILITY. YOU ARE TRIMMED, THE RUDDER TRIM A LITTLE RIGHT AGAINST THE ENGINE'S SWING; AS THE POWER CHANGES, WIND IT WITH . AND , TO KEEP THE SLIP NEEDLE CENTRED. THE RUNWAY IS AHEAD ON 050 BUT OUT OF SIGHT: HOLD THE HEADING ON THE GYRO, 120 MPH, AND A STEADY DESCENT ON THE CLIMB INDICATOR UNTIL THE RUNWAY SHOWS, THEN LAND AS IN CLEAR AIR." }
+	    :briefing "LAND IN FOG WITH A MILE'S VISIBILITY. YOU ARE TRIMMED, THE RUDDER TRIM A LITTLE RIGHT AGAINST THE ENGINE'S SWING; AS THE POWER CHANGES, WIND IT WITH . AND , (THE SHOULDERS) TO KEEP THE SLIP NEEDLE CENTRED. THE RUNWAY IS AHEAD ON 050 BUT OUT OF SIGHT: HOLD THE HEADING ON THE GYRO, 120 MPH, AND A STEADY DESCENT ON THE CLIMB INDICATOR UNTIL THE RUNWAY SHOWS, THEN LAND AS IN CLEAR AIR." }
 	  { :name "FORTH PATROL, JUNE 1940" :month 6
 	    :story [ "JUNE 1940. 614 SQUADRON'S LYSANDERS HAVE COME TO"
 	             "GRANGEMOUTH TO WATCH THE FORTH AND THE EAST COAST."
 	             "THE DAWN PATROL: DOWN THE FIRTH TO THE BASS ROCK." ]
-	    :start [ grangemouth-runway 70 0 true ]
+	    :start [ grangemouth-runway 250 0 true ]
 	    :raid null :aircraft :lysander :base-field :grangemouth :base-name "GRANGEMOUTH" :patrol-turn :bass-rock
 	    :patrol [ [ "A CONVOY EAST OF INCHKEITH" convoy-lead
 	                [ [ :merchant convoy-lead 80 ] [ :merchant convoy-lead 80 0 0 -450 placed 80 ] [ :merchant convoy-lead 80 0 0 -900 placed 80 ] ] ]
-	              [ "A U-BOAT OFF THE BASS ROCK" u-boat-place [ [ :u-boat u-boat-place 120 ] ] ] ]
-	    :night false :landing false :visibility clear-visibility :cover 0.3 :base 900 :wind [ 250 5 ]
+	              [ "A U-BOAT OFF THE BASS ROCK" u-boat-place [ [ :u-boat u-boat-place 120 ] ] ]
+	              [ "A U-BOAT SURFACED OFF THE COAST" [ :inchkeith :bass-rock ] :roving ] ]
+	    :night false :landing false :visibility clear-visibility :cover 0 :base 900 :wind [ 250 0 ]
 	    :propeller :two-pitch :emergency false
-	    :message "DAWN PATROL  -  FINE PITCH (W), OPEN THE THROTTLE AS SHE ROLLS"
+	    :message "DAWN PATROL  -  FINE PITCH (W), OPEN THE THROTTLE AS SHE ROLLS; HANDS OFF, SHE HOLDS THE RUNWAY AND FLIES HERSELF OFF; THEN NOSE DOWN AND TRIM FORWARD (LEFT BRACKET) AS SHE CLIMBS"
 	    :group :reconnaissance
 	    :briefing "PATROL THE FORTH FROM GRANGEMOUTH DOWN THE FIRTH TO THE BASS ROCK AND BACK, AS 614 SQUADRON'S LYSANDERS DID FROM JUNE 1940. REPORT ANY SHIPPING AND ANY U-BOAT ON THE SURFACE BY CIRCLING IT ONCE WITHIN A MILE OF IT AND BELOW 2,000 FT; THE STRIP BELOW THE PANEL COUNTS YOUR REPORTS. THEN LAND AT GRANGEMOUTH. START: MAGNETOS ON (M), HOLD K. TAKE OFF IN FINE PITCH (W), OPENING THE THROTTLE AS SHE ROLLS; SHE SWINGS LEFT, SO HOLD HER WITH RIGHT RUDDER AND, AT FULL RUDDER, THE BRAKES (B). THE SLATS AND FLAPS COME OUT BY THEMSELVES AS SHE SLOWS. THE TAILPLANE'S TRIM ([ ]) IS POWERFUL: SET IT FOR THE SPEED." } ] ;
 

@@ -30,9 +30,11 @@
   | xt n |
   1 xt ' f* n fold-times ;
 
-\ does any element satisfy pred?
-: any? ( items pred -- flag ) find-first null? not ;
-inline
+\ does any element satisfy pred? Searched over the indices, so a null
+\ element that satisfies it counts, where find-first's null would not
+: any? ( items pred -- flag )
+	| items pred |
+	items size iota ( k | items k @i pred execute ) find-first null? not ;
 
 \ do all elements satisfy pred?
 : all? ( items pred -- flag ) map 1 ' * reduce ;

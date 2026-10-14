@@ -11,13 +11,100 @@
 1609.34 constant report-range
 609.6 constant report-height
 
-\ the mission's sightings as the flight keeps them, each { :name :centre :ships :reported :swept :last-bearing }: the angle swept round the centre so far, degrees, and the bearing from it at the last step, null while out of reach
+\ the roving U-boat: the flight's seconds before it surfaces and the seconds it stays up, each drawn evenly between the two (estimates); its speed on the surface, 10 knots, the Type VIIC's cruising speed (Wikipedia, Type VII submarine); its turn under rudder, degrees a second (an estimate); how far ahead it looks for land, metres, and how often, seconds
+[ 300 1200 ] constant surfacing-times
+[ 1200 2400 ] constant surfaced-times
+5.144 constant u-boat-speed
+1 constant u-boat-turn-rate
+800 constant u-boat-lookahead
+10 constant u-boat-steer-interval
+
+\ a time drawn evenly between the two of a pair
+: drawn-between ( pair -- seconds ) | pair | pair first pair second pair first - random * + ;
+
+\ whether a ground point is sea, with its region's coast in use
+: sea-at? ( point -- flag ) | point | point use-water-near point first point 2 @i water-at? ;
+
+\ whether a point lies off the coast: sea, sea all round it 400 m out, and land 2 km out in one of eight directions
+: off-coast? ( point -- flag )
+	| point |
+	point sea-at? not if false exit then
+	[ 0 45 90 135 180 225 270 315 ] to bearings
+	bearings ( bearing | point bearing 0 0 400 placed sea-at? ) all? not if false exit then
+	bearings ( bearing | point bearing 0 0 2000 placed sea-at? not ) any? ;
+
+\ a random point off the coast within 6 km either side of the line from one landmark to another, drawn again until one is found, at most 500 times
+: off-coast-point ( from-key to-key -- point )
+	| from-key to-key |
+	from-key landmark-ground to start
+	to-key landmark-ground start v- to line
+	line heading-of to course
+	line v-length to length
+	0 to tries
+	begin
+		start course random 2 * 1 - 6000 * 0 random length * placed to point
+		++ tries
+		point off-coast? tries 500 >= or not
+	while repeat
+	point ;
+
+\ the heading nearest a wanted one, 15° at a time either way, with sea at the lookahead and halfway to it; the wanted one where none is
+: clear-heading ( point wanted -- heading )
+	| point wanted |
+	wanted to chosen
+	false to clear-found
+	0 25 1 do k
+		clear-found not if
+			k 1+ 2 / round-down 15 * k 2 mod 0 = if -1 else 1 then * wanted + 360 + 360 mod to trial
+			point trial 0 0 u-boat-lookahead placed sea-at? point trial 0 0 u-boat-lookahead 2 / placed sea-at? and if
+				trial to chosen
+				true to clear-found
+			then
+		then
+	loop
+	chosen ;
+
+\ the roving U-boat's sighting: off the coast between two landmarks, on a clear heading, surfacing and diving at drawn times
+: roving-sighting ( name from-key to-key -- sighting )
+	| name from-key to-key |
+	from-key to-key off-coast-point to centre
+	centre random 360 * clear-heading to heading
+	surfacing-times drawn-between to surfacing
+	{ :name name :centre centre :ships [ [ :u-boat centre heading ] ] :reported false :swept 0 :last-bearing null
+	  :roving true :heading heading :wanted heading :steer-clock 0 :surface-time surfacing :dive-time surfacing surfaced-times drawn-between + } ;
+
+\ the mission's sightings as the flight keeps them, each { :name :centre :ships :reported :swept :last-bearing :roving }: the angle swept round the centre so far, degrees, and the bearing from it at the last step, null while out of reach; a row whose ships are :roving names the roving U-boat and the two landmarks it surfaces between
 : patrol-sightings ( mission -- sightings )
 	| mission |
 	mission :patrol [ ] @or ( sighting |
 		sighting spread to ships to centre to name
-		{ :name name :centre centre :ships ships :reported false :swept 0 :last-bearing null }
+		ships :roving = if
+			name centre spread roving-sighting
+		else
+			{ :name name :centre centre :ships ships :reported false :swept 0 :last-bearing null :roving false }
+		then
 	) map ;
+
+\ whether a sighting is on the surface: a fixed one always, the roving U-boat between its surfacing and its diving
+: surfaced? ( sighting -- flag )
+	| sighting |
+	sighting@roving not if true exit then
+	:flight-time game@ to clock
+	clock sighting@surface-time >= clock sighting@dive-time < and ;
+
+\ the roving U-boat a step on: every steer interval it looks for a clear heading from the one it holds, turns toward it at its rate, and runs on at its speed
+: steer-u-boat ( sighting elapsed -- )
+	| sighting elapsed |
+	sighting@steer-clock elapsed - to steer-clock
+	steer-clock 0 <= if
+		sighting sighting@centre sighting@heading clear-heading :wanted ! drop
+		u-boat-steer-interval to steer-clock
+	then
+	sighting steer-clock :steer-clock ! drop
+	u-boat-turn-rate elapsed * to most
+	sighting@wanted sighting@heading - 540 + 360 mod 180 - most negate most clamp sighting@heading + 360 + 360 mod to heading
+	sighting@centre heading 0 0 u-boat-speed elapsed * placed to centre
+	sighting heading :heading ! centre :centre ! [ [ :u-boat centre heading ] ] :ships ! drop ;
 
 \ the bearing of a point from an origin, degrees from north clockwise
 : bearing-between ( origin point -- degrees )
@@ -25,10 +112,12 @@
 	point origin v- spread to dz drop to dx
 	dx dz atan2 180 * PI / 360 + 360 mod ;
 
-\ a step of the patrol: each sighting not yet reported, while the aircraft flies within reach of it, sweeps the bearing's change since the last step, the shorter way round; out of reach the sweep starts again; a sweep of a whole circle either way reports it, with the message
-: patrol-step ( -- )
+\ a step of the patrol, elapsed seconds on: the roving U-boat steered while on the surface; each sighting on the surface not yet reported, while the aircraft flies within reach of it, sweeps the bearing's change since the last step, the shorter way round; out of reach the sweep starts again; a sweep of a whole circle either way reports it, with the message
+: patrol-step ( elapsed -- )
+	| elapsed |
+	:sightings game@ ( sighting | sighting@roving sighting surfaced? and ) filter ( sighting | sighting elapsed steer-u-boat ) each
 	:sightings game@ ( sighting |
-		sighting@reported not if
+		sighting@reported not sighting surfaced? and if
 			plane@position sighting@centre v- spread to dz drop to dx
 			[ dx 0 dz ] v-length report-range < plane@position second report-height < and if
 				sighting@centre plane@position bearing-between to bearing
@@ -50,10 +139,10 @@
 \ whether every sighting is reported
 : patrol-done? ( -- flag ) :sightings game@ ( sighting | sighting@reported ) all? ;
 
-\ the sightings' ships as crafts for the scene, each at sea level on its heading
+\ the ships of the sightings on the surface as crafts for the scene, each at sea level on its heading
 : patrol-crafts ( -- crafts )
 	[ ] to crafts
-	:sightings game@ ( sighting |
+	:sightings game@ ( sighting | sighting surfaced? ) filter ( sighting |
 		sighting@ships ( ship |
 			ship spread to heading to place to kind
 			crafts { :kind kind :position place :attitude heading heading-attitude :state :sailing :smoke [ ] } add-last! drop

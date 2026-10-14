@@ -870,33 +870,75 @@ panel-top 190 + constant board-foot
 
 \ === the Lysander's cockpit ===
 
-\ The Lysander's cockpit, laid out from a photograph of a Lysander's
-\ instrument panel: one black board across the cockpit, the blind-flying
+\ The Lysander's cockpit, laid out from two photographs of Lysanders'
+\ instrument panels: one black board across the cockpit, the blind-flying
 \ panel's six dials in its middle. To their right the fuel contents' red
-\ strip gauge at the top, the boost gauge in its red rim, the cylinder
-\ temperature's large dial, 100 to 300°C, the Perseus's air-cooled cylinders
-\ taking the place of a radiator, the revolution counter, and the oil's
-\ pressure and temperature along the foot. To their left the clock, the
-\ brakes' pressure, the magneto switches and the starter buttons. Below the
-\ panel the compass, the throttle and the two-pitch propeller's lever, the
-\ tailplane's trim wheel on the left wall, the variable-incidence tailplane
-\ the Lysander trimmed by, the pedals and the column's ring grip. There is
-\ no flaps' lever and no undercarriage's indicator: the slats work the
-\ flaps and the wheels are fixed. The cylinder temperature's red mark is at
-\ the engine model's limit, an estimate.
+\ strip gauge at the top, the priming button, the starter's red button,
+\ the boost pump's and the starting magneto's switches and a green lamp,
+\ the cylinder temperature's large dial, 100 to 300°C, the Perseus's
+\ air-cooled cylinders taking the place of a radiator, the boost gauge in
+\ its red rim, the revolution counter numbered 12 to 34 hundred, and along
+\ the foot the oil's pressure and temperature and the free air's
+\ temperature. To their left the magneto switches, the clock and the
+\ brakes' pressure, a row of toggle switches and four banks of four
+\ switches. Below the panel the fire extinguisher's red button and the
+\ cockpit cooling's white knob, the compass, the throttle and the
+\ two-pitch propeller's lever, the tailplane's trim wheel on the left
+\ wall, the variable-incidence tailplane the Lysander trimmed by, the
+\ pedals and the column's ring grip. The switches, the lamp, the priming
+\ button, the fire button and the cooling knob are drawn and do nothing.
+\ There is no flaps' lever and no undercarriage's indicator: the slats
+\ work the flaps and the wheels are fixed. The cylinder temperature's red
+\ mark is at the engine model's limit, an estimate. The photographs'
+\ carburettor temperature is left out, the engine model having none.
 
-\ the cylinder heads' temperature, 0 to 300°C, numbered 100, 200 and 300 as the photographed dial is, CYL TEMP on its face, a red mark at the type's limit
+\ the angle of a cylinder temperature on the photographed dial's scale, 0°C at nine o'clock round over the top to 300°C at three
+: cylinder-angle ( celsius -- angle ) 0 300 clamp 300 / 0.5 - PI * ;
+
+\ the cylinder heads' temperature, 0 to 300°C over the top of the dial, numbered 100, 200 and 300 as the photographed dial is, CYL TEMP on its face below them, a red mark at the type's limit
 : draw-cylinder-temperature ( cx cy -- )
 	| cx cy |
 	cx cy medium-radius dial-face
-	cx cy medium-radius 6 sweep-ticks
-	cx cy medium-radius 0 300 [ [ 100 "100" ] [ 200 "200" ] [ 300 "300" ] ] sweep-numerals
-	plane@type@temperature-limit 0 300 sweep to angle
+	0 7 1 do k cx cy medium-radius k 50 * cylinder-angle tick loop
+	[ 100 200 300 ] ( celsius | cx cy medium-radius celsius cylinder-angle 0.7 celsius "{0:.0f}" format face-text ) each
+	plane@type@temperature-limit cylinder-angle to angle
 	cx angle sin medium-radius 0.7 * * + cy angle cos medium-radius 0.7 * * -
 	cx angle sin medium-radius * + cy angle cos medium-radius * -
 	warning-colour draw-segment
-	cx cy 6 + "CYL TEMP" dial-ink centred-text
-	cx cy medium-radius plane@coolant-temperature 0 300 sweep 0.85 needle-colour hand ;
+	cx cy 8 + "CYL TEMP" dial-ink centred-text
+	cx cy medium-radius plane@coolant-temperature cylinder-angle 0.85 needle-colour hand ;
+
+\ the revolution counter as the photographed one: 1,200 to 3,400 a minute on a sweep, numbered in hundreds every 400
+: draw-lysander-revolutions ( cx cy -- )
+	| cx cy |
+	plane@revolutions plane@type@rated-revolutions * to rpm
+	cx cy medium-radius rpm 1200 3400 11 [ [ 1200 "12" ] [ 1600 "16" ] [ 2000 "20" ] [ 2400 "24" ] [ 2800 "28" ] [ 3200 "32" ] ] "R.P.M." sweep-dial ;
+
+\ a small dial along the panel's foot, its name on its face and its hand on a sweep, nothing under it
+: draw-foot-dial ( cx cy value low high name -- )
+	| cx cy value low high name |
+	cx cy small-radius dial-face
+	cx cy small-radius 4 sweep-ticks
+	cx cy 4 + name dial-ink centred-text
+	cx cy small-radius value low high sweep 0.85 needle-colour hand ;
+
+\ a bank of four small switches on a plate of their own
+: draw-switch-bank ( x top -- )
+	| x top |
+	x top 64 18 0x050505 fill-span
+	x top 64 18 dial-ink 0.6 dimmed outline
+	0 4 1 do k
+		x 10 + k 15 * + to lever-x
+		lever-x top 11 + 2 0x707070 fill-disc
+		lever-x 1 - top 3 + 3 7 0xd8d8d0 fill-span
+	loop ;
+
+\ a push button with a rim, in a colour, its name under it
+: draw-push-button ( cx cy colour name -- )
+	| cx cy colour name |
+	cx cy 6 dial-ink 0.6 dimmed draw-circle
+	cx cy 5 colour fill-disc
+	cx cy 9 + name dial-ink centred-text ;
 
 \ the Lysander's cockpit below the windscreen
 : draw-lysander-panel ( -- )
@@ -910,18 +952,25 @@ panel-top 190 + constant board-foot
 	236 hurricane-lower-row draw-altimeter
 	320 hurricane-lower-row draw-gyro
 	404 hurricane-lower-row draw-turn-and-slip
-	470 panel-top 36 + 18 40 plane@fuel plane@fuel-capacity / boost-rim-colour "FUEL" draw-strip-gauge
-	512 panel-top 62 + draw-boost
+	52 panel-top 62 + draw-magnetos
+	52 panel-top 66 + "MAGS" dial-ink centred-text
+	108 panel-top 56 + draw-clock
+	160 panel-top 56 + draw-brakes
+	[ 46 70 94 118 142 166 ] ( x | x panel-top 122 + draw-toggle ) each
+	[ 40 116 ] ( x | [ 136 160 ] ( down | x panel-top down + draw-switch-bank ) each ) each
+	466 panel-top 36 + 18 40 plane@fuel plane@fuel-capacity / boost-rim-colour "FUEL" draw-strip-gauge
+	494 panel-top 44 + 0x303030 "PRIME" draw-push-button
+	526 panel-top 44 + plane@cranking if 0xff5040 else 0x902018 then "START" draw-push-button
+	[ 494 526 ] ( x | x panel-top 86 + draw-toggle ) each
+	510 panel-top 76 + 3 0x205020 fill-disc
 	570 panel-top 62 + draw-cylinder-temperature
-	512 panel-top 132 + draw-revolutions
-	560 panel-top 126 + 18 36 plane@oil-pressure 120 / oil-gauge-colour "OIL" draw-strip-gauge
-	590 panel-top 162 + plane@oil-temperature "OIL" null draw-temperature
-	80 hurricane-upper-row 10 - draw-clock
-	150 hurricane-upper-row 10 - draw-brakes
-	96 board-foot 4 - draw-magnetos
-	96 board-foot 26 - "MAGS" dial-ink centred-text
-	150 board-foot 13 - draw-starter-buttons
-	150 board-foot 7 - "START" dial-ink centred-text
+	488 panel-top 118 + draw-boost
+	568 panel-top 120 + draw-lysander-revolutions
+	466 panel-top 172 + plane@oil-pressure 0 200 "PSI" draw-foot-dial
+	504 panel-top 172 + plane@oil-temperature 0 140 "OIL" draw-foot-dial
+	542 panel-top 172 + plane@position second air-temperature -40 40 "AIR" draw-foot-dial
+	172 floor-top 14 + warning-colour "FIRE" draw-push-button
+	204 floor-top 14 + 0xe0e0d8 "COOL" draw-push-button
 	draw-throttle-lever
 	92 floor-top 20 + plane@trim "DN" "UP" "TAIL" draw-wall-wheel
 	282 floor-top 12 + draw-compass

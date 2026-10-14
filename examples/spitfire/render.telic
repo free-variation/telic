@@ -38,7 +38,10 @@ variable focal-length
 \ drawing a photograph: every colour turned to its grey
 variable monochrome
 false to monochrome
-2 constant near-plane
+\ how near ahead of the eye a face is cut, metres: the scene's 2, or the cockpit's own when it is drawn from inside
+2 constant scene-near-plane
+variable near-plane
+scene-near-plane to near-plane
 30000 constant clear-visibility
 250 constant n-stars
 
@@ -246,7 +249,7 @@ star-directions constant stars
 0.55 constant face-shadow
 0.6 constant face-outline-share
 
-\ an object's faces, each turned toward the eye, from the farthest to the nearest, a mark sorted its lead nearer: filled in its colour by its light from the sun and the day's, faded into the sky at the object's distance, then outlined in a darker shade; a face with a corner behind the near plane left out; all in one call to draw-solid, its faces hiding each other pixel by pixel unless the object's :depth-test is false, as for the towns' blocks, whose boxes the far-to-near order alone draws right. The points, the faces' centres, their normals and the object's centre in the ground's terms, so a moving model passes its own
+\ an object's faces, each turned toward the eye, from the farthest to the nearest, a mark sorted its lead nearer: filled in its colour by its light from the sun and the day's, faded into the sky at the object's distance, then outlined in a darker shade; a face crossing the near plane cut at it, the part ahead drawn; all in one call to draw-solid, its faces hiding each other pixel by pixel unless the object's :depth-test is false, as for the towns' blocks, whose boxes the far-to-near order alone draws right. The points, the faces' centres, their normals and the object's centre in the ground's terms, so a moving model passes its own
 : draw-faces ( object points centres normals centre -- )
 	| object points centres normals centre |
 	centre eye@position v- v-length depth-light to kept-light

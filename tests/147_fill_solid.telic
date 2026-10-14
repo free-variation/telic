@@ -5,8 +5,9 @@
 \ (n×3 or n×4 rows) carried to the eye's terms by the 4×3 camera matrix,
 \ each face kept when it turns toward the eye (its outward normal against
 \ the eye's place less its centre), sorted farthest first by its centre's
-\ depth less its lead, left out when a corner lies nearer than the near
-\ plane, projected by [ focal centre-x centre-y near ], then filled and
+\ depth less its lead, cut at the near plane where its corners lie on both
+\ sides of it and left out where all lie nearer, the cut edge not outlined,
+\ projected by [ focal centre-x centre-y near ], then filled and
 \ outlined, each pixel kept only where the face is no farther than what
 \ the same call drew there before, unless a 13th shading element is 0. A
 \ face of two corners is a line: never culled, sorted by its middle, drawn
@@ -88,9 +89,24 @@ square [ [ 0 1 2 3 ] ] [ 0 0 10 ] 1 3 matrix [ 0 0 1 ] 1 3 matrix [ 0x808080 ] v
 \ .........
 clear
 
-\ === a corner nearer than the near plane: the face left out ===
+\ === a corner nearer than the near plane: the face cut at it, the part ahead drawn, its edges from the cut running off the screen's lower left ===
 blank
 [ -2 -2 0.05  2 -2 10  2 2 10  -2 2 10 ] 4 3 matrix [ [ 0 1 2 3 ] ] [ 0 0 7.5 ] 1 3 matrix [ 0 0 -1 ] 1 3 matrix [ 0x808080 ] vector [ 0 ] vector straight-on projection sunlit fill-solid
+0 0 9 9 capture-bitmap show-rows
+\ .........
+\ .........
+\ .........
+\ ...ooooo.
+\ ..o####o.
+\ .o#####o.
+\ o######o.
+\ ######.o.
+\ #####.o..
+clear
+
+\ === every corner nearer than the near plane: the face left out ===
+blank
+[ -2 -2 0.05  2 -2 0.05  2 2 0.05  -2 2 0.05 ] 4 3 matrix [ [ 0 1 2 3 ] ] [ 0 0 0.05 ] 1 3 matrix [ 0 0 -1 ] 1 3 matrix [ 0x808080 ] vector [ 0 ] vector straight-on projection sunlit fill-solid
 0 0 9 9 capture-bitmap show-rows
 \ .........
 \ .........
