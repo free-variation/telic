@@ -964,7 +964,7 @@ variable wing-surfaces
 	mission :carrier null @or to deck
 	game :aircraft-choice :spitfire @or to aircraft-choice
 	mission@start spread new-plane to plane
-	mission :aircraft :fighter @or :reconnaissance = if plane make-reconnaissance then
+	mission aircraft-choice flown-in :reconnaissance = if plane make-reconnaissance then
 	mission aircraft-choice flown-in :hurricane = if plane hurricane-mk-i use-type then
 	mission aircraft-choice flown-in :lysander = if plane lysander-mk-ii use-type then
 	mission aircraft-choice flown-in :gladiator = if plane gladiator-mk-ii use-type then
@@ -982,6 +982,10 @@ variable wing-surfaces
 	mission :ballast null @or plane!ballast
 	mission@propeller plane!propeller
 	mission@emergency plane!emergency-allowed
+	mission :choices null @or null? not plane@type@kind :lysander = plane@type@kind :gladiator = or and if
+		:two-pitch plane!propeller
+		false plane!emergency-allowed
+	then
 	mission :lesson false @or to lesson
 	mission :air-firing false @or to air-firing
 	lesson air-firing not and if false plane!fine then
@@ -1450,9 +1454,11 @@ help-pages size 1+ constant help-page-count
 		:escape key-pressed? :back pad-pressed? or :east pad-pressed? or if :list :screen game! exit then
 		:return key-pressed? :start pad-pressed? or :south pad-pressed? or if :choice game@ new-flight exit then
 		all-missions :choice game@ choice-mission @i to mission
-		:left key-pressed? :right key-pressed? or :dpad-left pad-pressed? or :dpad-right pad-pressed? or mission aircraft-choosable? and if
-			:aircraft-choice game@ :hurricane = if :spitfire else :hurricane then :aircraft-choice game!
-		then
+		mission aircraft-choices to kinds
+		kinds size to n-kinds
+		kinds :aircraft-choice game@ position-of 0 max2 to at
+		:right key-pressed? :dpad-right pad-pressed? or n-kinds 1 > and if kinds at 1+ n-kinds mod @i :aircraft-choice game! then
+		:left key-pressed? :dpad-left pad-pressed? or n-kinds 1 > and if kinds at n-kinds + 1- n-kinds mod @i :aircraft-choice game! then
 		mission :briefing-frame game@ :briefing-lines game@ :aircraft-choice game@ draw-briefing
 		exit
 	then

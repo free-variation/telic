@@ -386,19 +386,24 @@ variable placed-labels
 	sheet-left 8 + sheet-top 8 + mission@name chart-ink draw-text
 	sheet-left sheet-width + 8 - "RELEASE N OR THE PADDLE TO LOOK UP" text-width - sheet-top 8 + "RELEASE N OR THE PADDLE TO LOOK UP" chart-ink draw-text ;
 
-\ whether a mission may be flown in either fighter: every armed mission that does not fix its aircraft, but the flying lesson, which is the two-seat Spitfire's
-: aircraft-choosable? ( mission -- flag )
+\ the aircraft a mission may be flown in, in the order left and right step through them: the mission's :choices where it names them (:reconnaissance the unarmed PR IV); else the Spitfire and the Hurricane on every armed mission that does not fix its aircraft, but the flying lesson and the air firing, which are the two-seat Spitfire's; else none
+: aircraft-choices ( mission -- kinds )
 	| mission |
-	mission :aircraft :fighter @or :fighter = not if false exit then
-	mission :lesson false @or mission :air-firing false @or not and not ;
+	mission :choices null @or to choices
+	choices null? not if choices exit then
+	mission :aircraft :fighter @or :fighter = not if [ ] exit then
+	mission :lesson false @or mission :air-firing false @or or if [ ] exit then
+	[ :spitfire :hurricane ] ;
 
-\ the aircraft a mission is flown in: the Hurricane or the Lysander where the mission fixes it, the Hurricane where chosen and the mission allows the choice; otherwise the Spitfire
+\ whether a mission offers a choice of aircraft
+: aircraft-choosable? ( mission -- flag ) aircraft-choices size 1 > ;
+
+\ the aircraft a mission is flown in: the type the mission fixes, the PR IV as :reconnaissance; else the choice where the mission offers it; otherwise the Spitfire
 : flown-in ( mission choice -- kind )
 	| mission choice |
-	mission :aircraft :fighter @or :hurricane = if :hurricane exit then
-	mission :aircraft :fighter @or :lysander = if :lysander exit then
-	mission :aircraft :fighter @or :gladiator = if :gladiator exit then
-	choice :hurricane = mission aircraft-choosable? and if :hurricane else :spitfire then ;
+	mission :aircraft :fighter @or to fixed
+	fixed :fighter = not if fixed exit then
+	mission aircraft-choices choice position-of 0 >= if choice else :spitfire then ;
 
 \ how many of a type, by the name the briefing gives it
 : kind-plural ( kind -- text )
@@ -416,7 +421,7 @@ variable placed-labels
 	else
 		"DAY"
 	then to time-text
-	mission :aircraft :fighter @or :reconnaissance = if
+	mission choice flown-in :reconnaissance = if
 		"SPITFIRE PR, UNARMED, SPLIT CAMERAS"
 	else mission choice flown-in :hurricane = if
 		"HURRICANE MK I, EIGHT BROWNINGS, 334 OR 287 ROUNDS EACH"
@@ -516,6 +521,6 @@ variable placed-labels
 		16 briefing-top k 13 * + lines k @i dial-ink draw-text
 	loop
 	mission aircraft-choosable? if
-		320 448 "LEFT AND RIGHT: SPITFIRE OR HURRICANE" heading-colour centred-print
+		320 448 "LEFT AND RIGHT: CHOOSE THE AIRCRAFT" heading-colour centred-print
 	then
 	320 462 "RETURN OR START FLIES  -  ESCAPE FOR THE MISSIONS" 0xffffff centred-print ;

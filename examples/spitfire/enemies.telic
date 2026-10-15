@@ -834,6 +834,7 @@ variable wingmen
 	    :night false :landing false :visibility clear-visibility :cover 0.35 :base 1200 :wind [ 70 7 ]
 	    :propeller :constant-speed :emergency true
 	    :message "FREE FLIGHT  -  Q FOR THROTTLE, PULL BACK AT 100 MPH"
+	    :choices [ :spitfire :hurricane :reconnaissance :lysander :gladiator ]
 	    :group :free
 	    :briefing "NO RAID AND NO TARGET. THE MAP RUNS FROM THE CLYDE TO THE FORTH, SOUTH-EAST TO THE FARNE ISLANDS AND TYNESIDE, NORTH UP THE GREAT GLEN TO INVERNESS, UP THE EAST COAST BY MONTROSE, ABERDEEN AND PETERHEAD, AND ON OVER WICK TO ORKNEY, SCAPA FLOW AND SHETLAND. T RUNS TIME FASTER." }
 	  { :name "LANDING AT ABBOTSINCH"
