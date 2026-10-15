@@ -56,18 +56,19 @@
 0.015 constant oil-cooler-share
 20 cannon-weight * 100 / ln 16391 2184 / ln / constant strength-exponent
 
-\ each type's guns, in groups that fire together: how many, rounds a minute, muzzle velocity, the weight of a hit, the spread, rounds each (or in a drum), fixed forward or the rear gunner's
+\ each type's guns, in groups that fire together: how many, rounds a minute, muzzle velocity, the weight of a hit, the spread, rounds each (or in a drum), fixed forward or the rear gunner's; the Gladiator's four Brownings one group, the fuselage pair's 600 rounds and the wing pair's 400 taken as 500 each, as its figures' seconds of fire take them, and its synchronised pair's slower fire through the propeller not modelled
 variable gun-table
 { :spitfire [ { :guns 8 :rate 1150 :velocity 811 :weight 1 :spread fixed-spread :rounds 300 :mount :fixed } ]
   :hurricane [ { :guns 8 :rate 1150 :velocity 811 :weight 1 :spread fixed-spread :rounds 310.5 :mount :fixed } ]
   :lysander [ { :guns 2 :rate 1150 :velocity 811 :weight 1 :spread fixed-spread :rounds 500 :mount :fixed } ]
+  :gladiator [ { :guns 4 :rate 1150 :velocity 811 :weight 1 :spread fixed-spread :rounds 500 :mount :fixed } ]
   :bf-110 [ { :guns 4 :rate 1100 :velocity 895 :weight 1 :spread fixed-spread :rounds 1000 :mount :fixed }
             { :guns 2 :rate 530 :velocity 600 :weight cannon-weight :spread fixed-spread :rounds 180 :mount :fixed }
             { :guns 1 :rate 1025 :velocity 755 :weight 1 :spread rear-spread :rounds 75 :mount :rear } ]
   :he-111 [ { :guns 1 :rate 1025 :velocity 755 :weight 1 :spread rear-spread :rounds 75 :mount :rear } ]
   :ju-88 [ { :guns 1 :rate 1025 :velocity 755 :weight 1 :spread rear-spread :rounds 75 :mount :rear } ] } to gun-table
 
-\ each type's empty mass, kg, and the areas it presents, m²: from ahead, from above (the wing's published area) and from the side
+\ each type's empty mass, kg, and the areas it presents, m²: from ahead, from above (the wing's published area) and from the side; the Gladiator's empty mass its loaded weight less the fuel, pilot and rounds its masses carry, and its areas from ahead (the Mercury's cowling and both wings edge-on) and from the side (its 27 ft 5 in length) estimates
 variable aircraft-figures
 { :spitfire { :empty 2184 :frontal 3.7 :planform 22.48 :side 7.5 }
   :hurricane { :empty 2260 :frontal 4.2 :planform 23.92 :side 9.5 }
@@ -75,6 +76,7 @@ variable aircraft-figures
   :he-111 { :empty 6900 :frontal 14.9 :planform 87.6 :side 30 }
   :ju-88 { :empty 8050 :frontal 12.3 :planform 54.7 :side 26 }
   :lysander { :empty 1887 :frontal 4.5 :planform 24.15 :side 11 }
+  :gladiator { :empty 1787 :frontal 4.6 :planform 30.0 :side 9.0 }
   :drogue { :empty 2184 :frontal 0.79 :planform 5.1 :side 5.1 } } to aircraft-figures
 
 \ the salvos in flight, and the flashes of hits, each [ position age ]
