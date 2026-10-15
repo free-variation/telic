@@ -392,7 +392,7 @@ variable bombers
 	  :spitfire false spitfire-model :spitfire-down true spitfire-model :spitfire-kelvingrove kelvingrove-spitfire-model
 	  :spitfire-title-leader :spitfire "RAI" "A" false marked-model :spitfire-title-wingman :spitfire "RAI" "B" false marked-model
 	  :hurricane false hurricane-model :hurricane-down true hurricane-model
-	  :lysander lysander-model :lysander-cockpit lysander-cockpit-model :drogue drogue-model :carrier carrier-model
+	  :lysander lysander-model :lysander-cockpit lysander-cockpit-model :gladiator gladiator-model :gladiator-cockpit gladiator-cockpit-model :drogue drogue-model :carrier carrier-model
 	  :merchant merchant-model :u-boat u-boat-model } to models ;
 
 \ === moving models ===
@@ -677,6 +677,7 @@ variable wingmen
 	:scapa-flow landmark-ground to scapa-anchorage
 	scapa-anchorage 0 0 2500 -15000 placed to scapa-patrol
 	:grangemouth landmark-ground 70 0 wheel-height 580 placed to grangemouth-runway
+	:sumburgh landmark-ground 90 0 wheel-height -500 placed to sumburgh-runway
 	:inchkeith landmark-ground 80 0 0 4000 placed to convoy-lead
 	:bass-rock landmark-ground 40 0 0 8000 placed to u-boat-place
 	[ { :name "THE FORTH, 16 OCTOBER 1939" :month 10
@@ -702,6 +703,18 @@ variable wingmen
 	    :message "BANDITS EAST OF SCAPA FLOW, ANGELS 10  -  FOLLOW THE RAID BEARING"
 	    :group :battle
 	    :briefing "STOP THE BOMBERS BEFORE THEY REACH THE SHIPS AT ANCHOR IN SCAPA FLOW. THE RADAR ON SHETLAND HAS SEEN THEM COMING FROM THE EAST; YOU ARE OVER THE PENTLAND FIRTH, THE FLOW AHEAD BETWEEN HOY AND MAINLAND. THE RAID'S BEARING AND DISTANCE ARE IN THE STRIP BELOW THE PANEL. FIRE FROM ASTERN IN BURSTS OF 1 TO 2 SECONDS. THE SIGHT'S RANGE BARS ARE SET FOR THE HE 111'S SPAN. LAND AT WICK, SOUTH OF THE FIRTH, OR AT HATSTON BY KIRKWALL." }
+	  { :name "SUMBURGH, 21 JUNE 1940" :month 6
+	    :story [ "21 JUNE 1940. THE FIGHTER FLIGHT'S GLADIATORS AT"
+	             "SUMBURGH ARE SHETLAND'S ONLY FIGHTERS. THE RADAR"
+	             "HAS A SHADOWER FROM NORWAY HEADING FOR LERWICK." ]
+	    :start [ sumburgh-runway 90 0 true ]
+	    :raid :he-111 1 :lerwick landmark-ground [ 55000 0 -12000 ] v+ :lerwick landmark-ground 1800 100 raid-plan
+	    :night false :landing false :visibility clear-visibility :cover 0.4 :base 800 :wind [ 90 6 ]
+	    :propeller :two-pitch :emergency false
+	    :aircraft :gladiator :base-field :sumburgh :base-name "SUMBURGH"
+	    :message "SHADOWER FROM THE EAST FOR LERWICK, ANGELS 6  -  FULL THROTTLE (Q), HOLD HER STRAIGHT WITH Z, EASE BACK PAST 60 MPH"
+	    :group :battle
+	    :briefing "CATCH THE HEINKEL BEFORE IT REACHES LERWICK. THE FIGHTER FLIGHT RAF SUMBURGH FLEW ITS GLADIATOR IIs ON PATROL AND RADAR-DIRECTED INTERCEPTION OVER SHETLAND FROM JANUARY TO JULY 1940, CLAIMING TWO PROBABLES AND TWO DAMAGED; ON 21 JUNE ONE OF THEM, N5716, FORCE-LANDED ON THE BEACH AT HAROLDSWICK AFTER ITS ENGINE FAILED ON PATROL. THE BANDIT'S BEARING AND DISTANCE ARE IN THE STRIP BELOW THE PANEL. THE MERCURY TURNS THE OTHER WAY FROM A MERLIN, SO SHE SWINGS RIGHT ON THE RUN AND NEEDS LEFT RUDDER. FIRE FROM ASTERN IN BURSTS OF 1 TO 2 SECONDS; THE GUNS CARRY 500 ROUNDS EACH. LAND BACK AT SUMBURGH ON 09." }
 	  { :name "HMS GLORIOUS, 26 MAY 1940" :month 5 :snow-line 400
 	    :story [ "26 MAY 1940. GLORIOUS HAS BROUGHT 46 SQUADRON'S"
 	             "HURRICANES TO NORWAY. NO HURRICANE HAS FLOWN OFF A"

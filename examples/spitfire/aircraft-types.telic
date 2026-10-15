@@ -267,6 +267,49 @@
 	  :flap-lift 0.45 :automatic-flaps true :slat-open-angle 8 PI 180 / * :slat-full-angle 14 PI 180 / * :trim-range 0.8 :trim-rate 0.1 :fixed-undercarriage true
 	  :components lysander-components } ;
 
+\ the Gladiator Mk II's centre of gravity's place along the model, metres forward of its origin, the origin 2.40 m behind the propeller's hub: 30% of the cellule's mean chord behind its leading edge, the upper wing's leading edge 1.51 m forward and the lower's 0.61 m, both chords 1.68 m (an estimate; no published limits found)
+1.06 0.3 1.68 * - constant gladiator-centre-along
+
+\ the Gladiator Mk II's masses: the Mercury VIII, 966 lb being the Mercury VI-S's dry weight and the VIII a lightened engine (Wikipedia's Bristol Mercury), taken as 440 kg; estimates of the Fairey-Reed metal propeller, the pilot with his parachute, the upper wing's structure spread over its span, the lower's, the undercarriage's cantilever legs and wheels, the tail; 85 gallons in the fuselage tank ahead of the pilot (unconfirmed); the four Brownings, 21 lb 14 oz each, two in the fuselage with an estimated 600 rounds and two under the lower wing with 400, at 25.4 g a round; the fuselage the remainder of the loaded weight, placed where it puts the whole aircraft's centre of gravity at its estimated place. Each placed where the three-view puts it
+: gladiator-components ( -- components )
+	[ 440 [ 0 0 2.0 ] point-mass
+	  60 [ 0 0 2.4 ] point-mass
+	  90 [ 0 0.4 -0.4 ] point-mass
+	  278 [ 0 0.1 0.5 ] fuel-mass-at
+	  220 [ 0 1.25 0.67 ] [ 2.6 0.1 0.4 ] false component
+	  180 [ 0 -0.45 -0.23 ] [ 2.6 0.1 0.4 ] false component
+	  110 [ 0 -1.3 1.1 ] [ 0.9 0.4 0.2 ] false component
+	  45 [ 0 0.5 -4.6 ] [ 0.7 0.5 0.3 ] false component
+	  25.2 [ -0.3 0.2 1.0 ] point-mass
+	  25.2 [ 0.3 0.2 1.0 ] point-mass
+	  20.1 [ -1.5 -0.5 0.1 ] point-mass
+	  20.1 [ 1.5 -0.5 0.1 ] point-mass ] to named
+	named ( part | part@mass ) map 0 ' + reduce to named-mass
+	named ( part | part@place 2 @i part@mass * ) map 0 ' + reduce to named-moment
+	2206 named-mass - to remainder
+	gladiator-centre-along 2206 * named-moment - remainder / to remainder-along
+	named [ remainder [ 0 0.1 remainder-along ] [ 0.4 0.45 2.0 ] false component ] concat ;
+
+\ the Gladiator Mk II's figures. Published: the loaded weight, 4,864 lb; the span, 32 ft 3 in, both wings, and the wing area, 323 sq ft; the length, 27 ft 5 in; the Bristol Mercury VIII, air-cooled, 825 hp at 2,750 rpm, a left-hand tractor as the Mercury is listed (Wikipedia's Bristol Mercury), with the gun synchronising gear of the VIIIA; the three-blade fixed-pitch Fairey-Reed propeller of 10 ft 6 in; 257 mph at 14,600 ft; four Brownings. Measured on the three-view (the-blueprints.com's Gladiator, the plan and rear views at 84 px/m from the span and the side view at 117 px/m from the length): both wings' chord 1.68 m, the upper wing 1.25 m above the thrust line with its leading edge 1.51 m forward of the origin, the lower 0.45 m below it staggered 0.90 m back, a gap of 1.7 m; the tailplane, 4.3 m² clear of the fuselage, its quarter chord 4.15 m aft; the fin and rudder, 2.0 m², centred 4.9 m aft, from the fuselage's top there, 0.45 m up, to the fin's tip, 1.46 m up; the main wheels 0.98 m out, their axles 1.77 m below the thrust line and 1.13 m forward of the origin, the tail wheel 4.14 m aft. Estimates: the two wings as one of their joint area, its lift slope cut to 4.2 by the biplane's interference and its induced drag raised for it; the parasite drag of the airframe over the fixed undercarriage's own, which the model adds, and the propeller's efficiency, set together so the model reaches 257 mph at 4,450 m (421 km/h against the published 414) and climbs 742 m/min against the published 788; the dihedral, 2°; the margin, 6% of the chord; the stick force, 6 lb a g; the stall angle and the lift past it as the fighters'; the fixed-pitch propeller as a two-pitch one whose settings are alike, 2,200 rpm at full throttle standing; the rated boost, +2 lb, with no cut-out; the fuel burned at full power, 69 gallons an hour, from an assumed 0.6 lb a horsepower-hour; the cylinder heads' heating and limits as the Lysander's; split flaps on all four wings of a lesser lift, limited to 110 mph; no rudder trim
+: gladiator-mk-ii-figures ( -- figures )
+	{ :name "GLADIATOR MK II" :kind :gladiator :model-down :gladiator :finish :temperate-land
+	  :rounds-per-gun 500 :fire-seconds 500 60 * browning-rate / :stick-force-per-g 6
+	  :mass 2206 :span 9.83 :wing-area 30.0 :chord 1.53
+	  :engine-power 615000 :full-throttle-height 4300 :fuel-capacity 85
+	  :lift-slope 4.2 :zero-lift-coefficient 0.12 :stall-angle 0.26 :parasite-drag 0.015 :induced-drag 0.07
+	  :static-thrust 8400 :propeller-efficiency 0.9
+	  :dihedral 2 PI 180 / * :tailplane-area 4.3 :tail-arm 4.15 gladiator-centre-along + :fin-area 2.0 :fin-arm 4.9 gladiator-centre-along + :fin-along -4.9 :fin-root 0.45 :fin-tip 1.46
+	  :static-margin 0.06 :trim-lift 0.3 :flap-moment -0.05 :flap-limit 110 :rudder-bias false :rudder-share 0.37 :reserve-capacity 0
+	  :flap-travel 60 :aileron-travel 20
+	  :main-wheel [ 0.98 -1.63 1.19 ] :wheel-radius 0.40 :tail-wheel [ 0 -0.61 -4.18 ] :tail-wheel-radius 0.14
+	  :hub [ 0 0 2.53 ] :belly -0.74 :wing-root-up -0.58
+	  :aileron-lift 0.32 :aileron-stiffness aileron-force 75.1 sea-level-pressure / :reversal-speed 250
+	  :buffet-margin 2 PI 180 / * :post-stall-slope 1.2 :stall-pitch-down -0.5
+	  :propeller-radius 1.60 :propeller-gear 0.5 :rotation -1 :rated-revolutions 2750 :rated-boost 2 :emergency-boost 2 :fine-revolutions 2200 :coarse-revolutions 2200 :full-power-flow 69
+	  :air-cooled true :engine-heat 20000 :cooling-capacity 5000 :temperature-limit 260 :temperature-seizing 300 :oil-share 0.35
+	  :flap-lift 0.25 :automatic-flaps false :trim-range 0.4 :fixed-undercarriage true
+	  :components gladiator-components } ;
+
 variable spitfire-mk-i
 spitfire-mk-i-figures aircraft-type to spitfire-mk-i
 variable hurricane-mk-i
@@ -275,3 +318,5 @@ variable spitfire-pr-iv
 pr-iv-figures aircraft-type to spitfire-pr-iv
 variable lysander-mk-ii
 lysander-mk-ii-figures aircraft-type to lysander-mk-ii
+variable gladiator-mk-ii
+gladiator-mk-ii-figures aircraft-type to gladiator-mk-ii

@@ -21,24 +21,34 @@
 	ring 4 take spread
 	ring size 4 > if ring 4 @i else ring 2 @i then ;
 
+\ a ring's exponent, a sixth figure: 2 (the figure a ring without one has) makes each half an ellipse, higher makes it squarer, the sides straighter and the corners tighter, a superellipse
+: ring-exponent ( ring -- exponent ) dup size 5 > if 5 @i else drop 2 then ;
+
+\ a sine or cosine shaped to a ring's exponent: its sign with its size to the power 2/exponent, so a ring's corner at an angle moves out toward the square
+: shaped ( t exponent -- v )
+	| t exponent |
+	t 0 = if 0 exit then
+	t abs ln 2 exponent / * exp t 0 < if negate then ;
+
 \ one ring of a body, points about its centre line, the centre where the line runs
 : body-ring ( ring centre n-sides -- points )
 	| ring centre n-sides |
 	ring ring-figures to upper-half-height to lift to half-height to half-width to along
+	ring ring-exponent to exponent
 	[ 0 n-sides 1 do k
 		k n-sides / TAU * to angle
 		angle cos 0 > if upper-half-height else half-height then to reach
-		centre [ angle sin half-width * angle cos reach * lift + along ] v+
+		centre [ angle sin exponent shaped half-width * angle cos exponent shaped reach * lift + along ] v+
 	loop ] ;
 
-\ the ring of a body of rings at a station along, between the two rings around it in proportion, with its upper half-height whether they give one or not
+\ the ring of a body of rings at a station along, between the two rings around it in proportion, with its upper half-height and its exponent whether they give them or not
 : body-ring-at ( rings along -- ring )
 	| rings along |
 	0 rings size 1- 1 do k
 		rings k @i to front
 		rings k 1+ @i to back
 		along front first <= along back first >= and if
-			[ back ring-figures ] [ front ring-figures ] along back first - front first back first - / v-between to ring
+			[ back ring-figures back ring-exponent ] [ front ring-figures front ring-exponent ] along back first - front first back first - / v-between to ring
 		then
 	loop
 	ring ;
@@ -550,18 +560,19 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 \ the wheels' hubs, grey (an estimate)
 0x8a8a86 constant hub-colour
 
-\ a wheel rolling along the line of flight: its tyre's two faces a width apart along its axle, joined around the tread, all filled, and the hub, a share of the radius, on the face the axle points to; the axle and the wheel's up are unit vectors square to the line of flight
+\ a wheel rolling along the line of flight: its tyre's two faces a width apart along its axle, joined around the tread, all filled, and the hub, a share of the radius, on the face the axle points to; the axle and the wheel's up are unit vectors square to the line of flight; the rims of 24 points, round enough that a wheel of 0.4 m radius shows no corners at the renders' scale
+24 constant wheel-sides
 : sketch-wheel ( sketch centre axle up radius width hub-share -- )
 	| sketch centre axle up radius width hub-share |
-	[ -1 1 ] ( face | sketch centre axle face width * 2 / v* v+ [ 0 0 1 ] up radius 12 ring-of sketch-points ) map to rims
+	[ -1 1 ] ( face | sketch centre axle face width * 2 / v* v+ [ 0 0 1 ] up radius wheel-sides ring-of sketch-points ) map to rims
 	rims ( rim | sketch rim join-loop sketch rim centre tyre-colour sketch-painted-face ) each
-	0 12 1 do k
-		k 1+ 12 mod to next
+	0 wheel-sides 1 do k
+		k 1+ wheel-sides mod to next
 		sketch rims first k @i rims second k @i sketch-edge
 		sketch [ rims first k @i rims first next @i rims second next @i rims second k @i ] centre tyre-colour sketch-painted-face
 	loop
 	centre axle width 2 / 0.005 + v* v+ to hub
-	sketch hub [ 0 0 1 ] up radius hub-share * 12 ring-of centre hub-colour sketch-painted-plate ;
+	sketch hub [ 0 0 1 ] up radius hub-share * wheel-sides ring-of centre hub-colour sketch-painted-plate ;
 
 \ a flat convex outline of points given a thickness along a unit direction square to it: the outline on each side half the thickness from it, the edges between them closed, all filled in a colour without lines of their own
 : sketch-thick-outline ( sketch points direction half-thickness colour -- )
@@ -639,16 +650,18 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 \ a point on a side of a body of rings of a number of sides about the line through the origin, -1 the left and 1 the right, at a station along and a height: on the face of the ring between the two corners the height falls between, a distance proud of it across; a height above the top or below the bottom on the centre line
 : ring-side-point ( rings n-sides along up side proud -- point )
 	| rings n-sides along up side proud |
-	rings along body-ring-at ring-figures to upper-half-height to lift to half-height to half-width drop
+	rings along body-ring-at to ring
+	ring ring-figures to upper-half-height to lift to half-height to half-width drop
+	ring ring-exponent to exponent
 	0 to across
 	0 n-sides 2 / 1 do k
 		k n-sides / TAU * to upper-angle
 		k 1+ n-sides / TAU * to lower-angle
-		upper-angle cos dup 0 > if upper-half-height else half-height then * lift + to upper-height
-		lower-angle cos dup 0 > if upper-half-height else half-height then * lift + to lower-height
+		upper-angle cos exponent shaped dup 0 > if upper-half-height else half-height then * lift + to upper-height
+		lower-angle cos exponent shaped dup 0 > if upper-half-height else half-height then * lift + to lower-height
 		up upper-height <= up lower-height >= and if
 			up upper-height - lower-height upper-height - / to share
-			upper-angle sin lower-angle sin upper-angle sin - share * + half-width * to across
+			upper-angle sin exponent shaped lower-angle sin exponent shaped upper-angle sin exponent shaped - share * + half-width * to across
 		then
 	loop
 	[ side across proud + * up along ] ;
@@ -1444,3 +1457,345 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 
 \ the Lysander as its pilot sees it from inside the canopy, the glass left out so the view through it is clear
 : lysander-cockpit-model ( -- model ) false lysander-sketch dark-green-colour sketch>object ;
+
+\ === the Gladiator ===
+
+\ The Gloster Gladiator Mk II, the mark the Fighter Flight Sumburgh flew
+\ over Shetland in 1940, its Mercury VIII in a short cowling open at the
+\ front; built to the published span and length, 9.83 m and 8.36 m, the
+\ airframe measured on the-blueprints.com's Gladiator three-view: the plan
+\ and underside views at 84 px/m for the span, the side view at 117 px/m
+\ for the length, its thrust line through the spinner's centre; metres from
+\ a point 2.53 m behind the propeller's hub on the thrust line. The side
+\ view draws the wings in perspective, so their chords, stagger and tips
+\ come from the plan view and their heights from the struts' ends.
+
+4.94 constant gladiator-half-span
+1.68 constant gladiator-chord
+1.51 constant gladiator-upper-leading
+0.75 constant gladiator-lower-leading
+1.00 constant gladiator-upper-height
+-0.66 constant gladiator-lower-height
+0.42 constant gladiator-lower-root
+1.6 PI 180 / * tan constant gladiator-dihedral
+3 PI 180 / * tan constant gladiator-lower-dihedral
+\ the wings' depth, the Clark YH section's 11.7% of the chord (the section an estimate, Gloster's Gauntlet and Gladiator wings being drawn with that flat underside)
+0.19 constant gladiator-depth
+
+\ the shares of the chord the leading edge gives up behind the straight and the trailing edge ahead of it at the tip's stations: both corners round over the last 0.7 m of span, the trailing one a little sooner, to the tip's end at mid-chord 4.94 m out; the leading corner measured row by row on the plan view, the trailing on the underside view
+: gladiator-tip-shares ( out -- lead trail )
+	| out |
+	out abs to distance
+	distance 4.25 <= if 0 0 exit then
+	[ 4.25 4.38 4.46 4.55 4.63 4.71 4.76 4.80 4.83 4.86 4.89 4.91 4.93 4.94 ] [ 0 0.04 0.07 0.10 0.13 0.17 0.21 0.24 0.27 0.30 0.33 0.37 0.41 0.5 ] distance table-at
+	[ 4.25 4.38 4.46 4.55 4.63 4.71 4.76 4.80 4.83 4.86 4.89 4.91 4.93 4.94 ] [ 0 0.07 0.10 0.14 0.17 0.23 0.27 0.30 0.33 0.35 0.40 0.44 0.49 0.5 ] distance table-at ;
+
+\ the lower wing's root cut-out, its trailing edge curving forward from the full chord 1.49 m out to 0.29 m ahead of it at the fuselage's side, steepest a third of the way in and flattening toward the fuselage: the share of the depth given up against the share of the way in, measured row by row on the underside view's black port wing; the upper wing's centre cut-out, a half-ellipse 0.26 m wide each side of the centre line and 0.20 m deep round the windscreen, from the plan view's glazing
+1.49 constant gladiator-cut-out-span
+0.34 constant gladiator-cut-out-depth
+: gladiator-cut-out-share ( share -- share ) [ 0 0.07 0.2 0.34 0.39 0.56 0.68 0.87 1 ] [ 0 0.03 0.24 0.44 0.5 0.59 0.71 0.79 0.85 ] rot table-at ;
+0.26 constant gladiator-centre-cut-out-span
+0.20 constant gladiator-centre-cut-out-depth
+
+\ a wing's leading and trailing edges at a distance out, from its root's leading edge along: straight to 4.25 m out, then round the tip; the lower wing's trailing edge, known by its leading edge, cut forward at the root
+: gladiator-edges-at ( out leading -- leading trailing )
+	| out leading |
+	out gladiator-tip-shares to trail-share to lead-share
+	leading lead-share gladiator-chord * - to lead
+	leading gladiator-chord - trail-share gladiator-chord * + to trail
+	leading gladiator-lower-leading = out abs gladiator-cut-out-span < and if
+		gladiator-cut-out-span out abs - gladiator-cut-out-span gladiator-lower-root - / to share
+		trail share gladiator-cut-out-share gladiator-cut-out-depth * + to trail
+	then
+	leading gladiator-upper-leading = out abs gladiator-centre-cut-out-span < and if
+		trail 1 out gladiator-centre-cut-out-span / sq - sqrt gladiator-centre-cut-out-depth * + to trail
+	then
+	lead trail ;
+
+\ a wing's flat underside's height at a distance out, from its height at the root, rising at its dihedral: 1.6° on the upper wing and 3° on the lower, from the front view
+: gladiator-height-at ( out height -- up ) | out height | out abs height gladiator-lower-height = if gladiator-lower-dihedral else gladiator-dihedral then * height + ;
+
+\ a wing's depth at a distance out, the section's to 4.25 m out and closing round the tip as the chord does
+: gladiator-depth-at ( out -- depth ) gladiator-tip-shares drop 2 * 1 swap - 0 max2 gladiator-depth * ;
+
+\ the point on a wing's upper surface a distance out and a share of the chord back from the leading edge, the Clark YH section over the flat underside, the wing given by its root's leading edge along and its underside's height at the root
+: gladiator-skin ( out share leading height -- point )
+	| out share leading height |
+	out leading gladiator-edges-at to trailing to lead
+	hurricane-rib-profile ( pair | pair first ) map hurricane-rib-profile ( pair | pair second ) map share table-at out gladiator-depth-at * to rise
+	[ out out height gladiator-height-at rise + lead lead trailing - share * - ] ;
+
+\ the point on a wing's underside the same way
+: gladiator-underside ( out share leading height -- point )
+	| out share leading height |
+	out leading gladiator-edges-at to trailing to lead
+	[ out out height gladiator-height-at lead lead trailing - share * - ] ;
+
+\ the ribs' distances out, from a wing's root to the tip's end, nearer together round the tip
+: gladiator-rib-stations ( root -- stations )
+	| root |
+	[ root ] [ 0.13 0.22 0.26 0.75 1.0 1.25 1.5 2.05 2.6 3.2 3.8 4.25 4.46 4.63 4.76 4.86 4.91 4.94 ] ( station | station root > ) filter concat ;
+
+\ the ailerons on all four wings from 1.9 m out to 4.5 m, and the split flaps inboard of them from 0.6 m on the upper wing and from the root cut-out's end on the lower, both hinged at 75% of the chord (the ailerons' ends from the plan view, the flaps and the hinges estimates)
+0.6 constant gladiator-flap-inner
+1.9 constant gladiator-aileron-inner
+4.5 constant gladiator-aileron-outer
+0.75 constant gladiator-hinge-share
+
+\ one wing on both sides: a rib at every station from its root, the Clark YH upper surface over the flat underside, the skin filled between the ribs above and below, the tip closed by its last rib, the root closed with a face where it stands clear of the fuselage; the ailerons' hinges and ends on the upper surface and the flaps' on the lower; a Type B roundel 3.2 m out on the upper surface where asked
+: sketch-gladiator-wing ( sketch leading height root roundels -- )
+	| sketch leading height root roundels |
+	hurricane-rib-profile ( pair | pair first ) map to shares
+	shares size to n-shares
+	root gladiator-rib-stations to stations
+	[ -1 1 ] ( side |
+		stations ( out | sketch shares ( share | side out * share leading height gladiator-skin ) map sketch-points ) map to uppers
+		stations ( out | sketch shares ( share | side out * share leading height gladiator-underside ) map sketch-points ) map to lowers
+		uppers ( rib | sketch rib join-path ) each
+		sketch uppers ( rib | rib first ) map join-path
+		sketch uppers ( rib | rib last ) map join-path
+		0 stations size 1- 1 do r
+			stations r @i stations r 1+ @i + 2 / side * to middle-out
+			middle-out 0.3 leading height gladiator-skin middle-out 0.3 leading height gladiator-underside v+ 0.5 v* to inside
+			0 n-shares 1- 1 do j
+				sketch [ uppers r @i j @i uppers r @i j 1+ @i uppers r 1+ @i j 1+ @i uppers r 1+ @i j @i ] inside sketch-face
+				sketch [ lowers r @i j @i lowers r @i j 1+ @i lowers r 1+ @i j 1+ @i lowers r 1+ @i j @i ] inside sketch-face
+			loop
+		loop
+		root 0 > if sketch uppers first lowers first reverse concat [ side 0.8 * height 0.05 + leading 0.8 - ] sketch-face then
+		root 0 > if gladiator-cut-out-span else gladiator-flap-inner then to flap-inner
+		[ [ gladiator-aileron-inner gladiator-aileron-outer 1 ] [ flap-inner gladiator-aileron-inner -1 ] ] ( span |
+			span spread to face to outer to inner
+			[ inner outer ] ( out | face 0 > if side out * gladiator-hinge-share leading height gladiator-skin [ 0 0.005 0 ] v+ else side out * gladiator-hinge-share leading height gladiator-underside [ 0 -0.005 0 ] v+ then ) map to hinge
+			sketch hinge sketch-path
+			[ inner outer ] ( out |
+				face 0 > if side out * 1 leading height gladiator-skin side out * gladiator-hinge-share leading height gladiator-skin else side out * 1 leading height gladiator-underside side out * gladiator-hinge-share leading height gladiator-underside then
+				2 array ( point | point [ 0 face 0.005 * 0 ] v+ ) map to ends
+				sketch ends sketch-path
+			) each
+		) each
+		roundels if
+			sketch side 3.2 * [ hurricane-roundel-radius hurricane-roundel-centre-radius ] [ roundel-blue-colour roundel-red-colour ]
+			leading height ' gladiator-skin 2curry leading ' gladiator-edges-at curry sketch-wing-roundel
+		then
+	) each ;
+
+\ the two wings: the upper one piece across the fuselage, the lower from its root 0.42 m out, inside the fuselage's side, so the root rib stays hidden where the fuselage's lower half rounds in
+: sketch-gladiator-wings ( sketch -- )
+	| sketch |
+	sketch gladiator-upper-leading gladiator-upper-height 0 true sketch-gladiator-wing
+	sketch gladiator-lower-leading gladiator-lower-height gladiator-lower-root false sketch-gladiator-wing ;
+
+\ the interplane struts, a parallel pair each side 2.05 m out as the plan view places them, streamlined bars 5 cm across and 12 cm fore and aft, leaning forward 30° with the stagger: from the lower wing at 13% and 67% of its chord up to the upper wing at 5% and 58% of its, where the side view draws them; the cabane, a strut each side from the fuselage's round deck 0.35 m out, its foot sunk 4 cm inside the skin, up and out to the upper wing 0.55 m out, each a filled bar 5 cm thick and 12 cm fore and aft without lines of its own, since a bar's end rectangle would draw through the skin, the front one from 1.18 m forward to 1.32 m and the rear from 0.33 m to 0.49 m, between where the two side views draw them; the flying wires from the lower wing's roots up to the upper wing at the struts and the landing wires from the cabane's heads down to the lower wing there, as lines (the wires' places estimates)
+: sketch-gladiator-struts ( sketch -- )
+	| sketch |
+	[ -1 1 ] ( side |
+		side 2.05 * to out
+		2.05 gladiator-lower-height gladiator-height-at gladiator-depth + 0.02 - to lower
+		2.05 gladiator-upper-height gladiator-height-at 0.02 + to upper
+		gladiator-lower-leading 0.13 gladiator-chord * - to lower-front
+		gladiator-lower-leading 0.67 gladiator-chord * - to lower-rear
+		gladiator-upper-leading 0.05 gladiator-chord * - to upper-front
+		gladiator-upper-leading 0.58 gladiator-chord * - to upper-rear
+		sketch [ out lower lower-front ] [ out upper upper-front ] 0.025 0.06 null sketch-bar
+		sketch [ out lower lower-rear ] [ out upper upper-rear ] 0.025 0.06 null sketch-bar
+		[ [ 0.54 0.33 0.49 ] [ 0.50 1.18 1.32 ] ] ( strut |
+			strut spread to head-along to foot-along to foot-up
+			gladiator-upper-height 0.02 + to head-up
+			sketch [ [ side 0.35 * foot-up foot-along 0.06 - ] [ side 0.35 * foot-up foot-along 0.06 + ] [ side 0.55 * head-up head-along 0.06 + ] [ side 0.55 * head-up head-along 0.06 - ] ] [ side 0.90 * -0.44 0 ] 0.025 dark-green-colour sketch-thick-outline
+		) each
+		[ [ upper-front lower-front ] [ upper-rear lower-rear ] ] ( spars |
+			spars spread to bottom to top
+			sketch [ [ side gladiator-lower-root * gladiator-lower-height gladiator-depth + bottom ] [ out upper top ] ] sketch-path
+			sketch [ [ side 0.55 * gladiator-upper-height 0.02 + top ] [ out lower bottom ] ] sketch-path
+		) each
+	) each ;
+
+\ the cowling and the fuselage as two bodies of rings on the thrust line, each ring's halves meeting at the longerons and reaching its top and bottom, the fuselage round throughout, its rings ellipses ahead of the hood with their widest point 0.1 m above the thrust line so the top is a full arch like the cowling's, and from the hood aft superellipses of exponent 3, round on top with slightly flattened sides, their widest point near the thrust line: the Mercury's cowling 1.36 m across, its lip 2.38 m forward, its rear 1.63 m forward, its rear face painted dark where it overhangs the fuselage; the fuselage 1.08 m wide at first and 1.15 m under the hood, its deck a barrel curve, steepest at the cowling and flattening aft, from 0.60 m up just behind the cowling through 0.66 m at 1.40 m forward, 0.69 m at 1.20 m and 0.73 m at 0.78 m to 0.74 m at the screen's apex, 6 cm above the cowling's top, then falling to 0.62 m at the hood's front hoop, the sill's own height, so the windscreen's glass runs into it at an angle and the cockpit's opening is cut down to the sills along the hood's length; the underside the same curve mirrored, from 0.47 m down just behind the cowling, 15 cm inside the cowling's bottom, through 0.55 m, 0.58 m and 0.61 m down to 0.62 m at the windscreen, level with the cowling's bottom, and level on to 0.61 m down at the hood's rear, then a straight line to 0.21 m down at the sternpost; the decking behind the hood a straight line from the sill height, 0.62 m up at the rear window's frame, to the fin's foot 0.44 m up 3.75 m aft, the longerons sloping with it; heights from the side view, widths from the plan and underside views
+: gladiator-cowling-rings ( -- rings )
+	[ [ 2.38 0.58 0.58 0.04 0.58 ] [ 2.25 0.66 0.66 0.04 0.66 ] [ 1.86 0.68 0.66 0.04 0.66 ] [ 1.63 0.64 0.64 0.04 0.64 ] ] ;
+: gladiator-fuselage-rings ( -- rings )
+	[ [ 1.62 0.54 0.57 0.10 0.50 ] [ 1.40 0.55 0.70 0.12 0.54 ] [ 1.20 0.56 0.76 0.12 0.57 ] [ 0.78 0.57 0.82 0.12 0.61 ] [ 0.31 0.575 0.72 0.10 0.64 ] [ 0 0.575 0.72 0.10 0.57 2.5 ]
+	  [ -0.25 0.575 0.72 0.10 0.52 3 ] [ -0.87 0.575 0.72 0.10 0.52 3 ] [ -1.30 0.56 0.71 0.10 0.52 3 ]
+	  [ -1.62 0.55 0.60 0.01 0.60 3 ] [ -2.04 0.535 0.56 0.03 0.56 3 ] [ -2.30 0.51 0.535 0.035 0.535 3 ] [ -2.64 0.47 0.50 0.04 0.50 3 ]
+	  [ -2.98 0.44 0.465 0.045 0.465 3 ] [ -3.32 0.40 0.425 0.055 0.425 3 ] [ -3.75 0.34 0.38 0.06 0.38 3 ] [ -4.09 0.25 0.315 0.035 0.315 3 ]
+	  [ -4.44 0.16 0.27 0.03 0.27 3 ] [ -4.68 0.07 0.23 0.02 0.23 3 ] ] ;
+: gladiator-rings ( -- rings ) gladiator-cowling-rings gladiator-fuselage-rings concat ;
+
+\ the windscreen, a low wedge as the side and front views draw it: two side panels and a flat centre panel 0.16 m wide between them, sloping at 42° from the hoop's crown down to the deck 0.16 m forward of the origin, its two edges the parallel bars the front view shows; each panel's rear edge the hood's front hoop's own arc, from the roof's corner 0.28 m aft to the sill line 0.17 m aft, its lower edge along the sill line and up the deck to the apex, its top edge from the centre panel's foot up to the roof's corner, rounded there into the roof, and a light brace from the hoop's arc a third of the way up to that edge 0.89 m up; the panels glazed, the lower edges along the skin left undrawn; the sliding hood behind it in two panes, its front hoop a band 6 cm wide, 0.28 to 0.34 m aft at the roof and bowed 11 cm forward at the sills, a thin frame between the panes 0.50 m aft, and behind the rear pane a band 8 cm wide, 0.76 to 0.84 m aft; 0.60 m wide at the sills and 0.16 m across the crown, its roof flat at 1.05 m; behind the panes the fixed rear window to the rear frame 1.30 m aft, narrower by 4 cm each side so the hood slides back over it, its top stepping down to 1.03 m and curving to 0.96 m, the start of the headrest fairing's curve; the sills 0.58 m up on the round decking's shoulders, 4 cm below its crown, so the hood's sides cut into it; the frames' stations and the sill line from the side views, the widths from the plan view
+0.58 constant gladiator-sill-height
+0.11 constant gladiator-hoop-bow
+\ the hood's hoops, each an arch of fourteen points from sill to sill, seven a side at even shares of its rise, 0.60 m wide at the sills, its sides leaning in steeply, 0.42 m across at 55% of its rise and 0.28 m at 85%, to a crown 0.16 m across, as the front view draws it: [ along top narrowing bow ], the bow how far forward of the station the sills stand; a bowed hoop is a smooth arc convex aft, leaving the roof's corner 0.27 of the bow aft per unit of fall and curving forward below, so that it passes 0.03 of the bow aft of the station at mid-height
+: gladiator-hood-frames ( -- frames )
+	[ [ -0.28 1.05 0 gladiator-hoop-bow ] [ -0.34 1.05 0 gladiator-hoop-bow ] [ -0.50 1.05 0 0 ] [ -0.76 1.05 0 0 ] [ -0.84 1.05 0 0 ] [ -0.85 1.03 0.04 0 ] [ -1.30 0.96 0.04 0 ] ] ( station |
+		station spread to bow to narrowing to top to along
+		top gladiator-sill-height - to rise
+		[ 0 0.2 0.4 0.55 0.7 0.85 1 ] ( share |
+			1 share - to fall
+			[ 0 0.55 0.85 1 ] [ 0.30 0.21 0.14 0.08 ] share table-at narrowing - to half
+			share rise * gladiator-sill-height + to up
+			along bow fall * 1.27 fall * 0.27 - * + to at
+			[ half up at ] ) map to arch
+		arch ( point | [ point first negate point second point 2 @i ] ) map arch reverse concat ) map ;
+
+\ a side panel of the windscreen, -1 the port and 1 the starboard, as points round it: the hoop's arc from the roof's corner down to its foot on the sill line, a point on the fuselage's crown line at the origin, the centre panel's foot 3 cm above the deck so the glass's lower edge covers the crown line, and the rounding of the roof's corner
+: gladiator-windscreen-panel ( side -- points )
+	| side |
+	gladiator-hood-frames first to hoop
+	side 0 < if hoop 7 take reverse else hoop 7 skip then [ [ side 0.20 * 0.68 0 ] [ side 0.08 * 0.72 0.16 ] [ side 0.07 * 1.03 -0.23 ] ] concat ;
+\ the light brace on a side panel, from the hoop's arc a third of the way up its rise, 0.74 m up, forward and inward to the centre panel's edge where the line traced over the drawing meets it, 0.89 m up and 0.09 m aft, rising 45° from the side, both ends a centimetre or two proud of the glass
+: gladiator-windscreen-brace ( side -- points )
+	| side |
+	[ [ side 0.26 * 0.74 -0.24 ] [ side 0.14 * 0.8925 -0.0875 ] ] ;
+
+\ the hood glazed: the windscreen's side panels and centre panel as glass faces without a lead, so the lines on them draw over them, their edges and the side braces drawn just outside the glass; the hood's hoops joined by glass between them without lines of their own, the front hoop's band and the band behind the rear pane painted in the camouflage and drawn without lines, so each reads as one thick frame; the thin frame between the panes, the rear window's rear frame and the window's top bar drawn just outside the glass; the sliding hood's roof edges and sills drawn from the hoop to the band, its shoulders left to the glass; the sills and the frames' feet drawn at the sill line on the skin's shoulders
+: sketch-gladiator-hood ( sketch -- )
+	| sketch |
+	gladiator-hood-frames to frames
+	[ 0 0.75 -0.2 ] to screen-inside
+	( point | [ point first 1.03 * point second 0.01 + point 2 @i ] ) to outside
+	[ -1 1 ] ( side |
+		side gladiator-windscreen-panel to panel
+		sketch@faces [ sketch panel sketch-points screen-inside glass-colour unoutlined + ] add-last! drop
+		sketch panel 8 skip panel 7 take concat outside map sketch-path
+		sketch side gladiator-windscreen-brace outside map sketch-path
+	) each
+	[ [ -0.08 1.05 -0.28 ] [ 0.08 1.05 -0.28 ] [ 0.08 0.72 0.16 ] [ -0.08 0.72 0.16 ] ] to centre-panel
+	sketch@faces [ sketch centre-panel sketch-points screen-inside glass-colour unoutlined + ] add-last! drop
+	sketch [ centre-panel 3 @i centre-panel first centre-panel second centre-panel 2 @i ] outside map sketch-path
+	[ 2 6 ] ( k | sketch frames k @i outside map sketch-path ) each
+	0 frames size 1- 1 do k
+		frames k @i to front
+		frames k 1+ @i to back
+		k 0 = k 3 = or if dark-green-colour else glass-colour then to paint
+		0 front size 1- 1 do corner
+			sketch [ front corner @i front corner 1+ @i back corner 1+ @i back corner @i ] sketch-points to corners
+			sketch@faces [ corners [ 0 0.8 front corner @i 2 @i ] paint unoutlined + ] add-last! drop
+		loop
+	loop
+	[ 0 6 7 13 ] ( corner | sketch frames 5 take ( frame | frame corner @i ) map outside map sketch-path ) each
+	[ 6 7 ] ( corner | sketch frames 5 skip ( frame | frame corner @i ) map outside map sketch-path ) each ;
+
+\ the headrest's fairing, a body standing on the decking from the rear window's frame, its lower half 5 cm deep so its edges wrap down onto the round skin, its first rings matching the rear window's arch, 0.52 m wide at the base and 0.96 m high with the exponent 1.4 so they meet the window flush; its top carrying on the window's curve, the slope growing from 0.16 at the window through 0.21 to 0.38 at a knee 0.62 m up 2.56 m aft, on the line measured column by column on the blueprint's side view, then one of 0.13 to the fin's foot 0.47 m up 3.75 m aft, 0.44 m wide at first as the hood's top is, so the hood slides back over it, widening to the decking's rounded top as it flattens
+: gladiator-fairing-rings ( -- rings )
+	[ [ -1.31 0.26 0.05 0.62 0.34 1.4 ] [ -1.62 0.26 0.05 0.61 0.29 1.5 ] [ -2.04 0.27 0.05 0.59 0.22 1.7 ] [ -2.30 0.28 0.05 0.57 0.15 1.9 ] [ -2.56 0.29 0.05 0.545 0.075 ] [ -2.64 0.30 0.05 0.54 0.06 ] [ -2.98 0.30 0.05 0.51 0.04 ] [ -3.32 0.28 0.05 0.48 0.02 ] [ -3.75 0.20 0.05 0.44 0.03 ] ] ;
+
+\ the spinner, short and blunt as the three-view draws it, from its point 2.78 m forward to its base at the propeller, 0.15 m ahead of the cowling's lip, and the boss behind it carrying the shaft back through the lip into the cowling, as the Lysander's does
+: gladiator-spinner-rings ( -- rings ) [ [ 2.78 0.02 0.02 0 ] [ 2.73 0.09 0.09 0 ] [ 2.66 0.15 0.15 0 ] [ 2.59 0.18 0.18 0 ] [ 2.53 0.19 0.19 0 ] [ 2.45 0.17 0.17 0 ] [ 2.34 0.15 0.15 0 ] ] ;
+
+\ the underwing guns' gondolas, one under each lower wing 1.6 m out, between the undercarriage and the interplane struts as photographs of the type place them: a teardrop fairing hung from the wing's underside, blunt at its nose near the leading edge, 0.15 m deep and 0.18 m across a third of the way back, tapering to a point 1.2 m behind the nose, its top flush with the wing, all in Sky as an underside; the Browning's barrel 4 cm across stands 0.28 m ahead of the nose along the wing's underside (the fairing's depth and the barrel measured on the side view, the rest an estimate from the side view of the installation)
+: sketch-gladiator-gondolas ( sketch -- )
+	| sketch |
+	[ -1 1 ] ( side |
+		1.6 gladiator-lower-height gladiator-height-at 0.005 - to underside
+		sketch@faces size to first-face
+		sketch [ [ 0.70 0.02 0.03 0 0 ] [ 0.55 0.08 0.11 0 0 ] [ 0.30 0.09 0.15 0 0 ] [ 0 0.08 0.14 0 0 ] [ -0.30 0.05 0.08 0 0 ] [ -0.50 0.01 0.02 0 0 ] ] [ side 1.6 * underside 0 ] 10 sketch-body
+		first-face sketch@faces size 1 do k sketch@faces k @i sky-paint-colour add-last! drop loop
+		sketch@faces size to barrel-face
+		sketch [ [ 1.00 0.02 0.02 0 0 ] [ 0.72 0.02 0.02 0 0 ] ] [ side 1.6 * underside 0.02 - 0 ] 6 sketch-body
+		barrel-face sketch@faces size 1 do k sketch@faces k @i exhaust-colour add-last! drop loop
+	) each ;
+
+\ the exhaust pipes, one each side, measured on the side and underside views: a tube 9 cm across leaving the cowling's rear beside the scoop under it 0.38 m out, level at 0.575 m under the thrust line, running aft along the belly and drooping, 0.69 m under at 1.29 m forward where it passes inboard of the undercarriage leg, 0.80 m under at 0.74 m forward, where its end bends down and flares open; the fairing a scoop in Sky 0.14 m wide and 0.14 m deep below the cowling's skin, 0.61 m under the thrust line, from 1.90 m forward back to 1.62 m, which a photograph of the underside shows as a small oval opening beside the pipe
+: sketch-gladiator-exhausts ( sketch -- )
+	| sketch |
+	sketch@faces size to intake-face
+	sketch [ [ 1.90 0.07 0.02 0 0 8 ] [ 1.87 0.07 0.14 0 0 8 ] [ 1.68 0.07 0.14 0 0 8 ] [ 1.65 0.07 0.12 0 0 8 ] [ 1.63 0.07 0.08 0 0 8 ] [ 1.62 0.07 0.03 0 0 8 ] ] [ 0 -0.61 0 ] 8 sketch-body
+	intake-face sketch@faces size 1 do k sketch@faces k @i sky-paint-colour add-last! drop loop
+	[ -1 1 ] ( side |
+		sketch@faces size to first-face
+		sketch [ [ 1.62 0.045 0.045 -0.575 ] [ 1.50 0.045 0.045 -0.59 ] [ 1.42 0.045 0.045 -0.62 ] [ 1.33 0.045 0.045 -0.675 ] [ 1.20 0.045 0.045 -0.72 ] [ 1.05 0.045 0.045 -0.75 ] [ 0.95 0.045 0.045 -0.76 ] [ 0.82 0.045 0.045 -0.79 ] [ 0.74 0.045 0.045 -0.81 ] [ 0.68 0.06 0.06 -0.86 ] [ 0.64 0.065 0.065 -0.90 ] ] [ side 0.38 * 0 0 ] 8 sketch-body
+		first-face sketch@faces size 1 do k sketch@faces k @i exhaust-colour add-last! drop loop
+	) each ;
+
+\ the Mercury's nine rocker-cover blisters round the cowling's front half, each a bump 0.14 m across and 0.30 m long with its axis along the thrust line, buried in the cowling's skin 0.60 m from its centre line so only its crown stands proud (the count from the engine's cylinders, the size from the side view)
+: sketch-gladiator-blisters ( sketch -- )
+	| sketch |
+	0 9 1 do k
+		k 9 / TAU * to angle
+		sketch [ [ 2.20 0.03 0.03 0 ] [ 2.12 0.07 0.06 0 ] [ 1.98 0.07 0.06 0 ] [ 1.90 0.03 0.03 0 ] ] [ angle sin 0.60 * angle cos 0.60 * 0.04 + 0 ] 12 sketch-body
+	loop ;
+
+gladiator-mk-ii-figures :hub @ constant gladiator-hub
+[ 0.10 0.06 ] constant gladiator-blade-widths
+
+\ the undercarriage, fixed: each cantilever leg a trousered fairing 0.70 m fore and aft where it merges into the belly 0.35 m out and 0.24 m at the axle, 0.10 m thick, splaying out to end at hub height on the wheel's inner face 0.84 m out, the axle 0.98 m out, 1.63 m below the thrust line and 1.16 m forward of the origin, as the side, underside and front views draw it; the wheel 0.80 m across, its tyre 0.18 m wide, leaning 6° with its top outward as the unloaded legs hang in flight, from the front view; the tail wheel 0.28 m across on an articulated leg, an upright member from the fuselage's underside 3.98 m aft down to a knee 0.48 m down at 4.04 m aft and an arm from there aft and down to the axle, as the side view draws it; the legs' thickness and the tyres' widths estimates
+: sketch-gladiator-undercarriage ( sketch -- )
+	| sketch |
+	[ -1 1 ] ( side |
+		gladiator-mk-ii-figures :main-wheel @ spread to wheel-along to wheel-up to wheel-out
+		[ side wheel-out * wheel-up wheel-along ] to axle
+		[ [ 0.35 -0.52 0.70 ] [ 0.35 -0.52 1.40 ] [ 0.84 -1.63 1.29 ] [ 0.84 -1.63 1.05 ] ] ( corner | [ corner first side * corner second corner 2 @i ] ) map to corners
+		sketch corners [ side 0.90 * 0.44 0 ] 0.05 sky-paint-colour sketch-thick-outline
+		6 PI 180 / * to camber
+		sketch axle [ side camber cos * camber sin negate 0 ] [ side camber sin * camber cos 0 ] gladiator-mk-ii-figures :wheel-radius @ 0.18 0.4 sketch-wheel
+	) each
+	gladiator-mk-ii-figures :tail-wheel @ to tail-wheel
+	sketch [ 0 -0.30 -3.98 ] [ 0 -0.48 -4.04 ] 0.03 hub-colour sketch-strut
+	sketch [ 0 -0.48 -4.04 ] tail-wheel [ 0 0.04 0 ] v+ 0.025 hub-colour sketch-strut
+	sketch tail-wheel [ 1 0 0 ] [ 0 1 0 ] gladiator-mk-ii-figures :tail-wheel-radius @ 0.08 0.4 sketch-wheel ;
+
+\ the tailplane from the plan view, as [ out along ], on the thrust line as the side view sets it, the elevators' inner ends cut away either side of the rudder from 0.12 m out at the hinge to 0.32 m at the trailing edge, the elevators' hinge at 60% of the chord, braced by a strut each side from its underside 1.0 m out down to the fuselage's underside as the side view draws it; the fin and rudder from the side view, as [ along up ], the rudder's edge against the fin a step inside the outline: the hinge 4.68 m aft up to 0.99 m, forward to 4.50 m aft and up to the outline there, the horn balance filling the step, so the fin ahead of it carries the flash up to the outline; their half-thicknesses (estimates)
+: gladiator-tailplane ( -- pairs ) [ [ 0 -3.79 ] [ 1.0 -3.83 ] [ 1.25 -3.92 ] [ 1.49 -4.04 ] [ 1.73 -4.28 ] [ 1.82 -4.55 ] [ 1.73 -4.78 ] [ 1.49 -4.94 ] [ 1.25 -5.14 ] [ 1.0 -5.21 ] [ 0.54 -5.25 ] [ 0.32 -5.25 ] [ 0.21 -5.00 ] [ 0.12 -4.70 ] [ 0 -4.70 ] ] ;
+: gladiator-elevator ( -- pairs ) [ [ 0.12 -4.67 ] [ 1.0 -4.66 ] [ 1.6 -4.62 ] ] ;
+: gladiator-fin ( -- pairs ) [ [ -3.75 0.44 ] [ -3.92 0.84 ] [ -4.09 1.09 ] [ -4.26 1.26 ] [ -4.44 1.38 ] [ -4.61 1.44 ] [ -4.78 1.47 ] [ -4.95 1.44 ] [ -5.12 1.38 ] [ -5.29 1.23 ] [ -5.46 0.96 ] [ -5.56 0.50 ] [ -5.58 0.15 ] [ -5.46 0.05 ] [ -5.29 -0.09 ] [ -5.12 -0.16 ] [ -4.95 -0.21 ] [ -4.78 -0.24 ] [ -4.68 -0.24 ] ] ;
+: gladiator-rudder ( -- pairs ) [ [ -4.68 -0.24 ] [ -4.68 0.99 ] [ -4.50 0.99 ] [ -4.50 1.41 ] ] ;
+-0.03 constant gladiator-tailplane-height
+0.05 constant gladiator-tailplane-half-thickness
+0.04 constant gladiator-fin-half-thickness
+
+\ the fin flash: red, white and blue each 0.23 m wide from 3.80 m aft to the rudder's horn 4.50 m aft, each stripe a polygon bounded above by the fin's outline and below by the decking's top, 0.43 m up at the fin's foot falling to 0.26 m at the hinge
+: gladiator-fin-bottom ( along -- up ) -3.75 swap - 0.204 * 0.44 swap - ;
+: gladiator-fin-flash ( -- stripes )
+	[ [ [ [ -3.80 -3.80 gladiator-fin-bottom ] [ -3.80 0.55 ] [ -3.92 0.84 ] [ -4.03 1.03 ] [ -4.03 -4.03 gladiator-fin-bottom ] ] roundel-red-colour ]
+	  [ [ [ -4.03 -4.03 gladiator-fin-bottom ] [ -4.03 1.03 ] [ -4.09 1.09 ] [ -4.26 1.26 ] [ -4.26 -4.26 gladiator-fin-bottom ] ] roundel-white-colour ]
+	  [ [ [ -4.26 -4.26 gladiator-fin-bottom ] [ -4.26 1.26 ] [ -4.44 1.38 ] [ -4.50 1.41 ] [ -4.50 -4.50 gladiator-fin-bottom ] ] roundel-blue-colour ] ] ;
+
+\ the fuselage roundel, a Type A1 35 in across as the Hurricane's, behind the lower wing's trailing edge 2.4 m aft of the origin, its centre 5 cm above the thrust line (its place an estimate)
+-2.4 constant gladiator-fuselage-roundel-along
+
+\ the Gladiator Mk II: the fuselage, the Mercury's cowling with the engine's face dark inside its lip, the black spinner and the turning propeller's disc 3.20 m across, the windscreen and the hood, the two wings with their roundels, the struts and wires, the fixed undercarriage and the tail wheel, the tailplane with its elevators and struts, the fin and rudder with the fin flash, the aerial mast on the fairing 1.56 m aft, 0.29 m tall, its wire aft to a short pole on the fin's leading edge 4.28 m aft, both measured on the side view, and a wire forward to each upper wing 1.96 m out near its trailing edge, 0.16 m forward of the origin, where the plan view draws them ending, the two Brownings in their gondolas under the lower wings, the two Vickers guns' troughs along the fuselage's sides at the thrust line's height, dark slots 8 cm deep from just ahead of the windscreen to the cowling's rear with the barrels lying in them and standing out ahead, as the side view and photographs show them, and the fuselage roundel; in Dark Green above and Sky beneath, without the Dark Earth's pattern, which no drawing of the flight's aircraft was found for
+: gladiator-sketch ( hooded -- sketch )
+	| hooded |
+	new-model-sketch sky-paint-colour :under-colour ! spitfire-under-turn :under-turn ! to model
+	model gladiator-cowling-rings [ 0 0 0 ] 12 sketch-body
+	model@faces last radiator-intake-colour add-last! drop
+	model gladiator-fuselage-rings [ 0 0 0 ] 12 sketch-body
+	model gladiator-fairing-rings [ 0 0 0 ] 8 sketch-body
+	model@faces size to spinner-first-face
+	model gladiator-spinner-rings [ 0 0 0 ] 12 sketch-body
+	spinner-first-face model@faces size 1 do k model@faces k @i spinner-colour add-last! drop loop
+	model [ 0 0.04 2.38 ] [ 1 0 0 ] [ 0 1 0 ] 0.5 24 ring-of [ 0 0 1.5 ] radiator-intake-colour sketch-painted-plate
+	model gladiator-hub 1.60 sketch-propeller-disc
+	model sketch-gladiator-blisters
+	model sketch-gladiator-gondolas
+	model sketch-gladiator-exhausts
+	hooded if
+		model sketch-gladiator-hood
+	else
+		gladiator-hood-frames to frames [ 2 6 ] ( k | model frames k @i sketch-path ) each
+		[ -1 1 ] ( side | side gladiator-windscreen-panel to panel model panel 8 skip panel 7 take concat sketch-path model side gladiator-windscreen-brace sketch-path ) each
+		model [ [ -0.08 0.72 0.16 ] [ -0.08 1.05 -0.28 ] [ 0.08 1.05 -0.28 ] [ 0.08 0.72 0.16 ] ] sketch-path
+	then
+	model sketch-gladiator-wings
+	model sketch-gladiator-struts
+	model sketch-gladiator-undercarriage
+	model gladiator-tailplane [ gladiator-elevator ] 0 gladiator-tailplane-height gladiator-tailplane-half-thickness sketch-thick-surface
+	[ -1 1 ] ( side | model [ side 1.0 * gladiator-tailplane-height 0.05 - -4.5 ] [ side 0.25 * -0.30 -4.0 ] 0.015 null sketch-strut ) each
+	model 0 gladiator-fin gladiator-rudder gladiator-fin-half-thickness sketch-thick-fin
+	model gladiator-fin-flash gladiator-fin-half-thickness sketch-fin-flash
+	model [ 0 0.93 -1.56 ] [ 0 1.22 -1.56 ] 0.015 null sketch-strut
+	model [ 0 1.26 -4.28 ] [ 0 1.44 -4.28 ] 0.01 null sketch-strut
+	model [ [ 0 1.22 -1.56 ] [ 0 1.44 -4.28 ] ] sketch-path
+	[ -1 1 ] ( side | model [ [ 0 1.22 -1.56 ] [ side 1.96 * 1.96 gladiator-upper-height gladiator-height-at gladiator-depth 0.6 * + 0.16 ] ] sketch-path ) each
+	[ -1 1 ] ( side |
+		model [ [ 0.575 0.01 0.12 ] [ 0.575 0.09 0.12 ] [ 0.56 0.09 1.55 ] [ 0.56 0.01 1.55 ] ] ( point | [ point first side * point second point 2 @i ] ) map [ 0 0.05 0.8 ] model-ink sketch-painted-plate
+		model [ side 0.58 * 0.05 0.20 ] [ side 0.57 * 0.05 1.70 ] 0.018 exhaust-colour sketch-strut
+	) each
+	model gladiator-rings 12 gladiator-fuselage-roundel-along 0.05 hurricane-fuselage-roundel-radii [ roundel-yellow-colour roundel-blue-colour roundel-white-colour roundel-red-colour ] sketch-skin-roundel
+	model ;
+
+: gladiator-model ( -- model ) true gladiator-sketch dark-green-colour sketch>object ;
+
+\ the Gladiator as its pilot sees it from inside the hood, the hood's frames alone so the view through it is clear
+: gladiator-cockpit-model ( -- model ) false gladiator-sketch dark-green-colour sketch>object ;

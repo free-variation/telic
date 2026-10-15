@@ -7,7 +7,7 @@
 \ starter, O held the slow-running cut-out that stops the engine, Q and A
 \ the throttle, [ and ] the
 \ elevator trim nose-down and nose-up, W and S the propeller finer and
-\ coarser, E the boost cut-out, F the flaps, G the
+\ coarser, U and I the mixture weaker and richer, E the boost cut-out, F the flaps, G the
 \ undercarriage, B the brakes, space the guns, J bails out, 1 to 4 the views ahead, left,
 \ right and behind, L the flight recorder, P pauses, escape returns to
 \ the missions. A gamepad: the right stick is the stick, the left stick's
@@ -245,6 +245,8 @@ variable scenery-collection
 		:w key-pressed? :left-stick pad-pressed? was-fine not and or if true plane!fine "FINE PITCH" say then
 		:s key-pressed? :left-stick pad-pressed? was-fine and or if false plane!fine "COARSE PITCH" say then
 	then
+	:i key-down? :u key-down? - to mixture-move
+	plane@mixture mixture-move 0.5 * elapsed * + 0 1 clamp plane!mixture
 	:e key-pressed? :right-bumper pad-pressed? or if
 		plane@emergency-allowed if
 			plane@boost-cut-out not plane!boost-cut-out
@@ -396,6 +398,7 @@ view-width 40 - constant message-line-width
 	plane@type@kind to kind
 	kind :hurricane = if [ 0 0.65 -0.3 ] exit then
 	kind :lysander = if [ 0 1.03 0.1 ] exit then
+	kind :gladiator = if [ 0 0.78 -0.3 ] exit then
 	[ 0 0.48 0.1 ] ;
 
 \ the glazing behind the pilot: the sill's height and how far along the windows end, from the models' hoods: the Spitfire's rear windows from the hood back to 0.6 m behind the origin over a sill 0.31 m up, the Hurricane's hood itself to 1.26 m behind it over its 0.46 m sill
@@ -518,6 +521,13 @@ view-width 40 - constant message-line-width
 \ how near ahead of the eye the Lysander's own faces are cut when drawn from inside its cockpit, metres, so the cockpit's sides and the wing's root beside the pilot show
 0.05 constant cockpit-near-plane
 
+\ the Gladiator seen from under its hood: its model without the hood's glass, cut at the cockpit's near plane, so the upper wing and its struts, the lower wings, the nose and the tail show where they lie, the hood's frames among them
+: draw-gladiator-cockpit-view ( -- )
+	| ^near-plane |
+	cockpit-near-plane to near-plane
+	models@gladiator-cockpit plane@position plane@attitude draw-model
+	scene-near-plane to near-plane ;
+
 \ the Lysander seen from its cockpit, whichever way the pilot looks: its model without the canopy's glass, cut at the cockpit's near plane, so the wing overhead, its struts, the wheels' fairings, the nose and the tail show where they lie, and over it the canopy's frames, at each frame's station and each of its rows, its sills and its roof's edges, as lines
 : draw-lysander-cockpit-view ( -- )
 	| ^near-plane |
@@ -534,6 +544,7 @@ view-width 40 - constant message-line-width
 \ looking back from the cockpit; the Lysander's as its whole cockpit view. First the aircraft's own lines beyond 2 m, so the fuselage covers those behind it and the tailplane's tips, the fin, the mast and the aerial show past it. Then the fuselage behind the hood from its rings (aircraft.telic's) as sections: below the sill as far back as the glazing reaches, the rear windows above it left clear, then the razorback to the tail; its faces from the farthest to the nearest, each lit by how squarely it faces the light from above and to the right; the fairing standing across the fuselage behind the glazing in the cockpit's colour; over them the spine, the sills and each section's frame, and the rear windows' frames or the hood's rear frames. Last the head armour on the fairing, 26 cm wide and 22 cm high from the sill, its top corners cut, its upper and left edges catching the light, and a leather headrest pad 14 by 7 cm on it (estimates), and the aerial mast, nearer than the lines drawn first reach
 : draw-rear-view ( -- )
 	plane@type@kind :lysander = if draw-lysander-cockpit-view exit then
+	plane@type@kind :gladiator = if draw-gladiator-cockpit-view exit then
 	models plane@gear-position 0.5 > if :flown-down else :flown then @ plane@position plane@attitude draw-model
 	plane@type@kind :hurricane = if hurricane-rings hurricane-rings-ahead else spitfire-rings spitfire-rings-ahead then skip to rings
 	rear-glazing to window-end to sill
@@ -789,6 +800,7 @@ variable wing-surfaces
 : draw-side-view ( side -- )
 	| side |
 	plane@type@kind :lysander = if draw-lysander-cockpit-view exit then
+	plane@type@kind :gladiator = if draw-gladiator-cockpit-view exit then
 	plane@type to type
 	type@kind to kind
 	plane@deflections first side * negate type@aileron-travel * to aileron-down
@@ -844,7 +856,9 @@ variable wing-surfaces
 : draw-propeller ( -- )
 	plane@type@kind to kind
 	kind :hurricane = if hurricane-hub hurricane-blade-widths else
-		kind :lysander = if lysander-hub lysander-blade-widths else spitfire-hub spitfire-blade-widths then
+		kind :lysander = if lysander-hub lysander-blade-widths else
+			kind :gladiator = if gladiator-hub gladiator-blade-widths else spitfire-hub spitfire-blade-widths then
+		then
 	then to widths to hub
 	plane@type@propeller-radius to radius
 	plane@revolutions plane@type@rated-revolutions * plane@type@propeller-gear * to propeller-rpm
@@ -861,7 +875,9 @@ variable wing-surfaces
 : draw-nose ( -- )
 	plane@type@kind to kind
 	kind :hurricane = if hurricane-spinner-rings hurricane-rings else
-		kind :lysander = if lysander-spinner-rings lysander-rings else spitfire-spinner-rings spitfire-rings then
+		kind :lysander = if lysander-spinner-rings lysander-rings else
+			kind :gladiator = if gladiator-spinner-rings gladiator-rings else spitfire-spinner-rings spitfire-rings then
+		then
 	then
 	( ring | ring first 0 > ) filter concat ( ring | ring [ 0 0 0 ] 12 body-ring ) map to sections
 	sections cockpit-eye fuselage-faces ( face | face@depth negate ) sort-by ( face |
@@ -871,7 +887,7 @@ variable wing-surfaces
 \ the frame's picture
 : draw-frame ( -- )
 	:pilot game@ to pilot
-	pilot null? :view game@ :front = and if panel-top else screen-height then view-rows!
+	pilot null? :view game@ :front = and if plane@type@kind :gladiator = if gladiator-view-rows else panel-top then else screen-height then view-rows!
 	pilot null? if
 		cockpit-eye own-point
 	else
@@ -900,6 +916,7 @@ variable wing-surfaces
 	:air-firing game@ if draw-tow-cable then
 	:view game@ :front = pilot null? and if
 		plane@type@kind :lysander = if draw-lysander-cockpit-view then
+		plane@type@kind :gladiator = if draw-gladiator-cockpit-view then
 		draw-propeller
 		draw-nose
 	then
@@ -950,15 +967,18 @@ variable wing-surfaces
 	mission :aircraft :fighter @or :reconnaissance = if plane make-reconnaissance then
 	mission aircraft-choice flown-in :hurricane = if plane hurricane-mk-i use-type then
 	mission aircraft-choice flown-in :lysander = if plane lysander-mk-ii use-type then
+	mission aircraft-choice flown-in :gladiator = if plane gladiator-mk-ii use-type then
 	mission mission-code drop to flown-code
 	mission 0 mission-letter to flown-letter
 	plane@type@kind :lysander = if
 		models models@lysander :flown ! models@lysander :flown-down ! drop
 		plane@on-ground if lysander-take-off-trim plane!trim then
+	else plane@type@kind :gladiator = if
+		models models@gladiator :flown ! models@gladiator :flown-down ! drop
 	else
 		models plane@type@kind flown-code flown-letter false marked-model :flown !
 		plane@type@kind flown-code flown-letter true marked-model :flown-down ! drop
-	then
+	then then
 	mission :ballast null @or plane!ballast
 	mission@propeller plane!propeller
 	mission@emergency plane!emergency-allowed
@@ -1131,6 +1151,7 @@ variable wing-surfaces
   [ "Q A" "D-PAD UP DOWN" "THROTTLE" ]
   [ "[ ]" "L STICK UP DOWN" "TRIM, [ OR FORWARD NOSE DOWN" ]
   [ "W S" "L STICK CLICK" "PROPELLER: FINER, COARSER; CLICK SWITCHES" ]
+  [ "U I" "" "MIXTURE: WEAKER, RICHER" ]
   [ "E" "RIGHT BUMPER" "BOOST CUT-OUT, +12 LB" ]
   [ "C V" "RIGHT TRIGGER" "CAMERAS (PR), DEVELOP FILM" ]
   [ "T" "RIGHT BACK" "TIME x4 x16 ON AUTOPILOT; A CONTROL TOUCHED, x1" ]

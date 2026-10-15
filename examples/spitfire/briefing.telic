@@ -397,6 +397,7 @@ variable placed-labels
 	| mission choice |
 	mission :aircraft :fighter @or :hurricane = if :hurricane exit then
 	mission :aircraft :fighter @or :lysander = if :lysander exit then
+	mission :aircraft :fighter @or :gladiator = if :gladiator exit then
 	choice :hurricane = mission aircraft-choosable? and if :hurricane else :spitfire then ;
 
 \ how many of a type, by the name the briefing gives it
@@ -421,13 +422,15 @@ variable placed-labels
 		"HURRICANE MK I, EIGHT BROWNINGS, 334 OR 287 ROUNDS EACH"
 	else mission choice flown-in :lysander = if
 		"LYSANDER MK II, TWO BROWNINGS IN THE WHEELS' FAIRINGS"
+	else mission choice flown-in :gladiator = if
+		"GLADIATOR MK II, FOUR BROWNINGS, TWO IN THE NOSE AND TWO UNDER THE WINGS"
 	else
 		"SPITFIRE MK I, EIGHT BROWNINGS, 300 ROUNDS EACH"
-	then then then to aircraft-text
+	then then then then to aircraft-text
 	mission@propeller :two-pitch = if "TWO-PITCH" else "CONSTANT-SPEED" then to propeller-text
-	mission choice flown-in :lysander = if "PERSEUS XII, 87 OCTANE" else
+	mission choice flown-in :lysander = if "PERSEUS XII, 87 OCTANE" else mission choice flown-in :gladiator = if "MERCURY VIII, 87 OCTANE" else
 		mission@emergency if "+6 LB, +12 LB EMERGENCY ON 100 OCTANE" else "+6 LB, 87 OCTANE" then
-	then to boost-text
+	then then to boost-text
 	mission@start to start
 	start 3 @i if
 		"ON THE RUNWAY"
@@ -479,7 +482,9 @@ variable placed-labels
 	| mission choice top |
 	mission choice flown-in to kind
 	kind :hurricane = if models@hurricane-down 12.19 else
-		kind :lysander = if models@lysander 15.24 else models@spitfire-down 11.23 then
+		kind :lysander = if models@lysander 15.24 else
+			kind :gladiator = if models@gladiator 9.83 else models@spitfire-down 11.23 then
+		then
 	then to span to model
 	briefing-top top - 8 - to room
 	room 30 < if exit then

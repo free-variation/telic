@@ -1,5 +1,5 @@
-\ Spitfire: the cockpits, the Spitfire's described here and the Hurricane's and the Lysander's
-\ at the end of the file, each drawn for its type. The Spitfire's is laid
+\ Spitfire: the cockpits, the Spitfire's described here and the Hurricane's, the Lysander's
+\ and the Gladiator's at the end of the file, each drawn for its type. The Spitfire's is laid
 \ out as a Mk I's. Below the windscreen the
 \ instrument panel stands on the cockpit's green wall. In its middle is the
 \ black blind-flying panel, six dials in two rows: the airspeed indicator,
@@ -427,28 +427,29 @@ panel-top 188 + constant floor-top
 
 \ === beneath the panel ===
 
-\ the throttle lever in its quadrant on the left wall, forward for open, the boost cut-out's red lever lit when pushed forward; beside it the propeller's pitch lever, forward for fine pitch or the most revolutions
+\ the throttle lever in its quadrant on the left wall, forward for open; beside it the mixture lever, forward for rich, and the propeller's pitch lever, forward for fine pitch or the most revolutions; the boost cut-out's red lever beyond them, lit when pushed forward
 : draw-throttle-lever ( -- )
-	14 floor-top 4 + 12 36 edge-colour outline
-	20 floor-top 6 + 20 floor-top 38 + edge-colour draw-segment
-	20 floor-top 34 + plane@throttle 26 * - 6 needle-colour fill-disc
-	30 floor-top 4 + 4 plane@boost-cut-out if warning-colour else 0x502018 then fill-disc
 	plane@propeller :constant-speed = if
 		plane@revolution-setting lowest-revolutions - plane@type@rated-revolutions lowest-revolutions - /
 	else
 		plane@fine if 1 else 0 then
 	then to pitch
-	44 floor-top 4 + 12 36 edge-colour outline
-	50 floor-top 6 + 50 floor-top 38 + edge-colour draw-segment
-	50 floor-top 34 + pitch 26 * - 5 dial-ink fill-disc ;
+	[ [ 8 plane@throttle 6 needle-colour ] [ 26 plane@mixture 5 brass-colour ] [ 44 pitch 5 dial-ink ] ] ( lever |
+		lever spread to colour to radius to setting to x
+		x floor-top 4 + 12 36 edge-colour outline
+		x 6 + floor-top 6 + x 6 + floor-top 38 + edge-colour draw-segment
+		x 6 + floor-top 34 + setting 26 * - radius colour fill-disc
+	) each
+	62 floor-top 4 + 4 plane@boost-cut-out if warning-colour else 0x502018 then fill-disc ;
 
-\ the rudder pedals on the floor, each a frame narrowing forward with two bars across it; the pedal on the rudder's side pushed forward and the other drawn back
-: draw-pedals ( -- )
+\ the rudder pedals on the floor at two places across with their tops at a row, each a frame narrowing forward with two bars across it; the pedal on the rudder's side pushed forward and the other drawn back
+: draw-frame-pedals-at ( left-x right-x row -- )
+	| left-x right-x row |
 	controls@yaw 8 * to push
-	[ [ 250 push ] [ 390 push negate ] ] to pedals
+	[ [ left-x push ] [ right-x push negate ] ] to pedals
 	0 2 1 do k
 		pedals k @i spread to offset to x
-		floor-top 8 + offset + to top
+		row offset + to top
 		top 28 + to bottom
 		x 24 - top x 24 + top pedal-colour draw-segment
 		x 24 + top x 30 + bottom pedal-colour draw-segment
@@ -457,6 +458,12 @@ panel-top 188 + constant floor-top
 		x 26 - top 9 + x 26 + top 9 + pedal-colour draw-segment
 		x 28 - top 19 + x 28 + top 19 + pedal-colour draw-segment
 	loop ;
+
+\ the pedals at two places across on the floor below the panel
+: draw-frame-pedals ( left-x right-x -- ) floor-top 8 + draw-frame-pedals-at ;
+
+\ the Spitfire's pedals either side of the column
+: draw-pedals ( -- ) 250 390 draw-frame-pedals ;
 
 \ a ring filled between two radii about a centre, 48 pairs of triangles round it, its middle left clear
 : fill-ring ( cx cy inner outer colour -- )
@@ -529,6 +536,17 @@ variable sight-span
 	cx radius - cy cx gap - cy sight-line
 	cx gap + cy cx radius + cy sight-line ;
 
+\ a wall wheel's scale above it, the setting's mark between the two ends' letters, and its name under it
+: draw-wheel-scale ( cx cy setting low high name -- )
+	| cx cy setting low high name |
+	cx 14 - cy 16 - cx 14 + cy 16 - dial-ink draw-segment
+	cx cy 18 - cx cy 14 - dial-ink draw-segment
+	cx setting 14 * + round to mark
+	mark cy 20 - mark cy 12 - needle-colour draw-segment
+	cx 20 - cy 19 - low dial-ink centred-text
+	cx 20 + cy 19 - high dial-ink centred-text
+	cx cy 13 + name dial-ink centred-text ;
+
 \ a trim wheel on the left wall, a ring with four spokes turned with its setting, from -1 to 1; above it its scale, the setting's mark between the two ends' letters; its name under it
 : draw-wall-wheel ( cx cy setting low high name -- )
 	| cx cy setting low high name |
@@ -537,13 +555,7 @@ variable sight-span
 		setting 15 * k PI * 2 / + to spoke
 		cx cy cx spoke sin 10 * + cy spoke cos 10 * - edge-colour draw-segment
 	loop
-	cx 14 - cy 16 - cx 14 + cy 16 - dial-ink draw-segment
-	cx cy 18 - cx cy 14 - dial-ink draw-segment
-	cx setting 14 * + round to mark
-	mark cy 20 - mark cy 12 - needle-colour draw-segment
-	cx 20 - cy 19 - low dial-ink centred-text
-	cx 20 + cy 19 - high dial-ink centred-text
-	cx cy 13 + name dial-ink centred-text ;
+	cx cy setting low high name draw-wheel-scale ;
 
 \ the Spitfire's cockpit below the windscreen
 : draw-spitfire-panel ( -- )
@@ -807,20 +819,24 @@ panel-top 190 + constant board-foot
 	loop
 	240 floor-top 32 + 400 floor-top 32 + pedal-colour draw-segment ;
 
-\ the control column and its ring grip over the directional gyro, as the Spitfire's
-: draw-hurricane-column ( -- )
-	320 controls@roll 14 * + to grip-x
-	hurricane-lower-row controls@pitch 10 * + to grip-y
+\ the control column standing at a place across and its ring grip at a row, as the Spitfire's
+: draw-ring-column ( centre-x grip-row -- )
+	| centre-x grip-row |
+	centre-x controls@roll 14 * + to grip-x
+	grip-row controls@pitch 10 * + to grip-y
 	grip-y 42 + to shaft-top
 	-5 6 1 do k
-		320 k + screen-height grip-x k + shaft-top grip-colour draw-segment
+		centre-x k + screen-height grip-x k + shaft-top grip-colour draw-segment
 	loop
-	314 screen-height grip-x 6 - shaft-top grip-edge-colour draw-segment
-	326 screen-height grip-x 6 + shaft-top grip-edge-colour draw-segment
+	centre-x 6 - screen-height grip-x 6 - shaft-top grip-edge-colour draw-segment
+	centre-x 6 + screen-height grip-x 6 + shaft-top grip-edge-colour draw-segment
 	grip-x grip-y 30 42 grip-colour fill-ring
 	grip-x grip-y 42 grip-edge-colour draw-circle
 	grip-x grip-y 30 grip-edge-colour draw-circle
 	grip-x 25 - grip-y 25 - 7 :firing game@ if 0xff4030 else brass-colour then fill-disc ;
+
+\ the Hurricane's column, its grip over its lower row
+: draw-hurricane-column ( -- ) 320 hurricane-lower-row draw-ring-column ;
 
 \ the reflector sight's pedestal on the coaming above the blind-flying panel, and its padded crash pad
 : draw-sight-pedestal ( -- )
@@ -977,9 +993,324 @@ panel-top 190 + constant board-foot
 	draw-pedals
 	draw-hurricane-column ;
 
+\ === the Gladiator's cockpit ===
+
+\ The Gladiator's cockpit, laid out after a photograph of the Shuttleworth
+\ Gladiator's panel, with the controls the Historic Aircraft Association's
+\ account of flying it and the CAA's airworthiness notes for G-GLAD
+\ describe. One grey plate from the panel's top to the floor, its top edge
+\ sloping down from the blind panel to the sides with the view showing
+\ above the slope, every name on its face (the front view is drawn 44 rows
+\ deeper for it, gladiator-view-rows, so the scene runs on behind the
+\ slope). The black blind-flying panel in the middle with the six
+\ dials in two rows, the column's ring grip over the directional gyro as
+\ in the other cockpits. The left board: the oxygen regulator's nameplate
+\ and the DELIVERY and SUPPLY labels over its two dials; under them the
+\ cylinder temperature's small gauge, lettered ENG as the photograph's
+\ (its other lettering unreadable), a riveted plate over the PRESSURE HEAD HEAT
+\ label, drawn with a toggle switch on it that the photograph's fittings
+\ on that plate do not show, the switch an inference from the label, and
+\ the magneto switches' plate at the lower left. The
+\ right board: the revolution counter and the boost gauge in its red rim
+\ below it (the photograph's OPERATING LIMITS plate between them left
+\ out); at its right edge
+\ the oil pressure's upright strip gauge in its yellow housing and the
+\ oil cooler's cock, a white disc with a red arrow, which every
+\ photograph of the type's cockpit shows there (the Swedish J 8's reads
+\ KRAN OLJEKYLARE). Under the blind
+\ panel a row of three: the fuel contents in a red rim, the pneumatic
+\ brakes' triple gauge, the supply needle and one for each wheel, the
+\ bicycle lever on the spade grip sending the air to the wheel on the
+\ rudder's side, and the oil temperature in an orange rim; the red
+\ STARTER button beside them, the Mk II's electric starter. Below them
+\ the compass bowl under the column's shaft at the centre; at the left
+\ the tailplane trim's indicator dial, the Gladiator's pitch trim being
+\ its tailplane's incidence (no rudder bias, none being recorded), and
+\ the star-shaped hand wheel that sets it; at the plate's lower left the
+\ throttle in its quadrant box, no pitch lever for the fixed-pitch
+\ propeller. No flaps' indicator, the photograph having none; no
+\ carburettor temperature gauge, as the account has none; the cylinder
+\ temperature on the left board's ENG gauge. The account puts the feet on
+\ trays below the view, so the Spitfire's frame pedals show only their
+\ tops over the foot of the lower slab. The heater's switch and the cooler's
+\ cock are drawn and do nothing. The placings follow the photograph,
+\ scaled to the view.
+
+\ the Gladiator's plate top, the blind panel's two dial rows, the row of gauges under it, the row along its foot, and its grey
+panel-top 4 + constant gladiator-panel-top
+\ the rows the Gladiator's front view is drawn in: the plate's top slopes 40 px down from the blind panel to the sides, so the scene runs on behind the slope to the foot of the plate's upper corners
+panel-top 44 + constant gladiator-view-rows
+panel-top 48 + constant gladiator-upper-row
+panel-top 128 + constant gladiator-lower-row
+panel-top 194 + constant gladiator-gauge-row
+panel-top 202 + constant gladiator-band-row
+0x4c4e46 constant gladiator-board-colour
+
+\ the fuel contents gauge in a red rim, FUEL on its face, 0 to the tank's capacity in gallons
+: draw-gladiator-fuel ( cx cy -- )
+	| cx cy |
+	cx cy small-radius plane@fuel 0 plane@fuel-capacity 4 [ [ 0 "0" ] [ plane@fuel-capacity plane@fuel-capacity "{0:.0f}" format ] ] "" sweep-dial
+	cx cy 8 - "FUEL" dial-ink centred-text
+	cx cy small-radius boost-rim-colour draw-circle
+	cx cy small-radius 1 + boost-rim-colour draw-circle ;
+
+\ the boost gauge in its red rim, 32 px in radius, smaller than the revolution counter as the screenshot shows it, BOOST on its face below the centre
+: draw-gladiator-boost ( cx cy -- )
+	| cx cy |
+	32 to radius
+	cx cy radius dial-face
+	cx cy radius 9 sweep-ticks
+	cx cy radius -6 12 [ [ -4 "-4" ] [ 0 "0" ] [ 4 "4" ] [ 8 "8" ] [ 12 "12" ] ] sweep-numerals
+	cx cy 20 + "BOOST" dial-ink centred-text
+	cx cy radius plane@boost -6 12 sweep 0.85 needle-colour hand
+	cx cy radius boost-rim-colour draw-circle
+	cx cy radius 1 + boost-rim-colour draw-circle ;
+
+\ a small gauge as the photographed engine gauge: a round bezel whose face is its upper part, the scale an arc of marks across the top with the lowest and highest readings at its ends, the name in the middle, the needle rising from a pivot at the bottom of the bezel over a bar that closes the face
+: draw-arc-gauge ( cx cy value low high name -- )
+	| cx cy value low high name |
+	cx cy 20 dial-face
+	cy 12 + to pivot-y
+	0 7 1 do k
+		k 6 / 1.7 * 0.85 - to angle
+		cx angle sin 20 * + pivot-y angle cos 20 * - cx angle sin 24 * + pivot-y angle cos 24 * - dial-ink draw-segment
+	loop
+	cx 11 - cy 3 - low "{0:.0f}" format 5 dial-ink centred-lettering
+	cx 10 + cy 3 - high "{0:.0f}" format 5 dial-ink centred-lettering
+	cx cy 3 + name dial-ink centred-text
+	cx 16 - cy 10 + cx 16 + cy 10 + dial-ink 0.6 dimmed draw-segment
+	cx pivot-y 24 value low high clamp low - high low - / 1.7 * 0.85 - 0.9 needle-colour hand ;
+
+\ the P-type compass in its bowl seen from above and ahead, its card a flat ellipse 24 px across and 9 px high with the lubber line at its far edge and the needle pointing north as the aircraft turns, the bowl's side 10 px below it
+: draw-bowl-compass ( cx cy -- )
+	| cx cy |
+	24 to rx
+	9 to ry
+	[ 0 25 1 do k cx k PI * 12 / sin rx * + cy k PI * 12 / cos ry * - loop ] to rim
+	cx rx - cy rx 2 * 10 grip-colour fill-span
+	0 24 1 do k
+		rim k 2 * @i to x0
+		rim k 2 * 1+ @i to y0
+		rim k 2 * 2 + @i to x1
+		rim k 2 * 3 + @i to y1
+		y0 cy >= y1 cy >= and if
+			x0 y0 10 + x1 y1 10 + cx cy 10 + grip-colour fill-face
+			x0 y0 10 + x1 y1 10 + grip-edge-colour draw-segment
+		then
+	loop
+	cx rx - cy cx rx - cy 10 + grip-edge-colour draw-segment
+	cx rx + cy cx rx + cy 10 + grip-edge-colour draw-segment
+	0 24 1 do k
+		rim k 2 * @i to x0
+		rim k 2 * 1+ @i to y0
+		rim k 2 * 2 + @i to x1
+		rim k 2 * 3 + @i to y1
+		x0 y0 x1 y1 cx cy dial-colour fill-face
+		x0 y0 x1 y1 dial-ink draw-segment
+	loop
+	cx cy ry - cx cy ry - 4 + dial-ink draw-segment
+	plane@attitude@forward heading-of negate PI 180 / * to north
+	cx cy cx north sin rx 0.8 * * + cy north cos ry 0.8 * * - needle-colour draw-segment
+	cx cy cx north sin rx 0.5 * * - cy north cos ry 0.5 * * + dial-ink draw-segment ;
+
+\ the oil cooler's cock, a white disc with a red arrow, as the photographs show it, at open
+: draw-cooler-cock ( cx cy -- )
+	| cx cy |
+	cx cy 20 0xe8e8e0 fill-disc
+	cx cy 20 edge-colour draw-circle
+	cx 11 + cy 11 + cx 11 - cy 11 - warning-colour draw-segment
+	cx 11 - cy 2 - cx 11 - cy 11 - warning-colour draw-segment
+	cx 2 - cy 11 - cx 11 - cy 11 - warning-colour draw-segment ;
+
+\ the tailplane trim's indicator as the photographed one: its needle pivoted near the top of the face, hanging down over an arc of marks along the bottom, DN at the arc's left end and UP at its right, TRIM between the pivot and the arc
+: draw-trim-dial ( cx cy -- )
+	| cx cy |
+	cx cy 25 dial-face
+	cy 13 - to pivot-y
+	0 7 1 do k
+		PI k 6 / 1.2 * 0.6 - - to angle
+		cx angle sin 26 * + pivot-y angle cos 26 * - cx angle sin 30 * + pivot-y angle cos 30 * - dial-ink draw-segment
+	loop
+	cx 13 - cy 1 + "DN" dial-ink centred-text
+	cx 13 + cy 1 + "UP" dial-ink centred-text
+	cx cy 8 - "TRIM" dial-ink centred-text
+	cx pivot-y 30 PI plane@trim -1 1 clamp 0.6 * - 0.85 needle-colour hand ;
+
+\ a black label plate with its wording across it
+: draw-label ( cx top width text -- )
+	| cx top width text |
+	cx width 2 / - top width 11 0x050505 fill-span
+	cx width 2 / - top width 11 dial-ink 0.6 dimmed outline
+	cx top 2 + text dial-ink centred-text ;
+
+\ the oxygen regulator as the Gladiator's plate carries it: OXYGEN REGULATOR engraved across the top, DELIVERY and SUPPLY under it, the two dials close together below them with a bracket between, the delivery's set for the height above 10,000 ft and the supply's full with the lower left of its face red, as the Hurricane's
+: draw-gladiator-oxygen ( cx cy -- )
+	| cx cy |
+	cx cy 48 - "OXYGEN REGULATOR" dial-ink centred-text
+	cx 27 - cy 36 - "DELIVERY" dial-ink centred-text
+	cx 27 + cy 36 - "SUPPLY" dial-ink centred-text
+	cx cy 22 - cx cy 22 + edge-colour draw-segment
+	plane@position second 3.28084 * 1000 / to thousands
+	thousands 10 < if 0 else thousands then to delivery
+	cx 27 - cy medium-radius delivery 0 40 8 [ [ 0 "0" ] [ 20 "20" ] [ 40 "40" ] ] "" sweep-dial
+	cx 27 + to supply-x
+	supply-x cy medium-radius dial-face
+	0 17 1 do k
+		k 0.1 * 1.9 - to angle
+		supply-x angle sin medium-radius 0.35 * * + cy angle cos medium-radius 0.35 * * -
+		supply-x angle sin medium-radius 0.9 * * + cy angle cos medium-radius 0.9 * * -
+		warning-colour 0.7 dimmed draw-segment
+	loop
+	supply-x cy medium-radius 4 sweep-ticks
+	supply-x cy medium-radius 1 0 1 sweep 0.85 needle-colour hand ;
+
+\ the revolution counter as the Lysander's, 1,200 to 3,400 a minute numbered in hundreds, at the large size with R.P.M. on its face below the centre
+: draw-gladiator-revolutions ( cx cy -- )
+	| cx cy |
+	plane@revolutions plane@type@rated-revolutions * to rpm
+	cx cy large-radius rpm 1200 3400 11 [ [ 1200 "12" ] [ 1600 "16" ] [ 2000 "20" ] [ 2400 "24" ] [ 2800 "28" ] [ 3200 "32" ] ] "" sweep-dial
+	cx cy 22 + "R.P.M." dial-ink centred-text ;
+
+\ the brakes' twin-needle gauge, its name on its face above the needles: the supply needle on the sweep, and from the bottom a needle for each wheel, swung out by the air the lever sends it, all of it to the wheel on the rudder's side and both with the bar centred
+: draw-brake-gauge ( cx cy -- )
+	| cx cy |
+	cx cy small-radius dial-face
+	cx cy small-radius 6 sweep-ticks
+	cx cy small-radius 200 0 300 sweep 0.85 dial-ink hand
+	controls@brakes if 1 else 0 then to squeezed
+	[ -1 1 ] ( side |
+		squeezed 1 controls@yaw side * + 0 1 clamp * to share
+		cx cy small-radius PI side 0.4 share 0.6 * + * - 0.7 needle-colour hand
+	) each
+	cx cy 9 - "BRAKES" dial-ink centred-text ;
+
+\ the trim's hand wheel, a six-pointed star, its points 26 px out, each pair of points joined by one concave arc that passes 18 px from the centre midway between them: the circle through the two points and that midpoint has its centre 38.96 px out along the bisector and a radius of 20.96 px, and the arc runs round its inner side; filled in gunmetal and turned with its setting
+0x6e7074 constant gunmetal-colour
+: draw-star-wheel ( cx cy setting -- )
+	| cx cy setting |
+	6 iota ( k |
+		setting 15 * k PI * 3 / + PI 6 / + to bisector
+		9 iota ( t |
+			3.810 t 0.1671 * - to arc-angle
+			38.96 arc-angle cos 20.96 * + to out
+			arc-angle sin 20.96 * to across
+			[ cx bisector sin out * + bisector cos across * + cy bisector cos out * - bisector sin across * + ]
+		) map
+	) map [ ] ' concat reduce to outline
+	outline size to n-points
+	0 n-points 1 do k
+		outline k @i spread to y0 to x0
+		outline k 1+ n-points mod @i spread to y1 to x1
+		x0 y0 x1 y1 cx cy gunmetal-colour fill-face
+		x0 y0 x1 y1 grip-edge-colour draw-segment
+	loop ;
+
+\ the throttle quadrant on the left wall under the magneto plate, seen side-on from the seat as a photograph of a Gladiator's shows it: a light metal housing with two slots up it and two levers with black ball knobs, their rods rising from below the screen's edge, the throttle's knob travelling up its slot as the throttle opens and the mixture's up the other as it goes richer (the photograph's second lever, taken for the mixture's); no pitch lever, the propeller fixed-pitch, and no cut-out, the Mercury's rated boost its most
+0xb4b4ac constant quadrant-colour
+: draw-gladiator-throttle ( -- )
+	6 panel-top 178 + 36 50 quadrant-colour fill-span
+	6 panel-top 178 + 36 50 grip-edge-colour outline
+	[ [ 16 plane@throttle ] [ 30 plane@mixture ] ] ( lever |
+		lever spread to setting to x
+		x panel-top 184 + x panel-top 222 + grip-colour draw-segment
+		panel-top 220 + setting 34 * - to knob-y
+		-1 2 1 do k x k + screen-height x k + knob-y grip-colour draw-segment loop
+		x knob-y 5 0x101010 fill-disc
+		x knob-y 5 grip-edge-colour draw-circle
+		x 2 - knob-y 2 - 1 0xd8d8d0 fill-disc
+	) each ;
+
+\ the Gladiator's cockpit below the windscreen
+: draw-gladiator-panel ( -- )
+	0 gladiator-view-rows view-width screen-height gladiator-view-rows - wall-colour fill-span
+	24 panel-top 44 + 592 screen-height panel-top - 44 - gladiator-board-colour fill-span
+	194 gladiator-panel-top 252 40 gladiator-board-colour fill-span
+	24 panel-top 44 + 194 gladiator-panel-top 194 panel-top 44 + gladiator-board-colour fill-face
+	446 gladiator-panel-top 616 panel-top 44 + 446 panel-top 44 + gladiator-board-colour fill-face
+	24 panel-top 44 + 194 gladiator-panel-top edge-colour draw-segment
+	194 gladiator-panel-top 446 gladiator-panel-top edge-colour draw-segment
+	446 gladiator-panel-top 616 panel-top 44 + edge-colour draw-segment
+	24 panel-top 44 + 24 screen-height edge-colour draw-segment
+	616 panel-top 44 + 616 screen-height edge-colour draw-segment
+	190 panel-top 12 + 190 panel-top 172 + edge-colour draw-segment
+	450 panel-top 12 + 450 panel-top 172 + edge-colour draw-segment
+	194 panel-top 8 + 252 160 blind-panel-colour fill-span
+	194 panel-top 8 + 252 160 edge-colour outline
+	236 gladiator-upper-row draw-airspeed
+	320 gladiator-upper-row draw-horizon
+	404 gladiator-upper-row draw-climb
+	236 gladiator-lower-row draw-altimeter
+	320 gladiator-lower-row draw-gyro
+	404 gladiator-lower-row draw-turn-and-slip
+	40 panel-top 44 + 146 68 blind-panel-colour fill-span
+	40 panel-top 44 + 186 panel-top 18 + 186 panel-top 44 + blind-panel-colour fill-face
+	70 panel-top 112 + 116 28 blind-panel-colour fill-span
+	70 panel-top 140 + 84 32 blind-panel-colour fill-span
+	154 panel-top 140 + 186 panel-top 140 + 154 panel-top 172 + blind-panel-colour fill-face
+	[ [ 40 44 ] [ 186 18 ] [ 186 140 ] [ 154 172 ] [ 70 172 ] [ 70 112 ] [ 40 112 ] ] to slab
+	0 slab size 1 do k
+		slab k @i spread panel-top + slab k 1+ slab size mod @i spread panel-top + edge-colour draw-segment
+	loop
+	111 panel-top 88 + draw-gladiator-oxygen
+	98 panel-top 142 + plane@coolant-temperature 0 300 "ENG" draw-arc-gauge
+	36 panel-top 116 + 32 56 blind-panel-colour fill-span
+	36 panel-top 116 + 32 56 edge-colour outline
+	52 panel-top 120 + "MAG." dial-ink centred-text
+	52 panel-top 166 + draw-magnetos
+	130 panel-top 116 + 32 30 0x141412 fill-span
+	130 panel-top 116 + 32 30 edge-colour outline
+	[ [ 133 119 ] [ 159 119 ] [ 133 143 ] [ 159 143 ] ] ( rivet | rivet spread panel-top + 1 grip-edge-colour fill-disc ) each
+	146 panel-top 142 + draw-toggle
+	121 panel-top 150 + 38 16 0x141412 fill-span
+	120 panel-top 151 + 40 14 0x141412 fill-span
+	120 panel-top 150 + 40 16 edge-colour outline
+	140 panel-top 151 + "PRESSURE" 5 dial-ink centred-lettering
+	140 panel-top 158 + "HEAD HEAT" 5 dial-ink centred-lettering
+	454 panel-top 44 + 146 96 blind-panel-colour fill-span
+	454 panel-top 18 + 600 panel-top 44 + 454 panel-top 44 + blind-panel-colour fill-face
+	486 panel-top 140 + 114 32 blind-panel-colour fill-span
+	454 panel-top 140 + 486 panel-top 140 + 486 panel-top 172 + blind-panel-colour fill-face
+	[ [ 454 18 ] [ 600 44 ] [ 600 172 ] [ 486 172 ] [ 454 140 ] ] to slab
+	0 slab size 1 do k
+		slab k @i spread panel-top + slab k 1+ slab size mod @i spread panel-top + edge-colour draw-segment
+	loop
+	497 panel-top 64 + draw-gladiator-revolutions
+	503 panel-top 138 + draw-gladiator-boost
+	562 panel-top 54 + "OIL" dial-ink centred-text
+	562 panel-top 62 + 18 40 plane@oil-pressure 120 / 0xd8b830 "" draw-strip-gauge
+	570 panel-top 144 + draw-cooler-cock
+	60 panel-top 176 + 520 34 blind-panel-colour fill-span
+	[ 0 53 1 do k 60 k 10 * + dup 180 460 clamp 180 - 280 / PI * sin 18 * negate panel-top 228 + + loop ] to arc
+	0 52 1 do k
+		arc k 2 * @i to x0
+		arc k 2 * 1+ @i to y0
+		arc k 2 * 2 + @i to x1
+		arc k 2 * 3 + @i to y1
+		x0 panel-top 210 + x1 panel-top 210 + x1 y1 blind-panel-colour fill-face
+		x0 panel-top 210 + x1 y1 x0 y0 blind-panel-colour fill-face
+		x0 y0 x1 y1 edge-colour draw-segment
+	loop
+	60 panel-top 176 + 580 panel-top 176 + edge-colour draw-segment
+	60 panel-top 176 + 60 panel-top 228 + edge-colour draw-segment
+	580 panel-top 176 + 580 panel-top 228 + edge-colour draw-segment
+	236 gladiator-gauge-row draw-gladiator-fuel
+	278 gladiator-gauge-row draw-brake-gauge
+	362 gladiator-gauge-row plane@oil-temperature 0 140 "OIL" draw-foot-dial
+	362 gladiator-gauge-row small-radius 1 + oil-gauge-colour draw-circle
+	420 gladiator-gauge-row 6 - plane@cranking if 0xff5040 else 0x902018 then "" draw-push-button
+	403 gladiator-gauge-row 6 + 34 9 warning-colour 0.6 dimmed fill-span
+	420 gladiator-gauge-row 8 + "STARTER" dial-ink centred-text
+	96 gladiator-band-row 1 + draw-trim-dial
+	158 gladiator-band-row 2 + plane@trim draw-star-wheel
+	320 panel-top 212 + draw-bowl-compass
+	236 404 screen-height 16 - draw-frame-pedals-at
+	draw-gladiator-throttle
+	320 gladiator-lower-row draw-ring-column ;
+
 \ the cockpit below the windscreen, the type's own
 : draw-panel ( -- )
 	plane@type@kind to kind
 	kind :hurricane = if draw-hurricane-panel exit then
 	kind :lysander = if draw-lysander-panel exit then
+	kind :gladiator = if draw-gladiator-panel exit then
 	draw-spitfire-panel ;

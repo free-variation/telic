@@ -529,6 +529,7 @@ variable cloud-air
 	  :cut-out-stopped false
 	  :propeller :constant-speed
 	  :fine true
+	  :mixture 1
 	  :revolution-setting type@rated-revolutions
 	  :boost-cut-out false
 	  :emergency-allowed true
@@ -727,7 +728,16 @@ variable cloud-air
 	cranking plane@starter-time starter-catch-time >= and if true plane!running exit then
 	plane@on-ground not plane@revolutions restart-revolutions >= and if true plane!running then ;
 
-\ the throttle, the propeller and the power: the throttle sets the manifold's pressure between the closed throttle's and the open's, and the boost cut-out raises the open boost to the emergency's; the supercharger holds the open pressure only up to its ceiling at the height, and the closed pressure falls with it above the full-throttle height. The constant-speed propeller's governor holds the revolutions at their setting, idling below a tenth of the throttle; the two-pitch propeller's revolutions follow the throttle's opening between the closed and the rated boost, and the airspeed, in fine or coarse pitch, no fewer than its idle's. The power, as a share of the rated, is the throttle's opening times the open manifold's pressure over the rated boost's times the revolutions over the rated. Running over the rated revolutions, or on emergency boost past its five minutes, wears the engine; a type whose emergency boost is its rated boost has no cut-out to wear it. An engine starved of fuel makes no power, as a dead one does, until the cock turns to a tank that has some; nor one not running, which the starter, while cranking, turns slowly
+\ the mixture the engine wants at a height, as the mixture lever's setting from 0, weak, to 1, rich: the air's density over the sea level's, so the fuel keeps pace with the thinner air
+: ideal-mixture ( height -- mixture ) air-density 1.225 / ;
+
+\ the power the mixture leaves, as a share: all of it at the height's ideal setting, 3 tenths less at full weak with the air at sea level's density (the mixture 1 short of the ideal), and 1 tenth less at full rich where the ideal is full weak (estimates)
+: mixture-power ( mixture height -- share )
+	| mixture height |
+	height ideal-mixture to ideal
+	mixture ideal < if 1 ideal mixture - 0.3 * - else 1 mixture ideal - 0.1 * - then ;
+
+\ the throttle, the propeller and the power: the throttle sets the manifold's pressure between the closed throttle's and the open's, and the boost cut-out raises the open boost to the emergency's; the supercharger holds the open pressure only up to its ceiling at the height, and the closed pressure falls with it above the full-throttle height. The constant-speed propeller's governor holds the revolutions at their setting, idling below a tenth of the throttle; the two-pitch propeller's revolutions follow the throttle's opening between the closed and the rated boost, and the airspeed, in fine or coarse pitch, no fewer than its idle's. The power, as a share of the rated, is the throttle's opening times the open manifold's pressure over the rated boost's times the revolutions over the rated, times what the mixture leaves. Running over the rated revolutions, or on emergency boost past its five minutes, wears the engine, as does running above 8 tenths of the power with the mixture more than 3 tenths weaker than the height's ideal, as detonation would; a type whose emergency boost is its rated boost has no cut-out to wear it. An engine starved of fuel makes no power, as a dead one does, until the cock turns to a tank that has some; nor one not running, which the starter, while cranking, turns slowly
 : run-propeller ( plane dt -- )
 	| plane dt |
 	plane@type to type
@@ -755,10 +765,14 @@ variable cloud-air
 	then
 	manifold atmosphere - plane!boost
 	plane@revolutions target over - dt 0.8 * * + plane!revolutions
-	stopped if 0 else plane@throttle open-manifold * atmosphere rated-boost + / plane@revolutions * then plane!power
+	stopped if 0 else plane@throttle open-manifold * atmosphere rated-boost + / plane@revolutions * plane@mixture height mixture-power * then plane!power
 	stopped if exit then
 	plane@revolutions 1 > if
 		plane@engine-wear plane@revolutions 1 - 0.2 / dt * 60 / + plane!engine-wear
+	then
+	height ideal-mixture 0.3 - plane@mixture - to too-weak
+	plane@power 0.8 > too-weak 0 > and if
+		plane@engine-wear too-weak dt * 120 / + plane!engine-wear
 	then
 	plane@boost-cut-out plane@throttle 0.9 > and type@emergency-boost rated-boost > and if
 		plane@emergency-time dt + plane!emergency-time
@@ -850,7 +864,7 @@ variable cloud-air
 \ the air's temperature at a height, °C: 15 at sea level, falling 6.5 a kilometre
 : air-temperature ( height -- celsius ) 0.0065 * 15 swap - ;
 
-\ the engine's step: the engine's temperature, the coolant's or an air-cooled engine's cylinder heads', heated by the power and cooled by the air, a liquid-cooled engine's through its radiator behind its thermostat and less as the glycol leaks away; the oil's temperature following it by the type's share, the oil's pressure with the revolutions, less as the oil warms and leaks; the wear of running past the type's limit or short of oil, the engine seizing when it is worn out
+\ the engine's step: the engine's temperature, the coolant's or an air-cooled engine's cylinder heads', heated by the power, half as much again with the mixture a whole lever's travel weaker than the height's ideal, and cooled by the air, a liquid-cooled engine's through its radiator behind its thermostat and less as the glycol leaks away; the oil's temperature following it by the type's share, the oil's pressure with the revolutions, less as the oil warms and leaks; the wear of running past the type's limit or short of oil, the engine seizing when it is worn out
 : run-engine ( plane dt -- )
 	| plane dt |
 	plane@type to type
@@ -864,7 +878,8 @@ variable cloud-air
 	plane@coolant-left to coolant
 	plane@coolant-temperature to temperature
 	type@air-cooled if 1 else temperature 60 - 15 / 0 1 clamp then to thermostat
-	type@engine-heat power * airflow coolant * thermostat * temperature outside - * - type@cooling-capacity coolant 0.1 max2 * / dt * temperature + to temperature
+	plane@position second ideal-mixture plane@mixture - 0 max2 0.5 * 1 + to mixture-heat
+	type@engine-heat power * mixture-heat * airflow coolant * thermostat * temperature outside - * - type@cooling-capacity coolant 0.1 max2 * / dt * temperature + to temperature
 	temperature plane!coolant-temperature
 	plane@oil-temperature temperature type@oil-share * plane@oil-temperature - dt * oil-lag / + to oil
 	oil plane!oil-temperature
@@ -939,10 +954,10 @@ variable cloud-air
 	plane :side-load 0 @or 1 > if plane true :crashed ! "ground-looped: the undercarriage collapsed" :crash-reason ! drop exit then
 	plane true :on-ground ! drop ;
 
-\ a step's fuel, burned in proportion to the power from the tanks the cock selects: the main tanks, or the reserve where the type has one; the engine starved while the selected tanks are dry
+\ a step's fuel, burned in proportion to the power from the tanks the cock selects, the type's full-power flow at full rich and a quarter less at full weak: the main tanks, or the reserve where the type has one; the engine starved while the selected tanks are dry
 : burn-fuel ( plane dt -- )
 	| plane dt |
-	plane@power plane@type@full-power-flow * 3600 / dt * to burn
+	plane@power plane@type@full-power-flow * 3600 / dt * plane@mixture 0.25 * 0.75 + * to burn
 	plane@reserve-fuel to reserve
 	plane@fuel reserve - to main
 	plane@fuel-cock :reserve = if
