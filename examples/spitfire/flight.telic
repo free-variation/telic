@@ -568,6 +568,7 @@ variable cloud-air
 	  :fuel-capacity type@fuel-capacity
 	  :reserve-fuel type@reserve-capacity
 	  :fuel-cock :main
+	  :tank-button false
 	  :fuel-starved false
 	  :empty-mass type@mass type@fuel-capacity fuel-mass * -
 	  :rated-power type@engine-power
@@ -953,6 +954,12 @@ variable cloud-air
 	arriving sinking -4 < and bank 0.37 > or if plane true :crashed ! "struck the ground" :crash-reason ! drop exit then
 	plane :side-load 0 @or 1 > if plane true :crashed ! "ground-looped: the undercarriage collapsed" :crash-reason ! drop exit then
 	plane true :on-ground ! drop ;
+
+\ the fuel in a type's lower tank, the one the engine draws from, fed by gravity from the upper tank above it where the type has one (the Spitfire's :lower-tank, 37 gallons under the ungauged 48), so the upper empties first and the lower holds its capacity until it does: the fuel over the lower tank's capacity is in the upper
+: lower-tank-fuel ( plane -- gallons )
+	| plane |
+	plane@type :lower-tank null @or to lower
+	lower null? if plane@fuel else plane@fuel lower min2 then ;
 
 \ a step's fuel, burned in proportion to the power from the tanks the cock selects, the type's full-power flow at full rich and a quarter less at full weak: the main tanks, or the reserve where the type has one; the engine starved while the selected tanks are dry
 : burn-fuel ( plane dt -- )

@@ -167,7 +167,7 @@
 	{ :name "SPITFIRE MK I" :kind :spitfire :model-down :spitfire-down :finish :temperate-land
 	  :rounds-per-gun 300 :fire-seconds 300 60 * browning-rate / :stick-force-per-g 5
 	  :mass 2624 :span 11.23 :wing-area 22.48 :chord 2.165
-	  :engine-power 768000 :full-throttle-height 5500 :fuel-capacity 85
+	  :engine-power 768000 :full-throttle-height 5500 :fuel-capacity 85 :lower-tank 37
 	  :lift-slope 4.8 :zero-lift-coefficient 0.12 :stall-angle 0.26 :parasite-drag 0.019 :induced-drag 0.063
 	  :static-thrust 10500 :propeller-efficiency 0.8
 	  :dihedral 6 PI 180 / * :tailplane-area 2.89 :tail-arm 4.25 spitfire-centre-along + :fin-area 1.47 :fin-arm 4.6 spitfire-centre-along + :fin-along -4.6 :fin-root 0.33 :fin-tip 1.25
