@@ -630,7 +630,7 @@ variable cloud-air
 	  stick second elevator-reach negate elevator-reach clamp
 	  stick 2 @i trimmed rudder-reach - trimmed rudder-reach + clamp -1 1 clamp ] plane!deflections ;
 
-\ the forces on the aircraft, ground frame, newtons, and the moments about its centre of gravity, [ roll pitch yaw ] newton-metres rolling right, pitching up and yawing right. Each half of the wing, left then right, meets the air at the angle of attack raised by the roll on the half going down and by the sideslip through the dihedral on the half it meets, at the speed changed by the yaw, its lift less the aileron's on the right as the stick goes right, the ailerons carrying the type's rigging, the fixed offset the riggers' tab gives them with the stick centred, and weakened toward the reversal's dynamic pressure; the halves' lift and drag act at the half ellipse's centroid. The pitching moment: the type's offset, the wing's lift about the centre of gravity, the tail's restoring slope, the pitch damping, the elevator with the trim tab's share, the flaps, and past the stall angle the type's pitch-down. The yawing moment: the halves' drag, the fuselage's and the fin's stability against the sideslip and the fin's damping of the yaw, the rudder, the slipstream's swirl on the fin, the fin's terms at its strips' dynamic pressures. The propeller's torque and the swirl on the wing roots roll it; its gyroscopic moment couples pitch and yaw. Its thrust's centre moves off the hub where the air meets the disc at an angle, the blade turning into the air's cross-flow seeing it faster: by the cross-flow's speed over the propeller's turning speed, clockwise from the cross-flow's direction seen from behind, so the nose-up airflow moves it right and yaws the nose left and a sideslip from the left moves it down and pitches the nose up (only the faster air reckoned; the blades' changed angle of attack, which their pitch and section would give, would add to it). The torque, both swirls, the gyroscopic moment and the thrust's offset take the sign of the type's :rotation, 1 clockwise seen from the cockpit and -1 the other way
+\ the forces on the aircraft, ground frame, newtons, and the moments about its centre of gravity, [ roll pitch yaw ] newton-metres rolling right, pitching up and yawing right. Each half of the wing, left then right, meets the air at the angle of attack raised by the roll on the half going down and by the sideslip through the dihedral on the half it meets, at the speed changed by the yaw, its lift less the aileron's on the right as the stick goes right, the ailerons carrying the type's rigging, the fixed offset the riggers' tab gives them with the stick centred, and the rudder its own rigging the same way with the bar centred, and weakened toward the reversal's dynamic pressure; the halves' lift and drag act at the half ellipse's centroid. The pitching moment: the type's offset, the wing's lift about the centre of gravity, the tail's restoring slope, the pitch damping, the elevator with the trim tab's share, the flaps, and past the stall angle the type's pitch-down. The yawing moment: the halves' drag, the fuselage's and the fin's stability against the sideslip and the fin's damping of the yaw, the rudder, the slipstream's swirl on the fin, the fin's terms at its strips' dynamic pressures. The propeller's torque and the swirl on the wing roots roll it; its gyroscopic moment couples pitch and yaw. Its thrust's centre moves off the hub where the air meets the disc at an angle, the blade turning into the air's cross-flow seeing it faster: by the cross-flow's speed over the propeller's turning speed, clockwise from the cross-flow's direction seen from behind, so the nose-up airflow moves it right and yaws the nose left and a sideslip from the left moves it down and pitches the nose up (only the faster air reckoned; the blades' changed angle of attack, which their pitch and section would give, would add to it). The torque, both swirls, the gyroscopic moment and the thrust's offset take the sign of the type's :rotation, 1 clockwise seen from the cockpit and -1 the other way
 : aerodynamics ( plane -- force moments )
 	| plane |
 	plane@type to type
@@ -653,6 +653,7 @@ variable cloud-air
 	plane@rates spread to yaw-rate to pitch-rate to roll-rate
 	plane@deflections spread to rudder to elevator to aileron
 	aileron type@aileron-rigging + -1 1 clamp to aileron
+	rudder type@rudder-rigging + -1 1 clamp to rudder
 	plane@flap-setting to flaps
 	type@wing-area to area
 	type@span to span
@@ -732,10 +733,9 @@ variable cloud-air
 \ the mixture the engine wants at a height, as the mixture lever's setting from 0, weak, to 1, rich: the air's density over the sea level's, so the fuel keeps pace with the thinner air
 : ideal-mixture ( height -- mixture ) air-density 1.225 / ;
 
-\ the power the mixture leaves, as a share: all of it at the height's ideal setting, 3 tenths less at full weak with the air at sea level's density (the mixture 1 short of the ideal), and 1 tenth less at full rich where the ideal is full weak (estimates)
-: mixture-power ( mixture height -- share )
-	| mixture height |
-	height ideal-mixture to ideal
+\ the power the mixture leaves against the height's ideal setting (ideal-mixture), as a share: all of it at the ideal, 3 tenths less at full weak with the air at sea level's density (the mixture 1 short of the ideal), and 1 tenth less at full rich where the ideal is full weak (estimates)
+: mixture-power ( mixture ideal -- share )
+	| mixture ideal |
 	mixture ideal < if 1 ideal mixture - 0.3 * - else 1 mixture ideal - 0.1 * - then ;
 
 \ the throttle, the propeller and the power: the throttle sets the manifold's pressure between the closed throttle's and the open's, and the boost cut-out raises the open boost to the emergency's; the supercharger holds the open pressure only up to its ceiling at the height, and the closed pressure falls with it above the full-throttle height. The constant-speed propeller's governor holds the revolutions at their setting, idling below a tenth of the throttle; the two-pitch propeller's revolutions follow the throttle's opening between the closed and the rated boost, and the airspeed, in fine or coarse pitch, no fewer than its idle's. The power, as a share of the rated, is the throttle's opening times the open manifold's pressure over the rated boost's times the revolutions over the rated, times what the mixture leaves. Running over the rated revolutions, or on emergency boost past its five minutes, wears the engine, as does running above 8 tenths of the power with the mixture more than 3 tenths weaker than the height's ideal, as detonation would; a type whose emergency boost is its rated boost has no cut-out to wear it. An engine starved of fuel makes no power, as a dead one does, until the cock turns to a tank that has some; nor one not running, which the starter, while cranking, turns slowly
@@ -745,11 +745,12 @@ variable cloud-air
 	type@rated-boost to rated-boost
 	plane air-velocity v-length to speed
 	plane@position second to height
+	height ideal-mixture to ideal
 	plane@boost-cut-out if type@emergency-boost else rated-boost then to open-boost
 	plane dt run-starter
 	plane@engine-dead plane@fuel-starved or plane@running not or to stopped
 	stopped if
-		atmosphere height air-density 1.225 / * to manifold
+		atmosphere ideal * to manifold
 		plane@cranking if cranking-revolutions else 0 then to target
 	else
 		height plane@full-throttle-height rated-boost manifold-ceiling to ceiling
@@ -766,12 +767,12 @@ variable cloud-air
 	then
 	manifold atmosphere - plane!boost
 	plane@revolutions target over - dt 0.8 * * + plane!revolutions
-	stopped if 0 else plane@throttle open-manifold * atmosphere rated-boost + / plane@revolutions * plane@mixture height mixture-power * then plane!power
+	stopped if 0 else plane@throttle open-manifold * atmosphere rated-boost + / plane@revolutions * plane@mixture ideal mixture-power * then plane!power
 	stopped if exit then
 	plane@revolutions 1 > if
 		plane@engine-wear plane@revolutions 1 - 0.2 / dt * 60 / + plane!engine-wear
 	then
-	height ideal-mixture 0.3 - plane@mixture - to too-weak
+	ideal 0.3 - plane@mixture - to too-weak
 	plane@power 0.8 > too-weak 0 > and if
 		plane@engine-wear too-weak dt * 120 / + plane!engine-wear
 	then
@@ -955,7 +956,7 @@ variable cloud-air
 	plane :side-load 0 @or 1 > if plane true :crashed ! "ground-looped: the undercarriage collapsed" :crash-reason ! drop exit then
 	plane true :on-ground ! drop ;
 
-\ the fuel in a type's lower tank, the one the engine draws from, fed by gravity from the upper tank above it where the type has one (the Spitfire's :lower-tank, 37 gallons under the ungauged 48), so the upper empties first and the lower holds its capacity until it does: the fuel over the lower tank's capacity is in the upper
+\ the fuel in a type's lower tank, the one the engine draws from, fed by gravity from the upper tank above it where the type has one (the Spitfire's :lower-tank, 37 gallons under the ungauged 48, and on the PR IV the 133 more in its wing tanks feeding the same pair, so its gauge too moves only in the last 37), so the upper empties first and the lower holds its capacity until it does: the fuel over the lower tank's capacity is in the upper
 : lower-tank-fuel ( plane -- gallons )
 	| plane |
 	plane@type :lower-tank null @or to lower

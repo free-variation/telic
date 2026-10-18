@@ -240,15 +240,14 @@ variable flak-bursts
 	:escape key-pressed? :back 0 gamepad-pressed? or if false :reviewing game! exit then
 	scenery draw-review ;
 
-\ the panel's reconnaissance lines in the strip below it: the cameras, the target's bearing and its distance over the ground, in tenths of a mile within 10 miles, the time's pace
+\ the panel's reconnaissance lines at the view's top right: the cameras, the target's bearing and its distance over the ground, in tenths of a mile within 10 miles, the time's pace
 : draw-reconnaissance-panel ( target -- )
 	| target |
-	436 to x
 	:cameras-running game@ if "CAMERAS RUNNING" else "CAMERAS OFF" then :exposures-left game@ "{1}  {0:.0f} LEFT" format to camera-line
-	x floor-top 4 + camera-line :cameras-running game@ if 0xffe080 else dial-ink then draw-text
+	camera-line 0 :cameras-running game@ if 0xffe080 else dial-ink then info-line
 	target plane@position v- spread to dz drop to dx
 	dx sq dz sq + sqrt 1609.34 / to miles
 	miles [ dx 0 dz ] heading-of
 	miles 10 < if "TARGET {0:03.0f} {1:.1f} MI" else "TARGET {0:03.0f} {1:.0f} MI" then format to target-line
-	x floor-top 17 + target-line dial-ink draw-text
-	:time-scale game@ 1 > if x floor-top 30 + :time-scale game@ "TIME x{0:.0f}" format 0xff9040 draw-text then ;
+	target-line 1 dial-ink info-line
+	:time-scale game@ 1 > if :time-scale game@ "TIME x{0:.0f}" format 2 0xff9040 info-line then ;

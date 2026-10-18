@@ -84,7 +84,6 @@ view-height constant panel-top
 17 constant small-radius
 panel-top 52 + constant upper-row
 panel-top 140 + constant lower-row
-panel-top 42 + constant side-row
 panel-top 112 + constant small-row
 panel-top 188 + constant floor-top
 
@@ -105,6 +104,11 @@ panel-top 188 + constant floor-top
 : centred-print ( x y text colour -- )
 	| x y text colour |
 	x text text-width 2 / - round y text colour draw-text ;
+
+\ a line of the mission's information, right-aligned in the view's top right corner, clear of every cockpit, the lines 13 pixels apart from row 0 under the frame rate's line (draw-frame-rate)
+: info-line ( text row colour -- )
+	| text row colour |
+	view-width 8 - text text-width - round 21 row 13 * + text colour draw-text ;
 
 \ a panel label in stroke lettering centred across a point, its top at y
 : centred-text ( x y text colour -- )
@@ -284,17 +288,6 @@ panel-top 188 + constant floor-top
 0xb03020 constant boost-rim-colour
 0xd04030 constant warning-colour
 
-\ the revolution counter, numbered 0 to 9 like the altimeter, R.P.M. under it (the real face carries it, too small here beside the numerals): the long hand once round a thousand revolutions a minute, the short one ten thousand
-: draw-revolutions ( cx cy -- )
-	| cx cy |
-	cx cy medium-radius dial-face
-	cx cy medium-radius 10 dial-ticks
-	cx cy medium-radius [ "0" "1" "2" "3" "4" "5" "6" "7" "8" "9" ] face-numerals
-	cx cy medium-radius + 3 + "R.P.M." dial-ink centred-text
-	plane@revolutions plane@type@rated-revolutions * to rpm
-	cx cy medium-radius rpm 1000 / TAU * 0.85 needle-colour hand
-	cx cy medium-radius rpm 10000 / TAU * 0.5 dial-ink hand ;
-
 \ the revolution counter at the large size, numbered 0 to 9 round its face with R.P.M. on the face above the centre: the long hand once round a thousand revolutions a minute, the short one ten thousand
 : draw-large-revolutions ( cx cy -- )
 	| cx cy |
@@ -306,28 +299,27 @@ panel-top 188 + constant floor-top
 	cx cy large-radius rpm 1000 / TAU * 0.85 needle-colour hand
 	cx cy large-radius rpm 10000 / TAU * 0.5 dial-ink hand ;
 
-\ the boost gauge in its red rim, BOOST under it (the real face carries it, too small here beside the numerals)
-: draw-boost ( cx cy -- )
-	| cx cy |
-	cx cy medium-radius dial-face
-	cx cy medium-radius 9 sweep-ticks
-	cx cy medium-radius -6 12 [ [ -4 "-4" ] [ 0 "0" ] [ 4 "4" ] [ 8 "8" ] [ 12 "12" ] ] sweep-numerals
-	cx cy medium-radius + 3 + "BOOST" dial-ink centred-text
-	cx cy medium-radius plane@boost -6 12 sweep 0.85 needle-colour hand
-	cx cy medium-radius boost-rim-colour draw-circle
-	cx cy medium-radius 1 + boost-rim-colour draw-circle ;
-
-\ the boost gauge in its red rim at a radius of 32 px, BOOST on its face below the centre
-: draw-boost-inside ( cx cy -- )
-	| cx cy |
-	32 to radius
+\ the boost gauge's dial in its red rim at a radius: its face from -6 to +12 lb and the needle, each panel lettering it its own way
+: draw-boost-dial ( cx cy radius -- )
+	| cx cy radius |
 	cx cy radius dial-face
 	cx cy radius 9 sweep-ticks
 	cx cy radius -6 12 [ [ -4 "-4" ] [ 0 "0" ] [ 4 "4" ] [ 8 "8" ] [ 12 "12" ] ] sweep-numerals
-	cx cy 20 + "BOOST" dial-ink centred-text
 	cx cy radius plane@boost -6 12 sweep 0.85 needle-colour hand
 	cx cy radius boost-rim-colour draw-circle
 	cx cy radius 1 + boost-rim-colour draw-circle ;
+
+\ the boost gauge, BOOST under it (the real face carries it, too small here beside the numerals)
+: draw-boost ( cx cy -- )
+	| cx cy |
+	cx cy medium-radius draw-boost-dial
+	cx cy medium-radius + 3 + "BOOST" dial-ink centred-text ;
+
+\ the boost gauge at a radius of 32 px, BOOST on its face below the centre
+: draw-boost-inside ( cx cy -- )
+	| cx cy |
+	cx cy 32 draw-boost-dial
+	cx cy 20 + "BOOST" dial-ink centred-text ;
 
 \ the oil pressure's dial as the photographed one, 0 to 120 lb a square inch on the sweep with OIL above the centre and P.S.I. below it
 : draw-oil-pressure ( cx cy -- )
@@ -336,9 +328,9 @@ panel-top 188 + constant floor-top
 	cx cy 9 - "OIL" dial-ink centred-text
 	cx cy 3 + "PSI" dial-ink centred-text ;
 
-\ a small temperature dial with its name above the centre and °C below it, both on the face, and a red mark at its limit when it has one
-: draw-temperature-inside ( cx cy celsius name limit -- )
-	| cx cy celsius name limit |
+\ a small temperature dial, 0 to 140°C: its face, a red mark at its limit when it has one, and the needle, each panel lettering it its own way
+: draw-temperature-dial ( cx cy celsius limit -- )
+	| cx cy celsius limit |
 	cx cy small-radius dial-face
 	cx cy small-radius 7 sweep-ticks
 	limit null? not if
@@ -347,23 +339,20 @@ panel-top 188 + constant floor-top
 		cx angle sin small-radius * + cy angle cos small-radius * -
 		warning-colour draw-segment
 	then
-	cx cy 9 - name dial-ink centred-text
-	cx cy 3 + "°C" dial-ink centred-text
 	cx cy small-radius celsius 0 140 sweep 0.85 needle-colour hand ;
 
-\ a small temperature dial, 0 to 140°C, with its name on its face, °C under it, and a red mark at its limit when it has one
+\ a small temperature dial with its name above the centre and °C below it, both on the face
+: draw-temperature-inside ( cx cy celsius name limit -- )
+	| cx cy celsius name limit |
+	cx cy celsius limit draw-temperature-dial
+	cx cy 9 - name dial-ink centred-text
+	cx cy 3 + "°C" dial-ink centred-text ;
+
+\ a small temperature dial with its name on its face and °C under it
 : draw-temperature ( cx cy celsius name limit -- )
 	| cx cy celsius name limit |
-	cx cy small-radius dial-face
-	cx cy small-radius 7 sweep-ticks
-	limit null? not if
-		limit 0 140 sweep to angle
-		cx angle sin small-radius 0.7 * * + cy angle cos small-radius 0.7 * * -
-		cx angle sin small-radius * + cy angle cos small-radius * -
-		warning-colour draw-segment
-	then
+	cx cy celsius limit draw-temperature-dial
 	cx cy 2 + name dial-ink centred-text
-	cx cy small-radius celsius 0 140 sweep 0.85 needle-colour hand
 	cx cy small-radius + 3 + "°C" dial-ink centred-text ;
 
 \ a fuel gauge as the photographed Spitfire's and Hurricane's: the needle hanging from a pivot near the top of the face, pointing down across an arc of marks along the lower face from empty at the left to the capacity at the right, GALLONS FUEL across the face above the arc under the needle's sweep (the TAIL ON GROUND and NORMAL FLIGHT scales left out); the needle at the reading's share of the capacity
@@ -435,24 +424,31 @@ panel-top 188 + constant floor-top
 	cx width 2 / - top width 11 dial-ink 0.6 dimmed outline
 	cx top 2 + text dial-ink centred-text ;
 
-\ the oxygen regulator's two dials side by side: the delivery's, set for the height above 10,000 ft, and the supply's, full, the lower left of its face red
-: draw-oxygen-pair ( cx cy -- )
-	| cx cy |
+\ the oxygen regulator's delivery setting, thousands of feet: the height above 10,000 ft, none below it
+: oxygen-delivery ( -- thousands )
 	plane@position second 3.28084 * 1000 / to thousands
-	thousands 10 < if 0 else thousands then to delivery
-	cx 26 - cy small-radius dial-face
-	cx 26 - cy small-radius 6 sweep-ticks
-	cx 26 - cy small-radius delivery 0 40 sweep 0.85 needle-colour hand
-	cx 26 + to supply-x
-	supply-x cy small-radius dial-face
+	thousands 10 < if 0 else thousands then ;
+
+\ the oxygen regulator's supply dial at a radius, full, the lower left of its face red
+: draw-oxygen-supply ( cx cy radius -- )
+	| cx cy radius |
+	cx cy radius dial-face
 	0 17 1 do k
 		k 0.1 * 1.9 - to angle
-		supply-x angle sin small-radius 0.35 * * + cy angle cos small-radius 0.35 * * -
-		supply-x angle sin small-radius 0.9 * * + cy angle cos small-radius 0.9 * * -
+		cx angle sin radius 0.35 * * + cy angle cos radius 0.35 * * -
+		cx angle sin radius 0.9 * * + cy angle cos radius 0.9 * * -
 		warning-colour 0.7 dimmed draw-segment
 	loop
-	supply-x cy small-radius 4 sweep-ticks
-	supply-x cy small-radius 1 0 1 sweep 0.85 needle-colour hand ;
+	cx cy radius 4 sweep-ticks
+	cx cy radius 1 0 1 sweep 0.85 needle-colour hand ;
+
+\ the oxygen regulator's two dials side by side: the delivery's, set for the height above 10,000 ft, and the supply's
+: draw-oxygen-pair ( cx cy -- )
+	| cx cy |
+	cx 26 - cy small-radius dial-face
+	cx 26 - cy small-radius 6 sweep-ticks
+	cx 26 - cy small-radius oxygen-delivery 0 40 sweep 0.85 needle-colour hand
+	cx 26 + cy small-radius draw-oxygen-supply ;
 
 \ the accelerometer, a small dial from -4 to 10 g reading the load on the aircraft, G on its face
 : draw-accelerometer ( cx cy -- )
@@ -665,27 +661,27 @@ variable sight-span
 	| x0 y0 x1 y1 |
 	x0 y0 x1 y1 sight-colour draw-segment ;
 
-\ the sight itself, in faint lines: the reflector glass, a plate standing over the panel's coaming with its upper corners cut, the reticle in the middle of it; the two posts holding it; the housing of the lamp and lens below it on the coaming
-: draw-sight-outline ( cx cy -- )
-	| cx cy |
+\ the sight itself, in faint lines: the reflector glass, a plate standing over the panel's coaming with its upper corners cut, the reticle in the middle of it; the two posts holding it; the housing of the lamp and lens below it on the coaming, whose row under the sight is given
+: draw-sight-outline ( cx cy coaming -- )
+	| cx cy coaming |
 	sight-frame-colour lighting dimmed to colour
 	[ [ -66 -62 ] [ -54 -74 ] [ 54 -74 ] [ 66 -62 ] [ 66 58 ] [ -66 58 ] ] ( corner | [ cx corner first + cy corner second + ] ) map to glass
 	0 glass size 1 do k
 		glass k @i spread glass k 1+ glass size mod @i spread colour draw-clipped
 	loop
 	[ -1 1 ] ( side |
-		cx side 60 * + cy 58 + cx side 30 * + view-height 1 - colour draw-clipped
+		cx side 60 * + cy 58 + cx side 30 * + coaming 1 - colour draw-clipped
 	) each
-	cx 30 - view-height 18 - cx 30 + view-height 18 - colour draw-clipped
-	cx 30 - view-height 18 - cx 30 - view-height 1 - colour draw-clipped
-	cx 30 + view-height 18 - cx 30 + view-height 1 - colour draw-clipped ;
+	cx 30 - coaming 18 - cx 30 + coaming 18 - colour draw-clipped
+	cx 30 - coaming 18 - cx 30 - coaming 1 - colour draw-clipped
+	cx 30 + coaming 18 - cx 30 + coaming 1 - colour draw-clipped ;
 
-\ the reflector sight in the windscreen, centred at a screen place on the guns' line: the sight's own faint outline; the ring with the centre spot; a cross whose four arms stand outside the ring, each as long as the ring's radius; and inside the ring the horizontal range bars, broken by a gap that the target's wingspan fills at the set range
-: draw-sight ( cx cy -- )
-	| cx cy |
+\ the reflector sight in the windscreen, centred at a screen place on the guns' line, its housing on the coaming at a given row: the sight's own faint outline; the ring with the centre spot; a cross whose four arms stand outside the ring, each as long as the ring's radius; and inside the ring the horizontal range bars, broken by a gap that the target's wingspan fills at the set range
+: draw-sight ( cx cy coaming -- )
+	| cx cy coaming |
 	focal-length sight-ring-angle * round to radius
 	focal-length sight-span 2 / * sight-range / round to gap
-	cx cy draw-sight-outline
+	cx cy coaming draw-sight-outline
 	cx cy radius sight-colour draw-circle
 	cx cy 1 sight-colour fill-disc
 	cx cy radius 2 * - cx cy radius - sight-line
@@ -729,17 +725,22 @@ panel-top 50 + constant arched-view-rows
 	x0 y0 x1 row x0 row colour fill-face
 	x0 y0 x1 y1 edge-colour draw-segment ;
 
+\ an edge-on wheel's bars across its rim, a spacing apart, rolled by a shift of pixels as the wheel turns, wrapping round its height
+: draw-rolling-bars ( cx cy half-width half-height shift spacing colour -- )
+	| cx cy half-width half-height shift spacing colour |
+	half-height 2 * to span
+	0 span spacing / round 1 do k
+		k spacing * shift + span mod span + span mod cy half-height - + round to y
+		cx half-width - y cx half-width + y colour draw-segment
+	loop ;
+
 \ the rudder trim's hand wheel on the left wall, as a photograph of the Spitfire's shows it, a wheel with a knurled rim and a red mark on it, seen edge-on from the seat: a tall rectangle, the rim's edge, with the knurls as bars across it that roll with the setting, and the red mark riding up the rim as the setting goes right; the rim black, its edges and knurls in the pedals' faint colour, as the controls at the edge of the view are drawn, being beside the pilot rather than before him
 : draw-knurled-wheel ( cx cy half-width half-height setting -- )
 	| cx cy half-width half-height setting |
 	pedal-colour lighting dimmed to colour
 	cx half-width - cy half-height - half-width 2 * half-height 2 * 0x101010 wall-colour translucent fill-span
 	cx half-width - cy half-height - half-width 2 * half-height 2 * colour outline
-	half-height 2 * to span
-	0 span 6 / round 1 do k
-		k 6 * setting 15 * - span mod span + span mod cy half-height - + round to y
-		cx half-width - y cx half-width + y colour draw-segment
-	loop
+	cx cy half-width half-height setting -15 * 6 colour draw-rolling-bars
 	cx half-width - cy setting half-height 0.8 * * - round 1- half-width 2 * 3 warning-colour wall-colour translucent fill-span ;
 
 \ the Spitfire's cockpit below the windscreen, its plate's top arched
@@ -819,7 +820,6 @@ panel-top 50 + constant arched-view-rows
 panel-top 70 + constant hurricane-upper-row
 panel-top 148 + constant hurricane-lower-row
 panel-top 30 + constant blind-panel-top
-panel-top 186 + constant panel-foot
 panel-top 190 + constant board-foot
 
 \ a board of the panel from its left edge to its right, from the blind-flying panel's top to the shared foot
@@ -855,19 +855,8 @@ panel-top 190 + constant board-foot
 	cx cy 38 - "OXYGEN REGULATOR" dial-ink centred-text
 	cx 24 - cy 27 - "DELIVERY" 4 dial-ink centred-lettering
 	cx 24 + cy 27 - "SUPPLY" 4 dial-ink centred-lettering
-	plane@position second 3.28084 * 1000 / to thousands
-	thousands 10 < if 0 else thousands then to delivery
-	cx 24 - cy radius delivery 0 40 6 [ ] "" sweep-dial
-	cx 24 + to supply-x
-	supply-x cy radius dial-face
-	0 17 1 do k
-		k 0.1 * 1.9 - to angle
-		supply-x angle sin radius 0.35 * * + cy angle cos radius 0.35 * * -
-		supply-x angle sin radius 0.9 * * + cy angle cos radius 0.9 * * -
-		warning-colour 0.7 dimmed draw-segment
-	loop
-	supply-x cy radius 4 sweep-ticks
-	supply-x cy radius 1 0 1 sweep 0.85 needle-colour hand
+	cx 24 - cy radius oxygen-delivery 0 40 6 [ ] "" sweep-dial
+	cx 24 + cy radius draw-oxygen-supply
 	cx 9 - cy 5 + 18 3 brass-colour fill-span
 	cx cy 6 + 3 brass-colour fill-disc ;
 
@@ -982,17 +971,12 @@ panel-top 190 + constant board-foot
 	cx cy medium-radius hundreds 16 40 6 [ [ 16 "16" ] [ 24 "24" ] [ 32 "32" ] [ 40 "40" ] ] "" sweep-dial
 	cx cy 4 - "R.P.M." 4 dial-ink centred-lettering ;
 
-\ the Hurricane's boost gauge in its red rim, BOOST and PRESS on its face
+\ the Hurricane's boost gauge, BOOST and PRESS on its face
 : draw-hurricane-boost ( cx cy -- )
 	| cx cy |
-	cx cy medium-radius dial-face
-	cx cy medium-radius 9 sweep-ticks
-	cx cy medium-radius -6 12 [ [ -4 "-4" ] [ 0 "0" ] [ 4 "4" ] [ 8 "8" ] [ 12 "12" ] ] sweep-numerals
+	cx cy medium-radius draw-boost-dial
 	cx cy 9 - "BOOST" 4 dial-ink centred-lettering
-	cx cy 5 + "PRESS" 4 dial-ink centred-lettering
-	cx cy medium-radius plane@boost -6 12 sweep 0.85 needle-colour hand
-	cx cy medium-radius boost-rim-colour draw-circle
-	cx cy medium-radius 1 + boost-rim-colour draw-circle ;
+	cx cy 5 + "PRESS" 4 dial-ink centred-lettering ;
 
 \ the right board of the Hurricane's panel, after the labelled cockpit: the revolution counter at the top left and the gunsight's switch at the top right; the boost gauge under the counter and the fuel gauge's selector under the switch; the oil pressure's orange strip and the fuel pressure's red one side by side under the boost gauge, the fuel gauge beside them; the oil and radiator temperatures along the foot, their rims orange and brass, the starting magneto's switch and the primer's knob at the right. The sight switch, the starting magneto switch and the primer are drawn and do nothing
 : draw-hurricane-right ( -- )
@@ -1084,11 +1068,7 @@ panel-top 190 + constant board-foot
 	| cx cy half-width half-height setting |
 	cx half-width - cy half-height - half-width 2 * half-height 2 * 0x6a4420 wall-colour translucent fill-span
 	cx half-width - cy half-height - half-width 2 * half-height 2 * pedal-colour lighting dimmed outline
-	half-height 2 * to span
-	0 span 8 / round 1 do k
-		k 8 * setting 15 * + span mod span + span mod cy half-height - + round to y
-		cx half-width - y cx half-width + y 0x3a2410 wall-colour translucent draw-segment
-	loop ;
+	cx cy half-width half-height setting 15 * 8 0x3a2410 wall-colour translucent draw-rolling-bars ;
 
 \ the elevator trim's indicator beside the wheel: a plate lettered NOSE DOWN above and NOSE UP below, the pointer on its threaded rod between them, down for nose up with the tab's share
 : draw-trim-indicator ( cx top -- )
@@ -1351,8 +1331,6 @@ panel-top 202 + constant gladiator-band-row
 	cx cy small-radius boost-rim-colour draw-circle
 	cx cy small-radius 1 + boost-rim-colour draw-circle ;
 
-\ the boost gauge in its red rim, 32 px in radius, smaller than the revolution counter as the screenshot shows it, BOOST on its face below the centre
-: draw-gladiator-boost ( cx cy -- ) draw-boost-inside ;
 
 \ a small gauge as the photographed engine gauge: a round bezel whose face is its upper part, the scale an arc of marks across the top with the lowest and highest readings at its ends, the name in the middle, the needle rising from a pivot at the bottom of the bezel over a bar that closes the face
 : draw-arc-gauge ( cx cy value low high name -- )
@@ -1399,19 +1377,8 @@ panel-top 202 + constant gladiator-band-row
 	cx 27 - cy 36 - "DELIVERY" dial-ink centred-text
 	cx 27 + cy 36 - "SUPPLY" dial-ink centred-text
 	cx cy 22 - cx cy 22 + edge-colour draw-segment
-	plane@position second 3.28084 * 1000 / to thousands
-	thousands 10 < if 0 else thousands then to delivery
-	cx 27 - cy medium-radius delivery 0 40 8 [ [ 0 "0" ] [ 20 "20" ] [ 40 "40" ] ] "" sweep-dial
-	cx 27 + to supply-x
-	supply-x cy medium-radius dial-face
-	0 17 1 do k
-		k 0.1 * 1.9 - to angle
-		supply-x angle sin medium-radius 0.35 * * + cy angle cos medium-radius 0.35 * * -
-		supply-x angle sin medium-radius 0.9 * * + cy angle cos medium-radius 0.9 * * -
-		warning-colour 0.7 dimmed draw-segment
-	loop
-	supply-x cy medium-radius 4 sweep-ticks
-	supply-x cy medium-radius 1 0 1 sweep 0.85 needle-colour hand ;
+	cx 27 - cy medium-radius oxygen-delivery 0 40 8 [ [ 0 "0" ] [ 20 "20" ] [ 40 "40" ] ] "" sweep-dial
+	cx 27 + cy medium-radius draw-oxygen-supply ;
 
 \ the revolution counter as the Lysander's, 1,200 to 3,400 a minute numbered in hundreds, at the large size with R.P.M. on its face below the centre
 : draw-gladiator-revolutions ( cx cy -- )
@@ -1511,7 +1478,7 @@ panel-top 202 + constant gladiator-band-row
 		slab k @i spread panel-top + slab k 1+ slab size mod @i spread panel-top + edge-colour draw-segment
 	loop
 	497 panel-top 64 + draw-gladiator-revolutions
-	503 panel-top 138 + draw-gladiator-boost
+	503 panel-top 138 + draw-boost-inside
 	562 panel-top 54 + "OIL" dial-ink centred-text
 	562 panel-top 62 + 18 40 plane@oil-pressure 120 / 0xd8b830 "" draw-strip-gauge
 	570 panel-top 144 + draw-cooler-cock
@@ -1549,6 +1516,14 @@ panel-top 202 + constant gladiator-band-row
 	kind :lysander = if panel-top exit then
 	kind :gladiator = if gladiator-view-rows exit then
 	arched-view-rows ;
+
+\ the row of the coaming the reflector sight stands on, at a column across the view: the arch's on the Spitfire's and Hurricane's panels, the plate's top on the Gladiator's, the view's foot on the Lysander's flat panel
+: sight-coaming ( x -- row )
+	| x |
+	plane@type@kind to kind
+	kind :lysander = if view-height exit then
+	kind :gladiator = if gladiator-panel-top exit then
+	x panel-arch ;
 
 \ the cockpit below the windscreen, the type's own
 : draw-panel ( -- )

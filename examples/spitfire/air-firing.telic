@@ -38,10 +38,10 @@ variable tug-track
 \ metres as yards
 : yards ( metres -- yards ) 0.9144 / ;
 
-\ an aircraft's distance from the Spitfire
+\ an aircraft's distance from the pupil's
 : range-of ( craft -- metres ) :position @ plane@position v- v-length ;
 
-\ the angle between an aircraft's line of flight and the Spitfire's line of sight to it: 0 dead astern, degrees
+\ the angle between an aircraft's line of flight and the pupil's line of sight to it: 0 dead astern, degrees
 : angle-off ( craft -- degrees )
 	| craft |
 	craft@position plane@position v- v-unit to sight
@@ -117,7 +117,7 @@ variable tug-track
 \ the burst's aim this frame against the drogue: where the guns' line passed the point the rounds had to be aimed at, across and up in feet, and the lead given and the lead needed along the drogue's crossing, in miles an hour as the ring measures them
 : aim-sample ( -- across up given needed )
 	drogue to sleeve
-	gun-table :spitfire @ first @velocity to muzzle-velocity
+	gun-table plane kind-of @ first @velocity to muzzle-velocity
 	plane sleeve muzzle-velocity lead-point to aim
 	aim plane@position v- to to-aim
 	to-aim v-length to aim-range
@@ -132,18 +132,22 @@ variable tug-track
 	given sight-ring-angle / 100 *
 	needed sight-ring-angle / 100 * ;
 
-\ the exercises: what the instructor says, the test that ends each, and for the firing exercises which bursts count toward it
+\ the exercises: what the instructor says and its brief, shown once it has been read, the test that ends each, and for the firing exercises which bursts count toward it
 : air-firing-steps ( -- steps )
 	[ { :say "INSTRUCTOR HERE, ON THE R/T. AHEAD AND BELOW YOU IS THE LYSANDER TUG AT 110 MPH, AND 500 YARDS BEHIND IT ON ITS CABLE THE DROGUE, THE SLEEVE YOU WILL SHOOT AT. FIRST THE SIGHT: ITS RANGE BARS ARE SET FOR THE LYSANDER'S 50 FT SPAN. WHEN THE SPAN JUST FILLS THE GAP BETWEEN THE BARS, IT IS 300 YARDS AWAY. THROTTLE BACK - YOU ARE MUCH FASTER - AND HOLD THE TUG IN THE BARS AT 300 YARDS, DEAD AHEAD, FOR 3 SECONDS. DON'T FIRE."
+	    :brief "HOLD THE TUG IN THE BARS, DEAD AHEAD AT 300 YARDS, FOR 3 SECONDS. DON'T FIRE."
 	    :done ( :hold-time game@ 3 >= )
 	    :hold ( tug range-of dup 240 > swap 310 < and plane tug :position @ bearing-from 0.1 < swap 0 > and and ) }
-	  { :say "THAT IS WHAT 300 YARDS LOOKS LIKE. NOW THE DROGUE: DROP BACK AND CLOSE ON IT FROM DEAD ASTERN, THE CENTRE SPOT ON IT. FROM ASTERN IT HARDLY CROSSES YOUR SIGHT, SO IT NEEDS NO LEAD. OPEN FIRE AT 250 YARDS - THE RANGE IS IN THE STRIP BELOW THE PANEL - IN BURSTS OF 1 TO 2 SECONDS, ONLY WHEN THE SIGHT IS ON. I'LL ASSESS EACH BURST. THREE BURSTS WITH HITS."
+	  { :say "THAT IS WHAT 300 YARDS LOOKS LIKE. NOW THE DROGUE: DROP BACK AND CLOSE ON IT FROM DEAD ASTERN, THE CENTRE SPOT ON IT. FROM ASTERN IT HARDLY CROSSES YOUR SIGHT, SO IT NEEDS NO LEAD. OPEN FIRE AT 250 YARDS - THE RANGE IS AT THE TOP RIGHT OF THE VIEW - IN BURSTS OF 1 TO 2 SECONDS, ONLY WHEN THE SIGHT IS ON. I'LL ASSESS EACH BURST. THREE BURSTS WITH HITS."
+	    :brief "ASTERN ATTACK: THE CENTRE SPOT ON THE DROGUE, NO LEAD. FIRE AT 250 YARDS IN BURSTS OF 1 TO 2 SECONDS. THREE BURSTS WITH HITS."
 	    :done ( :qualifying game@ 3 >= )
 	    :burst-test ( burst | burst@hits 0.5 >= ) }
 	  { :say "NOW A QUARTER ATTACK, AS ON A BOMBER. CLIMB TO 1,000 FT ABOVE THE DROGUE AND 1,000 YARDS OUT TO ONE SIDE, LEVEL WITH IT, THEN TURN IN AND DIVE ONTO IT FROM 30 TO 45 DEGREES OFF ITS TAIL. NOW IT CROSSES YOUR SIGHT AND YOU MUST AIM AHEAD OF IT: THE RING'S RADIUS IS THE LEAD FOR 100 MPH OF CROSSING. AT 45 DEGREES OFF IT CROSSES AT ABOUT 80 MPH, SO HOLD IT THREE QUARTERS OF THE WAY OUT TO THE RING, THE CENTRE SPOT AHEAD OF IT ON ITS PATH. FIRE AT 250 YARDS, BREAK AWAY UNDER IT. TWO BURSTS WITH HITS FROM 20 DEGREES OFF OR MORE."
+	    :brief "QUARTER ATTACK FROM 30 TO 45 DEGREES OFF: AT 45 HOLD IT THREE QUARTERS OUT TO THE RING, THE SPOT AHEAD. FIRE AT 250 YARDS. TWO BURSTS WITH HITS FROM 20 DEGREES OFF OR MORE."
 	    :done ( :qualifying game@ 2 >= )
 	    :burst-test ( burst | burst@hits 0.5 >= burst@angle-off 20 >= and ) }
 	  { :say "LAST, A TURNING TARGET. THE TUG IS GOING ROUND TO THE LEFT AT RATE ONE, 3 DEGREES A SECOND. FOLLOW THE DROGUE ROUND FROM BEHIND AND INSIDE ITS TURN. IT IS ALWAYS CROSSING YOUR SIGHT, SO PULL THE NOSE THROUGH UNTIL THE CENTRE SPOT IS AHEAD OF IT ALONG ITS CURVE, BY THE LEAD THE ANGLE OFF CALLS FOR. TWO BURSTS WITH HITS."
+	    :brief "TURNING TARGET: FROM BEHIND AND INSIDE ITS TURN, PULL THE SPOT AHEAD OF IT ALONG ITS CURVE. TWO BURSTS WITH HITS."
 	    :done ( :qualifying game@ 2 >= )
 	    :burst-test ( burst | burst@hits 0.5 >= ) }
 	  { :say ""
@@ -177,7 +181,8 @@ variable tug-track
 	tug to towing
 	sleeve@hits burst@drogue-hits - to hits
 	towing@hits burst@tug-hits - to tug-hits
-	burst@time 8 * 1150 * 60 / to rounds
+	gun-table plane kind-of @ first to guns
+	burst@time guns@guns * guns@rate * 60 / to rounds
 	:rounds-fired game@ rounds + :rounds-fired game!
 	:drogue-hits game@ hits + :drogue-hits game!
 	burst@n-samples 1 max2 to n-samples
@@ -254,13 +259,12 @@ variable tug-track
 	tug to towing
 	[ [ towing@position sleeve@position sleeve@attitude@forward 5 v* v+ ] ] bomber-ink draw-lines ;
 
-\ the exercise's lines in the strip below the panel: the step, the drogue's range and angle off, the bursts and the hits
+\ the exercise's lines at the view's top right: the step, the drogue's range and angle off, the bursts and the hits
 : draw-air-firing-panel ( -- )
-	436 to x
 	air-firing-steps size :lesson-step game@ 1+ "AIR FIRING, STEP {0} OF {1}" format to step-line
-	x floor-top 4 + step-line 0xffe080 draw-text
+	step-line 0 0xffe080 info-line
 	drogue to sleeve
 	sleeve angle-off sleeve range-of yards "DROGUE {0:.0f} YD  {1:.0f} DEG OFF" format to range-line
-	x floor-top 17 + range-line dial-ink draw-text
+	range-line 1 dial-ink info-line
 	:drogue-hits game@ round :bursts game@ "BURSTS {0}  HITS {1}" format to tally-line
-	x floor-top 30 + tally-line dial-ink draw-text ;
+	tally-line 2 dial-ink info-line ;

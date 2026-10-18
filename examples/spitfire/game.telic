@@ -19,7 +19,9 @@
 \ left bumper the magnetos, the left trigger held the starter, the right
 \ bumper the boost cut-out, A or the right trigger the guns, X the flaps, Y the undercarriage, B the brakes, the d-pad left
 \ and right turns the view, the right stick's click held looks behind,
-\ the left back paddle held the chart, the right one the time's pace, start pauses
+\ the left back paddle held the chart, the right one the time's pace, in the air B
+\ held the fuel shift, pressing the bottom tank's button and turning the
+\ d-pad's up and down to the mixture, start pauses
 \ and back returns to the missions.
 \ On the title, the campaigns (campaign.telic) and then the missions are listed under their groups, scrolling to
 \ keep the chosen one in view: up and down or the d-pad choose a mission,
@@ -159,15 +161,16 @@ variable scenery-collection
 	plane@attitude@right second asin negate -4 * plane@rates first - hands-envelope negate hands-envelope clamp ;
 
 
-\ the pilot's feet on the ground, on the same gate as in the air: the bar goes to the trim plus 0.15 of the degrees the nose is right of the kept heading, less 3 times the yaw rate, so a swing is met before it grows; a rudder key turns the kept heading at this rate, degrees a second, and the feet follow, so a press steers without the whole bar going over; the kept heading is the aircraft's own whenever it is airborne
+\ the pilot's feet on the ground, on a type whose figures give them a gain (:ground-feet, the Lysander's and the Gladiator's): the bar goes to the trim plus the gain times the degrees the nose is left of the kept heading, less 3 times the yaw rate, so a swing is met before it grows; a rudder key turns the kept heading at this rate, degrees a second, and the feet follow, so a press steers without the whole bar going over; the kept heading is the aircraft's own whenever it is airborne
 20 constant ground-steer-rate
 : ground-feet ( held elapsed -- correction )
 	| held elapsed |
 	plane@attitude@forward heading-of to heading
-	plane@on-ground plane@type@automatic-flaps and not if heading :kept-heading game! 0 exit then
+	plane@type :ground-feet null @or to gain
+	plane@on-ground gain null? not and not if heading :kept-heading game! 0 exit then
 	game :kept-heading null @or null? if heading :kept-heading game! then
 	:kept-heading game@ held ground-steer-rate * elapsed * + 360 mod :kept-heading game!
-	heading :kept-heading game@ - 540 + 360 mod 180 - -0.15 * plane@rates 2 @i 3 * - -1 1 clamp ;
+	heading :kept-heading game@ - 540 + 360 mod 180 - gain negate * plane@rates 2 @i 3 * - -1 1 clamp ;
 
 \ the keys' rudder bar a frame on, and whether it is let go: on the ground where the keys hold it, at once, or where the bias trims it when let go, or, on a type whose feet work on the ground, where the feet hold the kept heading the keys steer; in the air moving from where it stands toward the held end as the keyboard's stick does, and let go left free for the air to carry back to where the bias trims it, or, while the feet correct, moved to where they hold it at the key's rate
 : key-rudder ( held elapsed -- position free )
@@ -176,13 +179,13 @@ variable scenery-collection
 	plane@rudder-trim plane@type@trim-range * to trimmed
 	feet-rudder to feet
 	held elapsed ground-feet to ground
-	plane@on-ground plane@type@automatic-flaps and if trimmed ground + -1 1 clamp false exit then
+	plane@on-ground plane@type :ground-feet null @or null? not and if trimmed ground + -1 1 clamp false exit then
 	plane@on-ground not held 0 = and feet 0 = and if current true exit then
 	held 0 = if trimmed feet + -1 1 clamp else held then to goal
 	plane@on-ground if goal false exit then
 	goal key-stick-rate current elapsed aim-control false ;
 
-\ the controls from the keys and the pad, the left stick's stronger axis alone counting, rudder or trim, so a push for one does not move the other; the pad's left bumper switches the magnetos as M does, its left trigger held turns the starter as K does, its right bumper works the boost cut-out as E does; where the type's slats work its flaps, or its undercarriage is fixed, the flaps' and the undercarriage's keys say so
+\ the controls from the keys and the pad, the left stick's stronger axis alone counting, rudder or trim, so a push for one does not move the other; in the air the pad's B, whose brakes act only on the ground, is the fuel shift: held, it presses the bottom tank's button as D does and turns the d-pad's up and down from the throttle to the mixture, richer and weaker, as I and U do; the pad's left bumper switches the magnetos as M does, its left trigger held turns the starter as K does, its right bumper works the boost cut-out as E does; where the type's slats work its flaps, or its undercarriage is fixed, the flaps' and the undercarriage's keys say so
 : read-controls ( elapsed -- )
 	| elapsed ^controls |
 	view-turning? if 0 0 else :down key-down? :up key-down? - :right key-down? :left key-down? - then to rolling to pitching
@@ -214,12 +217,14 @@ variable scenery-collection
 	:n key-down? :left-paddle 0 gamepad-down? or :chart-open game!
 	:k key-down? :left-trigger 0 gamepad-down? or to starting
 	:o key-down? to stopping
+	plane@on-ground not :east 0 gamepad-down? and to fuel-shift
 	{ :pitch pitch :roll roll :yaw yaw :pitch-free pitch-free :roll-free roll-free :yaw-free yaw-free :brakes :b key-down? :east 0 gamepad-down? or :starter starting :cut-out stopping } to controls
 	:m key-pressed? :left-bumper pad-pressed? or if
 		plane@magnetos not plane!magnetos
 		plane@magnetos if "MAGNETOS ON" else "MAGNETOS OFF" then say
 	then
-	:q key-down? :a key-down? - :dpad-up 0 gamepad-down? + :dpad-down 0 gamepad-down? - to throttle-move
+	:dpad-up 0 gamepad-down? :dpad-down 0 gamepad-down? - to pad-up-down
+	:q key-down? :a key-down? - fuel-shift if 0 else pad-up-down then + to throttle-move
 	plane@throttle throttle-move 0.5 * elapsed * + 0 1 clamp plane!throttle
 	:right-bracket key-down? :left-bracket key-down? - left-trim + -1 1 clamp to trim-move
 	plane@trim trim-move plane@type@trim-rate * elapsed * + -1 1 clamp plane!trim
@@ -229,7 +234,7 @@ variable scenery-collection
 		:bias-held game@ 1.5 / 1 min2 0.4 * 0.1 + to bias-rate
 		plane@rudder-trim bias-move bias-rate * elapsed * + -1 1 clamp plane!rudder-trim
 	then
-	:d key-down? plane!tank-button
+	:d key-down? fuel-shift or plane!tank-button
 	plane@type@reserve-capacity 0 > :r key-pressed? and if
 		plane@fuel-cock :main = if :reserve else :main then plane!fuel-cock
 		plane@fuel-cock :main = if "FUEL COCK TO THE MAIN TANKS" else "FUEL COCK TO THE RESERVE TANK" then say
@@ -241,12 +246,14 @@ variable scenery-collection
 		:left-stick pad-pressed? if
 			plane@revolution-setting lowest-revolutions rated + 2 / > if lowest-revolutions else rated then plane!revolution-setting
 		then
+	else plane@type@fine-revolutions plane@type@coarse-revolutions = if
+		:w key-pressed? :s key-pressed? or :left-stick pad-pressed? or if "THE PROPELLER IS FIXED-PITCH" say then
 	else
 		plane@fine to was-fine
 		:w key-pressed? :left-stick pad-pressed? was-fine not and or if true plane!fine "FINE PITCH" say then
 		:s key-pressed? :left-stick pad-pressed? was-fine and or if false plane!fine "COARSE PITCH" say then
-	then
-	:i key-down? :u key-down? - to mixture-move
+	then then
+	:i key-down? :u key-down? - fuel-shift if pad-up-down else 0 then + -1 1 clamp to mixture-move
 	plane@mixture mixture-move 0.5 * elapsed * + 0 1 clamp plane!mixture
 	:e key-pressed? :right-bumper pad-pressed? or if
 		plane@emergency-allowed if
@@ -343,10 +350,14 @@ view-width 40 - constant message-line-width
 	loop
 	top lines size 16 * + ;
 
-\ across the top of the view, the instructor's instruction in a lesson, then the message
+\ across the top of the view, below the mission's lines at its top right (info-line), the instructor's instruction in a lesson, in full while it is read and then its brief where it has one, then the message
 : draw-message ( -- )
-	24 to top
-	:lesson game@ if :instruction game@ top 0xffffff draw-message-lines 6 + to top then
+	66 to top
+	:lesson game@ if
+		:brief game@ to brief
+		brief null? :reading-left game@ 0 > or if :instruction game@ else brief then to shown
+		shown top 0xffffff draw-message-lines 6 + to top
+	then
 	:message-left game@ 0 > if :message game@ top 0xffe080 draw-message-lines drop then ;
 
 \ the most the buffet shakes the view, radians each way about the span and the line of flight (an estimate)
@@ -916,18 +927,18 @@ variable wing-surfaces
 	draw-battle
 	:air-firing game@ if draw-tow-cable then
 	:view game@ :front = pilot null? and if
-		plane@type@kind :lysander = if draw-lysander-cockpit-view then
-		plane@type@kind :gladiator = if draw-gladiator-cockpit-view then
 		draw-propeller
 		draw-nose
+		plane@type@kind :lysander = if draw-lysander-cockpit-view then
+		plane@type@kind :gladiator = if draw-gladiator-cockpit-view then
 	then
 	:view game@ :front = pilot null? and plane@type@kind :hurricane = and if draw-hurricane-windscreen then
 	:view game@ :front = plane@armed and pilot null? and if
 		game :view-turn 0 @or 0 = game :view-tilt 0 @or 0 = and if
-			view-centre-x view-centre-y draw-sight
+			view-centre-x view-centre-y view-centre-x sight-coaming draw-sight
 		else
 			[ cockpit-eye [ 0 0 1000 ] v+ ] own-points-on-screen first to sight-place
-			sight-place null? not if sight-place spread draw-sight then
+			sight-place null? not if sight-place spread over sight-coaming draw-sight then
 		then
 	then
 	:view game@ :front = not if 8 8 :view game@ "{0} VIEW" format upper-case 0xd8d4c0 draw-text then
@@ -1022,7 +1033,7 @@ variable wing-surfaces
 	  :hood-open false :pilot null :accumulated 0 :flight-time 0 :time-scale 1
 	  :landing-on mission :landing-on "" @or :fly-off mission :fly-off false @or :bias-held 0
 	  :chart-open false :chart-mission mission :chart-picture null
-	  :lesson lesson :air-firing air-firing :lesson-step 0 :step-time 0 :hold-time 0 :instruction opening-step@say
+	  :lesson lesson :air-firing air-firing :lesson-step 0 :step-time 0 :hold-time 0 :instruction opening-step@say :brief opening-step :brief null @or
 	  :cameras-running false :exposure-timer 0 :exposures-left magazine-exposures :reviewing false :review-index 0 :review-side -1
 	  :target mission :target null @or null? if [ 0 0 0 ] else mission@target landmark-ground [ 0 mission@target landmark-height 0 ] v+ then
 	  :kills 0 :bombed false :raid-over mission@raid null?
@@ -1156,7 +1167,7 @@ variable wing-surfaces
   [ "Q A" "D-PAD UP DOWN" "THROTTLE" ]
   [ "[ ]" "L STICK UP DOWN" "TRIM, [ OR FORWARD NOSE DOWN" ]
   [ "W S" "L STICK CLICK" "PROPELLER: FINER, COARSER; CLICK SWITCHES" ]
-  [ "U I" "" "MIXTURE: WEAKER, RICHER" ]
+  [ "U I" "B + D-PAD, AIR" "MIXTURE: WEAKER, RICHER" ]
   [ "E" "RIGHT BUMPER" "BOOST CUT-OUT, +12 LB" ]
   [ "C V" "RIGHT TRIGGER" "CAMERAS (PR), DEVELOP FILM" ]
   [ "T" "RIGHT BACK" "TIME x4 x16 ON AUTOPILOT; A CONTROL TOUCHED, x1" ]
@@ -1172,7 +1183,7 @@ variable wing-surfaces
   [ "L" "" "FLIGHT RECORDER ON, OFF: ~/.telic-spitfire-recording.bin" ]
   [ ", ." "" "RUDDER TRIM LEFT, RIGHT" ]
   [ "R" "" "FUEL COCK, MAIN OR RESERVE (HURRICANE)" ]
-  [ "D" "" "HOLD: THE FUEL GAUGE READS THE BOTTOM TANK (SPITFIRE)" ]
+  [ "D" "HOLD B, AIR" "HOLD: THE FUEL GAUGE READS THE BOTTOM TANK (SPITFIRE)" ]
   [ "H" "Y ON THE LIST" "HELP; LEFT, RIGHT TURN ITS PAGES" ] ] to control-rows
 
 \ the groups the title lists the missions under, in order, each [ group heading ]
@@ -1275,12 +1286,12 @@ variable wing-surfaces
       "CRUISE AND TRIM: CLIMB AT ABOUT 160 MPH; CRUISE AT ABOUT +2 BOOST. TRIM WITH [ AND ] UNTIL SHE HOLDS HER HEIGHT HANDS OFF, AND WITH , AND . (THE SHOULDERS) UNTIL THE SLIP NEEDLE CENTRES: MORE POWER WANTS MORE RIGHT RUDDER TRIM. SHE STALLS NEAR 80 MPH: STICK FORWARD, THEN POWER."
       "LANDING: SLOW TO 140 MPH, WHEELS DOWN WITH G AND WATCH FOR THE GREEN LIGHT, FINE PITCH WITH W, FLAPS DOWN WITH F, NEVER ABOVE 140 MPH. COME DOWN STEADILY AT 85 MPH, THE THROTTLE FOR THE SPEED AND THE STICK FOR THE DESCENT. OVER THE END OF THE RUNWAY CLOSE THE THROTTLE AND HOLD HER OFF, SO SHE SETTLES ON ALL THREE WHEELS. THEN STICK FULLY BACK, KEEP STRAIGHT WITH THE RUDDER, AND BRAKE IN SHORT PRESSES OF B: HELD, THE BRAKES TIP HER ONTO HER NOSE. HOLD O TO STOP THE ENGINE." ] ]
   [ "FIGHTING"
-    [ "FIND THE RAID BY THE BEARING AND DISTANCE IN THE STRIP BELOW THE PANEL: TURN ONTO THE BEARING ON THE GYRO AND CLIMB TO THE HEIGHT THE BRIEFING GIVES."
+    [ "FIND THE RAID BY THE BEARING AND DISTANCE AT THE TOP RIGHT OF THE VIEW: TURN ONTO THE BEARING ON THE GYRO AND CLIMB TO THE HEIGHT THE BRIEFING GIVES."
       "ATTACK FROM ASTERN OR THE QUARTER. OPEN FIRE WITH SPACE AT 250 YARDS, WHEN THE TARGET'S SPAN FILLS THE GAP BETWEEN THE SIGHT'S RANGE BARS, IN BURSTS OF 1 TO 2 SECONDS: THE GUNS HOLD ABOUT 15 SECONDS OF FIRE. THE BOMBERS' REAR GUNNERS FIRE BACK INSIDE 650 YARDS."
       "WHEN YOU ARE WARNED OF A FIGHTER ON YOUR TAIL, BREAK: TURN HARD. ON 100 OCTANE, E, THE BOOST CUT-OUT, GIVES +12 LB FOR AN EMERGENCY. PULLING HARD GREYS YOUR SIGHT FROM ABOUT 4 G AND BLACKS IT OUT AT 5 G. IF SHE IS HIT AND WILL NOT FLY, J BAILS OUT: THE HOOD BACK, OVER THE SIDE, THEN THE RIPCORD." ] ]
   [ "FINDING YOUR WAY"
     [ "HOLD N FOR THE CHART ON YOUR KNEE: THE MISSION'S MAP, THE HIGH GROUND TINTED BY HEIGHT, THE RIVERS, RAILWAYS AND TOWNS, THE AIRFIELDS AS RINGS AND THE SUMMITS WITH THEIR HEIGHTS IN FEET, IN TEN-MILE SQUARES. IT DOES NOT SHOW WHERE YOU ARE: FIND YOURSELF BY THE COAST, THE LOCHS AND THE TOWNS BELOW. THE AIRCRAFT FLIES ON WHILE YOU READ IT."
-      "THE DIRECTIONAL GYRO GIVES YOUR HEADING; THE STRIP BELOW THE PANEL GIVES THE BEARING AND DISTANCE OF THE RAID, THE TARGET OR THE FIELD TO LAND ON. 1 TO 4 LOOK AHEAD, LEFT, RIGHT AND BEHIND."
+      "THE DIRECTIONAL GYRO GIVES YOUR HEADING; THE LINES AT THE TOP RIGHT OF THE VIEW GIVE THE BEARING AND DISTANCE OF THE RAID, THE TARGET OR THE FIELD TO LAND ON. 1 TO 4 LOOK AHEAD, LEFT, RIGHT AND BEHIND."
       "T RUNS TIME FOUR AND SIXTEEN TIMES AS FAST FOR A LONG FLIGHT. P PAUSES. A LONG MESSAGE PAUSES THE FLIGHT WHILE YOU READ IT: ANY KEY GOES ON. ESCAPE RETURNS TO THE MISSIONS." ] ] ] constant help-pages
 
 \ the help's pages, the keys first
@@ -1415,7 +1426,7 @@ help-pages size 1+ constant help-page-count
 	flight-path save-value
 	"FLIGHT SAVED  -  F9 RESUMES IT" say ;
 
-\ the saved flight resumed: its mission started afresh, in the aircraft it was flown in, then everything the flight had changed put back as it was saved and the random numbers seeded as they were; nothing when no flight is saved, or when the title's choice, a campaign, has moved on to another mission since
+\ the saved flight resumed: its mission started afresh, in the aircraft it was flown in, then everything the flight had changed put back as it was saved, the aircraft's saved keys over the fresh one's so a key added since the save keeps its starting value, and the random numbers seeded as they were; nothing when no flight is saved, or when the title's choice, a campaign, has moved on to another mission since
 : load-flight ( -- )
 	| ^plane ^controls ^deck ^bombers ^wingmen ^salvos ^flashes ^battle-clock ^photos ^flak-bursts ^tug-track |
 	flight-path file-exists? not if exit then
@@ -1425,7 +1436,7 @@ help-pages size 1+ constant help-page-count
 	saved@choice new-flight
 	saved@game to restored
 	restored keys ( key | game restored key @ key ! drop ) each
-	saved@plane to plane
+	plane saved@plane merge to plane
 	saved@controls to controls
 	saved@deck to deck
 	saved@bombers to bombers

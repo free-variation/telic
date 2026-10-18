@@ -23,7 +23,7 @@
 \ the take-off and the landing come the climb, cruise power, trim, turns,
 \ and the stall and its recovery. The speeds the instructor gives for the
 \ lift-off (90 mph) and the stall (80 mph clean) are the flight model's.
-\ The Turnhouse line under the panel gives the field's bearing and
+\ The Turnhouse line at the view's top right gives the field's bearing and
 \ distance.
 
 6 constant least-step-time
@@ -76,7 +76,7 @@
 	    :done ( plane@angle-of-attack plane@type@stall-angle > ) }
 	  { :say "SHE'S STALLED. RECOVER: STICK FORWARD TO GET THE AIR FLOWING OVER THE WING AGAIN, THEN THROTTLE OPEN (Q), AND EASE HER OUT OF THE DIVE. DON'T PULL TOO HARD, OR SHE'LL STALL AGAIN."
 	    :done ( indicated-mph 150 > plane@velocity second -2 > and ) }
-	  { :say "WELL RECOVERED. NOW HOME TO LAND. THE TURNHOUSE LINE UNDER THE PANEL GIVES THE FIELD'S BEARING AND DISTANCE: TURN ONTO THAT BEARING ON THE GYRO, THROTTLE BACK, AND COME DOWN TO 1,000 FEET AS WE GO."
+	  { :say "WELL RECOVERED. NOW HOME TO LAND. THE TURNHOUSE LINE AT THE TOP RIGHT OF THE VIEW GIVES THE FIELD'S BEARING AND DISTANCE: TURN ONTO THAT BEARING ON THE GYRO, THROTTLE BACK, AND COME DOWN TO 1,000 FEET AS WE GO."
 	    :done ( home-distance 8000 < height-now 400 < and ) }
 	  { :say "THROTTLE BACK AND SLOW TO 140 MPH. THEN THE DRILL BEFORE LANDING: UNDERCARRIAGE DOWN, G (Y), AND LOOK FOR THE GREEN LIGHT; PROPELLER TO FINE PITCH, W, SO THE FULL POWER IS THERE IF WE HAVE TO GO ROUND."
 	    :done ( plane@gear plane@fine and ) }
@@ -109,13 +109,13 @@
 	steps :lesson-step game@ @i to next-step
 	next-step@say to instruction
 	instruction :instruction game!
+	next-step :brief null @or :brief game!
 	instruction reading-pause ;
 
-\ the lesson's lines in the strip below the panel: the step, and Turnhouse's bearing and distance over the ground
+\ the lesson's lines at the view's top right: the step, and Turnhouse's bearing and distance over the ground
 : draw-lesson-panel ( -- )
-	436 to x
 	lesson-steps size :lesson-step game@ 1+ "LESSON, STEP {0} OF {1}" format to step-line
-	x floor-top 4 + step-line 0xffe080 draw-text
+	step-line 0 0xffe080 info-line
 	:target game@ plane@position v- spread to dz drop to dx
 	home-distance 1609.34 / [ dx 0 dz ] heading-of "TURNHOUSE {0:03.0f} {1:.1f} MI" format to target-line
-	x floor-top 17 + target-line dial-ink draw-text ;
+	target-line 1 dial-ink info-line ;

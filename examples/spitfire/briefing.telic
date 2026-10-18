@@ -386,7 +386,7 @@ variable placed-labels
 	sheet-left 8 + sheet-top 8 + mission@name chart-ink draw-text
 	sheet-left sheet-width + 8 - "RELEASE N OR THE PADDLE TO LOOK UP" text-width - sheet-top 8 + "RELEASE N OR THE PADDLE TO LOOK UP" chart-ink draw-text ;
 
-\ the aircraft a mission may be flown in, in the order left and right step through them: the mission's :choices where it names them (:reconnaissance the unarmed PR IV); else the Spitfire and the Hurricane on every armed mission that does not fix its aircraft, but the flying lesson and the air firing, which are the two-seat Spitfire's; else none
+\ the aircraft a mission may be flown in, in the order left and right step through them: the mission's :choices where it names them (:reconnaissance the unarmed PR IV); else the Spitfire and the Hurricane on every armed mission that does not fix its aircraft, but the flying lesson, which is the two-seat Spitfire's; else none
 : aircraft-choices ( mission -- kinds )
 	| mission |
 	mission :choices null @or to choices
@@ -480,6 +480,25 @@ variable placed-labels
 		cx seen i 0 @i,j scale * + cy seen i 1 @i,j scale * -
 		cx seen j 0 @i,j scale * + cy seen j 1 @i,j scale * -
 		colour draw-segment
+	loop
+	model :faces null @or to faces
+	faces null? if exit then
+	model@face-colours to face-colours
+	faces dim to width to n-faces
+	0 n-faces 1 do f
+		face-colours f @e unoutlined bit-and 0 = if
+			0 to n-corners
+			0 width 1 do c faces f c @i,j 0 >= if ++ n-corners then loop
+			n-corners 3 >= if
+				0 n-corners 1 do c
+					faces f c @i,j to i
+					faces f c 1+ n-corners mod @i,j to j
+					cx seen i 0 @i,j scale * + cy seen i 1 @i,j scale * -
+					cx seen j 0 @i,j scale * + cy seen j 1 @i,j scale * -
+					colour draw-segment
+				loop
+			then
+		then
 	loop ;
 
 \ the aircraft the mission is flown in, its undercarriage down, turning under the particulars in the space down to the briefing: the Hurricane when chosen and allowed, the Lysander where the mission fixes it, otherwise the Spitfire

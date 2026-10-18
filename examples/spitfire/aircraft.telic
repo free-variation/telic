@@ -574,19 +574,19 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 	centre axle width 2 / 0.005 + v* v+ to hub
 	sketch hub [ 0 0 1 ] up radius hub-share * wheel-sides ring-of centre hub-colour sketch-painted-plate ;
 
-\ a flat convex outline of points given a thickness along a unit direction square to it: the outline on each side half the thickness from it, the edges between them closed, all filled in a colour without lines of their own
+\ a flat convex outline of points given a thickness along a unit direction square to it: the outline on each side half the thickness from it, the edges between them closed, all filled in a colour, outlined unless the colour carries unoutlined
 : sketch-thick-outline ( sketch points direction half-thickness colour -- )
 	| sketch points direction half-thickness colour |
 	points [ 0 0 0 ] ' v+ reduce 1 points size / v* to middle
 	direction half-thickness v* to offset
 	[ offset offset -1 v* ] ( shift |
-		sketch@faces [ sketch points ( point | point shift v+ ) map sketch-points middle colour unoutlined + ] add-last! drop
+		sketch@faces [ sketch points ( point | point shift v+ ) map sketch-points middle colour ] add-last! drop
 	) each
 	points size to n-points
 	0 n-points 1 do k
 		points k @i to a
 		points k 1+ n-points mod @i to b
-		sketch@faces [ sketch [ a offset v- a offset v+ b offset v+ b offset v- ] sketch-points middle colour unoutlined + ] add-last! drop
+		sketch@faces [ sketch [ a offset v- a offset v+ b offset v+ b offset v- ] sketch-points middle colour ] add-last! drop
 	loop ;
 
 \ the undercarriage, down, as it swings out from the fuselage to retract: each leg an oleo 8 cm square in Sky from its pivot near the fuselage down, out and forward, raked 18°, leaning 15° outward to the wheel's inner face 0.75 m below the pivot, with a short link near its foot; the wheel upright, for a track of 5 ft 8 in, its tyre a third of its diameter wide, its hub on the outer face, 0.45 of its radius; the leg's door in Sky, 6 cm thick, 13 cm outboard of the wheel's middle and leaning as the leg does, covering the tyre down to 0.18 m above the axle within 0.36 m of it, and a strip 0.22 m wide along the leg up to the pivot's height (the track and the rake from a forum thread on the Mk Vb's undercarriage; the pivots, the leg's length, the door and the tyre estimates from photographs)
@@ -617,7 +617,7 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 		loop ] on-door map to cover
 		[ [ 0.11 0.2 pivot-along * pivot-height / + 0.2 ] [ pivot-along 0.11 + pivot-height ] [ pivot-along 0.11 - pivot-height ] [ -0.11 0.2 pivot-along * pivot-height / + 0.2 ] ] on-door map to strip
 		[ side 0.27 0 ] v-unit to door-normal
-		[ cover strip ] ( door | sketch door door-normal 0.03 sky-paint-colour sketch-thick-outline ) each
+		[ cover strip ] ( door | sketch door door-normal 0.03 sky-paint-colour unoutlined + sketch-thick-outline ) each
 		sketch centre axle up spitfire-mk-i-figures :wheel-radius @ 0.21 0.45 sketch-wheel
 	) each ;
 
@@ -1513,7 +1513,9 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 	lead trail ;
 
 \ a wing's flat underside's height at a distance out, from its height at the root, rising at its dihedral: 1.6° on the upper wing and 3° on the lower, from the front view
-: gladiator-height-at ( out height -- up ) | out height | out abs height gladiator-lower-height = if gladiator-lower-dihedral else gladiator-dihedral then * height + ;
+: gladiator-height-at ( out height -- up )
+	| out height |
+	out abs height gladiator-lower-height = if gladiator-lower-dihedral else gladiator-dihedral then * height + ;
 
 \ a wing's depth at a distance out, the section's to 4.25 m out and closing round the tip as the chord does
 : gladiator-depth-at ( out -- depth ) gladiator-tip-shares drop 2 * 1 swap - 0 max2 gladiator-depth * ;
@@ -1586,7 +1588,7 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 	sketch gladiator-upper-leading gladiator-upper-height 0 true sketch-gladiator-wing
 	sketch gladiator-lower-leading gladiator-lower-height gladiator-lower-root false sketch-gladiator-wing ;
 
-\ the interplane struts, a parallel pair each side 2.05 m out as the plan view places them, streamlined bars 5 cm across and 12 cm fore and aft, leaning forward 30° with the stagger: from the lower wing at 13% and 67% of its chord up to the upper wing at 5% and 58% of its, where the side view draws them; the cabane, a strut each side from the fuselage's round deck 0.35 m out, its foot sunk 4 cm inside the skin, up and out to the upper wing 0.55 m out, each a filled bar 5 cm thick and 12 cm fore and aft without lines of its own, since a bar's end rectangle would draw through the skin, the front one from 1.18 m forward to 1.32 m and the rear from 0.33 m to 0.49 m, between where the two side views draw them; the flying wires from the lower wing's roots up to the upper wing at the struts and the landing wires from the cabane's heads down to the lower wing there, as lines (the wires' places estimates)
+\ the interplane struts, a parallel pair each side 2.05 m out as the plan view places them, streamlined bars 5 cm across and 12 cm fore and aft, leaning forward 30° with the stagger: from the lower wing at 13% and 67% of its chord up to the upper wing at 5% and 58% of its, where the side view draws them; the cabane, a strut each side from the fuselage's round deck 0.35 m out, its foot sunk 4 cm inside the skin, up and out to the upper wing 0.55 m out, each a slim tube 5 cm square (an estimate), the front one from 1.18 m forward to 1.32 m and the rear from 0.33 m to 0.49 m, between where the two side views draw them; the flying wires from the lower wing's roots up to the upper wing at the struts and the landing wires from the cabane's heads down to the lower wing there, as lines (the wires' places estimates)
 : sketch-gladiator-struts ( sketch -- )
 	| sketch |
 	[ -1 1 ] ( side |
@@ -1602,7 +1604,7 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 		[ [ 0.54 0.33 0.49 ] [ 0.50 1.18 1.32 ] ] ( strut |
 			strut spread to head-along to foot-along to foot-up
 			gladiator-upper-height 0.02 + to head-up
-			sketch [ [ side 0.35 * foot-up foot-along 0.06 - ] [ side 0.35 * foot-up foot-along 0.06 + ] [ side 0.55 * head-up head-along 0.06 + ] [ side 0.55 * head-up head-along 0.06 - ] ] [ side 0.90 * -0.44 0 ] 0.025 dark-green-colour sketch-thick-outline
+			sketch [ side 0.35 * foot-up foot-along ] [ side 0.55 * head-up head-along ] 0.025 null sketch-strut
 		) each
 		[ [ upper-front lower-front ] [ upper-rear lower-rear ] ] ( spars |
 			spars spread to bottom to top
