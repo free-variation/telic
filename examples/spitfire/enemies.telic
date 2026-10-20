@@ -392,6 +392,7 @@ variable bombers
 	  :spitfire false spitfire-model :spitfire-down true spitfire-model :spitfire-kelvingrove kelvingrove-spitfire-model
 	  :spitfire-title-leader :spitfire "RAI" "A" false marked-model :spitfire-title-wingman :spitfire "RAI" "B" false marked-model
 	  :hurricane false hurricane-model :hurricane-down true hurricane-model
+	  :spitfire-cockpit spitfire-cockpit-model :hurricane-cockpit hurricane-cockpit-model :reconnaissance-cockpit reconnaissance-cockpit-model
 	  :lysander lysander-model :lysander-cockpit lysander-cockpit-model :gladiator gladiator-model :gladiator-cockpit gladiator-cockpit-model :drogue drogue-model :carrier carrier-model
 	  :merchant merchant-model :u-boat u-boat-model } to models ;
 

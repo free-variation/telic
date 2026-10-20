@@ -133,6 +133,7 @@
 \ the least share of the swirl's speed the wing roots leave in the wake: a wing recovers only part of a propeller's swirl, less than vanes built for it, which cut its kinetic energy by half in Veldhuis, Stokkermans, Sinnige and Eitelberg's PIV measurements (TU Delft), leaving the root of a half of its speed
 0.5 sqrt constant least-swirl-left
 8 constant fin-strips
+16 constant tailplane-strips
 0.35 constant fin-stall-angle
 60 constant propeller-inertia
 \ the width of the shear layer at the wake's edge as a share of the distance behind the disc: a free jet's mixing layer widens at about a tenth of the distance each side of the edge (an estimate)
@@ -170,17 +171,25 @@
 	loop
 	moment torque min2 ;
 
-\ the fin in the propeller's wake, in strips from its root at the fuselage's top to its tip, each of the fin's mean chord: the wake leaves the disc along the propeller's axis and is carried across it by the air's flow across the axis, the upward flow less the wing's downwash, for the time the wake takes to reach the fin at the wake's speed, so the tail-down aircraft rolling along carries its wake up the fin; a strip inside the wake meets the swirl the wing roots leave, the wake's turning carrying all its air past them, about the wake's centre, moving right above the centre and left below it, at an angle of the swirl's speed at the strip's distance from the centre, by its profile, times the strip's height over that distance, over the wake's speed, no more than the fin's stall, and meets the sideslip diluted by the wake's speed, at the wake's dynamic pressure; a strip outside it meets the free stream's. The wake's edge is a shear layer as wide as the mixing rate times the distance from the disc to the fin, centred on the wake's radius, across which a strip's share of the wake's speed falls from all to none; its pressure and the swirl's push take the square of the share, and the free stream's pressure the rest. [ swirl-moment fin-pressure slip-pressure ]: the swirl's yawing moment, right positive; the dynamic pressure the rudder works in, the strips' mean; and the strips' mean of their dynamic pressure times the free stream's speed over theirs, which the fin's stability against the sideslip and its damping work in
+\ where the propeller's wake has got to at a surface a distance along behind the disc: it leaves the disc along the propeller's axis and is carried across it by the air's flow across the axis, the upward flow less the wing's downwash, for the time the wake takes to reach the surface at the wake's speed, so the tail-down aircraft rolling along carries its wake up the tail; its edge there a shear layer as wide as the mixing rate times the distance from the disc. [ centre-up centre-out mixing-width ]: the wake's centre above the axis and out to the right of it, and the layer's width
+: wake-reach ( plane wake rising across along -- reach )
+	| plane wake rising across along |
+	plane@type@hub 2 @i along - to reach
+	reach wake first / to travel
+	[ rising negate 1 downwash - * travel * across negate travel * reach wake-mixing-rate * ] ;
+
+\ the share of the wake's speed squared, which its dynamic pressure takes, that a point at a distance from the wake's centre meets: all inside, none outside, and across the edge's shear layer, centred on the wake's radius, the share of the speed falling from all to none
+: wake-share ( distance wake-radius mixing-width -- share )
+	| distance wake-radius mixing-width |
+	wake-radius mixing-width 2 / + distance - mixing-width / 0 1 clamp sq ;
+
+\ the fin in the propeller's wake, in strips from its root at the fuselage's top to its tip, each of the fin's mean chord, the wake where wake-reach finds it at the fin: a strip inside the wake meets the swirl the wing roots leave, the wake's turning carrying all its air past them, about the wake's centre, moving right above the centre and left below it, at an angle of the swirl's speed at the strip's distance from the centre, by its profile, times the strip's height over that distance, over the wake's speed, no more than the fin's stall, and meets the sideslip diluted by the wake's speed, at the wake's dynamic pressure; a strip outside it meets the free stream's; across the edge's shear layer its pressure and the swirl's push take the wake's share (wake-share), and the free stream's pressure the rest. [ swirl-moment fin-pressure slip-pressure ]: the swirl's yawing moment, right positive; the dynamic pressure the rudder works in, the strips' mean; and the strips' mean of their dynamic pressure times the free stream's speed over theirs, which the fin's stability against the sideslip and its damping work in
 : fin-forces ( plane wake swirl-left speed rising across density -- forces )
 	| plane wake swirl-left speed rising across density |
 	plane@type to type
 	wake spread swirl-left * to swirl-speed to wake-radius to wake-speed
+	plane wake rising across type@fin-along wake-reach spread to mixing-width to centre-out to centre-up
 	type@hub to hub
-	hub 2 @i type@fin-along - to reach
-	reach wake-speed / to travel
-	reach wake-mixing-rate * to mixing-width
-	rising negate 1 downwash - * travel * to centre-up
-	across negate travel * to centre-out
 	type@fin-tip type@fin-root - fin-strips / to strip
 	0.5 density * speed sq * to free-pressure
 	0.5 density * wake-speed sq * to wake-pressure
@@ -191,14 +200,37 @@
 	0 fin-strips 1 do k
 		type@fin-root k 0.5 + strip * + hub second - centre-up - to above
 		above sq centre-out sq + sqrt to distance
-		wake-radius mixing-width 2 / + distance - mixing-width / 0 1 clamp sq to wake-share
-		swirl-speed distance wake-radius / swirl-profile * above * distance 0.001 max2 / wake-speed 1 max2 / fin-stall-angle negate fin-stall-angle clamp wake-pressure * wake-share * swirl-sum + to swirl-sum
-		wake-pressure wake-share * free-pressure 1 wake-share - * + pressure-sum + to pressure-sum
-		wake-slip-pressure wake-share * free-pressure 1 wake-share - * + slip-sum + to slip-sum
+		distance wake-radius mixing-width wake-share to share
+		swirl-speed distance wake-radius / swirl-profile * above * distance 0.001 max2 / wake-speed 1 max2 / fin-stall-angle negate fin-stall-angle clamp wake-pressure * share * swirl-sum + to swirl-sum
+		wake-pressure share * free-pressure 1 share - * + pressure-sum + to pressure-sum
+		wake-slip-pressure share * free-pressure 1 share - * + slip-sum + to slip-sum
 	loop
 	[ swirl-sum fin-strips / type@fin-stability * type@wing-area * type@span * negate
 	  pressure-sum fin-strips /
 	  slip-sum fin-strips / ] ;
+
+\ the tailplane in the propeller's wake, in strips across its span from tip to tip at its height, the wake where wake-reach finds it at the tailplane's quarter chord: a strip inside the wake meets the wake's dynamic pressure and the angle of attack diluted by the wake's speed, a strip outside the free stream's, the edge's shear layer shared out as for the fin; so with the engine opened up the elevator lifts the tail at a walking pace that the free stream alone would not lift until near flying speed. [ elevator-pressure slope-pressure ]: the strips' mean dynamic pressure, which the elevator works in; and their mean of the dynamic pressure times the free stream's speed over theirs, which the tail's restoring slope and its damping of the pitch work in
+: tailplane-pressures ( plane wake speed rising across density -- pressures )
+	| plane wake speed rising across density |
+	plane@type to type
+	wake first to wake-speed
+	wake second to wake-radius
+	plane wake rising across type@tailplane-along wake-reach spread to mixing-width to centre-out to centre-up
+	type@tailplane-up type@hub second - centre-up - to above
+	type@tailplane-half-span 2 * tailplane-strips / to strip
+	0.5 density * speed sq * to free-pressure
+	0.5 density * wake-speed sq * to wake-pressure
+	0.5 density * speed * wake-speed * to wake-slip-pressure
+	0 to pressure-sum
+	0 to slip-sum
+	0 tailplane-strips 1 do k
+		k 0.5 + strip * type@tailplane-half-span - centre-out - to out
+		out sq above sq + sqrt wake-radius mixing-width wake-share to share
+		wake-pressure share * free-pressure 1 share - * + pressure-sum + to pressure-sum
+		wake-slip-pressure share * free-pressure 1 share - * + slip-sum + to slip-sum
+	loop
+	[ pressure-sum tailplane-strips / slip-sum tailplane-strips / ] ;
+
 \ the seconds the undercarriage takes to travel fully up or down (an estimate)
 6 constant undercarriage-travel-time
 0.03 constant flap-drag
@@ -630,7 +662,7 @@ variable cloud-air
 	  stick second elevator-reach negate elevator-reach clamp
 	  stick 2 @i trimmed rudder-reach - trimmed rudder-reach + clamp -1 1 clamp ] plane!deflections ;
 
-\ the forces on the aircraft, ground frame, newtons, and the moments about its centre of gravity, [ roll pitch yaw ] newton-metres rolling right, pitching up and yawing right. Each half of the wing, left then right, meets the air at the angle of attack raised by the roll on the half going down and by the sideslip through the dihedral on the half it meets, at the speed changed by the yaw, its lift less the aileron's on the right as the stick goes right, the ailerons carrying the type's rigging, the fixed offset the riggers' tab gives them with the stick centred, and the rudder its own rigging the same way with the bar centred, and weakened toward the reversal's dynamic pressure; the halves' lift and drag act at the half ellipse's centroid. The pitching moment: the type's offset, the wing's lift about the centre of gravity, the tail's restoring slope, the pitch damping, the elevator with the trim tab's share, the flaps, and past the stall angle the type's pitch-down. The yawing moment: the halves' drag, the fuselage's and the fin's stability against the sideslip and the fin's damping of the yaw, the rudder, the slipstream's swirl on the fin, the fin's terms at its strips' dynamic pressures. The propeller's torque and the swirl on the wing roots roll it; its gyroscopic moment couples pitch and yaw. Its thrust's centre moves off the hub where the air meets the disc at an angle, the blade turning into the air's cross-flow seeing it faster: by the cross-flow's speed over the propeller's turning speed, clockwise from the cross-flow's direction seen from behind, so the nose-up airflow moves it right and yaws the nose left and a sideslip from the left moves it down and pitches the nose up (only the faster air reckoned; the blades' changed angle of attack, which their pitch and section would give, would add to it). The torque, both swirls, the gyroscopic moment and the thrust's offset take the sign of the type's :rotation, 1 clockwise seen from the cockpit and -1 the other way
+\ the forces on the aircraft, ground frame, newtons, and the moments about its centre of gravity, [ roll pitch yaw ] newton-metres rolling right, pitching up and yawing right. Each half of the wing, left then right, meets the air at the angle of attack raised by the roll on the half going down and by the sideslip through the dihedral on the half it meets, at the speed changed by the yaw, its lift less the aileron's on the right as the stick goes right, the ailerons carrying the type's rigging, the fixed offset the riggers' tab gives them with the stick centred, and the rudder its own rigging the same way with the bar centred, and weakened toward the reversal's dynamic pressure; the halves' lift and drag act at the half ellipse's centroid. The pitching moment: the type's offset, the wing's lift about the centre of gravity, the flaps, and past the stall angle the type's pitch-down, at the free stream's dynamic pressure; the tail's restoring slope and the pitch damping, and the elevator with the trim tab's share, at the tailplane's pressures in the propeller's wake (tailplane-pressures). The yawing moment: the halves' drag, the fuselage's and the fin's stability against the sideslip and the fin's damping of the yaw, the rudder, the slipstream's swirl on the fin, the fin's terms at its strips' dynamic pressures. The propeller's torque and the swirl on the wing roots roll it; its gyroscopic moment couples pitch and yaw. Its thrust's centre moves off the hub where the air meets the disc at an angle, the blade turning into the air's cross-flow seeing it faster: by the cross-flow's speed over the propeller's turning speed, clockwise from the cross-flow's direction seen from behind, so the nose-up airflow moves it right and yaws the nose left and a sideslip from the left moves it down and pitches the nose up (only the faster air reckoned; the blades' changed angle of attack, which their pitch and section would give, would add to it). The torque, both swirls, the gyroscopic moment and the thrust's offset take the sign of the type's :rotation, 1 clockwise seen from the cockpit and -1 the other way
 : aerodynamics ( plane -- force moments )
 	| plane |
 	plane@type to type
@@ -681,17 +713,18 @@ variable cloud-air
 	attitude@right across ahead 0.1 max2 / dynamic-pressure * area * -0.6 * v* to sideways
 	lifts first lifts second - arm * to roll-moment
 	coefficients first coefficients second + 2 / to wing-lift
-	type@pitch-offset
-	type@wing-arm wing-lift * +
-	type@tail-slope angle * -
-	type@pitch-damping pitch-rate chord * 2 speed * / * +
-	type@elevator-power elevator plane@trim type@trim-range * + * +
-	type@flap-moment flaps * +
-	type@stall-pitch-down angle type@stall-angle - 0 max2 * + dynamic-pressure area * chord * * to pitch-moment
 	plane@revolutions type@rated-revolutions * type@propeller-gear * TAU * 60 / 10 max2 to propeller-speed
 	type@rotation to rotation
 	power propeller-speed / to torque
 	speed thrust torque density type@propeller-radius sq PI * slipstream to wake
+	plane wake speed rising across density tailplane-pressures spread to slope-pressure to elevator-pressure
+	type@pitch-offset
+	type@wing-arm wing-lift * +
+	type@flap-moment flaps * +
+	type@stall-pitch-down angle type@stall-angle - 0 max2 * + dynamic-pressure *
+	type@tail-slope angle * negate
+	type@pitch-damping pitch-rate chord * 2 speed * / * + slope-pressure * +
+	type@elevator-power elevator plane@trim type@trim-range * + * elevator-pressure * + area chord * * to pitch-moment
 	wake density chord type@lift-slope type@stall-angle torque type@wing-root-up swirl-roll to root-roll
 	1 root-roll torque 1 max2 / - least-swirl-left max2 to swirl-left
 	plane wake swirl-left speed rising across density fin-forces spread to slip-pressure to fin-pressure to swirl-moment

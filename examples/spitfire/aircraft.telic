@@ -854,8 +854,8 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 		loop
 	) each ;
 
-: spitfire-sketch ( wheels-down -- sketch )
-	| wheels-down |
+: spitfire-sketch ( wheels-down glazed -- sketch )
+	| wheels-down glazed |
 	new-model-sketch sky-paint-colour :under-colour ! spitfire-under-turn :under-turn ! to model
 	model spitfire-rings [ 0 0 0 ] 12 sketch-body
 	model@faces size to spinner-first-face
@@ -863,7 +863,7 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 	spitfire-spinner-rings size 2 - 12 * to black-faces
 	spinner-first-face spinner-first-face black-faces + 1 do k model@faces k @i spinner-colour add-last! drop loop
 	model@faces spinner-first-face black-faces 12 + + @i spinner-colour add-last! drop
-	model spitfire-hub 1.64 sketch-propeller-disc
+	glazed if model spitfire-hub 1.64 sketch-propeller-disc then
 	[ -1 1 ] ( side |
 		0 6 1 do stub
 			3.18 stub 0.17 * - to along
@@ -871,7 +871,7 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 			model [ [ side 0.30 * 0.15 along ] [ side 0.30 * 0.15 along 0.13 - ] [ side 0.36 * 0.15 along 0.13 - ] [ side 0.36 * 0.15 along ] ] [ 0 0 along ] exhaust-colour sketch-painted-plate
 		loop
 	) each
-	model sketch-hood
+	glazed if model sketch-hood then
 	spitfire-rear-windows to windows
 	[ [ 0 0 ] [ 1 0 ] [ 2 0 ] [ 3 0 ] [ 3 1 ] [ 3 2 ] [ 3 3 ] [ 2 3 ] [ 1 3 ] [ 0 3 ] [ 0 2 ] [ 0 1 ] ] to rim
 	0 windows size 2 do k
@@ -916,11 +916,11 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 	model sketch-tail-wheel
 	model ;
 
-: spitfire-model ( wheels-down -- model ) spitfire-sketch dark-green-colour sketch>object ;
+: spitfire-model ( wheels-down -- model ) true spitfire-sketch dark-green-colour sketch>object ;
 
 \ the Spitfire preserved at Kelvingrove, LA198 of 602 (City of Glasgow) Squadron, in the code it carried, RAI-G (warmemorialsonline.org.uk, warbirdregistry.org): wheels up, its markings painted
 : kelvingrove-spitfire-model ( -- model )
-	false spitfire-sketch to model
+	false true spitfire-sketch to model
 	model "RAI" "G" "LA198" sketch-spitfire-markings
 	model dark-green-colour sketch>object ;
 
@@ -1236,14 +1236,14 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 		loop
 	) each ;
 
-: hurricane-sketch ( wheels-down -- sketch )
-	| wheels-down |
+: hurricane-sketch ( wheels-down glazed -- sketch )
+	| wheels-down glazed |
 	new-model-sketch sky-paint-colour :under-colour ! hurricane-under-turn :under-turn ! to model
 	model hurricane-rings [ 0 0 0 ] 10 sketch-body
 	model@faces size to spinner-first-face
 	model hurricane-spinner-rings [ 0 0 0 ] 10 sketch-body
 	spinner-first-face model@faces size 1 do k model@faces k @i spinner-colour add-last! drop loop
-	model hurricane-hub 1.64 sketch-propeller-disc
+	glazed if model hurricane-hub 1.64 sketch-propeller-disc then
 	[ -1 1 ] ( side |
 		[ 2.12 1.92 1.72 ] ( along |
 			model [ [ side 0.57 * 0.16 along ] [ side 0.57 * 0.16 along 0.18 - ] [ side 0.57 * 0.04 along 0.18 - ] [ side 0.57 * 0.04 along ] ] [ 0 0.1 along ] exhaust-colour sketch-painted-plate
@@ -1251,7 +1251,7 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 			model [ [ side 0.47 * 0.04 along ] [ side 0.47 * 0.04 along 0.18 - ] [ side 0.57 * 0.04 along 0.18 - ] [ side 0.57 * 0.04 along ] ] [ 0 0.2 along ] exhaust-colour sketch-painted-plate
 		) each
 	) each
-	model sketch-hurricane-hood
+	glazed if model sketch-hurricane-hood then
 	model sketch-hurricane-wings
 	model@faces size to tub-first-face
 	model hurricane-radiator-rings [ 0 0 0 ] 10 sketch-body
@@ -1274,7 +1274,7 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 	wheels-down if model sketch-hurricane-undercarriage then
 	model ;
 
-: hurricane-model ( wheels-down -- model ) hurricane-sketch dark-green-colour sketch>object ;
+: hurricane-model ( wheels-down -- model ) true hurricane-sketch dark-green-colour sketch>object ;
 
 \ a Hurricane's squadron code, its own letter and, unless empty, its serial near the tail
 : sketch-hurricane-markings ( sketch code letter serial -- )
@@ -1285,11 +1285,16 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 \ a fighter of a kind, :spitfire or :hurricane, wheels up or down, in a squadron's code and its own letter; the plain model where the code is empty
 : marked-model ( kind code letter wheels-down -- model )
 	| kind code letter wheels-down |
-	kind :hurricane = if wheels-down hurricane-sketch else wheels-down spitfire-sketch then to model
+	kind :hurricane = if wheels-down true hurricane-sketch else wheels-down true spitfire-sketch then to model
 	code size 0 > if
 		kind :hurricane = if model code letter "" sketch-hurricane-markings else model code letter "" sketch-spitfire-markings then
 	then
 	model dark-green-colour sketch>object ;
+
+\ a fighter as its pilot sees it from the cockpit, wheels up, the hood's glass left out so the view through it is clear and the propeller's disc left to draw-propeller: the Spitfire or the Hurricane in Dark Green, the PR IV in PRU Blue
+: spitfire-cockpit-model ( -- model ) false false spitfire-sketch dark-green-colour sketch>object ;
+: hurricane-cockpit-model ( -- model ) false false hurricane-sketch dark-green-colour sketch>object ;
+: reconnaissance-cockpit-model ( -- model ) false false spitfire-sketch pru-blue-colour :under-colour ! pru-blue-colour sketch>object ;
 
 \ === the Lysander ===
 
@@ -1433,7 +1438,7 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 : lysander-fin-flash ( -- stripes )
 	[ [ -4.95 0.75 ] [ -4.95 1.67 ] ] -5.15 -5.35 -5.55 fin-flash ;
 
-\ the Lysander Mk II: the fuselage, the Perseus's smooth cowling, the black spinner on its hub 0.28 m across, and the turning propeller's disc 3.18 m across, the Perseus's face dark inside the cowling's lip, the canopy, glazed or left open, the high gull wings with their roundels, the struts, the trousered undercarriage and the tail wheel, the tailplane, the fin and rudder with the fin flash, and a Type A1 roundel 35 in across on each side of the rear fuselage; in Dark Green above and Sky beneath, without the Dark Earth's pattern
+\ the Lysander Mk II: the fuselage, the Perseus's smooth cowling, the black spinner on its hub 0.28 m across, and with the canopy glazed the turning propeller's disc 3.18 m across, the Perseus's face dark inside the cowling's lip, the canopy, glazed or left open, the high gull wings with their roundels, the struts, the trousered undercarriage and the tail wheel, the tailplane, the fin and rudder with the fin flash, and a Type A1 roundel 35 in across on each side of the rear fuselage; in Dark Green above and Sky beneath, without the Dark Earth's pattern
 : lysander-sketch ( glazed -- sketch )
 	| glazed |
 	new-model-sketch sky-paint-colour :under-colour ! spitfire-under-turn :under-turn ! to model
@@ -1443,7 +1448,7 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 	model [ [ 2.20 0.14 0.14 0.10 ] [ 2.05 0.14 0.14 0.10 ] ] [ 0 0 0 ] 12 sketch-body
 	spinner-first-face model@faces size 1 do k model@faces k @i spinner-colour add-last! drop loop
 	model [ 0 0.10 2.06 ] [ 1 0 0 ] [ 0 1 0 ] 0.5 24 ring-of [ 0 0.10 1.5 ] radiator-intake-colour sketch-painted-plate
-	model [ 0 0.10 2.23 ] 1.59 sketch-propeller-disc
+	glazed if model [ 0 0.10 2.23 ] 1.59 sketch-propeller-disc then
 	model glazed sketch-lysander-canopy
 	model sketch-lysander-wings
 	model sketch-lysander-undercarriage
@@ -1455,7 +1460,7 @@ hurricane-roundel-radius 22 55 / * constant hurricane-roundel-centre-radius
 
 : lysander-model ( -- model ) true lysander-sketch dark-green-colour sketch>object ;
 
-\ the Lysander as its pilot sees it from inside the canopy, the glass left out so the view through it is clear
+\ the Lysander as its pilot sees it from inside the canopy, the glass left out so the view through it is clear and the propeller's disc left to draw-propeller
 : lysander-cockpit-model ( -- model ) false lysander-sketch dark-green-colour sketch>object ;
 
 \ === the Gladiator ===
@@ -1756,7 +1761,7 @@ gladiator-mk-ii-figures :hub @ constant gladiator-hub
 \ the fuselage roundel, a Type A1 35 in across as the Hurricane's, behind the lower wing's trailing edge 2.4 m aft of the origin, its centre 5 cm above the thrust line (its place an estimate)
 -2.4 constant gladiator-fuselage-roundel-along
 
-\ the Gladiator Mk II: the fuselage, the Mercury's cowling with the engine's face dark inside its lip, the black spinner and the turning propeller's disc 3.20 m across, the windscreen and the hood, the two wings with their roundels, the struts and wires, the fixed undercarriage and the tail wheel, the tailplane with its elevators and struts, the fin and rudder with the fin flash, the aerial mast on the fairing 1.56 m aft, 0.29 m tall, its wire aft to a short pole on the fin's leading edge 4.28 m aft, both measured on the side view, and a wire forward to each upper wing 1.96 m out near its trailing edge, 0.16 m forward of the origin, where the plan view draws them ending, the two Brownings in their gondolas under the lower wings, the two Vickers guns' troughs along the fuselage's sides at the thrust line's height, dark slots 8 cm deep from just ahead of the windscreen to the cowling's rear with the barrels lying in them and standing out ahead, as the side view and photographs show them, and the fuselage roundel; in Dark Green above and Sky beneath, without the Dark Earth's pattern, which no drawing of the flight's aircraft was found for
+\ the Gladiator Mk II: the fuselage, the Mercury's cowling with the engine's face dark inside its lip, the black spinner and, hooded, the turning propeller's disc 3.20 m across, the windscreen and the hood, the two wings with their roundels, the struts and wires, the fixed undercarriage and the tail wheel, the tailplane with its elevators and struts, the fin and rudder with the fin flash, the aerial mast on the fairing 1.56 m aft, 0.29 m tall, its wire aft to a short pole on the fin's leading edge 4.28 m aft, both measured on the side view, and a wire forward to each upper wing 1.96 m out near its trailing edge, 0.16 m forward of the origin, where the plan view draws them ending, the two Brownings in their gondolas under the lower wings, the two Vickers guns' troughs along the fuselage's sides at the thrust line's height, dark slots 8 cm deep from just ahead of the windscreen to the cowling's rear with the barrels lying in them and standing out ahead, as the side view and photographs show them, and the fuselage roundel; in Dark Green above and Sky beneath, without the Dark Earth's pattern, which no drawing of the flight's aircraft was found for
 : gladiator-sketch ( hooded -- sketch )
 	| hooded |
 	new-model-sketch sky-paint-colour :under-colour ! spitfire-under-turn :under-turn ! to model
@@ -1768,7 +1773,7 @@ gladiator-mk-ii-figures :hub @ constant gladiator-hub
 	model gladiator-spinner-rings [ 0 0 0 ] 12 sketch-body
 	spinner-first-face model@faces size 1 do k model@faces k @i spinner-colour add-last! drop loop
 	model [ 0 0.04 2.38 ] [ 1 0 0 ] [ 0 1 0 ] 0.5 24 ring-of [ 0 0 1.5 ] radiator-intake-colour sketch-painted-plate
-	model gladiator-hub 1.60 sketch-propeller-disc
+	hooded if model gladiator-hub 1.60 sketch-propeller-disc then
 	model sketch-gladiator-blisters
 	model sketch-gladiator-gondolas
 	model sketch-gladiator-exhausts
@@ -1799,5 +1804,5 @@ gladiator-mk-ii-figures :hub @ constant gladiator-hub
 
 : gladiator-model ( -- model ) true gladiator-sketch dark-green-colour sketch>object ;
 
-\ the Gladiator as its pilot sees it from inside the hood, the hood's frames alone so the view through it is clear
+\ the Gladiator as its pilot sees it from inside the hood, the hood's frames alone so the view through it is clear and the propeller's disc left to draw-propeller
 : gladiator-cockpit-model ( -- model ) false gladiator-sketch dark-green-colour sketch>object ;

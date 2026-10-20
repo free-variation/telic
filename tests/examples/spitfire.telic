@@ -87,7 +87,7 @@ clear
 	loop
 	controls false :brakes ! drop
 	lifted-at lift-off-speed run ;
-take-off . . . cr                                          \ 342 165 15.4
+take-off . . . cr                                          \ 338 166 14.9
 clear
 
 \ === starting on the runway: the revolutions with no keys for 2 s; the magnetos on and the starter held 3 s; then the magnetos off for 3 s; the starter held 1 s with them off ===
@@ -192,5 +192,5 @@ clear
 	climber@velocity second 60 * round ;
 4450 gladiator-level-speed . cr                            \ 422
 300 gladiator-level-speed . cr                             \ 356
-gladiator-climb-rate . cr                                  \ 745
+gladiator-climb-rate . cr                                  \ 746
 clear

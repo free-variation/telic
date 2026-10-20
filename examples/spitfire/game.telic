@@ -530,7 +530,7 @@ view-width 40 - constant message-line-width
 		from null? onto null? or not if from spread onto spread colour draw-segment then
 	loop ;
 
-\ how near ahead of the eye the Lysander's own faces are cut when drawn from inside its cockpit, metres, so the cockpit's sides and the wing's root beside the pilot show
+\ how near ahead of the eye an aircraft's own faces are cut when drawn from inside its cockpit, metres, so the cockpit's sides and the wing's root beside the pilot show
 0.05 constant cockpit-near-plane
 
 \ the Gladiator seen from under its hood: its model without the hood's glass, cut at the cockpit's near plane, so the upper wing and its struts, the lower wings, the nose and the tail show where they lie, the hood's frames among them
@@ -552,6 +552,16 @@ view-width 40 - constant message-line-width
 	1 5 1 do c
 		[ 0 lysander-canopy size 1 do k lysander-canopy k @i first 1 0 k lysander-row-rake lysander-canopy-section c @i loop ] own-points-on-screen fuselage-seam-colour draw-places-path
 	loop ;
+
+\ the Spitfire, the PR IV or the Hurricane seen ahead from its cockpit: its model without the hood's glass, cut at the cockpit's near plane, so the cowling with its exhausts and the spinner show where they lie, over the propeller's disc
+: draw-fighter-cockpit-view ( -- )
+	| ^near-plane |
+	plane@type@kind :hurricane = if :hurricane-cockpit else
+		plane@type@finish :pru-blue = if :reconnaissance-cockpit else :spitfire-cockpit then
+	then to model-name
+	cockpit-near-plane to near-plane
+	models model-name @ plane@position plane@attitude draw-model
+	scene-near-plane to near-plane ;
 
 \ looking back from the cockpit; the Lysander's as its whole cockpit view. First the aircraft's own lines beyond 2 m, so the fuselage covers those behind it and the tailplane's tips, the fin, the mast and the aerial show past it. Then the fuselage behind the hood from its rings (aircraft.telic's) as sections: below the sill as far back as the glazing reaches, the rear windows above it left clear, then the razorback to the tail; its faces from the farthest to the nearest, each lit by how squarely it faces the light from above and to the right; the fairing standing across the fuselage behind the glazing in the cockpit's colour; over them the spine, the sills and each section's frame, and the rear windows' frames or the hood's rear frames. Last the head armour on the fairing, 26 cm wide and 22 cm high from the sill, its top corners cut, its upper and left edges catching the light, and a leather headrest pad 14 by 7 cm on it (estimates), and the aerial mast, nearer than the lines drawn first reach
 : draw-rear-view ( -- )
@@ -883,19 +893,6 @@ variable wing-surfaces
 	[ 0 49 1 do k k 48 / TAU * to angle hub [ angle sin radius * angle cos radius * 0 ] v+ loop ] own-points-on-screen
 	tip-colour sky-colour 0.4 blended draw-places-path ;
 
-\ the cowling ahead of the windscreen and the spinner, filled as the rear view fills the fuselage, so the nose hides the blades' roots and the disc's lower part: the fuselage's rings ahead of its datum and the spinner's, twelve-sided sections, their faces from the farthest to the nearest, lit by the light from above and to the right
-: draw-nose ( -- )
-	plane@type@kind to kind
-	kind :hurricane = if hurricane-spinner-rings hurricane-rings else
-		kind :lysander = if lysander-spinner-rings lysander-rings else
-			kind :gladiator = if gladiator-spinner-rings gladiator-rings else spitfire-spinner-rings spitfire-rings then
-		then
-	then
-	( ring | ring first 0 > ) filter concat ( ring | ring [ 0 0 0 ] 12 body-ring ) map to sections
-	sections cockpit-eye fuselage-faces ( face | face@depth negate ) sort-by ( face |
-		face@quad own-points-on-screen fuselage-top-colour fuselage-side-colour face@light blended fill-places
-	) each ;
-
 \ the frame's picture
 : draw-frame ( -- )
 	:pilot game@ to pilot
@@ -928,9 +925,8 @@ variable wing-surfaces
 	:air-firing game@ if draw-tow-cable then
 	:view game@ :front = pilot null? and if
 		draw-propeller
-		draw-nose
-		plane@type@kind :lysander = if draw-lysander-cockpit-view then
-		plane@type@kind :gladiator = if draw-gladiator-cockpit-view then
+		plane@type@kind :lysander = if draw-lysander-cockpit-view else
+		plane@type@kind :gladiator = if draw-gladiator-cockpit-view else draw-fighter-cockpit-view then then
 	then
 	:view game@ :front = pilot null? and plane@type@kind :hurricane = and if draw-hurricane-windscreen then
 	:view game@ :front = plane@armed and pilot null? and if
@@ -1282,7 +1278,7 @@ variable wing-surfaces
       "THE STRIP AT THE BOTTOM RIGHT: THE RAID'S OR THE TARGET'S BEARING AND DISTANCE, AND YOUR ROUNDS AND KILLS. THE HURRICANE'S PANEL CARRIES THE SAME DIALS, LAID OUT AS ITS OWN; R SWITCHES ITS FUEL BETWEEN THE MAIN TANKS AND THE RESERVE." ] ]
   [ "FLYING"
     [ "START-UP: MAGNETOS ON WITH M, THEN HOLD K FOR THE STARTER UNTIL SHE FIRES. FINE PITCH FOR THE TAKE-OFF WITH W, AND THE RUDDER TRIM FULLY RIGHT WITH ., AGAINST THE PROPELLER'S SWING TO THE LEFT."
-      "TAKE-OFF: OPEN THE THROTTLE WITH Q SMOOTHLY OVER ABOUT FIVE SECONDS, CATCHING THE SWING WITH RIGHT RUDDER, X, SMALL AND EARLY. KEEP THE STICK CENTRAL: THE TAIL RISES BY ITSELF; PUSHED FORWARD, THE PROPELLER STRIKES THE RUNWAY. PAST 90 MPH EASE THE STICK BACK. WHEELS UP WITH G, THEN THROTTLE BACK A LITTLE AND COARSE PITCH WITH S, OR SHE OVER-REVS."
+      "TAKE-OFF: OPEN THE THROTTLE WITH Q SMOOTHLY OVER ABOUT FIVE SECONDS, CATCHING THE SWING WITH RIGHT RUDDER, X, SMALL AND EARLY. PAST 30 MPH EASE THE STICK FORWARD TO LIFT THE TAIL AND CHECK IT WITH THE NOSE JUST ABOVE THE HORIZON: HELD FORWARD, THE PROPELLER STRIKES THE RUNWAY. PAST 90 MPH EASE THE STICK BACK. WHEELS UP WITH G, THEN THROTTLE BACK A LITTLE AND COARSE PITCH WITH S, OR SHE OVER-REVS."
       "CRUISE AND TRIM: CLIMB AT ABOUT 160 MPH; CRUISE AT ABOUT +2 BOOST. TRIM WITH [ AND ] UNTIL SHE HOLDS HER HEIGHT HANDS OFF, AND WITH , AND . (THE SHOULDERS) UNTIL THE SLIP NEEDLE CENTRES: MORE POWER WANTS MORE RIGHT RUDDER TRIM. SHE STALLS NEAR 80 MPH: STICK FORWARD, THEN POWER."
       "LANDING: SLOW TO 140 MPH, WHEELS DOWN WITH G AND WATCH FOR THE GREEN LIGHT, FINE PITCH WITH W, FLAPS DOWN WITH F, NEVER ABOVE 140 MPH. COME DOWN STEADILY AT 85 MPH, THE THROTTLE FOR THE SPEED AND THE STICK FOR THE DESCENT. OVER THE END OF THE RUNWAY CLOSE THE THROTTLE AND HOLD HER OFF, SO SHE SETTLES ON ALL THREE WHEELS. THEN STICK FULLY BACK, KEEP STRAIGHT WITH THE RUDDER, AND BRAKE IN SHORT PRESSES OF B: HELD, THE BRAKES TIP HER ONTO HER NOSE. HOLD O TO STOP THE ENGINE." ] ]
   [ "FIGHTING"
