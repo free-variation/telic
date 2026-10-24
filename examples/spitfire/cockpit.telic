@@ -781,8 +781,11 @@ panel-top 50 + constant arched-view-rows
 \ the left board, the blind-flying panel and the right board, sharing one
 \ top and one foot, laid out after a labelled picture of a flight
 \ simulator's Hurricane I cockpit. The left board, top to bottom: the
-\ indicator lamps' switches and the undercarriage indicator, its P and S
-\ windows red for locked up and green for locked down; the buzzer's
+\ indicator lamps' switches, on-off (Y) and changeover to the spare pair
+\ of bulbs (shift Y), and the undercarriage indicator, its P and S
+\ windows red for locked up and green for locked down, dark with the
+\ lamps off or the pair in use failed: a Hurricane's flight draws a
+\ second within two hours at which that pair's filament goes; the buzzer's
 \ warning plate and the lamps' plate; the oxygen regulator's nameplate,
 \ its delivery and supply dials and its brass valve handle; the emergency
 \ boost knob, a red ring round a yellow face, and the clock; along the
@@ -798,8 +801,8 @@ panel-top 50 + constant arched-view-rows
 \ primer's knob at the right. The undercarriage indicator and the
 \ revolution counter stand on the coaming in the aircraft; they are on the
 \ boards here, the coaming above them too shallow for their dials. The
-\ picture shows no brake pressure gauge, and none is drawn. The lamp
-\ switches, the supply dial, the magnetos, the toggle switches, the sight
+\ picture shows no brake pressure gauge, and none is drawn. The supply
+\ dial, the magnetos, the toggle switches, the sight
 \ and starting magneto switches and the primer are drawn and do nothing.
 \ On the right wall the one
 \ lever that works the wheels and the flaps, in its gate, the selector
@@ -807,7 +810,8 @@ panel-top 50 + constant arched-view-rows
 \ indicator. On the left wall the throttle quadrant, the elevator trim's
 \ wooden handwheel edge-on with the pointer plate beside it that reads the
 \ tab between NOSE DOWN and NOSE UP, and above them the rudder bias knob,
-\ its eight lobes turning with the setting. The panel's top arched as
+\ a dodecagon with a lug on every other side lettered RUDDER TRIM,
+\ turning with the setting; these three drawn half blended into the wall. The panel's top arched as
 \ the Spitfire's, the side boards running to the screen's bottom; below
 \ the blind panel the compass bowl under the column's shaft and the
 \ Spitfire's frame pedals. In the windscreen, faint, the frame of the
@@ -834,17 +838,18 @@ panel-top 190 + constant board-foot
 	left top right left - screen-height top - colour fill-span
 	left top right left - screen-height top - edge-colour outline ;
 
-\ the undercarriage indicator, as the labelled cockpit shows it: UP over two windows and DOWN under two more, P and S either side, the upper pair red while the wheels are locked up, the lower pair green when locked down, all dark while they travel
+\ the undercarriage indicator, as the labelled cockpit shows it: UP over two windows and DOWN under two more, P and S either side, the upper pair red while the wheels are locked up, the lower pair green when locked down, all dark while they travel, and all dark with the lamps switched off or the pair of bulbs in use failed
 : draw-hurricane-undercarriage ( cx cy -- )
 	| cx cy |
 	plane@gear-position to position
+	plane@lamps plane@lamp-set plane@failed-lamp-set = not and to lit
 	cx cy small-radius dial-face
 	cx cy 14 - "UP" 4 dial-ink centred-lettering
 	cx cy 9 + "DOWN" 4 dial-ink centred-lettering
 	cx 13 - cy 2 - "P" 4 dial-ink centred-lettering
 	cx 13 + cy 2 - "S" 4 dial-ink centred-lettering
-	[ -7 2 ] ( x | cx x + cy 7 - 5 3 position 0 = if 0xe04030 else 0x401010 then fill-span ) each
-	[ -7 2 ] ( x | cx x + cy 1 + 5 3 position 1 = if 0x40e040 else 0x103010 then fill-span ) each ;
+	[ -7 2 ] ( x | cx x + cy 7 - 5 3 position 0 = lit and if 0xe04030 else 0x401010 then fill-span ) each
+	[ -7 2 ] ( x | cx x + cy 1 + 5 3 position 1 = lit and if 0x40e040 else 0x103010 then fill-span ) each ;
 
 \ the oxygen regulator, its dials of a radius 20, the picture's size against the flying six: its nameplate across the top, DELIVERY and SUPPLY over its two dials; the delivery dial set for the height above 10,000 ft, the supply dial full, the upper left of its face red; the brass handle of its valve between them
 : draw-hurricane-oxygen ( cx cy -- )
@@ -899,11 +904,20 @@ panel-top 190 + constant board-foot
 		x width 2 / + top 2 + k 5 * + lines k @i 4 dial-ink centred-lettering
 	loop ;
 
-\ the left board of the Hurricane's panel, after the labelled cockpit, top to bottom: the indicator lamps' two switches and the undercarriage indicator; the buzzer's warning plate and the lamps' plate; the oxygen regulator with its two dials; under it the emergency boost knob, the magneto switches and, at the board's right down to its foot, the clock; along the foot the two engine starting buttons and the three toggle switches under their plate, pressure head heat, navigation lights and cine camera (the magnetos sit above the toggles, not beside them as in the picture, the board being too narrow for the clock and all three at its foot). The lamp switches, the magnetos and the toggles are drawn and do nothing
+\ a bat-handled switch on its pivot, the bat up or down
+: draw-switch ( x pivot up -- )
+	| x pivot up |
+	x pivot 2 0x707070 fill-disc
+	x 1 - pivot up if 10 - else 1 + then 3 9 0xd8d8d0 fill-span ;
+
+\ the left board of the Hurricane's panel, after the labelled cockpit, top to bottom: the undercarriage indicator's two lamp switches, INDICATOR LAMPS over them, the changeover, up for the first pair of bulbs, and the on-off, up for on (Y and shift Y), and the indicator itself; the buzzer's warning plate and the lamps' plate; the oxygen regulator with its two dials; under it the emergency boost knob, the magneto switches and, at the board's right down to its foot, the clock; along the foot the two engine starting buttons and the three toggle switches under their plate, pressure head heat, navigation lights and cine camera (the magnetos sit above the toggles, not beside them as in the picture, the board being too narrow for the clock and all three at its foot). The magnetos and the toggles are drawn and do nothing
 : draw-hurricane-left ( -- )
 	40 192 panel-top 40 + board-colour draw-tall-board
-	[ 72 86 ] ( x | x panel-top 68 + draw-toggle ) each
-	79 panel-top 70 + "LAMPS" 4 dial-ink centred-lettering
+	79 panel-top 44 + "INDICATOR LAMPS" 4 dial-ink centred-lettering
+	70 panel-top 60 + plane@lamp-set 1 = draw-switch
+	88 panel-top 60 + plane@lamps draw-switch
+	70 panel-top 72 + "CHANGE" 4 dial-ink centred-lettering
+	88 panel-top 72 + "ON" 4 dial-ink centred-lettering
 	150 panel-top 60 + draw-hurricane-undercarriage
 	44 panel-top 80 + 66 18 [ "BUZZER WARNING" "WHEELS NOT" "LOCKED DOWN" ] draw-lettered-plate
 	114 panel-top 80 + 74 18 [ "RED LOCKED UP" "GREEN LOCKED DOWN" ] draw-lettered-plate

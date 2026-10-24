@@ -668,7 +668,76 @@ variable wingmen
 	:inchgarvie :north-queensferry landmark-heading 90 + to east-of-bridge
 	:inchgarvie landmark-ground east-of-bridge 0 0 2000 placed ;
 
-\ the missions, each a name, three lines of story, the Spitfire's start as [ position heading speed on-ground ], the raid's plan or null, night or day, whether it begins on the approach with wheels and flaps down, the propeller (the two-pitch in 1939, the constant-speed fitted from June 1940) and whether 100-octane fuel allows emergency boost (from 1940), the weather (the visibility in metres, the share of the sky's squares holding a cloud and the clouds' base, the wind as [ the bearing it blows from, metres a second ], every wind an estimate: the records found give none), the carrier's flight deck where the mission has one (Glorious's 28 knots, 14.4 m/s, and the 12-knot wind together giving the 40 knots over her deck published for 7 June; the split and the place, 40 km north of Andenes where she and Ark Royal were operating, estimates; on 26 May, flying 46 Squadron's Hurricanes off for Norway, her 30 knots, 15.4 m/s, in a flat calm, 100 miles north of Skånland and 40 miles off the coast, published, her heading, toward Bardufoss, an estimate), whether the flight begins on her deck with the engine running and ends landed at the mission's target (on 26 May the first Hurricanes flown off reached Skånland, whose soft strip turned two of them over, and the rest went on to Bardufoss, published), any ballast the aircraft carries as [ kg place ] (the Glorious Hurricanes' published 15 lb sandbag, 6.8 kg, in the rear fuselage, its place an estimate), the aircraft where the mission fixes it (the PR Spitfire, or the Hurricane at Narvik and at Scapa Flow, where no Spitfires served; the Scapa raid's coming from the east about 7 pm, seen by the Shetland radar, published, its fifteen bombers, height and course estimates, the published counts running from 15 to 35, and drawn in daylight, the game having no dusk), the opening message, the group the title lists it under, and the briefing's text; over Norway the height the snow lay down to (estimates: Trøndelag's lowland under snow in early March, the thaw at Narvik begun on 29 April 1940 by the despatches, the snow then lying above about 400 m at the end of May and 600 m in June); a patrol's sightings, each [ name centre ships ], each ship [ kind place heading ], and the airfield it flies from and back to (a representative patrol, no particular one being recorded: the convoy's and the U-boat's places are estimates)
+\ === the custom flight ===
+
+\ the fields a custom flight may start from, each [ key name runway-heading raid-bearing raised ]: the runway's heading as the airfield is built (world.telic and cities.telic), the bearing from the field to where a raid on it starts, out over the sea or, at Bardufoss, toward Narvik (estimates), and whether the field is built at its landmark's height
+[ [ :turnhouse "TURNHOUSE" 60 80 false ] [ :drem "DREM" 90 70 false ] [ :grangemouth "GRANGEMOUTH" 70 80 false ]
+  [ :abbotsinch "ABBOTSINCH" 50 240 false ] [ :montrose-air-station "MONTROSE" 50 90 false ] [ :dyce "DYCE" 160 90 true ]
+  [ :dalcross "DALCROSS" 60 60 false ] [ :wick "WICK" 130 90 false ] [ :hatston "HATSTON" 90 90 false ]
+  [ :sumburgh "SUMBURGH" 90 90 false ] [ :bardufoss "BARDUFOSS" 100 200 true ] ] constant custom-places
+
+\ the times of day, each [ name night moon ]: the game draws day or night, no dusk; the moon as [ azimuth altitude radius ] degrees
+[ [ "DAY" false null ] [ "NIGHT, A MOON" true [ 180 30 0.27 ] ] [ "NIGHT, NO MOON" true null ] ] constant custom-times
+
+\ the weathers, each [ name visibility cover base wind ]: the visibility in metres, the share of the sky's squares holding a cloud, the clouds' base in metres, the wind as [ bearing it blows from, metres a second ] (estimates)
+[ [ "CLEAR" clear-visibility 0 1500 [ 250 3 ] ] [ "FAIR" clear-visibility 0.3 1200 [ 250 6 ] ]
+  [ "CLOUDY" clear-visibility 0.7 700 [ 230 10 ] ] [ "FOG" 1600 0 1500 [ 250 1 ] ] ] constant custom-weathers
+
+\ the propellers a Spitfire's or a Hurricane's custom flight may have, each [ name kind ]: the two-pitch of 1939 or the constant-speed fitted from June 1940; the Lysander keeps its two-pitch and the Gladiator its fixed pitch whichever is chosen
+[ [ "TWO-PITCH" :two-pitch ] [ "CONSTANT-SPEED" :constant-speed ] ] constant custom-propellers
+
+\ the starts: on the runway with the engine stopped, or airborne 4 km short of the field, 1,500 ft above it, at 75 m/s, heading down the runway
+[ "ON THE RUNWAY" "AIRBORNE" ] constant custom-starts
+
+\ the enemy: none; a raid on the field of three vics of He 111s at 3,000 m and 100 m/s, starting 45 km out; or the raid with six Bf 110s round it, placed about the raid's start as the Farne Islands' escort is about the Spitfire
+[ "NONE" "BOMBERS" "BOMBERS AND FIGHTERS" ] constant custom-enemies
+
+\ the custom flight's settings, each an index into its list
+variable custom-settings
+{ :place 0 :time 0 :propeller 1 :weather 1 :start 0 :enemy 0 } to custom-settings
+
+\ the setting lines the custom flight's briefing steps through, in the order its particulars show them, each [ key label list ]; the aircraft line's choice is the game's :aircraft-choice, its list the mission's :choices
+[ [ :place "PLACE" custom-places ] [ :time "TIME" custom-times ] [ :aircraft "AIRCRAFT" null ] [ :propeller "PROPELLER" custom-propellers ] [ :start "START" custom-starts ]
+  [ :weather "WEATHER" custom-weathers ] [ :enemy "ENEMY" custom-enemies ] ] constant custom-lines
+
+\ the custom flight as a mission from its settings, listed last under CUSTOM
+: custom-mission ( -- mission )
+	custom-places custom-settings@place @i spread to raised to raid-bearing to runway-heading to place-name to place-key
+	custom-times custom-settings@time @i spread to moon to night to time-name
+	custom-weathers custom-settings@weather @i spread to wind to base to cover to seeing to weather-name
+	custom-propellers custom-settings@propeller @i second to propeller
+	custom-settings@start 1 = to airborne
+	custom-settings@enemy to enemy
+	place-key landmark-ground raised if [ 0 place-key landmark-height 0 ] v+ then to field
+	airborne if
+		[ field runway-heading 0 457 -4000 placed runway-heading 75 false ]
+	else
+		[ field runway-heading 0 wheel-height -580 placed runway-heading 0 true ]
+	then to start
+	field raid-bearing 0 3000 45000 placed to raid-start
+	enemy 0 = if null else :he-111 3 raid-start field 3000 100 raid-plan then to raid
+	place-key :bardufoss = to norway
+	{ :name "CUSTOM FLIGHT" :month norway if 5 else 7 then :snow-line norway if 400 else no-snow then
+	  :story [ "A FLIGHT OF YOUR OWN CHOOSING. ON ITS BRIEFING, UP AND DOWN"
+	           "CHOOSE THE PLACE, TIME, AIRCRAFT, PROPELLER, START, WEATHER, ENEMY,"
+	           [ place-name time-name weather-name custom-starts custom-settings@start @i custom-enemies enemy @i ] ", " join ]
+	  :start start :raid raid
+	  :night night :moon moon :landing false :visibility seeing :cover cover :base base :wind wind
+	  :propeller propeller :emergency true
+	  :choices [ :spitfire :hurricane :reconnaissance :lysander :gladiator ]
+	  :target place-key
+	  :message enemy 0 = if "CUSTOM FLIGHT FROM " place-name + else "BANDITS FOR " place-name + "  -  FOLLOW THE RAID BEARING" + then
+	  :group :custom :custom true
+	  :briefing "UP AND DOWN CHOOSE A LINE OF THE PARTICULARS, LEFT AND RIGHT CHANGE IT. THE RAID, WHEN THERE IS ONE, COMES FOR THE FIELD ITSELF; ITS BEARING AND DISTANCE ARE AT THE TOP RIGHT OF THE VIEW, AND WITHOUT ONE THE FIELD'S ARE. T RUNS TIME FASTER." }
+	to mission
+	enemy 0 = if mission place-name :landing-on ! drop then
+	enemy 2 = if
+		mission [ [ 60 40 700 70 ] [ -470 140 -800 0 ] [ 350 -80 700 190 ] [ -500 180 350 -100 ] [ 550 150 -250 120 ] [ 150 -250 950 30 ] ] :escort !
+		raid-start :escort-origin ! raid-bearing 180 + 360 mod :escort-heading ! drop
+	then
+	mission ;
+
+\ the missions, each a name, three lines of story, the Spitfire's start as [ position heading speed on-ground ], the raid's plan or null, night or day, whether it begins on the approach with wheels and flaps down, the propeller (the two-pitch in 1939, the constant-speed fitted from June 1940) and whether 100-octane fuel allows emergency boost (from 1940), the weather (the visibility in metres, the share of the sky's squares holding a cloud and the clouds' base, the wind as [ the bearing it blows from, metres a second ], every wind an estimate: the records found give none), the carrier's flight deck where the mission has one (Glorious's 28 knots, 14.4 m/s, and the 12-knot wind together giving the 40 knots over her deck published for 7 June; the split and the place, 40 km north of Andenes where she and Ark Royal were operating, estimates; on 26 May, flying 46 Squadron's Hurricanes off for Norway, her 30 knots, 15.4 m/s, in a flat calm, 100 miles north of Skånland and 40 miles off the coast, published, her heading, toward Bardufoss, an estimate), whether the flight begins on her deck with the engine running and ends landed at the mission's target (on 26 May the first Hurricanes flown off reached Skånland, whose soft strip turned two of them over, and the rest went on to Bardufoss, published), any ballast the aircraft carries as [ kg place ] (the Glorious Hurricanes' published 15 lb sandbag, 6.8 kg, in the rear fuselage, its place an estimate), the aircraft where the mission fixes it (the PR Spitfire, or the Hurricane at Narvik and at Scapa Flow, where no Spitfires served; the Scapa raid's coming from the east about 7 pm, seen by the Shetland radar, published, its fifteen bombers, height and course estimates, the published counts running from 15 to 35, and drawn in daylight, the game having no dusk), the opening message, the group the title lists it under, and the briefing's text; over Norway the height the snow lay down to (estimates: Trøndelag's lowland under snow in early March, the thaw at Narvik begun on 29 April 1940 by the despatches, the snow then lying above about 400 m at the end of May and 600 m in June); a patrol's sightings, each [ name centre ships ], each ship [ kind place heading ], and the airfield it flies from and back to (a representative patrol, no particular one being recorded: the convoy's and the U-boat's places are estimates); and last the custom flight, custom-mission
 : missions ( -- missions )
 	:turnhouse landmark-ground 60 0 wheel-height -580 placed to turnhouse-runway
 	:abbotsinch :greenock landmark-heading to west-from-abbotsinch
@@ -884,9 +953,9 @@ variable wingmen
 	    :propeller :two-pitch :emergency false
 	    :message "DAWN PATROL  -  FINE PITCH (W), OPEN THE THROTTLE AS SHE ROLLS; HANDS OFF, SHE HOLDS THE RUNWAY AND FLIES HERSELF OFF; THEN NOSE DOWN AND TRIM FORWARD (LEFT BRACKET) AS SHE CLIMBS"
 	    :group :reconnaissance
-	    :briefing "PATROL THE FORTH FROM GRANGEMOUTH DOWN THE FIRTH TO THE BASS ROCK AND BACK, AS 614 SQUADRON'S LYSANDERS DID FROM JUNE 1940. REPORT ANY SHIPPING AND ANY U-BOAT ON THE SURFACE BY CIRCLING IT ONCE WITHIN A MILE OF IT AND BELOW 2,000 FT; THE LINES AT THE TOP RIGHT OF THE VIEW COUNT YOUR REPORTS. THEN LAND AT GRANGEMOUTH. START: MAGNETOS ON (M), HOLD K. TAKE OFF IN FINE PITCH (W), OPENING THE THROTTLE AS SHE ROLLS; SHE SWINGS LEFT, SO HOLD HER WITH RIGHT RUDDER AND, AT FULL RUDDER, THE BRAKES (B). THE SLATS AND FLAPS COME OUT BY THEMSELVES AS SHE SLOWS. THE TAILPLANE'S TRIM ([ ]) IS POWERFUL: SET IT FOR THE SPEED." } ] ;
+	    :briefing "PATROL THE FORTH FROM GRANGEMOUTH DOWN THE FIRTH TO THE BASS ROCK AND BACK, AS 614 SQUADRON'S LYSANDERS DID FROM JUNE 1940. REPORT ANY SHIPPING AND ANY U-BOAT ON THE SURFACE BY CIRCLING IT ONCE WITHIN A MILE OF IT AND BELOW 2,000 FT; THE LINES AT THE TOP RIGHT OF THE VIEW COUNT YOUR REPORTS. THEN LAND AT GRANGEMOUTH. START: MAGNETOS ON (M), HOLD K. TAKE OFF IN FINE PITCH (W), OPENING THE THROTTLE AS SHE ROLLS; SHE SWINGS LEFT, SO HOLD HER WITH RIGHT RUDDER AND, AT FULL RUDDER, THE BRAKES (B). THE SLATS AND FLAPS COME OUT BY THEMSELVES AS SHE SLOWS. THE TAILPLANE'S TRIM ([ ]) IS POWERFUL: SET IT FOR THE SPEED." } ] custom-mission add-last! ;
 
-\ each mission's squadron code and its fighters' own letters, the player's first and then each wingman's: 603's XT at Turnhouse from September 1939, 43's FT at Wick, 46's PO in Norway, 72's RN, 602's LO in the Clyde's defence in 1941 (en.wikipedia.org's squadron pages, aviation-safety.net's L1023 coded XT-N in October 1939); the training missions in the code of their base's squadron, Turnhouse's 603 and Abbotsinch's 602; the PR Spitfire uncoded; every letter a choice, none recorded
+\ each mission's squadron code and its fighters' own letters, the player's first and then each wingman's: 603's XT at Turnhouse from September 1939, 43's FT at Wick, 46's PO in Norway, 72's RN, 602's LO in the Clyde's defence in 1941 (en.wikipedia.org's squadron pages, aviation-safety.net's L1023 coded XT-N in October 1939); the training missions in the code of their base's squadron, Turnhouse's 603 and Abbotsinch's 602, and the custom flight in 603's as free flight is; the PR Spitfire uncoded; every letter a choice, none recorded
 [ [ "THE FORTH, 16 OCTOBER 1939" "XT" [ "D" ] ]
   [ "SCAPA FLOW, 16 MARCH 1940" "FT" [ "K" ] ]
   [ "NARVIK, 28 MAY 1940" "PO" [ "E" ] ]
@@ -899,7 +968,8 @@ variable wingmen
   [ "AIR FIRING OVER THE FORTH" "XT" [ "C" ] ]
   [ "FREE FLIGHT FROM TURNHOUSE" "XT" [ "B" ] ]
   [ "LANDING AT ABBOTSINCH" "LO" [ "L" ] ]
-  [ "FOG AT ABBOTSINCH" "LO" [ "M" ] ] ] constant mission-markings
+  [ "FOG AT ABBOTSINCH" "LO" [ "M" ] ]
+  [ "CUSTOM FLIGHT" "XT" [ "B" ] ] ] constant mission-markings
 
 \ a mission's code and its fighters' letters, the player's first, from its row by its name; no code and a blank letter for a mission the table lacks
 : mission-code ( mission -- code letters )
@@ -922,7 +992,7 @@ variable wingmen
 	models :spitfire code mission index mission-letter false marked-model key ! to models
 	key ;
 
-\ the mission's wingmen, each drawn by its own model in the squadron's markings, and the mission's raid, or none
+\ the mission's wingmen, each drawn by its own model in the squadron's markings, and the mission's raid, or none; the raid's escort placed about the Spitfire's start, or about the mission's :escort-origin on its :escort-heading where it gives them
 : start-raid ( mission -- )
 	| mission ^bombers ^sight-span ^wingmen |
 	[ ] to wingmen
@@ -946,8 +1016,8 @@ variable wingmen
 	mission :sight-span sight-span @or to sight-span
 	plan@kind plan@n-vics plan@start plan@target plan@height plan@speed new-raid
 	mission :escort [ ] @or to escort
-	mission@start first to origin
-	mission@start second to start-heading
+	mission :escort-origin mission@start first @or to origin
+	mission :escort-heading mission@start second @or to start-heading
 	escort ( placement |
 		placement spread to turned to along to up to across
 		origin start-heading across up along placed to position

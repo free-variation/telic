@@ -161,16 +161,21 @@ variable scenery-collection
 	plane@attitude@right second asin negate -4 * plane@rates first - hands-envelope negate hands-envelope clamp ;
 
 
-\ the pilot's feet on the ground, on a type whose figures give them a gain (:ground-feet, the Lysander's and the Gladiator's): the bar goes to the trim plus the gain times the degrees the nose is left of the kept heading, less 3 times the yaw rate, so a swing is met before it grows; a rudder key turns the kept heading at this rate, degrees a second, and the feet follow, so a press steers without the whole bar going over; the kept heading is the aircraft's own whenever it is airborne
+\ the pilot's feet on the ground, on a type whose figures give them a gain (:ground-feet, the Lysander's and the Gladiator's): the bar goes to the trim plus the gain times the degrees the nose is left of the kept heading, less 3 times the yaw rate, so a swing is met before it grows; what the feet want beyond the bar's full travel, up to as much again, goes to the brake on that side as the game's :feet-brake, -1 the left wheel's whole brake and 1 the right's, the rudder bar's toe brakes (the share an estimate); a rudder key turns the kept heading at this rate, degrees a second, and the feet follow, so a press steers without the whole bar going over; the kept heading is the aircraft's own whenever it is airborne
 20 constant ground-steer-rate
+\ the flight seconds within which a Hurricane's undercarriage indicator filament may fail, the failure due at a uniformly drawn second of them: two hours, so a sortie of half an hour sees one about a quarter of the time (an estimate)
+7200 constant lamp-failure-span
 : ground-feet ( held elapsed -- correction )
 	| held elapsed |
 	plane@attitude@forward heading-of to heading
 	plane@type :ground-feet null @or to gain
+	0 :feet-brake game!
 	plane@on-ground gain null? not and not if heading :kept-heading game! 0 exit then
 	game :kept-heading null @or null? if heading :kept-heading game! then
 	:kept-heading game@ held ground-steer-rate * elapsed * + 360 mod :kept-heading game!
-	heading :kept-heading game@ - 540 + 360 mod 180 - gain negate * plane@rates 2 @i 3 * - -1 1 clamp ;
+	heading :kept-heading game@ - 540 + 360 mod 180 - gain negate * plane@rates 2 @i 3 * - to wanted
+	wanted abs 1 - 0 1 clamp wanted 0 < if negate then :feet-brake game!
+	wanted -1 1 clamp ;
 
 \ the keys' rudder bar a frame on, and whether it is let go: on the ground where the keys hold it, at once, or where the bias trims it when let go, or, on a type whose feet work on the ground, where the feet hold the kept heading the keys steer; in the air moving from where it stands toward the held end as the keyboard's stick does, and let go left free for the air to carry back to where the bias trims it, or, while the feet correct, moved to where they hold it at the key's rate
 : key-rudder ( held elapsed -- position free )
@@ -218,7 +223,7 @@ variable scenery-collection
 	:k key-down? :left-trigger 0 gamepad-down? or to starting
 	:o key-down? to stopping
 	plane@on-ground not :east 0 gamepad-down? and to fuel-shift
-	{ :pitch pitch :roll roll :yaw yaw :pitch-free pitch-free :roll-free roll-free :yaw-free yaw-free :brakes :b key-down? :east 0 gamepad-down? or :starter starting :cut-out stopping } to controls
+	{ :pitch pitch :roll roll :yaw yaw :pitch-free pitch-free :roll-free roll-free :yaw-free yaw-free :feet-brake pad-rudder 0 = if :feet-brake game@ else 0 then :brakes :b key-down? :east 0 gamepad-down? or :starter starting :cut-out stopping } to controls
 	:m key-pressed? :left-bumper pad-pressed? or if
 		plane@magnetos not plane!magnetos
 		plane@magnetos if "MAGNETOS ON" else "MAGNETOS OFF" then say
@@ -277,6 +282,15 @@ variable scenery-collection
 			plane@type@flap-limit "FLAPS DOWN ABOVE {0} MPH  -  THE AIR MAY BLOW THEM BACK UP" format say
 		else
 			plane@flaps if "FLAPS DOWN" else "FLAPS UP" then say
+		then
+	then
+	:y key-pressed? plane@type@kind :hurricane = and if
+		:shift key-down? if
+			plane@lamp-set 1 = if 2 else 1 then plane!lamp-set
+			"INDICATOR LAMPS CHANGED TO THE " plane@lamp-set 1 = if "FIRST" else "SECOND" then + " PAIR OF BULBS" + say
+		else
+			plane@lamps not plane!lamps
+			plane@lamps if "INDICATOR LAMPS ON" else "INDICATOR LAMPS OFF" then say
 		then
 	then
 	:g key-pressed? :north pad-pressed? or plane@type@fixed-undercarriage and if
@@ -973,7 +987,7 @@ variable wing-surfaces
 	game :aircraft-choice :spitfire @or to aircraft-choice
 	mission@start spread new-plane to plane
 	mission aircraft-choice flown-in :reconnaissance = if plane make-reconnaissance then
-	mission aircraft-choice flown-in :hurricane = if plane hurricane-mk-i use-type then
+	mission aircraft-choice flown-in :hurricane = if plane hurricane-mk-i use-type random lamp-failure-span * plane!lamp-failure-at then
 	mission aircraft-choice flown-in :lysander = if plane lysander-mk-ii use-type then
 	mission aircraft-choice flown-in :gladiator = if plane gladiator-mk-ii use-type then
 	mission mission-code drop to flown-code
@@ -1092,12 +1106,21 @@ variable wing-surfaces
 	airflow plane@attitude@right v-dot airflow v-length 1 max2 / 5 * -1 1 clamp to pedal
 	controls { :roll roll :pitch pitch :yaw pedal :roll-free false :pitch-free false :yaw-free false } merge to controls ;
 
+\ the undercarriage indicator's filament failure: the Hurricane's flight draws the flight second it is due at, and when the flight's time passes it while the lamps are switched on the pair in use goes dark, once, until the changeover switch brings in the spare pair
+: fail-lamps ( -- )
+	plane@lamp-failure-at to due
+	due null? if exit then
+	:flight-time game@ due < plane@lamps not or if exit then
+	plane@lamp-set plane!failed-lamp-set
+	null plane!lamp-failure-at ;
+
 \ advance the flight by elapsed seconds, run faster by the time's pace, in whole steps
 : advance ( elapsed -- )
 	| elapsed |
 	stir-air
 	:accumulated game@ elapsed :time-scale game@ * + :accumulated game!
 	:flight-time game@ elapsed :time-scale game@ * + :flight-time game!
+	fail-lamps
 	0 to steps
 	begin :accumulated game@ step-time >= steps 4 :time-scale game@ * < and while
 		step-time move-deck
@@ -1179,12 +1202,13 @@ variable wing-surfaces
   [ "L" "" "FLIGHT RECORDER ON, OFF: ~/.telic-spitfire-recording.bin" ]
   [ ", ." "" "RUDDER TRIM LEFT, RIGHT" ]
   [ "R" "" "FUEL COCK, MAIN OR RESERVE (HURRICANE)" ]
+  [ "Y, SHIFT Y" "" "UNDERCARRIAGE LAMPS ON, OFF; SHIFT: THE SPARE BULBS (HURRICANE)" ]
   [ "D" "HOLD B, AIR" "HOLD: THE FUEL GAUGE READS THE BOTTOM TANK (SPITFIRE)" ]
   [ "H" "Y ON THE LIST" "HELP; LEFT, RIGHT TURN ITS PAGES" ] ] to control-rows
 
 \ the groups the title lists the missions under, in order, each [ group heading ]
 : mission-groups ( -- groups )
-	[ [ :battle "BATTLES" ] [ :reconnaissance "RECONNAISSANCE" ] [ :training "TRAINING" ] [ :free "FREE FLIGHT" ] ] ;
+	[ [ :battle "BATTLES" ] [ :reconnaissance "RECONNAISSANCE" ] [ :training "TRAINING" ] [ :free "FREE FLIGHT" ] [ :custom "CUSTOM" ] ] ;
 
 \ the list's rows, each [ text choice ]: the campaigns' heading and each campaign by its choice below 0; then each group's heading, its choice null, then the group's missions by their indices
 : menu-rows ( missions -- rows )
@@ -1275,7 +1299,7 @@ variable wing-surfaces
     [ "THE BLIND-FLYING PANEL, IN THE MIDDLE. TOP ROW: THE AIRSPEED IN MILES AN HOUR; THE ARTIFICIAL HORIZON, ITS BAR TILTING AS YOU BANK; THE RATE OF CLIMB, MARKED 1, 2 AND 4 THOUSAND FEET A MINUTE UP ABOVE THE ZERO AND DOWN BELOW IT. BOTTOM ROW: THE ALTIMETER, THE LONG HAND ROUND ONCE EVERY THOUSAND FEET, THE SHORT ONE COUNTING THE THOUSANDS; THE DIRECTIONAL GYRO, THE HEADING IN ITS WINDOW; THE TURN AND SLIP, THE SLIP NEEDLE ABOVE, THE TURN NEEDLE BELOW."
       "TO THE RIGHT, THE ENGINE: THE REVOLUTION COUNTER, THE LONG HAND HUNDREDS AND THE SHORT HAND THOUSANDS OF RPM; THE BOOST GAUGE WITH THE RED RIM, IN POUNDS; THE OIL PRESSURE; THE OIL AND RADIATOR TEMPERATURES, THE RADIATOR'S RED MARK AT 120 C; THE FUEL IN GALLONS, THE GAUGE READING THE BOTTOM TANK ONLY WHILE D HOLDS ITS BUTTON DOWN, THE UNGAUGED TOP TANK FEEDING IT."
       "TO THE LEFT: THE NAVIGATION LIGHTS' SWITCH, THE FLAPS LEVER AND THE G METER; THE OXYGEN REGULATOR'S DIALS AND THE CLOCK; THE UNDERCARRIAGE INDICATOR, UP OR DOWN LIT; THE BRAKES' TRIPLE GAUGE, A NEEDLE FOR EACH WHEEL; THE ELEVATOR TRIM'S NOSE UP AND NOSE DOWN GAUGE; THE MAGNETO SWITCHES. BELOW THE PANEL: THE THROTTLE, MIXTURE AND PROPELLER PITCH LEVERS, THE COMPASS, THE STICK'S GRIP AND THE RUDDER PEDALS; THE STARTER BUTTON AT THE FOOT OF THE RIGHT BOARD."
-      "THE STRIP AT THE BOTTOM RIGHT: THE RAID'S OR THE TARGET'S BEARING AND DISTANCE, AND YOUR ROUNDS AND KILLS. THE HURRICANE'S PANEL CARRIES THE SAME DIALS, LAID OUT AS ITS OWN; R SWITCHES ITS FUEL BETWEEN THE MAIN TANKS AND THE RESERVE." ] ]
+      "THE STRIP AT THE BOTTOM RIGHT: THE RAID'S OR THE TARGET'S BEARING AND DISTANCE, AND YOUR ROUNDS AND KILLS. THE HURRICANE'S PANEL CARRIES THE SAME DIALS, LAID OUT AS ITS OWN; R SWITCHES ITS FUEL BETWEEN THE MAIN TANKS AND THE RESERVE. ITS UNDERCARRIAGE INDICATOR'S LAMPS HAVE A SWITCH, Y, OFF ON THE GROUND UNTIL YOU SWITCH THEM ON, AND A SPARE PAIR OF BULBS: IF A FILAMENT GOES AND THE LIGHT YOU EXPECT STAYS DARK, SHIFT Y CHANGES OVER." ] ]
   [ "FLYING"
     [ "START-UP: MAGNETOS ON WITH M, THEN HOLD K FOR THE STARTER UNTIL SHE FIRES. FINE PITCH FOR THE TAKE-OFF WITH W, AND THE RUDDER TRIM FULLY RIGHT WITH ., AGAINST THE PROPELLER'S SWING TO THE LEFT."
       "TAKE-OFF: OPEN THE THROTTLE WITH Q SMOOTHLY OVER ABOUT FIVE SECONDS, CATCHING THE SWING WITH RIGHT RUDDER, X, SMALL AND EARLY. PAST 30 MPH EASE THE STICK FORWARD TO LIFT THE TAIL AND CHECK IT WITH THE NOSE JUST ABOVE THE HORIZON: HELD FORWARD, THE PROPELLER STRIKES THE RUNWAY. PAST 90 MPH EASE THE STICK BACK. WHEELS UP WITH G, THEN THROTTLE BACK A LITTLE AND COARSE PITCH WITH S, OR SHE OVER-REVS."
@@ -1416,7 +1440,7 @@ help-pages size 1+ constant help-page-count
 	fresh seed
 	{ } to kept
 	game keys ( key | remade-game-keys ( remade | remade key = ) any? not if kept game key @ key ! drop then ) each
-	{ :choice :choice game@ :mission missions :choice game@ choice-mission @i @name :seed fresh
+	{ :choice :choice game@ :mission missions :choice game@ choice-mission @i @name :seed fresh :custom custom-settings
 	  :plane plane :controls controls :deck deck :game kept :bombers bombers :wingmen wingmen
 	  :salvos salvos :flashes flashes :battle-clock battle-clock :photos photos :flak-bursts flak-bursts :tug-track tug-track }
 	flight-path save-value
@@ -1424,9 +1448,10 @@ help-pages size 1+ constant help-page-count
 
 \ the saved flight resumed: its mission started afresh, in the aircraft it was flown in, then everything the flight had changed put back as it was saved, the aircraft's saved keys over the fresh one's so a key added since the save keeps its starting value, and the random numbers seeded as they were; nothing when no flight is saved, or when the title's choice, a campaign, has moved on to another mission since
 : load-flight ( -- )
-	| ^plane ^controls ^deck ^bombers ^wingmen ^salvos ^flashes ^battle-clock ^photos ^flak-bursts ^tug-track |
+	| ^plane ^controls ^deck ^bombers ^wingmen ^salvos ^flashes ^battle-clock ^photos ^flak-bursts ^tug-track ^custom-settings |
 	flight-path file-exists? not if exit then
 	flight-path load-value to saved
+	custom-settings saved :custom { } @or merge to custom-settings
 	missions saved@choice choice-mission @i @name saved@mission = not if exit then
 	saved@game@aircraft-choice :aircraft-choice game!
 	saved@choice new-flight
@@ -1446,6 +1471,37 @@ help-pages size 1+ constant help-page-count
 	saved@seed seed
 	"FLIGHT RESUMED" say ;
 
+\ the aircraft chosen for a mission stepped through its choices by a step, -1, 0 or 1, the ends joined
+: step-aircraft ( mission step -- )
+	| mission step |
+	mission aircraft-choices to kinds
+	kinds size to n-kinds
+	n-kinds 1 > step 0 = not and not if exit then
+	kinds :aircraft-choice game@ position-of 0 max2 to at
+	kinds at step + n-kinds + n-kinds mod @i :aircraft-choice game! ;
+
+\ the custom flight's briefing: up and down choose a line, ends joined, passing over the propeller's while the Lysander or the Gladiator is chosen, their propellers being their own; a step, -1, 0 or 1, changes the line's setting, the aircraft's or one of custom-settings, ends joined, and a change of the place or the enemy redraws the map
+: change-custom ( mission step -- )
+	| mission step ^custom-settings |
+	mission :aircraft-choice game@ flown-in to kind
+	kind :lysander = kind :gladiator = or to own-propeller
+	game :custom-line 0 @or to line
+	:down key-pressed? :dpad-down pad-pressed? or if 1 else :up key-pressed? :dpad-up pad-pressed? or if -1 else 0 then then to move
+	move 0 = not if
+		line move + custom-lines size + custom-lines size mod to line
+		custom-lines line @i first :propeller = own-propeller and if line move + custom-lines size + custom-lines size mod to line then
+	then
+	line :custom-line game!
+	step 0 = if exit then
+	custom-lines line @i to chosen-line
+	chosen-line first to key
+	chosen-line 2 @i to options
+	key :aircraft = if mission step step-aircraft exit then
+	options size to n-options
+	custom-settings key @ step + n-options + n-options mod to setting
+	custom-settings setting key ! drop
+	missions open-briefing ;
+
 \ a frame of the title. On the list: escape quits, F9 resumes the saved flight, up and down choose a campaign or a mission, return or start opens the briefing of the mission chosen or of the campaign's next, H or Y the keys. On the keys: escape, H, Y or back returns to the list. On the briefing: left and right choose the Spitfire or the Hurricane where the mission allows, return or start flies the mission, escape or back returns to the list. On a campaign's debrief: return or start flies the campaign's next mission, the one just flown again when it is not flown, escape or back returns to the list
 : title-frame ( elapsed -- )
 	| elapsed |
@@ -1463,11 +1519,13 @@ help-pages size 1+ constant help-page-count
 		:escape key-pressed? :back pad-pressed? or :east pad-pressed? or if :list :screen game! exit then
 		:return key-pressed? :start pad-pressed? or :south pad-pressed? or if :choice game@ new-flight exit then
 		all-missions :choice game@ choice-mission @i to mission
-		mission aircraft-choices to kinds
-		kinds size to n-kinds
-		kinds :aircraft-choice game@ position-of 0 max2 to at
-		:right key-pressed? :dpad-right pad-pressed? or n-kinds 1 > and if kinds at 1+ n-kinds mod @i :aircraft-choice game! then
-		:left key-pressed? :dpad-left pad-pressed? or n-kinds 1 > and if kinds at n-kinds + 1- n-kinds mod @i :aircraft-choice game! then
+		:right key-pressed? :dpad-right pad-pressed? or if 1 else 0 then :left key-pressed? :dpad-left pad-pressed? or if 1 else 0 then - to step
+		mission :custom false @or if
+			mission step change-custom
+			missions :choice game@ choice-mission @i to mission
+		else
+			mission step step-aircraft
+		then
 		mission :briefing-frame game@ :briefing-lines game@ :aircraft-choice game@ draw-briefing
 		exit
 	then

@@ -192,5 +192,5 @@ clear
 	climber@velocity second 60 * round ;
 4450 gladiator-level-speed . cr                            \ 422
 300 gladiator-level-speed . cr                             \ 356
-gladiator-climb-rate . cr                                  \ 746
+gladiator-climb-rate . cr                                  \ 748
 clear

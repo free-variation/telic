@@ -467,16 +467,18 @@ variable cloud-air
 	point plane centre-of-mass v- spread to along to up to out
 	attitude@right out v* attitude@up up v* v+ attitude@forward along v* v+ ;
 
-\ the undercarriage's wheels, each [ centre radius share compression grips brake ]: the left and right main wheels, each carrying half of what the tailwheel does not, gripping sideways, each braked by the brakes' lever as the rudder bar shares the braking out, the right one more as the bar goes right, as the Spitfire's and Hurricane's differential brakes worked; the castoring tailwheel, unbraked, held sideways only by the friction in its pivot
+\ the undercarriage's wheels, each [ centre radius share compression grips brake ]: the left and right main wheels, each carrying half of what the tailwheel does not, gripping sideways, each braked by the brakes' lever as the rudder bar shares the braking out, the right one more as the bar goes right, as the Spitfire's and Hurricane's differential brakes worked, and each also braked by the pilot's feet where the controls give a :feet-brake, -1 the left wheel's whole brake and 1 the right's; the castoring tailwheel, unbraked, held sideways only by the friction in its pivot
 : wheels ( plane -- wheels )
 	| plane |
 	plane@type to type
 	type@tail-share to tail-share
 	type@main-wheel spread to along to up to out
 	controls@yaw to pedal
+	controls :feet-brake 0 @or to toe
+	controls@brakes if 1 else 0 then to lever
 	1 tail-share - 2 / to main-share
-	[ [ [ out negate up along ] type@wheel-radius main-share main-leg-compression true 1 pedal - 0 1 clamp ]
-	  [ [ out up along ] type@wheel-radius main-share main-leg-compression true 1 pedal + 0 1 clamp ]
+	[ [ [ out negate up along ] type@wheel-radius main-share main-leg-compression true 1 pedal - 0 1 clamp lever * toe negate 0 max2 + 1 min2 ]
+	  [ [ out up along ] type@wheel-radius main-share main-leg-compression true 1 pedal + 0 1 clamp lever * toe 0 max2 + 1 min2 ]
 	  [ type@tail-wheel type@tail-wheel-radius tail-share tail-leg-compression false 0 ] ] ;
 
 \ the wheels' forces on the aircraft and their moments about its centre of gravity, [ roll pitch yaw ] as the air's, and how many wheels touch: each wheel pressed into the surface beneath it a spring stiff enough to compress its leg by the leg's figure under its share of the weight, and a damper of the leg's share of the critical damping; along the wheel's rolling, against its motion over the surface, the rolling friction and the braking; across, a main tyre's grip or the tailwheel's castor friction, growing with the slip angle, the wheel's sideways speed over its rolling speed; each force's moment its arm from the centre of gravity crossed with it; and each tyre's scrub against the aircraft's turning about the vertical; the greatest pull sideways on a main leg, as a share of its strength inboard or outboard, kept as :side-load
@@ -506,7 +508,7 @@ variable cloud-air
 			weight share * compression / to stiffness
 			stiffness weight share * gravity / * sqrt 2 * leg-damping * to damper
 			stiffness depth * damper point-velocity second * - 0 max2 to normal
-			rolling-friction braking-friction controls@brakes if brake else 0 then * + to friction
+			rolling-friction braking-friction brake * + to friction
 			friction normal * point-velocity ahead v-dot 0.5 / -1 1 clamp * negate to drag
 			point-velocity beside v-dot point-velocity ahead v-dot abs 1 max2 / to slip-angle
 			grips if tyre-grip else castor-friction then normal * slip-angle full-grip-slip / -1 1 clamp * negate to side-force
@@ -539,7 +541,7 @@ variable cloud-air
 	plane [ plane@position first height plane@position 2 @i ] :position ! drop
 	plane [ 0 0 0 ] :rates ! drop ;
 
-\ a new aircraft: where it is, which way it faces, how fast it goes along its nose
+\ a new aircraft: where it is, which way it faces, how fast it goes along its nose; its undercarriage indicator's lamps switched on unless it starts on the ground with the engine stopped, the first pair of bulbs in use, neither pair failed, and no failure due until a flight sets one
 : new-plane ( position heading speed on-ground -- plane )
 	| position heading speed on-ground |
 	heading heading-attitude to attitude
@@ -584,6 +586,10 @@ variable cloud-air
 	  :engine-failure ""
 	  :gear on-ground
 	  :gear-position on-ground if 1 else 0 then
+	  :lamps on-ground not
+	  :lamp-set 1
+	  :failed-lamp-set 0
+	  :lamp-failure-at null
 	  :on-ground on-ground
 	  :crashed false
 	  :crash-reason ""
@@ -662,7 +668,7 @@ variable cloud-air
 	  stick second elevator-reach negate elevator-reach clamp
 	  stick 2 @i trimmed rudder-reach - trimmed rudder-reach + clamp -1 1 clamp ] plane!deflections ;
 
-\ the forces on the aircraft, ground frame, newtons, and the moments about its centre of gravity, [ roll pitch yaw ] newton-metres rolling right, pitching up and yawing right. Each half of the wing, left then right, meets the air at the angle of attack raised by the roll on the half going down and by the sideslip through the dihedral on the half it meets, at the speed changed by the yaw, its lift less the aileron's on the right as the stick goes right, the ailerons carrying the type's rigging, the fixed offset the riggers' tab gives them with the stick centred, and the rudder its own rigging the same way with the bar centred, and weakened toward the reversal's dynamic pressure; the halves' lift and drag act at the half ellipse's centroid. The pitching moment: the type's offset, the wing's lift about the centre of gravity, the flaps, and past the stall angle the type's pitch-down, at the free stream's dynamic pressure; the tail's restoring slope and the pitch damping, and the elevator with the trim tab's share, at the tailplane's pressures in the propeller's wake (tailplane-pressures). The yawing moment: the halves' drag, the fuselage's and the fin's stability against the sideslip and the fin's damping of the yaw, the rudder, the slipstream's swirl on the fin, the fin's terms at its strips' dynamic pressures. The propeller's torque and the swirl on the wing roots roll it; its gyroscopic moment couples pitch and yaw. Its thrust's centre moves off the hub where the air meets the disc at an angle, the blade turning into the air's cross-flow seeing it faster: by the cross-flow's speed over the propeller's turning speed, clockwise from the cross-flow's direction seen from behind, so the nose-up airflow moves it right and yaws the nose left and a sideslip from the left moves it down and pitches the nose up (only the faster air reckoned; the blades' changed angle of attack, which their pitch and section would give, would add to it). The torque, both swirls, the gyroscopic moment and the thrust's offset take the sign of the type's :rotation, 1 clockwise seen from the cockpit and -1 the other way
+\ the forces on the aircraft, ground frame, newtons, and the moments about its centre of gravity, [ roll pitch yaw ] newton-metres rolling right, pitching up and yawing right. Each half of the wing, left then right, meets the air at the angle of attack raised by the roll on the half going down and by the sideslip through the dihedral on the half it meets, at the speed changed by the yaw, its lift less the aileron's on the right as the stick goes right, the ailerons carrying the type's rigging, the fixed offset the riggers' tab gives them with the stick centred, and the rudder its own rigging the same way with the bar centred and, the tab being a surface of its own, beyond the rudder's full travel, and weakened toward the reversal's dynamic pressure; the halves' lift and drag act at the half ellipse's centroid. The pitching moment: the type's offset, the wing's lift about the centre of gravity, the flaps, and past the stall angle the type's pitch-down, at the free stream's dynamic pressure; the tail's restoring slope and the pitch damping, and the elevator with the trim tab's share, at the tailplane's pressures in the propeller's wake (tailplane-pressures). The sideslip, which the dihedral, the sideways force and the fuselage's and fin's stability work from, goes no further than the fin's stall angle either way, so that standing in a wind from the side or behind, the air's direction far outside any flown, the aircraft is pushed and turned as by the stalled fin's force and no more. The yawing moment: the halves' drag, the fuselage's and the fin's stability against the sideslip and the fin's damping of the yaw, the rudder, the slipstream's swirl on the fin, the fin's terms at its strips' dynamic pressures. The propeller's torque and the swirl on the wing roots roll it; its gyroscopic moment couples pitch and yaw. Its thrust's centre moves off the hub where the air meets the disc at an angle, the blade turning into the air's cross-flow seeing it faster: by the cross-flow's speed over the propeller's turning speed, clockwise from the cross-flow's direction seen from behind, so the nose-up airflow moves it right and yaws the nose left and a sideslip from the left moves it down and pitches the nose up (only the faster air reckoned; the blades' changed angle of attack, which their pitch and section would give, would add to it). A biplane's upper wing (the type's :upper-wing-up, its height above the propeller's axis) meets the swirl the lower wing roots leave and takes out its own share as they do, no further than the same least share of what it met, so the two wings together may leave half the swirl's speed (the floor applied wing by wing an estimate). The torque, both swirls, the gyroscopic moment and the thrust's offset take the sign of the type's :rotation, 1 clockwise seen from the cockpit and -1 the other way
 : aerodynamics ( plane -- force moments )
 	| plane |
 	plane@type to type
@@ -673,7 +679,7 @@ variable cloud-air
 	0.5 density * speed sq * to dynamic-pressure
 	attitude velocity ground>attitude spread to ahead to rising to across
 	rising negate ahead 0.1 max2 atan2 to angle
-	across ahead 0.1 max2 atan2 to slip
+	across ahead 0.1 max2 atan2 fin-stall-angle negate fin-stall-angle clamp to slip
 	angle plane!angle-of-attack
 	plane@power plane@rated-power * to power
 	speed 120 / 1 min2 0.01 max2 0.4 ^ type@propeller-efficiency * to efficiency
@@ -685,7 +691,7 @@ variable cloud-air
 	plane@rates spread to yaw-rate to pitch-rate to roll-rate
 	plane@deflections spread to rudder to elevator to aileron
 	aileron type@aileron-rigging + -1 1 clamp to aileron
-	rudder type@rudder-rigging + -1 1 clamp to rudder
+	rudder -1 1 clamp type@rudder-rigging + to rudder
 	plane@flap-setting to flaps
 	type@wing-area to area
 	type@span to span
@@ -710,7 +716,7 @@ variable cloud-air
 	attitude@up airflow attitude@up airflow v-dot v* v- v-unit to lift-direction
 	lift-direction lifts first lifts second + v* to lift
 	airflow drags first drags second + negate v* to drag
-	attitude@right across ahead 0.1 max2 / dynamic-pressure * area * -0.6 * v* to sideways
+	attitude@right slip tan dynamic-pressure * area * -0.6 * v* to sideways
 	lifts first lifts second - arm * to roll-moment
 	coefficients first coefficients second + 2 / to wing-lift
 	plane@revolutions type@rated-revolutions * type@propeller-gear * TAU * 60 / 10 max2 to propeller-speed
@@ -727,6 +733,12 @@ variable cloud-air
 	type@elevator-power elevator plane@trim type@trim-range * + * elevator-pressure * + area chord * * to pitch-moment
 	wake density chord type@lift-slope type@stall-angle torque type@wing-root-up swirl-roll to root-roll
 	1 root-roll torque 1 max2 / - least-swirl-left max2 to swirl-left
+	type :upper-wing-up null @or to upper-up
+	upper-up null? not if
+		[ wake first wake second wake 2 @i swirl-left * ] density chord type@lift-slope type@stall-angle torque swirl-left * upper-up swirl-roll to upper-roll
+		root-roll upper-roll + to root-roll
+		1 upper-roll torque swirl-left * 1 max2 / - least-swirl-left max2 swirl-left * to swirl-left
+	then
 	plane wake swirl-left speed rising across density fin-forces spread to slip-pressure to fin-pressure to swirl-moment
 	propeller-inertia propeller-speed * rotation * to spin
 	type@fuselage-stability slip * dynamic-pressure * area * span *

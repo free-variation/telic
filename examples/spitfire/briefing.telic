@@ -412,7 +412,7 @@ variable placed-labels
 	kind :he-111 = if "HE 111s" exit then
 	"BF 110s" ;
 
-\ the particulars, each [ label value ], read from the mission and the aircraft chosen for it
+\ the particulars, each [ label value ], read from the mission and the aircraft chosen for it; the propeller the mission's but the Gladiator's, fixed-pitch, and the Lysander's, two-pitch, as the flight's start makes them
 : briefing-particulars ( mission choice -- rows )
 	| mission choice |
 	mission :moon null @or to moon
@@ -432,7 +432,9 @@ variable placed-labels
 	else
 		"SPITFIRE MK I, EIGHT BROWNINGS, 300 ROUNDS EACH"
 	then then then then to aircraft-text
-	mission@propeller :two-pitch = if "TWO-PITCH" else "CONSTANT-SPEED" then to propeller-text
+	mission choice flown-in :gladiator = if "FIXED-PITCH" else
+		mission choice flown-in :lysander = mission@propeller :two-pitch = or if "TWO-PITCH" else "CONSTANT-SPEED" then
+	then to propeller-text
 	mission choice flown-in :lysander = if "PERSEUS XII, 87 OCTANE" else mission choice flown-in :gladiator = if "MERCURY VIII, 87 OCTANE" else
 		mission@emergency if "+6 LB, +12 LB EMERGENCY ON 100 OCTANE" else "+6 LB, 87 OCTANE" then
 	then then to boost-text
@@ -462,6 +464,7 @@ variable placed-labels
 	  [ "START" start-text ] [ "WEATHER" weather-text ] [ "ENEMY" opposition-text ] ] to rows
 	mission :wingmen [ ] @or size to n-wingmen
 	n-wingmen 0 > if rows [ "SQUADRON" n-wingmen "{0} MORE SPITFIRES WITH YOU" format ] add-last! drop then
+	mission :custom false @or if [ [ "PLACE" custom-places custom-settings@place @i second ] ] rows concat to rows then
 	rows ;
 
 \ a model drawn turning about its vertical axis at an angle, seen from 9° above, nearly level so the canopy stands out against the background, without perspective: each point's place across the screen and up it, a scale's pixels a metre from a centre
@@ -524,9 +527,15 @@ variable placed-labels
 	mission frame segments true draw-briefing-map
 	map-top 4 + to y
 	mission choice briefing-particulars to rows
+	mission :custom false @or if custom-lines game :custom-line 0 @or @i second else "" then to chosen-label
 	0 rows size 1 do k
 		rows k @i to row
-		particulars-left y row first heading-colour draw-text
+		row first chosen-label = if
+			particulars-left 12 - y ">" 0xffffff draw-text
+			particulars-left y row first 0xffffff draw-text
+		else
+			particulars-left y row first heading-colour draw-text
+		then
 		row second values-width wrapped-lines to value-lines
 		0 value-lines size 1 do m
 			values-left y value-lines m @i dial-ink draw-text
@@ -539,7 +548,9 @@ variable placed-labels
 	0 lines size 1 do k
 		16 briefing-top k 13 * + lines k @i dial-ink draw-text
 	loop
-	mission aircraft-choosable? if
+	mission :custom false @or if
+		320 448 "UP AND DOWN: CHOOSE A LINE  -  LEFT AND RIGHT: CHANGE IT" heading-colour centred-print
+	else mission aircraft-choosable? if
 		320 448 "LEFT AND RIGHT: CHOOSE THE AIRCRAFT" heading-colour centred-print
-	then
+	then then
 	320 462 "RETURN OR START FLIES  -  ESCAPE FOR THE MISSIONS" 0xffffff centred-print ;
