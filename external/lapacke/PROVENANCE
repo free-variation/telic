@@ -2,14 +2,14 @@ LAPACKE (C interface to LAPACK) -- vendored closure, not the full library.
 
 Upstream:  https://github.com/Reference-LAPACK/lapack
 Commit:    67371708232dcb922040c3112d28f9f4c8d52fb8
-Routines:  dgesvd dgelsd dpotrf dpotrs dgels
+Routines:  dgesvd dgelsd dpotrf dpotrs dgels dsyev dgetrf dgetri
 Contents:  the exact object closure of those LAPACKE_<routine> wrappers
            (derived from a linker dead-strip map), split into src/ and utils/,
            plus the include/ headers they need.
 License:   modified BSD (BSD-3-Clause). See LICENSE.
 
 Build:     the top-level Makefile compiles src/ + utils/ into liblapacke.a, then
-           links liblapacke_water.so against the platform BLAS/LAPACK (Accelerate
+           links liblapacke_telic.so against the platform BLAS/LAPACK (Accelerate
            on macOS, OpenBLAS on Linux), so the Fortran routines (dgesvd_, ...)
            resolve there. The exported-symbol set is exactly LAPACKE_ROUTINES.
 

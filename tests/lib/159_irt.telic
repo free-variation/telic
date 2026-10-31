@@ -1,0 +1,119 @@
+\ lib/irt.telic against R's mirt 1.46.1 on the datasets mirt bundles, written
+\ to data/ by tools/gen-irt-fixtures.R: fit-irt ( responses models options --
+\ fit ), irt-scores ( fit responses method -- scores ) and irt-probabilities
+\ ( fit item thetas -- probabilities ). The reference values are mirt's with its
+\ defaults (EM over 61 evenly spaced nodes, convergence at 1e-4); this library
+\ integrates over 61 Gauss–Hermite nodes, so estimates agree to about 0.01 and
+\ log-likelihoods to about 0.01. Standard errors are each item's block of the
+\ observed information, so they run a few percent under mirt's full-information
+\ ones; the test pins them to that relation, not to equality.
+
+"lib/irt.telic" load
+
+"data/lsat7.tsv" read-tsv [ :Item.1 :Item.2 :Item.3 :Item.4 :Item.5 ] dataset>matrix to lsat
+"data/science.tsv" read-tsv [ :Comfort :Work :Future :Benefit ] dataset>matrix to science
+lsat :2pl { } fit-irt to two-parameter
+
+new-tests
+
+\ === Gauss–Hermite quadrature (lib/statistics.telic) ===
+"three points: nodes ±√3 and 0, weights 1/6 2/3 1/6" (
+	3 gauss-hermite to weights to nodes
+	nodes [ -3 sqrt 0 3 sqrt ] vector 1e-12 expect-near
+	weights [ 1/6 exact>float 2/3 exact>float 1/6 exact>float ] vector 1e-12 expect-near
+) test
+
+"61 points: the standard normal's moments" (
+	61 gauss-hermite to weights to nodes
+	weights sum 1 1e-12 expect-near
+	nodes sq weights * sum 1 1e-10 expect-near
+	nodes 4 ^ weights * sum 3 1e-9 expect-near
+) test
+
+\ === 2PL on LSAT7 ===
+"2PL estimates match mirt's" (
+	two-parameter@converged 1 expect=
+	two-parameter@log-likelihood -2658.805 0.01 expect-near
+	two-parameter@items ( @slope ) map vector [ 0.9879254 1.0808847 1.7058006 0.7651853 0.7357980 ] vector 0.005 expect-near
+	two-parameter@items ( @intercepts first ) map vector [ 1.8560605 0.8079786 1.8042187 0.4859966 1.8545127 ] vector 0.005 expect-near
+) test
+
+"2PL standard errors sit a few percent under mirt's full-information ones" (
+	two-parameter@items first @standard-errors to errors
+	errors@slope 0.1772448 / dup 0.9 > expect 1 < expect
+	errors@intercept 0.1314899 / dup 0.9 > expect 1 < expect
+) test
+
+"difficulties are -d/a" (
+	two-parameter@items first to item
+	item@difficulties first item@intercepts first item@slope / negate 1e-12 expect-near
+) test
+
+\ === Rasch on LSAT7 ===
+"Rasch estimates and the trait's variance match mirt's" (
+	lsat :rasch { } fit-irt to rasch
+	rasch@log-likelihood -2664.901 0.01 expect-near
+	rasch@latent-variance 1.022 0.005 expect-near
+	rasch@items ( @intercepts first ) map vector [ 1.868 0.791 1.461 0.521 1.993 ] vector 0.005 expect-near
+	rasch@items ( @slope ) map vector [ 1 1 1 1 1 ] vector 0 expect-near
+) test
+
+\ === 3PL on LSAT7 ===
+"3PL matches mirt: guessing near zero but on item 2" (
+	lsat :3pl { :standard-errors 0 } fit-irt to three-parameter
+	three-parameter@log-likelihood -2658.055 0.01 expect-near
+	three-parameter@items ( @guessing ) map 1 @i 0.2950546 0.01 expect-near
+	three-parameter@items ( @guessing ) map [ 0 2 3 4 ] select-rows ( 0.001 < ) all? expect
+) test
+
+\ === graded on Science, categories coded 1 to 4 ===
+"graded estimates match mirt's" (
+	science :graded { } fit-irt to graded
+	graded@log-likelihood -1608.87 0.01 expect-near
+	graded@items ( @slope ) map vector [ 1.041755 1.225962 2.293372 1.094915 ] vector 0.01 expect-near
+	graded@items first @intercepts vector [ 4.864154 2.6399417 -1.466013 ] vector 0.01 expect-near
+	graded@items first @categories [ 1 2 3 4 ] expect=
+) test
+
+"a four-category item under :2pl throws" (
+	( science :2pl { } fit-irt ) expect-throws
+) test
+
+\ === missing responses ===
+"item 2 missing on every seventh person matches mirt's fit" (
+	lsat copy to gappy
+	6 993 7 matrix-range matrix>array ( row | gappy null row 1 !i,j drop ) each
+	gappy :2pl { :standard-errors 0 } fit-irt to gappy-fit
+	gappy-fit@log-likelihood -2572.885 0.01 expect-near
+	gappy-fit@items ( @slope ) map vector [ 1.0061635 1.0900198 1.6524105 0.7763943 0.7420594 ] vector 0.005 expect-near
+) test
+
+\ === scores ===
+"EAP scores match mirt's" (
+	two-parameter lsat :eap irt-scores to scores
+	scores@theta 0 @e -1.869854 0.001 expect-near
+	scores@se 0 @e 0.6927338 0.001 expect-near
+) test
+
+"MAP scores match mirt's" (
+	two-parameter lsat :map irt-scores to scores
+	scores@theta 0 @e -1.8165493 0.001 expect-near
+	scores@se 0 @e 0.6750195 0.001 expect-near
+	scores@theta 999 @e 0.6382316 0.001 expect-near
+	scores@se 999 @e 0.8035210 0.001 expect-near
+) test
+
+\ === category curves ===
+"a 2PL item's two curves sum to 1 and rise with the trait" (
+	two-parameter 0 [ -2 0 2 ] irt-probabilities to curves
+	curves row-sums [ 1 1 1 ] vector 1e-12 expect-near
+	curves 1 @j matrix>array dup sort expect=
+) test
+
+"errors name the problem" (
+	( lsat :5pl { } fit-irt ) expect-throws
+	( lsat [ :2pl ] { } fit-irt ) expect-throws
+	( two-parameter lsat :median irt-scores ) expect-throws
+) test
+
+test-report

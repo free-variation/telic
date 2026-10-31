@@ -27,7 +27,8 @@ Two kinds of runnable documentation, both extracted here:
      tests/900_docs_<section-slug>.{telic,expected,sed}
 
    (tests/lib/ for a section whose examples load the dependency-bearing
-   statistics library; a pure-forth library section such as plotting
+   statistics library or the IRT library built on it, EXTERNAL_LIBRARY_LOADS;
+   a pure-forth library section such as plotting
    stays in the core suite, per the tests convention). The .expected is
    the concatenated output fences — the reference's stated output IS
    the golden — and the .sed strips trailing blanks on both sides.
@@ -81,6 +82,11 @@ GENERATED_HEADER = (
 )
 
 STRIP_TRAILING_BLANKS_SED = "s/[[:blank:]]+$//\n"
+
+# Loads of the libraries that reach LAPACK through the FFI: the statistics
+# library and the IRT library, which loads it. A section whose examples load
+# either is native-only and goes to tests/lib/.
+EXTERNAL_LIBRARY_LOADS = ['"statistics" load-library', '"irt" load-library']
 
 
 def slug(section_name):
@@ -226,7 +232,8 @@ def emit_examples():
     for key in order:
         prefix, section = key
         pairs = grouped[key]
-        external = any('"statistics" load-library' in code_of(line)
+        external = any(library in code_of(line)
+                       for library in EXTERNAL_LIBRARY_LOADS
                        for code, _ in pairs for line in code.splitlines())
         test_dir = os.path.join("tests", "lib") if external else "tests"
         name = "%s_docs_%s" % (prefix, slug(section))

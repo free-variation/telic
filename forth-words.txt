@@ -312,6 +312,7 @@ fit-augmented-logistic
 fit-gamma
 fit-glm
 fit-glm-weighted
+fit-irt
 fit-linear
 fit-logistic
 fit-logistic-ridge
@@ -364,6 +365,7 @@ gauges-publication-path
 gauges-view
 gauges-view-once
 gauges>rows
+gauss-hermite
 gc
 gen-each
 gen-take
@@ -405,8 +407,11 @@ int-segment
 internal
 intersection
 intervals
+inverse
 iota
 iqr
+irt-probabilities
+irt-scores
 iso>time
 join
 json>frame
@@ -468,6 +473,7 @@ merge-by
 mesh
 min
 min2
+minimize
 mkdir
 mod
 mv
@@ -497,6 +503,8 @@ null?
 num-cores
 num-elements
 numerator
+numeric-gradient
+numeric-hessian
 of
 ollama-add-tool
 ollama-blob?
@@ -757,6 +765,7 @@ svg-text
 swap
 symbol
 symbol?
+symmetric-eigen
 take
 take-solutions
 tan

@@ -15,7 +15,8 @@
 set -eu
 
 REPO=https://github.com/Reference-LAPACK/lapack
-DEFAULT_ROUTINES="dgesvd dggglm dgglse"
+COMMIT=67371708232dcb922040c3112d28f9f4c8d52fb8
+DEFAULT_ROUTINES="dgesvd dgelsd dpotrf dpotrs dgels dsyev dgetrf dgetri"
 ROUTINES="${*:-$DEFAULT_ROUTINES}"
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -23,9 +24,10 @@ DEST="$ROOT/external/lapacke"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
-echo "cloning $REPO ..."
-git clone --depth 1 "$REPO" "$WORK/lapack" >/dev/null 2>&1
-COMMIT=$(git -C "$WORK/lapack" rev-parse HEAD)
+echo "fetching $REPO at $COMMIT ..."
+git init -q "$WORK/lapack"
+git -C "$WORK/lapack" fetch -q --depth 1 "$REPO" "$COMMIT"
+git -C "$WORK/lapack" checkout -q FETCH_HEAD
 
 cd "$WORK/lapack/LAPACKE"
 # lapack.h includes "lapacke_mangling.h", which upstream only ships as a .in

@@ -112,14 +112,10 @@ through consumption to its destination — a `to name`, a store, a print, an
 
 ## Control structures compile
 
-`if`/`else`/`then`, `begin`/`while`/`repeat`/`until`/`again`, and
-`leave`/`continue` are compile-time words: they emit branch instructions into
-the definition being compiled. They belong inside a `: … ;` or a `( … )`
-body — at the top level of a file or the REPL there is no definition to emit
-into, and the opener errors (`if: only valid inside a colon definition or
-quotation`).
+Control words work only inside `: … ;` or `( … )` (the reference preamble
+lists them). At the top level:
 
-- A top-level conditional goes in a quotation, run on the spot:
+- A conditional goes in a quotation, run on the spot:
 
   ```forth top-level-conditional
   variable checksum 7 to checksum
@@ -130,11 +126,9 @@ quotation`).
   checked
   ```
 
-- A top-level loop is `times`/`i-times` over a quotation, or a defined word.
-
-- Definitions do not nest in branches: a `:` inside a top-level `if`/`then`
-  (conditional definition) breaks for the same reason. Define the word
-  unconditionally and branch inside it.
+- A definition does not nest in a branch: a `:` inside a top-level
+  `if`/`then` breaks for the same reason. Define the word unconditionally and
+  branch inside it.
 
 ## The logic engine
 
@@ -177,14 +171,7 @@ result must compose with `map`/`filter`/`unify`. The two interoperate — a
   ```
 
 - `choose` is n-way `amb` over an array — a backtracking iteration that
-  commits to the first element the goal accepts:
-
-  ```forth choose-commit
-  [ 1 2 3 ] ( dup 2 < if fail then . cr ) choose
-  ```
-  ```output
-  2
-  ```
+  commits to the first element the goal accepts.
 
 - `matches?` is the non-destructive test — unify, roll the trail back, answer
   a flag — so pattern tests compose in straight-line code; over an array of
@@ -319,14 +306,7 @@ traversals to one word each (`find-first` and `any?` short-circuit).
   strings ' size map 0 ' max2 reduce to width
   ```
 
-- `nmap` zips parallel arrays through an n-ary quotation:
-
-  ```forth nmap-zip
-  [ 1 2 ] [ 10 20 ] ' + 2 nmap . cr
-  ```
-  ```output
-  [ 11 22 ]
-  ```
+- `nmap` zips parallel arrays through an n-ary quotation.
 
 - `each` is the side-effect traversal — the element is consumed, nothing is
   left:
@@ -618,19 +598,7 @@ How values reach a quotation body, beyond its own locals.
 
 - Name the enclosing local and the quotation captures it — a copy, taken
   where the literal is evaluated, bound into a curried token the compiler
-  builds for you (`scale-all`):
-
-  ```forth capture-enclosing-local
-  : scale-all ( rows factor -- rows )
-      | rows factor |
-      rows ( factor * ) map ;
-  [ 1 2 3 ] 10 scale-all . cr
-  ```
-  ```output
-  [ 10 20 30 ]
-  ```
-
-  This is `factor ( factor | factor * ) curry map` with the plumbing
+  builds for you: `rows ( factor * ) map` with `factor` a local is `factor ( factor | factor * ) curry map` with the plumbing
   removed; the per-element cost is the same. The copy is the point: `to`
   on the name inside the quotation makes a fresh local, and `++` on it is a
   compile error, since neither would reach the enclosing slot.
@@ -726,24 +694,10 @@ coroutines are short compositions over them (exceptions.telic, generators.telic)
   ```
 
 - A path locator gets and sets through nesting, and `!` vivifies the
-  intermediate frames:
-
-  ```forth path-vivify
-  { } 5 /a/b ! /a/b @ . cr
-  ```
-  ```output
-  5
-  ```
+  intermediate frames.
 
 - A search path extracts from a tree in one call — `*` any child, `//` any
-  depth, `[k>v]` predicates:
-
-  ```forth search-path
-  { :a { :n 1 } :b { :n 2 } } /*/n select-values . cr
-  ```
-  ```output
-  [ 1 2 ]
-  ```
+  depth, `[k>v]` predicates.
 
 - `null` is the answer for "nothing to fit" or "nothing to join": a word
   whose guard fails logs the reason and answers `null` through an early exit,
@@ -820,18 +774,7 @@ compiler's fusion targets.
 - Verify the fusion, don't assume it: `' word see-compiled` shows the
   compiled cells — fused ops like `(lf+)`, `(ll*0!)`, `(=0branch)` confirm
   the loop compiled tight — and `timed` settles what the disassembly leaves
-  open:
-
-  ```forth fusion-check
-  : sc-demo ( -- f ) 1.5 2.5 f+ ; ' sc-demo see-compiled
-  ```
-  ```output
-  : sc-demo   \ 5 cells
-   0: (lit) 1.5
-   2: (lf+) 2.5
-   4: exit
-  ;
-  ```
+  open.
 
 ## Writing tests
 

@@ -1,0 +1,277 @@
+\ Item response theory for one latent trait, after R's mirt (Chalmers, 2012) in
+\ its slope-intercept parameterization: an item's chance of a correct response at
+\ trait θ is g + (u − g)·σ(aθ + d), and a graded item's chance of reaching
+\ category k or above is σ(aθ + d_k), its intercepts falling with k. Fitted by
+\ Bock and Aitkin's EM over Gauss–Hermite quadrature of a standard normal trait,
+\ each item's M-step a BFGS minimize; a Rasch fit (slopes 1) estimates the trait's
+\ variance too. Standard errors are each item's block of the observed
+\ information, so they leave out the covariance between items. Each item's
+\ categories are its observed values in ascending order, recoded 0..K−1 as mirt
+\ recodes them; a missing response is NaN.
+
+"statistics" load-library
+
+[ :rasch :2pl :3pl :4pl :graded ] constant irt-models
+
+\ ---- items ----
+
+\ the logit of a probability, held inside (1e-6, 1 − 1e-6)
+: logit ( p -- x ) 1e-6 1 1e-6 - clamp dup 1 swap - / ln ; internal
+
+\ an item's category probabilities at each trait value of a 1×Q row, as K×Q, every one at least 1e-12
+: item-probabilities ( item theta -- probabilities )
+	| item theta |
+
+	theta item@slope * to slope-theta
+	item@model :graded = if
+		1 theta num-elements 0-matrix to zeros
+		item@intercepts ( slope-theta + sigmoid ) map zeros 1 + ' vstack reduce zeros vstack to cumulative
+		cumulative dim drop to n-rows
+		cumulative 0 n-rows 1- 0 theta num-elements submatrix
+		cumulative 1 n-rows 0 theta num-elements submatrix -
+	else
+		item@intercepts first slope-theta + sigmoid item@upper item@guessing - * item@guessing + to correct
+		1 correct - correct vstack
+	then
+	1e-12 max2 ; internal
+
+\ the parameters the M-step searches over, unbounded: the slope unless Rasch, the intercept or a graded item's first intercept and then the logs of its gaps, and the logits of the guessing and upper chances
+: item-search-vector ( item -- x )
+	| item |
+
+	item@intercepts to intercepts
+	item@model :rasch = if [ ] else [ item@slope ] then
+	item@model :graded = if
+		[ intercepts first ] concat
+		intercepts size 1- iota ( k | intercepts k @i intercepts k 1+ @i - ln ) map concat
+	else
+		[ intercepts first ] concat
+	then
+	item@model :3pl = item@model :4pl = or if [ item@guessing logit ] concat then
+	item@model :4pl = if [ item@upper logit ] concat then
+	vector ; internal
+
+\ the item with the parameters of a search vector
+: item-from-search ( item x -- item' )
+	| item x |
+
+	item copy to fitted
+	0 to at
+	item@model :rasch = not if fitted x at @e :slope ! drop ++ at then
+	x at @e to intercept
+	++ at
+	[ intercept ] to intercepts
+	item@model :graded = if
+		0 item@intercepts size 1- 1 do k
+			intercept x at @e exp - to intercept
+			intercepts intercept add-last! drop
+			++ at
+		loop
+	then
+	fitted intercepts :intercepts ! drop
+	item@model :3pl = item@model :4pl = or if fitted x at @e sigmoid :guessing ! drop ++ at then
+	item@model :4pl = if fitted x at @e sigmoid :upper ! drop then
+	fitted ; internal
+
+\ the parameters a standard error is reported for, in the reported scale: the slope unless Rasch, the intercepts, the guessing and upper chances
+: item-reported-vector ( item -- x )
+	| item |
+
+	item@model :rasch = if [ ] else [ item@slope ] then
+	item@intercepts concat
+	item@model :3pl = item@model :4pl = or if [ item@guessing ] concat then
+	item@model :4pl = if [ item@upper ] concat then
+	vector ; internal
+
+\ the item with the parameters of a reported vector
+: item-from-reported ( item x -- item' )
+	| item x |
+
+	item copy to fitted
+	0 to at
+	item@model :rasch = not if fitted x at @e :slope ! drop ++ at then
+	item@intercepts size iota ( k | x at k + @e ) map to intercepts
+	at intercepts size + to at
+	fitted intercepts :intercepts ! drop
+	item@model :3pl = item@model :4pl = or if fitted x at @e :guessing ! drop ++ at then
+	item@model :4pl = if fitted x at @e :upper ! drop then
+	fitted ; internal
+
+\ the names of an item's reported parameters, in item-reported-vector's order
+: item-parameter-names ( item -- names )
+	| item |
+
+	item@model :rasch = if [ ] else [ :slope ] then
+	item@intercepts size iota ( k | k "intercept-{0}" format string>symbol ) map
+	item@intercepts size 1 = if drop [ :intercept ] then concat
+	item@model :3pl = item@model :4pl = or if [ :guessing ] concat then
+	item@model :4pl = if [ :upper ] concat then ; internal
+
+\ ---- data ----
+
+\ an item's responses as an N×K indicator matrix, a row of zeros where the response is missing
+: category-indicators ( column categories -- indicators )
+	| column categories |
+	categories ( category | column category eq ) map null ' hstack reduce ; internal
+
+\ an item's starting parameters from its responses: slope 1, guessing 0.1 for a 3PL or 4PL and upper 0.95 for a 4PL, and intercepts the logits of the shares at or above each category above the lowest, those at the bottom of a 3PL or 4PL corrected for guessing
+: starting-item ( model indicators categories -- item )
+	| model indicators categories |
+
+	indicators column-sums to counts
+	counts sum to n-answered
+	1 categories size 1 do k
+		n-answered counts 0 1 0 k submatrix sum - n-answered /
+	loop
+	categories size 1- array to shares
+	model :3pl = model :4pl = or if 0.1 else 0 then to guessing
+	model :4pl = if 0.95 else 1 then to upper
+	shares ( share | share guessing - upper guessing - / logit ) map to intercepts
+	1 intercepts size 1 do k
+		intercepts k @i intercepts k 1- @i 0.05 - min2 intercepts swap k !i drop
+	loop
+	{ :model model :slope 1 :intercepts intercepts :guessing guessing :upper upper :categories categories } ; internal
+
+\ ---- estimation ----
+
+\ every item's log-likelihood at every node summed, as N×Q
+: total-log-likelihood ( items indicators theta -- log-likelihood )
+	| items indicators theta |
+	items size iota ( k | indicators k @i items k @i theta item-probabilities ln matmul ) map to terms
+	terms 1 skip terms first ' + reduce ; internal
+
+\ the posterior over the nodes for every person, as N×Q, and the marginal log-likelihood, from the summed log-likelihoods and the nodes' weights
+: posterior ( log-likelihood weights -- posterior marginal )
+	| log-likelihood weights |
+
+	log-likelihood row-maxes to peaks
+	log-likelihood peaks - exp weights transpose * to unnormalized
+	unnormalized row-sums to totals
+	unnormalized totals /
+	totals ln peaks + sum ; internal
+
+\ the negative marginal log-likelihood as a function of one item's reported parameters, the other items' log-likelihoods held at rest
+: item-marginal-objective ( item rest indicators theta weights -- objective )
+	| item rest indicators theta weights |
+	( x | indicators item x item-from-reported theta item-probabilities ln matmul rest + weights posterior nip negate ) ; internal
+
+\ an item's standard errors from its block of the observed information at the fit, as a frame by parameter name; null names a parameter whose block cannot be inverted
+: item-standard-errors ( item rest indicators theta weights -- errors )
+	| item rest indicators theta weights |
+
+	item item-reported-vector to reported
+	item rest indicators theta weights item-marginal-objective to objective
+	( reported objective numeric-hessian inverse diagonal sqrt matrix>array ) catch if drop reported num-elements null swap array-of then to errors
+	item item-parameter-names errors frame ; internal
+
+\ the difficulties in IRT's usual parameterization, −d/a for each intercept
+: item-difficulties ( item -- difficulties )
+	| item |
+	item@intercepts ( item@slope / negate ) map ; internal
+
+\ fit an IRT model to responses, an N×J matrix, one row per person and one column per item, NaN where missing: models a symbol from irt-models for every item or an array of one per item; options a frame of :quadrature-points (61), :max-cycles (500), :tolerance (1e-4), the largest change of any search parameter between EM cycles that counts as converged, and :standard-errors (1). Answers { :items :log-likelihood :cycles :converged :latent-variance :nodes :weights }, each item { :model :slope :intercepts :difficulties :guessing :upper :categories :standard-errors }
+: fit-irt ( responses models options -- fit )
+	| responses models options |
+
+	responses dim to n-items to n-people
+	models symbol? if models n-items array-of to models then
+	models size n-items = not if n-items models size "fit-irt: {0} models for {1} items" format throw then
+	models ( model | irt-models model position-of 0 < ) find-first to unknown
+	unknown null? not if unknown "fit-irt: unknown model {0}" format throw then
+
+	options :quadrature-points 61 @or gauss-hermite to weights to nodes
+	options :max-cycles 500 @or to max-cycles
+	options :tolerance 1e-4 @or to tolerance
+	models ( :rasch = ) all? to estimate-variance
+
+	[ ] to indicators
+	[ ] to items
+	0 n-items 1 do j
+		responses j @j to column
+		column drop-nans matrix>array array>set set>array to categories
+		categories size 2 < if j "fit-irt: item {0} has fewer than two categories" format throw then
+		models j @i :graded = not categories size 2 > and if j "fit-irt: item {0} has more than two categories; model it :graded" format throw then
+		column categories category-indicators to item-indicators
+		indicators item-indicators add-last! drop
+		items models j @i item-indicators categories starting-item add-last! drop
+	loop
+
+	1 to variance
+	0 to cycles
+	0 to converged
+	begin cycles max-cycles < while
+		nodes variance sqrt * transpose to theta
+		items indicators theta total-log-likelihood weights posterior to marginal to posteriors
+
+		0 to largest-change
+		0 n-items 1 do j
+			items j @i to item
+			indicators j @i transpose posteriors matmul to expected
+			item item-search-vector to start
+			start ( x | item x item-from-search theta item-probabilities ln expected * sum negate ) null 50 1e-10 minimize @estimate to found
+			found start - abs max largest-change max2 to largest-change
+			items item found item-from-search j !i drop
+		loop
+
+		estimate-variance if
+			posteriors theta sq * sum n-people / to new-variance
+			new-variance sqrt variance sqrt - abs largest-change max2 to largest-change
+			new-variance to variance
+		then
+
+		++ cycles
+		largest-change tolerance < if 1 to converged leave then
+	repeat
+
+	nodes variance sqrt * transpose to theta
+	items indicators theta total-log-likelihood to log-likelihood
+	log-likelihood weights posterior to marginal drop
+
+	options :standard-errors 1 @or if
+		0 n-items 1 do j
+			items j @i to item
+			indicators j @i item theta item-probabilities ln matmul to own
+			item log-likelihood own - indicators j @i theta weights item-standard-errors to errors
+			items item errors :standard-errors ! j !i drop
+		loop
+	then
+	items ( item | item item item-difficulties :difficulties ! ) map to items
+
+	{ :items items :log-likelihood marginal :cycles cycles :converged converged
+	  :latent-variance variance :nodes nodes variance sqrt * :weights weights } ;
+
+\ ---- scoring ----
+
+\ every person's trait estimate and its standard error from a fit and the responses it was fitted to, or new ones in the same columns: method :eap, the posterior mean and standard deviation over the fit's nodes, or :map, the posterior mode under the fitted normal trait by minimize from the EAP, its error from the curvature there. Answers { :theta :se }, n×1 vectors
+: irt-scores ( fit responses method -- scores )
+	| fit responses method |
+
+	fit@items to items
+	fit@nodes transpose to theta
+	items size iota ( j | responses j @j items j @i @categories category-indicators ) map to indicators
+	items indicators theta total-log-likelihood fit@weights posterior drop to posteriors
+	posteriors theta transpose matmul to means
+	posteriors theta sq transpose matmul means sq - 0 max2 sqrt to errors
+	method :eap = if { :theta means :se errors } exit then
+	method :map = not if method "irt-scores: unknown method {0}; :eap or :map" format throw then
+
+	fit@latent-variance to variance
+	responses n-rows to n-people
+	n-people 1 0-matrix to modes
+	n-people 1 0-matrix to mode-errors
+	0 n-people 1 do n
+		indicators ( person-indicators | person-indicators n @i ) map to person
+		( x |
+			items size iota ( j | person j @i items j @i x item-probabilities ln matmul first ) map 0 ' + reduce
+			x first sq variance 2 * / - negate
+		) to objective
+		[ means n @e ] vector objective null 100 1e-10 minimize @estimate to mode
+		modes mode first n !e drop
+		mode-errors mode objective numeric-hessian first 1 swap / sqrt n !e drop
+	loop
+	{ :theta modes :se mode-errors } ;
+
+\ an item's category probabilities at trait values, an array or vector, as a matrix of one row per value and one column per category
+: irt-probabilities ( fit item thetas -- probabilities )
+	| fit item thetas |
+	fit@items item @i thetas matrix? if thetas as-column else thetas vector then transpose item-probabilities transpose ;

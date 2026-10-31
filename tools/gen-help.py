@@ -114,21 +114,25 @@ def parse_file(path, entries, sections, examples):
         cost_columns = [h.strip() for h in header[3:6]] == ["Ops", "Alloc", "O"] \
             if len(header) >= 6 else False
 
+        # An empty Ops, Alloc or O cell repeats the cell above it in the table.
+        costs_above = [None, None, None]
         while i < len(lines) and lines[i].lstrip().startswith("|"):
             row = split_row(lines[i])
             i += 1
             if not is_word_table or len(row) < 3:
                 continue
+            costs = None
+            if cost_columns and len(row) >= 6:
+                costs = [clean(cell) or above for cell, above in zip(row[3:6], costs_above)]
+                costs_above = costs
             match = WORD_CELL.match(row[0].strip())
             if not match:
                 continue  # syntax/construct row, not a word
             name = match.group(1).replace("\\|", "|")
             effect = clean(row[1])
             summary = clean(row[2])
-            if cost_columns and len(row) >= 6:
-                ops = clean(row[3])
-                alloc = clean(row[4])
-                order = clean(row[5])
+            if costs:
+                ops, alloc, order = costs
             else:
                 ops = alloc = order = None
             if name in entries:

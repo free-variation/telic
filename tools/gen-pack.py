@@ -3,8 +3,9 @@
 
 One concatenated file holding the whole language for a model's context
 window: the README taste block, docs/reference.md
-and docs/reference-libraries.md verbatim (word tables, tokenizer rules,
-and the tested example pairs), and docs/idioms.md verbatim.
+and docs/reference-libraries.md (word tables, tokenizer rules, and the
+example pairs, less the forth-noexec ones with an empty output, which help
+still shows), and docs/idioms.md verbatim.
 
 The generator counts tokens per section (chars/4) against TOKEN_TARGET
 and fails naming every section's size when the total overflows.
@@ -24,6 +25,12 @@ PACK_PATH = "telic-pack.md"
 LLMS_PATH = "llms.txt"
 
 FENCE = re.compile(r"^```(.*)$")
+
+# A forth-noexec example with an empty output fence shows only a call's shape,
+# which the word's stack effect already gives; help keeps it, the pack drops it.
+UNRUN_EXAMPLE = re.compile(
+    r"^```forth-noexec [^\n]*\n(?:(?!```)[^\n]*\n)*```\n```output\n```\n\n?",
+    re.M)
 
 
 def read(path):
@@ -73,10 +80,10 @@ def main():
          "its printed output.\n\n```forth\n" + taste + "\n```",
          "README.md"),
         ("Reference",
-         read(os.path.join("docs", "reference.md")),
+         UNRUN_EXAMPLE.sub("", read(os.path.join("docs", "reference.md"))),
          "docs/reference.md"),
         ("Loadable-library reference",
-         read(os.path.join("docs", "reference-libraries.md")),
+         UNRUN_EXAMPLE.sub("", read(os.path.join("docs", "reference-libraries.md"))),
          "docs/reference-libraries.md"),
         ("Idioms",
          read(os.path.join("docs", "idioms.md")),

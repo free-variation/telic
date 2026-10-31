@@ -23,6 +23,8 @@ plotting library is pure forth (no FFI) and works under wasm; only its
 | `dgemv-n` | `( α A x β y -- r )` | `r = α·A·x + β·y` via cblas dgemv, with `x` and `y` columns (n×1) and a fresh `r` copied from `y`; `x` must be A's column count and `y` its row count. Reaches BLAS with a vector call rather than dgemm on a one-column matrix |
 | `dgemv-t` | `( α A x β y -- r )` | `r = α·Aᵀ·x + β·y` via cblas dgemv, with `x` A's row count and `y` its column count |
 | `svd` | `( A -- U S VT )` | Thin singular value decomposition via LAPACKE dgesvd: `A = U diag(S) VT`, with `S` the 1×min(m,n) singular values. Column signs of U/VT are not canonical, so pin goldens on S and the reconstruction, not raw U/VT entries |
+| `symmetric-eigen` | `( A -- values vectors )` | Eigendecomposition of a symmetric matrix via LAPACKE dsyev: `values` the 1×n eigenvalues ascending, `vectors` the n×n matrix whose column j is the unit eigenvector of value j, so `A vectors matmul` equals `vectors values *`. Only the upper triangle is read. Eigenvector signs are not canonical |
+| `inverse` | `( A -- inverse )` | Inverse of a square matrix via LAPACKE dgetrf (LU with partial pivoting) and dgetri; a singular matrix throws |
 | `fit-linear` | `( mat y -- beta )` | Ordinary least squares via LAPACKE dgelsd; `mat` is observations×predictors (observations ≥ predictors), `y` the observations×1 response, `beta` the predictors×1 coefficients |
 | `fit-weighted-linear` | `( X y w -- beta )` | Weighted least squares: each row of `X` and `y` scaled by √wᵢ, then ordinary least squares, so a weight of 2 equals the row appearing twice; unit weights give `fit-linear`'s answer |
 | `fit-augmented` | `( augmented -- beta )` | Least squares of an `[X | y]` block whose last column is the response |
@@ -85,6 +87,22 @@ plotting library is pure forth (no FFI) and works under wasm; only its
 [ 3 2 ]
 ```
 
+```forth symmetric-eigen
+"statistics" load-library
+[ 2 1 1 2 ] 2 2 matrix symmetric-eigen drop matrix>array . cr
+```
+```output
+[ 1 3 ]
+```
+
+```forth inverse
+"statistics" load-library
+[ 4 7 2 6 ] 2 2 matrix inverse matrix>array . cr
+```
+```output
+[ 0.6 -0.7 -0.2 0.4 ]
+```
+
 ```forth fit-linear
 "statistics" load-library
 [ 1 1 1 2 1 3 ] 3 2 matrix [ 3 5 7 ] vector fit-linear matrix>array . cr
@@ -123,6 +141,102 @@ plotting library is pure forth (no FFI) and works under wasm; only its
 ```
 ```output
 [ 0.2 0.8 ]
+```
+
+## Optimization (lib/statistics.telic)
+
+An objective is an xt `( x -- f )` over an n×1 vector; a vector given as 1×n
+is taken as n×1. To maximize, minimize the negation.
+
+| Word | Stack effect | Summary |
+| --- | --- | --- |
+| `minimize` | `( x0 objective gradient max-iterations tolerance -- fr )` | BFGS from `x0`: each step backtracks along −H·g until the value falls by 1e-4 of the slope's promise (Armijo), then updates the inverse-Hessian estimate H, skipping an update whose curvature is not positive. `gradient` is an xt `( x -- g )`, or `null` for `numeric-gradient`. Stops when every gradient component is within `tolerance`, when a step changes the value by at most `tolerance` relative to it, when no step decreases it, or after `max-iterations`; answers `{ :estimate :value :gradient :iterations :converged }`, `:converged` 1 for the first two |
+| `numeric-gradient` | `( x objective -- gradient )` | The gradient as n×1 by central differences, each step 6e-6 times the coordinate's magnitude (at least 6e-6); 2n evaluations |
+| `numeric-hessian` | `( x objective -- hessian )` | The symmetric n×n Hessian by central second differences, each step 1e-4 times the coordinate's magnitude (at least 1e-4); 2n² + 1 evaluations. At a maximum-likelihood estimate of a negative log-likelihood, `inverse` of it is the estimate's covariance |
+| `gauss-hermite` | `( n -- nodes weights )` | The n-point Gauss–Hermite rule for a standard normal: n×1 nodes ascending and n×1 weights summing to 1, so `f(nodes) weights * sum` approximates E f(Z), exactly for polynomials of degree below 2n; by Golub–Welsch through `symmetric-eigen` |
+
+```forth minimize
+"statistics" load-library
+: rosenbrock ( x -- f ) | x | 1 x 0 @e - sq 100 x 1 @e x 0 @e sq - sq * + ;
+[ -1.2 1 ] vector ' rosenbrock null 500 1e-10 minimize dup @estimate 1e6 * round 1e6 / matrix>array . @converged . cr
+```
+```output
+[ 1 1 ] 1
+```
+
+```forth numeric-gradient
+"statistics" load-library
+[ 1 2 ] vector ( dup 0 @e sq swap 1 @e 3 * + ) numeric-gradient 1e6 * round 1e6 / matrix>array . cr
+```
+```output
+[ 2 3 ]
+```
+
+```forth numeric-hessian
+"statistics" load-library
+[ 0 0 ] vector ( dup 0 @e sq 3 * over 0 @e 2 pick 1 @e * 2 * + swap 1 @e sq + ) numeric-hessian 1e4 * round 1e4 / matrix>array . cr
+```
+```output
+[ 6 2 2 2 ]
+```
+
+```forth gauss-hermite
+"statistics" load-library
+3 gauss-hermite 1e4 * round 1e4 / matrix>array . 1e5 * round 1e5 / matrix>array . cr
+```
+```output
+[ 0.1667 0.6667 0.1667 ] [ -1.73205 0 1.73205 ]
+```
+
+## Item response theory (lib/irt.telic)
+
+`"irt" load-library`. One latent trait, after R's mirt in its slope–intercept
+parameterization: an item's chance of a correct response at trait θ is
+g + (u − g)·σ(aθ + d), and a graded item's chance of reaching category k or
+above is σ(aθ + d_k), its intercepts falling with k. `responses` is an N×J
+matrix, a row per person and a column per item, NaN where missing; each item's
+categories are its observed values ascending, recoded 0..K−1. The models are
+`:rasch` (slope 1, the trait's variance estimated), `:2pl`, `:3pl`
+(guessing g), `:4pl` (and upper bound u) and `:graded`. Estimation is Bock and
+Aitkin's EM over Gauss–Hermite nodes of a standard normal trait, each item's
+M-step a `minimize`; on mirt's bundled datasets the estimates agree with
+mirt 1.46 to about 0.01. Standard errors are each item's block of the
+observed information, so they omit covariance between items and run a few
+percent under mirt's full-information ones. Native-only, as the statistics
+library is.
+
+| Word | Stack effect | Summary |
+| --- | --- | --- |
+| `fit-irt` | `( responses models options -- fit )` | Fit the models: `models` one symbol for every item or an array of one per item; `options` a frame of `:quadrature-points` (61), `:max-cycles` (500), `:tolerance` (1e-4, the largest change of a parameter between EM cycles that counts as converged) and `:standard-errors` (1), `{ }` for the defaults. Answers `{ :items :log-likelihood :cycles :converged :latent-variance :nodes :weights }`, each item `{ :model :slope :intercepts :difficulties :guessing :upper :categories :standard-errors }`, `:difficulties` being −d/a and `:standard-errors` a frame by parameter name. An item with fewer than two categories, or more than two under a dichotomous model, throws |
+| `irt-scores` | `( fit responses method -- scores )` | Each person's trait estimate and standard error as `{ :theta :se }`, n×1 vectors: `:eap` the posterior mean and standard deviation over the fit's nodes, or `:map` the posterior mode under the fitted normal trait, its error from the curvature there. `responses` in the fit's columns |
+| `irt-probabilities` | `( fit item thetas -- probabilities )` | Item `item`'s (from 0) category probabilities at each trait value of an array or vector, a row per value and a column per category |
+
+```forth fit-irt
+"irt" load-library
+"data/lsat7.tsv" read-tsv [ :Item.1 :Item.2 :Item.3 :Item.4 :Item.5 ] dataset>matrix :2pl { } fit-irt
+dup @log-likelihood 10 * round 10 / . @items first @slope 100 * round 100 / . cr
+```
+```output
+-2658.8 0.99
+```
+
+```forth irt-scores
+"irt" load-library
+"data/lsat7.tsv" read-tsv [ :Item.1 :Item.2 :Item.3 :Item.4 :Item.5 ] dataset>matrix to lsat-responses
+lsat-responses :2pl { :standard-errors 0 } fit-irt lsat-responses :eap irt-scores
+dup @theta 0 @e 100 * round 100 / . @se 0 @e 100 * round 100 / . cr
+```
+```output
+-1.87 0.69
+```
+
+```forth irt-probabilities
+"irt" load-library
+"data/lsat7.tsv" read-tsv [ :Item.1 :Item.2 :Item.3 :Item.4 :Item.5 ] dataset>matrix :2pl { :standard-errors 0 } fit-irt
+0 [ 0 ] irt-probabilities 100 * round 100 / matrix>array . cr
+```
+```output
+[ 0.14 0.86 ]
 ```
 
 ## Regression (lib/statistics.telic)
@@ -607,7 +721,7 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth figure
 "plot" load-library
-320 240 figure [ 1 2 ] vector [ 3 4 ] vector scatter figure>svg "<svg" has? . cr
+100 50 figure figure>svg "viewBox='0 0 100 50'" has? . cr
 ```
 ```output
 1
@@ -623,7 +737,7 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth figure!
 "plot" load-library
-320 240 figure 5 :xmin figure! :xmin figure@ . cr
+100 100 figure 5 :xmin figure! :xmin figure@ . cr
 ```
 ```output
 5
@@ -631,15 +745,15 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth figure@
 "plot" load-library
-320 240 figure 5 :xmin figure! :xmin figure@ . cr
+100 50 figure :point-radius figure@ . cr
 ```
 ```output
-5
+3
 ```
 
 ```forth stroke
 "plot" load-library
-320 240 figure "red" stroke 0 0 10 10 svg-line figure>svg "red" has? . cr
+100 100 figure "red" stroke 0 0 10 10 svg-line figure>svg "stroke='red'" has? . cr
 ```
 ```output
 1
@@ -647,7 +761,7 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth fill
 "plot" load-library
-320 240 figure "blue" fill 1 1 5 5 svg-rect figure>svg "blue" has? . cr
+100 100 figure "blue" fill 1 1 5 5 svg-rect figure>svg "fill='blue'" has? . cr
 ```
 ```output
 1
@@ -655,7 +769,7 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth stroke-width
 "plot" load-library
-320 240 figure 7 stroke-width 0 0 9 9 svg-line figure>svg "stroke-width='7'" has? . cr
+100 100 figure 7 stroke-width 0 0 9 9 svg-line figure>svg "stroke-width='7'" has? . cr
 ```
 ```output
 1
@@ -663,7 +777,7 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth text-anchor
 "plot" load-library
-320 240 figure "middle" text-anchor 10 10 "hi" svg-text figure>svg "middle" has? . cr
+100 100 figure "end" text-anchor 10 10 "hi" svg-text figure>svg "text-anchor='end'" has? . cr
 ```
 ```output
 1
@@ -671,23 +785,23 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth axes
 "plot" load-library
-320 240 figure [ 1 2 ] vector [ 3 4 ] vector data-domain axes figure>svg "<line" has? . cr
+100 100 figure [ 1 2 ] vector [ 3 4 ] vector data-domain axes figure>svg "<text" match-all size . cr
 ```
 ```output
-1
+12
 ```
 
 ```forth panel
 "plot" load-library
-320 240 figure [ 1 2 ] vector [ 3 4 ] vector data-domain panel figure>svg "<rect" has? . cr
+100 100 figure [ 1 2 ] vector [ 3 4 ] vector data-domain panel figure>svg "<text" match-all size . cr
 ```
 ```output
-1
+12
 ```
 
 ```forth x-label
 "plot" load-library
-320 240 figure [ 1 2 ] vector [ 3 4 ] vector data-domain "time" x-label figure>svg "time" has? . cr
+100 100 figure [ 1 2 ] vector [ 3 4 ] vector data-domain "time" x-label figure>svg ">time<" has? . cr
 ```
 ```output
 1
@@ -695,7 +809,7 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth y-label
 "plot" load-library
-320 240 figure [ 1 2 ] vector [ 3 4 ] vector data-domain "level" y-label figure>svg "level" has? . cr
+100 100 figure [ 1 2 ] vector [ 3 4 ] vector data-domain "level" y-label figure>svg "rotate" has? . cr
 ```
 ```output
 1
@@ -703,39 +817,39 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth legend
 "plot" load-library
-320 240 figure [ 1 2 ] vector [ 3 4 ] vector data-domain [ "a" ] [ "red" ] legend figure>svg "red" has? . cr
+100 100 figure [ 1 2 ] vector [ 3 4 ] vector data-domain [ "a" "b" ] [ "red" "blue" ] legend figure>svg "<text" match-all size . cr
 ```
 ```output
-1
+2
 ```
 
 ```forth y-categories
 "plot" load-library
-320 240 figure 0 :xmin figure! 10 :xmax figure! [ "one" "two" ] y-categories figure>svg "one" has? . cr
+100 100 figure [ "one" "two" ] y-categories :ymin figure@ . :ymax figure@ . cr
 ```
 ```output
-1
+0.5 2.5
 ```
 
 ```forth data-domain
 "plot" load-library
-320 240 figure [ 1 5 ] vector [ 2 6 ] vector data-domain :xmin figure@ 1 < . cr
+100 100 figure [ 1 5 ] vector [ 2 6 ] vector data-domain :xmin figure@ . :xmax figure@ . cr
 ```
 ```output
-1
+0.8 5.2
 ```
 
 ```forth scatter
 "plot" load-library
-320 240 figure [ 1 2 3 ] vector [ 4 5 6 ] vector scatter figure>svg "<circle" has? . cr
+100 100 figure [ 1 2 3 ] vector [ 4 5 6 ] vector scatter figure>svg "<circle" match-all size . cr
 ```
 ```output
-1
+3
 ```
 
 ```forth series
 "plot" load-library
-320 240 figure [ 1 2 3 ] vector [ 4 5 6 ] vector series figure>svg "<polyline" has? . cr
+100 100 figure [ 1 2 3 ] vector [ 4 5 6 ] vector series figure>svg "<polyline" match-all size . cr
 ```
 ```output
 1
@@ -743,15 +857,15 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth intervals
 "plot" load-library
-320 240 figure [ 1 ] vector [ 2 ] vector [ 1 ] vector intervals figure>svg "<polyline" has? . cr
+100 100 figure [ 1 4 ] vector [ 2 6 ] vector [ 1 2 ] vector intervals figure>svg "<polyline" match-all size . cr
 ```
 ```output
-1
+2
 ```
 
 ```forth abline
 "plot" load-library
-320 240 figure [ 0 4 ] vector [ 0 4 ] vector data-domain 1 0 abline figure>svg "<line" has? . cr
+100 100 figure [ 0 4 ] vector [ 0 4 ] vector data-domain 1 0 abline figure>svg "<line" match-all size . cr
 ```
 ```output
 1
@@ -759,15 +873,15 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth histogram
 "plot" load-library
-320 240 figure [ 1 2 2 3 3 3 ] vector 3 histogram figure>svg "<rect" has? . cr
+100 100 figure [ 1 2 2 3 3 3 ] vector 3 histogram figure>svg "steelblue" match-all size . cr
 ```
 ```output
-1
+3
 ```
 
 ```forth boxplot
 "plot" load-library
-320 240 figure [ 1 2 3 4 5 9 ] vector boxplot figure>svg "<rect" has? . cr
+100 100 figure [ 1 2 3 4 5 20 ] vector boxplot figure>svg "<circle" match-all size . cr
 ```
 ```output
 1
@@ -775,7 +889,7 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth boxplots
 "plot" load-library
-320 240 figure [ [ 1 2 3 ] vector [ 4 5 6 ] vector ] [ "lo" "hi" ] boxplots figure>svg "lo" has? . cr
+100 100 figure [ [ 1 2 3 ] vector [ 4 5 6 ] vector ] [ "lo" "hi" ] boxplots figure>svg ">lo<" has? . cr
 ```
 ```output
 1
@@ -783,31 +897,31 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth barchart
 "plot" load-library
-320 240 figure [ 3 5 ] vector [ "a" "b" ] barchart figure>svg "<rect" has? . cr
+100 100 figure [ 3 5 ] vector [ "a" "b" ] barchart figure>svg "steelblue" match-all size . cr
 ```
 ```output
-1
+2
 ```
 
 ```forth count-barchart
 "plot" load-library
-320 240 figure [ "cat" "cat" "dog" ] count-barchart figure>svg "cat" has? . cr
+100 100 figure [ "cat" "cat" "dog" ] count-barchart figure>svg "steelblue" match-all size . cr
 ```
 ```output
-1
+2
 ```
 
 ```forth stacked-barchart
 "plot" load-library
-320 240 figure [ 1 2 3 4 ] 2 2 matrix [ "a" "b" ] [ "red" "blue" ] stacked-barchart figure>svg "blue" has? . cr
+100 100 figure [ 1 2 3 4 ] 2 2 matrix [ "a" "b" ] [ "red" "blue" ] stacked-barchart figure>svg "fill='blue'" match-all size . cr
 ```
 ```output
-1
+2
 ```
 
 ```forth annotate
 "plot" load-library
-320 240 figure [ 0 2 ] vector [ 0 2 ] vector data-domain 1 1 "note" annotate figure>svg "note" has? . cr
+100 100 figure [ 0 2 ] vector [ 0 2 ] vector data-domain 1 1 "note" annotate figure>svg ">note<" has? . cr
 ```
 ```output
 1
@@ -815,7 +929,7 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth rect-at
 "plot" load-library
-320 240 figure [ 0 3 ] vector [ 0 3 ] vector data-domain 1 1 2 2 rect-at figure>svg "<rect" has? . cr
+100 100 figure [ 0 3 ] vector [ 0 3 ] vector data-domain "red" fill 1 1 2 2 rect-at figure>svg "fill='red'" has? . cr
 ```
 ```output
 1
@@ -823,7 +937,7 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth svg-line
 "plot" load-library
-320 240 figure 0 0 9 9 svg-line figure>svg "<line" has? . cr
+100 100 figure 0 0 9 9 svg-line figure>svg "<line" has? . cr
 ```
 ```output
 1
@@ -831,7 +945,7 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth svg-rect
 "plot" load-library
-320 240 figure "blue" fill 1 1 5 5 svg-rect figure>svg "<rect" has? . cr
+100 100 figure 1 1 5 5 svg-rect figure>svg "width='5'" has? . cr
 ```
 ```output
 1
@@ -839,7 +953,7 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth svg-circle
 "plot" load-library
-320 240 figure 50 50 9 svg-circle figure>svg "<circle" has? . cr
+100 100 figure 50 50 9 svg-circle figure>svg "r='9'" has? . cr
 ```
 ```output
 1
@@ -847,7 +961,7 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth svg-text
 "plot" load-library
-320 240 figure 10 20 "pixel text" svg-text figure>svg "pixel text" has? . cr
+100 100 figure 10 20 "pixel text" svg-text figure>svg ">pixel text<" has? . cr
 ```
 ```output
 1
@@ -855,10 +969,13 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth figure>svg
 "plot" load-library
-320 240 figure [ 1 2 ] vector [ 3 4 ] vector scatter figure>svg "<svg" has? . cr
+40 30 figure 20 15 5 svg-circle figure>svg stdout write
 ```
 ```output
-1
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 30'>
+<rect x='0' y='0' width='40' height='30' fill='white' stroke='none' stroke-width='0' />
+<circle cx='20' cy='15' r='5' fill='none' stroke='black' />
+</svg>
 ```
 
 ```forth-noexec save-figure
@@ -884,15 +1001,15 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth scatter-plot
 "plot" load-library
-[ 1 2 3 ] vector [ 2 4 6 ] vector scatter-plot "<circle" has? . cr
+[ 1 2 3 ] vector [ 2 4 6 ] vector scatter-plot "<circle" match-all size . cr
 ```
 ```output
-1
+3
 ```
 
 ```forth series-plot
 "plot" load-library
-[ 1 2 3 ] vector [ 2 4 6 ] vector series-plot "<polyline" has? . cr
+[ 1 2 3 ] vector [ 2 4 6 ] vector series-plot "<polyline" match-all size . cr
 ```
 ```output
 1
@@ -900,15 +1017,15 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth histogram-plot
 "plot" load-library
-[ 1 2 2 3 ] vector 2 histogram-plot "<rect" has? . cr
+[ 1 2 2 3 ] vector 2 histogram-plot "steelblue" match-all size . cr
 ```
 ```output
-1
+2
 ```
 
 ```forth boxplot-plot
 "plot" load-library
-[ 1 2 3 4 9 ] vector boxplot-plot "<rect" has? . cr
+[ 1 2 3 4 20 ] vector boxplot-plot "<circle" match-all size . cr
 ```
 ```output
 1
@@ -916,7 +1033,7 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth boxplots-plot
 "plot" load-library
-[ [ 1 2 ] vector [ 3 4 ] vector ] [ "a" "b" ] boxplots-plot "<svg" has? . cr
+[ [ 1 2 ] vector [ 3 4 ] vector ] [ "a" "b" ] boxplots-plot ">b<" has? . cr
 ```
 ```output
 1
@@ -924,18 +1041,18 @@ comes from named `aes` keys, set globally with `aes!` or per figure with
 
 ```forth barchart-plot
 "plot" load-library
-[ 2 4 ] vector [ "a" "b" ] barchart-plot "<rect" has? . cr
+[ 2 4 ] vector [ "a" "b" ] barchart-plot "steelblue" match-all size . cr
 ```
 ```output
-1
+2
 ```
 
 ```forth count-barchart-plot
 "plot" load-library
-[ "x" "x" "y" ] count-barchart-plot "<rect" has? . cr
+[ "x" "x" "y" ] count-barchart-plot "steelblue" match-all size . cr
 ```
 ```output
-1
+2
 ```
 
 

@@ -151,6 +151,24 @@ dup "LAPACKE_dpotrs" [
 						 :ptr :int \ a (the cholesky factor) lda
 						 :ptr :int \ b (rhs, overwritten with the solution) ldb
 					 ] :int ffi-function (dpotrs)
+
+dup "LAPACKE_dsyev" [
+						:int :int :int :int \ matrix_layout jobz uplo n
+						:ptr :int \ a (symmetric, overwritten with the eigenvectors) lda
+						:ptr \ w (eigenvalues, ascending)
+					] :int ffi-function (dsyev)
+
+dup "LAPACKE_dgetrf" [
+						 :int :int :int \ matrix_layout m n
+						 :ptr :int \ a (overwritten with the LU factors) lda
+						 :ptr \ ipiv (row interchanges)
+					 ] :int ffi-function (dgetrf)
+
+dup "LAPACKE_dgetri" [
+						 :int :int \ matrix_layout n
+						 :ptr :int \ a (the LU factors, overwritten with the inverse) lda
+						 :ptr \ ipiv (row interchanges from dgetrf)
+					 ] :int ffi-function (dgetri)
 drop
 
 : svd ( A -- U S VT )
@@ -173,6 +191,174 @@ drop
 	info if info "svd: dgesvd failed (info={0})" format throw then
 
 	u singular-values vt ;
+
+\ the eigendecomposition of a symmetric matrix via LAPACKE dsyev: values the 1×n eigenvalues in ascending order, vectors the n×n matrix whose column j is the unit eigenvector of value j; only the upper triangle is read, so a matrix that is not symmetric is taken as its upper triangle mirrored
+: symmetric-eigen ( A -- values vectors )
+	| symmetric |
+
+	symmetric dim to cols to rows
+	rows cols = not if rows cols "symmetric-eigen: expected a square matrix; got {1}x{0}" format throw then
+
+	symmetric copy to vectors
+	1 rows 0-matrix to values
+	101 86 85 rows \ LAPACK_ROW_MAJOR, jobz='V' (vectors too), uplo='U'
+	vectors matrix>pointer rows
+	values matrix>pointer
+	(dsyev) to info
+	info if info "symmetric-eigen: dsyev failed to converge (info={0})" format throw then
+
+	values vectors ;
+
+\ the inverse of a square matrix via LAPACKE dgetrf and dgetri: the LU factorization with partial pivoting, then the inverse from the factors; a singular matrix throws
+: inverse ( A -- inverse )
+	| square |
+
+	square dim to cols to rows
+	rows cols = not if rows cols "inverse: expected a square matrix; got {1}x{0}" format throw then
+
+	square copy to inverted
+	rows int-segment to pivots
+	101 rows rows inverted matrix>pointer rows pivots segment>pointer (dgetrf) to info
+	info 0 > if "inverse: the matrix is singular" throw then
+	info if info "inverse: dgetrf failed (info={0})" format throw then
+
+	101 rows inverted matrix>pointer rows pivots segment>pointer (dgetri) to info
+	info if info "inverse: dgetri failed (info={0})" format throw then
+
+	inverted ;
+
+\ the n-point Gauss–Hermite rule for expectations under a standard normal density: nodes the n×1 abscissas ascending and weights the n×1 weights summing to 1, so weights·f(nodes) summed approximates E f(Z), exactly for a polynomial of degree below 2n. By Golub and Welsch: the nodes are the eigenvalues of the probabilists' Hermite recurrence's symmetric tridiagonal matrix, its off-diagonal √k, and each weight is the square of its eigenvector's first component
+: gauss-hermite ( n -- nodes weights )
+	| n |
+
+	n n 0-matrix to recurrence
+	1 n 1 do k
+		recurrence k sqrt k k 1- !i,j drop
+		recurrence k sqrt k 1- k !i,j drop
+	loop
+
+	recurrence symmetric-eigen to vectors to values
+	values transpose
+	vectors 0 @i transpose sq ;
+
+\ ---- optimization ----
+
+\ a copy of x with the element at index moved by delta
+: shifted ( x index delta -- x' )
+	| x index delta |
+	x copy x index @e delta + index !e ; internal
+
+\ the gradient of an objective ( x -- f ) at x, a vector, as an n×1 vector, by central differences: each coordinate stepped by 6e-6 times its magnitude, or by 6e-6 below a magnitude of 1, about the cube root of a double's epsilon, the step that balances truncation against rounding; 2n evaluations
+: numeric-gradient ( x objective -- gradient )
+	| x objective |
+
+	x as-column to x
+	x num-elements to n
+	n 1 0-matrix to gradient
+	0 n 1 do k
+		x k @e abs 1 max2 6e-6 * to step
+		x k step shifted objective execute to above
+		x k step negate shifted objective execute to below
+		gradient above below - 2 step * / k !e drop
+	loop
+
+	gradient ;
+
+\ the Hessian of an objective ( x -- f ) at x, a vector, as a symmetric n×n matrix, by central second differences: each coordinate stepped by 1e-4 times its magnitude, or by 1e-4 below a magnitude of 1, about the fourth root of a double's epsilon; 2n² + 1 evaluations
+: numeric-hessian ( x objective -- hessian )
+	| x objective |
+
+	x as-column to x
+	x num-elements to n
+	x objective execute to centre
+	n n 0-matrix to hessian
+	n iota ( k | x k @e abs 1 max2 1e-4 * ) map to steps
+
+	0 n 1 do i
+		steps i @i to step-i
+		x i step-i shifted objective execute to above
+		x i step-i negate shifted objective execute to below
+		hessian above 2 centre * - below + step-i sq / i i !i,j drop
+
+		0 i 1 do j
+			steps j @i to step-j
+			x i step-i shifted j step-j shifted objective execute to up-up
+			x i step-i shifted j step-j negate shifted objective execute to up-down
+			x i step-i negate shifted j step-j shifted objective execute to down-up
+			x i step-i negate shifted j step-j negate shifted objective execute to down-down
+			up-up up-down - down-up - down-down + 4 step-i * step-j * / to second
+			hessian second i j !i,j drop
+			hessian second j i !i,j drop
+		loop
+	loop
+
+	hessian ;
+
+\ the step along a direction that decreases an objective enough, by backtracking from a whole step, halving until the value falls below the start's by 1e-4 of the decrease the slope promises (the Armijo condition), a value that is not a number or is infinite failing it; answers the point reached, its value and 1, or x, its value and 0 once the step falls below 1e-20
+: backtracking-step ( x direction value descent objective -- point point-value found )
+	| x direction value descent objective |
+
+	1 to step
+	begin step 1e-20 > while
+		x direction step * + to trial
+		trial objective execute to trial-value
+		trial-value null? not if
+			trial-value value 1e-4 step * descent * + <= if trial trial-value 1 exit then
+		then
+		step 0.5 * to step
+	repeat
+
+	x value 0 ; internal
+
+\ the minimum of an objective ( x -- f ) from the vector x0 by BFGS, gradient ( x -- g ) its gradient or null to take numeric-gradient's: each step searches along -H·g, H the inverse Hessian's estimate, by backtracking-step, then updates H from the step s and the gradient's change y, H scaled to sᵀy/yᵀy before the first update, an update skipped when sᵀy is not positive and H reset to the identity when -H·g does not descend. It stops when every gradient component is within tolerance, when a step changes the value by no more than tolerance relative to it, when no step decreases it, or after max-iterations steps; answers { :estimate :value :gradient :iterations :converged }, :converged 1 for the first two
+: minimize ( x0 objective gradient max-iterations tolerance -- fr )
+	| x objective gradient max-iterations tolerance |
+
+	gradient null? if objective ' numeric-gradient curry to gradient then
+	x as-column to x
+	x num-elements identity-matrix to inverse-hessian
+	x objective execute to value
+	x gradient execute as-column to slope
+	0 to iterations
+	0 to converged
+
+	begin iterations max-iterations < while
+		slope abs max tolerance <= if 1 to converged leave then
+
+		inverse-hessian slope matmul negate to direction
+		slope direction dot to descent
+		descent 0 >= if
+			x num-elements identity-matrix to inverse-hessian
+			slope negate to direction
+			slope slope dot negate to descent
+		then
+
+		x direction value descent objective backtracking-step to found to trial-value to trial
+		found not if leave then
+
+		trial x - to s-step
+		trial gradient execute as-column to new-slope
+		new-slope slope - to y-change
+		s-step y-change dot to curvature
+		curvature 0 > if
+			iterations 0 = if inverse-hessian curvature y-change y-change dot / * to inverse-hessian then
+			1 curvature / to rho
+			inverse-hessian y-change matmul to h-y
+			inverse-hessian
+				s-step h-y transpose matmul h-y s-step transpose matmul + rho * -
+				s-step s-step transpose matmul rho sq y-change h-y dot * rho + * +
+				to inverse-hessian
+		then
+
+		value trial-value - abs tolerance value abs tolerance + * <= to settled
+		trial to x
+		trial-value to value
+		new-slope to slope
+		++ iterations
+		settled if 1 to converged leave then
+	repeat
+
+	{ :estimate x :value value :gradient slope :iterations iterations :converged converged } ;
 
 \ ordinary least squares via LAPACKE dgelsd ; mat is m x n (m >= n)
 : fit-linear ( mat y -- beta ) 
