@@ -2337,25 +2337,27 @@ static void json_write_byte(JSONWriter *writer, char byte) {
 	json_write_bytes(writer, &byte, 1);
 }
 
-static void json_write_number(JSONWriter *writer, double number) {
-	char text[32];
-	int n;
+int shortest_number_text(double number, char *text) {
+	if (number == (double)(int64_t)number && number > -1e15 && number < 1e15)
+		return snprintf(text, NUMBER_TEXT_CAPACITY, "%lld", (long long)number);
 
+	int n = 0;
+	for (int precision = 1; precision <= 17; precision++) {
+		n = snprintf(text, NUMBER_TEXT_CAPACITY, "%.*g", precision, number);
+		if (strtod(text, NULL) == number)
+			break;
+	}
+	return n;
+}
+
+static void json_write_number(JSONWriter *writer, double number) {
 	if (!isfinite(number)) {
 		json_write_bytes(writer, "null", 4);
 		return;
 	}
 
-	if (number == (double)(int64_t)number && number > -1e15 && number < 1e15) {
-		n = snprintf(text, sizeof text, "%lld", (long long)number);
-	} else {
-		for (int precision = 1; precision <= 17; precision++) {
-			n = snprintf(text, sizeof text, "%.*g", precision, number);
-			if (strtod(text, NULL) == number)
-				break;
-		}
-	}
-
+	char text[NUMBER_TEXT_CAPACITY];
+	int n = shortest_number_text(number, text);
 	json_write_bytes(writer, text, n);
 }
 

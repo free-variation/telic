@@ -1,0 +1,72 @@
+\ lib/ollama.telic without a server: ollama-message ( role content -- message ),
+\ the tool registry (ollama-add-tool, ollama-tools, ollama-forget-tools) and
+\ ollama-run-tool ( call -- message ), and the failures of the request paths. A
+\ file:// root stands in for the server, so a reply's body comes from a file and
+\ curl reports status 0, which throws; an unused local port gives a failed
+\ transfer, which throws curl's message.
+
+"lib/ollama.telic" load
+
+\ === ollama-message: the role rendered as a string, a frame content as its JSON ===
+:user "hi" ollama-message frame>json . cr              \ {"role": "user", "content": "hi"}
+"system" "be brief" ollama-message @role . cr          \ system
+:tool { :n 1 } ollama-message @content . cr            \ {"n": 1}
+
+clear
+
+\ === the tool registry ===
+: echo-tool ( arguments -- output ) @text ;
+: count-tool ( arguments -- output ) drop { :count 3 } ;
+: throwing-tool ( arguments -- output ) drop "tool broke" throw ;
+: dividing-tool ( arguments -- output ) drop 1 0 / ;
+{ :name "echo" :description "Echo the text" :parameters { :type "object" :properties { :text { :type "string" } } } }
+' echo-tool ollama-add-tool
+{ :name "count" :description "A count" :parameters { :type "object" :properties { } } } ' count-tool ollama-add-tool
+{ :name "throwing" :description "Throws" :parameters { :type "object" :properties { } } } ' throwing-tool ollama-add-tool
+{ :name "dividing" :description "Divides by zero" :parameters { :type "object" :properties { } } } ' dividing-tool ollama-add-tool
+ollama-tools size . cr                                  \ 4
+ollama-tools first /type @ . cr                         \ function
+ollama-tools ( /function/name @ ) map . cr              \ [ "echo" "count" "throwing" "dividing" ]
+
+clear
+
+\ === ollama-run-tool: the handler's output as a tool message ===
+{ :function { :name "echo" :arguments { :text "ping" } } } ollama-run-tool frame>json . cr   \ {"role": "tool", "content": "ping", "tool_name": "echo"}
+{ :function { :name "count" :arguments { } } } ollama-run-tool @content . cr       \ {"count": 3}   a frame sent as its JSON text
+{ :function { :name "count" } } ollama-run-tool @content . cr                      \ {"count": 3}   no arguments: an empty frame
+{ :function { :name "missing" :arguments { } } } ollama-run-tool @content . cr     \ Error executing tool: no tool named missing
+{ :function { :name "throwing" :arguments { } } } ollama-run-tool @content . cr    \ Error executing tool: tool broke
+{ :function { :name "dividing" :arguments { } } } ollama-run-tool @content . cr    \ Error executing tool: division by zero
+
+ollama-forget-tools ollama-tools size . cr               \ 0
+
+clear
+
+\ === a reply read from a file: status 0 throws, with the body's :error or the body itself ===
+"/tmp/lf_ollama" make-directory
+"file:///tmp/lf_ollama/" to ollama-url
+"{""error"":""boom""}" "/tmp/lf_ollama/tags" write-file
+( ollama-models ) catch . . cr                           \ 1 ollama: HTTP 0: boom
+"not json" "/tmp/lf_ollama/version" write-file
+( ollama-version ) catch . . cr                          \ 1 ollama: HTTP 0: not json
+
+clear
+
+\ === a stream read from a file: each reply reaches the handler, then status 0 throws ===
+"{""response"":""a"",""done"":false}
+{""response"":""b"",""done"":true}
+" "/tmp/lf_ollama/generate" write-file
+( "m" "p" { } ( @response . ) ollama-generate-streaming ) catch cr . . cr   \ a b / 1 ollama: HTTP 0
+"{""error"":""stream failed""}
+" "/tmp/lf_ollama/chat" write-file
+( "m" [ ] { } ( "handled" . ) ollama-chat-streaming ) catch . . cr          \ 1 ollama: HTTP 0: stream failed   the error line reaches no handler
+
+clear
+
+\ === a failed transfer throws curl's message ===
+"http://127.0.0.1:9/api/" to ollama-url
+( ollama-version ) catch . "curl" has? . cr                                \ 1 1
+( "m" "p" { } ( drop ) ollama-generate-streaming ) catch . "curl" has? . cr   \ 1 1
+
+\ === both stacks left empty ===
+depth . cr                                              \ 0

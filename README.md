@@ -406,6 +406,10 @@ Worker threads over one shared object heap: a quotation runs across the collecti
 
 - **`json>frame`** / **`frame>json`** — parse and serialize: objects ↔ frames with interned symbol keys, arrays ↔ arrays, strings ↔ strings, numbers ↔ floats, `true`/`false` ↔ the reserved `:1`/`:0` symbols, `null` ↔ `null`. An integer too large for a float reads as an exact and writes back without loss.
 
+### YAML
+
+- **`yaml>frame`** / **`yaml-documents`** / **`frame>yaml`** — parse one document or a stream of them, and serialize, on the vendored libyaml: the same values as JSON, scalars typed by YAML 1.2's core schema, aliases sharing their anchor's object.
+
 ### Value serialization
 
 - **`value>bytes`** / **`bytes>value`** — a whole value graph as bytes and back, sharing and cycles preserved; compiled code and OS handles are refused by type. **`save-value`** / **`load-value`** do the same through a file.
@@ -500,6 +504,11 @@ Call C functions in any shared library at runtime via `libffi` — no per-librar
 (`{ :status :body }`) over a `curl` subprocess; `lib/claude.telic` calls the
 Anthropic API through it.
 
+`lib/ollama.telic` calls an Ollama server through it: completions and chats,
+plain or streamed to a handler; tool calling with registered handlers and a
+conversation loop that runs them; embeddings as a matrix; the model store and
+blobs.
+
 ### MCP server
 
 `lib/mcp.telic` serves the Model Context Protocol over stdio — `telic -e '"mcp"
@@ -568,7 +577,7 @@ src/c/graphics.c       — the Tigr window, drawing, bitmap compositing, keyboar
 src/c/gamepads.c       — gamepad input: GameController on macOS, evdev on Linux
 src/c/help_table.c     — generated help/man text (from docs/reference.md)
 src/forth/*.telic        — standard library (concatenated in Makefile order, embedded)
-lib/                   — loadable libraries: statistics.telic, plot.telic, http.telic, claude.telic, mcp.telic
+lib/                   — loadable libraries: statistics.telic, plot.telic, http.telic, claude.telic, ollama.telic, mcp.telic
 external/              — vendored deps: pcre2, sqlite, sqlite-vec, nanoarrow, pocketfft, tigr, miniaudio, isocline, lapacke
 tests/                 — golden-output test files; tests/lib/ the loadable-library tests, tests/synth/ the audible synthesizer tests, tests/examples/ the example-program tests
 bench/                 — benchmark suite (Telic vs CPython) and inventory

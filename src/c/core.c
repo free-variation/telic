@@ -6020,6 +6020,9 @@ int construct_vocabulary(Interpreter *interp, int load_lib) {
 	define_primitive(interp, "frame", p_frame, 0);
 	define_primitive(interp, "json>frame", p_json_to_frame, 0);
 	define_primitive(interp, "frame>json", p_frame_to_json, 0);
+	define_primitive(interp, "yaml>frame", p_yaml_to_frame, 0);
+	define_primitive(interp, "yaml-documents", p_yaml_documents, 0);
+	define_primitive(interp, "frame>yaml", p_frame_to_yaml, 0);
 	define_primitive(interp, "take", p_take, 0);
 	define_primitive(interp, "reverse", p_reverse, 0);
 	define_primitive(interp, "concat", p_concat, 0);

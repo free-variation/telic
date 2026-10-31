@@ -1,0 +1,138 @@
+\ yaml>frame ( str -- val ), yaml-documents ( str -- arr ), frame>yaml ( val -- str ):
+\ YAML read with the vendored libyaml into the values JSON gives, scalars typed
+\ by YAML 1.2's core schema (so yes stays a string), aliases answering their
+\ anchor's own object; written back as block-style YAML that reads as the same
+\ value.
+
+\ === yaml>frame: mappings, sequences, and the core schema's scalars ===
+"name: Ann
+age: 34
+height: 1.75
+tags: [a, b]
+none: ~
+empty:
+flag: true
+off: FALSE
+answer: yes" yaml>frame to person
+person@name . person@age . person@height . cr     \ Ann 34 1.75
+person@tags . cr                                    \ [ "a" "b" ]
+person@none . person@empty . cr                     \ null null
+person@flag . person@off . cr                       \ :1 :0
+person@answer dup . type-of . cr                    \ yes :string   YAML 1.1 would read true
+
+clear
+
+\ === numbers: decimal, signed, octal, hex, float, infinity, NaN, exact ===
+"- -12
+- +7
+- 0o17
+- 0x1F
+- 1e3
+- .5
+- 1.
+- -.inf
+- .nan
+- 123456789012345678901" yaml>frame to numbers
+numbers . cr                                        \ [ -12 7 15 31 1000 0.5 1 -inf null 123456789012345678901 ]
+numbers last type-of . cr                           \ :exact
+
+clear
+
+\ === strings: quoted, block, and plain text that is no number ===
+"a: '12'
+b: ""true""
+c: 1_000
+d: 12abc
+e: |
+  line one
+  line two
+f: >
+  folded
+  text" yaml>frame to texts
+texts@a type-of . texts@b type-of . texts@c . texts@d . cr      \ :string :string 1_000 12abc
+texts@e . cr                                                       \ line one / line two
+texts@f . cr                                                       \ folded text
+
+clear
+
+\ === tags force a type ===
+"a: !!str 12
+b: !!float 3
+c: !!int 0x10
+d: !!null ~" yaml>frame to tagged
+tagged@a type-of . tagged@b . tagged@c . tagged@d . cr          \ :string 3 16 null
+
+clear
+
+\ === aliases answer their anchor's object ===
+"a: &pair [1, 2]
+b: *pair" yaml>frame to shared
+shared@a 99 add-last! drop shared@b . cr          \ [ 1 2 99 ]   one array under both keys
+"&self {me: *self}" yaml>frame @me @me @me keys . cr   \ [ :me ]   a mapping holding itself
+"&k key: 1
+other: *k" yaml>frame @other . cr                 \ key   an anchored mapping key
+
+clear
+
+\ === documents ===
+"" yaml>frame . cr                                 \ null   an empty stream
+"a: 1
+---
+b: 2
+---
+- 3" yaml-documents . cr                           \ [ { :a 1 } { :b 2 } [ 3 ] ]
+"" yaml-documents . cr                             \ [ ]
+"--- &x [1]
+--- [2]" yaml-documents size . cr                  \ 2   anchors are per document
+
+clear
+
+\ === frame>yaml: block style, quoting what would read back as another type ===
+{ :count 1 :word "true" :list [ 1 2 ] } frame>yaml stdout write
+\ word: 'true'
+\ count: 1
+\ list:
+\ - 1
+\ - 2
+[ "yes" "12" "" "plain" "null" ] frame>yaml stdout write
+\ - 'yes'
+\ - '12'
+\ - ''
+\ - plain
+\ - 'null'
+{ :empty-list [ ] :empty-frame { } :text "two
+lines" } frame>yaml stdout write
+\ text: |-
+\   two
+\   lines
+\ empty-list: []
+\ empty-frame: {}
+42 frame>yaml stdout write                          \ 42
+:1 frame>yaml stdout write                          \ true
+-1e999 frame>yaml stdout write                      \ -.inf
+
+clear
+
+\ === round trip: frame>yaml then yaml>frame answers an equal value ===
+{ :n 1.5 :s "true" :l [ 1 "2" null :0 ] :f { :g "two
+lines
+" :h "café" } :big 123456789012345678901 } dup frame>yaml yaml>frame = . cr   \ 1
+"{""a"": [1, ""x"", {""b"": null}], ""c"": true}" json>frame dup frame>yaml yaml>frame = . cr   \ 1
+
+clear
+
+\ === errors ===
+"a: 1
+---
+b: 2" yaml>frame                                    \ (several documents)
+"a: [1, 2" yaml>frame                               \ (unclosed flow sequence)
+"a: *missing" yaml>frame                            \ (unknown alias)
+"a: !!int hello" yaml>frame                         \ (value the tag does not take)
+"a: !custom x" yaml>frame                           \ (unsupported tag)
+"[1, 2]: x" yaml>frame                              \ (sequence as a mapping key)
+"a: &n 5
+*n : x" yaml>frame                                  \ (alias to a number as a mapping key)
+{ :a :foo } frame>yaml                              \ (non-boolean symbol)
+[ 1 2 ] vector frame>yaml                           \ (matrix)
+1/3 frame>yaml                                      \ (non-integer exact)
+42 yaml>frame                                       \ (not a string)

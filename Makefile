@@ -34,11 +34,11 @@ CFLAGS += -flto
 endif
 LDLIBS = -lm -lffi $(TIGR_LIBS) $(MINIAUDIO_LIBS)
 
-SRCS = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/fourier.c src/c/synth.c src/c/audio_effects.c src/c/audio.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/foreign.c src/c/platform_posix.c src/c/dimension.c src/c/time.c src/c/exact.c src/c/serialize.c src/c/arrow.c src/c/graphics.c src/c/gamepads.c
+SRCS = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/fourier.c src/c/synth.c src/c/audio_effects.c src/c/audio.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/foreign.c src/c/platform_posix.c src/c/dimension.c src/c/time.c src/c/exact.c src/c/serialize.c src/c/yaml.c src/c/arrow.c src/c/graphics.c src/c/gamepads.c
 HDRS = src/c/telic.h src/c/platform.h src/c/lib_embed.h src/c/logo_embed.h src/c/repl_highlight_groups.h
 
-TELIC_INCS = -I$(PCRE2_SRC) -I$(SQLITE_DIR) -I$(SQLITE_VEC_DIR) -I$(NANOARROW_DIR)/include -I$(POCKETFFT_DIR) -I$(TIGR_DIR) -I$(MINIAUDIO_DIR) $(MINIAUDIO_DEFINES) -I$(ISOCLINE_DIR)/include
-TELIC_DEPS = $(PCRE2_LIB) $(SQLITE_OBJ) $(SQLITE_VEC_OBJ) $(NANOARROW_OBJS) $(POCKETFFT_OBJ) $(TIGR_OBJ) $(MINIAUDIO_OBJ) $(ISOCLINE_OBJ)
+TELIC_INCS = -I$(PCRE2_SRC) -I$(SQLITE_DIR) -I$(SQLITE_VEC_DIR) -I$(NANOARROW_DIR)/include -I$(POCKETFFT_DIR) -I$(TIGR_DIR) -I$(MINIAUDIO_DIR) $(MINIAUDIO_DEFINES) -I$(ISOCLINE_DIR)/include -I$(LIBYAML_DIR)/include
+TELIC_DEPS = $(PCRE2_LIB) $(SQLITE_OBJ) $(SQLITE_VEC_OBJ) $(NANOARROW_OBJS) $(POCKETFFT_OBJ) $(TIGR_OBJ) $(MINIAUDIO_OBJ) $(ISOCLINE_OBJ) $(LIBYAML_LIB)
 
 # Embedded library, concatenated in this order. Binding is early: a word must
 # be defined in an earlier file than every file that uses it (units before the
@@ -87,6 +87,17 @@ POCKETFFT_DIR      = external/pocketfft
 POCKETFFT_CFLAGS   = -O2
 POCKETFFT_OBJ      = $(POCKETFFT_DIR)/pocketfft.o
 WASM_POCKETFFT_OBJ = $(POCKETFFT_DIR)/pocketfft.wasm.o
+
+# Vendored libyaml (see external/libyaml/PROVENANCE; refresh with tools/vendor-libyaml.sh).
+# Plain C, its event API the only part used; yaml.c is the only caller. The
+# version defines stand in for the config.h its autotools build would write.
+# Both builds link it.
+LIBYAML_DIR      = external/libyaml
+LIBYAML_CFLAGS   = -O2 -DYAML_VERSION_MAJOR=0 -DYAML_VERSION_MINOR=2 -DYAML_VERSION_PATCH=5 -DYAML_VERSION_STRING='"0.2.5"' -I$(LIBYAML_DIR)/include
+LIBYAML_OBJS     = $(patsubst %.c,%.o,$(wildcard $(LIBYAML_DIR)/src/*.c))
+LIBYAML_LIB      = $(LIBYAML_DIR)/libyaml.a
+WASM_LIBYAML_OBJS = $(patsubst %.c,%.wasm.o,$(wildcard $(LIBYAML_DIR)/src/*.c))
+WASM_LIBYAML_LIB = $(LIBYAML_DIR)/libyaml-wasm.a
 
 # Vendored Tigr (see external/tigr/PROVENANCE; refresh with tools/vendor-tigr.sh).
 # A window holding a pixel buffer; graphics.c is the only caller and drives it
@@ -167,6 +178,12 @@ $(NANOARROW_DIR)/src/%.o: $(NANOARROW_DIR)/src/%.c $(NANOARROW_HDRS)
 $(POCKETFFT_OBJ): $(POCKETFFT_DIR)/pocketfft.c $(POCKETFFT_DIR)/pocketfft.h
 	$(CC) $(POCKETFFT_CFLAGS) -c $< -o $@
 
+$(LIBYAML_LIB): $(LIBYAML_OBJS)
+	ar rcs $@ $(LIBYAML_OBJS)
+
+$(LIBYAML_DIR)/src/%.o: $(LIBYAML_DIR)/src/%.c $(LIBYAML_DIR)/src/yaml_private.h $(LIBYAML_DIR)/include/yaml.h
+	$(CC) $(LIBYAML_CFLAGS) -c $< -o $@
+
 $(TIGR_OBJ): $(TIGR_DIR)/tigr.c $(TIGR_DIR)/tigr.h
 	$(CC) $(TIGR_CFLAGS) -c $< -o $@
 
@@ -189,8 +206,8 @@ WASI_SDK        = $(HOME)/wasi-sdk
 WASI_CC         = $(WASI_SDK)/bin/clang
 WASI_AR         = $(WASI_SDK)/bin/llvm-ar
 WASI_SYSROOT    = $(WASI_SDK)/share/wasi-sysroot
-WASM_SRCS       = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/fourier.c src/c/synth.c src/c/audio_effects.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/dimension.c src/c/platform_wasi.c src/c/time.c src/c/exact.c src/c/serialize.c src/c/arrow.c
-WASM_CFLAGS     = --sysroot $(WASI_SYSROOT) -O2 -I$(PCRE2_SRC) -I$(SQLITE_DIR) -I$(SQLITE_VEC_DIR) -I$(NANOARROW_DIR)/include -I$(POCKETFFT_DIR) -Wno-ignored-pragmas -Wl,-z,stack-size=8388608
+WASM_SRCS       = src/c/core.c src/c/words.c src/c/compiler.c src/c/io.c src/c/collections.c src/c/matrix.c src/c/statistics.c src/c/fourier.c src/c/synth.c src/c/audio_effects.c src/c/indexing.c src/c/functional.c src/c/superwords.c src/c/strings.c src/c/help_table.c src/c/logic.c src/c/database.c src/c/dimension.c src/c/platform_wasi.c src/c/time.c src/c/exact.c src/c/serialize.c src/c/yaml.c src/c/arrow.c
+WASM_CFLAGS     = --sysroot $(WASI_SYSROOT) -O2 -I$(PCRE2_SRC) -I$(SQLITE_DIR) -I$(SQLITE_VEC_DIR) -I$(NANOARROW_DIR)/include -I$(POCKETFFT_DIR) -I$(LIBYAML_DIR)/include -Wno-ignored-pragmas -Wl,-z,stack-size=8388608
 WASM_PCRE2_OBJS = $(patsubst %.c,%.wasm.o,$(wildcard $(PCRE2_SRC)/pcre2_*.c))
 WASM_PCRE2_LIB  = $(PCRE2_DIR)/libpcre2-8-wasm.a
 WASM_SQLITE_OBJ = $(SQLITE_DIR)/sqlite3.wasm.o
@@ -199,8 +216,8 @@ WASM_NANOARROW_OBJS = $(patsubst %.c,%.wasm.o,$(wildcard $(NANOARROW_DIR)/src/*.
 
 wasm: telic.wasm
 
-telic.wasm: $(WASM_SRCS) $(HDRS) $(WASM_PCRE2_LIB) $(WASM_SQLITE_OBJ) $(WASM_SQLITE_VEC_OBJ) $(WASM_NANOARROW_OBJS) $(WASM_POCKETFFT_OBJ)
-	$(WASI_CC) $(WASM_CFLAGS) -o telic.wasm $(WASM_SRCS) $(WASM_PCRE2_LIB) $(WASM_SQLITE_OBJ) $(WASM_SQLITE_VEC_OBJ) $(WASM_NANOARROW_OBJS) $(WASM_POCKETFFT_OBJ)
+telic.wasm: $(WASM_SRCS) $(HDRS) $(WASM_PCRE2_LIB) $(WASM_SQLITE_OBJ) $(WASM_SQLITE_VEC_OBJ) $(WASM_NANOARROW_OBJS) $(WASM_POCKETFFT_OBJ) $(WASM_LIBYAML_LIB)
+	$(WASI_CC) $(WASM_CFLAGS) -o telic.wasm $(WASM_SRCS) $(WASM_PCRE2_LIB) $(WASM_SQLITE_OBJ) $(WASM_SQLITE_VEC_OBJ) $(WASM_NANOARROW_OBJS) $(WASM_POCKETFFT_OBJ) $(WASM_LIBYAML_LIB)
 
 $(WASM_PCRE2_LIB): $(WASM_PCRE2_OBJS)
 	$(WASI_AR) rcs $@ $(WASM_PCRE2_OBJS)
@@ -219,6 +236,12 @@ $(NANOARROW_DIR)/src/%.wasm.o: $(NANOARROW_DIR)/src/%.c $(NANOARROW_HDRS)
 
 $(WASM_POCKETFFT_OBJ): $(POCKETFFT_DIR)/pocketfft.c $(POCKETFFT_DIR)/pocketfft.h
 	$(WASI_CC) --sysroot $(WASI_SYSROOT) $(POCKETFFT_CFLAGS) -c $< -o $@
+
+$(WASM_LIBYAML_LIB): $(WASM_LIBYAML_OBJS)
+	$(WASI_AR) rcs $@ $(WASM_LIBYAML_OBJS)
+
+$(LIBYAML_DIR)/src/%.wasm.o: $(LIBYAML_DIR)/src/%.c $(LIBYAML_DIR)/src/yaml_private.h $(LIBYAML_DIR)/include/yaml.h
+	$(WASI_CC) --sysroot $(WASI_SYSROOT) $(LIBYAML_CFLAGS) -c $< -o $@
 
 # Build the LAPACKE shared library that FFI dlopens.
 lapacke: $(LAPACKE_SHARED)
@@ -275,6 +298,9 @@ vendor-isocline:
 
 vendor-lapacke:
 	sh tools/vendor-lapacke.sh
+
+vendor-libyaml:
+	sh tools/vendor-libyaml.sh
 
 # The doc tests are generated from the runnable (```forth) documentation
 # fences: the README taste pair (committed .expected) and one trio per
@@ -371,6 +397,6 @@ install: all pack
 
 clean:
 	rm -rf bundles src/c/bundle_embed.h
-	rm -f telic telic.wasm $(PCRE2_OBJS) $(PCRE2_LIB) $(WASM_PCRE2_OBJS) $(WASM_PCRE2_LIB) $(SQLITE_OBJ) $(WASM_SQLITE_OBJ) $(SQLITE_VEC_OBJ) $(WASM_SQLITE_VEC_OBJ) $(NANOARROW_OBJS) $(WASM_NANOARROW_OBJS) $(POCKETFFT_OBJ) $(WASM_POCKETFFT_OBJ) $(TIGR_OBJ) $(MINIAUDIO_OBJ) $(ISOCLINE_OBJ) $(LAPACKE_OBJS) $(LAPACKE_LIB) $(LAPACKE_SHARED) $(LAPACKE_DIR)/exports.map
+	rm -f telic telic.wasm $(PCRE2_OBJS) $(PCRE2_LIB) $(WASM_PCRE2_OBJS) $(WASM_PCRE2_LIB) $(SQLITE_OBJ) $(WASM_SQLITE_OBJ) $(SQLITE_VEC_OBJ) $(WASM_SQLITE_VEC_OBJ) $(NANOARROW_OBJS) $(WASM_NANOARROW_OBJS) $(POCKETFFT_OBJ) $(WASM_POCKETFFT_OBJ) $(LIBYAML_OBJS) $(LIBYAML_LIB) $(WASM_LIBYAML_OBJS) $(WASM_LIBYAML_LIB) $(TIGR_OBJ) $(MINIAUDIO_OBJ) $(ISOCLINE_OBJ) $(LAPACKE_OBJS) $(LAPACKE_LIB) $(LAPACKE_SHARED) $(LAPACKE_DIR)/exports.map
 
-.PHONY: all clean install test test-libs test-synth test-examples test-wasm bench bundle wasm vendor-pcre2 vendor-sqlite vendor-isocline vendor-lapacke lapacke editors
+.PHONY: all clean install test test-libs test-synth test-examples test-wasm bench bundle wasm vendor-pcre2 vendor-sqlite vendor-isocline vendor-lapacke vendor-libyaml lapacke editors

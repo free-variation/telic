@@ -1,7 +1,7 @@
 #ifndef TELIC_H
 #define TELIC_H
 
-#define VERSION "0.41.0-alpha"
+#define VERSION "0.42.0-alpha"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -72,6 +72,7 @@ typedef int64_t cell;
 #define NAME_MAX_LENGTH (1 << 8)
 #define REGEX_CACHE_SIZE (1 << 10)
 #define JSON_MAX_DEPTH (1 << 10)
+#define NUMBER_TEXT_CAPACITY 32
 #define SELECT_MAX_DEPTH JSON_MAX_DEPTH
 #define MAX_DATABASES (1 << 8)
 #define STREAM_FD_MAX (1 << 12)
@@ -1152,6 +1153,7 @@ int build_set_from_values(Interpreter *interp, const Val *values, int count);
 int frame_delete(Object *frame, cell key);
 void frame_put(Object *frame, cell key, Val value);
 void frame_reserve(Object *frame, int needed);
+void frame_sort_dedup(Interpreter *interp, Object *frame);
 void set_add(Interpreter *interp, int set_handle, Val value);
 int set_difference(Interpreter *interp, int handle_a, int handle_b);
 int set_elements_copy(Interpreter *interp, Object *source);
@@ -1159,6 +1161,7 @@ int set_intersect(Interpreter *interp, int handle_a, int handle_b);
 int set_member(Interpreter *interp, int set_handle, Val value);
 void set_remove(Interpreter *interp, int set_handle, Val value);
 int set_union(Interpreter *interp, int handle_a, int handle_b);
+int shortest_number_text(double number, char *text);
 
 // matrix.c
 typedef struct {
@@ -1884,6 +1887,11 @@ void p_rationalize(DISPATCH_ARGS);
 // serialize.c
 void p_bytes_to_value(DISPATCH_ARGS);
 void p_value_to_bytes(DISPATCH_ARGS);
+
+// yaml.c
+void p_frame_to_yaml(DISPATCH_ARGS);
+void p_yaml_documents(DISPATCH_ARGS);
+void p_yaml_to_frame(DISPATCH_ARGS);
 
 // arrow.c
 void p_read_arrow(DISPATCH_ARGS);

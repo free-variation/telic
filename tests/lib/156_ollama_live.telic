@@ -1,0 +1,111 @@
+\ lib/ollama.telic against a running Ollama server at ollama-url's default,
+\ http://localhost:11434/api/, holding two models: a small one for completions
+\ and chats (gemma3:270m) and one that calls tools (qwen3:8b). The tests check
+\ the shapes of the replies, not their text, which the models choose. The
+\ model-store tests make and delete models named telic-test-*.
+
+"lib/ollama.telic" load
+
+"gemma3:270m" to small-model
+"qwen3:8b" to tool-model
+{ :options { :temperature 0 :num_predict 16 } } to short-reply
+
+new-tests
+
+\ === the server and its models ===
+"version" ( ollama-version string? expect ) test
+"models" ( ollama-models small-model position-of 0 >= expect ) test
+
+\ === completions ===
+"generate" (
+    small-model "Say hello." short-reply ollama-generate to reply
+    reply@done :1 expect=
+    reply@response string? expect
+    reply@response size 0 > expect
+) test
+
+"generate streaming gathers every piece" (
+    [ ] to pieces
+    small-model "Count to five." short-reply ( @response pieces swap add-last! drop ) ollama-generate-streaming to reply
+    reply@done :1 expect=
+    reply@response pieces "" join expect=
+    pieces size 1 > expect
+) test
+
+\ === chats ===
+"chat" (
+    small-model [ :user "Name a colour." ollama-message ] short-reply ollama-chat to reply
+    reply@message@role "assistant" expect=
+    reply@message@content size 0 > expect
+) test
+
+"chat streaming gathers every piece" (
+    [ ] to pieces
+    small-model [ :user "Name a colour." ollama-message ] short-reply
+    ( /message/content @ pieces swap add-last! drop ) ollama-chat-streaming to reply
+    reply@message@content pieces "" join expect=
+    reply@message@role "assistant" expect=
+) test
+
+"structured output" (
+    small-model [ :user "Alice is 30. Respond using JSON." ollama-message ]
+    { :format { :type "object" :properties { :name { :type "string" } :age { :type "integer" } } :required [ "name" "age" ] }
+      :options { :temperature 0 } }
+    ollama-chat /message/content @ json>frame to person
+    person :name has? expect
+    person :age has? expect
+) test
+
+\ === tools ===
+: weather-tool ( arguments -- output ) @city "It is 21 C and sunny in {0}." format ;
+{ :name "get_weather" :description "The current weather in a city"
+  :parameters { :type "object" :properties { :city { :type "string" :description "the city" } } :required [ "city" ] } }
+' weather-tool ollama-add-tool
+
+"a reply asks for the tool" (
+    tool-model [ :user "What is the weather in Tokyo?" ollama-message ] { :tools ollama-tools :think :0 :options { :temperature 0 } }
+    ollama-chat /message/tool_calls @ first /function/name @ "get_weather" expect=
+) test
+
+"converse runs the tool and answers" (
+    tool-model [ "What is the weather in Tokyo? Use the tool." ] { :think :0 :options { :temperature 0 } } ollama-converse to history
+    history ( @role "tool" = ) find-first @content "It is 21 C and sunny in Tokyo." expect=
+    history last @role "assistant" expect=
+    history last :tool_calls [ ] @or size 0 expect=
+) test
+
+ollama-forget-tools
+
+\ === the model store ===
+"copy, show, delete" (
+    small-model "telic-test-copy" ollama-copy
+    ollama-models "telic-test-copy:latest" position-of 0 >= expect
+    "telic-test-copy" ollama-model-info :capabilities has? expect
+    "telic-test-copy" ollama-delete
+    ollama-models "telic-test-copy:latest" position-of -1 expect=
+) test
+
+"create, streamed" (
+    [ ] to statuses
+    "telic-test-created" { :from small-model :system "You answer in French." } ( @status statuses swap add-last! drop ) ollama-create-streaming
+    @status "success" expect=
+    statuses size 1 > expect
+    "telic-test-created" ollama-delete
+) test
+
+"running models" ( ollama-running ( @name ) map small-model position-of 0 >= expect ) test
+
+"blobs" (
+    "telic blob test" "/tmp/telic-ollama-blob.txt" write-file
+    "/tmp/telic-ollama-blob.txt" ollama-push-blob to digest
+    digest "^sha256:[0-9a-f]{64}$" has? expect
+    digest ollama-blob? expect
+    "sha256:0000000000000000000000000000000000000000000000000000000000000000" ollama-blob? not expect
+) test
+
+"a missing model throws the server's error" (
+    ( "telic-no-such-model" "x" { } ollama-generate ) catch 1 expect=
+    "^ollama: HTTP 404: model 'telic-no-such-model' not found$" has? expect
+) test
+
+test-report

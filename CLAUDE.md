@@ -103,6 +103,10 @@ by file in SRCS order. What each file is:
   float>exact/exact>float/numerator/denominator.
 - serialize.c — the binary value format: writer, reader, the back-reference
   table that preserves sharing and cycles (value>bytes/bytes>value).
+- yaml.c — YAML via vendored libyaml (yaml>frame/yaml-documents/
+  frame>yaml): the parser's events built into values with scalars typed by
+  YAML 1.2's core schema and aliases sharing their anchor's object, and the
+  emitter's block-style output.
 - arrow.c — Arrow IPC files via vendored nanoarrow (read-arrow/write-arrow):
   the dataset-column to Arrow-type mapping both ways, units carried in
   field metadata.

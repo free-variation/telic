@@ -1,0 +1,21 @@
+{"role": "user", "content": "hi"} 
+system 
+{"n": 1} 
+4 
+function 
+[ "echo" "count" "throwing" "dividing" ] 
+{"role": "tool", "content": "ping", "tool_name": "echo"} 
+{"count": 3} 
+{"count": 3} 
+Error executing tool: no tool named missing 
+Error executing tool: tool broke 
+Error executing tool: division by zero 
+0 
+1 ollama: HTTP 0: boom 
+1 ollama: HTTP 0: not json 
+a b 
+1 ollama: HTTP 0 
+1 ollama: HTTP 0: stream failed 
+1 1 
+1 1 
+0 

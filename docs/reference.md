@@ -40,6 +40,14 @@ refuses a definition without one. That slot is the only place a parenthesis
 means a declaration; everywhere else `(` opens a quotation and `)` closes it.
 `\\` runs to the end of the line and is the only comment.
 
+The control words — `if` `?if` `else` `then`, `begin` `until` `again` `while`
+`repeat`, `do` `loop`, `case` `of` `endof` `endcase`, `leave` `continue`,
+`++` `--` `f++` `f--`, `recurse` — compile into the body being compiled, so
+they work only inside `: … ;` or a quotation `( … )`; at the top level of a
+file or the REPL they error. A top-level conditional is
+`( flag if … then ) execute`; a top-level loop is `times` or `i-times` over a
+quotation.
+
 Tokens are whitespace-delimited, with self-delimiting punctuation: `;`, `]`,
 and `}` always end a token and `[` and `{` always start one (the two-char
 opener `[<` and closer `>]` stay whole), so
@@ -3148,6 +3156,48 @@ null . null null? . cr
 ```
 ```output
 null 1
+```
+
+---
+
+## YAML
+
+Read with the vendored libyaml and typed by YAML 1.2's core schema: mappings ↔ frames (keys interned as symbols from their text), sequences ↔ arrays, and a plain scalar is `null` (`~`, `null`, empty), `:1`/`:0` (`true`/`false`), a number (decimal, `0o` octal, `0x` hex, float, `.inf`; `.nan` is `null`; an integer too large for a float an exact), or else a string, so `yes` stays a string. A quoted or block scalar is a string. The tags `!!str` `!!int` `!!float` `!!bool` `!!null` force a type; any other tag errors. An alias answers its anchor's own object, so shared structure stays shared. Errors carry libyaml's message and the line and column.
+
+| Word | Stack effect | Behavior | Ops | Alloc | O |
+|------|-------------|----------|-----|-------|---|
+| `yaml>frame` | `( str -- val )` | Parse one YAML document; an empty stream answers `null`, and a stream of several documents errors | scan + build | one object per node | O(\|s\| log \|s\|) |
+| `yaml-documents` | `( str -- arr )` | Parse every document of a stream into an array, anchors per document | scan + build | `1a` + one object per node | O(\|s\| log \|s\|) |
+| `frame>yaml` | `( val -- str )` | Serialize a value to block-style YAML, accepting what `frame>json` accepts; a string that would read back as another type is single-quoted (as are YAML 1.1's `yes`/`no`/`on`/`off`), a multi-line one is a literal block, and `±inf` is `±.inf`. Shared structure is written out at each use | walk + build | `1o` string | O(tree size) |
+
+```forth yaml>frame
+"name: Ann
+age: 34
+tags: [a, b]
+answer: yes" yaml>frame dup @age . dup @tags . @answer type-of . cr
+```
+```output
+34 [ "a" "b" ] :string
+```
+
+```forth yaml-documents
+"a: 1
+---
+b: 2" yaml-documents size . cr
+```
+```output
+2
+```
+
+```forth frame>yaml
+{ :count 1 :word "true" :list [ 1 2 ] } frame>yaml stdout write
+```
+```output
+word: 'true'
+count: 1
+list:
+- 1
+- 2
 ```
 
 ---

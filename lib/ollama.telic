@@ -1,0 +1,340 @@
+\ Ollama's REST API over lib/http.telic's curl subprocess: completions and
+\ chats, plain or streamed to a handler as the replies arrive; tool calling
+\ with registered handlers and a conversation loop that runs the tools a reply
+\ asks for; embeddings as a matrix; the model store (list, show, pull, push,
+\ copy, delete, create, running models) and blobs. Requests and replies are
+\ frames, sent and parsed as JSON, so a JSON true or false is the symbol :1 or
+\ :0. Native-only: needs start-process and the curl binary, and shasum for
+\ blob digests.
+
+"http" load-library
+
+\ the API's root, the server on this machine at ollama's default port; assign another to reach another server
+"http://localhost:11434/api/" to ollama-url
+
+\ a chat message: the role a symbol or string (:system :user :assistant :tool), the content a string, or a frame sent as its JSON text
+: ollama-message ( role content -- message )
+	| role content |
+
+	content frame? if content frame>json to content then
+	{ :role role "{0}" format :content content } ;
+
+\ the text a failed request throws: the status and the server's :error when the body holds one, else the body
+: ollama-error ( status body -- text )
+	| status body |
+
+	( body json>frame :error @ ) catch if drop body trim then to detail
+	detail size 0 = if status "ollama: HTTP {0}" format exit then
+	status detail "ollama: HTTP {1}: {0}" format ; internal
+
+\ one request to an endpoint, the body a frame sent as JSON or null; answers the reply parsed from JSON, null for an empty body. A status outside 2xx throws the server's error
+: ollama-request ( method endpoint body -- reply )
+	| method endpoint body |
+
+	body null? if null else body frame>json then to payload
+	method ollama-url endpoint + [ "Content-Type: application/json" ] payload http-request to response
+
+	response@status to status
+	response@body trim to text
+	status 200 < status 300 >= or if status text ollama-error throw then
+
+	text size 0 = if null else text json>frame then ; internal
+
+\ a stream's lines read as they arrive, each reply handed to the handler and kept; the last line is the status curl appends, and a reply carrying :error is kept back as the failure instead of being handled
+: ollama-read-stream ( process handler -- replies status failure )
+	| process handler |
+
+	[ ] to replies
+	null to failure
+	null to pending
+
+	begin process@out read-line to line line null? not while
+		pending null? not if
+			pending trim size 0 > if
+				pending json>frame to reply
+				reply :error has? if
+					pending to failure
+				else
+					reply handler execute
+					replies reply add-last! drop
+				then
+			then
+		then
+		line to pending
+	repeat
+
+	replies pending null? if 0 else pending string>number then failure ; internal
+
+\ stream an endpoint: the body sent with :stream true, each reply handed to the handler ( reply -- ) as it arrives; answers every reply in order. A reply carrying :error, a status outside 2xx, or a failed transfer throws, as does the handler, the transfer abandoned
+: ollama-stream ( endpoint body handler -- replies )
+	| endpoint body handler |
+
+	[ "curl" "-sS" "-N" "-X" "POST" ollama-url endpoint +
+	  "-H" "Content-Type: application/json"
+	  "--data-binary" body { :stream :1 } merge frame>json
+	  "-w" "\n%{http_code}" ] start-process to process
+	process@in close
+
+	process handler ' ollama-read-stream 2curry catch if
+		process@pid stop drop
+		process@out close
+		process@err close
+		throw
+	then
+	to failure to status to replies
+
+	process@err read trim to transfer-error
+	process@out close
+	process@err close
+	process@pid wait 0 = not if transfer-error throw then
+
+	failure null? not if status failure ollama-error throw then
+	status 200 < status 300 >= or if status "" ollama-error throw then
+
+	replies ; internal
+
+\ the last of a stream's replies, which must report :status success
+: ollama-final-status ( replies -- reply )
+	| replies |
+
+	replies size 0 = if "ollama: the stream ended with no reply" throw then
+
+	replies last to reply
+	reply :status "" @or "success" = not if "ollama: the stream ended before status success" throw then
+
+	reply ; internal
+
+\ === completions and chats ===
+
+\ a completion of the prompt by the model, unstreamed: options a frame of the request's other fields (:system :format :images :options :think …), { } for none; answers the reply, the text under :response
+: ollama-generate ( model prompt options -- reply )
+	| model prompt options |
+	"POST" "generate" options { :model model :prompt prompt :stream :0 } merge ollama-request ;
+
+\ a completion streamed: each reply handed to the handler ( reply -- ) as it arrives, its piece of text under :response; answers the final reply with :response the whole text
+: ollama-generate-streaming ( model prompt options handler -- reply )
+	| model prompt options handler |
+
+	"generate" options { :model model :prompt prompt } merge handler ollama-stream to replies
+
+	replies ( :response "" @or ) map "" join to text
+	replies last copy text :response ! ;
+
+\ a streamed reply's message piece added to the message gathered so far: the content and thinking joined, the images and tool calls appended, the tool name the last given
+: ollama-add-piece ( message reply -- message )
+	| message reply |
+
+	reply :message { } @or to piece
+
+	piece :content has? if message message@content piece@content + :content ! drop then
+	piece :thinking has? if message message :thinking "" @or piece@thinking + :thinking ! drop then
+	piece :images null @or array? if message message :images [ ] @or piece@images concat :images ! drop then
+	piece :tool_calls null @or array? if message message :tool_calls [ ] @or piece@tool_calls concat :tool_calls ! drop then
+	piece :tool_name has? if message piece@tool_name :tool_name ! drop then
+
+	message ; internal
+
+\ the model's next message in a chat, unstreamed: messages an array of message frames, options a frame of the request's other fields (:tools :format :options :think …), { } for none; answers the reply, the message under :message
+: ollama-chat ( model messages options -- reply )
+	| model messages options |
+	"POST" "chat" options { :model model :messages messages :stream :0 } merge ollama-request ;
+
+\ the next message streamed: each reply handed to the handler ( reply -- ) as it arrives, its piece under :message; answers the final reply with :message the pieces gathered into one
+: ollama-chat-streaming ( model messages options handler -- reply )
+	| model messages options handler |
+
+	"chat" options { :model model :messages messages } merge handler ollama-stream to replies
+
+	replies last copy
+	replies { :role "assistant" :content "" } ' ollama-add-piece reduce :message ! ;
+
+\ === tools ===
+
+\ the tools the conversations offer, each { :definition :handler }
+[ ] to ollama-tool-list
+
+\ register a tool: the function definition the model sees, { :name :description :parameters } with :parameters a JSON Schema object, and the word ( arguments -- output ) that runs it, given the arguments frame the model supplied and answering a string or a value sent as its JSON text
+: ollama-add-tool ( definition handler -- )
+	| definition handler |
+	ollama-tool-list { :definition definition :handler handler } add-last! drop ;
+
+\ forget every registered tool
+: ollama-forget-tools ( -- )
+	| ^ollama-tool-list |
+	[ ] to ollama-tool-list ;
+
+\ the registered tools as a chat request's :tools
+: ollama-tools ( -- tools )
+	ollama-tool-list ( entry | { :type "function" :function entry@definition } ) map ;
+
+\ run a tool call a reply asked for, answering the tool message that carries its output: the registered handler for the call's function name, given the call's arguments. An unknown name, or a handler that throws, answers the error as the output, so the model reads it
+: ollama-run-tool ( call -- message )
+	| call |
+
+	call@function to function
+	function@name to name
+	function :arguments { } @or to arguments
+	ollama-tool-list ( entry | entry@definition@name name = ) find-first to entry
+
+	entry null? if
+		name "Error executing tool: no tool named {0}" format to output
+	else
+		( arguments entry@handler execute ) catch if
+			dup frame? if :message @ then "Error executing tool: {0}" format
+		then to output
+	then
+	output string? not if output frame>json to output then
+
+	{ :role "tool" :tool_name name :content output } ;
+
+\ a conversation: each prompt, a string taken as the user's or a message frame, added in turn and answered by a chat offering the registered tools; while a reply asks for tools they run, their messages are added and the model answers again. Answers the whole history, the model's and the tools' messages included
+: ollama-converse ( model prompts options -- messages )
+	| model prompts options |
+
+	ollama-tool-list size 0 > if options { :tools ollama-tools } merge else options then to request-options
+	[ ] to messages
+
+	0 prompts size 1 do k
+		prompts k @i to prompt
+		messages prompt string? if :user prompt ollama-message else prompt then add-last! drop
+		model messages request-options ollama-chat @message to answer
+		messages answer add-last! drop
+
+		begin answer :tool_calls [ ] @or size 0 > while
+			messages answer@tool_calls ' ollama-run-tool map concat to messages
+			model messages request-options ollama-chat @message to answer
+			messages answer add-last! drop
+		repeat
+	loop
+
+	messages ;
+
+\ === embeddings ===
+
+\ embeddings of the input, a string or an array of strings, as a matrix of one row per input; options a frame of the request's other fields (:truncate :dimensions :options …), { } for none
+: ollama-embed ( model input options -- embeddings )
+	| model input options |
+
+	"POST" "embed" options { :model model :input input } merge ollama-request @embeddings to rows
+
+	rows flatten rows size matrix ;
+
+\ === the model store ===
+
+\ the names of the models the server holds
+: ollama-models ( -- names )
+	"GET" "tags" null ollama-request @models ( @name ) map ;
+
+\ the models loaded in memory, each a frame as the server reports it
+: ollama-running ( -- models )
+	"GET" "ps" null ollama-request @models ;
+
+\ the server's version
+: ollama-version ( -- version )
+	"GET" "version" null ollama-request @version ;
+
+\ a model's details: its modelfile, parameters, template, model info and capabilities
+: ollama-model-info ( model -- info )
+	| model |
+	"POST" "show" { :model model } ollama-request ;
+
+\ copy a model under a new name
+: ollama-copy ( source destination -- )
+	| source destination |
+	"POST" "copy" { :source source :destination destination } ollama-request drop ;
+
+\ delete a model and its data
+: ollama-delete ( model -- )
+	| model |
+	"DELETE" "delete" { :model model } ollama-request drop ;
+
+\ download a model from the registry, answering the final reply, :status success
+: ollama-pull ( model -- reply )
+	| model |
+	"POST" "pull" { :model model :stream :0 } ollama-request ;
+
+\ download a model with its progress streamed: each reply ( :status and, while a layer downloads, :total and :completed ) handed to the handler; answers the final reply, which must report success
+: ollama-pull-streaming ( model handler -- reply )
+	| model handler |
+	"pull" { :model model } handler ollama-stream ollama-final-status ;
+
+\ upload a model to the registry, answering the final reply
+: ollama-push ( model -- reply )
+	| model |
+	"POST" "push" { :model model :stream :0 } ollama-request ;
+
+\ upload a model with its progress streamed to the handler; answers the final reply, which must report success
+: ollama-push-streaming ( model handler -- reply )
+	| model handler |
+	"push" { :model model } handler ollama-stream ollama-final-status ;
+
+\ create a model: fields a frame of the request's other fields, :from an existing model or :files blobs by file name, and :system :template :parameters :quantize …; answers the final reply
+: ollama-create ( model fields -- reply )
+	| model fields |
+	"POST" "create" fields { :model model :stream :0 } merge ollama-request ;
+
+\ create a model with its progress streamed to the handler; answers the final reply, which must report success
+: ollama-create-streaming ( model fields handler -- reply )
+	| model fields handler |
+	"create" fields { :model model } merge handler ollama-stream ollama-final-status ;
+
+\ === blobs ===
+
+\ a curl request whose body is not kept, answering the status; a failed transfer throws curl's message
+: ollama-status-only ( arguments -- status )
+	| arguments |
+
+	[ "curl" "-sS" "-o" "/dev/null" "-w" "%{http_code}" ] arguments concat run-result to result
+	result@status 0 = not if result@err trim throw then
+
+	result@out string>number ; internal
+
+\ a file's SHA-256 digest as the blob API names it, sha256:<hex>, from the shasum command
+: ollama-file-digest ( path -- digest )
+	| path |
+
+	[ "shasum" "-a" "256" path ] run-result to result
+	result@status 0 = not if result@err trim throw then
+
+	result@out " " split first "sha256:" swap + ;
+
+\ whether the server holds the blob with that digest
+: ollama-blob? ( digest -- flag )
+	| digest |
+	[ "-I" ollama-url "blobs/" + digest + ] ollama-status-only 200 = ;
+
+\ send a file to the server as a blob unless it holds one with the file's digest already; answers the digest
+: ollama-push-blob ( path -- digest )
+	| path |
+
+	path ollama-file-digest to digest
+	digest ollama-blob? if digest exit then
+
+	[ "-T" path "-X" "POST" ollama-url "blobs/" + digest + ] ollama-status-only to status
+	status 200 < status 300 >= or if status "" ollama-error throw then
+
+	digest ;
+
+\ create a model from a GGUF file: the file sent as a blob and named in :files by its file name, with the other fields in options; answers the final reply
+: ollama-create-from-gguf ( model path options -- reply )
+	| model path options |
+
+	path ollama-push-blob to digest
+
+	model options { :files { path basename string>symbol digest } } merge ollama-create ;
+
+\ create a model from a safetensors directory: each regular file in it sent as a blob and named in :files by its file name, with the other fields in options; answers the final reply
+: ollama-create-from-safetensors ( model directory options -- reply )
+	| model directory options |
+
+	{ } to files
+	directory list-directory to names
+
+	0 names size 1 do k
+		directory "/" + names k @i + to path
+		path file-info@kind :file = if
+			files path ollama-push-blob names k @i string>symbol ! drop
+		then
+	loop
+
+	model options { :files files } merge ollama-create ;

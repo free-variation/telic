@@ -2,9 +2,10 @@
 # Loadable-library test harness (tests/lib/*.telic).
 #
 # These tests `load` a lib/ library and need its external dependencies —
-# LAPACK through the vendored liblapacke_telic shared library, and (for the
-# xgboost tests) libxgboost. The core `make test` suite excludes them so it
-# builds and passes without those deps installed. Native-only: the wasm build
+# LAPACK through the vendored liblapacke_telic shared library, (for the
+# xgboost tests) libxgboost, and (for 156_ollama_live) a running Ollama
+# server holding the models that test names. The core `make test` suite
+# excludes them so it builds and passes without those deps installed. Native-only: the wasm build
 # excludes the FFI, so there is no wasm counterpart.
 #
 # Each test runs as a program argument (not piped -b, which swallows an

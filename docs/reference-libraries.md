@@ -1036,6 +1036,243 @@ followed. Native-only: needs `start-process` and the `curl` binary.
 ```output
 ```
 
+## Ollama (lib/ollama.telic)
+
+`"ollama" load-library`. Ollama's REST API over `curl`. `ollama-url` holds
+the API's root, `http://localhost:11434/api/` on loading. Requests and replies
+are frames sent and parsed as JSON, so JSON `true` and `false` are `:1` and
+`:0`. An `options` frame carries the request's other fields, `{ }` for none. A
+status outside 2xx throws `ollama: HTTP <status>: <the server's error>`; a
+failed transfer throws curl's message. A streaming word hands each reply to
+its handler `( reply -- )` as it arrives, then answers the final reply with
+the pieces gathered; `( @response stdout write )` prints a completion as it is
+written. Native-only: needs `curl`, and `shasum` for blobs.
+
+| Word | Stack effect | Summary |
+| --- | --- | --- |
+| `ollama-message` | `( role content -- message )` | A chat message `{ :role :content }`: the role a symbol or string (`:system` `:user` `:assistant` `:tool`), the content a string, or a frame sent as its JSON text |
+| `ollama-generate` | `( model prompt options -- reply )` | A completion of the prompt, unstreamed; the reply frame as the server sends it, the text under `:response` |
+| `ollama-generate-streaming` | `( model prompt options handler -- reply )` | A completion streamed to the handler, each reply's piece of text under `:response`; answers the final reply with `:response` the whole text |
+| `ollama-chat` | `( model messages options -- reply )` | The model's next message in a chat of message frames, unstreamed; the message under `:message` |
+| `ollama-chat-streaming` | `( model messages options handler -- reply )` | The next message streamed to the handler, each reply's piece under `:message`; answers the final reply with `:message` the pieces gathered into one: the content and the thinking joined, the images and tool calls appended, the last tool name |
+| `ollama-add-tool` | `( definition handler -- )` | Register a tool: the function definition the model sees, `{ :name :description :parameters }` with `:parameters` a JSON Schema object, and the word `( arguments -- output )` that runs it, given the arguments frame the model supplied and answering a string, or a value sent as its JSON text |
+| `ollama-tools` | `( -- tools )` | The registered tools as a chat request's `:tools` array, each `{ :type "function" :function definition }`, in registration order |
+| `ollama-forget-tools` | `( -- )` | Forget every registered tool |
+| `ollama-run-tool` | `( call -- message )` | Run one of a reply's tool calls through the handler registered under its function name, answering the tool message `{ :role "tool" :tool_name :content }`; an unknown name, or a handler that throws, answers `Error executing tool: <message>` as the content, so the model reads it |
+| `ollama-converse` | `( model prompts options -- messages )` | A conversation: each prompt, a string taken as the user's or a message frame, added in turn and answered by `ollama-chat` with the registered tools offered; while a reply asks for tools they run, their messages are added, and the model answers again. Answers the whole history |
+| `ollama-embed` | `( model input options -- embeddings )` | Embeddings of a string or an array of strings, as a matrix of one row per input |
+| `ollama-models` | `( -- names )` | The names of the models the server holds |
+| `ollama-running` | `( -- models )` | The models loaded in memory, a frame each as the server reports it |
+| `ollama-version` | `( -- version )` | The server's version string |
+| `ollama-model-info` | `( model -- info )` | A model's details: modelfile, parameters, template, model info, capabilities |
+| `ollama-copy` | `( source destination -- )` | Copy a model under a new name |
+| `ollama-delete` | `( model -- )` | Delete a model |
+| `ollama-pull` | `( model -- reply )` | Download a model from the registry, answering the final reply, `:status` `success` |
+| `ollama-pull-streaming` | `( model handler -- reply )` | Download a model with its progress replies (`:status`, and `:total` `:completed` while a layer downloads) streamed to the handler; the final reply must report `success`, else it throws |
+| `ollama-push` | `( model -- reply )` | Upload a model to the registry, answering the final reply |
+| `ollama-push-streaming` | `( model handler -- reply )` | Upload a model with its progress streamed to the handler; the final reply must report `success` |
+| `ollama-create` | `( model fields -- reply )` | Create a model; `fields` holds the request's other fields: `:from` an existing model or `:files` blobs by file name, and `:system` `:template` `:parameters` `:quantize` and the rest |
+| `ollama-create-streaming` | `( model fields handler -- reply )` | Create a model with its progress streamed to the handler; the final reply must report `success` |
+| `ollama-file-digest` | `( path -- digest )` | A file's SHA-256 digest as the blob API names it, `sha256:<hex>` |
+| `ollama-blob?` | `( digest -- flag )` | Whether the server holds a blob with that digest |
+| `ollama-push-blob` | `( path -- digest )` | Send a file to the server as a blob unless it holds one with the file's digest; answers the digest |
+| `ollama-create-from-gguf` | `( model path options -- reply )` | Create a model from a GGUF file: the file sent as a blob and named under `:files` by its file name, the other fields from `options` |
+| `ollama-create-from-safetensors` | `( model directory options -- reply )` | Create a model from a safetensors directory: each regular file in it sent as a blob and named under `:files`, the other fields from `options` |
+
+```forth ollama-message
+"ollama" load-library
+:user "hello" ollama-message frame>json . cr
+:tool { :celsius 21 } ollama-message @content . cr
+```
+```output
+{"role": "user", "content": "hello"}
+{"celsius": 21}
+```
+
+```forth ollama-add-tool
+"ollama" load-library
+: echo-tool ( arguments -- output ) @text ;
+{ :name "echo" :description "Echo the text" :parameters { :type "object" :properties { :text { :type "string" } } } }
+' echo-tool ollama-add-tool
+ollama-tools size . cr ollama-forget-tools
+```
+```output
+1
+```
+
+```forth ollama-tools
+"ollama" load-library
+{ :name "noop" :description "Do nothing" :parameters { :type "object" :properties { } } } ( drop "" ) ollama-add-tool
+ollama-tools first /function/name @ . cr ollama-forget-tools
+```
+```output
+noop
+```
+
+```forth ollama-forget-tools
+"ollama" load-library
+{ :name "noop" :description "Do nothing" :parameters { :type "object" :properties { } } } ( drop "" ) ollama-add-tool
+ollama-forget-tools ollama-tools size . cr
+```
+```output
+0
+```
+
+```forth ollama-run-tool
+"ollama" load-library
+: echo-tool ( arguments -- output ) @text ;
+{ :name "echo" :description "Echo the text" :parameters { :type "object" :properties { :text { :type "string" } } } }
+' echo-tool ollama-add-tool
+{ :function { :name "echo" :arguments { :text "ping" } } } ollama-run-tool @content . cr
+{ :function { :name "nothing" :arguments { } } } ollama-run-tool @content . cr ollama-forget-tools
+```
+```output
+ping
+Error executing tool: no tool named nothing
+```
+
+```forth-noexec ollama-generate
+"gemma3:270m" "Why is the sky blue?" { :options { :temperature 0 } } ollama-generate @response . cr
+```
+```output
+```
+
+```forth-noexec ollama-generate-streaming
+"gemma3:270m" "Count to five." { } ( @response stdout write ) ollama-generate-streaming drop cr
+```
+```output
+```
+
+```forth-noexec ollama-chat
+"gemma3:270m" [ :system "Answer in one sentence." ollama-message :user "Why is the sky blue?" ollama-message ] { } ollama-chat /message/content @ . cr
+```
+```output
+```
+
+```forth-noexec ollama-chat-streaming
+"gemma3:270m" [ :user "Name a colour." ollama-message ] { } ( /message/content @ stdout write ) ollama-chat-streaming drop cr
+```
+```output
+```
+
+```forth-noexec ollama-converse
+: weather-tool ( arguments -- output ) @city "It is 21 C and sunny in {0}." format ;
+{ :name "get_weather" :description "The current weather in a city"
+  :parameters { :type "object" :properties { :city { :type "string" } } :required [ "city" ] } }
+' weather-tool ollama-add-tool
+"qwen3:8b" [ "What is the weather in Tokyo?" ] { :think :0 } ollama-converse last @content . cr
+```
+```output
+```
+
+```forth-noexec ollama-embed
+"embeddinggemma" [ "first text" "second text" ] { } ollama-embed dim . . cr
+```
+```output
+```
+
+```forth-noexec ollama-models
+ollama-models . cr
+```
+```output
+```
+
+```forth-noexec ollama-running
+ollama-running ( @name ) map . cr
+```
+```output
+```
+
+```forth-noexec ollama-version
+ollama-version . cr
+```
+```output
+```
+
+```forth-noexec ollama-model-info
+"gemma3:270m" ollama-model-info @capabilities . cr
+```
+```output
+```
+
+```forth-noexec ollama-copy
+"gemma3:270m" "my-gemma" ollama-copy
+```
+```output
+```
+
+```forth-noexec ollama-delete
+"my-gemma" ollama-delete
+```
+```output
+```
+
+```forth-noexec ollama-pull
+"gemma3:270m" ollama-pull @status . cr
+```
+```output
+```
+
+```forth-noexec ollama-pull-streaming
+"gemma3:270m" ( @status . cr ) ollama-pull-streaming drop
+```
+```output
+```
+
+```forth-noexec ollama-push
+"my-namespace/my-model" ollama-push @status . cr
+```
+```output
+```
+
+```forth-noexec ollama-push-streaming
+"my-namespace/my-model" ( @status . cr ) ollama-push-streaming drop
+```
+```output
+```
+
+```forth-noexec ollama-create
+"french-gemma" { :from "gemma3:270m" :system "You answer in French." } ollama-create @status . cr
+```
+```output
+```
+
+```forth-noexec ollama-create-streaming
+"french-gemma" { :from "gemma3:270m" } ( @status . cr ) ollama-create-streaming drop
+```
+```output
+```
+
+```forth-noexec ollama-file-digest
+"model.gguf" ollama-file-digest . cr
+```
+```output
+```
+
+```forth-noexec ollama-blob?
+"model.gguf" ollama-file-digest ollama-blob? . cr
+```
+```output
+```
+
+```forth-noexec ollama-push-blob
+"model.gguf" ollama-push-blob . cr
+```
+```output
+```
+
+```forth-noexec ollama-create-from-gguf
+"my-model" "model.gguf" { :system "You are terse." } ollama-create-from-gguf @status . cr
+```
+```output
+```
+
+```forth-noexec ollama-create-from-safetensors
+"my-model" "safetensors-directory" { :quantize "q8_0" } ollama-create-from-safetensors @status . cr
+```
+```output
+```
+
 ## MCP server (lib/mcp.telic)
 
 An MCP server over stdio, protocol revision 2026-07-28, modern era only: every

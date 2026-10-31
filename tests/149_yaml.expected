@@ -1,0 +1,64 @@
+Ann 34 1.75 
+[ "a" "b" ] 
+null null 
+:1 :0 
+yes :string 
+[ -12 7 15 31 1000 0.5 1 -inf null 123456789012345678901 ] 
+:exact 
+:string :string 1_000 12abc 
+line one
+line two
+ 
+folded text 
+:string 3 16 null 
+[ 1 2 99 ] 
+[ :me ] 
+key 
+null 
+[ { :a 1 }
+  { :b 2 }
+  [ 3 ] ] 
+[ ] 
+2 
+word: 'true'
+count: 1
+list:
+- 1
+- 2
+- 'yes'
+- '12'
+- ''
+- plain
+- 'null'
+text: |-
+  two
+  lines
+empty-list: []
+empty-frame: {}
+42
+true
+-.inf
+1 
+1 
+error: expected one document; got several (yaml-documents reads them all)
+in yaml>frame
+error: while parsing a flow sequence, did not find expected ',' or ']' at line 2, column 1
+in yaml>frame
+error: unknown alias *missing
+in yaml>frame
+error: expected a value !!int takes; got 'hello'
+in yaml>frame
+error: unsupported tag !custom
+in yaml>frame
+error: expected a scalar mapping key; got a sequence
+in yaml>frame
+error: expected a string alias as a mapping key; got a float
+in yaml>frame
+error: cannot serialize a non-boolean symbol
+in frame>yaml
+error: cannot serialize a matrix
+in frame>yaml
+error: cannot serialize a non-integer exact as YAML
+in frame>yaml
+error: expected a string; got a float
+in yaml>frame

@@ -1,0 +1,9 @@
+libyaml vendored source.
+
+upstream:  https://github.com/yaml/libyaml (tag 0.2.5)
+tarball:   https://codeload.github.com/yaml/libyaml/tar.gz/refs/tags/0.2.5
+sha256:    fa240dbf262be053f3898006d502d514936c818e422afdcf33921c63bed9bf2e
+
+The library's src/ and include/yaml.h. MIT (see License). Produced by
+tools/vendor-libyaml.sh; do not edit these files by hand, re-run the script
+to update.
