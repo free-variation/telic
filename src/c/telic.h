@@ -23,7 +23,7 @@ typedef int64_t cell;
 #define VOCABULARY_INIT_SIZE (1 << 20)
 #define NAME_POOL (1 << 18)
 #define SOURCE_POOL (1 << 22)
-#define SYMBOL_POOL (1 << 22)
+#define SYMBOL_POOL ((1 << 24) + (1 << 16))
 #define SYMBOL_HASH_SIZE (1 << 20)
 #define MAX_QUOTATION_SPANS (1 << 14)
 #define MAX_CALLERS (1 << 12)

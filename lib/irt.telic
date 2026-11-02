@@ -2,7 +2,8 @@
 \ its slope-intercept parameterization: an item's chance of a correct response at
 \ trait θ is g + (u − g)·σ(aθ + d), and a graded item's chance of reaching
 \ category k or above is σ(aθ + d_k), its intercepts falling with k. Fitted by
-\ Bock and Aitkin's EM over Gauss–Hermite quadrature of a standard normal trait,
+\ Bock and Aitkin's EM over Gauss–Hermite quadrature of a standard normal trait, or
+\ under a latent regression on covariates over evenly spaced nodes,
 \ each item's M-step a BFGS minimize; a Rasch fit (slopes 1) estimates the trait's
 \ variance too. Standard errors are each item's block of the observed
 \ information, so they leave out the covariance between items. Each item's
@@ -198,27 +199,35 @@
 	loop
 	total ; internal
 
-\ the posterior over the nodes for every response pattern, as P×Q, and the marginal log-likelihood of the people giving them, from the summed log-likelihoods, the nodes' weights and each pattern's count
-: posterior ( log-likelihood weights counts -- posterior marginal )
-	| log-likelihood weights counts |
+\ the prior weight of each node of theta, a 1×Q row: without covariates the nodes' weights as a 1×Q row, else for each of the P response patterns the normal density with the given variance about the pattern's covariates times the coefficients, normalized over the nodes, as P×Q
+: trait-prior ( theta weights covariates coefficients variance -- prior )
+	| theta weights covariates coefficients variance |
+
+	covariates null? if weights transpose exit then
+	theta covariates coefficients matmul - sq variance -2 * / exp to density
+	density density row-sums / ; internal
+
+\ the posterior over the nodes for every response pattern, as P×Q, and the marginal log-likelihood of the people giving them, from the summed log-likelihoods, the prior (trait-prior) and each pattern's count
+: posterior ( log-likelihood prior counts -- posterior marginal )
+	| log-likelihood prior counts |
 
 	log-likelihood row-maxes to peaks
-	log-likelihood peaks - exp weights transpose * to unnormalized
+	log-likelihood peaks - exp prior * to unnormalized
 	unnormalized row-sums to totals
 	unnormalized totals /
 	totals ln peaks + counts * sum ; internal
 
 \ the negative marginal log-likelihood as a function of one item's reported parameters, the other items' log-likelihoods held at rest
-: item-marginal-objective ( item rest indicators theta weights counts -- objective )
-	| item rest indicators theta weights counts |
-	( x | indicators item x item-from-reported theta item-probabilities ln matmul rest + weights counts posterior nip negate ) ; internal
+: item-marginal-objective ( item rest indicators theta prior counts -- objective )
+	| item rest indicators theta prior counts |
+	( x | indicators item x item-from-reported theta item-probabilities ln matmul rest + prior counts posterior nip negate ) ; internal
 
 \ an item's standard errors from its block of the observed information at the fit, as a frame by parameter name; null names a parameter whose block cannot be inverted
-: item-standard-errors ( item rest indicators theta weights counts -- errors )
-	| item rest indicators theta weights counts |
+: item-standard-errors ( item rest indicators theta prior counts -- errors )
+	| item rest indicators theta prior counts |
 
 	item item-reported-vector to reported
-	item rest indicators theta weights counts item-marginal-objective to objective
+	item rest indicators theta prior counts item-marginal-objective to objective
 	( reported objective numeric-hessian inverse diagonal sqrt matrix>array ) catch if drop reported num-elements null swap array-of then to errors
 	item item-parameter-names errors frame ; internal
 
@@ -227,7 +236,7 @@
 	| item |
 	item@intercepts ( item@slope / negate ) map ; internal
 
-\ fit an IRT model to responses, an N×J matrix, one row per person and one column per item, NaN where missing: models a symbol from irt-models for every item or an array of one per item; options a frame of :quadrature-points (61), :max-cycles (500), :tolerance (1e-4), the largest change of any search parameter between EM cycles that counts as converged, and :standard-errors (1). Answers { :items :log-likelihood :cycles :converged :latent-variance :nodes :weights }, each item { :model :slope :intercepts :difficulties :guessing :upper :categories :standard-errors }
+\ fit an IRT model to responses, an N×J matrix, one row per person and one column per item, NaN where missing: models a symbol from irt-models for every item or an array of one per item; options a frame of :quadrature-points (61), :max-cycles (500), :tolerance (1e-4), the largest change of any search parameter between EM cycles that counts as converged, :standard-errors (1), and :covariates (none), an N×p matrix for a latent regression: each person's trait then has mean the person's covariates times the coefficients, with no intercept, integrated over :quadrature-points evenly spaced nodes on [−6, 6] as mirt does. Answers { :items :log-likelihood :cycles :converged :latent-variance :coefficients :coefficient-errors :covariates :nodes :weights }, :coefficients p×1 or null, :coefficient-errors their standard errors from their block of the observed information with the items held at the fit, p×1, or null without covariates, without :standard-errors or when the block cannot be inverted, :latent-variance the residual variance, :weights null under covariates; each item { :model :slope :intercepts :difficulties :guessing :upper :categories :standard-errors }
 : fit-irt ( responses models options -- fit )
 	| responses models options |
 
@@ -237,12 +246,25 @@
 	models ( model | irt-models model position-of 0 < ) find-first to unknown
 	unknown null? not if unknown "fit-irt: unknown model {0}" format throw then
 
-	options :quadrature-points 61 @or gauss-hermite to weights to nodes
 	options :max-cycles 500 @or to max-cycles
 	options :tolerance 1e-4 @or to tolerance
 	models ( :rasch = ) all? to estimate-variance
+	options :covariates null @or to covariates
+	covariates null? if
+		options :quadrature-points 61 @or gauss-hermite to weights to nodes
+		responses
+	else
+		covariates n-rows n-people = not if n-people covariates n-rows "fit-irt: {0} covariate rows for {1} people" format throw then
+		covariates sum dup = not if "fit-irt: covariates have missing values" throw then
+		options :quadrature-points 61 @or to n-nodes
+		n-nodes iota ( k | k 12 * n-nodes 1- / 6 - ) map vector to nodes
+		covariates n-columns 1 0-matrix to coefficients
+		responses covariates hstack
+	then
+	response-patterns drop to counts to rows
+	rows 0 rows n-rows 0 n-items submatrix to patterns
+	covariates null? not if rows 0 rows n-rows n-items rows n-columns submatrix to pattern-covariates then
 
-	responses response-patterns drop to counts to patterns
 	[ ] to all-categories
 	0 n-items 1 do j
 		patterns j @j drop-nans matrix>array array>set set>array to categories
@@ -271,8 +293,9 @@
 	0 to cycles
 	0 to converged
 	begin cycles max-cycles < while
-		nodes variance sqrt * transpose to theta
-		items likelihood-indicators theta total-log-likelihood weights counts posterior to marginal counts * to posteriors
+		covariates null? if nodes variance sqrt * else nodes then transpose to theta
+		theta weights pattern-covariates coefficients variance trait-prior to prior
+		items likelihood-indicators theta total-log-likelihood prior counts posterior to marginal counts * to posteriors
 
 		stacked null? not if posteriors transpose stacked matmul transpose to all-expected then
 
@@ -292,8 +315,17 @@
 			items item found item-from-search j !i drop
 		loop
 
+		covariates null? not if
+			pattern-covariates transpose to covariates-transposed
+			covariates-transposed pattern-covariates counts * matmul inverse
+			covariates-transposed posteriors theta transpose matmul matmul matmul to new-coefficients
+			new-coefficients coefficients - abs max largest-change max2 to largest-change
+			new-coefficients to coefficients
+		then
+
 		estimate-variance if
-			posteriors theta sq * sum n-people / to new-variance
+			covariates null? if theta else theta pattern-covariates coefficients matmul - then
+			sq posteriors * sum n-people / to new-variance
 			new-variance sqrt variance sqrt - abs largest-change max2 to largest-change
 			new-variance to variance
 		then
@@ -302,35 +334,53 @@
 		largest-change tolerance < if 1 to converged leave then
 	repeat
 
-	nodes variance sqrt * transpose to theta
+	covariates null? if nodes variance sqrt * else nodes then to nodes
+	nodes transpose to theta
+	theta weights pattern-covariates coefficients variance trait-prior to prior
 	items likelihood-indicators theta total-log-likelihood to log-likelihood
-	log-likelihood weights counts posterior to marginal drop
+	log-likelihood prior counts posterior to marginal drop
 
 	options :standard-errors 1 @or if
 		0 n-items 1 do j
 			items j @i to item
 			indicators stacked j n-items item-indicators to own-indicators
 			own-indicators item theta item-probabilities ln matmul to own
-			item log-likelihood own - own-indicators theta weights counts item-standard-errors to errors
+			item log-likelihood own - own-indicators theta prior counts item-standard-errors to errors
 			items item errors :standard-errors ! j !i drop
 		loop
+		covariates null? not if
+			( beta | log-likelihood theta weights pattern-covariates beta variance trait-prior counts posterior nip negate ) to coefficient-objective
+			( coefficients coefficient-objective numeric-hessian inverse diagonal sqrt transpose ) catch if drop null then to coefficient-errors
+		then
 	then
 	items ( item | item item item-difficulties :difficulties ! ) map to items
 
 	{ :items items :log-likelihood marginal :cycles cycles :converged converged
-	  :latent-variance variance :nodes nodes variance sqrt * :weights weights } ;
+	  :latent-variance variance :coefficients coefficients :coefficient-errors coefficient-errors
+	  :covariates covariates :nodes nodes :weights weights } ;
 
 \ ---- scoring ----
 
-\ every person's trait estimate and its standard error from a fit and the responses it was fitted to, or new ones in the same columns: method :eap, the posterior mean and standard deviation over the fit's nodes, or :map, the posterior mode under the fitted normal trait by minimize from the EAP, its error from the curvature there. Answers { :theta :se }, n×1 vectors
+\ every person's trait estimate and its standard error from a fit and the responses it was fitted to, or new ones in the same columns: method :eap, the posterior mean and standard deviation over the fit's nodes, or :map, the posterior mode under the fitted normal trait by minimize from the EAP, its error from the curvature there. A fit with covariates scores the people it was fitted to, each under the trait's mean from their covariates. Answers { :theta :se }, n×1 vectors
 : irt-scores ( fit responses method -- scores )
 	| fit responses method |
 
 	fit@items to items
+	items size to n-items
 	fit@nodes transpose to theta
-	responses response-patterns to members to counts to patterns
+	fit@covariates to covariates
+	covariates null? if
+		responses
+	else
+		covariates n-rows responses n-rows = not if covariates n-rows responses n-rows "irt-scores: {0} response rows for a fit to {1} people" format throw then
+		responses covariates hstack
+	then
+	response-patterns to members to counts to rows
+	rows 0 rows n-rows 0 n-items submatrix to patterns
+	covariates null? not if rows 0 rows n-rows n-items rows n-columns submatrix to pattern-covariates then
+	theta fit@weights pattern-covariates fit@coefficients fit@latent-variance trait-prior to prior
 	items size iota ( j | patterns j @j items j @i @categories category-indicators ) map to indicators
-	items indicators theta total-log-likelihood fit@weights counts posterior drop to posteriors
+	items indicators theta total-log-likelihood prior counts posterior drop to posteriors
 	posteriors theta transpose matmul to means
 	posteriors theta sq transpose matmul means sq - 0 max2 sqrt to errors
 	method :eap = if { :theta means members select-rows :se errors members select-rows } exit then
@@ -340,11 +390,13 @@
 	patterns n-rows to n-patterns
 	n-patterns 1 0-matrix to modes
 	n-patterns 1 0-matrix to mode-errors
+	covariates null? if n-patterns 1 0-matrix else pattern-covariates fit@coefficients matmul then to prior-means
 	0 n-patterns 1 do n
 		indicators ( person-indicators | person-indicators n @i ) map to person
+		prior-means n @e to prior-mean
 		( x |
 			items size iota ( j | person j @i items j @i x item-probabilities ln matmul first ) map 0 ' + reduce
-			x first sq variance 2 * / - negate
+			x first prior-mean - sq variance 2 * / - negate
 		) to objective
 		[ means n @e ] vector objective null 100 1e-10 minimize @estimate to mode
 		modes mode first n !e drop

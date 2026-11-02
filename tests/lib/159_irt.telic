@@ -1,5 +1,5 @@
-\ lib/irt.telic against R's mirt 1.46.1 on the datasets mirt bundles, written
-\ to data/ by tools/gen-irt-fixtures.R: fit-irt ( responses models options --
+\ lib/irt.telic against R's mirt 1.46.1 on the datasets mirt bundles and a
+\ simulated latent-regression set, written to data/ by tools/gen-irt-fixtures.R: fit-irt ( responses models options --
 \ fit ), irt-scores ( fit responses method -- scores ) and irt-probabilities
 \ ( fit item thetas -- probabilities ). The reference values are mirt's with its
 \ defaults (EM over 61 evenly spaced nodes, convergence at 1e-4); this library
@@ -103,6 +103,36 @@ new-tests
 	scores@se 999 @e 0.8035210 0.001 expect-near
 ) test
 
+\ === latent regression on simulated data, trait 0.6x + 0.5g plus a standard normal residual ===
+"data/irt-covariates.tsv" read-tsv to simulated
+simulated [ :item1 :item2 :item3 :item4 :item5 :item6 :item7 :item8 :item9 :item10 ] dataset>matrix to simulated-responses
+simulated [ :x :g ] dataset>matrix to simulated-covariates
+simulated-responses :2pl { :covariates simulated-covariates } fit-irt to regression
+
+"2PL latent regression matches mirt's" (
+	regression@log-likelihood -5490.134 0.01 expect-near
+	regression@coefficients [ 0.6421608 0.4671297 ] vector 0.005 expect-near
+	regression@latent-variance 1 expect=
+	regression@items ( @slope ) map vector [ 1.6956225 1.7805419 1.3088153 1.1651597 0.8508909 1.1965610 1.3501317 1.1284757 1.4946754 1.3171683 ] vector 0.005 expect-near
+	regression@items ( @intercepts first ) map vector [ 0.11395537 -1.51855449 1.32307879 0.02539081 -0.58557591 0.74865466 0.21546317 -0.66957348 0.23795382 -1.52969237 ] vector 0.005 expect-near
+) test
+
+"Rasch latent regression estimates the residual variance as mirt does" (
+	simulated-responses :rasch { :covariates simulated-covariates :standard-errors 0 } fit-irt to rasch-regression
+	rasch-regression@log-likelihood -5517.314 0.01 expect-near
+	rasch-regression@coefficients [ 0.82735 0.5926141 ] vector 0.005 expect-near
+	rasch-regression@latent-variance 1.645344 0.005 expect-near
+) test
+
+"scores under covariates match mirt's" (
+	regression simulated-responses :eap irt-scores to scores
+	scores@theta 0 5 0 1 submatrix [ -0.6883927 -1.5008415 1.0544243 0.7478806 2.3759604 ] vector 0.001 expect-near
+	scores@se 0 5 0 1 submatrix [ 0.5027337 0.6014047 0.5113732 0.4858883 0.7007678 ] vector 0.001 expect-near
+	regression simulated-responses :map irt-scores to scores
+	scores@theta 0 5 0 1 submatrix [ -0.6453793 -1.4108703 1.0057595 0.7172738 2.2544377 ] vector 0.001 expect-near
+	scores@se 0 5 0 1 submatrix [ 0.4882532 0.5847467 0.4951437 0.4722998 0.6927280 ] vector 0.001 expect-near
+) test
+
 \ === category curves ===
 "a 2PL item's two curves sum to 1 and rise with the trait" (
 	two-parameter 0 [ -2 0 2 ] irt-probabilities to curves
@@ -114,6 +144,8 @@ new-tests
 	( lsat :5pl { } fit-irt ) expect-throws
 	( lsat [ :2pl ] { } fit-irt ) expect-throws
 	( two-parameter lsat :median irt-scores ) expect-throws
+	( lsat :2pl { :covariates simulated-covariates 0 10 0 2 submatrix } fit-irt ) expect-throws
+	( regression simulated-responses 0 10 0 10 submatrix :eap irt-scores ) expect-throws
 ) test
 
 test-report

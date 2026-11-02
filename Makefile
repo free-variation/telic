@@ -358,6 +358,8 @@ test-examples: telic
 test-wasm: telic.wasm docs-tests
 	sh tests/run-wasm.sh
 
+test-all: test test-wasm test-libs 
+
 bench:
 	@sh bench/run-benchmarks.sh
 
