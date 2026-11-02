@@ -172,11 +172,31 @@
 
 \ ---- estimation ----
 
-\ every item's log-likelihood at every node summed, as N×Q
+\ item j's N×K indicators: its two columns of the stacked binary indicators (every item's 0 column, then every item's 1 column) when there are stacked indicators, else its own indicator matrix
+: item-indicators ( indicators stacked j n-items -- item-indicators )
+	| indicators stacked j n-items |
+
+	stacked null? if indicators j @i exit then
+	stacked n-rows to row-count
+	stacked 0 row-count j j 1+ submatrix stacked 0 row-count n-items j + n-items j + 1+ submatrix hstack ; internal
+
+\ every item's log-likelihood at every node summed, as N×Q: with stacked binary indicators (a matrix, see item-indicators), one product of them and the items' stacked log-probabilities; otherwise one product per item, summed as it goes
 : total-log-likelihood ( items indicators theta -- log-likelihood )
 	| items indicators theta |
-	items size iota ( k | indicators k @i items k @i theta item-probabilities ln matmul ) map to terms
-	terms 1 skip terms first ' + reduce ; internal
+
+	indicators matrix? if
+		items ( item | item theta item-probabilities ln ) map to log-probabilities
+		log-probabilities ( probabilities | probabilities 0 1 0 theta num-elements submatrix ) map null ' vstack reduce
+		log-probabilities ( probabilities | probabilities 1 2 0 theta num-elements submatrix ) map null ' vstack reduce
+		vstack to stacked-log-probabilities
+		indicators stacked-log-probabilities matmul exit
+	then
+	null to total
+	0 items size 1 do k
+		indicators k @i items k @i theta item-probabilities ln matmul to term
+		total null? if term else total term + then to total
+	loop
+	total ; internal
 
 \ the posterior over the nodes for every response pattern, as P×Q, and the marginal log-likelihood of the people giving them, from the summed log-likelihoods, the nodes' weights and each pattern's count
 : posterior ( log-likelihood weights counts -- posterior marginal )
@@ -223,16 +243,28 @@
 	models ( :rasch = ) all? to estimate-variance
 
 	responses response-patterns drop to counts to patterns
-	[ ] to indicators
-	[ ] to items
+	[ ] to all-categories
 	0 n-items 1 do j
-		patterns j @j to column
-		column drop-nans matrix>array array>set set>array to categories
+		patterns j @j drop-nans matrix>array array>set set>array to categories
 		categories size 2 < if j "fit-irt: item {0} has fewer than two categories" format throw then
 		models j @i :graded = not categories size 2 > and if j "fit-irt: item {0} has more than two categories; model it :graded" format throw then
-		column categories category-indicators to item-indicators
-		indicators item-indicators add-last! drop
-		items models j @i item-indicators counts * categories starting-item add-last! drop
+		all-categories categories add-last! drop
+	loop
+
+	all-categories ( categories | categories size 2 = if categories first 0 = categories last 1 = and else 0 then ) all?
+	if patterns 0 eq patterns 1 eq hstack else null then to stacked
+	[ ] to indicators
+	stacked null? if
+		0 n-items 1 do j
+			indicators patterns j @j all-categories j @i category-indicators add-last! drop
+		loop
+	then
+	stacked null? if indicators else stacked then to likelihood-indicators
+
+	[ ] to items
+	0 n-items 1 do j
+		indicators stacked j n-items item-indicators to own-indicators
+		items models j @i own-indicators counts * all-categories j @i starting-item add-last! drop
 	loop
 
 	1 to variance
@@ -240,12 +272,19 @@
 	0 to converged
 	begin cycles max-cycles < while
 		nodes variance sqrt * transpose to theta
-		items indicators theta total-log-likelihood weights counts posterior to marginal counts * to posteriors
+		items likelihood-indicators theta total-log-likelihood weights counts posterior to marginal counts * to posteriors
+
+		stacked null? not if posteriors transpose stacked matmul transpose to all-expected then
 
 		0 to largest-change
 		0 n-items 1 do j
 			items j @i to item
-			indicators j @i transpose posteriors matmul to expected
+			stacked null? if
+				indicators j @i transpose posteriors matmul
+			else
+				all-expected j j 1+ 0 nodes num-elements submatrix
+				all-expected n-items j + n-items j + 1+ 0 nodes num-elements submatrix vstack
+			then to expected
 			item item-search-vector to start
 			item@model :graded = if ( x | item x theta expected graded-search-gradient ) else null then to gradient
 			start ( x | item x item-from-search theta item-probabilities ln expected * sum negate ) gradient 50 1e-10 minimize @estimate to found
@@ -264,14 +303,15 @@
 	repeat
 
 	nodes variance sqrt * transpose to theta
-	items indicators theta total-log-likelihood to log-likelihood
+	items likelihood-indicators theta total-log-likelihood to log-likelihood
 	log-likelihood weights counts posterior to marginal drop
 
 	options :standard-errors 1 @or if
 		0 n-items 1 do j
 			items j @i to item
-			indicators j @i item theta item-probabilities ln matmul to own
-			item log-likelihood own - indicators j @i theta weights counts item-standard-errors to errors
+			indicators stacked j n-items item-indicators to own-indicators
+			own-indicators item theta item-probabilities ln matmul to own
+			item log-likelihood own - own-indicators theta weights counts item-standard-errors to errors
 			items item errors :standard-errors ! j !i drop
 		loop
 	then
