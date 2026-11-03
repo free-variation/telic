@@ -310,6 +310,7 @@ find-first
 first
 fit-augmented
 fit-augmented-logistic
+fit-bifactor
 fit-gamma
 fit-glm
 fit-glm-weighted
@@ -574,6 +575,7 @@ pointer-string-at
 pointer>address
 position-of
 predict-glm
+predict-logistic
 predict-multinomial
 print
 print-at

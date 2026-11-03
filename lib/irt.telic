@@ -2,13 +2,14 @@
 \ its slope-intercept parameterization: an item's chance of a correct response at
 \ trait θ is g + (u − g)·σ(aθ + d), and a graded item's chance of reaching
 \ category k or above is σ(aθ + d_k), its intercepts falling with k. Fitted by
-\ Bock and Aitkin's EM over Gauss–Hermite quadrature of a standard normal trait, or
-\ under a latent regression on covariates over evenly spaced nodes,
-\ each item's M-step a BFGS minimize; a Rasch fit (slopes 1) estimates the trait's
-\ variance too. Standard errors are each item's block of the observed
-\ information, so they leave out the covariance between items. Each item's
-\ categories are its observed values in ascending order, recoded 0..K−1 as mirt
-\ recodes them; a missing response is NaN.
+\ Bock and Aitkin's EM, each item's M-step a BFGS minimize: over Gauss–Hermite
+\ quadrature of a standard normal trait, or under a latent regression on
+\ covariates over evenly spaced nodes. A Rasch fit (slopes 1) estimates the
+\ trait's variance too. An item's standard errors are its block of the observed
+\ information, so they leave out the covariance between items; a latent
+\ regression's coefficient errors come from the full observed information. Each
+\ item's categories are its observed values in ascending order, recoded 0..K−1
+\ as mirt recodes them; a missing response is NaN.
 
 "statistics" load-library
 
@@ -19,19 +20,28 @@
 \ the logit of a probability, held inside (1e-6, 1 − 1e-6)
 : logit ( p -- x ) 1e-6 1 1e-6 - clamp dup 1 swap - / ln ; internal
 
+\ whether an item's model has a guessing chance, :3pl or :4pl
+: guessing? ( item -- flag ) :model @ dup :3pl = swap :4pl = or ; internal
+
+\ a graded item's cumulative curves σ(aθ + d_k) at each trait value of the 1×Q row theta, one row per intercept
+: graded-cumulative ( item theta -- cumulative )
+	| item theta |
+
+	theta item@slope * to slope-theta
+	item@intercepts ( slope-theta + sigmoid ) map null ' vstack reduce ; internal
+
 \ an item's category probabilities at each trait value of a 1×Q row, as K×Q, every one at least 1e-12
 : item-probabilities ( item theta -- probabilities )
 	| item theta |
 
-	theta item@slope * to slope-theta
 	item@model :graded = if
 		1 theta num-elements 0-matrix to zeros
-		item@intercepts ( slope-theta + sigmoid ) map zeros 1 + ' vstack reduce zeros vstack to cumulative
-		cumulative dim drop to n-rows
-		cumulative 0 n-rows 1- 0 theta num-elements submatrix
-		cumulative 1 n-rows 0 theta num-elements submatrix -
+		zeros 1 + item theta graded-cumulative vstack zeros vstack to cumulative
+		cumulative n-rows to n-curves
+		cumulative 0 n-curves 1- 0 theta num-elements submatrix
+		cumulative 1 n-curves 0 theta num-elements submatrix -
 	else
-		item@intercepts first slope-theta + sigmoid item@upper item@guessing - * item@guessing + to correct
+		item@intercepts first theta item@slope * + sigmoid item@upper item@guessing - * item@guessing + to correct
 		1 correct - correct vstack
 	then
 	1e-12 max2 ; internal
@@ -42,13 +52,11 @@
 
 	item@intercepts to intercepts
 	item@model :rasch = if [ ] else [ item@slope ] then
+	[ intercepts first ] concat
 	item@model :graded = if
-		[ intercepts first ] concat
 		intercepts size 1- iota ( k | intercepts k @i intercepts k 1+ @i - ln ) map concat
-	else
-		[ intercepts first ] concat
 	then
-	item@model :3pl = item@model :4pl = or if [ item@guessing logit ] concat then
+	item guessing? if [ item@guessing logit ] concat then
 	item@model :4pl = if [ item@upper logit ] concat then
 	vector ; internal
 
@@ -70,7 +78,7 @@
 		loop
 	then
 	fitted intercepts :intercepts ! drop
-	item@model :3pl = item@model :4pl = or if fitted x at @e sigmoid :guessing ! drop ++ at then
+	item guessing? if fitted x at @e sigmoid :guessing ! drop ++ at then
 	item@model :4pl = if fitted x at @e sigmoid :upper ! drop then
 	fitted ; internal
 
@@ -79,8 +87,7 @@
 	| item x theta expected |
 
 	item x item-from-search to fitted
-	theta fitted@slope * to slope-theta
-	fitted@intercepts ( slope-theta + sigmoid ) map null ' vstack reduce to cumulative
+	fitted theta graded-cumulative to cumulative
 	expected fitted theta item-probabilities / to ratios
 	ratios dim to n-nodes to n-categories
 	ratios 0 n-categories 1- 0 n-nodes submatrix
@@ -101,7 +108,7 @@
 
 	item@model :rasch = if [ ] else [ item@slope ] then
 	item@intercepts concat
-	item@model :3pl = item@model :4pl = or if [ item@guessing ] concat then
+	item guessing? if [ item@guessing ] concat then
 	item@model :4pl = if [ item@upper ] concat then
 	vector ; internal
 
@@ -115,7 +122,7 @@
 	item@intercepts size iota ( k | x at k + @e ) map to intercepts
 	at intercepts size + to at
 	fitted intercepts :intercepts ! drop
-	item@model :3pl = item@model :4pl = or if fitted x at @e :guessing ! drop ++ at then
+	item guessing? if fitted x at @e :guessing ! drop ++ at then
 	item@model :4pl = if fitted x at @e :upper ! drop then
 	fitted ; internal
 
@@ -126,7 +133,7 @@
 	item@model :rasch = if [ ] else [ :slope ] then
 	item@intercepts size iota ( k | k "intercept-{0}" format string>symbol ) map
 	item@intercepts size 1 = if drop [ :intercept ] then concat
-	item@model :3pl = item@model :4pl = or if [ :guessing ] concat then
+	item guessing? if [ :guessing ] concat then
 	item@model :4pl = if [ :upper ] concat then ; internal
 
 \ ---- data ----
@@ -148,9 +155,21 @@
 	groups ( 1 @i size ) map vector
 	members ; internal
 
+\ the distinct rows of responses beside their covariates (null for none): the response patterns P×J, their covariate rows P×p or null, the number of people giving each as P×1, and each person's pattern among the P as N×1
+: pattern-rows ( responses covariates -- patterns pattern-covariates counts members )
+	| responses covariates |
+
+	responses n-columns to n-items
+	covariates null? if responses else responses covariates hstack then
+	response-patterns to members to counts to rows
+	rows 0 rows n-rows 0 n-items submatrix
+	covariates null? if null else rows 0 rows n-rows n-items rows n-columns submatrix then
+	counts members ; internal
+
 \ an item's responses as an N×K indicator matrix, a row of zeros where the response is missing
 : category-indicators ( column categories -- indicators )
 	| column categories |
+
 	categories ( category | column category eq ) map null ' hstack reduce ; internal
 
 \ an item's starting parameters from its responses: slope 1, guessing 0.1 for a 3PL or 4PL and upper 0.95 for a 4PL, and intercepts the logits of the shares at or above each category above the lowest, those at the bottom of a 3PL or 4PL corrected for guessing
@@ -199,7 +218,7 @@
 	loop
 	total ; internal
 
-\ the prior weight of each node of theta, a 1×Q row: without covariates the nodes' weights as a 1×Q row, else for each of the P response patterns the normal density with the given variance about the pattern's covariates times the coefficients, normalized over the nodes, as P×Q
+\ the prior weight of each node of theta, the nodes as a 1×Q row: without covariates the nodes' weights as a 1×Q row; with them, for each of the P response patterns, the normal density with the given variance about the pattern's covariates times the coefficients, normalized over the nodes, as P×Q
 : trait-prior ( theta weights covariates coefficients variance -- prior )
 	| theta weights covariates coefficients variance |
 
@@ -220,6 +239,7 @@
 \ the negative marginal log-likelihood as a function of one item's reported parameters, the other items' log-likelihoods held at rest
 : item-marginal-objective ( item rest indicators theta prior counts -- objective )
 	| item rest indicators theta prior counts |
+
 	( x | indicators item x item-from-reported theta item-probabilities ln matmul rest + prior counts posterior nip negate ) ; internal
 
 \ an item's standard errors from its block of the observed information at the fit, as a frame by parameter name; null names a parameter whose block cannot be inverted
@@ -231,12 +251,43 @@
 	( reported objective numeric-hessian inverse diagonal sqrt matrix>array ) catch if drop reported num-elements null swap array-of then to errors
 	item item-parameter-names errors frame ; internal
 
+\ a latent regression's coefficient standard errors from the full observed information: the numeric Hessian of the negative marginal log-likelihood over every item's reported parameters, the coefficients and, when estimated, the residual variance, inverted, its coefficients' diagonal entries square-rooted, as p×1; null when the information cannot be inverted
+: coefficient-standard-errors ( items indicators theta pattern-covariates coefficients variance estimate-variance counts -- errors )
+	| items indicators theta pattern-covariates coefficients variance estimate-variance counts |
+
+	items ( item | item item-reported-vector ) map to item-vectors
+	item-vectors ( vector | vector num-elements ) map to item-sizes
+	item-sizes 0 ' + reduce to n-item-parameters
+	coefficients num-elements to n-coefficients
+	item-vectors null ' vstack reduce coefficients vstack
+	estimate-variance if [ variance ] vector vstack then to start
+
+	( x |
+		0 to at
+		[ ] to trial-items
+		0 items size 1 do j
+			trial-items items j @i x at at item-sizes j @i + 0 1 submatrix item-from-reported add-last! drop
+			at item-sizes j @i + to at
+		loop
+		x at at n-coefficients + 0 1 submatrix to trial-coefficients
+		estimate-variance if x at n-coefficients + @e else variance then to trial-variance
+		trial-items indicators theta total-log-likelihood
+		theta null pattern-covariates trial-coefficients trial-variance trait-prior
+		counts posterior nip negate
+	) to objective
+
+	(
+		start objective numeric-hessian inverse diagonal
+		0 1 n-item-parameters n-item-parameters n-coefficients + submatrix sqrt transpose
+	) catch if drop null then ; internal
+
 \ the difficulties in IRT's usual parameterization, −d/a for each intercept
 : item-difficulties ( item -- difficulties )
 	| item |
+
 	item@intercepts ( item@slope / negate ) map ; internal
 
-\ fit an IRT model to responses, an N×J matrix, one row per person and one column per item, NaN where missing: models a symbol from irt-models for every item or an array of one per item; options a frame of :quadrature-points (61), :max-cycles (500), :tolerance (1e-4), the largest change of any search parameter between EM cycles that counts as converged, :standard-errors (1), and :covariates (none), an N×p matrix for a latent regression: each person's trait then has mean the person's covariates times the coefficients, with no intercept, integrated over :quadrature-points evenly spaced nodes on [−6, 6] as mirt does. Answers { :items :log-likelihood :cycles :converged :latent-variance :coefficients :coefficient-errors :covariates :nodes :weights }, :coefficients p×1 or null, :coefficient-errors their standard errors from their block of the observed information with the items held at the fit, p×1, or null without covariates, without :standard-errors or when the block cannot be inverted, :latent-variance the residual variance, :weights null under covariates; each item { :model :slope :intercepts :difficulties :guessing :upper :categories :standard-errors }
+\ fit an IRT model to responses, an N×J matrix, one row per person and one column per item, NaN where missing: models a symbol from irt-models for every item or an array of one per item; options a frame of :quadrature-points (61), :max-cycles (500), :tolerance (1e-4), the largest change of any search parameter between EM cycles that counts as converged, :standard-errors (1), and :covariates (none), an N×p matrix for a latent regression: each person's trait then has mean the person's covariates times the coefficients, with no intercept, integrated over :quadrature-points evenly spaced nodes on [−6, 6] as mirt does. Answers { :items :log-likelihood :cycles :converged :latent-variance :coefficients :coefficient-errors :covariates :nodes :weights }, :coefficients p×1 or null, :coefficient-errors their standard errors from the full observed information over every item parameter, the coefficients and an estimated residual variance (coefficient-standard-errors), p×1, or null without covariates, without :standard-errors or when the block cannot be inverted, :latent-variance the residual variance, :weights null under covariates; each item { :model :slope :intercepts :difficulties :guessing :upper :categories :standard-errors }
 : fit-irt ( responses models options -- fit )
 	| responses models options |
 
@@ -252,18 +303,14 @@
 	options :covariates null @or to covariates
 	covariates null? if
 		options :quadrature-points 61 @or gauss-hermite to weights to nodes
-		responses
 	else
 		covariates n-rows n-people = not if n-people covariates n-rows "fit-irt: {0} covariate rows for {1} people" format throw then
-		covariates sum dup = not if "fit-irt: covariates have missing values" throw then
+		covariates nan? sum 0 > if "fit-irt: covariates have missing values" throw then
 		options :quadrature-points 61 @or to n-nodes
 		n-nodes iota ( k | k 12 * n-nodes 1- / 6 - ) map vector to nodes
 		covariates n-columns 1 0-matrix to coefficients
-		responses covariates hstack
 	then
-	response-patterns drop to counts to rows
-	rows 0 rows n-rows 0 n-items submatrix to patterns
-	covariates null? not if rows 0 rows n-rows n-items rows n-columns submatrix to pattern-covariates then
+	responses covariates pattern-rows drop to counts to pattern-covariates to patterns
 
 	[ ] to all-categories
 	0 n-items 1 do j
@@ -316,9 +363,7 @@
 		loop
 
 		covariates null? not if
-			pattern-covariates transpose to covariates-transposed
-			covariates-transposed pattern-covariates counts * matmul inverse
-			covariates-transposed posteriors theta transpose matmul matmul matmul to new-coefficients
+			pattern-covariates posteriors theta transpose matmul counts / counts fit-weighted-linear to new-coefficients
 			new-coefficients coefficients - abs max largest-change max2 to largest-change
 			new-coefficients to coefficients
 		then
@@ -349,8 +394,7 @@
 			items item errors :standard-errors ! j !i drop
 		loop
 		covariates null? not if
-			( beta | log-likelihood theta weights pattern-covariates beta variance trait-prior counts posterior nip negate ) to coefficient-objective
-			( coefficients coefficient-objective numeric-hessian inverse diagonal sqrt transpose ) catch if drop null then to coefficient-errors
+			items likelihood-indicators theta pattern-covariates coefficients variance estimate-variance counts coefficient-standard-errors to coefficient-errors
 		then
 	then
 	items ( item | item item item-difficulties :difficulties ! ) map to items
@@ -359,25 +403,204 @@
 	  :latent-variance variance :coefficients coefficients :coefficient-errors coefficient-errors
 	  :covariates covariates :nodes nodes :weights weights } ;
 
+\ ---- bifactor ----
+
+\ the log of each row's sum of exponentials, as r×1, from the row's largest value
+: row-log-sum-exp ( m -- column )
+	| m |
+
+	m row-maxes to peaks
+	m peaks - exp row-sums ln peaks + ; internal
+
+\ the given columns of a matrix
+: select-columns-of ( m columns -- m' ) swap transpose swap select-rows transpose ; internal
+
+\ an item's log-probabilities of a correct and an incorrect response at each node of a 1×C row of general trait values and a 1×C row of specific trait values (0 for an item on the general trait only): [ correct incorrect ], each 1×C
+: bifactor-log-probabilities ( item general specific -- logs )
+	| item general specific |
+
+	general item@slope * specific item@specific-slope * + item@intercepts first + sigmoid to p
+	[ p 1e-12 max2 ln 1 p - 1e-12 max2 ln ] ; internal
+
+\ the log-likelihood of each response pattern's answers to the member items at each node of 1×C rows of general and specific trait values, as P×C, from the patterns' correct and incorrect indicators for those items (P×members)
+: bifactor-items-log-likelihood ( items members correct incorrect general specific -- log-likelihood )
+	| items members correct incorrect general specific |
+
+	members ( j | items j @i general specific bifactor-log-probabilities ) map to logs
+	correct logs ( first ) map null ' vstack reduce matmul
+	incorrect logs ( 1 @i ) map null ' vstack reduce matmul + ; internal
+
+\ the bifactor E-step at the items, the specific factors in parallel (pmap): the marginal log-likelihood summed over the people giving each response pattern, each pattern's posterior over the general nodes (P×Q), and per specific factor [ conditional integrated ]: conditional the posterior over the specific nodes at each pattern and general node ((P·Q)×Q), integrated the log of the specific factor's likelihood summed over its nodes ((P·Q)×1); each factor's exponentials are computed once and serve both. layout is fit-bifactor's frame of fixed quantities
+: bifactor-e-step ( items layout -- marginal general-posterior factor-terms )
+	| items layout |
+
+	layout@n-patterns to n-patterns
+	layout@n-nodes to n-nodes
+	layout@general-items size 0 > if
+		items layout@general-items layout@general-correct layout@general-incorrect layout@general-row 0 bifactor-items-log-likelihood
+	else
+		n-patterns n-nodes 0-matrix
+	then to by-general
+	layout@factor-items size iota
+	( f |
+		items layout@factor-items f @i layout@factor-correct f @i layout@factor-incorrect f @i
+		layout@grid-general layout@grid-specific bifactor-items-log-likelihood
+		n-patterns n-nodes * n-nodes reshape layout@log-weight-row + to inner
+		inner row-maxes to peaks
+		inner peaks - exp to shifted
+		shifted row-sums to sums
+		[ shifted sums / sums ln peaks + ]
+	) pmap to factor-terms
+	factor-terms ( term | term 1 @i n-patterns n-nodes reshape ) map by-general ' + reduce
+	layout@log-weight-row + to weighted
+	weighted row-log-sum-exp to pattern-log-likelihood
+	pattern-log-likelihood layout@counts * sum
+	weighted pattern-log-likelihood - exp
+	factor-terms ; internal
+
+\ an item's slopes and intercept after Newton steps on its expected counts, each step held within ±1 per parameter so a nearly singular information matrix cannot throw the item off: correct (1×C) and answered (1×C) at the nodes, the design C×K of the nodes' general value, specific value when the item has a specific factor, and 1; answers the item and the largest change of a parameter
+: bifactor-m-step ( item correct answered design -- item' change )
+	| item correct answered design |
+
+	item@group 0 = if
+		[ item@slope item@intercepts first ]
+	else
+		[ item@slope item@specific-slope item@intercepts first ]
+	then vector to start
+	start to beta
+	0 5 1 do step
+		design beta matmul sigmoid to p
+		correct transpose answered transpose p * - to residual
+		design transpose residual matmul to gradient
+		answered transpose p * 1 p - * to w
+		design transpose design w * matmul to information
+		information gradient fit-linear -1 max2 1 min2 to delta
+		beta delta + to beta
+		delta abs max 1e-10 < if leave then
+	loop
+	item copy to fitted
+	fitted beta 0 @e :slope ! drop
+	item@group 0 = if
+		fitted [ beta 1 @e ] :intercepts ! drop
+	else
+		fitted beta 1 @e :specific-slope ! drop
+		fitted [ beta 2 @e ] :intercepts ! drop
+	then
+	fitted beta start - abs max ; internal
+
+\ fit a bifactor 2PL to binary responses, an N×J matrix of 0, 1 and NaN for missing: groups, an array of J whole numbers, gives each item's specific factor, or 0 for an item on the general trait only, and every specific factor needs at least two items; each item's chance of a correct response is σ(a·θg + c·θs + d), the general trait θg and the specific traits independent standard normals. Bock and Aitkin's EM over the distinct response patterns with Gibbons and Hedeker's dimension reduction: each specific factor is integrated at every general node, over :quadrature-points (21) Gauss–Hermite nodes per dimension, so the work is two-dimensional whatever the number of specific factors; each item's M-step is Newton steps on its expected counts. Options also :max-cycles (500) and :tolerance (1e-4), the largest change of any parameter between cycles that counts as converged. Answers { :items :log-likelihood :cycles :converged :nodes :weights :bifactor }, :log-likelihood at the returned items, :bifactor 1; each item { :model :slope :specific-slope :group :intercepts :difficulties }, :specific-slope 0 for an item on the general trait only
+: fit-bifactor ( responses groups options -- fit )
+	| responses groups options |
+
+	responses n-columns to n-items
+	groups size n-items = not if n-items groups size "fit-bifactor: {0} groups for {1} items" format throw then
+	groups ( group | group 0 < group group ftruncate = not or ) find-first to bad-group
+	bad-group null? not if bad-group "fit-bifactor: group {0} is not a whole number from 0 up" format throw then
+	responses 0 eq responses 1 eq + responses nan? + 0 eq sum 0 > if "fit-bifactor: responses must be 0, 1 or NaN" throw then
+	options :max-cycles 500 @or to max-cycles
+	options :tolerance 1e-4 @or to tolerance
+	options :quadrature-points 21 @or to n-nodes
+	n-nodes gauss-hermite to weights to nodes
+	nodes transpose to general-row
+	weights transpose ln to log-weight-row
+	n-nodes n-nodes * to n-grid
+	n-grid iota ( c | nodes c n-nodes % nip @e ) map vector transpose to grid-general
+	n-grid iota ( c | nodes c n-nodes % drop @e ) map vector transpose to grid-specific
+	grid-general transpose grid-specific transpose hstack n-grid 1 0-matrix 1 + hstack to grid-design
+	general-row transpose n-nodes 1 0-matrix 1 + hstack to general-design
+
+	groups array>set set>array ( group | group 0 > ) filter to factors
+	n-items iota ( j | groups j @i 0 = ) filter to general-items
+	factors ( factor | n-items iota ( j | groups j @i factor = ) filter ) map to factor-items
+	factors size iota ( f | factor-items f @i size 2 < ) find-first to lone-factor
+	lone-factor null? not if factors lone-factor @i "fit-bifactor: specific factor {0} has fewer than two items" format throw then
+
+	responses null pattern-rows drop to counts drop to patterns
+	patterns n-rows to n-patterns
+	patterns 1 eq to correct-indicators
+	patterns 0 eq to incorrect-indicators
+	correct-indicators incorrect-indicators + to answered-indicators
+	correct-indicators general-items select-columns-of to general-correct
+	incorrect-indicators general-items select-columns-of to general-incorrect
+	general-correct transpose to general-correct-rows
+	answered-indicators general-items select-columns-of transpose to general-answered-rows
+	factor-items ( members | correct-indicators members select-columns-of ) map to factor-correct
+	factor-items ( members | incorrect-indicators members select-columns-of ) map to factor-incorrect
+	factor-correct ( correct | correct transpose ) map to factor-correct-rows
+	factor-items ( members | answered-indicators members select-columns-of transpose ) map to factor-answered-rows
+	{ :general-items general-items :factor-items factor-items
+	  :general-correct general-correct :general-incorrect general-incorrect
+	  :factor-correct factor-correct :factor-incorrect factor-incorrect
+	  :general-row general-row :grid-general grid-general :grid-specific grid-specific :log-weight-row log-weight-row
+	  :n-patterns n-patterns :n-nodes n-nodes :counts counts } to layout
+
+	[ ] to items
+	0 n-items 1 do j
+		responses j @j drop-nans to answered
+		answered num-elements 0 = if j "fit-bifactor: item {0} has no responses" format throw then
+		answered mean 1e-3 1 1e-3 - clamp to share
+		groups j @i 0 = if 0 else 0.5 then to specific-slope
+		items { :model :2pl :slope 1 :specific-slope specific-slope :group groups j @i
+		  :intercepts [ share logit ] :guessing 0 :upper 1 :categories [ 0 1 ] } add-last! drop
+	loop
+
+	options :progress 0 @or to progress
+	0 to cycles
+	0 to converged
+	begin cycles max-cycles < while
+		items layout bifactor-e-step to factor-terms counts * to general-posterior to cycle-log-likelihood
+
+		[ ] to updates
+		general-items size 0 > if
+			general-correct-rows general-posterior matmul to all-correct
+			general-answered-rows general-posterior matmul to all-answered
+			general-items size iota ( position |
+				general-items position @i to j
+				items j @i all-correct position @i all-answered position @i general-design bifactor-m-step
+				to change to fitted [ j fitted change ]
+			) pmap to updates
+		then
+		factors size iota ( f |
+			factor-items f @i to members
+			factor-terms f @i first general-posterior n-patterns n-nodes * 1 reshape * n-patterns n-grid reshape to posterior
+			factor-correct-rows f @i posterior matmul to all-correct
+			factor-answered-rows f @i posterior matmul to all-answered
+			members size iota ( position |
+				members position @i to j
+				items j @i all-correct position @i all-answered position @i grid-design bifactor-m-step
+				to change to fitted [ j fitted change ]
+			) map
+		) pmap [ ] ' concat reduce updates swap concat to updates
+		0 to largest-change
+		0 updates size 1 do index
+			updates index @i to update
+			items update 1 @i update first !i drop
+			update 2 @i largest-change max2 to largest-change
+		loop
+		progress if largest-change cycle-log-likelihood cycles 1+ "cycle {0:d}: log-likelihood {1:.1f}, largest change {2:.2e}" format print cr then
+
+		++ cycles
+		largest-change tolerance < if 1 to converged leave then
+	repeat
+
+	items layout bifactor-e-step drop drop to marginal
+	items ( item | item item item-difficulties :difficulties ! ) map to items
+	{ :items items :log-likelihood marginal :cycles cycles :converged converged :nodes nodes :weights weights :bifactor 1 } ;
+
 \ ---- scoring ----
 
 \ every person's trait estimate and its standard error from a fit and the responses it was fitted to, or new ones in the same columns: method :eap, the posterior mean and standard deviation over the fit's nodes, or :map, the posterior mode under the fitted normal trait by minimize from the EAP, its error from the curvature there. A fit with covariates scores the people it was fitted to, each under the trait's mean from their covariates. Answers { :theta :se }, n×1 vectors
 : irt-scores ( fit responses method -- scores )
 	| fit responses method |
 
+	fit :bifactor 0 @or if "irt-scores: a bifactor fit has no single trait to score" throw then
 	fit@items to items
-	items size to n-items
 	fit@nodes transpose to theta
 	fit@covariates to covariates
-	covariates null? if
-		responses
-	else
+	covariates null? not if
 		covariates n-rows responses n-rows = not if covariates n-rows responses n-rows "irt-scores: {0} response rows for a fit to {1} people" format throw then
-		responses covariates hstack
 	then
-	response-patterns to members to counts to rows
-	rows 0 rows n-rows 0 n-items submatrix to patterns
-	covariates null? not if rows 0 rows n-rows n-items rows n-columns submatrix to pattern-covariates then
+	responses covariates pattern-rows to members to counts to pattern-covariates to patterns
 	theta fit@weights pattern-covariates fit@coefficients fit@latent-variance trait-prior to prior
 	items size iota ( j | patterns j @j items j @i @categories category-indicators ) map to indicators
 	items indicators theta total-log-likelihood prior counts posterior drop to posteriors
@@ -407,4 +630,6 @@
 \ an item's category probabilities at trait values, an array or vector, as a matrix of one row per value and one column per category
 : irt-probabilities ( fit item thetas -- probabilities )
 	| fit item thetas |
+
+	fit :bifactor 0 @or if "irt-probabilities: a bifactor item's curves depend on two traits" throw then
 	fit@items item @i thetas matrix? if thetas as-column else thetas vector then transpose item-probabilities transpose ;

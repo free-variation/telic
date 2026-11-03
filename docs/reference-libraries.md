@@ -207,9 +207,10 @@ library is.
 
 | Word | Stack effect | Summary |
 | --- | --- | --- |
-| `fit-irt` | `( responses models options -- fit )` | Fit the models: `models` one symbol for every item or an array of one per item; `options` a frame of `:quadrature-points` (61), `:max-cycles` (500), `:tolerance` (1e-4, the largest change of a parameter between EM cycles that counts as converged) and `:standard-errors` (1) and `:covariates` (none), `{ }` for the defaults. `:covariates`, an N×p matrix without missing values, makes a latent regression as mirt's `formula`: each person's trait has mean their covariates times p coefficients, no intercept, and residual variance 1 (estimated under `:rasch`), integrated over evenly spaced nodes on [−6, 6]. Answers `{ :items :log-likelihood :cycles :converged :latent-variance :coefficients :covariates :nodes :weights }`, `:coefficients` p×1 or null and `:weights` null under covariates; each item `{ :model :slope :intercepts :difficulties :guessing :upper :categories :standard-errors }`, `:difficulties` being −d/a and `:standard-errors` a frame by parameter name. An item with fewer than two categories, or more than two under a dichotomous model, throws |
+| `fit-irt` | `( responses models options -- fit )` | Fit the models: `models` one symbol for every item or an array of one per item; `options` a frame of `:quadrature-points` (61), `:max-cycles` (500), `:tolerance` (1e-4, the largest change of a parameter between EM cycles that counts as converged) and `:standard-errors` (1) and `:covariates` (none), `{ }` for the defaults. `:covariates`, an N×p matrix without missing values, makes a latent regression as mirt's `formula`: each person's trait has mean their covariates times p coefficients, no intercept, and residual variance 1 (estimated under `:rasch`), integrated over evenly spaced nodes on [−6, 6]. Answers `{ :items :log-likelihood :cycles :converged :latent-variance :coefficients :coefficient-errors :covariates :nodes :weights }`, `:coefficients` p×1 or null, `:coefficient-errors` their p×1 standard errors from the full observed information (every item parameter, the coefficients and an estimated residual variance, by numeric Hessian; null without covariates, with `:standard-errors` 0, or when the information cannot be inverted), and `:weights` null under covariates; each item `{ :model :slope :intercepts :difficulties :guessing :upper :categories :standard-errors }`, `:difficulties` being −d/a and `:standard-errors` a frame by parameter name. An item with fewer than two categories, or more than two under a dichotomous model, throws |
 | `irt-scores` | `( fit responses method -- scores )` | Each person's trait estimate and standard error as `{ :theta :se }`, n×1 vectors: `:eap` the posterior mean and standard deviation over the fit's nodes, or `:map` the posterior mode under the fitted normal trait, its error from the curvature there. `responses` in the fit's columns; a fit with covariates scores only the people it was fitted to, each under their covariates' mean |
 | `irt-probabilities` | `( fit item thetas -- probabilities )` | Item `item`'s (from 0) category probabilities at each trait value of an array or vector, a row per value and a column per category |
+| `fit-bifactor` | `( responses groups options -- fit )` | Fit a bifactor 2PL to binary responses (0, 1, NaN): `groups` an array of whole numbers giving each item's specific factor, or 0 for an item on the general trait only, at least two items per specific factor (other responses, groups or a one-item factor throw); each item's chance of a correct response is σ(a·θg + c·θs + d), the general and specific traits independent standard normals. Bock and Aitkin's EM over the distinct response patterns with Gibbons and Hedeker's dimension reduction, each specific factor integrated at every general node over `:quadrature-points` (21) Gauss–Hermite nodes per dimension, so the work stays two-dimensional; each item's M-step is Newton steps on its expected counts. Options also `:max-cycles` (500) and `:tolerance` (1e-4). Answers `{ :items :log-likelihood :cycles :converged :nodes :weights :bifactor }`, `:log-likelihood` at the returned items and `:bifactor` 1, which `irt-scores` and `irt-probabilities` reject; each item `{ :model :slope :specific-slope :group :intercepts :difficulties }`, `:specific-slope` 0 for a general-only item; on a simulated set it agrees with mirt 1.46's `bfactor` to about 0.002 |
 
 ```forth fit-irt
 "irt" load-library
@@ -239,6 +240,15 @@ dup @theta 0 @e 100 * round 100 / . @se 0 @e 100 * round 100 / . cr
 [ 0.14 0.86 ]
 ```
 
+```forth fit-bifactor
+"irt" load-library
+"data/irt-bifactor.tsv" read-tsv 12 iota ( j | j 1 + "item{0}" format string>symbol ) map dataset>matrix
+[ 0 0 0 0 1 1 1 1 2 2 2 2 ] { } fit-bifactor :items @ 4 @i :specific-slope @ 100 * round 100 / . cr
+```
+```output
+0.9
+```
+
 ## Regression (lib/statistics.telic)
 
 `linear-regression`, `logistic-regression`, and `glm-regression` answer a model
@@ -266,6 +276,7 @@ halves as values.
 | `fit-logistic-ridge` | `( X y max-iterations tolerance lambda -- beta )` | L2-penalized logistic by IRLS; `lambda` penalizes ‖beta‖²/2 with the intercept column unpenalized, `lambda` 0 the plain MLE (no Firth). Each step appends sqrt(`lambda`)·I rows to the weighted design and solves that least-squares system by Householder QR (`dgels`); a design `dgels` reports rank-deficient falls back to `dgelsd`, which answers a minimum-norm solution. The normal equations are not used: squaring the design costs about half the digits, which floors the beta step near 1e-6 at small `lambda` and prevents convergence at a 1e-8 tolerance |
 | `fit-linear-ridge` | `( X y lambda -- beta )` | L2-penalized least squares; `lambda` penalizes ‖beta‖² with the intercept column (column 0 of `X`) unpenalized, `lambda` 0 ordinary least squares. The penalty enters as sqrt(`lambda`)·I rows appended to the design and zeros to the response, solved by Householder QR (`dgels`, with `dgelsd` for a rank-deficient design); the columns are penalized as given, so standardize them first |
 | `fit-augmented-logistic` | `( augmented -- beta )` | Firth logistic fit of an `[X | y]` block |
+| `predict-logistic` | `( X beta -- probabilities )` | The logistic probabilities sigmoid(X·beta) as n×1; `X` includes the intercept column |
 | `logistic-regression` | `( dataset predictors response replications -- model )` | Firth-penalized logistic regression; `replications` 0 gives Wald inference from the binomial-logit covariance at the Firth estimate (the penalty's curvature term is not included), B > 0 a nonparametric bootstrap over B resamples; the model frame is described above the table |
 | `glm-regression` | `( dataset predictors response weights family replications -- model )` | A GLM under `family` from a dataset: `predictors` name the design columns (an intercept is prepended); `response` is the outcome as a column symbol or an n×1 matrix; `weights` is the prior weights as a column symbol, an n×1 matrix, or `null` for unit weights. `replications` 0 gives Wald inference from `glm-covariance` (so a `:pearson` family's φ inflates the SEs), B > 0 a nonparametric bootstrap of B refits; the model frame is described above the table |
 | `regression-statistics` | `( model -- fr )` | `{ :n :n-terms :dispersion :deviance :null-deviance :pseudo-r2 }` for a model frame: the weighted deviance at the estimate, the intercept-only model's deviance under the same family and weights, McFadden's `1 − deviance/null-deviance`, and `glm-dispersion`'s φ. For `linear-regression` these are RSS, TSS, R², and σ̂² |
@@ -308,6 +319,14 @@ dup :coefficients @ first :estimate @ . :predictors @ . cr
 ```
 ```output
 [ -1.96485 1.3099 ]
+```
+
+```forth predict-logistic
+"statistics" load-library
+[ 1 0 1 2 ] 2 2 matrix [ 0 1 ] vector predict-logistic matrix>array . cr
+```
+```output
+[ 0.5 0.880797 ]
 ```
 
 ```forth logistic-regression
