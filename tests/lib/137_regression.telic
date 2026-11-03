@@ -145,6 +145,14 @@
 	ridge-X ridge-y 3 fit-linear-ridge  swap 1e-9 expect-near
 ) test
 
+"linear ridge CV's loss is the held-out mean squared error averaged over folds" (
+	\ units 0..5 deal round-robin: one fold fits x = 1 3 5 (y = 6x - 19/3) and scores x = 0 2 4,
+	\ the other fits x = 0 2 4 (y = 4x - 4/3) and scores x = 1 3 5; each scores (361 + 25 + 25)/27
+	[ 0 1 2 3 4 5 ] 6 1 matrix to fold-X
+	[ 0 1 4 9 16 25 ] 6 1 matrix to fold-y
+	fold-X fold-y 6 iota [ 0 ] 2 cv-linear-ridge :deviances @ 0 @e 137/9 exact>float 1e-9 expect-near
+) test
+
 "linear ridge CV picks the small lambda on a line; serial and parallel agree" (
 	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix to cv-X
 	[ 1.1 2.0 2.9 4.2 5.0 5.9 7.1 8.0 ] 8 1 matrix to cv-y

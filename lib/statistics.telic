@@ -616,10 +616,10 @@ drop
 \ 1e-6 at small lambda, above the 1e-8 tolerance callers ask for.
 : fit-logistic-ridge ( X y max-iterations tolerance lambda -- beta )
 	| x y max-iterations tolerance lambda |
-	x dim to cols to rows
-	lambda sqrt cols diagonal-matrix 0 0 0 !i,j to penalty
-	cols 1 0-matrix to zeros
-	cols 1 0-matrix to beta
+	x dim to n-coefficients to rows
+	lambda sqrt n-coefficients diagonal-matrix 0 0 0 !i,j to penalty
+	n-coefficients 1 0-matrix to zeros
+	n-coefficients 1 0-matrix to beta
 	0 to iterations
 	0 to converged
 
@@ -657,10 +657,11 @@ drop
 \ the columns are penalized as given, so callers standardize them first
 : fit-linear-ridge ( X y lambda -- beta )
 	| x y lambda |
-	x n-columns to cols
-	lambda sqrt cols diagonal-matrix 0 0 0 !i,j to penalty
+
+	x n-columns to n-coefficients
+	lambda sqrt n-coefficients diagonal-matrix 0 0 0 !i,j to penalty
 	x penalty vstack to design
-	y cols 1 0-matrix vstack to target
+	y n-coefficients 1 0-matrix vstack to target
 	design target solve-qr to beta
 	beta null? if design target fit-linear to beta then
 	beta ;
@@ -680,50 +681,53 @@ drop
 	sigmoid ;
 
 
-\ ridge fit on the drawn units' rows of [1|X|y]
-: cv-ridge-fit ( train-units xy lambda -- beta )
-	| xy lambda |
-	flatten xy swap select-rows to rows
+\ the drawn units' rows of [1|X|y], split into the design [1|X] and the response y
+: cv-unit-rows ( units xy -- design response )
+	| units xy |
+
+	units flatten xy swap select-rows to rows
 	rows n-columns 1 - to n-predictors
 	rows 0 rows n-rows 0 n-predictors submatrix
-	rows n-predictors @j
-	50 1e-8 lambda fit-logistic-ridge ; internal
+	rows n-predictors @j ; internal
+
+\ ridge fit on the drawn units' rows of [1|X|y]
+: cv-ridge-fit ( train-units xy lambda -- beta )
+	| train xy lambda |
+
+	train xy cv-unit-rows 50 1e-8 lambda fit-logistic-ridge ; internal
 
 \ mean held-out deviance of beta
 : cv-ridge-score ( beta test-units xy -- dev )
 	| beta test xy |
-	test flatten xy swap select-rows to rows
-	rows n-columns 1 - to n-predictors
-	1 rows 0 rows n-rows 0 n-predictors submatrix beta
-	0 rows n-rows 1 0-matrix dgemm-nn sigmoid to p
-	rows n-predictors @j p binomial-deviance rows n-rows / ; internal
+
+	test xy cv-unit-rows to response to design
+	1 design beta 0 design n-rows 1 0-matrix dgemm-nn sigmoid to p
+	response p binomial-deviance design n-rows / ; internal
 
 \ one (lambda, fold) cell: fit, then score held-out
 : cv-ridge-cell ( train test xy lambda -- loss )
 	| train test xy lambda |
+
 	train xy lambda cv-ridge-fit
 	test xy cv-ridge-score ; internal
 
 \ linear ridge fit on the drawn units' rows of [1|X|y]
 : cv-linear-ridge-fit ( train-units xy lambda -- beta )
-	| xy lambda |
-	flatten xy swap select-rows to rows
-	rows n-columns 1 - to n-predictors
-	rows 0 rows n-rows 0 n-predictors submatrix
-	rows n-predictors @j
-	lambda fit-linear-ridge ; internal
+	| train xy lambda |
+
+	train xy cv-unit-rows lambda fit-linear-ridge ; internal
 
 \ mean held-out squared error of beta
 : cv-linear-ridge-score ( beta test-units xy -- mse )
 	| beta test xy |
-	test flatten xy swap select-rows to rows
-	rows n-columns 1 - to n-predictors
-	rows 0 rows n-rows 0 n-predictors submatrix beta matmul
-	rows n-predictors @j - dup * mean ; internal
+
+	test xy cv-unit-rows to response to design
+	design beta matmul response - dup * mean ; internal
 
 \ one (lambda, fold) cell of linear ridge: fit, then score held-out
 : cv-linear-ridge-cell ( train test xy lambda -- loss )
 	| train test xy lambda |
+
 	train xy lambda cv-linear-ridge-fit
 	test xy cv-linear-ridge-score ; internal
 
