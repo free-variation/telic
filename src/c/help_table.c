@@ -253,6 +253,7 @@ const HelpEntry help_entries[] = {
 	{ "cumulative-sum", "( mat -- mat' )", "Running sum over the elements in row-major order, shape preserved — a vector's prefix sums", "1 + n", "1m(r×c)", "O(n)", 21 },
 	{ "curry", "( value xt -- xt' )", "Bind a value into a curried token: a heap value carrying the target xt and the bound value, accepted wherever an xt is. At invocation the bound value is pushed, then the target runs — so currying binds a word's **trailing** parameters. Collected like any array, so a word may curry on every call; usable inside a parallel region. Applied to a quotation with a head, the bound value fills a trailing head local, so the quotation can declare more locals than the combinator supplies (see Locals). The token is the pair (bound value, target): curry packages a witness with a body — existential introduction under Curry–Howard, the witness kept visible (see prints it, so it is a transparent dependent pair, not an opaque ∃) — and invoking the token unpacks the pair, binding the witness in the body", NULL, NULL, NULL, 12 },
 	{ "cv-folds", "( units n-folds -- folds )", "statistics.telic: deal units round-robin into n-folds [ train test ] index-array pairs in the given order; errors on n-folds < 2 or fewer units than folds", "n", "fold index arrays", "O(n)", 21 },
+	{ "cv-linear-ridge", "( X y units lambdas n-folds -- fr )", "k-fold cross-validation of ridge least squares over a lambdas grid, returning { :lambdas :deviances :best } with :deviances the mean held-out squared error per lambda; X excludes the intercept (added internally, unpenalized), units index rows so per-cluster index arrays give cluster CV", NULL, NULL, NULL, 46 },
 	{ "cv-logistic-ridge", "( X y units lambdas n-folds -- fr )", "k-fold cross-validation of ridge logistic over a lambdas grid, returning { :lambdas :deviances :best }; X excludes the intercept (added internally, unpenalized), units index rows so per-cluster index arrays give cluster CV", NULL, NULL, NULL, 46 },
 	{ "cwd", "( -- path )", "The interpreter's current working directory as a string", "1", "1o", "O(|path|)", 33 },
 	{ "data-domain", "( xs ys -- )", "Pin the domain to the padded extents of two data vectors", NULL, NULL, NULL, 51 },
@@ -378,6 +379,7 @@ const HelpEntry help_entries[] = {
 	{ "fit-glm-weighted", "( X y weights family max-iterations tolerance -- beta )", "IRLS with prior weights: weights is n×1 and multiplies each observation's working weight (dμ/dη)²/V(μ), so a weight of 2 on a row equals stacking that row twice. For a proportion response, y is successes/trials and weights the trials", NULL, NULL, NULL, 47 },
 	{ "fit-irt", "( responses models options -- fit )", "Fit the models: models one symbol for every item or an array of one per item; options a frame of :quadrature-points (61), :max-cycles (500), :tolerance (1e-4, the largest change of a parameter between EM cycles that counts as converged) and :standard-errors (1) and :covariates (none), { } for the defaults. :covariates, an N×p matrix without missing values, makes a latent regression as mirt's formula: each person's trait has mean their covariates times p coefficients, no intercept, and residual variance 1 (estimated under :rasch), integrated over evenly spaced nodes on [−6, 6]. Answers { :items :log-likelihood :cycles :converged :latent-variance :coefficients :covariates :nodes :weights }, :coefficients p×1 or null and :weights null under covariates; each item { :model :slope :intercepts :difficulties :guessing :upper :categories :standard-errors }, :difficulties being −d/a and :standard-errors a frame by parameter name. An item with fewer than two categories, or more than two under a dichotomous model, throws", NULL, NULL, NULL, 45 },
 	{ "fit-linear", "( mat y -- beta )", "Ordinary least squares via LAPACKE dgelsd; mat is observations×predictors (observations ≥ predictors), y the observations×1 response, beta the predictors×1 coefficients", NULL, NULL, NULL, 43 },
+	{ "fit-linear-ridge", "( X y lambda -- beta )", "L2-penalized least squares; lambda penalizes ‖beta‖² with the intercept column (column 0 of X) unpenalized, lambda 0 ordinary least squares. The penalty enters as sqrt(lambda)·I rows appended to the design and zeros to the response, solved by Householder QR (dgels, with dgelsd for a rank-deficient design); the columns are penalized as given, so standardize them first", NULL, NULL, NULL, 46 },
 	{ "fit-logistic", "( X y max-iterations tolerance -- beta )", "Binary logistic regression by Firth-penalized IRLS (estimates stay finite under separation); X includes the intercept column, y in {0,1}", NULL, NULL, NULL, 46 },
 	{ "fit-logistic-ridge", "( X y max-iterations tolerance lambda -- beta )", "L2-penalized logistic by IRLS; lambda penalizes ‖beta‖²/2 with the intercept column unpenalized, lambda 0 the plain MLE (no Firth). Each step appends sqrt(lambda)·I rows to the weighted design and solves that least-squares system by Householder QR (dgels); a design dgels reports rank-deficient falls back to dgelsd, which answers a minimum-norm solution. The normal equations are not used: squaring the design costs about half the digits, which floors the beta step near 1e-6 at small lambda and prevents convergence at a 1e-8 tolerance", NULL, NULL, NULL, 46 },
 	{ "fit-multinomial", "( X y reference-class max-iterations tolerance -- beta )", "Multinomial (softmax) logistic by Newton–Raphson, baseline-category parametrization with reference-class as the baseline; y holds integer labels 0..K−1, beta is predictors×(K−1), one coefficient column per non-reference class. As the plain MLE it diverges under separation", NULL, NULL, NULL, 47 },
@@ -612,6 +614,7 @@ const HelpEntry help_entries[] = {
 	{ "parse-time", "( string format -- instant )", "Parse with strptime; uncaptured fields default to 1970-01-01 00:00:00, read as UTC unless the format captures an offset with %z; errors on a mismatch", "len", "1 pair", "O(len)", 24 },
 	{ "partition", "( items pred -- matches rest )", "arrays.telic: the elements satisfying pred and the others, one pass, input order kept", "n·xt", "2 arrays + the curried predicate token", "O(n·xt)", 26 },
 	{ "pbootstrap", "( data fit-xt B -- arr )", "statistics.telic: B refits of fit-xt over resamples of data (dataset/matrix rows, or an array's elements), the fits run in parallel; identical results to a serial run through per-replicate seeding", "as bootstrap", "as bootstrap", "O(B·(n + fit) / cores)", 21 },
+	{ "pcv-linear-ridge", "( X y units lambdas n-folds -- fr )", "cv-linear-ridge with the (lambda, fold) cells evaluated in parallel; the answer matches a serial run, the cells being deterministic", NULL, NULL, NULL, 46 },
 	{ "pcv-logistic-ridge", "( X y units lambdas n-folds -- fr )", "k-fold cross-validation of ridge logistic over a lambdas grid with the (lambda, fold) cells evaluated in parallel, returning { :lambdas :deviances :best }; X excludes the intercept (added internally, unpenalized), units index rows so per-cluster index arrays give cluster CV; the answer matches a serial run, the cells being deterministic", NULL, NULL, NULL, 46 },
 	{ "peek", "( a -- a )", "core.telic: print the top value then a space without consuming it — a stack probe", "1 + print", "none", "O(size printed)", 13 },
 	{ "percentile", "( mat pct -- f )", "statistics.telic: the linearly-interpolated value at percentile pct ∈ [0,100] over all elements", "n log n", "malloc(n)", "O(n log n)", 21 },
@@ -940,7 +943,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, arrays element-wise with a trailing rest pattern taking the remaining elements, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails", "n", "none", "O(n)", 29 },
 };
 
-const int help_entry_count = 876;
+const int help_entry_count = 879;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -1135,6 +1138,7 @@ const HelpExample help_examples[] = {
 	{ "cumulative-sum", "[ 1 2 3 ] vector cumulative-sum matrix>array . cr", "[ 1 3 6 ]" },
 	{ "curry", "3 ' + curry 4 swap execute . cr", "7" },
 	{ "cv-folds", "[ 0 1 2 3 ] 2 cv-folds . cr", "[ [ [ 1 3 ]\n    [ 0 2 ] ]\n  [ [ 0 2 ]\n    [ 1 3 ] ] ]" },
+	{ "cv-linear-ridge", "\"statistics\" load-library\n42 seed [ 0 1 2 3 4 5 ] 6 1 matrix [ 0.1 0.9 2.2 2.8 4.1 5 ] vector 6 iota [ 0.01 100 ] 2 cv-linear-ridge :best @ . cr", "0.01" },
 	{ "cv-logistic-ridge", "\"statistics\" load-library\n42 seed [ 0 1 2 3 4 5 ] 6 1 matrix [ 0 0 0 1 1 1 ] vector 6 iota [ 0.1 1 ] 2 cv-logistic-ridge :best @ . cr", "0.1" },
 	{ "cwd", "cwd file-exists? . cr", "1" },
 	{ "data-domain", "\"plot\" load-library\n100 100 figure [ 1 5 ] vector [ 2 6 ] vector data-domain :xmin figure@ . :xmax figure@ . cr", "0.8 5.2" },
@@ -1261,6 +1265,7 @@ const HelpExample help_examples[] = {
 	{ "fit-glm-weighted", "\"statistics\" load-library\n[ 1 0 1 1 1 2 1 3 ] 4 2 matrix to glm-x\n[ 1 2 4 9 ] vector to glm-y\nglm-x glm-y [ 2 1 1 1 ] vector poisson-log 100 1e-12 fit-glm-weighted\nglm-x 0 @i glm-x vstack glm-y 0 @i glm-y vstack poisson-log 100 1e-12 fit-glm - abs max 1e-8 < . cr", "1" },
 	{ "fit-irt", "\"irt\" load-library\n\"data/lsat7.tsv\" read-tsv [ :Item.1 :Item.2 :Item.3 :Item.4 :Item.5 ] dataset>matrix :2pl { } fit-irt\ndup @log-likelihood 10 * round 10 / . @items first @slope 100 * round 100 / . cr", "-2658.8 0.99" },
 	{ "fit-linear", "\"statistics\" load-library\n[ 1 1 1 2 1 3 ] 3 2 matrix [ 3 5 7 ] vector fit-linear matrix>array . cr", "[ 1 2 ]" },
+	{ "fit-linear-ridge", "\"statistics\" load-library\n[ 1 0 1 1 1 2 1 3 ] 4 2 matrix [ 1 3 5 7 ] vector 0 fit-linear-ridge matrix>array . cr", "[ 1 2 ]" },
 	{ "fit-logistic", "\"statistics\" load-library\n[ 1 0 1 1 1 2 1 3 ] 4 2 matrix [ 0 0 1 1 ] vector 25 1e-8 fit-logistic matrix>array . cr", "[ -1.96485 1.3099 ]" },
 	{ "fit-logistic-ridge", "\"statistics\" load-library\n[ 1 0 1 1 1 2 1 3 ] 4 2 matrix [ 0 0 1 1 ] vector 25 1e-8 1 fit-logistic-ridge matrix>array . cr", "[ -1.43743 0.958286 ]" },
 	{ "fit-multinomial", "\"statistics\" load-library\n[ 1 0 1 1 1 2 1 3 1 4 1 5 ] 6 2 matrix [ 0 1 0 2 1 2 ] vector 0 50 1e-6 fit-multinomial dim swap . . cr", "2 2" },
@@ -1495,6 +1500,7 @@ const HelpExample help_examples[] = {
 	{ "parse-time", "\"2001-02-03\" \"%Y-%m-%d\" parse-time time>iso . cr", "2001-02-03T00:00:00Z" },
 	{ "partition", "[ 1 2 3 4 ] ( 2 mod ) partition . . cr", "[ 2 4 ] [ 1 3 ]" },
 	{ "pbootstrap", "42 seed [ 1 2 3 4 5 ] ( vector mean ) 3 pbootstrap . cr", "[ 2.2 2.4 2.6 ]" },
+	{ "pcv-linear-ridge", "\"statistics\" load-library\n42 seed [ 0 1 2 3 4 5 ] 6 1 matrix [ 0.1 0.9 2.2 2.8 4.1 5 ] vector 6 iota [ 0.01 100 ] 2 pcv-linear-ridge :best @ . cr", "0.01" },
 	{ "pcv-logistic-ridge", "\"statistics\" load-library\n42 seed [ 0 1 2 3 4 5 ] 6 1 matrix [ 0 0 0 1 1 1 ] vector 6 iota [ 0.1 1 ] 2 pcv-logistic-ridge :best @ . cr", "0.1" },
 	{ "peek", "5 peek 1+ . cr", "5 6" },
 	{ "percentile", "[ 1 2 3 4 ] vector 25 percentile . cr", "1.75" },
@@ -1824,4 +1830,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 879;
+const int help_example_count = 882;

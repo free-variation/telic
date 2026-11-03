@@ -650,6 +650,21 @@ drop
 	then
 	beta ;
 
+\ L2-regularized least squares: lambda multiplies ||beta||^2, column 0 (the
+\ intercept) is unpenalized, lambda 0 is ordinary least squares. The penalty enters
+\ as sqrt(lambda)*I rows appended to the design and zeros to the response, solved by
+\ solve-qr (fit-linear when the design is rank-deficient), as in fit-logistic-ridge;
+\ the columns are penalized as given, so callers standardize them first
+: fit-linear-ridge ( X y lambda -- beta )
+	| x y lambda |
+	x n-columns to cols
+	lambda sqrt cols diagonal-matrix 0 0 0 !i,j to penalty
+	x penalty vstack to design
+	y cols 1 0-matrix vstack to target
+	design target solve-qr to beta
+	beta null? if design target fit-linear to beta then
+	beta ;
+
 \ logistic fit of an [X | y] block, standard convergence
 : fit-augmented-logistic ( augmented -- beta )
 	| aug |
@@ -689,11 +704,34 @@ drop
 	train xy lambda cv-ridge-fit
 	test xy cv-ridge-score ; internal
 
-\ the CV skeleton cv-logistic-ridge and
-\ pcv-logistic-ridge instantiate: every (lambda, fold) cell is a pre-curried thunk,
+\ linear ridge fit on the drawn units' rows of [1|X|y]
+: cv-linear-ridge-fit ( train-units xy lambda -- beta )
+	| xy lambda |
+	flatten xy swap select-rows to rows
+	rows n-columns 1 - to n-predictors
+	rows 0 rows n-rows 0 n-predictors submatrix
+	rows n-predictors @j
+	lambda fit-linear-ridge ; internal
+
+\ mean held-out squared error of beta
+: cv-linear-ridge-score ( beta test-units xy -- mse )
+	| beta test xy |
+	test flatten xy swap select-rows to rows
+	rows n-columns 1 - to n-predictors
+	rows 0 rows n-rows 0 n-predictors submatrix beta matmul
+	rows n-predictors @j - dup * mean ; internal
+
+\ one (lambda, fold) cell of linear ridge: fit, then score held-out
+: cv-linear-ridge-cell ( train test xy lambda -- loss )
+	| train test xy lambda |
+	train xy lambda cv-linear-ridge-fit
+	test xy cv-linear-ridge-score ; internal
+
+\ the CV skeleton the ridge cross-validations instantiate: every (lambda, fold)
+\ cell is a pre-curried thunk of cell ( train test xy lambda -- loss ),
 \ deterministic, so the mapper choice cannot change the result
-: cv-logistic-ridge-with ( X y units lambdas n-folds mapper -- fr )
-	| X y units lambdas n-folds mapper |
+: cv-ridge-with ( X y units lambdas n-folds mapper cell -- fr )
+	| X y units lambdas n-folds mapper cell |
 	X with-intercept y augment to xy
 	units n-folds cv-folds to folds
 	lambdas
@@ -701,7 +739,7 @@ drop
 		folds
 		( fold |
 			fold 0 @i fold 1 @i xy lambda
-			' cv-ridge-cell curry curry curry curry )
+			cell curry curry curry curry )
 		map )
 	map flatten
 	' execute mapper execute
@@ -713,11 +751,20 @@ drop
 \ ridge-logistic CV over a lambda grid:
 \ { :lambdas :deviances :best }; X excludes the intercept (added internally,
 \ unpenalized); units index rows — per-cluster index arrays give cluster CV
-: cv-logistic-ridge ( X y units lambdas n-folds -- fr ) ' map cv-logistic-ridge-with ;
+: cv-logistic-ridge ( X y units lambdas n-folds -- fr ) ' map ' cv-ridge-cell cv-ridge-with ;
 
 \ cv-logistic-ridge with the cells run under
 \ pmap; identical results, the cells being deterministic
-: pcv-logistic-ridge ( X y units lambdas n-folds -- fr ) ' pmap cv-logistic-ridge-with ;
+: pcv-logistic-ridge ( X y units lambdas n-folds -- fr ) ' pmap ' cv-ridge-cell cv-ridge-with ;
+
+\ linear-ridge CV over a lambda grid: { :lambdas :deviances :best }, :deviances
+\ the mean held-out squared error per lambda; X excludes the intercept (added
+\ internally, unpenalized); units index rows — per-cluster index arrays give cluster CV
+: cv-linear-ridge ( X y units lambdas n-folds -- fr ) ' map ' cv-linear-ridge-cell cv-ridge-with ;
+
+\ cv-linear-ridge with the cells run under
+\ pmap; identical results, the cells being deterministic
+: pcv-linear-ridge ( X y units lambdas n-folds -- fr ) ' pmap ' cv-linear-ridge-cell cv-ridge-with ;
 
 
 \ libxgboost install locations on macOS, preference order

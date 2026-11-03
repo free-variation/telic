@@ -121,6 +121,40 @@
 	cv-serial  cv-X cv-y cv-units [ 1 100 ] 2 pcv-logistic-ridge  = expect
 ) test
 
+"linear ridge lambda 0 is ordinary least squares" (
+	[ 1 2 3 4 5 6 ] 6 1 matrix with-intercept to ridge-X
+	[ 2.1 3.9 6.2 7.8 10.1 12 ] 6 1 matrix to ridge-y
+	ridge-X ridge-y 0 fit-linear-ridge  ridge-X ridge-y fit-linear  1e-9 expect-near
+) test
+
+"linear ridge shrinks the slope as lambda grows and leaves the intercept free" (
+	[ 1 2 3 4 5 6 ] 6 1 matrix with-intercept to ridge-X
+	[ 2.1 3.9 6.2 7.8 10.1 12 ] 6 1 matrix to ridge-y
+	ridge-X ridge-y 0 fit-linear-ridge 1 0 @i,j to plain-slope
+	ridge-X ridge-y 10 fit-linear-ridge to shrunk
+	shrunk 1 0 @i,j plain-slope < expect
+	shrunk 1 0 @i,j 0 > expect
+	ridge-X ridge-y 1e9 fit-linear-ridge 0 0 @i,j  ridge-y mean  1e-4 expect-near
+) test
+
+"linear ridge equals the normal equations (XtX + lambda*D)^-1 Xty" (
+	[ 1 2 3 4 5 6 ] 6 1 matrix with-intercept to ridge-X
+	[ 2.1 3.9 6.2 7.8 10.1 12 ] 6 1 matrix to ridge-y
+	3 2 diagonal-matrix 0 0 0 !i,j to ridge-D
+	ridge-X transpose ridge-X matmul ridge-D + inverse ridge-X transpose ridge-y matmul matmul
+	ridge-X ridge-y 3 fit-linear-ridge  swap 1e-9 expect-near
+) test
+
+"linear ridge CV picks the small lambda on a line; serial and parallel agree" (
+	[ 1 2 3 4 5 6 7 8 ] 8 1 matrix to cv-X
+	[ 1.1 2.0 2.9 4.2 5.0 5.9 7.1 8.0 ] 8 1 matrix to cv-y
+	7 seed 8 iota shuffle to cv-units
+	cv-X cv-y cv-units [ 0.01 1000 ] 2 cv-linear-ridge to cv-serial
+	cv-serial :best @ 0.01 expect=
+	cv-serial :lambdas @ [ 0.01 1000 ] expect=
+	cv-serial  cv-X cv-y cv-units [ 0.01 1000 ] 2 pcv-linear-ridge  = expect
+) test
+
 "logistic-regression on iris: positive slope, CIs bracket" (
 
 	"data/iris.tsv" load-tsv 1 rows>dataset :sepal_length @ matrix>array 50 skip to sepal-lengths

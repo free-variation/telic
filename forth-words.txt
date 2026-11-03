@@ -189,6 +189,7 @@ cross-validate
 cumulative-sum
 curry
 cv-folds
+cv-linear-ridge
 cv-logistic-ridge
 cwd
 data-domain
@@ -314,6 +315,7 @@ fit-glm
 fit-glm-weighted
 fit-irt
 fit-linear
+fit-linear-ridge
 fit-logistic
 fit-logistic-ridge
 fit-multinomial
@@ -548,6 +550,7 @@ parallel-run
 parse-time
 partition
 pbootstrap
+pcv-linear-ridge
 pcv-logistic-ridge
 peek
 percentile

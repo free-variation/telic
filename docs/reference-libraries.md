@@ -264,6 +264,7 @@ halves as values.
 | `linear-regression` | `( dataset predictors response replications -- model )` | OLS point estimate; `replications` 0 gives Wald inference (σ̂²(XᵀX)⁻¹, z and p per coefficient), B > 0 a nonparametric bootstrap over B resamples; the model frame is described above the table |
 | `fit-logistic` | `( X y max-iterations tolerance -- beta )` | Binary logistic regression by Firth-penalized IRLS (estimates stay finite under separation); `X` includes the intercept column, `y` in {0,1} |
 | `fit-logistic-ridge` | `( X y max-iterations tolerance lambda -- beta )` | L2-penalized logistic by IRLS; `lambda` penalizes ‖beta‖²/2 with the intercept column unpenalized, `lambda` 0 the plain MLE (no Firth). Each step appends sqrt(`lambda`)·I rows to the weighted design and solves that least-squares system by Householder QR (`dgels`); a design `dgels` reports rank-deficient falls back to `dgelsd`, which answers a minimum-norm solution. The normal equations are not used: squaring the design costs about half the digits, which floors the beta step near 1e-6 at small `lambda` and prevents convergence at a 1e-8 tolerance |
+| `fit-linear-ridge` | `( X y lambda -- beta )` | L2-penalized least squares; `lambda` penalizes ‖beta‖² with the intercept column (column 0 of `X`) unpenalized, `lambda` 0 ordinary least squares. The penalty enters as sqrt(`lambda`)·I rows appended to the design and zeros to the response, solved by Householder QR (`dgels`, with `dgelsd` for a rank-deficient design); the columns are penalized as given, so standardize them first |
 | `fit-augmented-logistic` | `( augmented -- beta )` | Firth logistic fit of an `[X | y]` block |
 | `logistic-regression` | `( dataset predictors response replications -- model )` | Firth-penalized logistic regression; `replications` 0 gives Wald inference from the binomial-logit covariance at the Firth estimate (the penalty's curvature term is not included), B > 0 a nonparametric bootstrap over B resamples; the model frame is described above the table |
 | `glm-regression` | `( dataset predictors response weights family replications -- model )` | A GLM under `family` from a dataset: `predictors` name the design columns (an intercept is prepended); `response` is the outcome as a column symbol or an n×1 matrix; `weights` is the prior weights as a column symbol, an n×1 matrix, or `null` for unit weights. `replications` 0 gives Wald inference from `glm-covariance` (so a `:pearson` family's φ inflates the SEs), B > 0 a nonparametric bootstrap of B refits; the model frame is described above the table |
@@ -273,6 +274,8 @@ halves as values.
 | `predict-glm` | `( model dataset -- mu )` | The mean response a `linear-regression`/`logistic-regression`/`glm-regression` model predicts for every row of the dataset, as n×1: the model's predictor columns gather from the dataset (its `:predictors` less `:intercept`, a missing column errors), an intercept column is prepended, `dgemm` applies `:estimates`, and the family's `:inverse-link` maps the linear predictor — the fitted line for the gaussian family, probabilities for the logit families, rates for Poisson; a row with a NaN predictor answers NaN |
 | `cv-logistic-ridge` | `( X y units lambdas n-folds -- fr )` | k-fold cross-validation of ridge logistic over a `lambdas` grid, returning `{ :lambdas :deviances :best }`; `X` excludes the intercept (added internally, unpenalized), `units` index rows so per-cluster index arrays give cluster CV |
 | `pcv-logistic-ridge` | `( X y units lambdas n-folds -- fr )` | k-fold cross-validation of ridge logistic over a `lambdas` grid with the (lambda, fold) cells evaluated in parallel, returning `{ :lambdas :deviances :best }`; `X` excludes the intercept (added internally, unpenalized), `units` index rows so per-cluster index arrays give cluster CV; the answer matches a serial run, the cells being deterministic |
+| `cv-linear-ridge` | `( X y units lambdas n-folds -- fr )` | k-fold cross-validation of ridge least squares over a `lambdas` grid, returning `{ :lambdas :deviances :best }` with `:deviances` the mean held-out squared error per lambda; `X` excludes the intercept (added internally, unpenalized), `units` index rows so per-cluster index arrays give cluster CV |
+| `pcv-linear-ridge` | `( X y units lambdas n-folds -- fr )` | `cv-linear-ridge` with the (lambda, fold) cells evaluated in parallel; the answer matches a serial run, the cells being deterministic |
 
 ```forth linear-regression
 "statistics" load-library
@@ -380,6 +383,30 @@ term         estimate        se         z            p    ci-low   ci-high
 ```
 ```output
 0.1
+```
+
+```forth fit-linear-ridge
+"statistics" load-library
+[ 1 0 1 1 1 2 1 3 ] 4 2 matrix [ 1 3 5 7 ] vector 0 fit-linear-ridge matrix>array . cr
+```
+```output
+[ 1 2 ]
+```
+
+```forth cv-linear-ridge
+"statistics" load-library
+42 seed [ 0 1 2 3 4 5 ] 6 1 matrix [ 0.1 0.9 2.2 2.8 4.1 5 ] vector 6 iota [ 0.01 100 ] 2 cv-linear-ridge :best @ . cr
+```
+```output
+0.01
+```
+
+```forth pcv-linear-ridge
+"statistics" load-library
+42 seed [ 0 1 2 3 4 5 ] 6 1 matrix [ 0.1 0.9 2.2 2.8 4.1 5 ] vector 6 iota [ 0.01 100 ] 2 pcv-linear-ridge :best @ . cr
+```
+```output
+0.01
 ```
 
 ## Generalized linear models (lib/statistics.telic)
