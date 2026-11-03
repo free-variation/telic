@@ -112,6 +112,7 @@ base
 basename
 begin
 between?
+bifactor-scores
 binary-dir
 binomial-deviance
 bit-and
@@ -416,6 +417,7 @@ iqr
 irt-probabilities
 irt-scores
 iso>time
+item-information
 join
 json>frame
 key-down?

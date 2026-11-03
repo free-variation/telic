@@ -488,6 +488,45 @@
 	then
 	fitted beta start - abs max ; internal
 
+\ the fixed quantities of a bifactor E-step for responses (N×J, 0, 1 or NaN) and item groups at
+\ n-nodes Gauss–Hermite nodes per dimension: the nodes and weights, the general and grid rows and
+\ designs, the response patterns' indicators split by item set (and transposed for the M-step),
+\ the patterns' counts and each person's pattern (:members)
+: bifactor-layout ( responses groups n-nodes -- layout )
+	| responses groups n-nodes |
+
+	responses n-columns to n-items
+	n-nodes gauss-hermite to weights to nodes
+	nodes transpose to general-row
+	weights transpose ln to log-weight-row
+	n-nodes n-nodes * to n-grid
+	n-grid iota ( c | nodes c n-nodes % nip @e ) map vector transpose to grid-general
+	n-grid iota ( c | nodes c n-nodes % drop @e ) map vector transpose to grid-specific
+	grid-general transpose grid-specific transpose hstack n-grid 1 0-matrix 1 + hstack to grid-design
+	general-row transpose n-nodes 1 0-matrix 1 + hstack to general-design
+	groups array>set set>array ( group | group 0 > ) filter to factors
+	n-items iota ( j | groups j @i 0 = ) filter to general-items
+	factors ( factor | n-items iota ( j | groups j @i factor = ) filter ) map to factor-items
+	responses null pattern-rows to members to counts drop to patterns
+	patterns n-rows to n-patterns
+	patterns 1 eq to correct-indicators
+	patterns 0 eq to incorrect-indicators
+	correct-indicators incorrect-indicators + to answered-indicators
+	correct-indicators general-items select-columns-of to general-correct
+	incorrect-indicators general-items select-columns-of to general-incorrect
+	factor-items ( members | correct-indicators members select-columns-of ) map to factor-correct
+	{ :nodes nodes :weights weights :general-items general-items :factor-items factor-items :factors factors
+	  :general-correct general-correct :general-incorrect general-incorrect
+	  :factor-correct factor-correct
+	  :factor-incorrect factor-items ( members | incorrect-indicators members select-columns-of ) map
+	  :general-correct-rows general-correct transpose
+	  :general-answered-rows answered-indicators general-items select-columns-of transpose
+	  :factor-correct-rows factor-correct ( correct | correct transpose ) map
+	  :factor-answered-rows factor-items ( members | answered-indicators members select-columns-of transpose ) map
+	  :general-row general-row :grid-general grid-general :grid-specific grid-specific :log-weight-row log-weight-row
+	  :general-design general-design :grid-design grid-design
+	  :n-patterns n-patterns :n-nodes n-nodes :counts counts :members members } ; internal
+
 \ fit a bifactor 2PL to binary responses, an N×J matrix of 0, 1 and NaN for missing: groups, an array of J whole numbers, gives each item's specific factor, or 0 for an item on the general trait only, and every specific factor needs at least two items; each item's chance of a correct response is σ(a·θg + c·θs + d), the general trait θg and the specific traits independent standard normals. Bock and Aitkin's EM over the distinct response patterns with Gibbons and Hedeker's dimension reduction: each specific factor is integrated at every general node, over :quadrature-points (21) Gauss–Hermite nodes per dimension, so the work is two-dimensional whatever the number of specific factors; each item's M-step is Newton steps on its expected counts. Options also :max-cycles (500) and :tolerance (1e-4), the largest change of any parameter between cycles that counts as converged. Answers { :items :log-likelihood :cycles :converged :nodes :weights :bifactor }, :log-likelihood at the returned items, :bifactor 1; each item { :model :slope :specific-slope :group :intercepts :difficulties }, :specific-slope 0 for an item on the general trait only
 : fit-bifactor ( responses groups options -- fit )
 	| responses groups options |
@@ -500,39 +539,23 @@
 	options :max-cycles 500 @or to max-cycles
 	options :tolerance 1e-4 @or to tolerance
 	options :quadrature-points 21 @or to n-nodes
-	n-nodes gauss-hermite to weights to nodes
-	nodes transpose to general-row
-	weights transpose ln to log-weight-row
-	n-nodes n-nodes * to n-grid
-	n-grid iota ( c | nodes c n-nodes % nip @e ) map vector transpose to grid-general
-	n-grid iota ( c | nodes c n-nodes % drop @e ) map vector transpose to grid-specific
-	grid-general transpose grid-specific transpose hstack n-grid 1 0-matrix 1 + hstack to grid-design
-	general-row transpose n-nodes 1 0-matrix 1 + hstack to general-design
-
 	groups array>set set>array ( group | group 0 > ) filter to factors
-	n-items iota ( j | groups j @i 0 = ) filter to general-items
 	factors ( factor | n-items iota ( j | groups j @i factor = ) filter ) map to factor-items
 	factors size iota ( f | factor-items f @i size 2 < ) find-first to lone-factor
 	lone-factor null? not if factors lone-factor @i "fit-bifactor: specific factor {0} has fewer than two items" format throw then
-
-	responses null pattern-rows drop to counts drop to patterns
-	patterns n-rows to n-patterns
-	patterns 1 eq to correct-indicators
-	patterns 0 eq to incorrect-indicators
-	correct-indicators incorrect-indicators + to answered-indicators
-	correct-indicators general-items select-columns-of to general-correct
-	incorrect-indicators general-items select-columns-of to general-incorrect
-	general-correct transpose to general-correct-rows
-	answered-indicators general-items select-columns-of transpose to general-answered-rows
-	factor-items ( members | correct-indicators members select-columns-of ) map to factor-correct
-	factor-items ( members | incorrect-indicators members select-columns-of ) map to factor-incorrect
-	factor-correct ( correct | correct transpose ) map to factor-correct-rows
-	factor-items ( members | answered-indicators members select-columns-of transpose ) map to factor-answered-rows
-	{ :general-items general-items :factor-items factor-items
-	  :general-correct general-correct :general-incorrect general-incorrect
-	  :factor-correct factor-correct :factor-incorrect factor-incorrect
-	  :general-row general-row :grid-general grid-general :grid-specific grid-specific :log-weight-row log-weight-row
-	  :n-patterns n-patterns :n-nodes n-nodes :counts counts } to layout
+	responses groups n-nodes bifactor-layout to layout
+	layout@nodes to nodes
+	layout@weights to weights
+	layout@general-design to general-design
+	layout@grid-design to grid-design
+	layout@general-items to general-items
+	layout@general-correct-rows to general-correct-rows
+	layout@general-answered-rows to general-answered-rows
+	layout@factor-correct-rows to factor-correct-rows
+	layout@factor-answered-rows to factor-answered-rows
+	layout@n-patterns to n-patterns
+	layout@counts to counts
+	n-nodes n-nodes * to n-grid
 
 	[ ] to items
 	0 n-items 1 do j
@@ -587,6 +610,61 @@
 	items ( item | item item item-difficulties :difficulties ! ) map to items
 	{ :items items :log-likelihood marginal :cycles cycles :converged converged :nodes nodes :weights weights :bifactor 1 } ;
 
+\ every person's bifactor trait vector, general then specific 1..S, and its standard errors, from a
+\ fit-bifactor fit and binary responses in the fit's columns: method :eap, the posterior means and
+\ standard deviations over the fit's nodes by the same dimension reduction as the fit, or :map, the
+\ posterior mode under the standard normal traits by minimize from the EAP, its errors from the
+\ curvature there. Answers { :theta :se }, each N×(1+S)
+: bifactor-scores ( fit responses method -- scores )
+	| fit responses method |
+
+	fit :bifactor 0 @or not if "bifactor-scores: the fit is not a bifactor fit" throw then
+	fit@items to items
+	items ( item | item@group ) map to groups
+	responses groups fit@nodes num-elements bifactor-layout to layout
+	layout@n-patterns to n-patterns
+	layout@n-nodes to n-nodes
+	layout@nodes to nodes
+	items layout bifactor-e-step to factor-terms to general-posterior drop
+	general-posterior nodes matmul to general-means
+	general-posterior nodes sq matmul general-means sq - 0 max2 sqrt to general-errors
+	layout@factors size iota ( f |
+		factor-terms f @i first general-posterior n-patterns n-nodes * 1 reshape * n-patterns n-nodes n-nodes * reshape to joint
+		joint layout@grid-specific transpose matmul to means
+		[ means joint layout@grid-specific sq transpose matmul means sq - 0 max2 sqrt ]
+	) map to specific
+	specific ( pair | pair first ) map general-means ' hstack reduce to means
+	specific ( pair | pair 1 @i ) map general-errors ' hstack reduce to errors
+	method :eap = if { :theta means layout@members select-rows :se errors layout@members select-rows } exit then
+	method :map = not if method "bifactor-scores: unknown method {0}; :eap or :map" format throw then
+
+	layout@factors size 1+ to n-traits
+	n-patterns n-traits 0-matrix to modes
+	n-patterns n-traits 0-matrix to mode-errors
+	responses null pattern-rows drop drop drop to patterns
+	0 n-patterns 1 do n
+		patterns [ n ] select-rows to row
+		( x |
+			0
+			0 items size 1 do j
+				row 0 j @i,j to response
+				response nan? not if
+					items j @i to item
+					x 0 @e item@slope * item@group 0 = if 0 else x item@group @e item@specific-slope * then +
+					item@intercepts first + sigmoid 1e-12 1 1e-12 - clamp to p
+					response 1 = if p else 1 p - then ln +
+				then
+			loop
+			x sq sum 2 / - negate
+		) to objective
+		means [ n ] select-rows transpose to start
+		start objective null 100 1e-10 minimize @estimate to mode
+		0 n-traits 1 do k modes mode k @e n k !i,j drop loop
+		mode objective numeric-hessian inverse diagonal sqrt to curvature-errors
+		0 n-traits 1 do k mode-errors curvature-errors 0 k @i,j n k !i,j drop loop
+	loop
+	{ :theta modes layout@members select-rows :se mode-errors layout@members select-rows } ;
+
 \ ---- scoring ----
 
 \ every person's trait estimate and its standard error from a fit and the responses it was fitted to, or new ones in the same columns: method :eap, the posterior mean and standard deviation over the fit's nodes, or :map, the posterior mode under the fitted normal trait by minimize from the EAP, its error from the curvature there. A fit with covariates scores the people it was fitted to, each under the trait's mean from their covariates. Answers { :theta :se }, n×1 vectors
@@ -626,6 +704,41 @@
 		mode-errors mode objective numeric-hessian first 1 swap / sqrt n !e drop
 	loop
 	{ :theta modes members select-rows :se mode-errors members select-rows } ;
+
+\ an item's Fisher information at trait values. For a fit-irt fit, thetas an array or vector of
+\ trait values, answered as n×1: a dichotomous item's P′²/(P(1 − P)), P′ = (u − g)·a·σ(1 − σ), and a
+\ graded item's Σ_k P_k′²/P_k over its categories. For a fit-bifactor fit, thetas n×(1+S), each row a
+\ general value then the specific ones, answered as n×3: the item's information on the general trait,
+\ on its specific trait and between them, p(1 − p) times a², c² and a·c (the specific columns 0 for an
+\ item on the general trait only)
+: item-information ( fit item thetas -- information )
+	| fit item thetas |
+
+	fit@items item @i to fitted
+	fit :bifactor 0 @or if
+		thetas 0 thetas n-rows 0 1 submatrix to general
+		fitted@group 0 = if thetas n-rows 1 0-matrix else thetas fitted@group @j then to specific
+		general fitted@slope * specific fitted@specific-slope * + fitted@intercepts first + sigmoid to p
+		p 1 p - * to spread
+		spread fitted@slope sq * spread fitted@specific-slope sq * hstack spread fitted@slope fitted@specific-slope * * hstack
+		exit
+	then
+	thetas matrix? if thetas as-column else thetas vector then transpose to theta
+	fitted@model :rasch = if 1 else fitted@slope then to slope
+	fitted@model :graded = if
+		fitted theta graded-cumulative to cumulative
+		cumulative 1 cumulative - * slope * to rising
+		1 theta num-elements 0-matrix to zeros
+		zeros rising vstack zeros vstack to padded
+		padded n-rows to n-rows-padded
+		padded 0 n-rows-padded 1- 0 theta num-elements submatrix
+		padded 1 n-rows-padded 0 theta num-elements submatrix - to derivatives
+		derivatives sq fitted theta item-probabilities / column-sums transpose exit
+	then
+	fitted@intercepts first theta slope * + sigmoid to s
+	s 1 s - * slope * fitted@upper fitted@guessing - * to derivative
+	fitted theta item-probabilities 1 2 0 theta num-elements submatrix to p
+	derivative sq p 1 p - * / transpose ;
 
 \ an item's category probabilities at trait values, an array or vector, as a matrix of one row per value and one column per category
 : irt-probabilities ( fit item thetas -- probabilities )

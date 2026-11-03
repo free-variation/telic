@@ -176,6 +176,7 @@ const HelpEntry help_entries[] = {
 	{ "basename", "( path -- filename )", "strings.telic: the path's last component; a path with no / passes through", "n", "1o", "O(n)", 14 },
 	{ "begin", "—", "Mark a loop top", NULL, NULL, NULL, 10 },
 	{ "between?", "( v low high -- bool ) or ( mat/arr low high -- mat )", "core.telic: low ≤ v ≤ high, inclusive; a matrix or array operand answers an element-wise mask, and any ordered scalars compare (strings lexicographic, quantities rescaled within a dimension)", "9", "matrix 3m(r×c)", "O(1); matrix/array O(n)", 4 },
+	{ "bifactor-scores", "( fit responses method -- scores )", "Each person's bifactor trait vector, general then specific 1..S, and its standard errors as { :theta :se }, each N×(1+S), from a fit-bifactor fit and binary responses in its columns: :eap the posterior means and standard deviations over the fit's nodes by the same dimension reduction as the fit, or :map the posterior mode under standard normal traits by minimize from the EAP, its errors from the curvature there; on the simulated set both agree with mirt's fscores to about 0.001", NULL, NULL, NULL, 45 },
 	{ "binary-dir", "( -- str )", "The directory holding the running telic binary, symlinks resolved, so an installation's resources are reachable from any cwd; errors on the wasm build (no executable path)", "1", "1o", "O(|path|)", 33 },
 	{ "binomial-deviance", "( y p -- dev )", "statistics.telic: −2 Σ[y ln p + (1−y) ln(1−p)] over n×1 vectors — the proper scoring rule for probability models; p is clamped to [1e-12, 1−1e-12], so an overconfident prediction scores a large finite penalty rather than infinity", "10n", "clamp + term vectors", "O(n)", 21 },
 	{ "bit-and", "( a b -- f )", "bitwise AND", "2", "none", "O(1)", 4 },
@@ -480,6 +481,7 @@ const HelpEntry help_entries[] = {
 	{ "irt-probabilities", "( fit item thetas -- probabilities )", "Item item's (from 0) category probabilities at each trait value of an array or vector, a row per value and a column per category", NULL, NULL, NULL, 45 },
 	{ "irt-scores", "( fit responses method -- scores )", "Each person's trait estimate and standard error as { :theta :se }, n×1 vectors: :eap the posterior mean and standard deviation over the fit's nodes, or :map the posterior mode under the fitted normal trait, its error from the curvature there. responses in the fit's columns; a fit with covariates scores only the people it was fitted to, each under their covariates' mean", NULL, NULL, NULL, 45 },
 	{ "iso>time", "( string -- instant )", "units.telic: parse an ISO 8601 UTC string (YYYY-MM-DDTHH:MM:SSZ) to an instant", "len", "1 pair", "O(1)", 24 },
+	{ "item-information", "( fit item thetas -- information )", "Item item's (from 0) Fisher information. For a fit-irt fit, thetas an array or vector of trait values and the answer n×1: a dichotomous item's P′²/(P(1 − P)), a graded item's Σ_k P_k′²/P_k. For a fit-bifactor fit, thetas n×(1+S), each row a general value then the specific ones, and the answer n×3: the information on the general trait, on the item's specific trait and between them, p(1 − p) times a², c² and a·c", NULL, NULL, NULL, 45 },
 	{ "join", "( arr sep -- str )", "Concatenate the string elements of arr separated by sep; errors on a non-string element", "2 + total", "1o", "O(total)", 14 },
 	{ "json>frame", "( str -- val )", "Parse a JSON string. Escapes and \\uXXXX (with surrogate pairs) decode to UTF-8; depth-guarded; rejects trailing non-whitespace. Each object's keys are sorted after collection", "scan + build", "one object per node", "O(|s| log |s|)", 18 },
 	{ "key-down?", "( key -- flag )", "1 while the key is held in the current frame's key state. A key name not in the list above errors", "3", "none", "O(1)", 36 },
@@ -945,7 +947,7 @@ const HelpEntry help_entries[] = {
 	{ "~", "( a b -- term )", "Unify a and b, binding logic vars (recorded on the trail) so the two match, then leave the dereffed left term; atoms by value, arrays element-wise with a trailing rest pattern taking the remaining elements, frames as open records; _ on either side matches anything and binds nothing; on a mismatch, fails", "n", "none", "O(n)", 29 },
 };
 
-const int help_entry_count = 881;
+const int help_entry_count = 883;
 
 const HelpExample help_examples[] = {
 	{ "!", "{ } 5 /a/b ! /a/b @ . cr", "5" },
@@ -1063,6 +1065,7 @@ const HelpExample help_examples[] = {
 	{ "basename", "\"/usr/local/bin/telic\" basename . cr", "telic" },
 	{ "begin", ": countdown ( n -- ) begin dup . 1- dup 0= until drop cr ; 3 countdown", "3 2 1" },
 	{ "between?", "5 3 8 between? . 9 3 8 between? . cr\n[ 1 5 9 ] vector 2 8 between? matrix>array . cr", "1 0\n[ 0 1 0 ]" },
+	{ "bifactor-scores", "\"irt\" load-library\n\"data/irt-bifactor.tsv\" read-tsv 12 iota ( j | j 1 + \"item{0}\" format string>symbol ) map dataset>matrix to b\nb [ 0 0 0 0 1 1 1 1 2 2 2 2 ] { } fit-bifactor b :eap bifactor-scores :theta @ 0 0 @i,j 100 * round 100 / . cr", "-0.14" },
 	{ "binary-dir", "binary-dir file-exists? . cr", "1" },
 	{ "binomial-deviance", "[ 1 0 1 ] vector [ 0.9 0.1 0.8 ] vector binomial-deviance . cr", "0.867729" },
 	{ "bit-and", "12 10 bit-and . cr", "8" },
@@ -1368,6 +1371,7 @@ const HelpExample help_examples[] = {
 	{ "irt-probabilities", "\"irt\" load-library\n\"data/lsat7.tsv\" read-tsv [ :Item.1 :Item.2 :Item.3 :Item.4 :Item.5 ] dataset>matrix :2pl { :standard-errors 0 } fit-irt\n0 [ 0 ] irt-probabilities 100 * round 100 / matrix>array . cr", "[ 0.14 0.86 ]" },
 	{ "irt-scores", "\"irt\" load-library\n\"data/lsat7.tsv\" read-tsv [ :Item.1 :Item.2 :Item.3 :Item.4 :Item.5 ] dataset>matrix to lsat-responses\nlsat-responses :2pl { :standard-errors 0 } fit-irt lsat-responses :eap irt-scores\ndup @theta 0 @e 100 * round 100 / . @se 0 @e 100 * round 100 / . cr", "-1.87 0.69" },
 	{ "iso>time", "\"2020-01-02T03:04:05Z\" iso>time epoch>date :day @ . cr", "2" },
+	{ "item-information", "\"irt\" load-library\n\"data/lsat7.tsv\" read-tsv [ :Item.1 :Item.2 :Item.3 :Item.4 :Item.5 ] dataset>matrix :2pl { :standard-errors 0 } fit-irt\n0 [ 0 ] item-information first 1000 * round 1000 / . cr", "0.114" },
 	{ "join", "[ \"a\" \"b\" \"c\" ] \"-\" join . cr", "a-b-c" },
 	{ "json>frame", "\"{\"\"a\"\": [1, 2]}\" json>frame /a @ . cr", "[ 1 2 ]" },
 	{ "key-down?", "( cls :left key-down? if \"left\" else \"\" then 8 8 rot print-at ) screen-frame", "" },
@@ -1834,4 +1838,4 @@ const HelpExample help_examples[] = {
 	{ "~", "[ 1 2 ] [ 1 2 ] ~ . cr", "[ 1 2 ]" },
 };
 
-const int help_example_count = 884;
+const int help_example_count = 886;

@@ -211,6 +211,8 @@ library is.
 | `irt-scores` | `( fit responses method -- scores )` | Each person's trait estimate and standard error as `{ :theta :se }`, n×1 vectors: `:eap` the posterior mean and standard deviation over the fit's nodes, or `:map` the posterior mode under the fitted normal trait, its error from the curvature there. `responses` in the fit's columns; a fit with covariates scores only the people it was fitted to, each under their covariates' mean |
 | `irt-probabilities` | `( fit item thetas -- probabilities )` | Item `item`'s (from 0) category probabilities at each trait value of an array or vector, a row per value and a column per category |
 | `fit-bifactor` | `( responses groups options -- fit )` | Fit a bifactor 2PL to binary responses (0, 1, NaN): `groups` an array of whole numbers giving each item's specific factor, or 0 for an item on the general trait only, at least two items per specific factor (other responses, groups or a one-item factor throw); each item's chance of a correct response is σ(a·θg + c·θs + d), the general and specific traits independent standard normals. Bock and Aitkin's EM over the distinct response patterns with Gibbons and Hedeker's dimension reduction, each specific factor integrated at every general node over `:quadrature-points` (21) Gauss–Hermite nodes per dimension, so the work stays two-dimensional; each item's M-step is Newton steps on its expected counts. Options also `:max-cycles` (500) and `:tolerance` (1e-4). Answers `{ :items :log-likelihood :cycles :converged :nodes :weights :bifactor }`, `:log-likelihood` at the returned items and `:bifactor` 1, which `irt-scores` and `irt-probabilities` reject; each item `{ :model :slope :specific-slope :group :intercepts :difficulties }`, `:specific-slope` 0 for a general-only item; on a simulated set it agrees with mirt 1.46's `bfactor` to about 0.002 |
+| `bifactor-scores` | `( fit responses method -- scores )` | Each person's bifactor trait vector, general then specific 1..S, and its standard errors as `{ :theta :se }`, each N×(1+S), from a `fit-bifactor` fit and binary responses in its columns: `:eap` the posterior means and standard deviations over the fit's nodes by the same dimension reduction as the fit, or `:map` the posterior mode under standard normal traits by `minimize` from the EAP, its errors from the curvature there; on the simulated set both agree with mirt's `fscores` to about 0.001 |
+| `item-information` | `( fit item thetas -- information )` | Item `item`'s (from 0) Fisher information. For a `fit-irt` fit, `thetas` an array or vector of trait values and the answer n×1: a dichotomous item's P′²/(P(1 − P)), a graded item's Σ_k P_k′²/P_k. For a `fit-bifactor` fit, `thetas` n×(1+S), each row a general value then the specific ones, and the answer n×3: the information on the general trait, on the item's specific trait and between them, p(1 − p) times a², c² and a·c |
 
 ```forth fit-irt
 "irt" load-library
@@ -247,6 +249,24 @@ dup @theta 0 @e 100 * round 100 / . @se 0 @e 100 * round 100 / . cr
 ```
 ```output
 0.9
+```
+
+```forth bifactor-scores
+"irt" load-library
+"data/irt-bifactor.tsv" read-tsv 12 iota ( j | j 1 + "item{0}" format string>symbol ) map dataset>matrix to b
+b [ 0 0 0 0 1 1 1 1 2 2 2 2 ] { } fit-bifactor b :eap bifactor-scores :theta @ 0 0 @i,j 100 * round 100 / . cr
+```
+```output
+-0.14
+```
+
+```forth item-information
+"irt" load-library
+"data/lsat7.tsv" read-tsv [ :Item.1 :Item.2 :Item.3 :Item.4 :Item.5 ] dataset>matrix :2pl { :standard-errors 0 } fit-irt
+0 [ 0 ] item-information first 1000 * round 1000 / . cr
+```
+```output
+0.114
 ```
 
 ## Regression (lib/statistics.telic)
