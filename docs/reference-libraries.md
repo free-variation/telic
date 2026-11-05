@@ -253,8 +253,8 @@ dup @theta 0 @e 100 * round 100 / . @se 0 @e 100 * round 100 / . cr
 
 ```forth bifactor-scores
 "irt" load-library
-"data/irt-bifactor.tsv" read-tsv 12 iota ( j | j 1 + "item{0}" format string>symbol ) map dataset>matrix to b
-b [ 0 0 0 0 1 1 1 1 2 2 2 2 ] { } fit-bifactor b :eap bifactor-scores :theta @ 0 0 @i,j 100 * round 100 / . cr
+"data/irt-bifactor.tsv" read-tsv 12 iota ( j | j 1 + "item{0}" format string>symbol ) map dataset>matrix to bifactor-responses
+bifactor-responses [ 0 0 0 0 1 1 1 1 2 2 2 2 ] { } fit-bifactor bifactor-responses :eap bifactor-scores :theta @ 0 0 @i,j 100 * round 100 / . cr
 ```
 ```output
 -0.14
@@ -293,8 +293,8 @@ halves as values.
 | --- | --- | --- |
 | `linear-regression` | `( dataset predictors response replications -- model )` | OLS point estimate; `replications` 0 gives Wald inference (σ̂²(XᵀX)⁻¹, z and p per coefficient), B > 0 a nonparametric bootstrap over B resamples; the model frame is described above the table |
 | `fit-logistic` | `( X y max-iterations tolerance -- beta )` | Binary logistic regression by Firth-penalized IRLS (estimates stay finite under separation); `X` includes the intercept column, `y` in {0,1} |
-| `fit-logistic-ridge` | `( X y max-iterations tolerance lambda -- beta )` | L2-penalized logistic by IRLS; `lambda` penalizes ‖beta‖²/2 with the intercept column unpenalized, `lambda` 0 the plain MLE (no Firth). Each step appends sqrt(`lambda`)·I rows to the weighted design and solves that least-squares system by Householder QR (`dgels`); a design `dgels` reports rank-deficient falls back to `dgelsd`, which answers a minimum-norm solution. The normal equations are not used: squaring the design costs about half the digits, which floors the beta step near 1e-6 at small `lambda` and prevents convergence at a 1e-8 tolerance |
-| `fit-linear-ridge` | `( X y lambda -- beta )` | L2-penalized least squares; `lambda` penalizes ‖beta‖² with the intercept column (column 0 of `X`) unpenalized, `lambda` 0 ordinary least squares. The penalty enters as sqrt(`lambda`)·I rows appended to the design and zeros to the response, solved by Householder QR (`dgels`, with `dgelsd` for a rank-deficient design); the columns are penalized as given, so standardize them first |
+| `fit-logistic-ridge` | `( X y max-iterations tolerance lambda -- beta )` | L2-penalized logistic by IRLS; `lambda` penalizes ‖beta‖²/2 with the intercept column unpenalized, `lambda` 0 the plain MLE (no Firth). Each step appends sqrt(`lambda`)·I rows to the weighted design and solves that least-squares system by `fit-linear` (`dgelsd`), a minimum-norm solution when the design is rank-deficient. The normal equations are not used: squaring the design costs about half the digits, which floors the beta step near 1e-6 at small `lambda` and prevents convergence at a 1e-8 tolerance |
+| `fit-linear-ridge` | `( X y lambda -- beta )` | L2-penalized least squares; `lambda` penalizes ‖beta‖² with the intercept column (column 0 of `X`) unpenalized, `lambda` 0 ordinary least squares. The penalty enters as sqrt(`lambda`)·I rows appended to the design and zeros to the response, solved by `fit-linear` (`dgelsd`), a minimum-norm solution when the design is rank-deficient; the columns are penalized as given, so standardize them first |
 | `fit-augmented-logistic` | `( augmented -- beta )` | Firth logistic fit of an `[X | y]` block |
 | `predict-logistic` | `( X beta -- probabilities )` | The logistic probabilities sigmoid(X·beta) as n×1; `X` includes the intercept column |
 | `logistic-regression` | `( dataset predictors response replications -- model )` | Firth-penalized logistic regression; `replications` 0 gives Wald inference from the binomial-logit covariance at the Firth estimate (the penalty's curvature term is not included), B > 0 a nonparametric bootstrap over B resamples; the model frame is described above the table |

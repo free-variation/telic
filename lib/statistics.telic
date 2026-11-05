@@ -141,12 +141,6 @@ dup "LAPACKE_dgelsd" [
 						 :ptr :double :ptr \ s (singular values) rcond rank
 					 ] :int ffi-function (dgelsd)
 
-dup "LAPACKE_dgels" [
-						:int :int :int :int :int \ matrix_layout trans m n nrhs
-						:ptr :int \ a (design matrix, overwritten with the QR factors) lda
-						:ptr :int \ b (rhs, overwritten with the solution in its first n rows) ldb
-					] :int ffi-function (dgels)
-
 dup "LAPACKE_dpotrf" [
 						 :int :int :int \ matrix_layout uplo n
 						 :ptr :int \ a (overwritten with the cholesky factor) lda
@@ -597,23 +591,7 @@ drop
 	then
 	beta ;
 
-\ least squares by Householder QR (dgels), the same system fit-linear solves and the same conditioning, for several times fewer flops than dgelsd's divide-and-conquer SVD; null when dgels reports the design rank-deficient, leaving the caller the dgelsd path and its minimum-norm answer
-: solve-qr ( design target -- beta|null )
-	| design target |
-
-	design dim to columns to rows
-	design copy to a
-	target copy to b
-
-	101 78 rows columns 1 \ row-major, trans 'N', one right-hand side
-	a matrix>pointer columns
-	b matrix>pointer 1
-	(dgels) to info
-	info if null exit then
-
-	b 0 columns 0 1 submatrix ; internal
-
-\ L2-regularized logistic by IRLS: lambda multiplies ||beta||^2/2 in the objective, column 0 (the intercept) is unpenalized, no Firth term; lambda 0 is the plain MLE. The penalty enters each weighted least-squares step as sqrt(lambda)*I rows appended to the design, which solve-qr solves; the normal equations are not used, since squaring the design costs about half the digits and floors the beta step near 1e-6 at small lambda, above the 1e-8 tolerance callers ask for
+\ L2-regularized logistic by IRLS: lambda multiplies ||beta||^2/2 in the objective, column 0 (the intercept) is unpenalized, no Firth term; lambda 0 is the plain MLE. The penalty enters each weighted least-squares step as sqrt(lambda)*I rows appended to the design, which fit-linear solves; the normal equations are not used, since squaring the design costs about half the digits and floors the beta step near 1e-6 at small lambda, above the 1e-8 tolerance callers ask for
 : fit-logistic-ridge ( X y max-iterations tolerance lambda -- beta )
 	| x y max-iterations tolerance lambda |
 
@@ -632,8 +610,7 @@ drop
 		eta y mu - w / + to z
 		sqrt-w x * penalty vstack to design
 		sqrt-w z * zeros vstack to target
-		design target solve-qr to new-beta
-		new-beta null? if design target fit-linear to new-beta then
+		design target fit-linear to new-beta
 		new-beta beta - sq sum sqrt to delta
 		new-beta to beta
 
@@ -647,17 +624,15 @@ drop
 	then
 	beta ;
 
-\ L2-regularized least squares: lambda multiplies ||beta||^2, column 0 (the intercept) is unpenalized, lambda 0 is ordinary least squares. The penalty enters as sqrt(lambda)*I rows appended to the design and zeros to the response, solved by solve-qr (fit-linear when the design is rank-deficient), as in fit-logistic-ridge; the columns are penalized as given, so callers standardize them first
+\ L2-regularized least squares: lambda multiplies ||beta||^2, column 0 (the intercept) is unpenalized, lambda 0 is ordinary least squares. The penalty enters as sqrt(lambda)*I rows appended to the design and zeros to the response, solved by fit-linear, as in fit-logistic-ridge; the columns are penalized as given, so callers standardize them first
 : fit-linear-ridge ( X y lambda -- beta )
 	| x y lambda |
 
 	x n-columns to n-coefficients
 	lambda sqrt n-coefficients diagonal-matrix 0 0 0 !i,j to penalty
-	x penalty vstack to design
-	y n-coefficients 1 0-matrix vstack to target
-	design target solve-qr to beta
-	beta null? if design target fit-linear to beta then
-	beta ;
+	x penalty vstack
+	y n-coefficients 1 0-matrix vstack
+	fit-linear ;
 
 \ logistic fit of an [X | y] block, standard convergence
 : fit-augmented-logistic ( augmented -- beta ) 1 split-trailing 100 1e-8 fit-logistic ;

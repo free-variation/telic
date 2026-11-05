@@ -435,6 +435,13 @@ semantics of record.
 The C sources carry no comments; constraints a future change must honor
 live here instead. File and function name each invariant's home.
 
+- lib/statistics.telic solves least squares with `dgelsd` (`fit-linear`),
+  never `dgels`: Accelerate's `DGELS` writes past a heap buffer of its own
+  inside `DGEQRF` for some shapes (a 1377×1025 system crashed on every run, a
+  1100×1025 and a 1377×700 one crashed, 2000×1025 ran), so the ridge fits
+  pad the design and call `fit-linear` (`fit-linear-ridge`,
+  `fit-logistic-ridge`).
+
 - The audio device thread never takes a lock, allocates, frees, or reads a
   telic value. The interpreter reaches it only through a single-producer
   single-consumer ring of `SynthCommand`s, whose `play-samples` buffers are
