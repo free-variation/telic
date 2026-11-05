@@ -155,13 +155,13 @@ variable server
 ) test
 
 "a request without the required _meta is invalid params" (
-  "{""jsonrpc"":""2.0"",""id"":""v2"",""method"":""ping"",""params"":{}}" send-line
+  "{""jsonrpc"":""2.0"",""id"":""v2"",""method"":""tools/list"",""params"":{}}" send-line
   next-answer /error/code @ -32602 expect=
 ) test
 
-"initialize is refused with a message naming the revision" (
-  "{""jsonrpc"":""2.0"",""id"":""v3"",""method"":""initialize"",""params"":{}}" send-line
-  next-answer /error/message @ "2026-07-28" has? expect
+"a ping without _meta is answered, as a legacy client sends before initialize" (
+  "{""jsonrpc"":""2.0"",""id"":""v4"",""method"":""ping""}" send-line
+  next-answer /result @ frame? expect
 ) test
 
 "a malformed line answers a parse error" (
@@ -259,6 +259,44 @@ start-host-server to server
 "the built-in tools still work beside it" (
   "g3" "telic-eval" { :session "h" :code "6 7 * . cr" } send-call
   next-answer answer-text "42 " expect=
+) test
+
+server end-process
+
+\ === a legacy-era client ===
+
+"""mcp"" load-library mcp-serve" start-server to server
+
+"initialize answers the legacy handshake at the client's revision" (
+  "{""jsonrpc"":""2.0"",""id"":""i1"",""method"":""initialize"",""params"":{""protocolVersion"":""2025-06-18"",""capabilities"":{},""clientInfo"":{""name"":""t"",""version"":""0""}}}" send-line
+  next-answer to answer
+  answer /result/protocolVersion @ "2025-06-18" expect=
+  answer /result/capabilities/tools @ frame? expect
+  answer /result/serverInfo/name @ "telic" expect=
+  answer /result/resultType has? not expect
+) test
+
+"after initialize, requests without _meta are served" (
+  "{""jsonrpc"":""2.0"",""method"":""notifications/initialized""}" send-line
+  "{""jsonrpc"":""2.0"",""id"":""i2"",""method"":""tools/list""}" send-line
+  next-answer /result/tools @ 0 @i :name @ "telic-eval" expect=
+  "{""jsonrpc"":""2.0"",""id"":""i3"",""method"":""tools/call"",""params"":{""name"":""telic-eval"",""arguments"":{""session"":""l"",""code"":""6 7 * . cr""}}}" send-line
+  next-answer to answer
+  answer answer-text "42 " expect=
+  answer /result/resultType has? not expect
+  answer /result/_meta has? not expect
+) test
+
+"a legacy client's ping is answered and an unknown method is not found" (
+  "{""jsonrpc"":""2.0"",""id"":""i5"",""method"":""ping""}" send-line
+  next-answer /result @ frame? expect
+  "{""jsonrpc"":""2.0"",""id"":""i6"",""method"":""server/discover""}" send-line
+  next-answer /error/code @ -32601 expect=
+) test
+
+"an unknown legacy revision is answered with the newest legacy one" (
+  "{""jsonrpc"":""2.0"",""id"":""i4"",""method"":""initialize"",""params"":{""protocolVersion"":""1999-01-01""}}" send-line
+  next-answer /result/protocolVersion @ "2025-11-25" expect=
 ) test
 
 server end-process

@@ -1,7 +1,10 @@
 \ An MCP server over stdio: newline-delimited JSON-RPC on stdin and stdout,
 \ protocol revision 2026-07-28. stdout carries protocol messages only.
-\ Modern-era only: every request declares its version in params._meta, there is
-\ no initialize handshake, and server/discover reports what this server speaks.
+\ Modern era: every request declares its version in params._meta, there is no
+\ initialize handshake, and server/discover reports what this server speaks.
+\ Legacy era, for clients that open with initialize (revisions 2024-11-05 to
+\ 2025-11-25): initialize answers the handshake, and from then on requests carry
+\ no _meta and results carry no resultType or _meta.
 \
 \ A session is a live interpreter in a child process, addressed by the session
 \ string every call carries. Calls on one session see each other's definitions
@@ -11,6 +14,8 @@
 \ completion order, which JSON-RPC allows since each carries its request id.
 
 "2026-07-28" to mcp-protocol-version
+[ "2025-11-25" "2025-06-18" "2025-03-26" "2024-11-05" ] to mcp-legacy-versions
+false to mcp-legacy
 
 [ ] to mcp-tool-registry
 
@@ -44,7 +49,7 @@
   | id result |
   { :jsonrpc "2.0"
 	:id id
-	:result { :resultType "complete" :_meta mcp-server-meta } result merge
+	:result mcp-legacy if result else { :resultType "complete" :_meta mcp-server-meta } result merge then
   } mcp-send ; internal
 
 \ an error response
@@ -389,7 +394,20 @@
 	   :instructions mcp-instructions
 	 } mcp-answer ; internal
 
-\ dispatch one request; a notification, having no :id, is answered with nothing
+\ the legacy handshake: the client's revision when it is a legacy one, else the
+\ newest legacy one; every later request on this connection is legacy-era
+: mcp-initialize ( id params -- )
+  | id params ^mcp-legacy |
+  params :protocolVersion "" @or to requested
+  mcp-legacy-versions requested in? if requested else mcp-legacy-versions first then to version
+  true to mcp-legacy
+  id { :protocolVersion version
+	   :capabilities { :tools { } }
+	   :serverInfo { :name "telic" :version telic-version }
+	   :instructions mcp-instructions
+	 } mcp-answer ; internal
+
+\ dispatch one request; a notification, having no :id, is answered with nothing, and a ping without _meta, which a legacy client may send before initialize, is answered in either era
 : mcp-handle ( request -- )
   | request |
   request :method @ to method
@@ -397,10 +415,13 @@
   request :id @ to id
   request :params { } @or to params
 
-  method "initialize" = if
-	id -32601 "initialize is not implemented; this server speaks MCP "
-	mcp-protocol-version + ", which declares the version per request in params._meta"
-	+ mcp-fail exit
+  method "initialize" = if id params mcp-initialize exit then
+  method "ping" = params :_meta has? not and if id { } mcp-answer exit then
+
+  mcp-legacy if
+	method "tools/list" = if id { :tools mcp-tool-definitions } mcp-answer exit then
+	method "tools/call" = if id params mcp-call-tool exit then
+	id -32601 "method not found: " method + mcp-fail exit
   then
 
   params mcp-meta-complete? not if

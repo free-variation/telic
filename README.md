@@ -513,9 +513,10 @@ blobs.
 ### MCP server
 
 `lib/mcp.telic` serves the Model Context Protocol over stdio — `telic -e '"mcp"
-load-library mcp-serve'` — at revision 2026-07-28. Two tools: `telic-eval` runs
-source in a named session, a child interpreter that keeps its definitions, data,
-database handles and fitted models between calls, and `telic-help` answers a
+load-library mcp-serve'` — at revision 2026-07-28, and at revisions 2024-11-05
+to 2025-11-25 for a client that opens with `initialize`. Two tools: `telic-eval`
+runs source in a named session, a child interpreter that keeps its definitions,
+data, database handles and fitted models between calls, and `telic-help` answers a
 word's reference entry. Sessions compute concurrently. For remote access, put
 the stdio server behind a stdio-to-Streamable-HTTP gateway such as mcp-proxy.
 

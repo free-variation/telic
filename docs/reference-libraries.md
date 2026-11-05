@@ -1458,12 +1458,15 @@ ollama-version . cr
 
 ## MCP server (lib/mcp.telic)
 
-An MCP server over stdio, protocol revision 2026-07-28, modern era only: every
-request declares its version in `params._meta` under
-`io.modelcontextprotocol/protocolVersion`, there is no `initialize` handshake,
-and `server/discover` reports the versions, capabilities and identity of the
-server. Two tools are exposed. `telic-eval` takes `code` and a `session` name
-and answers what the code printed; a session is a child interpreter that keeps
+An MCP server over stdio, protocol revision 2026-07-28: every request declares
+its version in `params._meta` under `io.modelcontextprotocol/protocolVersion`,
+there is no `initialize` handshake, and `server/discover` reports the versions,
+capabilities and identity of the server. A client that opens with `initialize`
+(revisions 2024-11-05 to 2025-11-25) gets the legacy handshake instead, at its
+own revision or else 2025-11-25; from then on its requests need no `_meta` and
+results carry no `resultType` or `_meta`. A `ping` without `_meta` is answered
+in either era. Two tools are exposed. `telic-eval` takes `code` and a `session`
+name and answers what the code printed; a session is a child interpreter that keeps
 its definitions, loaded data, database handles and fitted models between calls,
 so a table is read once and queried in later calls. `telic-help` takes a `word`
 and answers that word's reference entry, needing no session. An error in

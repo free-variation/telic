@@ -184,10 +184,6 @@ interpreters, and a poll loop over stdin and every busy child.
 - Structured results — a tool may declare `outputSchema` and answer
   `structuredContent` beside its text block, which suits a tool answering a
   dataset or a fit rather than printed output.
-- Legacy clients — a client that opens with `initialize` is refused. Serving
-  both eras means answering `initialize` with the negotiated older revision and
-  keeping per-request `_meta` for modern ones; decide from what real clients
-  send, not in advance.
 - Writing back to a client that has stopped reading blocks the server: once the
   response pipe fills, `write` waits, and the loop stops polling children while
   it does. A client sending without reading can therefore stall the whole
