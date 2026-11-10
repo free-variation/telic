@@ -779,12 +779,12 @@ drop
 	  :version 3 }
 	frame>json ; internal
 
-\ run body ( dmatrix-cell -- … ) on the pointer cell holding an xgboost DMatrix built over X, NaN marking a missing value; the DMatrix and its cell are freed when the body returns or throws
+\ run body ( dmatrix-cell -- … ) on the pointer cell holding an xgboost DMatrix built over X, NaN marking a missing value; nthread 0 asks for xgboost's default thread count, and xgboost 1.5 requires the key; the DMatrix and its cell are freed when the body returns or throws
 : with-dmatrix ( X body -- … )
 	| X body |
 
 	pointer-cell to dmatrix-cell
-	( X array-interface "{""missing"": NaN}" dmatrix-cell (xgd-from-dense) xgb-check ) catch
+	( X array-interface "{""missing"": NaN, ""nthread"": 0}" dmatrix-cell (xgd-from-dense) xgb-check ) catch
 	if dmatrix-cell ffi-free throw then
 	( dmatrix-cell body execute ) ( dmatrix-cell pointer-deref (xgd-free) drop dmatrix-cell ffi-free ) ensure ; internal
 
