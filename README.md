@@ -31,10 +31,14 @@ Self-contained: its vendored dependencies — PCRE2 (regex), isocline (REPL line
 editing), SQLite (embedded SQL) with sqlite-vec (vector search), nanoarrow
 (Arrow IPC files), PocketFFT (Fourier transforms), Tigr (the graphics window),
 and miniaudio (audio device output) — live under `external/` and are built from
-source into the binary, so `make` needs only a C compiler and the system
-`libffi`. Refresh them with `make vendor-pcre2`, `make vendor-sqlite`, and
-`make vendor-isocline`, or `sh tools/vendor-<name>.sh` for sqlite-vec,
-nanoarrow, pocketfft, tigr and miniaudio (see each directory's `PROVENANCE`).
+source into the binary. On macOS `make` needs only clang and the system
+`libffi`. On Linux it needs clang or gcc 15 or later (an older gcc cannot
+compile the `musttail` dispatch) and the development packages for libffi, X11,
+OpenGL, GLU and OpenBLAS — on Ubuntu, `libffi-dev libx11-dev libgl-dev
+libglu1-mesa-dev libopenblas-dev`. Refresh the vendored sources with
+`make vendor-pcre2`, `make vendor-sqlite`, and `make vendor-isocline`, or
+`sh tools/vendor-<name>.sh` for sqlite-vec, nanoarrow, pocketfft, tigr and
+miniaudio (see each directory's `PROVENANCE`).
 
 `make` also builds `liblapacke_telic.so`, a thin shared library that wraps
 the platform BLAS/LAPACK (Accelerate on macOS, OpenBLAS on Linux) behind

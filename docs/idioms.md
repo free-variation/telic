@@ -58,21 +58,25 @@ through consumption to its destination — a `to name`, a store, a print, an
   ```
 
 - A long symbol array likewise, one key per line between `[` and `]`.
-- A definition is headed and paragraphed: the `( a b -- c ) \ summary` line
-  above the `:`, guard clauses first (ending in `exit`), blank lines between
-  the body's paragraphs — guard, work, result.
+- Code is split into paragraphs, one blank line between them: in a definition
+  the guard clauses (each ending in `exit`), the work, the result; in a script
+  or test file each group of sentences that serves one step.
+- A definition is headed: a `\ summary` line above the `:`, the stack effect
+  after the name on the `:` line — `: name ( a b -- c )`.
 - An analysis file carries section banners — `\ ---- title ----` — each
   section a sequence of checked sentences.
 - The head names what a word **receives**; its working values are declared
   where they are first assigned. A `to` on a free name makes a local, so the
   head shrinks to the inputs and a word that takes none writes no head at all.
-  The head goes on its own line under the `: name ( stack effect )` line, and
-  the body starts on the line after it. The opening bar is optional —
-  `| data n-bins |` and `data n-bins |` are the same head:
+  The head goes on its own line under the `: name ( stack effect )` line; in a
+  definition longer than one line a blank line follows the head, and the body
+  starts after it. The opening bar is optional — `| data n-bins |` and
+  `data n-bins |` are the same head:
 
   ```forth
   : histogram-table ( v n-bins -- table )
       | data n-bins |
+
       data as-column drop-nans to data
       data num-elements to n-values
       data min to low
@@ -98,6 +102,7 @@ through consumption to its destination — a `to name`, a store, a print, an
   variable tests-failed
   : record-failure ( reason -- )
       | reason ^tests-failed |
+
       reason . cr
       ++ tests-failed ;
   ```

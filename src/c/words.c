@@ -2,6 +2,15 @@
 #include "x11_colors.h"
 #include <complex.h>
 
+#ifndef CMPLX
+static inline double complex complex_from_doubles(double real, double imaginary) {
+	double complex value;
+	((double *)&value)[0] = real;
+	((double *)&value)[1] = imaginary;
+	return value;
+}
+#define CMPLX(real, imaginary) complex_from_doubles((real), (imaginary))
+#endif
 
 int string_concat(Interpreter *interp, int left_handle, int right_handle) {
 	Object *left = OBJECT_AT(left_handle);
